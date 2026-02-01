@@ -460,7 +460,7 @@ export const menuData: MenuSection[] = [
         name: 'Ravan Pithala',
         description: 'Extra spicy version of gram flour curry good with bhakar, curd, and chutney',
         priceAUD: 20.99,
-        priceINR: 1049,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -469,7 +469,7 @@ export const menuData: MenuSection[] = [
         name: 'Pithala (Yellow)',
         description: 'Thick gram flour curry — comforting and mildly spiced',
         priceAUD: 20.99,
-        priceINR: 1049,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -478,7 +478,7 @@ export const menuData: MenuSection[] = [
         name: 'Bharit (Saturdays)',
         description: 'Brinjal bharit is one of the most authentic recipes of Purnabramha',
         priceAUD: 23.99,
-        priceINR: 1199,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -487,7 +487,7 @@ export const menuData: MenuSection[] = [
         name: 'Dal Vanga',
         description: 'Brinjal prep with Tur dal and spices served with three fulkas',
         priceAUD: 23.99,
-        priceINR: 1199,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -496,7 +496,7 @@ export const menuData: MenuSection[] = [
         name: 'Mix Cauliflower Bhaji',
         description: 'Mix Vegetable just like homemade preparation',
         priceAUD: 23.99,
-        priceINR: 1199,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -505,7 +505,7 @@ export const menuData: MenuSection[] = [
         name: 'Chef Special Bhaji',
         description: 'The best of all, our chef special Bhaji served in three different spice levels',
         priceAUD: 23.99,
-        priceINR: 1199,
+        priceINR: 389,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -514,7 +514,7 @@ export const menuData: MenuSection[] = [
         name: 'Shev Bhaji',
         description: 'Crunchy chickpea noodles in a rich curry',
         priceAUD: 23.99,
-        priceINR: 1199,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -523,7 +523,7 @@ export const menuData: MenuSection[] = [
         name: 'Patodi Rassa',
         description: 'Gram flour rolls in spicy curry good with bhakar and chilli paste',
         priceAUD: 24.99,
-        priceINR: 1249,
+        priceINR: 399,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -532,7 +532,7 @@ export const menuData: MenuSection[] = [
         name: 'Maaswadi Rassa',
         description: 'Crispy chickpea noodles cooked in spicy curry — a Maharashtra favourite',
         priceAUD: 24.99,
-        priceINR: 1249,
+        priceINR: 399,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -541,7 +541,7 @@ export const menuData: MenuSection[] = [
         name: 'Patal Bhaji (Sundays)',
         description: 'Mixed greens curry made with chana dal and spinach or colocasia leaves',
         priceAUD: 23.99,
-        priceINR: 1199,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -550,7 +550,7 @@ export const menuData: MenuSection[] = [
         name: 'Mungwadi Rassa',
         description: 'Gram flour rolls filled with peanut and spice mixture in tangy red curry',
         priceAUD: 22.99,
-        priceINR: 1149,
+        priceINR: 389,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -559,7 +559,7 @@ export const menuData: MenuSection[] = [
         name: 'Bharli Vangi',
         description: 'Stuffed baby eggplants cooked in rich, spiced coconut gravy',
         priceAUD: 24.99,
-        priceINR: 1249,
+        priceINR: 349,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -568,7 +568,7 @@ export const menuData: MenuSection[] = [
         name: 'Zhunka',
         description: 'Spiced chickpea flour stir-fry with onions — a traditional rustic dish',
         priceAUD: 20.99,
-        priceINR: 1049,
+        priceINR: 289,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -577,7 +577,7 @@ export const menuData: MenuSection[] = [
         name: 'Kaju Curry',
         description: 'Cashew and dry fruit curry in creamy, mildly sweet sauce',
         priceAUD: 26.99,
-        priceINR: 1349,
+        priceINR: 479,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -586,7 +586,7 @@ export const menuData: MenuSection[] = [
         name: 'Akkha Masur',
         description: 'Whole red lentils simmered in black masala gravy — earthy and spicy',
         priceAUD: 22.99,
-        priceINR: 1149,
+        priceINR: 379,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -595,7 +595,7 @@ export const menuData: MenuSection[] = [
         name: 'Kadhi Gole',
         description: 'Soothing gram flour balls dipped & cooked in Kadhi. A Non Spicy preparation',
         priceAUD: 20.99,
-        priceINR: 1049,
+        priceINR: 249,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -604,7 +604,7 @@ export const menuData: MenuSection[] = [
         name: 'Dry / Jeera Aloo',
         description: 'Potatoes tossed in cumin seeds and mild spices — a simple comfort dish',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'main_course',
         section: 'Bhaji'
       },
@@ -613,7 +613,7 @@ export const menuData: MenuSection[] = [
         name: 'Matki Usal / Barbati Usal',
         description: 'Sprouted lentils cooked in spicy onion-tomato sauce, garnished with coriander',
         priceAUD: 20.99,
-        priceINR: 1049,
+        priceINR: 299,
         category: 'main_course',
         section: 'Bhaji'
       }
