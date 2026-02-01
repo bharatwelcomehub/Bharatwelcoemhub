@@ -50,6 +50,7 @@ class WishGeneratorRequest(BaseModel):
 class WishGeneratorResponse(BaseModel):
     wish_text: str
     wish_marathi: str
+    wish_image_url: Optional[str] = None
 
 class GuestResponseRequest(BaseModel):
     guest_message: str
