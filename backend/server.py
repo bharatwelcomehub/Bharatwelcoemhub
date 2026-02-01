@@ -158,20 +158,28 @@ Make it warm and traditional."""
 @api_router.post("/ai/guest-response", response_model=GuestResponseResponse)
 async def guest_response(request: GuestResponseRequest):
     try:
+        from datetime import datetime
+        current_date = datetime.now().strftime("%B %d, %Y")
+        current_day = datetime.now().strftime("%A")
+        
         chat = LlmChat(
             api_key=LLM_API_KEY,
             session_id=f"guest-resp-{uuid.uuid4()}",
-            system_message="You are a customer service assistant for Purnabramha restaurant. Respond professionally, warmly, and include appropriate emoticons/emojis to make the response friendly."
+            system_message=f"You are a customer service assistant for Purnabramha restaurant. Today is {current_day}, {current_date}. Respond professionally, warmly, and include appropriate emoticons/emojis to make the response friendly. IMPORTANT: If guest asks for past dates (yesterday, last week, etc.), politely inform that bookings are only for future dates."
         ).with_model("openai", "gpt-5.2")
         
         prompt = f"""Guest message: {request.guest_message}
 
+Current Date: {current_day}, {current_date}
+
 Respond as Purnabramha {request.center} staff. Address:
-- Booking inquiries (use 📅 🍽️)
+- Booking inquiries (use 📅 🍽️) - Check if date is in the past and inform accordingly
 - Menu questions (use 🍛 🥘)
 - Operating hours (use ⏰ 🕐)
 - General info (use ℹ️ 👋)
 - Greetings (use 🙏 😊)
+
+If guest mentions yesterday, past dates, or any date before today, politely say: "Sorry, we can only accept bookings for future dates 📅. Would you like to book for tomorrow or any upcoming date? 😊"
 
 Keep it concise (2-3 sentences). Be warm, helpful and include relevant emoticons."""
         
