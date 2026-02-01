@@ -115,6 +115,7 @@ Suggest a balanced thali from the menu that suits their body needs. List 8-10 sp
 @api_router.post("/ai/wish-generator", response_model=WishGeneratorResponse)
 async def wish_generator(request: WishGeneratorRequest):
     try:
+        # Generate text wish
         chat = LlmChat(
             api_key=LLM_API_KEY,
             session_id=f"wish-gen-{uuid.uuid4()}",
@@ -142,9 +143,29 @@ Make it warm and traditional."""
         english = parts[0] if len(parts) > 0 else response
         marathi = parts[1] if len(parts) > 1 else "शुभेच्छा!"
         
+        # Generate image using OpenAI Image generation
+        from emergentintegrations.llm.image import LlmImage, ImageSize, ImageQuality
+        
+        image_prompt = f"""Create a beautiful greeting card image for {request.event_type}. 
+Include: Traditional Maharashtrian elements, decorative borders, festive colors (maroon and gold), 
+elegant typography space for text. Style: Premium, traditional Indian celebration card with 
+Purnabramha branding feel. NO TEXT in image."""
+        
+        try:
+            image_gen = LlmImage(api_key=LLM_API_KEY).with_model("openai", "gpt-image-1")
+            image_url = await image_gen.generate_image(
+                prompt=image_prompt,
+                size=ImageSize.SQUARE_1024,
+                quality=ImageQuality.STANDARD
+            )
+        except Exception as img_error:
+            logger.warning(f"Image generation failed: {str(img_error)}")
+            image_url = None
+        
         return WishGeneratorResponse(
             wish_text=english.strip(),
-            wish_marathi=marathi.strip()
+            wish_marathi=marathi.strip(),
+            wish_image_url=image_url
         )
     except Exception as e:
         logger.error(f"Wish generator error: {str(e)}")
