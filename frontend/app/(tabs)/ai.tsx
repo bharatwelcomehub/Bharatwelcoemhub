@@ -760,11 +760,3 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 });
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Alert,
