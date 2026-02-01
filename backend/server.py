@@ -162,24 +162,54 @@ async def guest_response(request: GuestResponseRequest):
         current_date = datetime.now().strftime("%B %d, %Y")
         current_day = datetime.now().strftime("%A")
         
+        # All Purnabramha Centers Information
+        centers_info = """
+Purnabramha Centers:
+1. Perth, Australia 🇦🇺 - WhatsApp: +61 401 832 922
+2. HSR Bangalore, India 🇮🇳 - WhatsApp: +91 85500 78515
+3. Thane Mumbai, India 🇮🇳 - WhatsApp: +91 89047 49084
+4. Ch. Sambhajinagar, India 🇮🇳 - WhatsApp: +91 89710 49084
+5. Dombivli Mumbai, India 🇮🇳 - WhatsApp: +91 96064 55433
+6. Kharadi Pune, India 🇮🇳 - WhatsApp: +91 9900089803
+7. Hinjawadi Pune, India 🇮🇳 - WhatsApp: +91 9606455434
+
+All centers serve 100% Maharashtrian vegetarian cuisine.
+"""
+        
         chat = LlmChat(
             api_key=LLM_API_KEY,
             session_id=f"guest-resp-{uuid.uuid4()}",
-            system_message=f"You are a customer service assistant for Purnabramha restaurant. Today is {current_day}, {current_date}. Respond professionally, warmly, and include appropriate emoticons/emojis to make the response friendly. IMPORTANT: If guest asks for past dates (yesterday, last week, etc.), politely inform that bookings are only for future dates."
+            system_message=f"""You are a customer service assistant for Purnabramha restaurant chain. 
+Today is {current_day}, {current_date}. 
+Currently responding from: {request.center} center.
+
+IMPORTANT: Purnabramha has 7 centers (Perth in Australia + 6 in India). ALL are operational.
+{centers_info}
+
+When guest asks about ANY center location:
+- Confirm the center EXISTS
+- Provide the WhatsApp number for that specific center
+- Be helpful and accurate
+
+Respond professionally, warmly, and include appropriate emoticons/emojis."""
         ).with_model("openai", "gpt-5.2")
         
         prompt = f"""Guest message: {request.guest_message}
 
 Current Date: {current_day}, {current_date}
+You are responding from: {request.center}
 
-Respond as Purnabramha {request.center} staff. Address:
-- Booking inquiries (use 📅 🍽️) - Check if date is in the past and inform accordingly
+Guidelines:
+- Location inquiries: Share accurate info about all 7 centers with WhatsApp numbers 📍
+- Booking inquiries (use 📅 🍽️): Check if date is in the past and inform accordingly
 - Menu questions (use 🍛 🥘)
 - Operating hours (use ⏰ 🕐)
 - General info (use ℹ️ 👋)
 - Greetings (use 🙏 😊)
 
 If guest mentions yesterday, past dates, or any date before today, politely say: "Sorry, we can only accept bookings for future dates 📅. Would you like to book for tomorrow or any upcoming date? 😊"
+
+If guest asks about a specific center (Perth, HSR, Thane, etc.), confirm it exists and share the WhatsApp number.
 
 Keep it concise (2-3 sentences). Be warm, helpful and include relevant emoticons."""
         
