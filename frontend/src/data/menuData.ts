@@ -28,7 +28,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Shrikhanda Puri Bhaji',
         description: 'Sweet yoghurt dessert served with puris and spiced potato curry',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 219,
         category: 'balgopal',
         section: 'Heavy Brunch'
       },
@@ -37,7 +37,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Misal Pav',
         description: 'Spicy mixed lentil curry topped with farsan, served with soft bread rolls',
         priceAUD: 12.99,
-        priceINR: 649,
+        priceINR: 189,
         category: 'balgopal',
         section: 'Heavy Brunch'
       },
@@ -46,7 +46,7 @@ export const menuData: MenuSection[] = [
         name: 'BG MungDal Khichadi',
         description: 'Soft, comforting khichadi made with mung dal and rice',
         priceAUD: 8.99,
-        priceINR: 449,
+        priceINR: 199,
         category: 'balgopal',
         section: 'Heavy Brunch'
       },
@@ -55,7 +55,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Sabudana Khichadi',
         description: 'Sago pearls cooked with potatoes and peanuts - perfect for kids',
         priceAUD: 12.99,
-        priceINR: 649,
+        priceINR: 189,
         category: 'balgopal',
         section: 'Heavy Brunch'
       },
@@ -64,7 +64,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Aloocha Paratha',
         description: 'Soft flatbread stuffed with seasoned mashed potatoes',
         priceAUD: 7.99,
-        priceINR: 399,
+        priceINR: 189,
         category: 'balgopal',
         section: 'Heavy Brunch'
       },
@@ -73,7 +73,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Vada Pav',
         description: 'Spiced potato fritter in soft bun - kids favorite',
         priceAUD: 3.99,
-        priceINR: 199,
+        priceINR: 45,
         category: 'balgopal',
         section: 'Snacks'
       },
@@ -82,7 +82,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Sabudana Vada (4 pcs)',
         description: 'Crispy sago and potato patties',
         priceAUD: 12.99,
-        priceINR: 649,
+        priceINR: 199,
         category: 'balgopal',
         section: 'Snacks'
       },
@@ -91,7 +91,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Kanda Pohe',
         description: 'Flaked rice cooked with onions and mild spices',
         priceAUD: 7.99,
-        priceINR: 399,
+        priceINR: 129,
         category: 'balgopal',
         section: 'Snacks'
       },
@@ -100,7 +100,7 @@ export const menuData: MenuSection[] = [
         name: 'BG Tedamedha Aloo',
         description: 'Crispy fried potato snack for kids',
         priceAUD: 5.99,
-        priceINR: 299,
+        priceINR: 129,
         category: 'balgopal',
         section: 'Snacks'
       },
@@ -109,7 +109,7 @@ export const menuData: MenuSection[] = [
         name: 'Balgopal Thali',
         description: 'Complete kids meal with dal, rice, roti, sabji and sweet',
         priceAUD: 29.99,
-        priceINR: 1499,
+        priceINR: 399,
         category: 'balgopal',
         section: 'Lunch'
       },
@@ -118,7 +118,7 @@ export const menuData: MenuSection[] = [
         name: 'Balgopal Varan Fal',
         description: 'Small wheat dumplings in lentil curry - comfort food',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'balgopal',
         section: 'Lunch'
       },
@@ -127,7 +127,7 @@ export const menuData: MenuSection[] = [
         name: 'Balgopal Tup Varan Bhat',
         description: 'Rice with lentil curry and ghee',
         priceAUD: 9.99,
-        priceINR: 499,
+        priceINR: 149,
         category: 'balgopal',
         section: 'Lunch'
       },
@@ -136,7 +136,7 @@ export const menuData: MenuSection[] = [
         name: 'Balgopal Puranpoli',
         description: 'Sweet lentil-stuffed flatbread',
         priceAUD: 9.99,
-        priceINR: 499,
+        priceINR: 149,
         category: 'balgopal',
         section: 'Sweet'
       },
@@ -145,7 +145,7 @@ export const menuData: MenuSection[] = [
         name: 'Balgopal Shrikhanda',
         description: 'Creamy sweetened yogurt with saffron',
         priceAUD: 9.99,
-        priceINR: 499,
+        priceINR: 199,
         category: 'balgopal',
         section: 'Sweet'
       },
@@ -154,7 +154,7 @@ export const menuData: MenuSection[] = [
         name: 'Balgopal Khova Poli',
         description: 'Flatbread stuffed with sweet milk solids',
         priceAUD: 10.99,
-        priceINR: 549,
+        priceINR: 149,
         category: 'balgopal',
         section: 'Sweet'
       }
