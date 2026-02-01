@@ -697,7 +697,7 @@ export const menuData: MenuSection[] = [
         name: 'Steam Rice',
         description: 'Steamed rice cooked to perfection — a daily staple',
         priceAUD: 9.99,
-        priceINR: 499,
+        priceINR: 199,
         category: 'rice',
         section: 'Rice'
       },
@@ -706,7 +706,7 @@ export const menuData: MenuSection[] = [
         name: 'Dahi Bhat',
         description: 'Creamy yoghurt rice with tempered mustard seeds and curry leaves',
         priceAUD: 11.99,
-        priceINR: 599,
+        priceINR: 219,
         category: 'rice',
         section: 'Rice'
       },
@@ -715,7 +715,7 @@ export const menuData: MenuSection[] = [
         name: 'Kanda Rice',
         description: 'Rice cooked with onions, turmeric, and mild spices',
         priceAUD: 11.99,
-        priceINR: 599,
+        priceINR: 219,
         category: 'rice',
         section: 'Rice'
       },
@@ -724,7 +724,7 @@ export const menuData: MenuSection[] = [
         name: 'Tup Bhat',
         description: 'Chef special Rice tossed in Desi Ghee, Black Pepper, Cloves and Dry Fruits',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'rice',
         section: 'Rice'
       },
@@ -733,7 +733,7 @@ export const menuData: MenuSection[] = [
         name: 'Bhaji Bhat',
         description: 'Spiced rice cooked with green leafy vegetables — served with kadhi or tamarind sauce',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'rice',
         section: 'Rice'
       },
@@ -742,7 +742,7 @@ export const menuData: MenuSection[] = [
         name: 'Gola Bhat',
         description: 'Rice served with steamed gram flour dumplings in spicy sauce',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'rice',
         section: 'Rice'
       },
@@ -751,7 +751,7 @@ export const menuData: MenuSection[] = [
         name: 'Ravan Bhat',
         description: 'Spicy and tangy rice with a bold flavour kick',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'rice',
         section: 'Rice'
       },
@@ -760,7 +760,7 @@ export const menuData: MenuSection[] = [
         name: 'Masale Bhat',
         description: 'Spiced rice cooked with vegetables and traditional Maharashtrian masala',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 299,
         category: 'rice',
         section: 'Rice'
       },
@@ -769,7 +769,7 @@ export const menuData: MenuSection[] = [
         name: 'Tup Varan Bhat',
         description: 'Fragrant ghee rice with pepper, cloves, and dry fruits',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 249,
         category: 'rice',
         section: 'Rice'
       },
@@ -778,7 +778,7 @@ export const menuData: MenuSection[] = [
         name: 'Khajur Bhat',
         description: 'Our Chef\'s Creation. Rice flavored with Dates and House\'s Secret Spice Mixes',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'rice',
         section: 'Rice'
       },
@@ -787,7 +787,7 @@ export const menuData: MenuSection[] = [
         name: 'Rice Platter',
         description: 'A selection of assorted rice varieties served as a platter',
         priceAUD: 29.99,
-        priceINR: 1499,
+        priceINR: 399,
         category: 'rice',
         section: 'Rice'
       }
