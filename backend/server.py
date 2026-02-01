@@ -155,17 +155,19 @@ async def guest_response(request: GuestResponseRequest):
         chat = LlmChat(
             api_key=LLM_API_KEY,
             session_id=f"guest-resp-{uuid.uuid4()}",
-            system_message="You are a customer service assistant for Purnabramha restaurant. Respond professionally and warmly to customer inquiries."
+            system_message="You are a customer service assistant for Purnabramha restaurant. Respond professionally, warmly, and include appropriate emoticons/emojis to make the response friendly."
         ).with_model("openai", "gpt-5.2")
         
         prompt = f"""Guest message: {request.guest_message}
 
 Respond as Purnabramha {request.center} staff. Address:
-- Booking inquiries
-- Menu questions
-- Operating hours
-- General info
-Keep it concise (2-3 sentences). Be warm and helpful."""
+- Booking inquiries (use 📅 🍽️)
+- Menu questions (use 🍛 🥘)
+- Operating hours (use ⏰ 🕐)
+- General info (use ℹ️ 👋)
+- Greetings (use 🙏 😊)
+
+Keep it concise (2-3 sentences). Be warm, helpful and include relevant emoticons."""
         
         message = UserMessage(text=prompt)
         response = await chat.send_message(message)
