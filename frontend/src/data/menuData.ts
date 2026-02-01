@@ -355,7 +355,7 @@ export const menuData: MenuSection[] = [
         name: 'Thalipith (2 pc)',
         description: 'Multigrain savoury pancakes made with spiced flour mix, served with yoghurt or chutney',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -364,7 +364,7 @@ export const menuData: MenuSection[] = [
         name: 'Ghavan (3 pc)',
         description: 'Thin rice flour pan cake from the Konkan region of Maharashtra',
         priceAUD: 12.99,
-        priceINR: 649,
+        priceINR: 189,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -373,7 +373,7 @@ export const menuData: MenuSection[] = [
         name: 'Dhirde (3 pc)',
         description: 'Thin, soft pancakes made from wheat and gram flour, flavoured with garlic and curd',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -382,7 +382,7 @@ export const menuData: MenuSection[] = [
         name: 'Misal Pav',
         description: 'Spicy mixed lentil curry topped with farsan, served with soft bread rolls',
         priceAUD: 14.99,
-        priceINR: 749,
+        priceINR: 199,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -391,7 +391,7 @@ export const menuData: MenuSection[] = [
         name: 'Ukarpendi',
         description: 'Savoury wheat flour upma cooked with curd and onion — soft and filling',
         priceAUD: 9.99,
-        priceINR: 499,
+        priceINR: 149,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -400,7 +400,7 @@ export const menuData: MenuSection[] = [
         name: 'Shrikhanada Puri Bhaji',
         description: 'Sweet yoghurt dessert served with puris and spiced potato curry',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -409,7 +409,7 @@ export const menuData: MenuSection[] = [
         name: 'Aloocha Paratha (1 pc)',
         description: 'Soft flatbread stuffed with seasoned mashed potatoes — served with pickle and curd',
         priceAUD: 7.99,
-        priceINR: 399,
+        priceINR: 149,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -418,7 +418,7 @@ export const menuData: MenuSection[] = [
         name: 'Varan Fal',
         description: 'Small wheat dumplings cooked in rich yellow lentil curry, a comforting homestyle dish',
         priceAUD: 20.99,
-        priceINR: 1049,
+        priceINR: 299,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -427,7 +427,7 @@ export const menuData: MenuSection[] = [
         name: 'Puri Bhaji',
         description: 'Deep-fried bread served with dry spiced potato curry',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -436,7 +436,7 @@ export const menuData: MenuSection[] = [
         name: 'Shengole',
         description: 'Spicy gram and wheat flour rings cooked in curry, served hot',
         priceAUD: 20.99,
-        priceINR: 1049,
+        priceINR: 299,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       },
@@ -445,7 +445,7 @@ export const menuData: MenuSection[] = [
         name: 'Masala Varan Fal',
         description: 'Small wheat SPICY STUFFED dumplings cooked in rich yellow lentil curry',
         priceAUD: 22.99,
-        priceINR: 1149,
+        priceINR: 299,
         category: 'heavy_brunch',
         section: 'Heavy Brunch'
       }
