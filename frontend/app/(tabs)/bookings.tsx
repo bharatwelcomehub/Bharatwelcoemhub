@@ -15,6 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../../src/theme/colors';
 import { useAppStore } from '../../src/store/appStore';
 import { openWhatsApp, generateTableBookingMessage } from '../../src/utils/whatsapp';
+import { TiffinBooking } from '../../src/components/TiffinBooking';
 
 export default function BookingsScreen() {
   const { selectedCenter } = useAppStore();
