@@ -628,7 +628,7 @@ export const menuData: MenuSection[] = [
         name: 'Mataki Amti',
         description: 'Spicy sprouted lentil curry in tangy gravy — full of protein',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 249,
         category: 'dal',
         section: 'Dal'
       },
@@ -637,7 +637,7 @@ export const menuData: MenuSection[] = [
         name: 'Lasun Varan',
         description: 'Garlic-flavoured lentil curry with green chillies — aromatic and comforting',
         priceAUD: 14.99,
-        priceINR: 749,
+        priceINR: 249,
         category: 'dal',
         section: 'Dal'
       },
@@ -646,7 +646,7 @@ export const menuData: MenuSection[] = [
         name: 'Sadha Varan',
         description: 'Plain yellow lentil curry with mild tempering of garlic and green chilli',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'dal',
         section: 'Dal'
       },
@@ -655,7 +655,7 @@ export const menuData: MenuSection[] = [
         name: 'Takachi Kadhi',
         description: 'Tangy yoghurt-based curry thickened with gram flour — light and refreshing',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'dal',
         section: 'Dal'
       },
@@ -664,7 +664,7 @@ export const menuData: MenuSection[] = [
         name: 'Kataachi Amti',
         description: 'Spicy lentil soup made from chana dal with coconut and special masalas',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 249,
         category: 'dal',
         section: 'Dal'
       },
@@ -673,7 +673,7 @@ export const menuData: MenuSection[] = [
         name: 'Jeera Varan',
         description: 'Lentil curry with cumin seasoning — simple and fragrant',
         priceAUD: 14.99,
-        priceINR: 749,
+        priceINR: 249,
         category: 'dal',
         section: 'Dal'
       },
@@ -682,7 +682,7 @@ export const menuData: MenuSection[] = [
         name: 'Chef Special Dal / Fodanicha Varan',
         description: 'Tur dal tempered with garlic and spices — homestyle and mild',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 289,
         category: 'dal',
         section: 'Dal'
       }
