@@ -802,7 +802,7 @@ export const menuData: MenuSection[] = [
         name: 'Modak',
         description: 'Stuffing made of coconut & jaggery stuffed in rice flour dough and steamed',
         priceAUD: 18.99,
-        priceINR: 949,
+        priceINR: 249,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -811,7 +811,7 @@ export const menuData: MenuSection[] = [
         name: 'Shrikhanda',
         description: 'Indian sweetmeat made of hung Curd with perfectly blended sugar, cardamom & kesar',
         priceAUD: 14.99,
-        priceINR: 749,
+        priceINR: 199,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -820,7 +820,7 @@ export const menuData: MenuSection[] = [
         name: 'Shirvale',
         description: 'Traditional Marathi recipe from Konkan villages made of rice flour and coconut milk',
         priceAUD: 27.99,
-        priceINR: 1399,
+        priceINR: 389,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -829,7 +829,7 @@ export const menuData: MenuSection[] = [
         name: 'Puranpoli',
         description: 'Sweet lentil-stuffed flatbread - significance during Holi festival',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 119,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -838,7 +838,7 @@ export const menuData: MenuSection[] = [
         name: 'Khava Poli',
         description: 'Milk reduced to form Khava used for making variety of Indian sweets',
         priceAUD: 9.99,
-        priceINR: 499,
+        priceINR: 119,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -847,7 +847,7 @@ export const menuData: MenuSection[] = [
         name: 'Tilgul Poli',
         description: 'Made of sesame seeds & jaggery with flavour of cardamom & nutmeg',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 119,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -856,7 +856,7 @@ export const menuData: MenuSection[] = [
         name: 'Kharvas',
         description: 'The first Cow milk pie made in our own godhan shala in Pune',
         priceAUD: 29.99,
-        priceINR: 1499,
+        priceINR: 439,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -865,7 +865,7 @@ export const menuData: MenuSection[] = [
         name: 'Amrakhanda (Seasonal)',
         description: 'Hung Curd with sugar, cardamom, kesar and Mango flavor',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 199,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -874,7 +874,7 @@ export const menuData: MenuSection[] = [
         name: 'Sheera (Rava)',
         description: 'Simple preparation of Rava (semolina), sugar, khoya and milk',
         priceAUD: 14.99,
-        priceINR: 749,
+        priceINR: 199,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -883,7 +883,7 @@ export const menuData: MenuSection[] = [
         name: 'Basundi',
         description: 'Signature recipe of our Chef prepared from reduced milk flavoured with Cardamom',
         priceAUD: 14.99,
-        priceINR: 749,
+        priceINR: 199,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -892,7 +892,7 @@ export const menuData: MenuSection[] = [
         name: 'Shewaya Kheer',
         description: 'Thin layered spagetti shaped dough boiled in milk and served with dry fruits',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -901,7 +901,7 @@ export const menuData: MenuSection[] = [
         name: 'Aamras (Seasonal)',
         description: 'Sweet dessert made out of mangos',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 199,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -910,7 +910,7 @@ export const menuData: MenuSection[] = [
         name: 'Chirote (6 pcs)',
         description: 'Delicacy predominantly served in Maharashtra as well as Karnataka',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -919,7 +919,7 @@ export const menuData: MenuSection[] = [
         name: 'Mungdal Halwa',
         description: 'Mungdal halwa made with pure desi ghee and khoya',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 249,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -928,7 +928,7 @@ export const menuData: MenuSection[] = [
         name: 'Gulshela',
         description: 'Typical Nagpuri style Dessert made of milk, Yellow Pumkin, jaggery and sugar',
         priceAUD: 24.99,
-        priceINR: 1249,
+        priceINR: 349,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -937,7 +937,7 @@ export const menuData: MenuSection[] = [
         name: 'Gajar Halwa (Seasonal)',
         description: 'Combination of nuts, milk, sugar, khoya and ghee with grated carrot',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 219,
         category: 'desserts',
         section: 'Sweet'
       },
@@ -946,7 +946,7 @@ export const menuData: MenuSection[] = [
         name: 'Gulabjam (3 pcs)',
         description: 'Specially made with pure ingredients by our chefs',
         priceAUD: 14.99,
-        priceINR: 749,
+        priceINR: 149,
         category: 'desserts',
         section: 'Sweet'
       }
