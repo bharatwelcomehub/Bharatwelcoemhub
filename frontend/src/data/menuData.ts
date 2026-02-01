@@ -169,7 +169,7 @@ export const menuData: MenuSection[] = [
         name: 'Kanda Bhaji (20 pcs)',
         description: 'Crispy onion fritters served hot with tamarind chutney — a monsoon classic',
         priceAUD: 12.99,
-        priceINR: 649,
+        priceINR: 179,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -178,7 +178,7 @@ export const menuData: MenuSection[] = [
         name: 'Maaswadi (4 pcs)',
         description: 'Gram flour rolls filled with spicy coconut and peanut mix, served with curry',
         priceAUD: 19.99,
-        priceINR: 999,
+        priceINR: 279,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -187,7 +187,7 @@ export const menuData: MenuSection[] = [
         name: 'Sabudana Vada (4 pcs)',
         description: 'Traditional deep fried snack from Maharashtra',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -196,7 +196,7 @@ export const menuData: MenuSection[] = [
         name: 'Snacks Platter',
         description: 'Perfect for families who wish to explore variety of snacks together',
         priceAUD: 42.99,
-        priceINR: 2149,
+        priceINR: 599,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -205,7 +205,7 @@ export const menuData: MenuSection[] = [
         name: 'Batate Vada (4 pcs)',
         description: 'Classic potato fritters seasoned with spices and fried until golden brown',
         priceAUD: 15.99,
-        priceINR: 799,
+        priceINR: 219,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -214,7 +214,7 @@ export const menuData: MenuSection[] = [
         name: 'Kachori (6 pcs)',
         description: 'Deep-fried pastry pockets filled with spiced green peas — crunchy and flavourful',
         priceAUD: 16.99,
-        priceINR: 849,
+        priceINR: 239,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -223,7 +223,7 @@ export const menuData: MenuSection[] = [
         name: 'Vada Pav',
         description: 'Spiced potato fritter served in soft bun with tangy chutney and fried green chilli',
         priceAUD: 4.99,
-        priceINR: 249,
+        priceINR: 55,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -232,7 +232,7 @@ export const menuData: MenuSection[] = [
         name: 'Kanda Pohe',
         description: 'Flaked rice cooked with onions, peanuts, mustard seeds, curry leaves, and mild spices',
         priceAUD: 11.99,
-        priceINR: 599,
+        priceINR: 169,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -241,7 +241,7 @@ export const menuData: MenuSection[] = [
         name: 'Tarri Pohe',
         description: 'Flaked rice in spicy curry gravy',
         priceAUD: 13.99,
-        priceINR: 699,
+        priceINR: 199,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -250,7 +250,7 @@ export const menuData: MenuSection[] = [
         name: 'Dadpe Pohe',
         description: 'Flattened rice mixed with fresh coconut, yoghurt, and mild spices — refreshing cold snack',
         priceAUD: 11.99,
-        priceINR: 599,
+        priceINR: 169,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -259,7 +259,7 @@ export const menuData: MenuSection[] = [
         name: 'Alu Vadi (8 pcs)',
         description: 'Savory roll of taro leaves, spiced to perfection for a delectable Maharashtrian treat',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 239,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -268,7 +268,7 @@ export const menuData: MenuSection[] = [
         name: 'Pudachi Vadi (10 pcs)',
         description: 'Crispy gram flour rolls stuffed with coconut, coriander, and spices',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 239,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -277,7 +277,7 @@ export const menuData: MenuSection[] = [
         name: 'Kothimbir Vadi (10 pcs)',
         description: 'Coriander and gram flour cakes steamed, then lightly pan-fried for crunchy texture',
         priceAUD: 17.99,
-        priceINR: 899,
+        priceINR: 239,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -286,7 +286,7 @@ export const menuData: MenuSection[] = [
         name: 'Vada Sample',
         description: 'Potato fritters served with spicy curry, chopped onion, and crunchy sev',
         priceAUD: 10.99,
-        priceINR: 549,
+        priceINR: 149,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -295,7 +295,7 @@ export const menuData: MenuSection[] = [
         name: 'Bread Pakoda',
         description: 'Bread stuffed with spiced potato mash, dipped in gram flour batter, and fried golden',
         priceAUD: 8.99,
-        priceINR: 449,
+        priceINR: 129,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -304,7 +304,7 @@ export const menuData: MenuSection[] = [
         name: 'Masala Bread Pakoda',
         description: 'Spiced version of bread fritters stuffed with seasoned potato mix',
         priceAUD: 10.99,
-        priceINR: 549,
+        priceINR: 149,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -313,7 +313,7 @@ export const menuData: MenuSection[] = [
         name: 'Ukad',
         description: 'Fodanichi Ukad steamed, spiced, and sublime, a Maharashtrian snack',
         priceAUD: 10.99,
-        priceINR: 549,
+        priceINR: 169,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -322,7 +322,7 @@ export const menuData: MenuSection[] = [
         name: 'Kaccha Chiwada',
         description: 'Light poha snack mixed with onions, tomatoes, and fresh chillies',
         priceAUD: 8.99,
-        priceINR: 449,
+        priceINR: 119,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -331,7 +331,7 @@ export const menuData: MenuSection[] = [
         name: 'Papad Bowl',
         description: 'Seasonal papads in a symphony of crunch and zest',
         priceAUD: 9.99,
-        priceINR: 499,
+        priceINR: 119,
         category: 'snacks',
         section: 'Snacks'
       },
@@ -340,7 +340,7 @@ export const menuData: MenuSection[] = [
         name: 'Mataki Bhel',
         description: 'Sprouted lentil salad mixed with chutneys, spices, and crispy toppings',
         priceAUD: 8.99,
-        priceINR: 449,
+        priceINR: 119,
         category: 'snacks',
         section: 'Snacks'
       }
