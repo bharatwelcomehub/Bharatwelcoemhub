@@ -220,23 +220,7 @@ export default function BookingsScreen() {
               </Text>
             </View>
           ) : (
-            <View style={styles.comingSoon}>
-              <MaterialCommunityIcons
-                name="food-takeout-box"
-                size={80}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.comingSoonTitle}>Tiffin Service</Text>
-              <Text style={styles.comingSoonText}>
-                Weekly tiffin booking with customizable meal plans.
-              </Text>
-              <Text style={styles.comingSoonSubtext}>
-                Available for Perth (AUD pricing with special rules) and India centers (INR with GST).
-              </Text>
-              <TouchableOpacity style={styles.comingSoonButton}>
-                <Text style={styles.comingSoonButtonText}>Contact on WhatsApp</Text>
-              </TouchableOpacity>
-            </View>
+            <TiffinBooking />
           )}
         </ScrollView>
       </KeyboardAvoidingView>
