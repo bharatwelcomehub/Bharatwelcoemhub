@@ -63,27 +63,49 @@ class GuestResponseResponse(BaseModel):
 @api_router.post("/ai/bhojan-guru", response_model=BhojanGuruResponse)
 async def bhojan_guru(request: BhojanGuruRequest):
     try:
+        # Menu items to suggest from
+        menu_items = """
+        Snacks: Kanda Bhaji, Maaswadi, Sabudana Vada, Batate Vada, Kachori, Vada Pav, Kanda Pohe, Tarri Pohe, Dadpe Pohe, Alu Vadi, Kothimbir Vadi, Mataki Bhel
+        Heavy Brunch: Thalipith, Ghavan, Dhirde, Misal Pav, Puri Bhaji, Shrikhand Puri Bhaji, Varan Fal, Shengole
+        Main Course: Ravan Pithala, Pithala, Bharit, Dal Vanga, Mix Cauliflower Bhaji, Shev Bhaji, Patodi Rassa, Maaswadi Rassa, Bharli Vangi, Zhunka, Kaju Curry, Akkha Masur, Kadhi Gole, Jeera Aloo, Matki Usal
+        Dal: Mataki Amti, Lasun Varan, Sadha Varan, Takachi Kadhi, Kataachi Amti, Jeera Varan, Chef Special Dal
+        Rice: Steam Rice, Dahi Bhat, Kanda Rice, Tup Bhat, Bhaji Bhat, Gola Bhat, Ravan Bhat, Masale Bhat, Tup Varan Bhat, Khajur Bhat
+        Desserts: Modak, Shrikhanda, Shirvale, Puranpoli, Khava Poli, Tilgul Poli, Kharvas, Amrakhanda, Sheera, Basundi, Shewaya Kheer, Aamras, Chirote, Mungdal Halwa, Gulshela, Gajar Halwa, Gulabjam
+        Drinks: Simple Tea, Masala Tea, Ginger Tea, Black Tea, Coffee, Solkadhi, Piyush, Kokum, Buttermilk, Lime Juice
+        Kids Menu: BG Shrikhanda Puri Bhaji, BG Misal Pav, BG Khichadi, BG Sabudana Khichadi, BG Aloocha Paratha, BG Vada Pav, BG Puranpoli, BG Shrikhanda
+        """
+        
         chat = LlmChat(
             api_key=LLM_API_KEY,
             session_id=f"bhojan-guru-{uuid.uuid4()}",
-            system_message="You are Bhojan Guru, an expert in Maharashtrian cuisine. Recommend authentic dishes from Purnabramha restaurant menu based on user preferences."
+            system_message=f"You are Bhojan Guru, expert in Maharashtrian cuisine at Purnabramha. Recommend ONLY from this menu:\n{menu_items}"
         ).with_model("openai", "gpt-5.2")
         
         if request.mode == 'region':
-            prompt = f"Suggest a complete traditional Maharashtrian thali for {request.region} region. Include specific dishes from categories: Snacks, Main Course (Bhaji), Dal/Varan, Rice, Roti, Sweet, and Drinks. List 8-10 items."
+            prompt = f"Suggest a complete traditional Maharashtrian thali for {request.region} region. Use ONLY items from the menu provided. List 8-10 specific items."
         else:
-            prompt = f"Based on these body needs: {request.questions}, suggest a balanced Maharashtrian thali. Consider nutritional requirements and list 8-10 specific dishes."
+            # Body need mode with 6 questions
+            answers = request.questions or {}
+            prompt = f"""Based on these health/mood indicators:
+1. Energy Level: {answers.get('energy', 'Normal')}
+2. Appetite: {answers.get('appetite', 'Normal')}
+3. Digestive State: {answers.get('digestion', 'Good')}
+4. Mood: {answers.get('mood', 'Neutral')}
+5. Activity Level: {answers.get('activity', 'Moderate')}
+6. Special Needs: {answers.get('special', 'None')}
+
+Suggest a balanced thali from the menu that suits their body needs. List 8-10 specific items ONLY from the provided menu."""
         
         message = UserMessage(text=prompt)
         response = await chat.send_message(message)
         
         # Parse response
         lines = response.strip().split('\n')
-        recommendations = [line.strip('- •*').strip() for line in lines if line.strip()]
+        recommendations = [line.strip('- •*123456789.').strip() for line in lines if line.strip() and any(c.isalpha() for c in line)]
         
         return BhojanGuruResponse(
             recommendations=recommendations[:10],
-            explanation="Personalized thali recommendation based on your preferences"
+            explanation="Personalized thali recommendation from Purnabramha menu"
         )
     except Exception as e:
         logger.error(f"Bhojan Guru error: {str(e)}")
