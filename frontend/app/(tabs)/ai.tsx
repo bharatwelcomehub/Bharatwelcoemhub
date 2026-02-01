@@ -436,22 +436,12 @@ export default function AIScreen() {
                   <Text style={styles.resultTitle}>Generated Wish:</Text>
                   <Text style={styles.wishText}>{generatedWish}</Text>
                   
-                  {wishImageUrl && (
-                    <View style={styles.imageContainer}>
-                      <Image source={{ uri: wishImageUrl }} style={styles.wishImage} resizeMode="contain" />
-                      <TouchableOpacity style={styles.downloadButton} onPress={downloadWishImage}>
-                        <MaterialCommunityIcons name="download" size={18} color={colors.white} />
-                        <Text style={styles.downloadButtonText}>Download Image</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
                   <TouchableOpacity
                     style={styles.whatsappButton}
                     onPress={() => openWhatsApp(selectedCenter.whatsappNumber, generatedWish)}
                   >
                     <MaterialCommunityIcons name="whatsapp" size={18} color={colors.white} />
-                    <Text style={styles.whatsappButtonText}>Share</Text>
+                    <Text style={styles.whatsappButtonText}>Share via WhatsApp</Text>
                   </TouchableOpacity>
                 </View>
               )}
