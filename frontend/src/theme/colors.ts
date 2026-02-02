@@ -1,11 +1,11 @@
-// Purnabramha Brand Colors
+// Purnabramha Brand Colors - Dark Brown Theme
 export const colors = {
-  primary: '#8b0000',
-  primaryLight: '#a62020',
-  primaryDark: '#6b0000',
-  accent: '#c79b2f',
-  accentLight: '#d4af37',
-  accentDark: '#b38b1f',
+  primary: '#5d4037',        // Dark Brown (was maroon #8b0000)
+  primaryLight: '#795548',   // Medium Brown
+  primaryDark: '#3e2723',    // Very Dark Brown
+  accent: '#d4af37',         // Gold
+  accentLight: '#ffd54f',    // Light Gold
+  accentDark: '#b8860b',     // Dark Gold
   background: '#ffffff',
   backgroundLight: '#f5f5f5',
   surface: '#ffffff',
@@ -23,7 +23,7 @@ export const colors = {
 };
 
 export const gradients = {
-  primary: ['#8b0000', '#a62020'],
-  accent: ['#c79b2f', '#d4af37'],
+  primary: ['#5d4037', '#795548'],      // Dark to medium brown
+  accent: ['#d4af37', '#ffd54f'],       // Gold gradient
   background: ['#ffffff', '#f8f8f8']
 };
