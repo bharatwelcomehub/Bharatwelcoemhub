@@ -11,8 +11,8 @@ const paperTheme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
-    primary: '#8b0000',
-    secondary: '#c79b2f',
+    primary: '#5d4037',      // Dark Brown
+    secondary: '#d4af37',    // Gold
   },
 };
 
@@ -20,7 +20,7 @@ const navigationTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    primary: '#8b0000',
+    primary: '#5d4037',      // Dark Brown
     background: '#ffffff',
     card: '#ffffff',
     text: '#1a1a1a',
