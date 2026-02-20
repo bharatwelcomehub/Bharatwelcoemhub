@@ -18,8 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const Admin = () => {
-  const { user, token, login } = useAuth();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, token, login, logout } = useAuth();
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('menu');
@@ -65,6 +64,9 @@ const Admin = () => {
     description: '',
     category: 'reels'
   });
+
+  // Get fresh token from localStorage
+  const getToken = () => localStorage.getItem('token') || token;
 
   const categories = [
     'Balgopal (Kids)',
