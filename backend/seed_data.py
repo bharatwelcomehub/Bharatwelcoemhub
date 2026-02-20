@@ -16,72 +16,88 @@ locations = [
         "id": "loc-bangalore-hsr",
         "name": "HSR Layout",
         "city": "Bangalore",
+        "country": "India",
         "address": "HSR Layout, Bangalore, Karnataka",
         "phone": "+91 8550078515",
         "whatsapp": "+918550078515",
+        "google_review_link": "https://g.page/r/purnabramha-hsr/review",
         "is_active": True
     },
     {
         "id": "loc-pune-kharadi",
         "name": "Nyati Mall Kharadi",
         "city": "Pune",
+        "country": "India",
         "address": "Nyati Mall, Kharadi, Pune, Maharashtra",
         "phone": "+91 9900089803",
         "whatsapp": "+919900089803",
+        "google_review_link": "https://g.page/r/purnabramha-kharadi/review",
         "is_active": True
     },
     {
         "id": "loc-pune-hinjawadi",
         "name": "Hinjawadi",
         "city": "Pune",
+        "country": "India",
         "address": "Hinjawadi, Pune, Maharashtra",
         "phone": "+91 9606455434",
         "whatsapp": "+919606455434",
+        "google_review_link": "https://g.page/r/purnabramha-hinjawadi/review",
         "is_active": True
     },
     {
         "id": "loc-thane",
         "name": "Thane",
         "city": "Thane",
+        "country": "India",
         "address": "Thane, Maharashtra",
         "phone": "+91 8904749084",
         "whatsapp": "+918904749084",
+        "google_review_link": "https://g.page/r/purnabramha-thane/review",
         "is_active": True
     },
     {
         "id": "loc-dombivli",
         "name": "Dombivli",
         "city": "Dombivli",
+        "country": "India",
         "address": "Dombivli, Maharashtra",
         "phone": "+91 9606455433",
         "whatsapp": "+919606455433",
+        "google_review_link": "https://g.page/r/purnabramha-dombivli/review",
         "is_active": True
     },
     {
         "id": "loc-kalyan",
         "name": "Kalyan",
         "city": "Kalyan",
+        "country": "India",
         "address": "Kalyan, Maharashtra",
         "phone": "+91 8792887442",
         "whatsapp": "+918792887442",
+        "google_review_link": "https://g.page/r/purnabramha-kalyan/review",
         "is_active": True
     },
     {
         "id": "loc-sambhaji-nagar",
         "name": "Sambhaji Nagar",
         "city": "Sambhaji Nagar",
+        "country": "India",
         "address": "Sambhaji Nagar, Maharashtra",
         "phone": "+91 8971049084",
         "whatsapp": "+918971049084",
+        "google_review_link": "https://g.page/r/purnabramha-sambhajinagar/review",
         "is_active": True
     },
     {
         "id": "loc-perth",
         "name": "Perth",
         "city": "Perth",
+        "country": "Australia",
         "address": "Perth, Western Australia",
         "phone": "+61 401832922",
         "whatsapp": "+61401832922",
+        "google_review_link": "https://g.page/r/purnabramha-perth/review",
         "is_active": True
     }
 ]
