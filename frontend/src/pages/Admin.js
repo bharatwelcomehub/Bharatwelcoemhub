@@ -493,6 +493,10 @@ const Admin = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 bg-white border border-[hsl(30,30%,88%)]">
+            <TabsTrigger value="banner" className="flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Home Banner
+            </TabsTrigger>
             <TabsTrigger value="menu" className="flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4" />
               Menu ({menuItems.length})
@@ -506,6 +510,109 @@ const Admin = () => {
               Videos ({videos.length})
             </TabsTrigger>
           </TabsList>
+
+          {/* HOME BANNER TAB */}
+          <TabsContent value="banner">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="font-playfair text-xl font-semibold">Home Page Banner</h2>
+                <p className="text-sm text-foreground/60">Manage the hero image, title, and description shown on the homepage</p>
+              </div>
+              <Button
+                onClick={() => { resetHeroForm(); setHeroDialogOpen(true); }}
+                className="rounded-full bg-primary"
+                data-testid="add-banner-btn"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Banner
+              </Button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {heroImages.length === 0 ? (
+                <Card className="col-span-full border-dashed">
+                  <CardContent className="p-8 text-center">
+                    <ImageIcon className="h-12 w-12 mx-auto text-foreground/30 mb-4" />
+                    <p className="text-foreground/60 mb-4">No banners added yet. Add your first home banner!</p>
+                    <Button onClick={() => { resetHeroForm(); setHeroDialogOpen(true); }} className="bg-primary">
+                      <Plus className="mr-2 h-4 w-4" /> Add Banner
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                heroImages.map((hero) => (
+                  <Card key={hero.id} className={`border-[hsl(30,30%,88%)] overflow-hidden ${hero.is_active ? 'ring-2 ring-primary' : ''}`}>
+                    <div className="h-40 overflow-hidden relative">
+                      <img 
+                        src={hero.image_url} 
+                        alt={hero.title} 
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.src = 'https://via.placeholder.com/400x200?text=Image+Error'; }}
+                      />
+                      {hero.is_active && (
+                        <Badge className="absolute top-2 right-2 bg-primary">
+                          <Check className="h-3 w-3 mr-1" /> Active
+                        </Badge>
+                      )}
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-playfair text-lg font-semibold mb-1 line-clamp-1">{hero.title}</h3>
+                      <p className="text-sm text-foreground/60 line-clamp-2 mb-3">{hero.description}</p>
+                      <div className="flex gap-2">
+                        {!hero.is_active && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSetActiveHero(hero.id)}
+                            className="text-primary"
+                          >
+                            <Check className="h-4 w-4 mr-1" /> Set Active
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingHero(hero);
+                            setHeroForm({
+                              title: hero.title,
+                              description: hero.description || '',
+                              image_url: hero.image_url,
+                              is_active: hero.is_active
+                            });
+                            setHeroDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-500"
+                          onClick={() => handleDeleteHero(hero.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+
+            {/* Instructions */}
+            <Card className="mt-6 bg-[hsl(45,80%,95%)] border-[hsl(38,70%,45%)]/30">
+              <CardContent className="p-4">
+                <h4 className="font-semibold text-sm mb-2">How to change the home banner:</h4>
+                <ol className="text-sm text-foreground/70 space-y-1 list-decimal list-inside">
+                  <li>Click <strong>"Add Banner"</strong> to create a new banner</li>
+                  <li>Enter the title, description, and paste the image URL</li>
+                  <li>Click <strong>"Set Active"</strong> on any banner to show it on the homepage</li>
+                  <li>Only one banner can be active at a time</li>
+                </ol>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* MENU TAB */}
           <TabsContent value="menu">
