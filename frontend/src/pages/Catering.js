@@ -172,10 +172,16 @@ const Catering = () => {
     const pkg = packages.find(p => p.id === formData.package);
     
     // Build WhatsApp message
-    const message = `
-🍽️ *CATERING ENQUIRY* - Purnabramha
+    const menuText = Object.keys(menuSelections).map(category => {
+      const items = menuSelections[category];
+      if (items.length === 0) return '';
+      const label = category.charAt(0).toUpperCase() + category.slice(1);
+      return `${label}: ${items.join(', ')}`;
+    }).filter(Boolean).join('\n');
 
-📋 *Event Details:*
+    const message = `CATERING ENQUIRY - Purnabramha
+
+Event Details:
 Name: ${formData.name}
 Phone: ${formData.phone}
 Email: ${formData.email}
@@ -186,18 +192,13 @@ Guests: ${formData.guests}
 ${formData.celebrationType ? `Celebration: ${formData.celebrationType}` : ''}
 Delivery Required: ${formData.deliveryRequired}
 
-📍 *Location:* ${location?.name}, ${location?.city}
+Location: ${location?.name}, ${location?.city}
 
-📦 *Package Selected:* ${pkg.name}
-💰 *Total Cost:* ${getCurrency()}${calculateTotal()}
+Package Selected: ${pkg.name}
+Total Cost: ${getCurrency()}${calculateTotal()}
 
-🍴 *Menu Selections:*
-${Object.keys(menuSelections).map(category => {
-  const items = menuSelections[category];
-  if (items.length === 0) return '';
-  const label = category.charAt(0).toUpperCase() + category.slice(1);
-  return `${label}: ${items.join(', ')}`;
-}).filter(Boolean).join('\n')}
+Menu Selections:
+${menuText}
 
 Booking Date: ${new Date().toLocaleDateString()}
     `.trim();
