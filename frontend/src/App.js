@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CartProvider } from '@/contexts/CartContext';
 import Layout from '@/components/Layout';
+import AuthCallback from '@/components/AuthCallback';
 import Home from '@/pages/Home';
 import Menu from '@/pages/Menu';
 import Pickup from '@/pages/Pickup';
@@ -23,23 +24,31 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <CartProvider>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/menu" element={<Menu />} />
-              <Route path="/pickup" element={<Pickup />} />
-              <Route path="/table-booking" element={<TableBooking />} />
-              <Route path="/tiffin" element={<Tiffin />} />
-              <Route path="/catering" element={<Catering />} />
-              <Route path="/locations" element={<Locations />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/franchise" element={<Franchise />} />
-              <Route path="/videos" element={<Videos />} />
-              <Route path="/inspiration" element={<Inspiration />} />
-              <Route path="/about" element={<About />} />
-            </Routes>
-          </Layout>
+          <Routes>
+            {/* Auth callback route - without Layout */}
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            
+            {/* Main routes with Layout */}
+            <Route path="*" element={
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/menu" element={<Menu />} />
+                  <Route path="/pickup" element={<Pickup />} />
+                  <Route path="/table-booking" element={<TableBooking />} />
+                  <Route path="/tiffin" element={<Tiffin />} />
+                  <Route path="/catering" element={<Catering />} />
+                  <Route path="/locations" element={<Locations />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/franchise" element={<Franchise />} />
+                  <Route path="/videos" element={<Videos />} />
+                  <Route path="/inspiration" element={<Inspiration />} />
+                  <Route path="/about" element={<About />} />
+                </Routes>
+              </Layout>
+            } />
+          </Routes>
           <Toaster />
         </CartProvider>
       </AuthProvider>
