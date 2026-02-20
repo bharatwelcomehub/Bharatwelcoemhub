@@ -216,19 +216,19 @@ Booking Date: ${new Date().toLocaleDateString()}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <UtensilsCrossed className=\"h-16 w-16 mx-auto text-primary mb-4\" />
-          <h1 className=\"font-playfair text-4xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight\" data-testid=\"catering-title\">
+          <UtensilsCrossed className="h-16 w-16 mx-auto text-primary mb-4" />
+          <h1 className="font-playfair text-4xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight" data-testid=\"catering-title\">
             Catering Services
           </h1>
-          <p className=\"text-lg text-foreground/70 font-manrope max-w-2xl mx-auto\">
+          <p className="text-lg text-foreground/70 font-manrope max-w-2xl mx-auto">
             Make your special occasions memorable with authentic Maharashtrian catering
           </p>
         </motion.div>
 
         {/* Progress Steps */}
-        <div className=\"flex items-center justify-center mb-12\">
+        <div className="flex items-center justify-center mb-12">
           {[1, 2, 3].map((s) => (
-            <div key={s} className=\"flex items-center\">
+            <div key={s} className="flex items-center">
               <div className={`h-10 w-10 rounded-full flex items-center justify-center font-semibold ${
                 step >= s ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'
               }`}>
@@ -244,12 +244,12 @@ Booking Date: ${new Date().toLocaleDateString()}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className=\"max-w-2xl mx-auto\"
+            className="max-w-2xl mx-auto"
           >
             <Card>
-              <CardContent className=\"p-8\">
-                <h2 className=\"font-playfair text-2xl font-semibold mb-6\">Event Details</h2>
-                <div className=\"space-y-4\">
+              <CardContent className="p-8">
+                <h2 className="font-playfair text-2xl font-semibold mb-6">Event Details</h2>
+                <div className="space-y-4">
                   <div>
                     <Label>Select Location *</Label>
                     <Select value={formData.locationId} onValueChange={(value) => setFormData({ ...formData, locationId: value })}>
@@ -264,7 +264,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                     </Select>
                   </div>
 
-                  <div className=\"grid grid-cols-2 gap-4\">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Your Name *</Label>
                       <Input
@@ -303,7 +303,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                     />
                   </div>
 
-                  <div className=\"grid grid-cols-2 gap-4\">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Event Date *</Label>
                       <Input
@@ -352,7 +352,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                   <Button
                     onClick={() => setStep(2)}
                     disabled={!canProceed()}
-                    className=\"w-full rounded-full bg-primary text-lg py-6\"
+                    className="w-full rounded-full bg-primary text-lg py-6"
                   >
                     Next: Select Package →
                   </Button>
@@ -368,8 +368,8 @@ Booking Date: ${new Date().toLocaleDateString()}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <h2 className=\"font-playfair text-3xl font-semibold text-center mb-8\">Choose Your Package</h2>
-            <div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8\">
+            <h2 className="font-playfair text-3xl font-semibold text-center mb-8">Choose Your Package</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {packages.map((pkg) => (
                 <Card
                   key={pkg.id}
@@ -380,50 +380,50 @@ Booking Date: ${new Date().toLocaleDateString()}
                   } ${pkg.recommended ? 'ring-2 ring-primary/20' : ''}`}
                   onClick={() => setFormData({ ...formData, package: pkg.id })}
                 >
-                  <CardContent className=\"p-6\">
+                  <CardContent className="p-6">
                     {pkg.recommended && (
-                      <div className=\"bg-primary text-white text-xs font-bold px-2 py-1 rounded-full mb-2 inline-block\">
+                      <div className="bg-primary text-white text-xs font-bold px-2 py-1 rounded-full mb-2 inline-block">
                         Most Popular
                       </div>
                     )}
-                    <h3 className=\"font-playfair text-xl font-semibold mb-2\">{pkg.name}</h3>
-                    <p className=\"text-2xl font-bold text-primary mb-3\">{pkg.price}<span className=\"text-sm text-foreground/60\">/guest</span></p>
-                    <p className=\"text-sm text-foreground/70 font-manrope\">{pkg.desc}</p>
+                    <h3 className="font-playfair text-xl font-semibold mb-2">{pkg.name}</h3>
+                    <p className="text-2xl font-bold text-primary mb-3">{pkg.price}<span className="text-sm text-foreground/60">/guest</span></p>
+                    <p className="text-sm text-foreground/70 font-manrope">{pkg.desc}</p>
                   </CardContent>
                 </Card>
               ))}
             </div>
 
             {formData.package && (
-              <Card className=\"max-w-md mx-auto\">
-                <CardContent className=\"p-6\">
-                  <h3 className=\"font-playfair text-xl font-semibold mb-4\">Estimate</h3>
-                  <div className=\"space-y-2 text-foreground/70 font-manrope\">
-                    <div className=\"flex justify-between\">
+              <Card className="max-w-md mx-auto">
+                <CardContent className="p-6">
+                  <h3 className="font-playfair text-xl font-semibold mb-4">Estimate</h3>
+                  <div className="space-y-2 text-foreground/70 font-manrope">
+                    <div className="flex justify-between">
                       <span>Package:</span>
-                      <span className=\"font-semibold\">{packages.find(p => p.id === formData.package)?.name}</span>
+                      <span className="font-semibold">{packages.find(p => p.id === formData.package)?.name}</span>
                     </div>
-                    <div className=\"flex justify-between\">
+                    <div className="flex justify-between">
                       <span>Guests:</span>
-                      <span className=\"font-semibold\">{formData.guests}</span>
+                      <span className="font-semibold">{formData.guests}</span>
                     </div>
-                    <div className=\"border-t pt-2 flex justify-between text-lg\">
-                      <span className=\"font-semibold\">Total:</span>
-                      <span className=\"font-bold text-primary\">{getCurrency()}{calculateTotal()}</span>
+                    <div className="border-t pt-2 flex justify-between text-lg">
+                      <span className="font-semibold">Total:</span>
+                      <span className="font-bold text-primary">{getCurrency()}{calculateTotal()}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            <div className=\"flex justify-center gap-4 mt-8\">
-              <Button variant=\"outline\" onClick={() => setStep(1)} className=\"rounded-full\">
+            <div className="flex justify-center gap-4 mt-8">
+              <Button variant=\"outline\" onClick={() => setStep(1)} className="rounded-full">
                 ← Back
               </Button>
               <Button
                 onClick={() => setStep(3)}
                 disabled={!canProceed()}
-                className=\"rounded-full bg-primary\"
+                className="rounded-full bg-primary"
               >
                 Next: Select Menu →
               </Button>
@@ -437,9 +437,9 @@ Booking Date: ${new Date().toLocaleDateString()}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <h2 className=\"font-playfair text-3xl font-semibold text-center mb-8\">Customize Your Menu</h2>
+            <h2 className="font-playfair text-3xl font-semibold text-center mb-8">Customize Your Menu</h2>
             
-            <div className=\"space-y-6\">
+            <div className="space-y-6">
               {Object.keys(menuItems).map((category) => {
                 const status = getSelectionStatus(category);
                 const rules = packageRules[formData.package];
@@ -449,10 +449,10 @@ Booking Date: ${new Date().toLocaleDateString()}
 
                 return (
                   <Card key={category}>
-                    <CardContent className=\"p-6\">
-                      <div className=\"flex items-center justify-between mb-4\">
-                        <h3 className=\"font-playfair text-xl font-semibold capitalize\">{category}</h3>
-                        <div className=\"flex items-center gap-2\">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-playfair text-xl font-semibold capitalize">{category}</h3>
+                        <div className="flex items-center gap-2">
                           <span className={`text-sm font-manrope ${
                             status.type === 'complete' ? 'text-green-600' :
                             status.type === 'error' ? 'text-red-600' :
@@ -462,7 +462,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                           </span>
                         </div>
                       </div>
-                      <div className=\"grid grid-cols-2 md:grid-cols-3 gap-3\">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {menuItems[category].map((item) => {
                           const isSelected = menuSelections[category].includes(item);
                           return (
@@ -476,7 +476,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                                 checked={isSelected}
                                 onCheckedChange={() => handleMenuToggle(category, item)}
                               />
-                              <span className=\"text-sm font-manrope\">{item}</span>
+                              <span className="text-sm font-manrope">{item}</span>
                             </label>
                           );
                         })}
@@ -487,14 +487,14 @@ Booking Date: ${new Date().toLocaleDateString()}
               })}
             </div>
 
-            <div className=\"flex justify-center gap-4 mt-8\">
-              <Button variant=\"outline\" onClick={() => setStep(2)} className=\"rounded-full\">
+            <div className="flex justify-center gap-4 mt-8">
+              <Button variant=\"outline\" onClick={() => setStep(2)} className="rounded-full">
                 ← Back
               </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={!canProceed()}
-                className=\"rounded-full bg-primary px-8\"
+                className="rounded-full bg-primary px-8"
               >
                 Submit Enquiry via WhatsApp
               </Button>
