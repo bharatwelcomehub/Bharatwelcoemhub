@@ -314,7 +314,23 @@ async def delete_menu_item(item_id: str, current_user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Menu item not found")
     return {"message": "Menu item deleted successfully"}
 
-# HERO IMAGES
+# HERO IMAGES - Public endpoint
+@api_router.get("/hero-image")
+async def get_active_hero_image():
+    """Get the active hero image for the homepage"""
+    hero = await db.hero_images.find_one({"is_active": True}, {"_id": 0})
+    if hero:
+        return hero
+    # Return default if no hero image set
+    return {
+        "id": "default",
+        "title": "Authentic Maharashtrian Flavors",
+        "description": "Experience the richness of traditional recipes at India's largest Maharashtrian restaurant chain",
+        "image_url": "https://images.pexels.com/photos/30769679/pexels-photo-30769679.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "is_active": True
+    }
+
+# HERO IMAGES - Admin endpoints
 @api_router.get("/admin/hero-images", response_model=List[HeroImage])
 async def get_hero_images(current_user: dict = Depends(get_current_user)):
     images = await db.hero_images.find({}, {"_id": 0}).to_list(100)
@@ -322,12 +338,18 @@ async def get_hero_images(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/admin/hero-images", response_model=HeroImage)
 async def create_hero_image(image_data: dict, current_user: dict = Depends(get_current_user)):
+    # Deactivate other images if this one is active
+    if image_data.get("is_active", True):
+        await db.hero_images.update_many({}, {"$set": {"is_active": False}})
     hero = HeroImage(**image_data)
     await db.hero_images.insert_one(hero.model_dump())
     return hero
 
 @api_router.put("/admin/hero-images/{image_id}", response_model=HeroImage)
 async def update_hero_image(image_id: str, image_data: dict, current_user: dict = Depends(get_current_user)):
+    # Deactivate other images if this one is being set to active
+    if image_data.get("is_active", False):
+        await db.hero_images.update_many({"id": {"$ne": image_id}}, {"$set": {"is_active": False}})
     await db.hero_images.update_one({"id": image_id}, {"$set": image_data})
     updated = await db.hero_images.find_one({"id": image_id}, {"_id": 0})
     return HeroImage(**updated)
