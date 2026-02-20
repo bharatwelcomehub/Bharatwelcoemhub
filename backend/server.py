@@ -238,6 +238,56 @@ async def get_menu(category: Optional[str] = None):
     items = await db.menu_items.find(query, {"_id": 0}).to_list(1000)
     return [MenuItem(**item) for item in items]
 
+@api_router.get("/admin/menu", response_model=List[MenuItem])
+async def get_all_menu_items(current_user: dict = Depends(get_current_user)):
+    items = await db.menu_items.find({}, {"_id": 0}).to_list(1000)
+    return [MenuItem(**item) for item in items]
+
+@api_router.post("/admin/menu", response_model=MenuItem)
+async def create_menu_item(item_data: dict, current_user: dict = Depends(get_current_user)):
+    item = MenuItem(
+        id=str(uuid.uuid4()),
+        name=item_data['name'],
+        description=item_data['description'],
+        category=item_data['category'],
+        price=float(item_data.get('price_inr', 0)),
+        price_inr=float(item_data.get('price_inr', 0)),
+        price_aud=float(item_data.get('price_aud', 0)) if item_data.get('price_aud') else None,
+        image_url=item_data.get('image_url'),
+        is_veg=item_data.get('is_veg', True),
+        is_available=item_data.get('is_available', True)
+    )
+    
+    doc = item.model_dump()
+    await db.menu_items.insert_one(doc)
+    return item
+
+@api_router.put("/admin/menu/{item_id}", response_model=MenuItem)
+async def update_menu_item(item_id: str, item_data: dict, current_user: dict = Depends(get_current_user)):
+    update_data = {
+        "name": item_data['name'],
+        "description": item_data['description'],
+        "category": item_data['category'],
+        "price": float(item_data.get('price_inr', 0)),
+        "price_inr": float(item_data.get('price_inr', 0)),
+        "price_aud": float(item_data.get('price_aud', 0)) if item_data.get('price_aud') else None,
+        "image_url": item_data.get('image_url'),
+        "is_veg": item_data.get('is_veg', True),
+        "is_available": item_data.get('is_available', True)
+    }
+    
+    await db.menu_items.update_one({"id": item_id}, {"$set": update_data})
+    
+    updated_item = await db.menu_items.find_one({"id": item_id}, {"_id": 0})
+    return MenuItem(**updated_item)
+
+@api_router.delete("/admin/menu/{item_id}")
+async def delete_menu_item(item_id: str, current_user: dict = Depends(get_current_user)):
+    result = await db.menu_items.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    return {"message": "Menu item deleted successfully"}
+
 @api_router.post("/orders/pickup", response_model=PickupOrder)
 async def create_pickup_order(order_data: PickupOrderCreate, current_user: dict = Depends(get_current_user)):
     order = PickupOrder(
