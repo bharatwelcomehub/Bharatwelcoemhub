@@ -12,6 +12,10 @@ import Catering from '@/pages/Catering';
 import Locations from '@/pages/Locations';
 import Profile from '@/pages/Profile';
 import Admin from '@/pages/Admin';
+import Franchise from '@/pages/Franchise';
+import Videos from '@/pages/Videos';
+import Inspiration from '@/pages/Inspiration';
+import About from '@/pages/About';
 import '@/App.css';
 
 function App() {
@@ -30,6 +34,10 @@ function App() {
               <Route path="/locations" element={<Locations />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/franchise" element={<Franchise />} />
+              <Route path="/videos" element={<Videos />} />
+              <Route path="/inspiration" element={<Inspiration />} />
+              <Route path="/about" element={<About />} />
             </Routes>
           </Layout>
           <Toaster />
