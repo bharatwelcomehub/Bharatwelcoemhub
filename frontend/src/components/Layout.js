@@ -213,6 +213,7 @@ const Layout = ({ children }) => {
       </footer>
 
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
+      <InstallPrompt />
     </div>
   );
 };
