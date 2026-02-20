@@ -87,8 +87,8 @@ const Admin = () => {
   ];
 
   useEffect(() => {
-    if (token) {
-      setIsLoggedIn(true);
+    const currentToken = getToken();
+    if (currentToken) {
       fetchMenuItems();
       fetchLocations();
       fetchVideos();
@@ -100,11 +100,13 @@ const Admin = () => {
     setLoginLoading(true);
     try {
       await login(loginForm.email, loginForm.password);
-      setIsLoggedIn(true);
       toast.success('Logged in successfully');
-      fetchMenuItems();
-      fetchLocations();
-      fetchVideos();
+      // Fetch data after login
+      setTimeout(() => {
+        fetchMenuItems();
+        fetchLocations();
+        fetchVideos();
+      }, 100);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
     } finally {
@@ -113,23 +115,31 @@ const Admin = () => {
   };
 
   const fetchMenuItems = async () => {
+    const currentToken = getToken();
+    if (!currentToken) return;
     setLoading(true);
     try {
       const response = await axios.get(`${API}/admin/menu`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${currentToken}` }
       });
       setMenuItems(response.data);
     } catch (error) {
       console.error('Failed to fetch menu:', error);
+      if (error.response?.status === 401) {
+        logout();
+        toast.error('Session expired. Please login again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchLocations = async () => {
+    const currentToken = getToken();
+    if (!currentToken) return;
     try {
       const response = await axios.get(`${API}/admin/locations`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${currentToken}` }
       });
       setLocations(response.data);
     } catch (error) {
@@ -149,17 +159,57 @@ const Admin = () => {
   // Menu CRUD
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const currentToken = getToken();
+    if (!currentToken) {
+      toast.error('Please login again');
+      return;
+    }
+    
+    // Convert price fields to numbers
+    const submitData = {
+      ...formData,
+      price_inr: formData.price_inr ? parseFloat(formData.price_inr) : null,
+      price_aud: formData.price_aud ? parseFloat(formData.price_aud) : null
+    };
+    
     try {
       if (editingItem) {
         await axios.put(
           `${API}/admin/menu/${editingItem.id}`,
-          formData,
-          { headers: { Authorization: `Bearer ${token}` } }
+          submitData,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
         );
         toast.success('Menu item updated');
       } else {
         await axios.post(
           `${API}/admin/menu`,
+          submitData,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Menu item added');
+      }
+      setDialogOpen(false);
+      resetForm();
+      fetchMenuItems();
+    } catch (error) {
+      console.error('Operation failed:', error);
+      toast.error(error.response?.data?.detail || 'Operation failed');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this item?')) return;
+    const currentToken = getToken();
+    try {
+      await axios.delete(`${API}/admin/menu/${id}`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Menu item deleted');
+      fetchMenuItems();
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
+  };
           formData,
           { headers: { Authorization: `Bearer ${token}` } }
         );
