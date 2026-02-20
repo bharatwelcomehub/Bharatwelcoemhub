@@ -33,10 +33,12 @@ const Layout = ({ children }) => {
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-orange-900/10">
         <nav className="container mx-auto px-4 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <Link to="/" className="flex items-center" data-testid="logo-link">
-              <h1 className="text-2xl lg:text-3xl font-playfair font-bold text-primary tracking-tight">
-                Purnabramha
-              </h1>
+            <Link to="/" className="flex items-center gap-2" data-testid="logo-link">
+              <img 
+                src="/logo.png" 
+                alt="Purnabramha" 
+                className="h-12 w-auto object-contain"
+              />
             </Link>
 
             <div className="hidden lg:flex items-center gap-1 xl:gap-2">
