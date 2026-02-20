@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -65,25 +65,13 @@ const Admin = () => {
     category: 'reels'
   });
 
-  // Get fresh token from localStorage
+  // Get fresh token
   const getToken = () => localStorage.getItem('token') || token;
 
   const categories = [
-    'Balgopal (Kids)',
-    'Tea & Coffee',
-    'Drinks',
-    'Soup & Saar',
-    'Snacks',
-    'Fasting',
-    'Heavy Brunch',
-    'Bhakar Combo',
-    'Bhaji',
-    'Dal',
-    'Rice',
-    'Roti',
-    'Sweets',
-    'Special Thalis',
-    'Sides'
+    'Balgopal (Kids)', 'Tea & Coffee', 'Drinks', 'Soup & Saar', 'Snacks',
+    'Fasting', 'Heavy Brunch', 'Bhakar Combo', 'Bhaji', 'Dal',
+    'Rice', 'Roti', 'Sweets', 'Special Thalis', 'Sides'
   ];
 
   useEffect(() => {
@@ -101,7 +89,6 @@ const Admin = () => {
     try {
       await login(loginForm.email, loginForm.password);
       toast.success('Logged in successfully');
-      // Fetch data after login
       setTimeout(() => {
         fetchMenuItems();
         fetchLocations();
@@ -112,6 +99,14 @@ const Admin = () => {
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    setMenuItems([]);
+    setLocations([]);
+    setVideos([]);
+    toast.success('Logged out');
   };
 
   const fetchMenuItems = async () => {
@@ -165,11 +160,15 @@ const Admin = () => {
       return;
     }
     
-    // Convert price fields to numbers
     const submitData = {
-      ...formData,
+      name: formData.name,
+      description: formData.description,
+      category: formData.category,
       price_inr: formData.price_inr ? parseFloat(formData.price_inr) : null,
-      price_aud: formData.price_aud ? parseFloat(formData.price_aud) : null
+      price_aud: formData.price_aud ? parseFloat(formData.price_aud) : null,
+      image_url: formData.image_url || null,
+      is_veg: formData.is_veg,
+      is_available: formData.is_available
     };
     
     try {
@@ -179,14 +178,14 @@ const Admin = () => {
           submitData,
           { headers: { Authorization: `Bearer ${currentToken}` } }
         );
-        toast.success('Menu item updated');
+        toast.success('Menu item updated successfully!');
       } else {
         await axios.post(
           `${API}/admin/menu`,
           submitData,
           { headers: { Authorization: `Bearer ${currentToken}` } }
         );
-        toast.success('Menu item added');
+        toast.success('Menu item added successfully!');
       }
       setDialogOpen(false);
       resetForm();
@@ -198,36 +197,11 @@ const Admin = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this item?')) return;
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
     const currentToken = getToken();
     try {
       await axios.delete(`${API}/admin/menu/${id}`, {
         headers: { Authorization: `Bearer ${currentToken}` }
-      });
-      toast.success('Menu item deleted');
-      fetchMenuItems();
-    } catch (error) {
-      toast.error('Failed to delete');
-    }
-  };
-          formData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        toast.success('Menu item added');
-      }
-      setDialogOpen(false);
-      resetForm();
-      fetchMenuItems();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Operation failed');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this item?')) return;
-    try {
-      await axios.delete(`${API}/admin/menu/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Menu item deleted');
       fetchMenuItems();
@@ -254,33 +228,29 @@ const Admin = () => {
   const resetForm = () => {
     setEditingItem(null);
     setFormData({
-      name: '',
-      description: '',
-      category: '',
-      price_inr: '',
-      price_aud: '',
-      image_url: '',
-      is_veg: true,
-      is_available: true
+      name: '', description: '', category: '',
+      price_inr: '', price_aud: '', image_url: '',
+      is_veg: true, is_available: true
     });
   };
 
   // Location CRUD
   const handleLocationSubmit = async (e) => {
     e.preventDefault();
+    const currentToken = getToken();
     try {
       if (editingLocation) {
         await axios.put(
           `${API}/admin/locations/${editingLocation.id}`,
           locationForm,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${currentToken}` } }
         );
         toast.success('Location updated');
       } else {
         await axios.post(
           `${API}/admin/locations`,
           locationForm,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${currentToken}` } }
         );
         toast.success('Location added');
       }
@@ -295,25 +265,20 @@ const Admin = () => {
   const resetLocationForm = () => {
     setEditingLocation(null);
     setLocationForm({
-      name: '',
-      city: '',
-      country: 'India',
-      address: '',
-      phone: '',
-      whatsapp: '',
-      google_review_link: '',
-      is_active: true
+      name: '', city: '', country: 'India', address: '',
+      phone: '', whatsapp: '', google_review_link: '', is_active: true
     });
   };
 
   // Video CRUD
   const handleVideoSubmit = async (e) => {
     e.preventDefault();
+    const currentToken = getToken();
     try {
       await axios.post(
         `${API}/admin/videos`,
         { ...videoForm, is_active: true },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${currentToken}` } }
       );
       toast.success('Video added');
       setVideoDialogOpen(false);
@@ -326,9 +291,10 @@ const Admin = () => {
 
   const handleDeleteVideo = async (id) => {
     if (!window.confirm('Delete this video?')) return;
+    const currentToken = getToken();
     try {
       await axios.delete(`${API}/admin/videos/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${currentToken}` }
       });
       toast.success('Video deleted');
       fetchVideos();
@@ -337,16 +303,19 @@ const Admin = () => {
     }
   };
 
+  // Check if logged in
+  const isLoggedIn = !!getToken();
+
   // Login Screen
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-cream to-white flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-b from-[hsl(30,20%,97%)] to-white flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
-          <Card className="border-orange-900/10">
+          <Card className="border-[hsl(30,30%,88%)]">
             <CardHeader className="text-center">
               <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
                 <Lock className="h-8 w-8 text-primary" />
@@ -392,9 +361,9 @@ const Admin = () => {
                   {loginLoading ? 'Logging in...' : 'Login'}
                 </Button>
               </form>
-              <div className="mt-4 p-3 bg-orange-50 rounded-lg">
+              <div className="mt-4 p-3 bg-[hsl(45,80%,95%)] rounded-lg">
                 <p className="text-xs text-foreground/60 font-manrope">
-                  <strong>Demo Credentials:</strong><br />
+                  <strong>Admin Credentials:</strong><br />
                   Email: admin@purnabramha.com<br />
                   Password: admin123
                 </p>
@@ -407,23 +376,29 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cream to-white">
+    <div className="min-h-screen bg-gradient-to-b from-[hsl(30,20%,97%)] to-white">
       <div className="container mx-auto px-4 lg:px-8 py-8 lg:py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="mb-6 flex items-center justify-between"
         >
-          <h1 className="font-playfair text-3xl lg:text-4xl font-bold text-foreground mb-2">
-            Admin Dashboard
-          </h1>
-          <p className="text-foreground/70 font-manrope">
-            Manage your restaurant menu, locations, and content
-          </p>
+          <div>
+            <h1 className="font-playfair text-3xl lg:text-4xl font-bold text-foreground mb-2">
+              Admin Dashboard
+            </h1>
+            <p className="text-foreground/70 font-manrope">
+              Manage your restaurant menu, locations, and content
+            </p>
+          </div>
+          <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2">
+            <LogOut className="h-4 w-4" />
+            Logout
+          </Button>
         </motion.div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 bg-white border border-orange-900/10">
+          <TabsList className="mb-6 bg-white border border-[hsl(30,30%,88%)]">
             <TabsTrigger value="menu" className="flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4" />
               Menu ({menuItems.length})
@@ -452,7 +427,7 @@ const Admin = () => {
               </Button>
             </div>
 
-            <div className="bg-white rounded-xl border border-orange-900/10 overflow-hidden">
+            <div className="bg-white rounded-xl border border-[hsl(30,30%,88%)] overflow-hidden">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -498,7 +473,7 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+                              <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} data-testid={`edit-${item.id}`}>
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="text-red-500">
@@ -535,7 +510,7 @@ const Admin = () => {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {locations.map((loc) => (
-                <Card key={loc.id} className="border-orange-900/10">
+                <Card key={loc.id} className="border-[hsl(30,30%,88%)]">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center justify-between">
                       {loc.name}
@@ -582,7 +557,7 @@ const Admin = () => {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {videos.map((video) => (
-                <Card key={video.id} className="border-orange-900/10">
+                <Card key={video.id} className="border-[hsl(30,30%,88%)]">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center justify-between">
                       {video.title}
@@ -629,6 +604,7 @@ const Admin = () => {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                  data-testid="menu-name-input"
                 />
               </div>
               <div>
@@ -646,7 +622,7 @@ const Admin = () => {
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger data-testid="menu-category-select">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -664,6 +640,7 @@ const Admin = () => {
                     step="0.01"
                     value={formData.price_inr}
                     onChange={(e) => setFormData({ ...formData, price_inr: e.target.value })}
+                    data-testid="menu-price-inr"
                   />
                 </div>
                 <div>
@@ -673,6 +650,7 @@ const Admin = () => {
                     step="0.01"
                     value={formData.price_aud}
                     onChange={(e) => setFormData({ ...formData, price_aud: e.target.value })}
+                    data-testid="menu-price-aud"
                   />
                 </div>
               </div>
@@ -709,7 +687,7 @@ const Admin = () => {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-primary">
+                <Button type="submit" className="bg-primary" data-testid="save-menu-item-btn">
                   {editingItem ? 'Update' : 'Add'}
                 </Button>
               </div>
