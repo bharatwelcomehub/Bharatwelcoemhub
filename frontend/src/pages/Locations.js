@@ -120,18 +120,6 @@ const Locations = () => {
                   </Button>
                 )}
               </div>
-                className="w-full rounded-full bg-primary"
-                data-testid={`whatsapp-button-${index}`}
-              >
-                <a
-                  href={`https://wa.me/${location.whatsapp.replace(/[^0-9]/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Contact on WhatsApp
-                </a>
-              </Button>
             </motion.div>
           ))}
         </div>
