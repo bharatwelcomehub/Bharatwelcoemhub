@@ -209,12 +209,12 @@ Booking Date: ${new Date().toLocaleDateString()}
   };
 
   return (
-    <div className=\"min-h-screen bg-gradient-to-b from-cream to-white\">
-      <div className=\"container mx-auto px-4 lg:px-8 py-12 lg:py-20\">
+    <div className="min-h-screen bg-gradient-to-b from-cream to-white">
+      <div className="container mx-auto px-4 lg:px-8 py-12 lg:py-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className=\"text-center mb-12\"
+          className="text-center mb-12"
         >
           <UtensilsCrossed className=\"h-16 w-16 mx-auto text-primary mb-4\" />
           <h1 className=\"font-playfair text-4xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight\" data-testid=\"catering-title\">
