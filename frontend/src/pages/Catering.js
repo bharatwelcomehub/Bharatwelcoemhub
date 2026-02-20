@@ -254,7 +254,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                     <Label>Select Location *</Label>
                     <Select value={formData.locationId} onValueChange={(value) => setFormData({ ...formData, locationId: value })}>
                       <SelectTrigger>
-                        <SelectValue placeholder=\"Choose location\" />
+                        <SelectValue placeholder="Choose location" />
                       </SelectTrigger>
                       <SelectContent>
                         {locations.map(loc => (
@@ -270,7 +270,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                       <Input
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder=\"Enter your name\"
+                        placeholder="Enter your name"
                       />
                     </div>
                     <div>
@@ -278,7 +278,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                       <Input
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
-                        placeholder=\"10 digit number\"
+                        placeholder="10 digit number"
                       />
                     </div>
                   </div>
@@ -286,10 +286,10 @@ Booking Date: ${new Date().toLocaleDateString()}
                   <div>
                     <Label>Email</Label>
                     <Input
-                      type=\"email\"
+                      type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder=\"your@email.com\"
+                      placeholder="your@email.com"
                     />
                   </div>
 
@@ -298,7 +298,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                     <Textarea
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder=\"Enter complete address\"
+                      placeholder="Enter complete address"
                       rows={3}
                     />
                   </div>
@@ -307,7 +307,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                     <div>
                       <Label>Event Date *</Label>
                       <Input
-                        type=\"date\"
+                        type="date"
                         value={formData.eventDate}
                         onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
                         min={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
@@ -316,7 +316,7 @@ Booking Date: ${new Date().toLocaleDateString()}
                     <div>
                       <Label>Event Time *</Label>
                       <Input
-                        type=\"time\"
+                        type="time"
                         value={formData.eventTime}
                         onChange={(e) => setFormData({ ...formData, eventTime: e.target.value })}
                       />
@@ -326,8 +326,8 @@ Booking Date: ${new Date().toLocaleDateString()}
                   <div>
                     <Label>Number of Guests * (Min: 20)</Label>
                     <Input
-                      type=\"number\"
-                      min=\"20\"
+                      type="number"
+                      min="20"
                       value={formData.guests}
                       onChange={(e) => setFormData({ ...formData, guests: parseInt(e.target.value) || 20 })}
                     />
@@ -337,14 +337,14 @@ Booking Date: ${new Date().toLocaleDateString()}
                     <Label>Celebration Type</Label>
                     <Select value={formData.celebrationType} onValueChange={(value) => setFormData({ ...formData, celebrationType: value })}>
                       <SelectTrigger>
-                        <SelectValue placeholder=\"Optional\" />
+                        <SelectValue placeholder="Optional" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value=\"Birthday\">Birthday</SelectItem>
-                        <SelectItem value=\"Anniversary\">Anniversary</SelectItem>
-                        <SelectItem value=\"Wedding\">Wedding</SelectItem>
-                        <SelectItem value=\"Corporate\">Corporate Event</SelectItem>
-                        <SelectItem value=\"Other\">Other</SelectItem>
+                        <SelectItem value="Birthday">Birthday</SelectItem>
+                        <SelectItem value="Anniversary">Anniversary</SelectItem>
+                        <SelectItem value="Wedding">Wedding</SelectItem>
+                        <SelectItem value="Corporate">Corporate Event</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -417,7 +417,7 @@ Booking Date: ${new Date().toLocaleDateString()}
             )}
 
             <div className="flex justify-center gap-4 mt-8">
-              <Button variant=\"outline\" onClick={() => setStep(1)} className="rounded-full">
+              <Button variant="outline" onClick={() => setStep(1)} className="rounded-full">
                 ← Back
               </Button>
               <Button
@@ -488,7 +488,7 @@ Booking Date: ${new Date().toLocaleDateString()}
             </div>
 
             <div className="flex justify-center gap-4 mt-8">
-              <Button variant=\"outline\" onClick={() => setStep(2)} className="rounded-full">
+              <Button variant="outline" onClick={() => setStep(2)} className="rounded-full">
                 ← Back
               </Button>
               <Button
