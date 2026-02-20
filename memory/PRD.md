@@ -53,10 +53,18 @@ videos: { id, title, video_url, thumbnail_url, description, category, is_active,
 
 ### Phase 4 - Admin Dashboard (Completed Feb 2026)
 - [x] **Admin Login**: Secure authentication (admin@purnabramha.com / admin123)
+- [x] **Home Banner Management**: Add, edit, set active banner for homepage
 - [x] **Menu Management**: Add, edit, delete menu items with INR/AUD pricing
 - [x] **Location Management**: View and edit 8 restaurant locations
 - [x] **Video Management**: Add and delete video content
-- [x] **Dashboard Tabs**: Menu (173), Locations (8), Videos (0)
+- [x] **Dashboard Tabs**: Home Banner, Menu (173), Locations (8), Videos
+
+### Phase 5 - PWA Support (Completed Feb 2026)
+- [x] **Progressive Web App**: App can be installed on mobile devices
+- [x] **Manifest.json**: App name, icons, theme colors configured
+- [x] **Service Worker**: Offline caching support
+- [x] **Install Prompt**: Shows users how to add app to home screen
+- [x] **iOS Support**: Safari "Add to Home Screen" instructions (0)
 
 ### Bug Fixes (Feb 2026)
 - [x] Fixed navigation spacing issue - menu items now properly spaced
