@@ -1047,6 +1047,80 @@ const Admin = () => {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Hero/Banner Dialog */}
+        <Dialog open={heroDialogOpen} onOpenChange={setHeroDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="font-playfair">
+                {editingHero ? 'Edit Home Banner' : 'Add Home Banner'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleHeroSubmit} className="space-y-4">
+              <div>
+                <Label>Title *</Label>
+                <Input
+                  value={heroForm.title}
+                  onChange={(e) => setHeroForm({ ...heroForm, title: e.target.value })}
+                  placeholder="e.g., Authentic Maharashtrian Flavors"
+                  required
+                  data-testid="hero-title-input"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={heroForm.description}
+                  onChange={(e) => setHeroForm({ ...heroForm, description: e.target.value })}
+                  placeholder="e.g., Experience the richness of traditional recipes..."
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label>Image URL *</Label>
+                <Input
+                  type="url"
+                  value={heroForm.image_url}
+                  onChange={(e) => setHeroForm({ ...heroForm, image_url: e.target.value })}
+                  placeholder="https://..."
+                  required
+                  data-testid="hero-image-input"
+                />
+                <p className="text-xs text-foreground/50 mt-1">
+                  Paste a direct image URL. Recommended size: 1920x1080 or similar wide format.
+                </p>
+              </div>
+              {heroForm.image_url && (
+                <div className="rounded-lg overflow-hidden border">
+                  <img 
+                    src={heroForm.image_url} 
+                    alt="Preview" 
+                    className="w-full h-32 object-cover"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/400x200?text=Invalid+URL'; }}
+                  />
+                  <p className="text-xs text-center py-1 bg-muted">Image Preview</p>
+                </div>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={heroForm.is_active}
+                  onChange={(e) => setHeroForm({ ...heroForm, is_active: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-sm">Set as active banner (will be shown on homepage)</span>
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setHeroDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-primary" data-testid="save-hero-btn">
+                  {editingHero ? 'Update' : 'Add Banner'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
