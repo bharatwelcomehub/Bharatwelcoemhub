@@ -11,6 +11,7 @@ import Tiffin from '@/pages/Tiffin';
 import Catering from '@/pages/Catering';
 import Locations from '@/pages/Locations';
 import Profile from '@/pages/Profile';
+import Admin from '@/pages/Admin';
 import '@/App.css';
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
               <Route path="/catering" element={<Catering />} />
               <Route path="/locations" element={<Locations />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/admin" element={<Admin />} />
             </Routes>
           </Layout>
           <Toaster />
