@@ -217,7 +217,7 @@ Booking Date: ${new Date().toLocaleDateString()}
           className="text-center mb-12"
         >
           <UtensilsCrossed className="h-16 w-16 mx-auto text-primary mb-4" />
-          <h1 className="font-playfair text-4xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight" data-testid=\"catering-title\">
+          <h1 className="font-playfair text-4xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight" data-testid="catering-title">
             Catering Services
           </h1>
           <p className="text-lg text-foreground/70 font-manrope max-w-2xl mx-auto">
