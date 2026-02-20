@@ -86,8 +86,40 @@ const Locations = () => {
                 </div>
               </div>
 
-              <Button
-                asChild
+              <div className="space-y-2">
+                <Button
+                  asChild
+                  className="w-full rounded-full bg-primary"
+                  data-testid={`whatsapp-button-${index}`}
+                >
+                  <a
+                    href={`https://wa.me/${location.whatsapp.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Contact on WhatsApp
+                  </a>
+                </Button>
+
+                {location.google_review_link && (
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full rounded-full border-primary text-primary hover:bg-primary/10"
+                    data-testid={`review-button-${index}`}
+                  >
+                    <a
+                      href={location.google_review_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Leave a Google Review
+                    </a>
+                  </Button>
+                )}
+              </div>
                 className="w-full rounded-full bg-primary"
                 data-testid={`whatsapp-button-${index}`}
               >
