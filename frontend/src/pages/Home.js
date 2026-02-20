@@ -1,9 +1,34 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { ShoppingBag, Calendar, Coffee, UtensilsCrossed, MapPin } from 'lucide-react';
 
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
 const Home = () => {
+  const [heroData, setHeroData] = useState({
+    title: 'Authentic Maharashtrian Flavors',
+    description: 'Experience the richness of traditional recipes at India\'s largest Maharashtrian restaurant chain',
+    image_url: 'https://images.pexels.com/photos/30769679/pexels-photo-30769679.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940'
+  });
+
+  useEffect(() => {
+    fetchHeroImage();
+  }, []);
+
+  const fetchHeroImage = async () => {
+    try {
+      const response = await axios.get(`${API}/hero-image`);
+      if (response.data) {
+        setHeroData(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch hero image:', error);
+    }
+  };
+
   const services = [
     {
       icon: ShoppingBag,
@@ -39,8 +64,8 @@ const Home = () => {
     <div>
       <section className="hero-section" data-testid="hero-section">
         <img
-          src="https://images.pexels.com/photos/30769679/pexels-photo-30769679.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
-          alt="Authentic Maharashtrian Misal Pav"
+          src={heroData.image_url}
+          alt={heroData.title}
           className="hero-image"
         />
         <div className="hero-overlay" />
@@ -52,10 +77,10 @@ const Home = () => {
             className="max-w-3xl"
           >
             <h1 className="font-playfair text-5xl lg:text-7xl font-bold text-white mb-6 tracking-tight leading-none">
-              Authentic Maharashtrian Flavors
+              {heroData.title}
             </h1>
             <p className="text-xl lg:text-2xl text-white/90 mb-8 font-manrope leading-relaxed">
-              Experience the richness of traditional recipes at India's largest Maharashtrian restaurant chain
+              {heroData.description}
             </p>
             <div className="flex flex-wrap gap-4">
               <Button
