@@ -276,8 +276,8 @@ async def login(credentials: UserLogin):
     
     return {"token": token, "user": user.model_dump()}
 
-@api_router.get("/auth/me", response_model=User)
-async def get_me(current_user: dict = Depends(get_current_user)):
+@api_router.get("/auth/me")
+async def get_me(request: Request, current_user: dict = Depends(get_current_user)):
     user_doc = await db.users.find_one({"id": current_user['user_id']}, {"_id": 0, "password": 0})
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
@@ -286,6 +286,132 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
     
     return User(**user_doc)
+
+# REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+@api_router.post("/auth/google/session")
+async def google_auth_session(request: Request, response: Response):
+    """Exchange Emergent session_id for user data and set session cookie"""
+    body = await request.json()
+    session_id = body.get('session_id')
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    
+    # Call Emergent Auth to get user data
+    async with httpx.AsyncClient() as client:
+        auth_response = await client.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": session_id}
+        )
+        
+        if auth_response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        auth_data = auth_response.json()
+    
+    email = auth_data.get('email')
+    name = auth_data.get('name', '')
+    picture = auth_data.get('picture', '')
+    session_token = auth_data.get('session_token')
+    
+    # Check if user exists
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if existing_user:
+        user_id = existing_user['id']
+        # Update user info if needed
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"name": name, "picture": picture}}
+        )
+    else:
+        # Create new user
+        user_id = str(uuid.uuid4())
+        new_user = {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "phone": "",
+            "picture": picture,
+            "auth_provider": "google",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
+    
+    # Store session
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "user_id": user_id,
+            "email": email,
+            "session_token": session_token,
+            "expires_at": expires_at,
+            "created_at": datetime.now(timezone.utc)
+        }},
+        upsert=True
+    )
+    
+    # Set httpOnly cookie
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=7 * 24 * 60 * 60,
+        path="/"
+    )
+    
+    # Get full user data
+    user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    
+    return {"user": user_doc, "token": session_token}
+
+@api_router.post("/auth/logout")
+async def logout(request: Request, response: Response):
+    """Logout user and clear session"""
+    session_token = request.cookies.get('session_token')
+    
+    if session_token:
+        await db.user_sessions.delete_one({"session_token": session_token})
+    
+    response.delete_cookie(
+        key="session_token",
+        path="/",
+        secure=True,
+        samesite="none"
+    )
+    
+    return {"message": "Logged out successfully"}
+
+# Push Notification Endpoints (basic structure)
+@api_router.post("/push/subscribe")
+async def subscribe_push(request: Request, current_user: dict = Depends(get_current_user)):
+    """Store push notification subscription"""
+    body = await request.json()
+    subscription = body.get('subscription')
+    
+    if not subscription:
+        raise HTTPException(status_code=400, detail="Subscription data required")
+    
+    await db.push_subscriptions.update_one(
+        {"user_id": current_user['user_id']},
+        {"$set": {
+            "user_id": current_user['user_id'],
+            "subscription": subscription,
+            "created_at": datetime.now(timezone.utc)
+        }},
+        upsert=True
+    )
+    
+    return {"message": "Subscribed to push notifications"}
+
+@api_router.delete("/push/unsubscribe")
+async def unsubscribe_push(current_user: dict = Depends(get_current_user)):
+    """Remove push notification subscription"""
+    await db.push_subscriptions.delete_one({"user_id": current_user['user_id']})
+    return {"message": "Unsubscribed from push notifications"}
 
 @api_router.get("/locations", response_model=List[Location])
 async def get_locations():
