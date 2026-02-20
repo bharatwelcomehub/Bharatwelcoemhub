@@ -39,7 +39,19 @@ videos: { id, title, video_url, thumbnail_url, description, category, is_active,
 - [x] **Menu Categories**: 16 categories including Kids, Snacks, Heavy Brunch, Special Thalis, etc.
 - [x] **Database Seeding**: Created comprehensive seed script with all menu items
 
-### Phase 3 - Admin Dashboard (Completed Feb 2026)
+### Phase 3 - Table Booking & Tiffin Service (Completed Feb 2026)
+- [x] **Table Booking Page**: Complete booking form with all 8 centers (India & Australia)
+- [x] **Dine-In / Pickup Selection**: Service type selection for each booking
+- [x] **Time Slots**: 6 time slots (12PM-10PM range)
+- [x] **Celebration Options**: Birthday, Anniversary, Gudi Padwa, Fasting, etc.
+- [x] **WhatsApp Integration**: Sends booking request directly to center WhatsApp
+- [x] **Tiffin Service Page**: Weekly lunch box subscription system
+- [x] **Heavy Brunch Add-ons**: Daily brunch items with drink add-ons
+- [x] **Week Selection**: 3-week advance booking with Mon-Fri options
+- [x] **Pricing by Center**: Different pricing for India (₹) vs Australia ($)
+- [x] **Order Summary**: Real-time calculation of totals
+
+### Phase 4 - Admin Dashboard (Completed Feb 2026)
 - [x] **Admin Login**: Secure authentication (admin@purnabramha.com / admin123)
 - [x] **Menu Management**: Add, edit, delete menu items with INR/AUD pricing
 - [x] **Location Management**: View and edit 8 restaurant locations
