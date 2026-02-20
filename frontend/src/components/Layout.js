@@ -39,12 +39,12 @@ const Layout = ({ children }) => {
               </h1>
             </Link>
 
-            <div className="hidden lg:flex items-center space-x-8">
+            <div className="hidden lg:flex items-center gap-1 xl:gap-2">
               {navLinks.map(link => (
                 <Link
                   key={link.path}
                   to={link.path}
-                  className="text-sm font-manrope font-medium text-foreground hover:text-primary transition-colors"
+                  className="text-xs xl:text-sm font-manrope font-medium text-foreground hover:text-primary transition-colors px-2 py-1 rounded-md hover:bg-primary/5 whitespace-nowrap"
                   data-testid={`nav-${link.name.toLowerCase().replace(' ', '-')}`}
                 >
                   {link.name}
