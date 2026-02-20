@@ -165,44 +165,47 @@ const Layout = ({ children }) => {
 
       <main className="flex-1">{children}</main>
 
-      <footer className="bg-secondary text-white mt-20">
+      <footer className="bg-[hsl(20,60%,15%)] text-[hsl(40,50%,85%)] mt-20">
         <div className="container mx-auto px-4 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-              <h3 className="text-2xl font-playfair font-bold mb-4">Purnabramha</h3>
-              <p className="text-sm text-white/80 font-manrope">
-                Authentic Maharashtrian cuisine across 8 locations in India and Australia.
+              <img src="/logo.png" alt="Purnabramha" className="h-16 w-auto mb-4" />
+              <p className="text-sm text-[hsl(40,30%,70%)] font-manrope">
+                The Largest Maharashtrian Restaurant - Authentic cuisine across India, USA, Australia & Japan.
               </p>
             </div>
             <div>
-              <h4 className="font-manrope font-semibold mb-4">Quick Links</h4>
+              <h4 className="font-manrope font-semibold mb-4 text-[hsl(38,70%,55%)]">Quick Links</h4>
               <div className="space-y-2">
-                <Link to="/menu" className="block text-sm text-white/80 hover:text-white transition-colors">
+                <Link to="/menu" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
                   Our Menu
                 </Link>
-                <Link to="/locations" className="block text-sm text-white/80 hover:text-white transition-colors">
+                <Link to="/locations" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
                   Locations
                 </Link>
-                <Link to="/catering" className="block text-sm text-white/80 hover:text-white transition-colors">
+                <Link to="/catering" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
                   Catering Services
+                </Link>
+                <Link to="/franchise" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
+                  Franchise
                 </Link>
               </div>
             </div>
             <div>
-              <h4 className="font-manrope font-semibold mb-4">Contact</h4>
-              <div className="space-y-2 text-sm text-white/80">
+              <h4 className="font-manrope font-semibold mb-4 text-[hsl(38,70%,55%)]">Contact</h4>
+              <div className="space-y-2 text-sm text-[hsl(40,30%,70%)]">
                 <div className="flex items-center">
-                  <Phone className="h-4 w-4 mr-2" />
+                  <Phone className="h-4 w-4 mr-2 text-[hsl(38,70%,55%)]" />
                   +91 81056 45499
                 </div>
                 <div className="flex items-center">
-                  <MapPin className="h-4 w-4 mr-2" />
-                  Multiple Locations
+                  <MapPin className="h-4 w-4 mr-2 text-[hsl(38,70%,55%)]" />
+                  India | USA | Australia | Japan
                 </div>
               </div>
             </div>
           </div>
-          <div className="border-t border-white/10 mt-8 pt-8 text-center text-sm text-white/60">
+          <div className="border-t border-[hsl(40,30%,25%)] mt-8 pt-8 text-center text-sm text-[hsl(40,20%,50%)]">
             <p>© 2025 Purnabramha. All rights reserved. Powered by Manaswini Foods Private Limited</p>
           </div>
         </div>
