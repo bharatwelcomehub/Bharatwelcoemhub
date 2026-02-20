@@ -45,15 +45,55 @@ def create_token(user_id: str, email: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
+async def get_current_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Get current user from JWT token or session cookie"""
+    token = None
+    
+    # Try Authorization header first
+    if credentials:
         token = credentials.credentials
+    
+    # Fallback to session_token cookie
+    if not token:
+        token = request.cookies.get('session_token')
+    
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Check if it's a session token (from Google OAuth)
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if session:
+        # Validate session expiry
+        expires_at = session.get('expires_at')
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Session expired")
+        return {"user_id": session['user_id'], "email": session.get('email', '')}
+    
+    # Try JWT token
+    try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+async def get_optional_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Get current user if authenticated, otherwise return None"""
+    try:
+        return await get_current_user(request, credentials)
+    except HTTPException:
+        return None
 
 class User(BaseModel):
     model_config = ConfigDict(extra="ignore")
