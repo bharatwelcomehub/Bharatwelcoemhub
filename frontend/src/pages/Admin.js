@@ -88,6 +88,7 @@ const Admin = () => {
   useEffect(() => {
     const currentToken = getToken();
     if (currentToken) {
+      fetchHeroImages();
       fetchMenuItems();
       fetchLocations();
       fetchVideos();
@@ -101,6 +102,7 @@ const Admin = () => {
       await login(loginForm.email, loginForm.password);
       toast.success('Logged in successfully');
       setTimeout(() => {
+        fetchHeroImages();
         fetchMenuItems();
         fetchLocations();
         fetchVideos();
@@ -117,7 +119,88 @@ const Admin = () => {
     setMenuItems([]);
     setLocations([]);
     setVideos([]);
+    setHeroImages([]);
     toast.success('Logged out');
+  };
+
+  // Hero Image functions
+  const fetchHeroImages = async () => {
+    const currentToken = getToken();
+    if (!currentToken) return;
+    try {
+      const response = await axios.get(`${API}/admin/hero-images`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      setHeroImages(response.data);
+    } catch (error) {
+      console.error('Failed to fetch hero images:', error);
+    }
+  };
+
+  const handleHeroSubmit = async (e) => {
+    e.preventDefault();
+    const currentToken = getToken();
+    if (!currentToken) {
+      toast.error('Please login again');
+      return;
+    }
+
+    try {
+      if (editingHero) {
+        await axios.put(
+          `${API}/admin/hero-images/${editingHero.id}`,
+          heroForm,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Banner updated successfully!');
+      } else {
+        await axios.post(
+          `${API}/admin/hero-images`,
+          heroForm,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Banner added successfully!');
+      }
+      setHeroDialogOpen(false);
+      resetHeroForm();
+      fetchHeroImages();
+    } catch (error) {
+      toast.error('Operation failed');
+    }
+  };
+
+  const handleSetActiveHero = async (heroId) => {
+    const currentToken = getToken();
+    try {
+      await axios.put(
+        `${API}/admin/hero-images/${heroId}`,
+        { is_active: true },
+        { headers: { Authorization: `Bearer ${currentToken}` } }
+      );
+      toast.success('Banner set as active!');
+      fetchHeroImages();
+    } catch (error) {
+      toast.error('Failed to set active');
+    }
+  };
+
+  const handleDeleteHero = async (id) => {
+    if (!window.confirm('Delete this banner?')) return;
+    const currentToken = getToken();
+    try {
+      await axios.delete(`${API}/admin/hero-images/${id}`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Banner deleted');
+      fetchHeroImages();
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
+  };
+
+  const resetHeroForm = () => {
+    setEditingHero(null);
+    setHeroForm({ title: '', description: '', image_url: '', is_active: true });
   };
 
   const fetchMenuItems = async () => {
