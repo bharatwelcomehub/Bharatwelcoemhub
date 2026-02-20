@@ -22,6 +22,10 @@ const Layout = ({ children }) => {
     { name: 'Tiffin', path: '/tiffin' },
     { name: 'Catering', path: '/catering' },
     { name: 'Locations', path: '/locations' },
+    { name: 'Videos', path: '/videos' },
+    { name: 'Inspiration', path: '/inspiration' },
+    { name: 'Franchise', path: '/franchise' },
+    { name: 'About', path: '/about' },
   ];
 
   return (
