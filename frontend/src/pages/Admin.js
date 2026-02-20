@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -21,7 +21,18 @@ const Admin = () => {
   const { user, token, login, logout } = useAuth();
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('menu');
+  const [activeTab, setActiveTab] = useState('banner');
+
+  // Hero/Banner state
+  const [heroImages, setHeroImages] = useState([]);
+  const [heroDialogOpen, setHeroDialogOpen] = useState(false);
+  const [editingHero, setEditingHero] = useState(null);
+  const [heroForm, setHeroForm] = useState({
+    title: '',
+    description: '',
+    image_url: '',
+    is_active: true
+  });
 
   // Menu state
   const [menuItems, setMenuItems] = useState([]);
