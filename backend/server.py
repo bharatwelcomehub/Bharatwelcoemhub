@@ -91,6 +91,8 @@ class MenuItem(BaseModel):
     description: str
     category: str
     price: float
+    price_inr: Optional[float] = None
+    price_aud: Optional[float] = None
     image_url: Optional[str] = None
     is_veg: bool = True
     is_available: bool = True
