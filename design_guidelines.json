@@ -1,0 +1,171 @@
+{
+  "identity": {
+    "role": "E1: The Anti-AI Designer",
+    "mission": "Create a soulful, authentic, and premium digital experience for Purnabramha that breaks generic food app tropes."
+  },
+  "design_philosophy": {
+    "core_principle": "Fusion over Imitation",
+    "emotional_tone": "Warm, Royal (Peshwai), Welcoming, Authentic",
+    "visual_style": "Modern Maharashtrian",
+    "key_traits": [
+      "Asymmetry creates tension",
+      "Texture over flat colors",
+      "Typography as image",
+      "Cultural motifs as modern patterns"
+    ]
+  },
+  "typography": {
+    "primary_font": {
+      "name": "Playfair Display",
+      "usage": "Headings, Hero Text, Category Titles",
+      "weights": ["400", "600", "700"],
+      "fallback": "serif"
+    },
+    "secondary_font": {
+      "name": "Manrope",
+      "usage": "Body text, UI elements, Buttons, Menus",
+      "weights": ["400", "500", "600"],
+      "fallback": "sans-serif"
+    },
+    "rules": [
+      "Headings > 32px must use tracking-tight",
+      "Overlines must be uppercase and tracking-widest",
+      "Line height: leading-none for headers, leading-relaxed for body"
+    ]
+  },
+  "colors": {
+    "palette_name": "The Royal Peshwa",
+    "theme": "light",
+    "primary": {
+      "hex": "#D35400",
+      "name": "Saffron Spice",
+      "usage": "Primary Buttons, Highlights, Active States"
+    },
+    "secondary": {
+      "hex": "#800000",
+      "name": "Peshwai Maroon",
+      "usage": "Accents, Borders, Sub-headings"
+    },
+    "background": {
+      "hex": "#F9F5F0",
+      "name": "Warm Cream",
+      "usage": "Main Background"
+    },
+    "surface": {
+      "hex": "#FFFFFF",
+      "name": "Pure White",
+      "usage": "Cards, Modals (with warm border)"
+    },
+    "text": {
+      "primary": "#1A1A1A",
+      "secondary": "#595959",
+      "muted": "#8C8C8C"
+    },
+    "success": "#2E7D32",
+    "error": "#C62828",
+    "warning": "#F57C00",
+    "info": "#0288D1",
+    "gradients": {
+      "hero_overlay": "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(26,26,26,0.8) 100%)",
+      "subtle_warmth": "linear-gradient(135deg, #F9F5F0 0%, #F0EBE5 100%)"
+    }
+  },
+  "spacing_and_layout": {
+    "spacing_scale": "Tailwind (p-1 to p-64)",
+    "container_padding": "p-6 or p-8 for borders",
+    "grid_system": {
+      "mode": "Mode A: The Tetris Grid",
+      "rules": [
+        "Mobile first: grid-cols-1",
+        "Tablet: grid-cols-8",
+        "Desktop: grid-cols-12",
+        "Never fill 100% perfectly - leave breathing room"
+      ]
+    },
+    "border_radius": {
+      "default": "rounded-lg",
+      "cards": "rounded-xl",
+      "buttons": "rounded-full"
+    }
+  },
+  "components": {
+    "strategy": "Hybrid: Custom HTML Layouts + Customized Shadcn Logic",
+    "library_path": "/app/frontend/src/components/ui/",
+    "customization_rules": [
+      "Remove default shadows, use 1px warm borders (border-orange-900/10)",
+      "Increase padding inside inputs and buttons",
+      "Use 'Saffron Spice' for primary actions",
+      "Roundness: Buttons are pill-shaped, inputs are rounded-md"
+    ],
+    "specific_components": {
+      "Button": "pill-shaped, slight letter-spacing",
+      "Card": "No shadow by default, 1px border, hover:shadow-lg hover:-translate-y-1 transition-all duration-300",
+      "Dialog/Modal": "Backdrop blur-sm, Warm White background",
+      "Toasts": "Use Sonner"
+    }
+  },
+  "media_assets": {
+    "images": [
+      {
+        "category": "hero",
+        "url": "https://images.pexels.com/photos/30769679/pexels-photo-30769679.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Misal Pav Hero Image - Spicy, appetizing, cultural"
+      },
+      {
+        "category": "hero_secondary",
+        "url": "https://images.pexels.com/photos/17433352/pexels-photo-17433352.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Vada Pav - Iconic snack"
+      },
+      {
+        "category": "ambience",
+        "url": "https://images.pexels.com/photos/19447626/pexels-photo-19447626.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Warm Restaurant Interior - New Delhi style"
+      },
+      {
+        "category": "texture",
+        "url": "https://images.unsplash.com/photo-1676616756850-604906fee601?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwyfHxhdXRoZW50aWMlMjBtYWhhcmFzaHRyaWFuJTIwdGhhbGklMjBzaWx2ZXIlMjBwbGF0ZSUyMHB1cmFuJTIwcG9saSUyMG1pc2FsJTIwcGF2JTIwdmFkYSUyMHBhdiUyMG1vZGFrfGVufDB8fHx8MTc3MTU0NjUyNHww&ixlib=rb-4.1.0&q=85",
+        "description": "Gold/Silver plate texture for backgrounds"
+      }
+    ],
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px, rounded"
+    }
+  },
+  "motion": {
+    "library": "framer-motion",
+    "defaults": {
+      "duration": 0.4,
+      "ease": "easeInOut"
+    },
+    "scroll": "Use Lenis for smooth scrolling",
+    "interactions": [
+      "Hover: Scale 1.02",
+      "Tap: Scale 0.98",
+      "Page Load: Staggered fade-up"
+    ]
+  },
+  "accessibility": {
+    "contrast": "Ensure 4.5:1 for text",
+    "focus_states": "Visible focus ring in 'Saffron Spice' color",
+    "aria": "All interactive elements must have aria-labels",
+    "testing": "All interactive elements MUST include data-testid attributes"
+  },
+  "instructions_to_main_agent": [
+    "1. START by installing dependencies: 'yarn add framer-motion @lenis/react lucide-react clsx tailwind-merge'",
+    "2. SETUP the font in index.css (Import Playfair Display and Manrope from Google Fonts)",
+    "3. CONFIGURE tailwind.config.js with the 'Royal Peshwa' palette",
+    "4. BUILD the 'Layout' component first with the Navigation and Footer",
+    "5. CREATE the 'Hero' section using the Misal Pav image and Playfair typography",
+    "6. IMPLEMENT 'Menu' page with the Bento Grid layout",
+    "7. ENSURE all interactive elements have data-testid attributes"
+  ],
+  "universal_guidelines": [
+    "Don't make generic centered layouts.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Every interaction needs micro-animations.",
+    "Dark colors look good when used independently without gradients.",
+    "Use glass-morphism effects with backdrop filters.",
+    "NEVER use AI assistant Emojis."
+  ]
+}
