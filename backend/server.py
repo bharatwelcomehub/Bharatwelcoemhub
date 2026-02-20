@@ -79,9 +79,11 @@ class Location(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     city: str
+    country: str
     address: str
     phone: str
     whatsapp: str
+    google_review_link: Optional[str] = None
     is_active: bool = True
 
 class MenuItem(BaseModel):
@@ -96,6 +98,26 @@ class MenuItem(BaseModel):
     image_url: Optional[str] = None
     is_veg: bool = True
     is_available: bool = True
+
+class HeroImage(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    image_url: str
+    description: Optional[str] = None
+    is_active: bool = True
+    order: int = 0
+
+class Video(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    video_url: str
+    thumbnail_url: Optional[str] = None
+    description: Optional[str] = None
+    category: str
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class CartItem(BaseModel):
     menu_item_id: str
@@ -232,13 +254,15 @@ async def get_locations():
     return [Location(**loc) for loc in locations]
 
 @api_router.get("/menu", response_model=List[MenuItem])
-async def get_menu(category: Optional[str] = None):
+async def get_menu(category: Optional[str] = None, location_id: Optional[str] = None):
     query = {"is_available": True}
     if category:
         query["category"] = category
     
     items = await db.menu_items.find(query, {"_id": 0}).to_list(1000)
     return [MenuItem(**item) for item in items]
+
+# ADMIN ENDPOINTS
 
 @api_router.get("/admin/menu", response_model=List[MenuItem])
 async def get_all_menu_items(current_user: dict = Depends(get_current_user)):
@@ -289,6 +313,72 @@ async def delete_menu_item(item_id: str, current_user: dict = Depends(get_curren
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Menu item not found")
     return {"message": "Menu item deleted successfully"}
+
+# HERO IMAGES
+@api_router.get("/admin/hero-images", response_model=List[HeroImage])
+async def get_hero_images(current_user: dict = Depends(get_current_user)):
+    images = await db.hero_images.find({}, {"_id": 0}).to_list(100)
+    return [HeroImage(**img) for img in images]
+
+@api_router.post("/admin/hero-images", response_model=HeroImage)
+async def create_hero_image(image_data: dict, current_user: dict = Depends(get_current_user)):
+    hero = HeroImage(**image_data)
+    await db.hero_images.insert_one(hero.model_dump())
+    return hero
+
+@api_router.put("/admin/hero-images/{image_id}", response_model=HeroImage)
+async def update_hero_image(image_id: str, image_data: dict, current_user: dict = Depends(get_current_user)):
+    await db.hero_images.update_one({"id": image_id}, {"$set": image_data})
+    updated = await db.hero_images.find_one({"id": image_id}, {"_id": 0})
+    return HeroImage(**updated)
+
+@api_router.delete("/admin/hero-images/{image_id}")
+async def delete_hero_image(image_id: str, current_user: dict = Depends(get_current_user)):
+    await db.hero_images.delete_one({"id": image_id})
+    return {"message": "Hero image deleted"}
+
+# LOCATIONS
+@api_router.get("/admin/locations", response_model=List[Location])
+async def get_all_locations(current_user: dict = Depends(get_current_user)):
+    locations = await db.locations.find({}, {"_id": 0}).to_list(100)
+    return [Location(**loc) for loc in locations]
+
+@api_router.post("/admin/locations", response_model=Location)
+async def create_location(location_data: dict, current_user: dict = Depends(get_current_user)):
+    location = Location(**location_data)
+    await db.locations.insert_one(location.model_dump())
+    return location
+
+@api_router.put("/admin/locations/{location_id}", response_model=Location)
+async def update_location(location_id: str, location_data: dict, current_user: dict = Depends(get_current_user)):
+    await db.locations.update_one({"id": location_id}, {"$set": location_data})
+    updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
+    return Location(**updated)
+
+# VIDEOS
+@api_router.get("/videos", response_model=List[Video])
+async def get_videos(category: Optional[str] = None):
+    query = {"is_active": True}
+    if category:
+        query["category"] = category
+    videos = await db.videos.find(query, {"_id": 0}).to_list(100)
+    for video in videos:
+        if isinstance(video.get('created_at'), str):
+            video['created_at'] = datetime.fromisoformat(video['created_at'])
+    return [Video(**v) for v in videos]
+
+@api_router.post("/admin/videos", response_model=Video)
+async def create_video(video_data: dict, current_user: dict = Depends(get_current_user)):
+    video = Video(**video_data)
+    doc = video.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.videos.insert_one(doc)
+    return video
+
+@api_router.delete("/admin/videos/{video_id}")
+async def delete_video(video_id: str, current_user: dict = Depends(get_current_user)):
+    await db.videos.delete_one({"id": video_id})
+    return {"message": "Video deleted"}
 
 @api_router.post("/orders/pickup", response_model=PickupOrder)
 async def create_pickup_order(order_data: PickupOrderCreate, current_user: dict = Depends(get_current_user)):
@@ -377,29 +467,6 @@ async def get_catering_requests(current_user: dict = Depends(get_current_user)):
         if isinstance(req.get('created_at'), str):
             req['created_at'] = datetime.fromisoformat(req['created_at'])
     return [CateringRequest(**req) for req in requests]
-
-@api_router.post("/payment/create-razorpay-order")
-async def create_razorpay_order(amount: int):
-    try:
-        order = razorpay_client.order.create({
-            "amount": amount * 100,
-            "currency": "INR",
-            "payment_capture": 1
-        })
-        return order
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@api_router.post("/payment/create-stripe-intent")
-async def create_stripe_intent(amount: int):
-    try:
-        intent = stripe.PaymentIntent.create(
-            amount=amount * 100,
-            currency="usd"
-        )
-        return {"client_secret": intent.client_secret}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(api_router)
 
