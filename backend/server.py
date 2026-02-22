@@ -901,17 +901,35 @@ async def payslips_generate(req: PayslipGenRequest):
 # BHOJAN GURU ENDPOINTS
 # =======================================
 
+# Load recipe and description data from JSON files
+def load_recipe_data():
+    recipe_file = ROOT_DIR / "recipe_data.json"
+    if recipe_file.exists():
+        with open(recipe_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"recipes": {}, "thalis": {}, "bhojanGuru": {}}
+
+def load_description_data():
+    desc_file = ROOT_DIR / "description_data.json"
+    if desc_file.exists():
+        with open(desc_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
 @api_router.get("/recipes")
 async def get_recipes():
-    """Get all recipes"""
-    recipes = await db.recipes.find({}, {"_id": 0}).to_list(1000)
-    return {"recipes": recipes}
+    """Get all recipes with ingredients and methods"""
+    data = load_recipe_data()
+    return {
+        "recipes": data.get("recipes", {}),
+        "thalis": data.get("thalis", {}),
+        "bhojanGuru": data.get("bhojanGuru", {})
+    }
 
 @api_router.get("/descriptions")
 async def get_descriptions():
-    """Get all descriptions"""
-    descriptions = await db.descriptions.find({}, {"_id": 0}).to_list(1000)
-    return {"descriptions": descriptions}
+    """Get all menu item descriptions in English and Marathi"""
+    return {"descriptions": load_description_data()}
 
 # =======================================
 # GUEST RESPONSE AI ENDPOINTS
