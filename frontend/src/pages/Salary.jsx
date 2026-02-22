@@ -157,18 +157,6 @@ export default function Salary({ isPayslips = false }) {
       setLoading(false);
     }
   };
-      });
-      
-      const url = `${BACKEND_URL}${res.data.downloadUrl}`;
-      setDownloadUrl(url);
-      toast.success(`${res.data.count} payslip(s) generated!`);
-      window.open(url, "_blank");
-    } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to generate payslips");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Format currency
   const formatCurrency = (amount) => {
