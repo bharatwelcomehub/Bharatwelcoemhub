@@ -90,12 +90,22 @@ export default function HRLetters() {
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
+        // Get token from session storage (pb_session_v2)
+        const sessionStr = localStorage.getItem("pb_session_v2");
+        if (!sessionStr) {
           toast.error("Please login first");
           setLoading(false);
           return;
         }
+        const session = JSON.parse(sessionStr);
+        const token = session?.token;
+        
+        if (!token) {
+          toast.error("Invalid session, please login again");
+          setLoading(false);
+          return;
+        }
+        
         const res = await api.get(`/hr_letter/employees?token=${token}`);
         console.log("Loaded employees:", res.data.employees?.length);
         setEmployees(res.data.employees || []);
