@@ -871,7 +871,7 @@ async def generate_salary(req: SalaryGenRequest):
         ws = wb.active
         ws.title = "Salary"
         
-        # Headers
+        # Headers - ICICI bank format
         headers = [
             "PYMT_PROD_TYPE_CODE", "PYMT_MODE", "DEBIT_ACC_NO", "BNF_NAME",
             "BENE_ACC_NO", "BENE_IFSC", "AMOUNT", "DEBIT_NARR", "CREDIT_NARR",
@@ -885,6 +885,11 @@ async def generate_salary(req: SalaryGenRequest):
         for emp in employees:
             emp_name = emp.get("name", "").upper()
             salary = float(emp.get("currentSalary", 0) or 0)
+            
+            # Get remark/notes for CREDIT_NARR and DEBIT_NARR
+            emp_remark = emp.get("remark", "").strip()
+            credit_narr = emp_remark if emp_remark else f"SALARY {req.month}"
+            debit_narr = emp_remark if emp_remark else "SALARY"
             
             # Calculate working days
             present_days = 0
@@ -908,8 +913,8 @@ async def generate_salary(req: SalaryGenRequest):
             ws.cell(row=row, column=5, value=emp.get("beneAccNo", ""))
             ws.cell(row=row, column=6, value=emp.get("ifsc", ""))
             ws.cell(row=row, column=7, value=round(net_salary, 2))
-            ws.cell(row=row, column=8, value="SALARY")
-            ws.cell(row=row, column=9, value=f"SALARY {req.month}")
+            ws.cell(row=row, column=8, value=debit_narr)
+            ws.cell(row=row, column=9, value=credit_narr)
             ws.cell(row=row, column=10, value=emp.get("mobile", ""))
             ws.cell(row=row, column=11, value=emp.get("email", ""))
             ws.cell(row=row, column=12, value=emp.get("center", ""))
