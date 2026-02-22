@@ -1,12 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/App";
 import { api, CENTERS } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Loader2, 
   Plus, 
@@ -14,7 +16,9 @@ import {
   Trash2, 
   Search,
   Users,
-  Building2
+  X,
+  RefreshCw,
+  Edit
 } from "lucide-react";
 
 export default function Employees() {
@@ -22,22 +26,52 @@ export default function Employees() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [centerFilter, setCenterFilter] = useState("");
   
-  // New employee form
-  const [newEmp, setNewEmp] = useState({
+  // Selected employee for editing
+  const [selectedEmp, setSelectedEmp] = useState(null);
+  const [editMode, setEditMode] = useState(false); // true = edit existing, false = add new
+  
+  // Form state
+  const [formData, setFormData] = useState({
     name: "",
-    empCenter: "PB-HSR",
+    center: "PB-HSR",
     designation: "",
     currentSalary: "",
+    salaryBase: "",
+    bankName: "",
     beneAccNo: "",
     ifsc: "",
-    bankName: "",
     mobile: "",
-    email: ""
+    email: "",
+    gender: "",
+    dateOfJoining: "",
+    remark: ""
   });
 
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      center: "PB-HSR",
+      designation: "",
+      currentSalary: "",
+      salaryBase: "",
+      bankName: "",
+      beneAccNo: "",
+      ifsc: "",
+      mobile: "",
+      email: "",
+      gender: "",
+      dateOfJoining: "",
+      remark: ""
+    });
+    setSelectedEmp(null);
+    setEditMode(false);
+  };
+
   // Load employees
-  const loadEmployees = async () => {
+  const loadEmployees = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.post("/mgt_employees_list", {
@@ -45,33 +79,57 @@ export default function Employees() {
         center: "PB-MGT"
       });
       setEmployees(res.data.employees || []);
+      toast.success(`Loaded ${res.data.employees?.length || 0} employees`);
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to load employees");
     } finally {
       setLoading(false);
     }
-  };
+  }, [session?.token]);
 
   useEffect(() => {
     if (session?.center === "PB-MGT") {
       loadEmployees();
     }
-  }, []);
+  }, [session?.center, loadEmployees]);
 
-  // Filter employees by search
+  // Filter employees
   const filteredEmployees = employees.filter(emp => {
     const q = search.toLowerCase();
-    return (
+    const matchesSearch = !search || 
       emp.name?.toLowerCase().includes(q) ||
       emp.center?.toLowerCase().includes(q) ||
       emp.designation?.toLowerCase().includes(q) ||
-      emp.mobile?.toLowerCase().includes(q)
-    );
+      emp.mobile?.toLowerCase().includes(q) ||
+      emp.bankName?.toLowerCase().includes(q);
+    const matchesCenter = !centerFilter || emp.center === centerFilter;
+    return matchesSearch && matchesCenter;
   });
 
-  // Create employee
+  // Select employee for editing
+  const selectEmployee = (emp) => {
+    setSelectedEmp(emp);
+    setEditMode(true);
+    setFormData({
+      name: emp.name || "",
+      center: emp.center || "PB-HSR",
+      designation: emp.designation || "",
+      currentSalary: emp.currentSalary?.toString() || "",
+      salaryBase: emp.salaryBase?.toString() || "",
+      bankName: emp.bankName || "",
+      beneAccNo: emp.beneAccNo || "",
+      ifsc: emp.ifsc || "",
+      mobile: emp.mobile || "",
+      email: emp.email || "",
+      gender: emp.gender || "",
+      dateOfJoining: emp.dateOfJoining || "",
+      remark: emp.remark || ""
+    });
+  };
+
+  // Create new employee
   const createEmployee = async () => {
-    if (!newEmp.name || !newEmp.empCenter) {
+    if (!formData.name || !formData.center) {
       toast.error("Name and Center are required");
       return;
     }
@@ -81,21 +139,22 @@ export default function Employees() {
       await api.post("/mgt_employee_create", {
         token: session.token,
         center: "PB-MGT",
-        ...newEmp,
-        currentSalary: parseFloat(newEmp.currentSalary) || 0
+        empCenter: formData.center,
+        name: formData.name.toUpperCase(),
+        designation: formData.designation,
+        currentSalary: parseFloat(formData.currentSalary) || 0,
+        salaryBase: parseFloat(formData.salaryBase) || 0,
+        bankName: formData.bankName,
+        beneAccNo: formData.beneAccNo,
+        ifsc: formData.ifsc,
+        mobile: formData.mobile,
+        email: formData.email,
+        gender: formData.gender,
+        dateOfJoining: formData.dateOfJoining,
+        remark: formData.remark
       });
       toast.success("Employee created!");
-      setNewEmp({
-        name: "",
-        empCenter: "PB-HSR",
-        designation: "",
-        currentSalary: "",
-        beneAccNo: "",
-        ifsc: "",
-        bankName: "",
-        mobile: "",
-        email: ""
-      });
+      resetForm();
       loadEmployees();
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to create employee");
@@ -105,16 +164,31 @@ export default function Employees() {
   };
 
   // Update employee
-  const updateEmployee = async (emp) => {
+  const updateEmployee = async () => {
+    if (!selectedEmp) return;
+    
     setLoading(true);
     try {
       await api.post("/mgt_employee_update", {
         token: session.token,
         center: "PB-MGT",
-        rowIndex: emp.rowIndex,
-        ...emp
+        rowIndex: selectedEmp.rowIndex,
+        empCenter: formData.center,
+        name: formData.name.toUpperCase(),
+        designation: formData.designation,
+        currentSalary: parseFloat(formData.currentSalary) || 0,
+        salaryBase: parseFloat(formData.salaryBase) || 0,
+        bankName: formData.bankName,
+        beneAccNo: formData.beneAccNo,
+        ifsc: formData.ifsc,
+        mobile: formData.mobile,
+        email: formData.email,
+        gender: formData.gender,
+        dateOfJoining: formData.dateOfJoining,
+        remark: formData.remark
       });
       toast.success("Employee updated!");
+      resetForm();
       loadEmployees();
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to update");
@@ -124,17 +198,19 @@ export default function Employees() {
   };
 
   // Delete employee
-  const deleteEmployee = async (emp) => {
-    if (!window.confirm(`Delete "${emp.name}"?`)) return;
+  const deleteEmployee = async () => {
+    if (!selectedEmp) return;
+    if (!window.confirm(`Delete "${selectedEmp.name}"?`)) return;
     
     setLoading(true);
     try {
       await api.post("/mgt_employee_delete", {
         token: session.token,
         center: "PB-MGT",
-        rowIndex: emp.rowIndex
+        rowIndex: selectedEmp.rowIndex
       });
       toast.success("Employee deleted!");
+      resetForm();
       loadEmployees();
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to delete");
@@ -143,13 +219,9 @@ export default function Employees() {
     }
   };
 
-  // Update local employee data
-  const updateLocalEmployee = (index, field, value) => {
-    setEmployees(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
+  // Update form field
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   if (session?.center !== "PB-MGT") {
@@ -164,94 +236,132 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-primary">Employee Management</h1>
-        <p className="text-muted-foreground mt-1">
-          Add, update, or remove employees (PB-MGT only)
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Employee Management</h1>
+          <p className="text-muted-foreground mt-1">
+            {employees.length} employees • Click checkbox to edit
+          </p>
+        </div>
+        <Button onClick={loadEmployees} disabled={loading} variant="outline">
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
-      {/* Add Employee Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            Add New Employee
-          </CardTitle>
+      {/* Edit/Add Card - Shows when employee selected or adding new */}
+      <Card className={`border-2 ${editMode ? 'border-primary' : 'border-secondary'}`}>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {editMode ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                {editMode ? `Edit: ${selectedEmp?.name}` : "Add New Employee"}
+              </CardTitle>
+              <CardDescription>
+                {editMode ? "Update employee details below" : "Fill in the form to add a new employee"}
+              </CardDescription>
+            </div>
+            {(editMode || formData.name) && (
+              <Button variant="ghost" size="sm" onClick={resetForm}>
+                <X className="w-4 h-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Name *</Label>
               <Input
-                value={newEmp.name}
-                onChange={(e) => setNewEmp({ ...newEmp, name: e.target.value })}
-                placeholder="Employee Name"
-                data-testid="new-emp-name"
+                value={formData.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                placeholder="EMPLOYEE NAME"
+                className="uppercase"
+                data-testid="emp-name"
               />
             </div>
             <div className="space-y-2">
               <Label>Center *</Label>
-              <Select
-                value={newEmp.empCenter}
-                onValueChange={(v) => setNewEmp({ ...newEmp, empCenter: v })}
+              <select
+                value={formData.center}
+                onChange={(e) => updateField("center", e.target.value)}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                data-testid="emp-center"
               >
-                <SelectTrigger data-testid="new-emp-center">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CENTERS.map(c => (
-                    <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {CENTERS.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <Label>Designation</Label>
               <Input
-                value={newEmp.designation}
-                onChange={(e) => setNewEmp({ ...newEmp, designation: e.target.value })}
-                placeholder="e.g. Chef, Manager"
+                value={formData.designation}
+                onChange={(e) => updateField("designation", e.target.value)}
+                placeholder="e.g. MANAGER, EMPLOYEE"
               />
             </div>
             <div className="space-y-2">
-              <Label>Salary</Label>
+              <Label>Gender</Label>
+              <select
+                value={formData.gender}
+                onChange={(e) => updateField("gender", e.target.value)}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background"
+              >
+                <option value="">Select</option>
+                <option value="MALE">MALE</option>
+                <option value="FEMALE">FEMALE</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Current Salary</Label>
               <Input
                 type="number"
-                value={newEmp.currentSalary}
-                onChange={(e) => setNewEmp({ ...newEmp, currentSalary: e.target.value })}
+                value={formData.currentSalary}
+                onChange={(e) => updateField("currentSalary", e.target.value)}
                 placeholder="45000"
               />
             </div>
             <div className="space-y-2">
-              <Label>Bank A/C</Label>
+              <Label>Base Salary</Label>
               <Input
-                value={newEmp.beneAccNo}
-                onChange={(e) => setNewEmp({ ...newEmp, beneAccNo: e.target.value })}
-                placeholder="Account Number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>IFSC</Label>
-              <Input
-                value={newEmp.ifsc}
-                onChange={(e) => setNewEmp({ ...newEmp, ifsc: e.target.value })}
-                placeholder="HDFC0001234"
+                type="number"
+                value={formData.salaryBase}
+                onChange={(e) => updateField("salaryBase", e.target.value)}
+                placeholder="40000"
               />
             </div>
             <div className="space-y-2">
               <Label>Bank Name</Label>
               <Input
-                value={newEmp.bankName}
-                onChange={(e) => setNewEmp({ ...newEmp, bankName: e.target.value })}
-                placeholder="HDFC Bank"
+                value={formData.bankName}
+                onChange={(e) => updateField("bankName", e.target.value)}
+                placeholder="HDFC, ICICI, SBI"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Account No</Label>
+              <Input
+                value={formData.beneAccNo}
+                onChange={(e) => updateField("beneAccNo", e.target.value)}
+                placeholder="50100291509491"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>IFSC Code</Label>
+              <Input
+                value={formData.ifsc}
+                onChange={(e) => updateField("ifsc", e.target.value)}
+                placeholder="HDFC0004220"
               />
             </div>
             <div className="space-y-2">
               <Label>Mobile</Label>
               <Input
-                value={newEmp.mobile}
-                onChange={(e) => setNewEmp({ ...newEmp, mobile: e.target.value })}
+                value={formData.mobile}
+                onChange={(e) => updateField("mobile", e.target.value)}
                 placeholder="9876543210"
               />
             </div>
@@ -259,17 +369,55 @@ export default function Employees() {
               <Label>Email</Label>
               <Input
                 type="email"
-                value={newEmp.email}
-                onChange={(e) => setNewEmp({ ...newEmp, email: e.target.value })}
+                value={formData.email}
+                onChange={(e) => updateField("email", e.target.value)}
                 placeholder="email@example.com"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Date of Joining</Label>
+              <Input
+                type="date"
+                value={formData.dateOfJoining}
+                onChange={(e) => updateField("dateOfJoining", e.target.value)}
+              />
+            </div>
           </div>
-          <Button onClick={createEmployee} disabled={loading} data-testid="add-emp-btn">
-            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            <Plus className="w-4 h-4 mr-2" />
-            Add Employee
-          </Button>
+          
+          {/* Notes/Remark field - full width */}
+          <div className="space-y-2">
+            <Label>Notes / Remark (for fund transfer)</Label>
+            <Textarea
+              value={formData.remark}
+              onChange={(e) => updateField("remark", e.target.value)}
+              placeholder="Add notes for account fund transfer or other remarks..."
+              rows={2}
+              data-testid="emp-remark"
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-3 pt-2">
+            {editMode ? (
+              <>
+                <Button onClick={updateEmployee} disabled={loading} data-testid="update-emp-btn">
+                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  <Save className="w-4 h-4 mr-2" />
+                  Update Employee
+                </Button>
+                <Button variant="destructive" onClick={deleteEmployee} disabled={loading}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </>
+            ) : (
+              <Button onClick={createEmployee} disabled={loading} data-testid="add-emp-btn">
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                <Plus className="w-4 h-4 mr-2" />
+                Add Employee
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -278,107 +426,83 @@ export default function Employees() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle>Employee List ({filteredEmployees.length})</CardTitle>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employees..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-                data-testid="emp-search"
-              />
+            <div className="flex gap-2">
+              {/* Center filter - using native select to avoid caching */}
+              <select
+                value={centerFilter}
+                onChange={(e) => setCenterFilter(e.target.value)}
+                className="h-10 px-3 rounded-md border border-input bg-background text-sm"
+              >
+                <option value="">All Centers</option>
+                {CENTERS.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
+              </select>
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                  data-testid="emp-search"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {filteredEmployees.length > 0 ? (
             <div className="border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[500px]">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted">
+                  <thead className="bg-muted sticky top-0 z-10">
                     <tr>
+                      <th className="w-10 p-3"></th>
                       <th className="text-left p-3 font-bold">Center</th>
                       <th className="text-left p-3 font-bold">Name</th>
                       <th className="text-left p-3 font-bold">Designation</th>
                       <th className="text-left p-3 font-bold">Salary</th>
                       <th className="text-left p-3 font-bold">Bank</th>
                       <th className="text-left p-3 font-bold">Mobile</th>
-                      <th className="text-left p-3 font-bold">Actions</th>
+                      <th className="text-left p-3 font-bold">Notes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredEmployees.map((emp, idx) => (
-                      <tr key={idx} className="border-t hover:bg-muted/30">
-                        <td className="p-2">
-                          <Input
-                            value={emp.center || ""}
-                            onChange={(e) => updateLocalEmployee(idx, "center", e.target.value)}
-                            className="w-24 h-8"
+                      <tr 
+                        key={idx} 
+                        className={`border-t hover:bg-muted/30 cursor-pointer ${
+                          selectedEmp?.name === emp.name ? 'bg-primary/10' : ''
+                        }`}
+                        onClick={() => selectEmployee(emp)}
+                      >
+                        <td className="p-3 text-center">
+                          <Checkbox
+                            checked={selectedEmp?.name === emp.name}
+                            onCheckedChange={() => selectEmployee(emp)}
+                            onClick={(e) => e.stopPropagation()}
                           />
                         </td>
-                        <td className="p-2">
-                          <Input
-                            value={emp.name || ""}
-                            onChange={(e) => updateLocalEmployee(idx, "name", e.target.value)}
-                            className="w-40 h-8 font-semibold"
-                          />
+                        <td className="p-3">
+                          <Badge variant="outline">{emp.center}</Badge>
                         </td>
-                        <td className="p-2">
-                          <Input
-                            value={emp.designation || ""}
-                            onChange={(e) => updateLocalEmployee(idx, "designation", e.target.value)}
-                            className="w-28 h-8"
-                          />
+                        <td className="p-3 font-semibold">{emp.name}</td>
+                        <td className="p-3 text-muted-foreground">{emp.designation}</td>
+                        <td className="p-3">
+                          {emp.currentSalary ? `₹${emp.currentSalary.toLocaleString()}` : '-'}
                         </td>
-                        <td className="p-2">
-                          <Input
-                            type="number"
-                            value={emp.currentSalary || ""}
-                            onChange={(e) => updateLocalEmployee(idx, "currentSalary", e.target.value)}
-                            className="w-24 h-8"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <div className="flex flex-col gap-1">
-                            <Input
-                              value={emp.bankName || ""}
-                              onChange={(e) => updateLocalEmployee(idx, "bankName", e.target.value)}
-                              placeholder="Bank"
-                              className="w-28 h-7 text-xs"
-                            />
-                            <Input
-                              value={emp.beneAccNo || ""}
-                              onChange={(e) => updateLocalEmployee(idx, "beneAccNo", e.target.value)}
-                              placeholder="A/C No"
-                              className="w-28 h-7 text-xs"
-                            />
+                        <td className="p-3">
+                          <div className="text-xs">
+                            <p>{emp.bankName}</p>
+                            <p className="text-muted-foreground font-mono">{emp.beneAccNo}</p>
                           </div>
                         </td>
-                        <td className="p-2">
-                          <Input
-                            value={emp.mobile || ""}
-                            onChange={(e) => updateLocalEmployee(idx, "mobile", e.target.value)}
-                            className="w-28 h-8"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              onClick={() => updateEmployee(emp)}
-                              disabled={loading}
-                            >
-                              <Save className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => deleteEmployee(emp)}
-                              disabled={loading}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
+                        <td className="p-3 font-mono text-xs">{emp.mobile}</td>
+                        <td className="p-3 max-w-[150px]">
+                          <p className="truncate text-xs text-muted-foreground" title={emp.remark}>
+                            {emp.remark || '-'}
+                          </p>
                         </td>
                       </tr>
                     ))}
