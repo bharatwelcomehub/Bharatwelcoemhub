@@ -118,7 +118,12 @@ export default function ManagersManagement() {
     try {
       await api.post("/mgt/manager_update", {
         token: session.token,
-        ...formData
+        email: editingManager.email,  // Use original email as identifier
+        center: formData.center,
+        managerName: formData.managerName,
+        mobile: formData.mobile,
+        active: formData.active,
+        otpChannel: formData.otpChannel
       });
       toast.success("Manager updated successfully!");
       setShowEditDialog(false);
