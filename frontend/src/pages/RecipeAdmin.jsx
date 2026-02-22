@@ -279,22 +279,6 @@ export default function RecipeAdmin() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button 
-            variant="outline" 
-            onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL || ''}/api/docs/user-manual`, '_blank')}
-            data-testid="download-manual-btn"
-          >
-            <BookOpen className="w-4 h-4 mr-2" />
-            User Manual
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL || ''}/api/docs/brochure`, '_blank')}
-            data-testid="download-brochure-btn"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Recipe Brochure
-          </Button>
           <Button onClick={startCreate} data-testid="add-recipe-btn">
             <Plus className="w-4 h-4 mr-2" />
             Add New Recipe
