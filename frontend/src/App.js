@@ -1,53 +1,80 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import "@/index.css";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
+import { useState, useEffect, createContext, useContext } from "react";
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+// Auth Context
+const AuthContext = createContext(null);
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+export const useAuth = () => useContext(AuthContext);
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+const SESSION_KEY = "pb_session_v2";
 
 function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SESSION_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.token && parsed?.center) {
+          setSession(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Session load error:", e);
+    }
+    setLoading(false);
+  }, []);
+
+  const login = (data) => {
+    setSession(data);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  };
+
+  const logout = () => {
+    setSession(null);
+    localStorage.removeItem(SESSION_KEY);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="App">
+    <AuthContext.Provider value={{ session, login, logout }}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
+          <Route 
+            path="/login" 
+            element={session ? <Navigate to="/" replace /> : <Login />} 
+          />
+          <Route 
+            path="/*" 
+            element={session ? <Dashboard /> : <Navigate to="/login" replace />} 
+          />
         </Routes>
       </BrowserRouter>
-    </div>
+      <Toaster 
+        position="top-right" 
+        richColors 
+        closeButton
+        toastOptions={{
+          style: { fontFamily: 'Manrope, sans-serif' }
+        }}
+      />
+    </AuthContext.Provider>
   );
 }
 
