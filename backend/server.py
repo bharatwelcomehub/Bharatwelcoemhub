@@ -962,13 +962,22 @@ async def payslips_generate(req: PayslipGenRequest):
         query = {}
         if req.targetCenter:
             query["center"] = req.targetCenter.upper()
-        if req.mode == "single" and req.employeeName:
-            query["name"] = req.employeeName.upper()
         
-        employees = await db.employees.find(query, {"_id": 0}).to_list(1000)
+        if req.mode == "single" and req.employeeName:
+            # Try exact match first, then partial match
+            emp_name_upper = req.employeeName.strip().upper()
+            exact_query = {**query, "name": emp_name_upper}
+            employees = await db.employees.find(exact_query, {"_id": 0}).to_list(10)
+            
+            if not employees:
+                # Try partial match (contains)
+                partial_query = {**query, "name": {"$regex": emp_name_upper, "$options": "i"}}
+                employees = await db.employees.find(partial_query, {"_id": 0}).to_list(10)
+        else:
+            employees = await db.employees.find(query, {"_id": 0}).to_list(1000)
         
         if not employees:
-            raise HTTPException(404, "No employees found")
+            raise HTTPException(404, f"No employees found matching '{req.employeeName}'. Check the spelling and use full name in CAPS.")
         
         # Track generated PDFs in memory
         files_created = []
