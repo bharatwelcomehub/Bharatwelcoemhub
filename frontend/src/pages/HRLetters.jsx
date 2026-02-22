@@ -199,18 +199,49 @@ export default function HRLetters() {
     }
   };
 
-  // Download as text file
-  const downloadLetter = () => {
-    const blob = new Blob([generatedLetter], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${letterType}_letter_${selectedEmployee.replace(/\s+/g, "_")}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success("Letter downloaded!");
+  // Download as PDF or Word
+  const downloadLetter = async (format) => {
+    if (!generatedLetter) {
+      toast.error("No letter to download");
+      return;
+    }
+    
+    try {
+      const sessionStr = localStorage.getItem("pb_session_v2");
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      const token = session?.token;
+      
+      if (!token) {
+        toast.error("Session expired");
+        return;
+      }
+      
+      const response = await api.post("/hr_letter/download", {
+        token,
+        content: generatedLetter,
+        letterType,
+        employeeName: selectedEmployee,
+        format
+      }, {
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const ext = format === 'pdf' ? 'pdf' : 'docx';
+      a.download = `${letterType}_letter_${selectedEmployee.replace(/\s+/g, "_")}_${today}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success(`Letter downloaded as ${format.toUpperCase()}!`);
+    } catch (e) {
+      console.error("Download error:", e);
+      toast.error("Failed to download letter");
+    }
   };
 
   // Reset form
@@ -220,6 +251,8 @@ export default function HRLetters() {
     setGeneratedLetter("");
     setJoiningDate("");
     setSalary("");
+    setDesignation("");
+    setCenter("");
     setLastWorkingDate("");
     setExitReason("");
     setDestinationCountry("");
