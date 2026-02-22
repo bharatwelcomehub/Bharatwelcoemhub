@@ -1027,9 +1027,9 @@ async def payslips_generate(req: PayslipGenRequest):
             # Create PDF
             if req.fmt == "pdf":
                 filename = f"Payslip_{emp_name.replace(' ', '_')}_{req.month}.pdf"
-                file_path = static_path / filename
+                pdf_buffer = BytesIO()
                 
-                c = canvas.Canvas(str(file_path), pagesize=A4)
+                c = canvas.Canvas(pdf_buffer, pagesize=A4)
                 width, height = A4
                 
                 # Header
