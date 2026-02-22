@@ -281,7 +281,7 @@ export default function RecipeAdmin() {
         <div className="flex gap-2 flex-wrap">
           <Button 
             variant="outline" 
-            onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/docs/user-manual`, '_blank')}
+            onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL || ''}/api/docs/user-manual`, '_blank')}
             data-testid="download-manual-btn"
           >
             <BookOpen className="w-4 h-4 mr-2" />
@@ -289,7 +289,7 @@ export default function RecipeAdmin() {
           </Button>
           <Button 
             variant="outline" 
-            onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/docs/brochure`, '_blank')}
+            onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL || ''}/api/docs/brochure`, '_blank')}
             data-testid="download-brochure-btn"
           >
             <FileText className="w-4 h-4 mr-2" />
