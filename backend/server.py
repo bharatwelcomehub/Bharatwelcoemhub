@@ -1328,23 +1328,27 @@ async def payslips_generate(req: PayslipGenRequest):
                 # ============ NET TAKE ============
                 c.setFont("Helvetica-Bold", 9)
                 c.drawString(box_left + 0.1*inch, y, "G = C-F  NET TAKE")
-                c.drawRightString(2.0*inch, y, f"Rs. {total_net:,.2f}")
-                y -= 0.2*inch
+                c.drawRightString(2.5*inch, y, f"Rs. {total_net:,.2f}")
+                y -= 0.22*inch
                 
                 # Approx Full Package
                 approx_package = total_gross + total_liabilities
                 c.setFont("Helvetica", 7)
                 c.drawString(box_left + 0.1*inch, y, "Approx Full Package")
-                c.drawRightString(2.0*inch, y, f"Rs. {approx_package:,.2f}")
+                c.drawRightString(2.5*inch, y, f"Rs. {approx_package:,.2f}")
                 
                 # ============ FOOTER ============
                 c.setFont("Helvetica", 7)
                 c.drawString(0.5*inch, 1.1*inch, "No Signature Section Needed — this file is ready for computer use.")
                 
+                # Purnabramha branding and Signature
+                c.setFont("Helvetica-Bold", 10)
+                c.drawRightString(width - 0.5*inch, 1.0*inch, "purnabramha")
                 c.setFont("Helvetica-Bold", 9)
-                c.drawRightString(width - 0.5*inch, 0.9*inch, "MANASWINI FOODS PVT. LTD.")
+                c.drawRightString(width - 0.5*inch, 0.8*inch, "MANASWINI FOODS PVT. LTD.")
                 c.setFont("Helvetica", 8)
-                c.drawRightString(width - 0.5*inch, 0.7*inch, "Director")
+                c.drawRightString(width - 0.5*inch, 0.6*inch, "Mr. Sandeep Gadhwal")
+                c.drawRightString(width - 0.5*inch, 0.45*inch, "Director")
                 
                 c.save()
                 files_created.append(filename)
