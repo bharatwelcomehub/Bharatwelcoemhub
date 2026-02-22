@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import json
 
 class PurnabramhaAPITester:
-    def __init__(self, base_url="https://hr-workflow-8.preview.emergentagent.com"):
+    def __init__(self, base_url="https://recipe-admin-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.session_data = {}
