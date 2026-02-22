@@ -232,18 +232,6 @@ def send_otp_email(to_email: str, otp: str, manager_name: str, center: str) -> b
     except Exception as e:
         logger.error(f"[OTP-EMAIL-FAIL] {e}")
         return False
-        
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(from_email, to_email, msg.as_string())
-        
-        logger.info(f"OTP email sent successfully to {to_email}")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Failed to send OTP email: {e}")
-        return False
 
 # =======================================
 # AUTH ENDPOINTS
