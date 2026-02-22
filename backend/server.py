@@ -1068,29 +1068,35 @@ async def payslips_generate(req: PayslipGenRequest):
                 
                 c.save()
                 files_created.append(filename)
+                pdf_buffers.append((filename, pdf_buffer.getvalue()))
         
-        if len(files_created) == 1:
-            return {
-                "success": True,
-                "count": 1,
-                "file": files_created[0],
-                "downloadUrl": f"/static/{files_created[0]}"
-            }
+        if len(pdf_buffers) == 1:
+            # Single PDF - return directly
+            filename, content = pdf_buffers[0]
+            return Response(
+                content=content,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
+            )
         else:
-            # Create ZIP
-            zip_filename = f"Payslips_{req.month}.zip"
-            zip_path = static_path / zip_filename
+            # Multiple PDFs - create ZIP and return
+            zip_buffer = BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for filename, content in pdf_buffers:
+                    zf.writestr(filename, content)
             
-            with zipfile.ZipFile(zip_path, 'w') as zf:
-                for fn in files_created:
-                    zf.write(static_path / fn, fn)
+            zip_buffer.seek(0)
+            zip_filename = f"Payslips_{req.targetCenter or 'ALL'}_{req.month}.zip"
             
-            return {
-                "success": True,
-                "count": len(files_created),
-                "file": zip_filename,
-                "downloadUrl": f"/static/{zip_filename}"
-            }
+            return Response(
+                content=zip_buffer.getvalue(),
+                media_type="application/zip",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{zip_filename}"'
+                }
+            )
             
     except Exception as e:
         logger.error(f"Payslip generation error: {e}")
