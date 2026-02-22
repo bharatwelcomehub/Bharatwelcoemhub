@@ -68,9 +68,11 @@ export default function HRLetters() {
   const [letterType, setLetterType] = useState("");
   const [generatedLetter, setGeneratedLetter] = useState("");
   
-  // Additional fields
+  // Additional fields - prepopulated from employee data
   const [joiningDate, setJoiningDate] = useState("");
   const [salary, setSalary] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [center, setCenter] = useState("");
   const [lastWorkingDate, setLastWorkingDate] = useState("");
   const [exitReason, setExitReason] = useState("");
   
@@ -89,7 +91,13 @@ export default function HRLetters() {
     const loadEmployees = async () => {
       try {
         const token = localStorage.getItem("token");
+        if (!token) {
+          toast.error("Please login first");
+          setLoading(false);
+          return;
+        }
         const res = await api.get(`/hr_letter/employees?token=${token}`);
+        console.log("Loaded employees:", res.data.employees?.length);
         setEmployees(res.data.employees || []);
       } catch (e) {
         console.error("Failed to load employees:", e);
