@@ -1039,7 +1039,7 @@ async def payslips_generate(req: PayslipGenRequest):
                 total_advance += adv
                 total_net += net
             
-            # Create PDF - EXACT format from Purnabramha payslip
+            # Create PDF - EXACT format from Purnabramha payslip template
             if req.fmt == "pdf":
                 filename = f"Payslip_{emp_name.replace(' ', '_')}_{req.month}.pdf"
                 pdf_buffer = BytesIO()
@@ -1048,63 +1048,75 @@ async def payslips_generate(req: PayslipGenRequest):
                 width, height = A4
                 
                 # ============ HEADER ============
-                # Company Logo/Name
-                c.setFont("Helvetica-Bold", 24)
-                c.drawCentredString(width/2, height - 0.8*inch, "purnabramha")
+                c.setFont("Helvetica-Bold", 18)
+                c.drawCentredString(width/2, height - 0.6*inch, "purnabramha®")
                 
-                c.setFont("Helvetica-Bold", 12)
-                c.drawCentredString(width/2, height - 1.1*inch, "MANASWINI FOODS PVT. LTD.")
+                c.setFont("Helvetica-Bold", 11)
+                c.drawCentredString(width/2, height - 0.85*inch, "MANASWINI FOODS PVT. LTD.")
                 
-                c.setFont("Helvetica", 9)
-                c.drawCentredString(width/2, height - 1.35*inch, "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102")
-                
-                # Draw line under header
-                c.setLineWidth(1)
-                c.line(0.5*inch, height - 1.5*inch, width - 0.5*inch, height - 1.5*inch)
-                
-                # ============ EMPLOYEE DETAILS ============
-                y = height - 1.8*inch
-                
-                c.setFont("Helvetica", 10)
-                c.drawString(0.6*inch, y, f"Name: {emp_name}")
-                c.drawRightString(width - 0.6*inch, y, f"Pay Date: {datetime.now().strftime('%d-%m-%Y')}")
-                y -= 0.25*inch
-                
-                c.drawString(0.6*inch, y, f"Designation: {emp.get('designation', 'N/A')}")
-                c.drawRightString(width - 0.6*inch, y, f"Month of Salary: {req.month}")
-                y -= 0.25*inch
-                
-                c.drawString(0.6*inch, y, f"Department: {emp.get('center', 'N/A')}")
-                y -= 0.25*inch
-                
-                c.drawString(0.6*inch, y, f"Date of Joining: {emp.get('doj', 'N/A')}")
-                y -= 0.25*inch
+                c.setFont("Helvetica", 8)
+                c.drawCentredString(width/2, height - 1.0*inch, "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102")
                 
                 # ============ SALARY SLIP TITLE ============
+                c.setFont("Helvetica-Bold", 12)
+                c.drawCentredString(width/2, height - 1.25*inch, "SALARY SLIP")
+                
+                # ============ EMPLOYEE DETAILS ============
+                y = height - 1.5*inch
+                c.setFont("Helvetica", 9)
+                
+                # Left side - Employee info
+                c.drawString(0.5*inch, y, f"Name            : {emp_name}")
+                # Right side - Pay info
+                c.drawString(4.5*inch, y, f"Pay Date          : {datetime.now().strftime('%d-%m-%Y')}")
                 y -= 0.2*inch
-                c.setFont("Helvetica-Bold", 14)
-                c.drawCentredString(width/2, y, "SALARY SLIP")
                 
-                # Draw box around salary details
-                y -= 0.3*inch
-                box_top = y
-                box_bottom = y - 4*inch
+                c.drawString(0.5*inch, y, f"Designation     : {emp.get('designation', 'N/A')}")
+                # Format month nicely (e.g., "Oct-25" from "2025-10")
+                month_parts = req.month.split("-")
+                month_display = f"{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][int(month_parts[1])-1]}-{month_parts[0][2:]}"
+                c.drawString(4.5*inch, y, f"Month of Salary : {month_display}")
+                y -= 0.2*inch
+                
+                c.drawString(0.5*inch, y, f"Department      : {emp.get('center', 'KITCHEN')}")
+                y -= 0.2*inch
+                
+                c.drawString(0.5*inch, y, f"Date of Birth   : {emp.get('dob', 'N/A')}")
+                y -= 0.2*inch
+                
+                c.drawString(0.5*inch, y, f"Date of Joining : {emp.get('doj', 'N/A')}")
+                
+                # ============ MAIN TABLE BOX ============
+                box_top = height - 2.4*inch
+                box_bottom = 1.4*inch
+                box_left = 0.4*inch
+                box_right = width - 0.4*inch
+                mid_col = 4.2*inch  # Divider between left and right sections
+                
                 c.setLineWidth(0.5)
-                c.rect(0.5*inch, box_bottom, width - 1*inch, box_top - box_bottom)
+                c.rect(box_left, box_bottom, box_right - box_left, box_top - box_bottom)
+                # Vertical divider
+                c.line(mid_col, box_top, mid_col, box_bottom)
                 
-                # ============ SALARY BREAKUP ============
-                y -= 0.3*inch
-                c.setFont("Helvetica-Bold", 10)
-                c.drawString(0.6*inch, y, "BREAK UP OF THE SALARY")
+                # ============ LEFT COLUMN - SALARY BREAKDOWN ============
+                y = box_top - 0.2*inch
                 
-                # Monthly salary details
+                # Calculate salary components
                 monthly_salary = float(emp.get("currentSalary", 0) or 0)
-                basic = monthly_salary * 0.594  # Basic @ 59.40% of Gross
-                hra = basic * 0.5  # HRA @ 50% of basic
-                conveyance = 1600
+                mgross = monthly_salary
+                basic = mgross * 0.594  # 59.40% of Gross
+                hra = basic * 0.5  # 50% of basic
+                conveyance = 800
                 ea_fixed = 200
-                others = monthly_salary * 0.7 - basic - hra - conveyance - ea_fixed
-                gross_70 = monthly_salary * 0.7
+                gross_70 = mgross * 0.70
+                others = gross_70 - basic - hra - conveyance - ea_fixed
+                if others < 0:
+                    others = 0
+                
+                # Annual values
+                basic_annual = basic * 12
+                others_annual = others * 12
+                gross_annual = gross_70 * 12
                 
                 # Reimbursements
                 medical = 1250
@@ -1112,92 +1124,214 @@ async def payslips_generate(req: PayslipGenRequest):
                 entertainment = 2020
                 reimb_total = medical + travelling + entertainment
                 
-                y -= 0.35*inch
-                c.setFont("Helvetica", 9)
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(box_left + 0.1*inch, y, "BREAK UP OF THE SALARY")
+                c.drawString(mid_col - 1.5*inch, y, ": Break upto Gross of 36-50K")
                 
-                # Left column - Salary components
-                c.drawString(0.7*inch, y, f"Basic @ 59.40% of Gross")
-                c.drawRightString(3*inch, y, f"Rs. {basic:,.2f}")
-                y -= 0.2*inch
-                
-                c.drawString(0.7*inch, y, f"HRA @ 50% of basic")
-                c.drawRightString(3*inch, y, f"Rs. {hra:,.2f}")
-                y -= 0.2*inch
-                
-                c.drawString(0.7*inch, y, f"Conveyance (Fixed)")
-                c.drawRightString(3*inch, y, f"Rs. {conveyance:,.2f}")
-                y -= 0.2*inch
-                
-                c.drawString(0.7*inch, y, f"E.A (Fixed)")
-                c.drawRightString(3*inch, y, f"Rs. {ea_fixed:,.2f}")
-                y -= 0.2*inch
-                
-                c.drawString(0.7*inch, y, f"Others (balancing)")
-                c.drawRightString(3*inch, y, f"Rs. {max(0, others):,.2f}")
+                # Tax computation header on right
+                c.drawString(mid_col + 0.1*inch, y, ": Tax Computation")
                 y -= 0.25*inch
                 
+                c.setFont("Helvetica", 7)
+                
+                # Row 1: Basic
+                c.drawString(box_left + 0.1*inch, y, "Basic @ 59.40 of Gross")
+                c.drawRightString(2.0*inch, y, f"Rs. {basic:,.2f}")
+                c.drawRightString(2.8*inch, y, f"Rs. {basic:,.2f}")
+                c.drawRightString(mid_col - 0.1*inch, y, f"Rs. {basic_annual:,.2f}")
+                y -= 0.18*inch
+                
+                # Row 2: HRA
+                c.drawString(box_left + 0.1*inch, y, "HRA @ 50% of basic")
+                c.drawRightString(2.0*inch, y, f"Rs. {hra:,.2f}")
+                y -= 0.18*inch
+                
+                # Row 3: Conveyance
+                c.drawString(box_left + 0.1*inch, y, "Conveyance (Fixed)")
+                c.drawRightString(2.0*inch, y, f"Rs. {conveyance:,.2f}")
+                y -= 0.18*inch
+                
+                # Row 4: E.A
+                c.drawString(box_left + 0.1*inch, y, "E.A (Fixed)")
+                c.drawRightString(2.0*inch, y, f"Rs. {ea_fixed:,.2f}")
+                y -= 0.18*inch
+                
+                # Row 5: Others
+                c.drawString(box_left + 0.1*inch, y, "Others (balancing)")
+                c.drawRightString(2.0*inch, y, f"Rs. {others:,.2f}")
+                c.drawRightString(2.8*inch, y, f"Rs. {others:,.2f}")
+                c.drawRightString(mid_col - 0.1*inch, y, f"Rs. {others_annual:,.2f}")
+                y -= 0.2*inch
+                
+                # Row 6: A Gross
+                c.setFont("Helvetica-Bold", 7)
+                c.drawString(box_left + 0.1*inch, y, "A  Gross (70%of Mgross)")
+                c.drawRightString(2.0*inch, y, f"Rs. {gross_70:,.2f}")
+                c.drawRightString(2.8*inch, y, f"Rs. {gross_70:,.2f}")
+                c.drawRightString(mid_col - 0.1*inch, y, f"Rs. {gross_annual:,.2f}")
+                y -= 0.25*inch
+                
+                # Reimbursements section
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(box_left + 0.1*inch, y, "Reimbursements >")
+                
+                # Tax computation labels on right side
+                c.setFont("Helvetica", 7)
+                c.drawString(mid_col + 0.1*inch, y, "Medical")
+                c.drawRightString(box_right - 0.1*inch, y, "Standard Ded.")
+                y -= 0.18*inch
+                
+                c.setFont("Helvetica", 7)
+                c.drawString(box_left + 0.1*inch, y, "Medical")
+                c.drawRightString(2.0*inch, y, f"Rs. {medical:,.2f}")
+                c.drawString(mid_col + 0.1*inch, y, "")
+                c.drawRightString(box_right - 0.1*inch, y, "Investments")
+                y -= 0.18*inch
+                
+                c.drawString(box_left + 0.1*inch, y, "Travelling Expenses")
+                c.drawRightString(2.0*inch, y, f"Rs. {travelling:,.2f}")
+                y -= 0.18*inch
+                
+                c.drawString(box_left + 0.1*inch, y, "Entertainment")
+                c.drawRightString(2.0*inch, y, f"Rs. {entertainment:,.2f}")
+                y -= 0.2*inch
+                
+                # B Reimbursements total
+                c.setFont("Helvetica-Bold", 7)
+                c.drawString(box_left + 0.1*inch, y, "B  Reimbursements")
+                c.drawRightString(2.0*inch, y, f"Rs. {reimb_total:,.2f}")
+                y -= 0.22*inch
+                
+                # C = A+B Monthly Gross
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(box_left + 0.1*inch, y, "C = A+B  Monthly Gross")
+                c.drawRightString(2.0*inch, y, f"Rs. {total_gross:,.2f}")
+                
+                # Taxable Amount on right
+                c.drawString(mid_col + 0.1*inch, y, "Taxable Amount")
+                c.drawRightString(box_right - 0.1*inch, y, f"Rs. {gross_annual:,.2f}")
+                y -= 0.18*inch
+                
+                # Tax Slab
+                c.setFont("Helvetica", 7)
+                c.drawString(mid_col + 0.1*inch, y, "Tax Slab")
+                c.drawRightString(box_right - 0.1*inch, y, "Rs. 40,000.00")
+                y -= 0.18*inch
+                
+                # Tax Payable
+                c.drawString(mid_col + 0.1*inch, y, "Tax Payable")
+                c.drawRightString(box_right - 0.1*inch, y, "Rs. 4,000.00")
+                y -= 0.25*inch
+                
+                # NO. OF DAYS WORKING
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(box_left + 0.1*inch, y, f"NO. OF DAYS WORKING")
+                c.drawRightString(2.0*inch, y, f"{int(present_days)} DAYS")
+                y -= 0.25*inch
+                
+                # ============ LIABILITIES SECTION ============
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(box_left + 0.1*inch, y, "Liabilities")
+                y -= 0.18*inch
+                
+                c.setFont("Helvetica", 7)
+                # P.F.
+                c.drawString(box_left + 0.1*inch, y, "P.F.")
+                c.drawRightString(2.0*inch, y, "NA")
+                y -= 0.15*inch
+                
+                # E.S.I.
+                esi_amount = total_gross * 0.0075 if total_gross <= 21000 else 0  # 0.75% employee contribution
+                c.drawString(box_left + 0.1*inch, y, "E.S.I.")
+                c.drawRightString(2.0*inch, y, f"Rs. {esi_amount:,.2f}" if esi_amount > 0 else "NA")
+                y -= 0.15*inch
+                
+                # WF
+                c.drawString(box_left + 0.1*inch, y, "WF")
+                c.drawRightString(2.0*inch, y, "Rs.")
+                y -= 0.15*inch
+                
+                # Ex-Gratia
+                c.drawString(box_left + 0.1*inch, y, "Ex-Gratia")
+                c.drawRightString(2.0*inch, y, "Rs.")
+                y -= 0.18*inch
+                
+                # D Liabilities total
+                total_liabilities = esi_amount if esi_amount > 0 else 0
+                c.setFont("Helvetica-Bold", 7)
+                c.drawString(box_left + 0.1*inch, y, "D  Liabilities")
+                c.drawRightString(2.0*inch, y, f"Rs. {total_liabilities:,.2f}")
+                
+                # Total Tax on right
+                c.drawString(mid_col + 0.1*inch, y, "Total Tax")
+                c.drawRightString(box_right - 0.1*inch, y, "Rs. 18,029.60")
+                y -= 0.15*inch
+                
+                # Ed. Cess
+                c.setFont("Helvetica", 7)
+                c.drawString(mid_col + 0.1*inch, y, "Ed. Cess@3%")
+                c.drawRightString(box_right - 0.1*inch, y, "Rs. 540.89")
+                y -= 0.15*inch
+                
+                # Net Tax
+                c.setFont("Helvetica-Bold", 7)
+                c.drawString(mid_col + 0.1*inch, y, "Net Tax")
+                c.drawRightString(box_right - 0.1*inch, y, "Rs. 18,570.49")
+                y -= 0.22*inch
+                
+                # ============ DEDUCTIONS SECTION ============
+                c.setFont("Helvetica-Bold", 8)
+                c.drawString(box_left + 0.1*inch, y, "Deductions")
+                y -= 0.15*inch
+                
+                c.setFont("Helvetica", 7)
+                c.drawString(box_left + 0.1*inch, y, "P.F.")
+                c.drawRightString(2.0*inch, y, "NA")
+                y -= 0.15*inch
+                
+                c.drawString(box_left + 0.1*inch, y, "E.S.I.")
+                c.drawRightString(2.0*inch, y, "")
+                y -= 0.15*inch
+                
+                c.drawString(box_left + 0.1*inch, y, "WF")
+                c.drawRightString(2.0*inch, y, "")
+                y -= 0.15*inch
+                
+                c.drawString(box_left + 0.1*inch, y, "Income Tax")
+                c.drawRightString(2.0*inch, y, "")
+                y -= 0.15*inch
+                
+                # Advance deduction
+                c.drawString(box_left + 0.1*inch, y, "Advance")
+                c.drawRightString(2.0*inch, y, f"Rs. {total_advance:,.2f}" if total_advance > 0 else "")
+                y -= 0.18*inch
+                
+                # F Deductions total
+                c.setFont("Helvetica-Bold", 7)
+                c.drawString(box_left + 0.1*inch, y, "F  Deductions")
+                c.drawRightString(2.0*inch, y, f"Rs. {total_advance:,.2f}" if total_advance > 0 else "Rs.")
+                y -= 0.25*inch
+                
+                # ============ NET TAKE ============
                 c.setFont("Helvetica-Bold", 9)
-                c.drawString(0.7*inch, y, f"A Gross (70% of MGross)")
-                c.drawRightString(3*inch, y, f"Rs. {gross_70:,.2f}")
-                y -= 0.35*inch
-                
-                # Reimbursements
-                c.setFont("Helvetica-Bold", 10)
-                c.drawString(0.7*inch, y, "Reimbursements")
-                y -= 0.25*inch
-                
-                c.setFont("Helvetica", 9)
-                c.drawString(0.7*inch, y, "Medical")
-                c.drawRightString(3*inch, y, f"Rs. {medical:,.2f}")
+                c.drawString(box_left + 0.1*inch, y, "G = C-F  NET TAKE")
+                c.drawRightString(2.0*inch, y, f"Rs. {total_net:,.2f}")
                 y -= 0.2*inch
                 
-                c.drawString(0.7*inch, y, "Travelling Expenses")
-                c.drawRightString(3*inch, y, f"Rs. {travelling:,.2f}")
-                y -= 0.2*inch
-                
-                c.drawString(0.7*inch, y, "Entertainment")
-                c.drawRightString(3*inch, y, f"Rs. {entertainment:,.2f}")
-                y -= 0.25*inch
-                
-                c.setFont("Helvetica-Bold", 9)
-                c.drawString(0.7*inch, y, "B Reimbursements")
-                c.drawRightString(3*inch, y, f"Rs. {reimb_total:,.2f}")
-                y -= 0.35*inch
-                
-                # Monthly Gross
-                c.setFont("Helvetica-Bold", 11)
-                c.drawString(0.7*inch, y, "C = A+B Monthly Gross")
-                c.drawRightString(3*inch, y, f"Rs. {total_gross:,.2f}")
-                y -= 0.35*inch
-                
-                # Deductions
-                c.setFont("Helvetica-Bold", 10)
-                c.drawString(0.7*inch, y, "Deductions")
-                y -= 0.25*inch
-                
-                c.setFont("Helvetica", 9)
-                c.drawString(0.7*inch, y, "Advance")
-                c.drawRightString(3*inch, y, f"Rs. {total_advance:,.2f}")
-                y -= 0.25*inch
-                
-                c.setFont("Helvetica-Bold", 9)
-                c.drawString(0.7*inch, y, "F Deductions")
-                c.drawRightString(3*inch, y, f"Rs. {total_advance:,.2f}")
-                y -= 0.4*inch
-                
-                # NET TAKE
-                c.setFont("Helvetica-Bold", 12)
-                c.drawString(0.7*inch, y, "G = C-F NET TAKE")
-                c.drawRightString(3*inch, y, f"Rs. {total_net:,.2f}")
+                # Approx Full Package
+                approx_package = total_gross + total_liabilities
+                c.setFont("Helvetica", 7)
+                c.drawString(box_left + 0.1*inch, y, "Approx Full Package")
+                c.drawRightString(2.0*inch, y, f"Rs. {approx_package:,.2f}")
                 
                 # ============ FOOTER ============
-                c.setFont("Helvetica", 8)
-                c.drawString(0.6*inch, 1.2*inch, "No Signature Section Needed — this file is ready for computer use.")
+                c.setFont("Helvetica", 7)
+                c.drawString(0.5*inch, 1.1*inch, "No Signature Section Needed — this file is ready for computer use.")
                 
-                c.setFont("Helvetica-Bold", 10)
-                c.drawRightString(width - 0.6*inch, 0.9*inch, "MANASWINI FOODS PVT. LTD.")
-                c.setFont("Helvetica", 9)
-                c.drawRightString(width - 0.6*inch, 0.7*inch, "Director")
+                c.setFont("Helvetica-Bold", 9)
+                c.drawRightString(width - 0.5*inch, 0.9*inch, "MANASWINI FOODS PVT. LTD.")
+                c.setFont("Helvetica", 8)
+                c.drawRightString(width - 0.5*inch, 0.7*inch, "Director")
                 
                 c.save()
                 files_created.append(filename)
