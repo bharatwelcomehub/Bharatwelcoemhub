@@ -303,12 +303,16 @@ async def mgt_employee_update(data: dict):
         "center": data.get("empCenter", "").upper(),
         "name": data.get("name", "").upper(),
         "designation": data.get("designation", ""),
+        "gender": data.get("gender", ""),
         "currentSalary": float(data.get("currentSalary", 0) or 0),
+        "salaryBase": float(data.get("salaryBase", 0) or 0),
+        "dateOfJoining": data.get("dateOfJoining", ""),
         "bankName": data.get("bankName", ""),
         "beneAccNo": data.get("beneAccNo", ""),
         "ifsc": data.get("ifsc", ""),
         "mobile": data.get("mobile", ""),
         "email": data.get("email", ""),
+        "remark": data.get("remark", ""),
         "updatedAt": datetime.now(timezone.utc).isoformat()
     }
     
