@@ -1089,7 +1089,7 @@ async def get_center_info():
 
 @api_router.post("/seed_data")
 async def seed_data():
-    """Seed initial data into MongoDB"""
+    """Seed initial data into MongoDB from Excel export"""
     
     # Seed managers (including both PB-MGT entries)
     managers = [
@@ -1112,26 +1112,21 @@ async def seed_data():
             upsert=True
         )
     
-    # Seed sample employees
-    employees = [
-        {"center": "PB-MGT", "name": "JAYANTI PRANAV KATHALE", "gender": "FEMALE", "designation": "DIRECTOR", "currentSalary": 100000, "bankName": "IDFC", "beneAccNo": "10093902585", "ifsc": "IDFB0080172", "mobile": "9741399190", "email": "jayantikathale@purnabramha.com"},
-        {"center": "PB-MGT", "name": "SANDEEP GADHWAL", "gender": "MALE", "designation": "DIRECTOR", "currentSalary": 100000, "bankName": "HDFC", "beneAccNo": "50100291509491", "ifsc": "HDFC0004220", "mobile": "9960886185", "email": "sandeep.gadhwal@purnabramha.com"},
-        {"center": "PB-MGT", "name": "SHARAYU SHASHIKANT PANDE", "gender": "MALE", "designation": "ACCOUNTANT", "currentSalary": 45000, "bankName": "BOB", "beneAccNo": "40690100004206", "ifsc": "BARB0MEDNAG", "mobile": "8007863037", "email": "sarveshpande@purnabramha.com"},
-        {"center": "PB-MGT", "name": "BHAGYESH PATIL", "gender": "MALE", "designation": "HEAD CHEF", "currentSalary": 55000, "bankName": "IDFC", "beneAccNo": "10096796367", "ifsc": "IDFB0080151", "mobile": "8149706560", "email": "bhagyeshpatil2014@rediffmail.com"},
-        {"center": "PB-HSR", "name": "SUMITRA", "gender": "FEMALE", "designation": "EMPLOYEE", "currentSalary": 25000, "bankName": "KM", "beneAccNo": "", "ifsc": "KKBK0001417", "mobile": "", "email": ""},
-        {"center": "PB-HSR", "name": "EKTA SURESHKUMAR RAVAL", "gender": "FEMALE", "designation": "EMPLOYEE", "currentSalary": 28000, "bankName": "BOB", "beneAccNo": "18890100018790", "ifsc": "BARB0KAMELA", "mobile": "", "email": ""},
-        {"center": "PB-TH", "name": "KUNAL BHOSLE", "gender": "MALE", "designation": "MANAGER", "currentSalary": 40000, "bankName": "HDFC", "beneAccNo": "", "ifsc": "", "mobile": "8904749084", "email": ""},
-        {"center": "PB-TH", "name": "RUPALI SUTAR", "gender": "FEMALE", "designation": "EMPLOYEE", "currentSalary": 22000, "bankName": "", "beneAccNo": "", "ifsc": "", "mobile": "", "email": ""},
-        {"center": "PB-KAL", "name": "SAHIL", "gender": "MALE", "designation": "EMPLOYEE", "currentSalary": 23000, "bankName": "IDFC", "beneAccNo": "06040100035505", "ifsc": "BARB0AMBAZA", "mobile": "8390292539", "email": ""},
-        {"center": "PB-KAL", "name": "ANJALI", "gender": "FEMALE", "designation": "HOUSEKEEPER", "currentSalary": 18000, "bankName": "BOB", "beneAccNo": "05940100008080", "ifsc": "BARBOCHITRI", "mobile": "", "email": ""},
-    ]
-    
-    for e in employees:
-        await db.employees.update_one(
-            {"name": e["name"]},
-            {"$set": e},
-            upsert=True
-        )
+    # Load employees from JSON file (exported from Excel)
+    employees_file = ROOT_DIR / "employees_data.json"
+    if employees_file.exists():
+        with open(employees_file, "r") as f:
+            employees = json.load(f)
+        
+        # Clear existing employees and insert fresh
+        await db.employees.delete_many({})
+        
+        for e in employees:
+            await db.employees.insert_one(e)
+        
+        emp_count = len(employees)
+    else:
+        emp_count = 0
     
     # Seed salary rules
     salary_rules = {
@@ -1152,7 +1147,7 @@ async def seed_data():
         upsert=True
     )
     
-    return {"success": True, "message": "Data seeded successfully"}
+    return {"success": True, "message": f"Data seeded: {len(managers)} managers, {emp_count} employees"}
 
 # =======================================
 # BASIC ENDPOINTS
