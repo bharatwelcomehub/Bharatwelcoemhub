@@ -574,6 +574,7 @@ export default function HRLetters() {
                     size="sm"
                     onClick={copyToClipboard}
                     data-testid="copy-letter-btn"
+                    title="Copy to clipboard"
                   >
                     {copied ? (
                       <Check className="w-4 h-4 text-green-600" />
@@ -584,10 +585,24 @@ export default function HRLetters() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={downloadLetter}
-                    data-testid="download-letter-btn"
+                    onClick={() => downloadLetter('pdf')}
+                    data-testid="download-pdf-btn"
+                    className="text-red-600 hover:text-red-700"
+                    title="Download as PDF"
                   >
-                    <Download className="w-4 h-4" />
+                    <FileText className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadLetter('docx')}
+                    data-testid="download-docx-btn"
+                    className="text-blue-600 hover:text-blue-700"
+                    title="Download as Word"
+                  >
+                    <File className="w-4 h-4 mr-1" />
+                    Word
                   </Button>
                 </div>
               )}
@@ -596,6 +611,11 @@ export default function HRLetters() {
               <Badge variant="secondary">
                 {LETTER_TYPES.find(t => t.value === letterType)?.label}
               </Badge>
+            )}
+            {generatedLetter && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Generated on: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </p>
             )}
           </CardHeader>
           <CardContent>
