@@ -1,0 +1,13 @@
+{
+    "otp": {"length": 6, "ttl_seconds": 300},
+    "security": {"session_ttl_seconds": 43200},
+    "email": {
+        "enabled": true,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_user": "",
+        "smtp_pass": "",
+        "from_name": "Purnabramha Attendance",
+        "from_email": ""
+    }
+}
