@@ -319,16 +319,6 @@ export default function Salary({ isPayslips = false }) {
               )}
               {isPayslips ? "Generate Payslips" : "Download Excel"}
             </Button>
-
-            {downloadUrl && (
-              <Button
-                variant="outline"
-                onClick={() => window.open(downloadUrl, "_blank")}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Re-download
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>
