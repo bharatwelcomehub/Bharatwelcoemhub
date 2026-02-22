@@ -1,0 +1,327 @@
+{
+  "bhojanGuru": {
+    "vada_pav": {
+      "display": "Vada Pav",
+      "mood": ["comfort", "quick bite", "nostalgic"],
+      "occasion": ["snack", "evening chai", "travel"],
+      "season": ["all", "monsoon"],
+      "spice": "medium",
+      "best_with": ["masala_tea", "ginger_tea", "solkadhi"],
+      "combo": [
+        { "name": "Vada Pav + Cutting Chai", "items": ["vada_pav", "simple_tea"] },
+        { "name": "Vada Pav + Solkadhi Cooldown", "items": ["vada_pav", "solkadhi"] }
+      ],
+      "upsell": ["batata_vada", "kothimbir_vadi", "sheera"],
+      "tags": ["bestseller", "street-food", "kids-fav"]
+    },
+    "misal_pav": {
+      "display": "Misal Pav",
+      "mood": ["power", "spicy kick", "weekend vibe"],
+      "occasion": ["brunch", "breakfast", "party starter"],
+      "season": ["monsoon", "winter", "all"],
+      "spice": "spicy",
+      "best_with": ["buttermilk", "solkadhi"],
+      "combo": [
+        { "name": "Misal Pav + Cool Drink", "items": ["misal_pav", "solkadhi"] },
+        { "name": "Misal Pav + Sweet Finish", "items": ["misal_pav", "puranpoli"] }
+      ],
+      "upsell": ["kanda_bhaji", "dahi_bhat", "shrikhand"],
+      "tags": ["bestseller", "spicy", "mumbai-style"]
+    },
+    "kanda_bhaji": {
+      "display": "Kanda Bhaji",
+      "mood": ["crunchy", "chai-time", "monsoon love"],
+      "occasion": ["snack", "starter"],
+      "season": ["monsoon", "winter"],
+      "spice": "mild",
+      "best_with": ["masala_tea", "ginger_tea"],
+      "combo": [
+        { "name": "Bhaji + Chai", "items": ["kanda_bhaji", "masala_tea"] }
+      ],
+      "upsell": ["vada_pav", "thecha", "solkadhi"],
+      "tags": ["crispy", "monsoon-special"]
+    },
+    "purnabramha_special_thali": {
+      "display": "Purnabramha Special Thali",
+      "mood": ["royal", "satisfying", "full meal"],
+      "occasion": ["lunch", "dinner", "family"],
+      "season": ["all"],
+      "spice": "balanced",
+      "best_with": ["solkadhi", "piyush"],
+      "combo": [
+        { "name": "Thali + Solkadhi", "items": ["purnabramha_special_thali", "solkadhi"] },
+        { "name": "Thali + Sweet", "items": ["purnabramha_special_thali", "puranpoli"] }
+      ],
+      "upsell": ["ukadicha_modak", "shrikhand", "piyush"],
+      "tags": ["signature", "premium", "family-fav"]
+    },
+    "masale_bhat": {
+      "display": "Masale Bhat",
+      "mood": ["warming", "homestyle", "simple joy"],
+      "occasion": ["lunch", "tiffin", "corporate"],
+      "season": ["winter", "monsoon", "all"],
+      "spice": "mild",
+      "best_with": ["kadhi", "raita", "solkadhi"],
+      "combo": [
+        { "name": "Masale Bhat + Kadhi", "items": ["masale_bhat", "kadhi"] },
+        { "name": "Masale Bhat + Curd Bowl", "items": ["masale_bhat", "dahi"] }
+      ],
+      "upsell": ["kothimbir_vadi", "batata_bhaji", "piyush"],
+      "tags": ["tiffin-friendly", "comfort"]
+    },
+    "kadhi": {
+      "display": "Kadhi",
+      "mood": ["light", "soothing", "digestion-friendly"],
+      "occasion": ["lunch", "post-travel", "family meal"],
+      "season": ["summer", "all"],
+      "spice": "mild",
+      "best_with": ["steam_rice", "masale_bhat"],
+      "combo": [
+        { "name": "Kadhi-Chawal Comfort", "items": ["kadhi", "steam_rice"] }
+      ],
+      "upsell": ["papad", "pickle", "ghee"],
+      "tags": ["light", "classic"]
+    },
+    "dahi_bhat": {
+      "display": "Dahi Bhat",
+      "mood": ["cooling", "calm", "simple"],
+      "occasion": ["lunch", "summer special", "kid-friendly"],
+      "season": ["summer", "all"],
+      "spice": "very mild",
+      "best_with": ["masala_mirchi", "pickle", "papad"],
+      "combo": [
+        { "name": "Dahi Bhat + Crunch", "items": ["dahi_bhat", "papad"] }
+      ],
+      "upsell": ["masale_bhat", "kadhi", "gajar_koshimbir"],
+      "tags": ["kids-fav", "cooling"]
+    },
+    "ukadicha_modak": {
+      "display": "Ukadicha Modak",
+      "mood": ["festive", "devotional", "celebration"],
+      "occasion": ["festival", "party dessert", "gift"],
+      "season": ["festival", "all"],
+      "spice": "sweet",
+      "best_with": ["piyush", "warm_milk"],
+      "combo": [
+        { "name": "Modak + Piyush", "items": ["ukadicha_modak", "piyush"] }
+      ],
+      "upsell": ["shrikhand", "sheera", "basundi"],
+      "tags": ["festival-special", "premium", "bestseller"]
+    },
+    "puranpoli": {
+      "display": "Puran Poli",
+      "mood": ["warm", "classic", "family nostalgia"],
+      "occasion": ["thali dessert", "festival", "guest treat"],
+      "season": ["winter", "festival", "all"],
+      "spice": "sweet",
+      "best_with": ["warm_ghee", "milk", "piyush"],
+      "combo": [
+        { "name": "Puran Poli + Ghee", "items": ["puranpoli", "ghee"] },
+        { "name": "Puran Poli + Piyush", "items": ["puranpoli", "piyush"] }
+      ],
+      "upsell": ["shrikhand", "basundi", "gajar_halwa"],
+      "tags": ["classic", "bestseller"]
+    },
+    "shrikhand": {
+      "display": "Shrikhand",
+      "mood": ["cooling", "celebration", "refreshing"],
+      "occasion": ["dessert", "party", "thali finish"],
+      "season": ["summer", "all"],
+      "spice": "sweet",
+      "best_with": ["puri", "thali", "fruit"],
+      "combo": [
+        { "name": "Shrikhand + Puri", "items": ["shrikhand", "puri"] }
+      ],
+      "upsell": ["aamrakhand", "basundi", "tilgul_ladoo"],
+      "tags": ["summer-hit", "premium"]
+    },
+    "sabudana_khichdi": {
+      "display": "Sabudana Khichdi",
+      "mood": ["light energy", "fasting comfort", "clean food"],
+      "occasion": ["upvas", "breakfast", "light lunch"],
+      "season": ["all"],
+      "spice": "mild",
+      "best_with": ["upvas_chutney", "curd", "solkadhi"],
+      "combo": [
+        { "name": "Upvas Comfort Combo", "items": ["sabudana_khichdi", "solkadhi"] }
+      ],
+      "upsell": ["sabudana_vada", "rajgira_thalipeeth"],
+      "tags": ["upvas", "gluten-free"]
+    },
+    "sabudana_vada": {
+      "display": "Sabudana Vada",
+      "mood": ["crispy", "fasting treat", "snack"],
+      "occasion": ["upvas", "starter", "evening snack"],
+      "season": ["all"],
+      "spice": "mild",
+      "best_with": ["upvas_chutney", "curd"],
+      "combo": [
+        { "name": "Upvas Crunch Combo", "items": ["sabudana_vada", "sabudana_khichdi"] }
+      ],
+      "upsell": ["solkadhi", "rajgira_thalipeeth"],
+      "tags": ["upvas", "crispy"]
+    },
+    "balgopal_thali": {
+      "display": "Balgopal Thali",
+      "mood": ["happy", "safe", "comfort"],
+      "occasion": ["kids meal", "family outing", "school holiday"],
+      "season": ["all"],
+      "spice": "very mild",
+      "best_with": ["lassi", "piyush", "shrikhand"],
+      "combo": [
+        { "name": "Balgopal Hero Combo", "items": ["balgopal_thali", "shrikhand"] }
+      ],
+      "upsell": ["vada_pav", "sheera"],
+      "tags": ["kids-fav", "mild", "star-reward"]
+    },
+    "solkadhi": {
+      "display": "Solkadhi",
+      "mood": ["cooling", "digestive", "refreshing"],
+      "occasion": ["with meal", "after spicy food", "summer drink"],
+      "season": ["summer", "all"],
+      "spice": "mild",
+      "best_with": ["thali", "misal_pav", "rice"],
+      "combo": [],
+      "upsell": ["piyush", "kokum"],
+      "tags": ["digestive", "traditional"]
+    },
+    "piyush": {
+      "display": "Piyush",
+      "mood": ["indulgent", "creamy", "celebration"],
+      "occasion": ["with meal", "dessert drink", "festive"],
+      "season": ["summer", "all"],
+      "spice": "sweet",
+      "best_with": ["puranpoli", "thali", "modak"],
+      "combo": [],
+      "upsell": ["solkadhi", "lassi"],
+      "tags": ["creamy", "festive"]
+    }
+  },
+  "regionWise": {
+    "Sunday": {
+      "region": "Kolhapur",
+      "thaliName": "Mahalaxmi Thali",
+      "highlights": "Sunday is for family, fullness, and warmth.",
+      "recommendedOrder": {
+        "dal": "Sadha Varan",
+        "bhaji": "Pithala / Ravan",
+        "rice": "Sadha Bhat (Steam rice)",
+        "roti": "Bhakar",
+        "drink": "Solkadhi",
+        "sweet": "Puranpoli"
+      }
+    },
+    "Monday": {
+      "region": "Pune",
+      "thaliName": "Peshwe Thali",
+      "highlights": "Start the week with balanced Puneri flavors.",
+      "recommendedOrder": {
+        "dal": "Amti",
+        "bhaji": "Batata Bhaji",
+        "rice": "Masale Bhat",
+        "roti": "Chapati",
+        "drink": "Buttermilk",
+        "sweet": "Shrikhand"
+      }
+    },
+    "Tuesday": {
+      "region": "Vidarbha",
+      "thaliName": "Vidarbha Thali",
+      "highlights": "Vidarbha's rustic, earthy flavors.",
+      "recommendedOrder": {
+        "dal": "Varhadi Dal",
+        "bhaji": "Bharli Vangi",
+        "rice": "Sadha Bhat",
+        "roti": "Jowar Bhakri",
+        "drink": "Masala Chaas",
+        "sweet": "Sheera"
+      }
+    },
+    "Wednesday": {
+      "region": "Konkan",
+      "thaliName": "Konkan Thali",
+      "highlights": "Coconut-rich coastal delights.",
+      "recommendedOrder": {
+        "dal": "Kokum Kadhi",
+        "bhaji": "Aluchi Bhaji",
+        "rice": "Coconut Rice",
+        "roti": "Ghavan",
+        "drink": "Solkadhi",
+        "sweet": "Modak"
+      }
+    },
+    "Thursday": {
+      "region": "Marathwada",
+      "thaliName": "Marathwada Thali",
+      "highlights": "Hearty Marathwada cuisine.",
+      "recommendedOrder": {
+        "dal": "Chincha Gulacha Varan",
+        "bhaji": "Shev Bhaji",
+        "rice": "Sadha Bhat",
+        "roti": "Bhakar",
+        "drink": "Kokum",
+        "sweet": "Basundi"
+      }
+    },
+    "Friday": {
+      "region": "Mumbai",
+      "thaliName": "Mumbai Street Special",
+      "highlights": "Street food energy to end the week.",
+      "recommendedOrder": {
+        "dal": "Misal Gravy",
+        "bhaji": "Pav Bhaji Style",
+        "rice": "Optional",
+        "roti": "Pav",
+        "drink": "Masala Lemon",
+        "sweet": "Gulab Jamun"
+      }
+    },
+    "Saturday": {
+      "region": "Khandesh",
+      "thaliName": "Khandeshi Thali",
+      "highlights": "Rustic Khandeshi traditions.",
+      "recommendedOrder": {
+        "dal": "Methi Varan",
+        "bhaji": "Vangyacha Bharit",
+        "rice": "Sadha Bhat",
+        "roti": "Bajri Bhakri",
+        "drink": "Buttermilk",
+        "sweet": "Puranpoli"
+      }
+    }
+  },
+  "bodyNeedMatrix": {
+    "energy": {
+      "low": { "prefer": ["masale_bhat", "sheera", "piyush"], "avoid": ["heavy_thali"] },
+      "normal": { "prefer": ["thali", "rice_dal"], "avoid": [] },
+      "active": { "prefer": ["protein_rich", "misal"], "avoid": ["heavy_sweets"] }
+    },
+    "digestion": {
+      "sensitive": { "prefer": ["kadhi", "dahi_bhat", "light_items"], "avoid": ["spicy", "fried"] },
+      "normal": { "prefer": ["any"], "avoid": [] },
+      "strong": { "prefer": ["misal", "spicy_items"], "avoid": [] }
+    },
+    "mood": {
+      "calm": { "prefer": ["light_thali", "solkadhi"], "avoid": ["heavy"] },
+      "stressed": { "prefer": ["comfort_food", "sweets"], "avoid": ["spicy"] },
+      "irritated": { "prefer": ["cooling_drinks", "dahi_bhat"], "avoid": ["spicy", "fried"] }
+    },
+    "spice": {
+      "no_spice": { "prefer": ["balgopal_items", "sweets"], "avoid": ["all_spicy"] },
+      "mild": { "prefer": ["kadhi", "dal_rice"], "avoid": ["misal", "ravan"] },
+      "medium": { "prefer": ["regular_thali"], "avoid": ["ravan_pithala"] },
+      "high": { "prefer": ["misal", "ravan_pithala", "thecha"], "avoid": [] }
+    },
+    "purpose": {
+      "work": { "prefer": ["light_meals", "quick_items"], "avoid": ["heavy_thali"] },
+      "family": { "prefer": ["full_thali", "sharing_platters"], "avoid": [] },
+      "quick": { "prefer": ["snacks", "vada_pav", "misal"], "avoid": ["elaborate_thali"] }
+    },
+    "weather": {
+      "hot": { "prefer": ["solkadhi", "buttermilk", "dahi_bhat"], "avoid": ["heavy_fried"] },
+      "cold": { "prefer": ["masale_bhat", "hot_snacks", "tea"], "avoid": [] },
+      "rainy": { "prefer": ["kanda_bhaji", "pakoda", "hot_tea"], "avoid": [] },
+      "any": { "prefer": ["any"], "avoid": [] }
+    }
+  }
+}
