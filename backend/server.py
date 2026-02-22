@@ -1039,6 +1039,19 @@ async def payslips_generate(req: PayslipGenRequest):
                 total_advance += adv
                 total_net += net
             
+            # Calculate present days from the primary month (for display)
+            primary_month = months[-1] if months else req.month
+            y_primary, m_primary = map(int, primary_month.split("-"))
+            d_primary = days_in_month(y_primary, m_primary)
+            primary_attendance = await db.attendance.find(
+                {"employeeName": emp_name.upper(), "date": {"$regex": f"^{primary_month}"}},
+                {"_id": 0}
+            ).to_list(100)
+            weights_display = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+            present_days = sum(weights_display.get(a.get("status", ""), 0) for a in primary_attendance)
+            if present_days == 0:
+                present_days = d_primary  # Default to full month if no attendance data
+            
             # Create PDF - EXACT format from Purnabramha payslip template
             if req.fmt == "pdf":
                 filename = f"Payslip_{emp_name.replace(' ', '_')}_{req.month}.pdf"
