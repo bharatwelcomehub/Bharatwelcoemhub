@@ -38,6 +38,8 @@ const navItems = [
   { path: "/salary", icon: FileSpreadsheet, label: "Salary", forMGT: true },
   { path: "/payslips", icon: FileText, label: "Payslips", forMGT: true },
   { path: "/hr-letters", icon: Briefcase, label: "HR Letters", forMGT: true },
+  { path: "/centers", icon: Building2, label: "Centers", forMGT: true },
+  { path: "/managers", icon: Users, label: "Managers", forMGT: true },
   { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", forAll: true },
   { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", forMGT: true },
 ];
