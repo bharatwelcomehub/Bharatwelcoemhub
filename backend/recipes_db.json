@@ -1,15 +1,15 @@
 {
   "categories": [
-    "SNACKS",
-    "DRINKS",
     "BALGOPAL",
-    "MAINS",
-    "CURRIES",
-    "RICE",
     "CHAPATI",
-    "SWEETS",
     "CHUTNEYS",
-    "SALADS"
+    "CURRIES",
+    "DRINKS",
+    "MAINS",
+    "RICE",
+    "SALADS",
+    "SNACKS",
+    "SWEETS"
   ],
   "recipes": {
     "masala_buttermilk": {
@@ -1754,6 +1754,1667 @@
         "Serve with tamarind chutney"
       ],
       "image": ""
+    },
+    "kombadi_vade": {
+      "name": "Kombadi Vade",
+      "display": "Kombadi Vade / कोंबडी वडे",
+      "category": "SNACKS",
+      "ingredients": [
+        "Rice flour: 500g",
+        "Cumin seeds: 10g",
+        "Salt: to taste",
+        "Oil: for deep frying",
+        "Hot water: as required"
+      ],
+      "method": [
+        "Mix rice flour with cumin seeds and salt",
+        "Add hot water to make dough",
+        "Make small balls and flatten",
+        "Deep fry until golden brown",
+        "Serve hot with curry"
+      ],
+      "image_url": ""
+    },
+    "moong_dal_pakoda": {
+      "name": "Moong Dal Pakoda",
+      "display": "Moong Dal Pakoda / मूग डाळ पकोडा",
+      "category": "SNACKS",
+      "ingredients": [
+        "Split Green moong dal (soaked): 200gm",
+        "Green chili paste: 1 spoon",
+        "Ginger paste: 1/2 spoon",
+        "Garlic paste: 1/2 spoon",
+        "Onion chopped: 100gm",
+        "Turmeric powder: 1/2 spoon",
+        "Jeera powder: 1/2 spoon",
+        "Salt: to taste",
+        "Fresh coriander leaves chopped: 2 tablespoons",
+        "Rice flour: 50gm",
+        "Besan: 50 grms",
+        "Ajwain: pinch",
+        "Oil: for deep-frying"
+      ],
+      "method": [
+        "Soak green moong dal overnight and wash well",
+        "Grind into coarse paste with chilies, ginger, garlic and salt",
+        "Add all ingredients with besan, coriander leaves, and rice flour",
+        "Drop small amounts in hot oil and deep-fry till crisp",
+        "Serve hot with chaat masala"
+      ],
+      "image_url": ""
+    },
+    "palak_pakoda": {
+      "name": "Palak Pakoda",
+      "display": "Palak Pakoda / पालक पकोडा",
+      "category": "SNACKS",
+      "ingredients": [
+        "Besan: 250 GM",
+        "Spinach/palak finely chopped: 600gm",
+        "Ginger paste: 1 tea spoon",
+        "Green chili paste: 1",
+        "Cumin powder: 1 teaspoon",
+        "Turmeric powder: 1 spoon",
+        "Salt: to taste",
+        "Oil: for deep frying"
+      ],
+      "method": [
+        "Rinse palak well and finely chop",
+        "Add all spices and besan to chopped palak",
+        "Mix well and add water as required for batter",
+        "Drop spoonfuls in medium hot oil",
+        "Fry until golden, serve with chutney"
+      ],
+      "image_url": ""
+    },
+    "dadpe_pohe": {
+      "name": "Dadpe Pohe",
+      "display": "Dadpe Pohe / दाडपे पोहे",
+      "category": "SNACKS",
+      "ingredients": [
+        "Patal Poha (thin variety): 120 gm",
+        "Sugar: 2 gm",
+        "Salt: 2 gm",
+        "Wet fresh coconut grated: 50 GM",
+        "Buttermilk: 150 ml",
+        "Oil: 2 teas",
+        "Mustard seeds: 1/4 tsp",
+        "Kaju: 3 pc",
+        "Hing: 1/4 teaspoon",
+        "Green Chili chopped: 2",
+        "Green coriander: chopped"
+      ],
+      "method": [
+        "Dry thin poha and keep aside",
+        "Mix poha with buttermilk till soggy",
+        "Add coconut, sugar, salt and mix well",
+        "Make tadka with mustard, hing, chili, kaju",
+        "Pour tadka over poha and mix",
+        "Garnish with coconut and coriander"
+      ],
+      "image_url": ""
+    },
+    "kachha_pohe": {
+      "name": "Kachha Pohe",
+      "display": "Kachha Pohe / कच्चे पोहे",
+      "category": "SNACKS",
+      "ingredients": [
+        "Poha: 200g",
+        "Onion chopped: 100g",
+        "Green chili: 2",
+        "Peanuts: 50g",
+        "Coconut: grated",
+        "Lemon juice: 2 tbsp",
+        "Salt: to taste",
+        "Coriander: for garnish"
+      ],
+      "method": [
+        "Wash poha lightly and drain",
+        "Mix with onion, chili, peanuts",
+        "Add lemon juice and salt",
+        "Top with coconut and coriander",
+        "Serve immediately"
+      ],
+      "image_url": ""
+    },
+    "dhirade": {
+      "name": "Dhirade",
+      "display": "Dhirade / धिरडे",
+      "category": "SNACKS",
+      "ingredients": [
+        "Wheat flour: 200g",
+        "Besan: 100g",
+        "Curd: 100g",
+        "Garlic: crushed",
+        "Green chili: 2",
+        "Salt: to taste",
+        "Oil: for cooking"
+      ],
+      "method": [
+        "Mix all flours with curd and spices",
+        "Add water to make thick batter",
+        "Spread on hot tawa",
+        "Cook both sides with oil",
+        "Serve hot with curd"
+      ],
+      "image_url": ""
+    },
+    "balgopal_sabudana_khichadi": {
+      "name": "Balgopal Sabudana Khichadi",
+      "display": "Balgopal Sabudana Khichadi / बालगोपाल साबुदाणा खिचडी",
+      "category": "BALGOPAL",
+      "ingredients": [
+        "Sabudana (soaked): 150g",
+        "Boiled potato: 100g",
+        "Peanut powder: 30g",
+        "Cumin seeds: 1/2 tsp",
+        "Salt (sendha): to taste",
+        "Ghee: 2 tbsp",
+        "Coriander: for garnish"
+      ],
+      "method": [
+        "Soak sabudana overnight, drain well",
+        "Heat ghee, add cumin seeds",
+        "Add potatoes and peanut powder",
+        "Add sabudana and salt",
+        "Cook on low flame - keep mild for kids",
+        "Garnish with coriander"
+      ],
+      "image_url": ""
+    },
+    "balgopal_sabudana_vada": {
+      "name": "Balgopal Sabudana Vada",
+      "display": "Balgopal Sabudana Vada / बालगोपाल साबुदाणा वडा",
+      "category": "BALGOPAL",
+      "ingredients": [
+        "Wet sabudana: 500g",
+        "Boiled potatoes: 250g",
+        "Peanut powder: 100g",
+        "Salt (sendha): to taste",
+        "Cumin powder: 1/2 tsp",
+        "Oil: for frying"
+      ],
+      "method": [
+        "Mix sabudana with mashed potatoes",
+        "Add peanut powder, cumin and salt",
+        "Make small vadas",
+        "Deep fry until golden",
+        "Serve with curd - mild for kids"
+      ],
+      "image_url": ""
+    },
+    "balgopal_aloo_paratha": {
+      "name": "Balgopal Aloo Paratha",
+      "display": "Balgopal Aloo Paratha / बालगोपाल आलू पराठा",
+      "category": "BALGOPAL",
+      "ingredients": [
+        "Wheat flour: 200g",
+        "Boiled potato: 150g",
+        "Cumin powder: 1/4 tsp",
+        "Salt: to taste",
+        "Ghee: for cooking"
+      ],
+      "method": [
+        "Make soft dough with flour and water",
+        "Prepare mild potato stuffing",
+        "Stuff dough and roll paratha",
+        "Cook on tawa with ghee",
+        "Serve with curd - no spice"
+      ],
+      "image_url": ""
+    },
+    "balgopal_kanda_poha": {
+      "name": "Balgopal Kanda Poha",
+      "display": "Balgopal Kanda Poha / बालगोपाल कांदा पोहा",
+      "category": "BALGOPAL",
+      "ingredients": [
+        "Poha: 150g",
+        "Onion: 50g",
+        "Peanuts: 30g",
+        "Turmeric: 1/4 tsp",
+        "Salt: to taste",
+        "Sugar: 1/2 tsp",
+        "Lemon juice: 1 tbsp"
+      ],
+      "method": [
+        "Wash and drain poha",
+        "Sauté onion and peanuts",
+        "Add poha with turmeric",
+        "Add salt and sugar - keep mild",
+        "Finish with lemon, serve warm"
+      ],
+      "image_url": ""
+    },
+    "shirvale": {
+      "name": "Shirvale",
+      "display": "Shirvale / शिरवाले",
+      "category": "SWEETS",
+      "ingredients": [
+        "Rice flour: 500g",
+        "Jaggery: 300g",
+        "Coconut milk: 500ml",
+        "Cardamom: 1/2 tsp",
+        "Ghee: 50g"
+      ],
+      "method": [
+        "Prepare rice flour dough",
+        "Make shirvale shape using special mold",
+        "Steam until cooked",
+        "Prepare coconut milk syrup with jaggery",
+        "Serve shirvale with syrup"
+      ],
+      "image_url": ""
+    },
+    "tilgul_poli": {
+      "name": "Tilgul Poli",
+      "display": "Tilgul Poli / तिळगूळ पोळी",
+      "category": "SWEETS",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Sesame seeds: 200g",
+        "Jaggery: 200g",
+        "Cardamom: 1/2 tsp",
+        "Ghee: 100g"
+      ],
+      "method": [
+        "Roast sesame seeds",
+        "Mix with grated jaggery and cardamom",
+        "Make dough for covering",
+        "Stuff and roll poli",
+        "Cook on tawa with ghee"
+      ],
+      "image_url": ""
+    },
+    "sevya_chi_kheer": {
+      "name": "Sevya Chi Kheer",
+      "display": "Sevya Chi Kheer / सेव्याची खीर",
+      "category": "SWEETS",
+      "ingredients": [
+        "Vermicelli/Sevai: 200g",
+        "Milk: 1 litre",
+        "Sugar: 200g",
+        "Cardamom: 1/2 tsp",
+        "Ghee: 50g",
+        "Dry fruits: for garnish"
+      ],
+      "method": [
+        "Roast vermicelli in ghee",
+        "Boil milk and add roasted vermicelli",
+        "Add sugar and cardamom",
+        "Cook till thick",
+        "Garnish with dry fruits"
+      ],
+      "image_url": ""
+    },
+    "tillache_ladoo": {
+      "name": "Tillache Ladoo",
+      "display": "Tillache Ladoo / तिळाचे लाडू",
+      "category": "SWEETS",
+      "ingredients": [
+        "Sesame seeds: 500g",
+        "Jaggery: 400g",
+        "Ghee: 50g",
+        "Cardamom: 1/2 tsp"
+      ],
+      "method": [
+        "Roast sesame seeds till aromatic",
+        "Melt jaggery with ghee",
+        "Mix sesame with jaggery syrup",
+        "Add cardamom",
+        "Shape into ladoos while warm"
+      ],
+      "image_url": ""
+    },
+    "gulab_jamun": {
+      "name": "Gulab Jamun",
+      "display": "Gulab Jamun / गुलाब जामुन",
+      "category": "SWEETS",
+      "ingredients": [
+        "Khoya/Mawa: 500g",
+        "Maida: 100g",
+        "Sugar: 750g",
+        "Cardamom: 6-7 pcs",
+        "Water: for syrup",
+        "Oil: for frying"
+      ],
+      "method": [
+        "Make sugar syrup with cardamom",
+        "Mix khoya and maida to make dough",
+        "Shape into small balls",
+        "Deep fry on low heat until golden",
+        "Soak in warm syrup for 2-3 hours"
+      ],
+      "image_url": ""
+    },
+    "dhanush_barfi": {
+      "name": "Dhanush Barfi",
+      "display": "Dhanush Barfi / धनुष बर्फी",
+      "category": "SWEETS",
+      "ingredients": [
+        "Khoya: 500g",
+        "Sugar: 250g",
+        "Cardamom: 1/2 tsp",
+        "Pistachios: for garnish",
+        "Ghee: for greasing"
+      ],
+      "method": [
+        "Heat khoya and cook till thick",
+        "Add sugar and cardamom",
+        "Cook till mixture leaves sides",
+        "Spread on greased plate",
+        "Cut into diamond shapes, garnish"
+      ],
+      "image_url": ""
+    },
+    "ukarpendi": {
+      "name": "Ukarpendi",
+      "display": "Ukarpendi / उकरपेंडी",
+      "category": "MAINS",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Curd: 200g",
+        "Onion: 100g",
+        "Green chili: 2",
+        "Turmeric: 1/2 tsp",
+        "Salt: to taste",
+        "Oil: 3 tbsp"
+      ],
+      "method": [
+        "Heat oil, add onion and saute",
+        "Add curd and spices",
+        "Add wheat flour and mix",
+        "Cook till thick and soft",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "thalipith": {
+      "name": "Thalipith",
+      "display": "Thalipith / थालीपीठ",
+      "category": "MAINS",
+      "ingredients": [
+        "Multigrain flour (bhajani): 300g",
+        "Onion chopped: 100g",
+        "Green chili: 2",
+        "Cumin seeds: 1 tsp",
+        "Salt: to taste",
+        "Oil: for cooking"
+      ],
+      "method": [
+        "Mix flour with onion, chili, cumin, salt",
+        "Add water to make dough",
+        "Pat into thick round on tawa",
+        "Make hole in center",
+        "Cook with oil on both sides"
+      ],
+      "image_url": ""
+    },
+    "varan_fal": {
+      "name": "Varan Fal",
+      "display": "Varan Fal / वरण फळ",
+      "category": "MAINS",
+      "ingredients": [
+        "Wheat flour: 200g",
+        "Toor dal: 300g",
+        "Turmeric: 1/2 tsp",
+        "Salt: to taste",
+        "Ghee: 50g"
+      ],
+      "method": [
+        "Make wheat flour dumplings (fal)",
+        "Prepare toor dal varan",
+        "Cook dumplings in varan",
+        "Add ghee tempering",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "dal_kanda": {
+      "name": "Dal Kanda",
+      "display": "Dal Kanda / डाळ कांदा",
+      "category": "MAINS",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Onion sliced: 200g",
+        "Turmeric: 1/2 tsp",
+        "Red chili powder: 1 tsp",
+        "Salt: to taste",
+        "Oil: 3 tbsp"
+      ],
+      "method": [
+        "Boil toor dal till soft",
+        "Fry onions till golden",
+        "Add dal and spices",
+        "Cook together",
+        "Serve hot with rice"
+      ],
+      "image_url": ""
+    },
+    "vangyache_bharit": {
+      "name": "Vangyache Bharit",
+      "display": "Vangyache Bharit / वांग्याचे भरीत",
+      "category": "MAINS",
+      "ingredients": [
+        "Large brinjal: 500g",
+        "Onion: 100g",
+        "Tomato: 100g",
+        "Green chili: 2",
+        "Garlic: 5 cloves",
+        "Oil: 3 tbsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Roast brinjal on flame till charred",
+        "Peel and mash the pulp",
+        "Saute onion, tomato, garlic",
+        "Add mashed brinjal",
+        "Season and serve with bhakri"
+      ],
+      "image_url": ""
+    },
+    "dahi_bharit": {
+      "name": "Dahi Bharit",
+      "display": "Dahi Bharit / दही भरीत",
+      "category": "MAINS",
+      "ingredients": [
+        "Roasted brinjal: 300g",
+        "Curd: 200g",
+        "Onion: 50g",
+        "Green chili: 1",
+        "Salt: to taste",
+        "Coriander: for garnish"
+      ],
+      "method": [
+        "Mash roasted brinjal",
+        "Mix with whisked curd",
+        "Add onion, chili, salt",
+        "Garnish with coriander",
+        "Serve chilled"
+      ],
+      "image_url": ""
+    },
+    "instant_curry_aloo": {
+      "name": "Instant Curry Aloo",
+      "display": "Instant Curry Aloo / इन्स्टंट करी आलू",
+      "category": "MAINS",
+      "ingredients": [
+        "Boiled potatoes: 500g",
+        "Onion: 100g",
+        "Tomato: 100g",
+        "All spices",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Cut potatoes into cubes",
+        "Quick saute with onion, tomato",
+        "Add spices and salt",
+        "Cook for 5 minutes",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "cabbage_potato": {
+      "name": "Cabbage with Potato",
+      "display": "Cabbage with Potato / कोबी बटाटा",
+      "category": "MAINS",
+      "ingredients": [
+        "Cabbage shredded: 500g",
+        "Potato cubed: 200g",
+        "Mustard seeds: 1/2 tsp",
+        "Turmeric: 1/2 tsp",
+        "Salt: to taste",
+        "Oil: 3 tbsp"
+      ],
+      "method": [
+        "Heat oil, add mustard seeds",
+        "Add potato and cook partially",
+        "Add cabbage and spices",
+        "Cover and cook till done",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "pithala": {
+      "name": "Pithala",
+      "display": "Pithala / पिठला",
+      "category": "MAINS",
+      "ingredients": [
+        "Besan: 200g",
+        "Onion: 100g",
+        "Garlic: 5 cloves",
+        "Green chili: 2",
+        "Turmeric: 1/2 tsp",
+        "Oil: 3 tbsp",
+        "Water: 500ml"
+      ],
+      "method": [
+        "Heat oil, saute onion and garlic",
+        "Add spices and water",
+        "Slowly add besan stirring continuously",
+        "Cook till thick",
+        "Serve with bhakri"
+      ],
+      "image_url": ""
+    },
+    "patal_bhaji": {
+      "name": "Patal Bhaji",
+      "display": "Patal Bhaji / पाताळ भाजी",
+      "category": "MAINS",
+      "ingredients": [
+        "Colocasia leaves: 500g",
+        "Chana dal: 100g",
+        "Tamarind: 50g",
+        "Jaggery: 30g",
+        "Spices: to taste"
+      ],
+      "method": [
+        "Chop colocasia leaves",
+        "Cook with soaked chana dal",
+        "Add tamarind and jaggery",
+        "Season with spices",
+        "Serve with rice"
+      ],
+      "image_url": ""
+    },
+    "patodi_rassa": {
+      "name": "Patodi Rassa",
+      "display": "Patodi Rassa / पातोडी रस्सा",
+      "category": "CURRIES",
+      "ingredients": [
+        "Besan patodi: 300g",
+        "Onion paste: 100g",
+        "Tomato: 100g",
+        "Goda masala: 2 tsp",
+        "Oil: 3 tbsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Make besan patodi and slice",
+        "Prepare gravy with onion, tomato",
+        "Add goda masala",
+        "Add sliced patodi",
+        "Cook till thick gravy"
+      ],
+      "image_url": ""
+    },
+    "methi_alan": {
+      "name": "Methi Alan",
+      "display": "Methi Alan / मेथी आळण",
+      "category": "MAINS",
+      "ingredients": [
+        "Methi leaves: 300g",
+        "Onion: 100g",
+        "Garlic: 5 cloves",
+        "Spices: to taste",
+        "Oil: 2 tbsp"
+      ],
+      "method": [
+        "Clean and chop methi leaves",
+        "Saute onion and garlic",
+        "Add methi and spices",
+        "Cook till done",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "pumpkin_sabji": {
+      "name": "Pumpkin Sabji",
+      "display": "Pumpkin Sabji / भोपळ्याची भाजी",
+      "category": "MAINS",
+      "ingredients": [
+        "Pumpkin: 500g",
+        "Onion: 100g",
+        "Cumin: 1/2 tsp",
+        "Turmeric: 1/2 tsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Cut pumpkin into pieces",
+        "Saute with onion and spices",
+        "Add little water and cook",
+        "Cook till soft and dry",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "ravan_pithala": {
+      "name": "Ravan Pithala",
+      "display": "Ravan Pithala / रावण पिठला",
+      "category": "MAINS",
+      "ingredients": [
+        "Besan: 200g",
+        "Extra spices and chilies",
+        "Garlic: 10 cloves",
+        "Oil: 4 tbsp",
+        "Water: 500ml"
+      ],
+      "method": [
+        "Make extra spicy pithala",
+        "Use more garlic and chilies",
+        "Cook till thick",
+        "This is the spicy version",
+        "Serve with bhakri"
+      ],
+      "image_url": ""
+    },
+    "ridgeguard_bhaji": {
+      "name": "Ridgeguard Bhaji",
+      "display": "Ridgeguard Bhaji / दोडक्याची भाजी",
+      "category": "MAINS",
+      "ingredients": [
+        "Ridge gourd: 500g",
+        "Onion: 100g",
+        "Peanut powder: 50g",
+        "Spices: to taste",
+        "Oil: 2 tbsp"
+      ],
+      "method": [
+        "Peel and chop ridge gourd",
+        "Saute with onion",
+        "Add peanut powder and spices",
+        "Cook till soft",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "katachi_aamti": {
+      "name": "Katachi Aamti",
+      "display": "Katachi Aamti / कटाची आमटी",
+      "category": "CURRIES",
+      "ingredients": [
+        "Chana dal water: 500ml",
+        "Coconut: 50g",
+        "Goda masala: 2 tsp",
+        "Jaggery: 30g",
+        "Tamarind: 30g",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Use water from boiling chana dal for puran poli",
+        "Add coconut paste and goda masala",
+        "Add jaggery and tamarind",
+        "Boil till thick",
+        "Serve with puran poli"
+      ],
+      "image_url": ""
+    },
+    "matki_usal": {
+      "name": "Matki Usal",
+      "display": "Matki Usal / मटकी उसळ",
+      "category": "CURRIES",
+      "ingredients": [
+        "Sprouted matki: 500g",
+        "Onion: 200g",
+        "Tomato: 100g",
+        "Goda masala: 2 tsp",
+        "Oil: 3 tbsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Saute onion till golden",
+        "Add tomato and masala",
+        "Add sprouted matki and water",
+        "Cook till soft",
+        "Serve with pav"
+      ],
+      "image_url": ""
+    },
+    "dahi_bhat": {
+      "name": "Dahi Bhat",
+      "display": "Dahi Bhat / दही भात",
+      "category": "RICE",
+      "ingredients": [
+        "Cooked rice: 500g",
+        "Curd: 300g",
+        "Mustard seeds: 1/2 tsp",
+        "Curry leaves: few",
+        "Green chili: 1",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Mix rice with curd",
+        "Make tempering with mustard, curry leaves",
+        "Add to rice mixture",
+        "Season with salt",
+        "Serve chilled"
+      ],
+      "image_url": ""
+    },
+    "mugachi_khichadi": {
+      "name": "Mugachi Khichadi",
+      "display": "Mugachi Khichadi / मुगाची खिचडी",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Moong dal: 150g",
+        "Ghee: 50g",
+        "Cumin: 1 tsp",
+        "Turmeric: 1/2 tsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Wash rice and moong dal",
+        "Pressure cook with spices",
+        "Add ghee tempering",
+        "Mix well",
+        "Serve with kadhi"
+      ],
+      "image_url": ""
+    },
+    "gola_bhat": {
+      "name": "Gola Bhat",
+      "display": "Gola Bhat / गोळा भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Besan balls: 10",
+        "Onion: 100g",
+        "Spices: to taste"
+      ],
+      "method": [
+        "Cook plain rice",
+        "Prepare besan balls separately",
+        "Make curry and add balls",
+        "Serve curry over rice"
+      ],
+      "image_url": ""
+    },
+    "kanda_rice": {
+      "name": "Kanda Rice",
+      "display": "Kanda Rice / कांदा भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Onion sliced: 200g",
+        "Cumin: 1 tsp",
+        "Turmeric: 1/2 tsp",
+        "Oil: 3 tbsp"
+      ],
+      "method": [
+        "Fry onions till golden",
+        "Add spices",
+        "Add cooked rice and mix",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "ravan_bhat": {
+      "name": "Ravan Bhat",
+      "display": "Ravan Bhat / रावण भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Extra spices",
+        "Green chilies: 5",
+        "Goda masala: 2 tsp"
+      ],
+      "method": [
+        "This is extra spicy rice",
+        "Use more chilies and masala",
+        "Cook rice with spices",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "tup_bhat": {
+      "name": "Tup Bhat",
+      "display": "Tup Bhat / तूप भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Ghee: 100g",
+        "Cumin: 1 tsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Cook plain rice",
+        "Add generous ghee",
+        "Mix with cumin tempering",
+        "Serve with dal"
+      ],
+      "image_url": ""
+    },
+    "pomegranate_rice": {
+      "name": "Pomegranate Rice",
+      "display": "Pomegranate Rice / डाळिंब भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Pomegranate seeds: 200g",
+        "Coconut: 50g",
+        "Sugar: 2 tbsp",
+        "Ghee: 2 tbsp"
+      ],
+      "method": [
+        "Cook rice",
+        "Add pomegranate seeds and coconut",
+        "Mix with ghee and sugar",
+        "Serve as festive dish"
+      ],
+      "image_url": ""
+    },
+    "pulao": {
+      "name": "Pulao",
+      "display": "Pulao / पुलाव",
+      "category": "RICE",
+      "ingredients": [
+        "Basmati rice: 300g",
+        "Mixed vegetables: 200g",
+        "Whole spices: 1 tbsp",
+        "Ghee: 3 tbsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Fry whole spices in ghee",
+        "Add vegetables and saute",
+        "Add rice and water",
+        "Cook till done",
+        "Serve with raita"
+      ],
+      "image_url": ""
+    },
+    "bhaji_bhat": {
+      "name": "Bhaji Bhat",
+      "display": "Bhaji Bhat / भाजी भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Mixed leafy vegetables: 200g",
+        "Spices: to taste",
+        "Oil: 2 tbsp"
+      ],
+      "method": [
+        "Cook rice with leafy vegetables",
+        "Add spices",
+        "Mix well",
+        "Serve with kadhi"
+      ],
+      "image_url": ""
+    },
+    "khajur_bhat": {
+      "name": "Khajur Bhat",
+      "display": "Khajur Bhat / खजूर भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Dates: 100g",
+        "Ghee: 50g",
+        "Cardamom: 4-5"
+      ],
+      "method": [
+        "Cook rice",
+        "Chop dates and mix",
+        "Add ghee and cardamom",
+        "Serve as sweet rice"
+      ],
+      "image_url": ""
+    },
+    "truty_fruty_rice": {
+      "name": "Tutti Frutti Rice",
+      "display": "Tutti Frutti Rice / टुट्टी फ्रुट्टी भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Tutti frutti: 100g",
+        "Sugar: 3 tbsp",
+        "Ghee: 2 tbsp",
+        "Cardamom: 4"
+      ],
+      "method": [
+        "Cook sweet rice",
+        "Add tutti frutti",
+        "Mix with ghee",
+        "Serve as kids special"
+      ],
+      "image_url": ""
+    },
+    "wangi_bhat": {
+      "name": "Wangi Bhat",
+      "display": "Wangi Bhat / वांगी भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Brinjal: 200g",
+        "Goda masala: 2 tsp",
+        "Peanut powder: 50g",
+        "Oil: 3 tbsp"
+      ],
+      "method": [
+        "Cook brinjal with masala",
+        "Mix with cooked rice",
+        "Add peanut powder",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "tondali_bhat": {
+      "name": "Tondali Bhat",
+      "display": "Tondali Bhat / तोंडली भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Ivy gourd: 200g",
+        "Peanut powder: 50g",
+        "Goda masala: 1 tsp"
+      ],
+      "method": [
+        "Cook ivy gourd with masala",
+        "Mix with rice",
+        "Add peanut powder",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "jeera_bhat": {
+      "name": "Jeera Bhat",
+      "display": "Jeera Bhat / जीरा भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Cumin seeds: 2 tsp",
+        "Ghee: 3 tbsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Fry cumin in ghee",
+        "Add rice and cook",
+        "Season with salt",
+        "Serve with dal"
+      ],
+      "image_url": ""
+    },
+    "tiranga_bhat": {
+      "name": "Tiranga Bhat",
+      "display": "Tiranga Bhat / तिरंगा भात",
+      "category": "RICE",
+      "ingredients": [
+        "Rice: 300g",
+        "Turmeric: for yellow",
+        "Spinach paste: for green",
+        "Plain white rice",
+        "Ghee: 3 tbsp"
+      ],
+      "method": [
+        "Make three colored rice",
+        "Layer yellow, white, green",
+        "Serve on Independence Day"
+      ],
+      "image_url": ""
+    },
+    "pandra_rassa": {
+      "name": "Pandra Rassa",
+      "display": "Pandra Rassa / पांढरा रस्सा",
+      "category": "CURRIES",
+      "ingredients": [
+        "Coconut: 100g",
+        "Cashew: 50g",
+        "White pepper: 1 tsp",
+        "Milk: 200ml",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Grind coconut and cashew",
+        "Add to boiling milk",
+        "Season with white pepper",
+        "This is white gravy curry"
+      ],
+      "image_url": ""
+    },
+    "fodaniche_varan": {
+      "name": "Fodaniche Varan",
+      "display": "Fodaniche Varan / फोडणीचे वरण",
+      "category": "CURRIES",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Ghee: 3 tbsp",
+        "Garlic: 5 cloves",
+        "Cumin: 1 tsp",
+        "Curry leaves: few"
+      ],
+      "method": [
+        "Boil toor dal",
+        "Make tadka with ghee, garlic, cumin",
+        "Add to dal",
+        "Serve hot with rice"
+      ],
+      "image_url": ""
+    },
+    "lasun_varan": {
+      "name": "Lasun Varan",
+      "display": "Lasun Varan / लसूण वरण",
+      "category": "CURRIES",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Garlic: 10 cloves",
+        "Ghee: 3 tbsp",
+        "Green chili: 2"
+      ],
+      "method": [
+        "Boil dal with garlic",
+        "Make tadka with more garlic",
+        "Add to dal",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "sadha_varan": {
+      "name": "Sadha Varan",
+      "display": "Sadha Varan / साधे वरण",
+      "category": "CURRIES",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Turmeric: 1/2 tsp",
+        "Salt: to taste",
+        "Ghee: 2 tbsp"
+      ],
+      "method": [
+        "Boil dal with turmeric",
+        "Season with salt",
+        "Add ghee",
+        "Serve with rice"
+      ],
+      "image_url": ""
+    },
+    "chincha_gulacha_varan": {
+      "name": "Chincha Gulacha Varan",
+      "display": "Chincha Gulacha Varan / चिंच गुळाचे वरण",
+      "category": "CURRIES",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Tamarind: 30g",
+        "Jaggery: 30g",
+        "Goda masala: 1 tsp"
+      ],
+      "method": [
+        "Boil dal",
+        "Add tamarind and jaggery",
+        "Season with goda masala",
+        "Serve with rice"
+      ],
+      "image_url": ""
+    },
+    "jeera_varan": {
+      "name": "Jeera Varan",
+      "display": "Jeera Varan / जीरा वरण",
+      "category": "CURRIES",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Cumin seeds: 2 tsp",
+        "Ghee: 3 tbsp",
+        "Green chili: 1"
+      ],
+      "method": [
+        "Boil dal",
+        "Make cumin tadka",
+        "Add to dal",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "methi_varan": {
+      "name": "Methi Varan",
+      "display": "Methi Varan / मेथी वरण",
+      "category": "CURRIES",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Fresh methi: 100g",
+        "Garlic: 5 cloves",
+        "Ghee: 2 tbsp"
+      ],
+      "method": [
+        "Boil dal",
+        "Saute methi with garlic",
+        "Mix with dal",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "palak_varan": {
+      "name": "Palak Varan",
+      "display": "Palak Varan / पालक वरण",
+      "category": "CURRIES",
+      "ingredients": [
+        "Toor dal: 200g",
+        "Spinach: 200g",
+        "Garlic: 5 cloves",
+        "Lemon juice: 1 tbsp"
+      ],
+      "method": [
+        "Boil dal with spinach",
+        "Add garlic tadka",
+        "Finish with lemon juice",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "gol_matol_aloo_curry": {
+      "name": "Gol Matol Aloo Curry",
+      "display": "Gol Matol Aloo Curry / गोल मटोल आलू करी",
+      "category": "CURRIES",
+      "ingredients": [
+        "Baby potatoes: 500g",
+        "Onion paste: 100g",
+        "Tomato: 100g",
+        "Spices: to taste"
+      ],
+      "method": [
+        "Boil baby potatoes whole",
+        "Make gravy with onion, tomato",
+        "Add potatoes",
+        "Cook till thick gravy"
+      ],
+      "image_url": ""
+    },
+    "dry_stuff_brinjal": {
+      "name": "Dry Stuffed Brinjal",
+      "display": "Dry Stuffed Brinjal / सुक्या भरल्या वांग्या",
+      "category": "MAINS",
+      "ingredients": [
+        "Small brinjals: 500g",
+        "Peanut powder: 100g",
+        "Sesame seeds: 50g",
+        "Goda masala: 2 tsp"
+      ],
+      "method": [
+        "Make stuffing",
+        "Stuff brinjals",
+        "Cook dry on low flame",
+        "Serve with bhakri"
+      ],
+      "image_url": ""
+    },
+    "tinda_bhaji": {
+      "name": "Tinda Bhaji",
+      "display": "Tinda Bhaji / टिंडा भाजी",
+      "category": "MAINS",
+      "ingredients": [
+        "Tinda/Apple gourd: 500g",
+        "Onion: 100g",
+        "Spices: to taste",
+        "Oil: 2 tbsp"
+      ],
+      "method": [
+        "Cut tinda into pieces",
+        "Saute with onion",
+        "Add spices and cook",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "onion_tomato_special_bhaji": {
+      "name": "Onion Tomato Special Bhaji",
+      "display": "Onion Tomato Special / कांदा टोमॅटो स्पेशल",
+      "category": "MAINS",
+      "ingredients": [
+        "Onion: 300g",
+        "Tomato: 200g",
+        "Potato: 200g",
+        "Spices: to taste"
+      ],
+      "method": [
+        "Saute all vegetables together",
+        "Add spices",
+        "Cook till done",
+        "Serve with roti"
+      ],
+      "image_url": ""
+    },
+    "tomato_saar": {
+      "name": "Tomato Saar",
+      "display": "Tomato Saar / टोमॅटो सार",
+      "category": "CURRIES",
+      "ingredients": [
+        "Tomato: 500g",
+        "Coconut: 50g",
+        "Cumin: 1 tsp",
+        "Jaggery: 1 tbsp"
+      ],
+      "method": [
+        "Cook and blend tomatoes",
+        "Add coconut paste",
+        "Season with cumin and jaggery",
+        "Serve with rice"
+      ],
+      "image_url": ""
+    },
+    "dal_soup": {
+      "name": "Dal Soup",
+      "display": "Dal Soup / डाळ सूप",
+      "category": "CURRIES",
+      "ingredients": [
+        "Mixed dal: 200g",
+        "Vegetables: 100g",
+        "Spices: to taste",
+        "Lemon juice: 1 tbsp"
+      ],
+      "method": [
+        "Cook dal with vegetables",
+        "Blend smooth",
+        "Season with spices",
+        "Serve hot with lemon"
+      ],
+      "image_url": ""
+    },
+    "jowari_chi_ambil": {
+      "name": "Jowari Chi Ambil",
+      "display": "Jowari Chi Ambil / ज्वारीची आंबील",
+      "category": "MAINS",
+      "ingredients": [
+        "Jowar flour: 200g",
+        "Buttermilk: 500ml",
+        "Salt: to taste",
+        "Green chili: 1"
+      ],
+      "method": [
+        "Mix jowar flour with buttermilk",
+        "Cook on low flame stirring",
+        "Season with salt and chili",
+        "Serve as nutritious drink"
+      ],
+      "image_url": ""
+    },
+    "paratha": {
+      "name": "Paratha",
+      "display": "Paratha / पराठा",
+      "category": "CHAPATI",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Salt: 1/2 tsp",
+        "Oil/Ghee: 3 tbsp",
+        "Water: as needed"
+      ],
+      "method": [
+        "Make soft dough",
+        "Roll and fold multiple times",
+        "Cook on tawa with ghee",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "phulka": {
+      "name": "Phulka",
+      "display": "Phulka / फुलका",
+      "category": "CHAPATI",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Salt: 1/2 tsp",
+        "Water: as needed",
+        "Ghee: for serving"
+      ],
+      "method": [
+        "Make soft dough",
+        "Roll thin circles",
+        "Cook on tawa then on flame to puff",
+        "Apply ghee and serve"
+      ],
+      "image_url": ""
+    },
+    "balgopal_puri": {
+      "name": "Balgopal Puri",
+      "display": "Balgopal Puri / बालगोपाल पुरी",
+      "category": "BALGOPAL",
+      "ingredients": [
+        "Wheat flour: 200g",
+        "Salt: less",
+        "Oil: for frying"
+      ],
+      "method": [
+        "Make soft dough",
+        "Roll small puris",
+        "Deep fry till puffed",
+        "Serve warm - no spice"
+      ],
+      "image_url": ""
+    },
+    "masala_puri": {
+      "name": "Masala Puri",
+      "display": "Masala Puri / मसाला पुरी",
+      "category": "CHAPATI",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Ajwain: 1/2 tsp",
+        "Red chili: 1/2 tsp",
+        "Oil: for frying"
+      ],
+      "method": [
+        "Mix flour with spices",
+        "Make dough",
+        "Roll and deep fry",
+        "Serve hot"
+      ],
+      "image_url": ""
+    },
+    "red_puri": {
+      "name": "Red Puri",
+      "display": "Red Puri / लाल पुरी",
+      "category": "CHAPATI",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Beetroot juice: 50ml",
+        "Salt: 1/2 tsp",
+        "Oil: for frying"
+      ],
+      "method": [
+        "Mix flour with beetroot juice",
+        "Make red colored dough",
+        "Roll and deep fry",
+        "Valentine Day special"
+      ],
+      "image_url": ""
+    },
+    "padhar_paratha": {
+      "name": "Padhar Paratha",
+      "display": "Padhar Paratha / पाढर पराठा",
+      "category": "CHAPATI",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Onion: 100g",
+        "Salt: 1/2 tsp",
+        "Ghee: 3 tbsp"
+      ],
+      "method": [
+        "Mix flour with chopped onion",
+        "Make dough",
+        "Roll thick paratha",
+        "Cook on tawa with ghee"
+      ],
+      "image_url": ""
+    },
+    "cucumber_koshimbir": {
+      "name": "Cucumber Koshimbir",
+      "display": "Cucumber Koshimbir / काकडी कोशिंबीर",
+      "category": "SALADS",
+      "ingredients": [
+        "Cucumber: 300g",
+        "Peanuts: 50g",
+        "Green chili: 1",
+        "Lemon juice: 1 tbsp"
+      ],
+      "method": [
+        "Grate cucumber",
+        "Add peanuts and chili",
+        "Season with lemon and salt",
+        "Serve fresh"
+      ],
+      "image_url": ""
+    },
+    "pumpkin_koshimbir": {
+      "name": "Pumpkin Koshimbir",
+      "display": "Pumpkin Koshimbir / भोपळ्याची कोशिंबीर",
+      "category": "SALADS",
+      "ingredients": [
+        "Raw pumpkin: 200g",
+        "Coconut: 30g",
+        "Mustard seeds: 1/2 tsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Grate raw pumpkin",
+        "Add coconut",
+        "Make mustard tadka",
+        "Serve fresh"
+      ],
+      "image_url": ""
+    },
+    "sabudana_khichdi": {
+      "name": "Sabudana Khichdi",
+      "display": "Sabudana Khichdi / साबुदाणा खिचडी",
+      "category": "SNACKS",
+      "ingredients": [
+        "Sabudana (soaked): 300g",
+        "Boiled potato: 200g",
+        "Peanut powder: 100g",
+        "Green chili: 2",
+        "Cumin seeds: 1 tsp",
+        "Salt (sendha): to taste",
+        "Ghee: 3 tbsp"
+      ],
+      "method": [
+        "Soak sabudana overnight, drain",
+        "Heat ghee, add cumin and chili",
+        "Add potatoes and peanut powder",
+        "Add sabudana and salt",
+        "Cook on low flame till translucent"
+      ],
+      "image_url": ""
+    },
+    "rajgeera_sheera": {
+      "name": "Rajgeera Sheera",
+      "display": "Rajgeera Sheera / राजगिरा शिरा",
+      "category": "SWEETS",
+      "ingredients": [
+        "Rajgeera flour: 200g",
+        "Ghee: 100g",
+        "Sugar: 150g",
+        "Milk: 300ml",
+        "Cardamom: 1/2 tsp"
+      ],
+      "method": [
+        "Roast rajgeera flour in ghee",
+        "Add milk and sugar",
+        "Cook till thick",
+        "Add cardamom",
+        "Fasting special sweet"
+      ],
+      "image_url": ""
+    },
+    "rajgeera_thalipith": {
+      "name": "Rajgeera Thalipith",
+      "display": "Rajgeera Thalipith / राजगिरा थालीपीठ",
+      "category": "SNACKS",
+      "ingredients": [
+        "Rajgeera flour: 200g",
+        "Boiled potato: 150g",
+        "Cumin: 1/2 tsp",
+        "Salt (sendha): to taste"
+      ],
+      "method": [
+        "Mix flour with potato",
+        "Add cumin and salt",
+        "Pat on tawa",
+        "Cook with ghee both sides"
+      ],
+      "image_url": ""
+    },
+    "upvas_thalipith": {
+      "name": "Upvas Thalipith",
+      "display": "Upvas Thalipith / उपवास थालीपीठ",
+      "category": "SNACKS",
+      "ingredients": [
+        "Sabudana flour: 100g",
+        "Rajgeera flour: 100g",
+        "Potato: 100g",
+        "Salt (sendha): to taste"
+      ],
+      "method": [
+        "Mix all fasting flours",
+        "Add mashed potato",
+        "Pat into thalipith",
+        "Cook with ghee"
+      ],
+      "image_url": ""
+    },
+    "sabudana_thalipith": {
+      "name": "Sabudana Thalipith",
+      "display": "Sabudana Thalipith / साबुदाणा थालीपीठ",
+      "category": "SNACKS",
+      "ingredients": [
+        "Sabudana: 200g",
+        "Potato: 150g",
+        "Peanuts: 50g",
+        "Salt (sendha): to taste"
+      ],
+      "method": [
+        "Soak sabudana and grind",
+        "Mix with potato and peanuts",
+        "Pat into thalipith",
+        "Cook on tawa with ghee"
+      ],
+      "image_url": ""
+    },
+    "fasting_aloo_bhaji": {
+      "name": "Fasting Aloo Bhaji",
+      "display": "Fasting Aloo Bhaji / उपवास आलू भाजी",
+      "category": "MAINS",
+      "ingredients": [
+        "Potato: 500g",
+        "Cumin seeds: 1 tsp",
+        "Green chili: 2",
+        "Salt (sendha): to taste",
+        "Ghee: 3 tbsp"
+      ],
+      "method": [
+        "Boil and cube potatoes",
+        "Heat ghee, add cumin",
+        "Add potatoes and chili",
+        "Season with sendha namak",
+        "No onion garlic"
+      ],
+      "image_url": ""
+    },
+    "fasting_kadhi": {
+      "name": "Fasting Kadhi",
+      "display": "Fasting Kadhi / उपवास कढी",
+      "category": "CURRIES",
+      "ingredients": [
+        "Curd: 500ml",
+        "Sabudana flour: 50g",
+        "Cumin: 1 tsp",
+        "Salt (sendha): to taste"
+      ],
+      "method": [
+        "Mix curd with sabudana flour",
+        "Cook on low flame",
+        "Add cumin tadka",
+        "Season with sendha namak"
+      ],
+      "image_url": ""
+    },
+    "fasting_aloo_sheera": {
+      "name": "Fasting Aloo Sheera",
+      "display": "Fasting Aloo Sheera / उपवास आलू शिरा",
+      "category": "SWEETS",
+      "ingredients": [
+        "Boiled potato: 300g",
+        "Sugar: 150g",
+        "Ghee: 100g",
+        "Cardamom: 1/2 tsp"
+      ],
+      "method": [
+        "Mash boiled potatoes",
+        "Cook with ghee and sugar",
+        "Add cardamom",
+        "Fasting sweet dish"
+      ],
+      "image_url": ""
+    },
+    "green_chutney_sunday": {
+      "name": "Green Chutney (Sunday)",
+      "display": "Sunday Green Chutney / रविवार हिरवी चटणी",
+      "category": "CHUTNEYS",
+      "ingredients": [
+        "Coriander: 200g",
+        "Fresh coconut: 100g",
+        "Green chili: 3",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Grind all ingredients",
+        "Add coconut for Sunday special",
+        "Adjust consistency",
+        "Serve with thali"
+      ],
+      "image_url": ""
+    },
+    "mokali_dal_chutney": {
+      "name": "Mokali Dal Chutney",
+      "display": "Mokali Dal Chutney / मोकळी डाळ चटणी",
+      "category": "CHUTNEYS",
+      "ingredients": [
+        "Roasted chana dal: 100g",
+        "Garlic: 5 cloves",
+        "Red chili: 4",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Dry roast chana dal",
+        "Grind with garlic and chili",
+        "Keep coarse texture",
+        "Serve with bhakri"
+      ],
+      "image_url": ""
+    },
+    "fresh_coconut_chutney": {
+      "name": "Fresh Coconut Chutney",
+      "display": "Fresh Coconut Chutney / ओली नारळाची चटणी",
+      "category": "CHUTNEYS",
+      "ingredients": [
+        "Fresh coconut: 200g",
+        "Green chili: 2",
+        "Coriander: 50g",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Grind coconut with chili",
+        "Add coriander",
+        "Serve with ukad/idli"
+      ],
+      "image_url": ""
+    },
+    "misal_curry": {
+      "name": "Misal Curry",
+      "display": "Misal Curry / मिसळ करी",
+      "category": "CURRIES",
+      "ingredients": [
+        "Sprouted matki: 500g",
+        "Onion: 200g",
+        "Tomato: 100g",
+        "Goda masala: 2 tsp",
+        "Red chili powder: 2 tsp"
+      ],
+      "method": [
+        "Make spicy tarri/gravy",
+        "Cook matki separately",
+        "Combine with farsan and onion",
+        "Serve with pav"
+      ],
+      "image_url": ""
+    },
+    "aloo_paratha": {
+      "name": "Aloo Paratha",
+      "display": "Aloo Paratha / आलू पराठा",
+      "category": "CHAPATI",
+      "ingredients": [
+        "Wheat flour: 300g",
+        "Boiled potato: 200g",
+        "Green chili: 2",
+        "Cumin: 1/2 tsp",
+        "Salt: to taste"
+      ],
+      "method": [
+        "Make dough from wheat flour",
+        "Prepare spiced potato stuffing",
+        "Stuff and roll paratha",
+        "Cook on tawa with ghee"
+      ],
+      "image_url": ""
+    },
+    "bhogichi_bhaji": {
+      "name": "Bhogichi Bhaji",
+      "display": "Bhogichi Bhaji / भोगीची भाजी",
+      "category": "MAINS",
+      "ingredients": [
+        "Mixed winter vegetables: 500g",
+        "Sesame seeds: 50g",
+        "Peanut powder: 50g",
+        "Goda masala: 2 tsp"
+      ],
+      "method": [
+        "Cut all vegetables",
+        "Cook with masala",
+        "Add sesame and peanut",
+        "Makar Sankranti special"
+      ],
+      "image_url": ""
     }
   }
 }
