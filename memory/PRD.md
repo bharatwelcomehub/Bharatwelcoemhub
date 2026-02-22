@@ -1,7 +1,7 @@
 # Purnabramha IntraPB - Product Requirements Document
 
 ## Original Problem Statement
-User had existing HTML/Python files for an attendance and salary management system using Excel as database storage. Required migration to MongoDB with modern UI design while preserving all functionality. Added Guest Response AI feature for managers to answer guest queries.
+User had existing HTML/Python files for an attendance and salary management system using Excel as database storage. Required migration to MongoDB with modern UI design while preserving all functionality. Added Guest Response AI feature for managers to answer guest queries. Updated Bhojan Guru with real recipe data and added center selector to Guest Response AI.
 
 ## Project Overview
 **Purnabramha IntraPB** - Internal portal for attendance, salary management, and guest response for Purnabramha Restaurant Chain (Manswini Foods Pvt. Ltd.)
@@ -9,6 +9,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 ## Target Audience
 - Restaurant center managers across India and Australia
 - Management headquarters (PB-MGT) - Jayanti Kathale & Sandeep Gadhwal
+- Chefs (for Bhojan Guru recipes)
 
 ## Core Requirements
 1. **Authentication**: OTP-based login for center managers
@@ -17,8 +18,8 @@ User had existing HTML/Python files for an attendance and salary management syst
 4. **Salary Generation**: Export for ICICI bank upload
 5. **Payslip Generation**: PDF payslips
 6. **Employee Management**: CRUD operations (PB-MGT only)
-7. **Bhojan Guru**: Maharashtrian recipe database
-8. **Guest Response AI**: GPT-5.2 powered assistant
+7. **Bhojan Guru**: Maharashtrian recipe database with 47 recipes, 5 thalis, 126 menu descriptions
+8. **Guest Response AI**: GPT-5.2 powered assistant with center-specific context
 
 ## Centers & Contact Information
 | Center | Location | Phone |
@@ -30,23 +31,44 @@ User had existing HTML/Python files for an attendance and salary management syst
 | PB-HW | Hinjawadi, Pune | +91 96064 55434 |
 | PB-KN | Kharadi, Pune | +91 99000 89803 |
 | PB-KAL | Kalyan | +91 96064 55433 |
+| PB-MEL | Melbourne, Australia | +61 401 832 922 |
 | PB-PERTH | Perth, Australia | +61 401 832 922 |
 
 ## PB-MGT Admin Users
 - Jayanti Kathale (Mobile: 9741399190)
 - Sandeep Gadhwal (Mobile: 9960886185)
 
-## What's Been Implemented (Jan 22, 2026)
+## What's Been Implemented
 
-### Backend APIs (26+ endpoints - 100% working)
+### Latest Update (Feb 22, 2026)
+- ✅ **Bhojan Guru Real Data**: Integrated user's RECIPE_DB.js and DESC_DB_WITH_MR.js files
+  - 47 recipes with ingredients and method steps
+  - 5 thali configurations
+  - 126 menu descriptions in English and Marathi
+  - Copy to clipboard functionality for chefs
+  - Category filters (All, Drinks, Snacks, Mains, Sweets, Thalis)
+  
+- ✅ **Guest Response AI Center Selector**: Added dropdown to select specific center
+  - All 8 centers available in dropdown
+  - AI responds with center-specific context (address, phone, timings)
+  - Selected center badge displayed in chat
+
+- ✅ **OTP Email System**: SMTP email integration ready
+  - Sends HTML-formatted OTP emails
+  - Falls back to console logging when SMTP not configured
+  - Beautiful email template with Purnabramha branding
+
+### Backend APIs (30+ endpoints - 100% working)
 - Authentication (send_otp, verify_otp)
 - Employee CRUD (create, update, delete, list)
 - Attendance (daily, monthly, bulk save)
 - Advances management
 - Payroll (status, lock, generate)
 - Payslips generation
-- **Guest AI** (OpenAI GPT-5.2 powered)
+- **Guest AI** (OpenAI GPT-5.2 powered) with center context
 - Center info API
+- **Recipes API** (47 recipes, 5 thalis, 13 bhojan guru items)
+- **Descriptions API** (126 menu items with English + Marathi)
 
 ### Frontend Pages
 - Login page with OTP verification
@@ -55,8 +77,8 @@ User had existing HTML/Python files for an attendance and salary management syst
 - Employees management (MGT only)
 - Salary generation (MGT only)
 - Payslips generation (MGT only)
-- Bhojan Guru recipe explorer
-- **Guest Response AI** (chat interface)
+- **Bhojan Guru** - Recipe database with 3 tabs (Recipes, Thalis, Descriptions)
+- **Guest Response AI** - Chat interface with center selector
 
 ### Database Collections
 - managers, employees, attendance, advances, payroll_locks, salary_rules, chat_history
@@ -71,18 +93,41 @@ User had existing HTML/Python files for an attendance and salary management syst
 - ✅ Salary/Payslip generation
 - ✅ Guest Response AI with GPT-5.2
 - ✅ Center info with phone numbers
+- ✅ Bhojan Guru with real recipe data (47 recipes, 126 descriptions)
+- ✅ Guest Response center selector
 
-### P1 (Future)
-- Email OTP delivery (SMTP)
+### P1 (Ready but needs config)
+- 🟡 Email OTP delivery (SMTP code ready, needs credentials)
+  - Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS to backend/.env
+
+### P2 (Future)
 - Chat history per manager
 - Employee self-service portal
-
-### P2 (Nice to Have)
 - Mobile app version
 - Photo attendance
 - Leave management
+- Attendance analytics dashboard
 
-## Next Tasks
-1. Configure SMTP for email OTP
-2. Add attendance analytics dashboard
-3. Import remaining employee data from Excel
+## Testing Status
+- Backend: 100% tests passed (23/23)
+- Frontend: 100% tests passed
+- Latest test report: /app/test_reports/iteration_4.json
+
+## Technical Notes
+
+### OTP Email Configuration
+To enable OTP emails, add to `/app/backend/.env`:
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=noreply@purnabramha.com
+```
+
+### Recipe Data Files
+- `/app/backend/recipe_data.json` - Parsed recipes (47 items)
+- `/app/backend/description_data.json` - Menu descriptions (126 items)
+
+### Dev Mode OTP
+For testing without email, OTP is logged to console and master OTP "123456" works.
