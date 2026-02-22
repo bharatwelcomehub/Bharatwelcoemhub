@@ -928,33 +928,91 @@
         "Steam for 10-12 minutes.",
         "Serve hot with ghee."
       ]
+    },
+    "test": {
+      "display": "TEST",
+      "ingredients": [
+        "TEST INGREDIENT"
+      ],
+      "method": [
+        "TEST"
+      ],
+      "category": "mains"
     }
   },
   "thalis": {
     "maharashtrian_thali": {
       "display": "Maharashtrian Thali",
-      "items": ["varan", "bhaji", "bhakri", "rice", "papad", "pickle", "salad", "buttermilk"],
-      "notes": ["Complete traditional Maharashtrian meal"]
+      "items": [
+        "varan",
+        "bhaji",
+        "bhakri",
+        "rice",
+        "papad",
+        "pickle",
+        "salad",
+        "buttermilk"
+      ],
+      "notes": [
+        "Complete traditional Maharashtrian meal"
+      ]
     },
     "sunday_special_thali": {
       "display": "Sunday Special Thali",
-      "items": ["puran_poli", "katachi_amti", "rice", "papad", "pickle", "panchamrut"],
-      "notes": ["Special festive thali for Sundays"]
+      "items": [
+        "puran_poli",
+        "katachi_amti",
+        "rice",
+        "papad",
+        "pickle",
+        "panchamrut"
+      ],
+      "notes": [
+        "Special festive thali for Sundays"
+      ]
     },
     "fasting_thali": {
       "display": "Fasting Thali (Upvas)",
-      "items": ["sabudana_khichdi", "sabudana_vada", "fruit", "milk", "potato_bhaji"],
-      "notes": ["For Ekadashi and other fasting days"]
+      "items": [
+        "sabudana_khichdi",
+        "sabudana_vada",
+        "fruit",
+        "milk",
+        "potato_bhaji"
+      ],
+      "notes": [
+        "For Ekadashi and other fasting days"
+      ]
     },
     "balgopal_thali": {
       "display": "Balgopal Thali (Kids)",
-      "items": ["aloo_bhaji", "rice", "dal", "roti", "sweet"],
-      "notes": ["Mild spices, kid-friendly portions"]
+      "items": [
+        "aloo_bhaji",
+        "rice",
+        "dal",
+        "roti",
+        "sweet"
+      ],
+      "notes": [
+        "Mild spices, kid-friendly portions"
+      ]
     },
     "premium_thali": {
       "display": "Premium Thali",
-      "items": ["2_bhaji", "dal", "rice", "roti", "sweet", "papad", "pickle", "salad", "buttermilk"],
-      "notes": ["Full course meal with all accompaniments"]
+      "items": [
+        "2_bhaji",
+        "dal",
+        "rice",
+        "roti",
+        "sweet",
+        "papad",
+        "pickle",
+        "salad",
+        "buttermilk"
+      ],
+      "notes": [
+        "Full course meal with all accompaniments"
+      ]
     }
   },
   "bhojanGuru": {
