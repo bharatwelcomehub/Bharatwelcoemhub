@@ -1,1428 +1,979 @@
 {
   "recipes": {
+    "masala_buttermilk": {
+      "display": "Masala Buttermilk",
+      "category": "drinks",
+      "ingredients": [
+        "Curd: 1 liter",
+        "Water: 2 liters",
+        "Coriander: 20 GM",
+        "Salt: as required (20 - 30 GM)",
+        "For Tadka: Oil: 3 tbsp",
+        "Rai (mustard seeds): 1/2 tbsp",
+        "Green chili: chopped 20 GM"
+      ],
+      "method": [
+        "Take curd in a jar.",
+        "Mix very well and make sure it is lumps-free.",
+        "Add salt as per taste.",
+        "Add chopped coriander.",
+        "Prepare the tadka: Heat oil, add rai and green chili. Once they splutter, pour the tadka over the curd mixture.",
+        "Pour the chaas (buttermilk) in glasses.",
+        "You can also chill the buttermilk in the refrigerator and serve later. But use it on the same day."
+      ]
+    },
+    "plain_buttermilk": {
+      "display": "Plain Buttermilk",
+      "category": "drinks",
+      "ingredients": [
+        "Curd: 1 liter",
+        "Water: 2 liters",
+        "Salt: as per taste"
+      ],
+      "method": [
+        "Take curd in a jar.",
+        "Just shake in the whisker for some minutes till everything is blended well.",
+        "Add water.",
+        "Add salt as per taste.",
+        "Pour chaas in glasses.",
+        "You can also chill the buttermilk in the refrigerator and serve later. But use it on the same day."
+      ]
+    },
     "solkadhi": {
       "display": "Solkadhi",
+      "category": "drinks",
       "ingredients": [
-        "Kokum – 80 g",
-        "Coconut milk – 1 litre",
-        "Garlic – 20 g (crushed)",
-        "Green chilli – optional",
-        "Salt – to taste",
-        "Coriander"
+        "Water: 1 liter",
+        "Kokum syrup: 50g",
+        "Kokum agal: 50 g",
+        "Ginger paste: 40g",
+        "Garlic paste: 40g",
+        "Green Chili paste: 40g",
+        "Green coriander: for garnishing",
+        "Coconut milk: 200 g",
+        "Salt: to taste"
       ],
       "method": [
-        "Soak kokum in warm water, extract juice.",
-        "Mix with coconut milk.",
-        "Add garlic, salt, coriander.",
-        "Chill and serve."
+        "To begin making the Solkadhi Recipe, first take a vessel.",
+        "In a bowl, add water, coconut milk, kokum syrup, kokum agal, garlic ginger, green chili.",
+        "Stir well to mix and garnish with green coriander.",
+        "Then filter the above mixture.",
+        "Taste it and adjust seasoning as required. Garnish the Solkadhi with chopped coriander and serve chilled."
       ]
     },
-    "masala_kokum": {
-      "display": "Masala Kokum",
+    "masala_kokam": {
+      "display": "Masala Kokam",
+      "category": "drinks",
       "ingredients": [
-        "Water – 1 litre",
-        "Kokum syrup – 100 g",
-        "Kokum aagal – 50 g",
-        "Ginger paste – 40 g",
-        "Garlic paste – 40 g",
-        "Green chilli paste – 40 g",
-        "Salt – to taste",
-        "Fresh coriander – for garnish (optional)"
+        "Water: 1 liter",
+        "Kokum syrup: 100g",
+        "Kokum agal: 50g",
+        "Ginger paste: 40g",
+        "Garlic paste: 40g",
+        "Green Chili paste: 40g",
+        "Coriander: for garnish (1 gm)",
+        "Salt: to taste"
       ],
       "method": [
-        "Take a clean vessel for masala kokum.",
-        "Add water, kokum syrup, kokum aagal, ginger paste, garlic paste and green chilli paste.",
-        "Stir well to combine.",
-        "Filter if required.",
-        "Taste and adjust salt as required.",
-        "Garnish with chopped coriander (optional) and serve chilled."
+        "To begin making the Masala Kokam, first take a vessel.",
+        "In a bowl, add water, kokum syrup, kokum agal, garlic, ginger, and chili spice paste and stir well to combine.",
+        "If required, then filter the above mixture.",
+        "Taste it and adjust seasoning as required. Garnish the Masala Kokam with chopped coriander and serve chilled."
       ]
     },
-    "kokum": {
-      "display": "Kokum",
+    "kokam": {
+      "display": "Kokam",
+      "category": "drinks",
       "ingredients": [
-        "Water – 1 litre",
-        "Kokum syrup – 200 g",
-        "Jeera powder – 10 g",
-        "Salt – to taste"
+        "Water: 1 liter",
+        "Kokum syrup: 200g",
+        "Jeera Powder: 10g",
+        "Salt: to taste"
       ],
       "method": [
-        "Take a clean vessel.",
-        "Add water, kokum syrup, jeera powder and salt.",
-        "Stir well until mixed.",
-        "Taste and adjust seasoning as required.",
-        "Serve chilled.",
-        "Note: No garnish required."
+        "To begin making the Kokam, first take a vessel.",
+        "In a bowl, add water, kokum syrup, jeera powder, and salt and stir well to combine.",
+        "Taste it and adjust seasoning as required.",
+        "Serve chilled. No garnish required."
       ]
     },
     "piyush": {
-      "display": "Piyush (Shikran Style)",
+      "display": "Piyush",
+      "category": "drinks",
       "ingredients": [
-        "Thick curd – 1 litre",
-        "Milk – 500 ml",
-        "Sugar – 200 g",
-        "Cardamom – 5 g",
-        "Nutmeg – pinch (optional)"
+        "Shrikhand: 200 g",
+        "Curd: 80 g",
+        "Milk: 80 g",
+        "Black pepper powder: 1 pinch",
+        "For Garnishing: badam (chopped)",
+        "Cinnamon powder: 1 pinch"
       ],
       "method": [
-        "Whisk curd smooth.",
-        "Add milk, sugar, spices.",
-        "Chill and serve."
+        "Mix shrikhand with curd and milk in a bowl and whisk well to make a lump-free mixture.",
+        "Add black pepper powder and cinnamon mix well.",
+        "Pour piyush in serving glasses.",
+        "Garnish with chopped badam.",
+        "Serve chilled. Keep the consistency of Shrikhand accurate."
       ]
     },
     "rose_piyush": {
       "display": "Rose Piyush",
+      "category": "drinks",
       "ingredients": [
-        "Shrikhand – 100 g",
-        "Milk – 100 ml",
-        "Rose water – 20 ml",
-        "Cinnamon powder – 1 pinch",
-        "Black pepper powder – 1 pinch",
-        "Almonds – sliced, for garnish",
-        "Rose petals – for garnish"
+        "Shrikhand: 100 g",
+        "Rose water: 20 ml",
+        "Milk: 100 ml",
+        "Almond: sliced for garnish",
+        "Rose petal",
+        "Cinnamon: 1 pinch",
+        "Black paper: 1 pinch"
       ],
       "method": [
-        "Whisk shrikhand, milk and rose water into a smooth mixture.",
-        "Add cinnamon and black pepper powder. Mix well.",
-        "Pour into serving glasses.",
-        "Garnish with sliced almonds and rose petals.",
-        "Serve chilled.",
-        "Note: Crush rose petals gently in palms before adding for garnish."
+        "Mix shrikhand with rose water and milk in a bowl and whisk well to make a lump-free mixture.",
+        "Add cinnamon and black pepper powder and mix it well.",
+        "Pour rose piyush in serving glasses.",
+        "Garnish with chopped badam / rose petal.",
+        "Serve chilled. Crush the rose petals on palms and then add these squeezed petals for garnishing."
       ]
     },
     "mango_piyush": {
       "display": "Mango Piyush",
+      "category": "drinks",
       "ingredients": [
-        "Shrikhand – 200 g",
-        "Mango pulp – 50 g",
-        "Milk – 100 ml",
-        "Almonds – sliced, for garnish"
+        "Shrikhand: 200 g",
+        "Mango pulp: 50g",
+        "Milk: 100 ml",
+        "Almond: sliced for garnish"
       ],
       "method": [
-        "Whisk shrikhand, mango pulp and milk into a smooth, lump-free mixture.",
-        "Pour into serving glasses.",
-        "Garnish with sliced almonds.",
-        "Serve chilled.",
-        "Note: Do not add curd or black pepper in mango piyush."
+        "Mix shrikhand with mango pulp and milk in a bowl and whisk well to make a lump-free mixture.",
+        "Pour mango piyush in serving glasses.",
+        "Garnish with chopped badam.",
+        "Serve chilled. Don't use Curd and Black pepper powder."
       ]
     },
     "awala": {
-      "display": "Awala (Amla Drink)",
+      "display": "Awala",
+      "category": "drinks",
       "ingredients": [
-        "Water – 1 litre",
-        "Awala/Amla syrup – 200 ml",
-        "Salt – 5 g"
+        "Water: 1 ltr",
+        "Awala syrup: 200 ml",
+        "Salt: 5 gm"
       ],
       "method": [
-        "Take water in a clean container.",
-        "Add amla syrup and salt.",
-        "Mix well.",
-        "Taste and serve chilled."
+        "Take water in a container, add awala syrup in it.",
+        "Add salt and mix well.",
+        "Taste it and serve chilled."
       ]
     },
-    "aam_panhe": {
+    "aam_panha": {
       "display": "Aam Panha",
+      "category": "drinks",
       "ingredients": [
-        "Raw mango – 1 (large) or as required",
-        "Sugar – as per taste",
-        "Salt – as per taste",
-        "Water – as required"
+        "Raw mango",
+        "Sugar",
+        "Salt: as per taste",
+        "Water"
       ],
       "method": [
-        "Pressure cook raw mango for 2 whistles.",
-        "Cool completely, then scoop out the pulp and make a smooth puree.",
-        "Add sugar and salt, mix well.",
-        "Add water to adjust consistency.",
+        "First, cook the raw mango in a cooker for 2 whistles.",
+        "Then, once it cools down, take the pulp of the cooked raw mango and make a smooth puree with the help of a spoon.",
+        "Add sugar and salt.",
+        "Add water in it as per consistency required.",
         "Serve chilled."
       ]
     },
     "limbu_pani": {
       "display": "Limbu Pani",
+      "category": "drinks",
       "ingredients": [
-        "Lemon – 6 pcs (approx. 40 g each)",
-        "Chilled water – 1 litre",
-        "Sugar – 200 g",
-        "Salt – 2 pinches",
-        "Lemon slices – optional",
-        "Ice cubes – as required"
+        "6 lemon pieces (40gm each)",
+        "Chilled water: 1 liter",
+        "Salt: 2 pinch",
+        "Sugar: 200 gm",
+        "Few lemon slices (optional)"
       ],
       "method": [
-        "Slice lemons and squeeze juice into water. Discard seeds.",
-        "Add sugar and salt.",
-        "Add ice cubes and stir until sugar dissolves.",
-        "Pour into glasses and add lemon slices if using.",
-        "Serve chilled."
+        "Slice the lemon and squeeze the juice with the squeezer or with the help of your hand into water. Discard the seeds. Add sugar, salt.",
+        "Take water in a vessel and ice cubes.",
+        "Mix all until sugar dissolves. Pour into tall glasses and add lemon slices if using.",
+        "Serve nimbu pani chilled."
       ]
     },
     "masala_lemon": {
-      "display": "Masala Lemonade",
+      "display": "Masala Lemon",
+      "category": "drinks",
       "ingredients": [
-        "Lemon – 6 pcs (approx. 40 g each)",
-        "Chilled water – 1 litre",
-        "Sugar – 200 g",
-        "Salt – 2 pinches",
-        "Jaljeera powder – 2 tbsp",
-        "Ice cubes – as required"
+        "6 lemon pieces (40gm each)",
+        "Chilled water: 1 liter",
+        "Salt: 2 pinch",
+        "Sugar: 200 gm",
+        "Jaljeera powder: 2 tbsp"
       ],
       "method": [
-        "Squeeze lemon juice into chilled water. Discard seeds.",
-        "Add sugar and salt. Stir until dissolved.",
-        "Add jaljeera powder and mix until dissolved.",
-        "Add ice cubes and serve chilled."
+        "Slice the lemon and squeeze the juice with the squeezer or with the help of your hand into water. Discard the seeds. Add sugar, salt. Take water in a vessel and ice cubes.",
+        "Mix all until sugar dissolves. Add jaljeera powder 2 tbsp. Mix everything well until the jaljeera powder is dissolved.",
+        "Now add ice cubes and serve it cool in a glass."
       ]
     },
     "tea_masala_tea": {
-      "display": "Tea / Masala Tea (Base)",
+      "display": "Tea & Masala Tea",
+      "category": "drinks",
       "ingredients": [
-        "Milk – 1 cup (125 ml)",
-        "Water – 1/4 cup (60 ml) (optional)",
-        "Tea powder – 1 tsp (adjust as required)"
+        "Milk: 1 cup (125 ml)",
+        "Tea Powder: 1 teaspoon",
+        "Water: 1/4 cup (approx. 60 ml)"
       ],
       "method": [
-        "Boil water in a saucepan (skip water if making strong milky tea).",
-        "Add tea powder and boil 3–4 minutes on medium flame.",
-        "Add milk and boil 6–7 minutes until colour deepens and bubbles rise.",
-        "Switch off flame and strain into cups.",
-        "Note: Add ginger/cardamom/cinnamon/tea masala only when required.",
-        "Note: Adjust tea powder for strength."
-      ]
-    },
-    "tea_masala": {
-      "display": "Tea Masala",
-      "ingredients": [
-        "Green cardamom – 100 g",
-        "Nutmeg – 10 g",
-        "Cinnamon – 10 g",
-        "Cloves (lavang) – 10 g",
-        "Sugar – 20 g"
-      ],
-      "method": [
-        "Wash and wipe cinnamon, then dry fully.",
-        "Dry roast cinnamon and cardamom separately until aromatic.",
-        "Break nutmeg into pieces and ensure clean/dry.",
-        "Remove clove heads if using large cloves; avoid baby cloves as per SOP.",
-        "Grind all roasted spices with sugar into a fine powder.",
-        "Store airtight in a dry container."
+        "Boil water in a saucepan.",
+        "Add tea powder and boil it for 3-4 minutes on medium flame.",
+        "Add milk and boil it over medium flame for 6-7 minutes or until bubbles start to rise.",
+        "You will see the change in color of the tea from milky shade to brown shade when it is ready.",
+        "Turn off the gas and strain tea in cups. Adjust the tea powder as per requirement of strength."
       ]
     },
     "kanda_bhaji": {
       "display": "Kanda Bhaji",
+      "category": "snacks",
       "ingredients": [
-        "Onion – 1 kg (thinly sliced)",
-        "Besan – 300 g",
-        "Rice flour – 50 g",
-        "Green chilli paste – 20 g",
-        "Ajwain – 5 g",
-        "Salt – to taste",
-        "Turmeric – 5 g",
-        "Red chilli powder – 10 g",
-        "Oil – for deep frying"
+        "200 GM sliced red/white onions",
+        "125g besan (gram flour)",
+        "Turmeric powder: ½ tsp",
+        "Cumin powder: ½ tsp",
+        "Red chili powder: ½ tsp",
+        "Coriander: handful",
+        "Salt: 1 teaspoon (or add as per taste)",
+        "Oil: for deep frying",
+        "Lemon: ½ pcs"
       ],
       "method": [
-        "Slice onions thinly and separate layers.",
-        "Add besan, rice flour, salt, turmeric, red chilli powder, ajwain and green chilli paste.",
-        "Mix lightly without adding water (onion moisture is enough).",
-        "Heat oil to medium-hot.",
-        "Drop small portions and fry until golden and crisp.",
-        "Remove and drain excess oil.",
-        "Serve hot with chutney."
+        "Slice the onions thinly and place them in a mixing bowl or vessel. Add a pinch of salt and mango cut powder or lemon juice and mix it well.",
+        "Keep this bowl untouched for 5 minutes.",
+        "Add haldi powder, cumin powder, red chili powder, coriander leaves, water, besan, and salt.",
+        "Mix the besan, salt, and oil very well with your fingertips with the onions.",
+        "Allow the mixture to rest for 5 to 6 minutes, as the onions will release their moisture.",
+        "Heat oil for deep frying in a deep pan/vessel or kadai.",
+        "For crispy bhajis, ensure the oil is hot. Add a spoonful of the batter to the hot oil.",
+        "Fry the kandha bhajis on a medium flame, flip with slotted spoon.",
+        "Fry till they turn golden brown. Remove and place on absorbent kitchen napkins.",
+        "Serve kandhabhaji hot with fried green chilies, spicy green chutney. Sprinkle Chat Masala before serving."
       ]
     },
-    "batata_vada": {
-      "display": "Batata Vada",
+    "appa_pakoda": {
+      "display": "Appa Pakoda",
+      "category": "snacks",
       "ingredients": [
-        "Boiled potatoes – 1 kg",
-        "Green chilli paste – 20 g",
-        "Ginger paste – 20 g",
-        "Mustard seeds – 10 g",
-        "Curry leaves – few",
-        "Turmeric – 5 g",
-        "Salt – to taste",
-        "Besan – 300 g",
-        "Oil – for frying"
+        "Urad dal: 200gm",
+        "Black pepper: 10 gm",
+        "Chopped onion: 2",
+        "Green chili paste: 1 spoon",
+        "Jeera powder: 1/2 spoon",
+        "Chopped coriander",
+        "Salt: as required",
+        "Oil: for frying"
       ],
       "method": [
-        "Mash boiled potatoes.",
-        "Heat oil, add mustard seeds and curry leaves.",
-        "Add ginger, green chilli paste and turmeric.",
-        "Add mashed potato and salt, mix well.",
-        "Make lemon-sized balls.",
-        "Prepare besan batter with water and salt.",
-        "Dip balls and deep fry till golden.",
-        "Serve hot."
-      ]
-    },
-    "sabudana_vada": {
-      "display": "Sabudana Vada (Upvas)",
-      "ingredients": [
-        "Soaked sabudana – 1 kg",
-        "Boiled potato – 700 g",
-        "Crushed peanuts – 300 g",
-        "Green chilli – 20 g",
-        "Cumin – 10 g",
-        "Salt (sendha) – to taste",
-        "Oil – for frying"
-      ],
-      "method": [
-        "Mix all ingredients into firm mixture.",
-        "Shape vadas.",
-        "Deep fry on medium heat until crisp.",
-        "Serve with upvas chutney."
+        "Place the dal in a vessel and wash under running water and soak them for about 12 hours. Add black pepper.",
+        "Drain the excess water.",
+        "Place this soaked dal in a mixture blender.",
+        "Transfer this paste to a bowl and add onion, chopped green chili paste, jeera powder, cilantro, and salt. Mix well and make sure the batter is not too liquid.",
+        "Now, heat the oil in a wok, and when the oil is sufficiently heated, drop spoonfuls of the prepared batter and fry these vadas till golden brown and crisp.",
+        "Drain them on a plate lined with kitchen paper.",
+        "Serve hot with green chutney."
       ]
     },
     "kothimbir_vadi": {
       "display": "Kothimbir Vadi",
+      "category": "snacks",
       "ingredients": [
-        "Coriander – 800 g (chopped)",
-        "Besan – 500 g",
-        "Spices – (turmeric, chilli, salt)",
-        "Oil – for frying",
-        "Sesame – optional"
+        "300g (3 bunch of Coriander leaves)",
+        "50 GM Poppy seeds",
+        "300 g Besan",
+        "1 tbsp Green chili paste",
+        "1/2 tsp Turmeric powder",
+        "1 tsp Cumin powder",
+        "Chopped chili",
+        "Salt: to taste",
+        "Water: ½ tsp",
+        "Oil: for frying",
+        "Kaju, badam and kishmis: crushed",
+        "Amchur powder: ¼ tea spoon",
+        "Hing: ¼ tsp"
       ],
       "method": [
-        "Mix coriander with besan and spices.",
-        "Steam mixture in tray 12–15 minutes.",
-        "Cut pieces and shallow/deep fry.",
-        "Serve hot with chutney."
+        "Take a bunch of coriander and clean it properly. Remove any yellow or rotten leaves.",
+        "Chop the stalks and leaves fine. Wash the coriander with water really well.",
+        "Remove any dirt or soil present in it. Spread the coriander on a towel or clean cloth and let it dry completely.",
+        "On the gas, put a kadhai on it. Let it get heated.",
+        "Put oil and after that add mustard seeds to get them crackle.",
+        "Add green chili paste and green chili chopped in the oil.",
+        "Mix all chopped dry fruits and khaskhas as well.",
+        "Next, add haldi and hing and sauté it very well.",
+        "Add coriander into the kadhai and cook well and lastly add salt to it.",
+        "Remove the above stuff into the pan and add hot water very slowly and in limited quantity.",
+        "Make the consistency a semi-gravy and add amchur powder to it.",
+        "Apply a little oil on a plate and spread the batter in the plate. Take a steamer and heat it up.",
+        "Keep the kothimbir vadi plate in the steamer. Steam the vadi on medium heat for about 15-20 minutes.",
+        "After steaming, take the vadi out and let it cool down. Cut the pieces into diamonds.",
+        "Heat up oil and drop square vadi into it.",
+        "Fry the vadi until light golden from both sides and take them out.",
+        "Sprinkle Chat Masala on it. Serve with Green Chutney or Tamarind Chutney."
       ]
     },
-    "alu_vadi": {
-      "display": "Alu Vadi (Patra)",
+    "kachori": {
+      "display": "Kachori",
+      "category": "snacks",
       "ingredients": [
-        "Colocasia leaves – 25–30 pcs",
-        "Besan – 700 g",
-        "Tamarind-jaggery – balance",
-        "Spices – (turmeric, chilli, salt)",
-        "Oil + mustard + sesame – tempering"
+        "FOR STUFFING:",
+        "Green peas: 1 kg",
+        "Vada Pav masala: 250 gm",
+        "Ginger paste: 50 gm",
+        "Garlic paste: 50gm",
+        "Amchur powder: 25 gm",
+        "Turmeric powder: 20 gm",
+        "Salt",
+        "Jeera powder: 20 gm",
+        "Besan: 150 gm",
+        "Oil: 500ml approx.",
+        "Rai: 1tbsp",
+        "Sugar: 2 pinch",
+        "FOR DOUGH:",
+        "Maida: 250 grms",
+        "Hot oil (Mohan): 20 ml",
+        "Salt: 10 grms",
+        "Hot Water: as required"
       ],
       "method": [
-        "Make thick besan paste with tamarind-jaggery and spices.",
-        "Apply on leaves, stack and roll tight.",
-        "Steam 20–25 minutes, cool, slice.",
-        "Temper with mustard-sesame and serve."
+        "Firstly, in a large kadai, make a masala. Put oil and mustard.",
+        "Add ginger paste, garlic paste, green chili paste, amchur powder, turmeric powder, jeera powder.",
+        "Add vada pav masala. After cooking the masala, add green peas paste.",
+        "After cooking, add fried besan. Add sugar and salt amchur to taste and mix.",
+        "KACHORI DOUGH RECIPE:",
+        "Firstly, in a large mixing bowl, add 250g maida, and Mohan oil and salt to taste, and water.",
+        "Crumble the flour well with oil.",
+        "In addition, add water little by little and knead to form a dough. Cover them for 15 mins with a wet cloth.",
+        "Now, scoop 1 tsp of prepared masala stuffing.",
+        "Get the edges together and form a bundle.",
+        "Furthermore, gently press the edges and flatten. Deep fry kachoris.",
+        "Then press with the spoon to puff up.",
+        "Finally, serve yummy kachori."
       ]
     },
-    "pudachi_vadi": {
-      "display": "Pudachi Vadi",
+    "batata_vada": {
+      "display": "Batata Vada",
+      "category": "snacks",
       "ingredients": [
-        "Besan – 300 g",
-        "Coconut – 100 g (grated)",
-        "Green chilli paste – 20 g",
-        "Coriander – chopped",
-        "Salt – to taste",
-        "Oil – for frying"
+        "Boiled potato: 200 gm",
+        "Vadapav masala: 20 gm",
+        "Salt: 10 gm",
+        "Besan: 100 gm",
+        "Turmeric powder: 3 gm",
+        "Ajwain: 1 gm",
+        "Water: as per required",
+        "Oil: for frying"
       ],
       "method": [
-        "Prepare besan dough with spices.",
-        "Prepare coconut stuffing separately.",
-        "Roll besan dough, add stuffing and roll.",
-        "Steam rolls until cooked.",
-        "Cool, slice and deep fry till crisp.",
-        "Serve hot."
+        "Mashed the boiled potato, mix with vadapav masala and salt, taste it and make 30 gm of vada.",
+        "Mix besan, flour, rice flour, turmeric powder, ajwain, and salt well and add water as per required.",
+        "Consistency of batter should be medium. Heat the oil in a kadhai for deep frying.",
+        "Dip the potato balls in the besan batter and deep fry them.",
+        "Served it with four green fried chilies."
       ]
     },
-    "maaswadi": {
-      "display": "Maaswadi",
+    "vada_pav_masala": {
+      "display": "Vada Pav Masala",
+      "category": "snacks",
       "ingredients": [
-        "Besan – 300 g",
-        "Dry coconut – 100 g",
-        "Peanut powder – 150 g",
-        "Tamarind-jaggery paste – 120 g",
-        "Red chilli powder – 20 g",
-        "Salt – to taste",
-        "Oil – for frying"
+        "Green Chilies: 1kg",
+        "Green Coriander: half bunch (200gm)",
+        "Oil: half liter",
+        "Mustard seeds: 1/2 tsp",
+        "Garlic paste: 2tbsp",
+        "Ginger paste: 2tbsp",
+        "Turmeric powder: 60grms",
+        "Jeera powder: 50grms",
+        "Coriander powder: 50grms",
+        "Salt: as per taste",
+        "Whole coriander: 50 grm"
       ],
       "method": [
-        "Prepare thick besan dough and steam into sheet.",
-        "Prepare stuffing with coconut, peanuts and spices.",
-        "Spread stuffing, roll tightly.",
-        "Slice into rounds.",
-        "Deep fry till golden.",
-        "Serve hot."
+        "First clean and wash Green coriander and green chilies.",
+        "Strain them well, make sure no water is present. Then grind both the ingredients in a pulverizer. No water.",
+        "Second, crush the whole dry coriander seeds in a cloth with the help of a hammer or dabhu, just to get a roughly coarse form.",
+        "Third, be ready with all ingredients.",
+        "Fourth, the entire masala should cook on low to medium flame. Keep proper control on the range flame.",
+        "Now heat oil in a kadhai. Put mustard seeds, let them splutter.",
+        "Add garlic paste, sauté. Add ginger paste, sauté well. Add turmeric powder, cumin powder, and coriander powder.",
+        "Sauté all the dry masala thoroughly. Avoid its burning.",
+        "Then add paste of Green chilies and green coriander. Sauté well on medium flame till the oil separates.",
+        "Finally, add salt and roughly coarse dry coriander. Mix well.",
+        "Allow it to cool down completely. Then store it in a dry container."
       ]
     },
-    "bread_pakoda": {
-      "display": "Bread Pakoda",
-      "ingredients": [
-        "Bread slices – 10 pcs",
-        "Boiled potato filling – 400 g",
-        "Besan – 250 g",
-        "Salt – to taste",
-        "Red chilli powder – 10 g",
-        "Oil – for frying"
-      ],
-      "method": [
-        "Prepare potato stuffing.",
-        "Sandwich stuffing between bread slices.",
-        "Prepare besan batter.",
-        "Dip bread and deep fry till golden.",
-        "Serve hot with chutney."
-      ]
-    },
-    "snacks_platter": {
-      "display": "Snacks Platter",
-      "ingredients": [
-        "Kanda Bhaji",
-        "Batata Vada",
-        "Sabudana Vada",
-        "Kothimbir Vadi",
-        "Alu Vadi"
-      ],
-      "method": [
-        "Prepare all individual snacks as per SOP.",
-        "Arrange neatly on platter.",
-        "Serve hot with green and tamarind chutney."
-      ]
-    },
-    "kanda_pohe": {
+    "kandapohe": {
       "display": "Kanda Pohe",
+      "category": "snacks",
       "ingredients": [
-        "Poha – 1 kg",
-        "Onion – 300 g (chopped)",
-        "Peanuts – 150 g",
-        "Mustard seeds – 10 g",
-        "Turmeric – 5 g",
-        "Green chillies – 20 g",
-        "Salt – to taste",
-        "Oil – 80 ml",
-        "Lemon & coriander"
+        "Jada poha: 120gm",
+        "Onion slice: 80gm (1 small onion)",
+        "Oil: 2tbsp",
+        "Rai: half tsp",
+        "Shengadana: 5 gms",
+        "Curry leaves: 4 to 5 leaves",
+        "Green chilli: 2 nos",
+        "Turmeric powder: ¼ tsp",
+        "Salt: as per taste",
+        "Amchur powder: 1 pinch",
+        "Sugar: 1 pinch",
+        "Green coriander",
+        "Wet grated coconut"
       ],
       "method": [
-        "Wash poha gently and drain.",
-        "Heat oil, add mustard seeds and peanuts.",
-        "Add onions, chillies and turmeric.",
-        "Add poha and salt, mix lightly.",
-        "Cover and steam 5 minutes.",
-        "Finish with lemon and coriander."
+        "Soaked poha in water for 2-3 min.",
+        "Take a kadhai. Then add oil, shengadana, let it be crispy.",
+        "Then add rai, let it splutter.",
+        "Then add chopped green chili, curry leaves, sliced onion, sauté well.",
+        "Then add turmeric powder, sauté. Then add soaked poha and a pinch of salt, sugar, amchur powder. Mix well, cook.",
+        "Then add green coriander. Sprinkle some water, put the lid, keep it for 2 minutes.",
+        "Serve hot with Lemon Pc. Garnish with freshly grated wet coconut and coriander."
       ]
     },
-    "tarri_pohe": {
-      "display": "Tarri Pohe",
+    "dadpe_pohe": {
+      "display": "Dadpe Pohe",
+      "category": "snacks",
       "ingredients": [
-        "Prepared kanda pohe",
-        "Tarri (misal gravy) – as required",
-        "Onion, farsan – garnish"
+        "120 gm patal Poha (Flattened rice), thin variety",
+        "Sugar: 2 gm",
+        "Salt: 2 gm",
+        "50 GM wet fresh coconut grated",
+        "150 ml Buttermilk",
+        "Ingredients to make tadka:",
+        "Oil: 2 teas",
+        "Mustard seeds: ¼ tsp",
+        "Kaju: 3 pc",
+        "Asafoetida (hing): 1/4 teaspoon",
+        "Green Chili, finely chopped: 2",
+        "Green coriander: chop"
       ],
       "method": [
-        "Serve hot pohe in plate.",
-        "Top generously with tarri.",
-        "Garnish with onion and farsan.",
-        "Serve immediately."
+        "To begin making the Dadpe Pohe Recipe.",
+        "Dry the thin variety of poha or flattened rice and keep aside.",
+        "Now take a bowl, add the poha, add buttermilk, mix it well till it gets soggy.",
+        "Grated coconut, sugar, and salt. Mix buttermilk (if required) and mix well, with the hands. Leave it to soak.",
+        "Heat oil in a small tadka pan, add the mustard seeds, asafoetida, and let it crackle.",
+        "Add the green chili, Kaju, and saute.",
+        "Add this tadka over the softened poha and mix well.",
+        "At last, do micro oven for 1 minute.",
+        "To serve, take a portion of the prepared Dadpe Pohe in a plate, garnish with the grated coconut, coriander leaves.",
+        "If guest asks, then only serve with curd."
       ]
     },
     "ghavan": {
       "display": "Ghavan",
+      "category": "snacks",
       "ingredients": [
-        "Rice flour – 500 g",
-        "Salt – to taste",
-        "Water – as required"
+        "200 g Rice, soaked for 4 to 5 hours",
+        "Oil, for drizzling, as required",
+        "Salt: 1 gm",
+        "Coconut milk: 100 ml",
+        "Jeera seeds: 1 gm",
+        "Sugar: 1 gm",
+        "Water: 400 ml"
       ],
       "method": [
-        "Prepare thin batter using rice flour and water.",
-        "Heat tawa lightly.",
-        "Pour batter thinly.",
-        "Cook without flipping.",
-        "Serve soft and hot."
+        "For 1 pc of Ghavan, use 100 ml of batter.",
+        "To begin making the Maharashtrian Ghavan Recipe, soak the rice in water overnight or 5 to 6 hours.",
+        "Once soaked well, grind into a smooth thick batter. Add salt, jeera, coconut milk, and Rawa, adding little water at a time.",
+        "Water to adjust the consistency of the Ghavan to ensure it is not very thick nor very thin.",
+        "Cover the batter and keep it aside for 10 to 15 minutes.",
+        "Heat a non-stick tawa and spread a little oil on it. Stir the batter and pour the batter from the edge of the pan moving towards the center. Spread evenly. Reduce the heat.",
+        "Drizzle little oil all around and cook it until light brown. Now flip it and cook it on the other side too.",
+        "Transfer Ghavan on a serving plate and serve immediately.",
+        "Serve Maharashtrian Ghavan with green chutney. Serve 2 pc. No Buttermilk."
       ]
     },
-    "dhirde": {
-      "display": "Dhirde",
+    "mix_dal_vada": {
+      "display": "Mix Dal Vada",
+      "category": "snacks",
       "ingredients": [
-        "Wheat flour – 300 g",
-        "Besan – 100 g",
-        "Garlic – crushed",
-        "Salt – to taste",
-        "Water – as required"
+        "Chana dal: 100gm",
+        "Toor dal: 100gm",
+        "Yellow Moong dal (Split): 100gm",
+        "Urad dal: 100gm",
+        "Finely chopped onion: 2 nos",
+        "Green chillies: 4",
+        "Chopped ginger: 1 Inch",
+        "Chopped coriander: 10 grms",
+        "Salt: to taste",
+        "Turmeric: ¼ tsp",
+        "Cumin powder: ½ tsp",
+        "Asafetida: ¼ tsp",
+        "Curry leaves: 5-6 leaves",
+        "Oil: for tadka and for deep frying the vadas"
       ],
       "method": [
-        "Mix all ingredients into thick batter.",
-        "Spread on hot tawa.",
-        "Cook both sides with oil.",
-        "Serve hot with curd."
+        "Place all the dal in a vessel and wash them under running water and soak them for about 3-4 hours. Drain the excess water.",
+        "Put this soaked dal overnight in a mixture blender and add chopped green chilies and ginger to it and blend them to form a coarse paste.",
+        "Transfer this paste to a bowl and add onion, coriander, and salt. Mix well and make sure the batter is not too dry; if it is, add 1-2 tablespoons of water.",
+        "Now pour the tadka on this batter of oil, hing, and chopped curry leaves. Mix well.",
+        "Now, heat the oil. Take batter in hand, make a small ball, flatten with palm, and make a tiny hole in the middle of the flattened ball and drop into oil. Fry these vada till golden brown and crisp.",
+        "Drain them on a plate lined with absorbent paper.",
+        "Serve hot with fried green chutney.",
+        "If the batter gets too loose, then add a little bit of besan for its binding."
       ]
     },
-    "matki_usal": {
-      "display": "Matki Usal",
+    "moong_dal_pakoda": {
+      "display": "Moong Dal Pakoda",
+      "category": "snacks",
       "ingredients": [
-        "Sprouted matki – 1 kg",
-        "Onion – 300 g",
-        "Tomato – 300 g",
-        "Goda masala – 30 g",
-        "Oil – 100 ml",
-        "Salt – to taste"
+        "Split Green (moong dal) soaked: 200gm",
+        "Green chili paste: 1 spoon",
+        "Ginger paste: 1/2 spoon",
+        "Garlic paste: 1/2 spoon",
+        "Onion chopped: 100gm",
+        "Turmeric powder: 1/2 spoon",
+        "Jeera powder: 1/2 spoon",
+        "Salt: to taste",
+        "Fresh coriander leaves chopped: 2 tablespoons",
+        "Rice flour: 50gm",
+        "Besan: 50 grms",
+        "Ajwain: pinch",
+        "Oil: for deep-frying"
       ],
       "method": [
-        "Heat oil, sauté onion till golden.",
-        "Add tomato and masala.",
-        "Add matki and water.",
-        "Cook till soft and semi-gravy."
+        "Soaked green moong dal overnight.",
+        "Wash it nicely 2-3 times with water.",
+        "To make the pakoda batter, put split green gram in a mixer jar, add green chilies, ginger, garlic, and salt and grind into a coarse paste. Add a little water if required.",
+        "Transfer the batter into a mixing bowl, add all ingredients with besan, coriander leaves, and rice flour and mix well.",
+        "Using your fingers, drop small amounts of batter in hot oil and deep-fry till crisp and golden.",
+        "Arrange them on a serving plate and serve hot.",
+        "Serve with chat masala sprinkled on it."
+      ]
+    },
+    "palak_pakoda": {
+      "display": "Palak Pakoda",
+      "category": "snacks",
+      "ingredients": [
+        "250 GM besan",
+        "600gm spinach or palak - finely chopped",
+        "Ginger paste: 1 tea spoon",
+        "Green chili paste: 1",
+        "Cumin powder: 1 teaspoon",
+        "Turmeric powder: 1 spoon",
+        "Salt: to taste",
+        "Oil: for deep frying"
+      ],
+      "method": [
+        "Rinse the palak very well and finely chop them.",
+        "In a bowl, add the chopped palak leaves. Then add ginger and green chili paste, cumin powder.",
+        "Next, add besan, salt as per requirement. Mix all the ingredients very well and keep aside for 5 minutes.",
+        "Add water in parts. Remember the spinach will release water once they are mixed with salt and the spice powders. So be careful while adding water.",
+        "Mix very well. Add water as required to make a medium consistency pakoda batter.",
+        "For frying palak pakoda, heat oil in a kadai or pan. When the oil is medium hot, drop spoonfuls of the pakora batter in the oil.",
+        "Fry the pakora till they become pale golden. Then turn over and fry the other side.",
+        "Remove them with a slotted spoon. Drain them on a kitchen bowl. Serve palak pakoda hot with chutney."
       ]
     },
     "kadhi": {
       "display": "Kadhi",
+      "category": "mains",
       "ingredients": [
-        "Curd – 1 litre",
-        "Besan – 100 g",
-        "Ginger – 20 g",
-        "Curry leaves",
-        "Mustard seeds",
-        "Salt – to taste"
+        "Curd: 1 litre",
+        "Besan: 250 gm",
+        "Oil: 75 ml",
+        "Rai: 5gm",
+        "Methi dana: 5gm",
+        "Chop green chillies: 20 gm",
+        "Curry leaves: 20 to 25 leaves",
+        "Hing: 3gm",
+        "Water: 4 litre",
+        "Salt: as per taste",
+        "Sugar: 2 gm",
+        "Lemon juice: 4 pc lemons",
+        "Ginger paste: 5gm",
+        "Ghee: 25 ml"
       ],
       "method": [
-        "Whisk curd and besan.",
-        "Cook on low flame till thick.",
-        "Prepare tempering.",
-        "Add to kadhi and simmer."
+        "First of all, make a lump-free mixture of besan and curd in a mixer, then add an equal quantity of water in it and keep aside.",
+        "Now in a kadhai, heat oil and add rai, let it splutter.",
+        "Then add methi dana, chopped green chilies, curry leaves, hing, and cloves and sauté it well.",
+        "Now add the above curd mixture over this tempering and give a stir.",
+        "Let it boil, mix well, and add water as per consistency.",
+        "Cook it thoroughly.",
+        "Finally, add lemon, ginger paste, ghee, salt, sugar, mix well, and cook it well, nicely boiling.",
+        "Taste it and serve warm."
       ]
     },
-    "misal_pav": {
-      "display": "Misal",
+    "jeera_varan": {
+      "display": "Jeera Varan",
+      "category": "mains",
       "ingredients": [
-        "Sprouts – 1 kg",
-        "Misal masala – 50 g",
-        "Onion – chopped",
-        "Tarri – as required",
-        "Oil – 150 ml"
+        "Boil toor dal: 150 gm",
+        "Oil: 15 ml",
+        "Jeera: 3 gm",
+        "Chop green chili: 2 gm",
+        "Hing: 1 gm",
+        "Turmeric: 2gm",
+        "Salt: as per taste",
+        "Sugar: half gm",
+        "Coriander chopped: 10 grms"
       ],
       "method": [
-        "Cook sprouts with masala.",
-        "Prepare tarri separately.",
-        "Assemble with onion and farsan.",
+        "In a kadhai, heat oil, add jeera and let it splutter, then add chopped green chilies.",
+        "Now add hing, turmeric powder, and add hot water in it to avoid its burning.",
+        "Once it boils, then add boiled toor dal.",
+        "Add water in it as per required consistency.",
+        "Finally, add salt and chop green coriander.",
+        "Boil it completely and taste it.",
         "Serve hot."
       ]
     },
-    "steam_rice": {
-      "display": "Steam Rice",
+    "methi_varan": {
+      "display": "Methi Varan",
+      "category": "mains",
       "ingredients": [
-        "Rice – 1 kg",
-        "Water – as required"
+        "Boil toor dal: 150 gm",
+        "Oil: 15ml",
+        "Rai: 1gm",
+        "Garlic chop: 5gm",
+        "Green chilli chop: 2gm",
+        "Green chop methi: 50 gm",
+        "Hing: 1gm",
+        "Turmeric powder: 2gm",
+        "Salt: as per taste",
+        "Sugar: half pinch",
+        "Amchur powder: half pinch",
+        "Water: as per requirement"
       ],
       "method": [
-        "Wash rice thoroughly.",
-        "Cook till fluffy.",
+        "In a kadhai, heat oil, add rai and let it splutter, then add chopped garlic, let it cook till it gets golden color.",
+        "Then add chopped green methi and sauté it well till its rawness is done.",
+        "Now add hing, turmeric powder, and add hot water in it to avoid its burning.",
+        "Once this water boils, then add boiled toor dal.",
+        "Add water in it as per required consistency.",
+        "Finally, add salt, sugar, amchur powder.",
+        "Boil it completely and taste it.",
         "Serve hot."
       ]
     },
-    "masale_bhat": {
-      "display": "Masale Bhat",
+    "palak_varan": {
+      "display": "Palak Varan",
+      "category": "mains",
       "ingredients": [
-        "Rice – 1 kg",
-        "Goda masala – 40 g",
-        "Vegetables – mixed",
-        "Oil – 100 ml",
-        "Salt – to taste"
+        "Boil toor dal: 150gm",
+        "Oil: 15ml",
+        "Rai: 1gm",
+        "Garlic chop: 2 gm",
+        "Green chilli chop: 1 gm",
+        "Green chop and boil palak: 150 gm",
+        "Hing: 1 gm",
+        "Turmeric powder: 2 gm",
+        "Salt: as per taste",
+        "Sugar: half gm",
+        "1 Lemon",
+        "Corriander powder: 1gm",
+        "Water: as per requirement"
       ],
       "method": [
-        "Sauté masala and vegetables.",
-        "Add rice and water.",
-        "Cook till aromatic."
-      ]
-    },
-    "jowar_bhakri": {
-      "display": "Jowar Bhakri",
-      "ingredients": [
-        "Jowar flour – 1 kg",
-        "Hot water – as required",
-        "Salt – optional"
-      ],
-      "method": [
-        "Knead flour with hot water.",
-        "Pat bhakri by hand.",
-        "Roast on flame.",
-        "Serve with ghee."
-      ]
-    },
-    "puranpoli": {
-      "display": "Puran Poli",
-      "ingredients": [
-        "Chana dal – 500 g",
-        "Jaggery – 500 g",
-        "Wheat flour – 500 g",
-        "Nutmeg & cardamom"
-      ],
-      "method": [
-        "Cook dal till soft.",
-        "Mix jaggery and spices.",
-        "Prepare dough.",
-        "Stuff and roll poli.",
-        "Cook on tawa."
-      ]
-    },
-    "basundi": {
-      "display": "Basundi",
-      "ingredients": [
-        "Milk – 2 litres",
-        "Sugar – 200 g",
-        "Cardamom – 5 g",
-        "Nuts – garnish"
-      ],
-      "method": [
-        "Boil milk till thick.",
-        "Add sugar and cardamom.",
-        "Reduce slowly.",
-        "Serve chilled or warm."
-      ]
-    },
-    "ukadicha_modak": {
-      "display": "Ukadiche Modak",
-      "ingredients": [
-        "Rice flour – 500 g",
-        "Coconut – 400 g",
-        "Jaggery – 300 g",
-        "Ghee – few drops"
-      ],
-      "method": [
-        "Prepare coconut-jaggery filling.",
-        "Make rice dough.",
-        "Shape modaks.",
-        "Steam till cooked."
-      ]
-    },
-    "balgopal_thali": {
-      "display": "Balgopal Thali",
-      "ingredients": [
-        "Rice",
-        "Varan",
-        "Batata bhaji",
-        "Puranpoli / Shrikhand"
-      ],
-      "method": [
-        "Prepare all items mild.",
-        "Serve balanced portions.",
-        "Ensure low spice."
-      ]
-    },
-    "balgopal_vada_pav": {
-      "display": "Balgopal Vada Pav",
-      "ingredients": [
-        "Mini pav",
-        "Mild batata vada"
-      ],
-      "method": [
-        "Prepare vada without excess spice.",
-        "Serve in mini pav.",
-        "No chutney heat."
-      ]
-    },
-    "shrikhand": {
-      "display": "Shrikhand",
-      "ingredients": [
-        "Hung curd – 1 kg",
-        "Sugar – 250 g",
-        "Cardamom powder – 5 g",
-        "Saffron – optional",
-        "Nuts – garnish"
-      ],
-      "method": [
-        "Prepare thick hung curd (no water).",
-        "Whisk with sugar until smooth.",
-        "Add cardamom (and saffron if using).",
-        "Chill 2–3 hours.",
-        "Garnish with nuts and serve."
-      ]
-    },
-    "aamrakhand": {
-      "display": "Amrakhand",
-      "ingredients": [
-        "Hung curd – 1 kg",
-        "Mango pulp – 300 g",
-        "Sugar – 150 g (adjust to mango sweetness)",
-        "Cardamom powder – 5 g"
-      ],
-      "method": [
-        "Whisk hung curd and sugar until smooth.",
-        "Fold in mango pulp and cardamom.",
-        "Chill well.",
-        "Serve cold."
-      ]
-    },
-    "sabudana_khichdi": {
-      "display": "Sabudana Khichdi (Upvas)",
-      "ingredients": [
-        "Sabudana – 1 kg (soaked)",
-        "Peanuts – 250 g (crushed)",
-        "Potato – 500 g (cubes)",
-        "Green chillies – 20 g",
-        "Cumin – 10 g",
-        "Ghee – 120 g",
-        "Salt (sendha) – to taste",
-        "Lemon & coriander"
-      ],
-      "method": [
-        "Soak sabudana till soft, drain well.",
-        "Heat ghee, add cumin and chillies.",
-        "Add potatoes, cook till done.",
-        "Add peanuts, then sabudana and salt.",
-        "Toss gently on low flame 5–7 minutes.",
-        "Finish with lemon and coriander."
-      ]
-    },
-    "rajgira_thalipeeth": {
-      "display": "Rajgira Thalipeeth (Upvas)",
-      "ingredients": [
-        "Rajgira flour – 500 g",
-        "Boiled potato – 400 g",
-        "Green chilli – 15 g",
-        "Cumin – 10 g",
-        "Salt (sendha) – to taste",
-        "Ghee/oil – for roasting"
-      ],
-      "method": [
-        "Mix flour with potato and spices.",
-        "Make soft dough (use little water).",
-        "Pat on banana leaf/plastic.",
-        "Roast both sides with ghee.",
+        "First boil the clean and chopped palak and strain it.",
+        "In a kadhai, heat oil, add rai and let it splutter, then add chopped garlic, let it cook till it gets golden color.",
+        "Now add hing, turmeric powder, and add hot water in it to avoid its burning.",
+        "Then add boiled palak and sauté it well.",
+        "Add water, let it boil, then add boiled toor dal.",
+        "Add water in it as per required consistency.",
+        "Finally, add salt, sugar, and Lemon.",
+        "Lastly, add coriander powder.",
+        "Boil it completely and taste it.",
         "Serve hot."
       ]
     },
-    "tilgul_ladoo": {
-      "display": "Tilgul Ladoo (Makar Sankranti)",
+    "chincha_gulacha_varan": {
+      "display": "Chincha Gulacha Varan",
+      "category": "mains",
       "ingredients": [
-        "Sesame (til) – 500 g (roasted)",
-        "Jaggery – 500 g",
-        "Ghee – 50 g",
-        "Cardamom – 5 g"
+        "Boil toor dal: 150 gm",
+        "Oil: 15ml",
+        "Rai: 1gm",
+        "Garlic chop: 3 gm",
+        "Green chili chop: 2gm",
+        "Hing: 1gm",
+        "Turmeric powder: 2gm",
+        "Red chili powder: half powder",
+        "Tamarind pulp: 15 gm",
+        "Jaggery: 2gm",
+        "Salt: as per taste",
+        "Water: as per requirement",
+        "Green coriander: 10 gm"
       ],
       "method": [
-        "Roast sesame lightly and cool.",
-        "Melt jaggery with ghee to soft-ball stage.",
-        "Mix sesame and cardamom quickly.",
-        "Shape ladoos while warm."
+        "In a kadhai, heat oil, add rai and let it splutter, then add chopped garlic, let it cook till it gets golden color.",
+        "Now add hing, turmeric powder and add hot water in it to avoid its burning.",
+        "Once it boils, then add boiled toor dal.",
+        "Add water in it as per required consistency.",
+        "Add tamarind pulp, jaggery, mix well.",
+        "Finally, add salt and chop green coriander.",
+        "Boil it completely and taste it.",
+        "Serve hot."
       ]
     },
-    "gajar_halwa": {
-      "display": "Gajar Halwa",
+    "green_chutney": {
+      "display": "Green Chutney",
+      "category": "chutneys",
       "ingredients": [
-        "Carrot – 2 kg (grated)",
-        "Milk – 2 litres",
-        "Sugar – 400 g",
-        "Ghee – 150 g",
-        "Cardamom – 5 g",
-        "Nuts – garnish"
+        "Green coriander: 200 gm",
+        "Green chillies: 10 gm (3 to 4 pcs.)",
+        "Salt: as per taste",
+        "Shrikhand: 40 gm",
+        "Curd: 50 gm"
       ],
       "method": [
-        "Cook carrots in ghee 8–10 minutes.",
-        "Add milk, simmer till reduced.",
-        "Add sugar, cook till thick.",
-        "Finish with cardamom and nuts."
+        "Grind all the above ingredients into a fine smooth paste.",
+        "Taste it and serve with snacks items."
       ]
     },
-    "sheera": {
-      "display": "Sheera (Sooji Halwa)",
+    "tamarind_chutney": {
+      "display": "Tamarind Chutney",
+      "category": "chutneys",
       "ingredients": [
-        "Sooji – 500 g",
-        "Ghee – 200 g",
-        "Sugar – 350 g",
-        "Water/milk – 1.2 litres",
-        "Cardamom – 5 g",
-        "Nuts – garnish"
+        "Tamarind: 1kg",
+        "Jaggery: 750 gm",
+        "Sugar: 250 gm",
+        "Groundnuts: 100 gm",
+        "Sesame seeds: 50 gm"
       ],
       "method": [
-        "Roast sooji in ghee till aromatic.",
-        "Boil water/milk with sugar.",
-        "Add liquid to sooji carefully, stir.",
-        "Cook till glossy and soft.",
-        "Add cardamom and garnish."
+        "Clean thoroughly the tamarind and keep it for boiling with almost double amount of water.",
+        "Once it gets thick, then allow it to cool down and strain well.",
+        "Now keep again to boil this strained tamarind puree.",
+        "Add jaggery, sugar and let it boil completely, then add washed groundnuts.",
+        "Finally, add clean sesame seeds.",
+        "Let it boil well.",
+        "Taste it and allow it to cool down completely.",
+        "Store it in a completely dry container in freeze.",
+        "Serve it with snacks."
       ]
     },
-    "varan": {
-      "display": "Varan (Simple Dal)",
+    "vada_pav_chutney": {
+      "display": "Vada Pav Chutney",
+      "category": "chutneys",
       "ingredients": [
-        "Toor dal – 1 kg",
-        "Turmeric – 10 g",
-        "Salt – to taste",
-        "Ghee – 50 g",
-        "Jeera – 10 g"
+        "Roasted shengadana powder finely",
+        "Roasted sesame seeds powder finely",
+        "Roasted dry coconut powder finely",
+        "Roasted garlic powder finely",
+        "Roasted and dried tamarind powder",
+        "Roasted curry leaves powder finely",
+        "Red chilly powder",
+        "Salt"
       ],
       "method": [
-        "Pressure cook toor dal with turmeric.",
-        "Whisk smooth, add salt and water.",
-        "Temper ghee + jeera.",
-        "Simmer 5 minutes."
-      ]
-    },
-    "batata_bhaji": {
-      "display": "Batata Bhaji (Mild)",
-      "ingredients": [
-        "Potato – 2 kg",
-        "Mustard – 10 g",
-        "Turmeric – 10 g",
-        "Green chilli – 10 g (optional mild)",
-        "Oil – 100 ml",
-        "Salt – to taste"
-      ],
-      "method": [
-        "Boil and cube potatoes.",
-        "Temper mustard + turmeric.",
-        "Add potatoes and salt.",
-        "Toss gently, finish with coriander."
-      ]
-    },
-    "thecha": {
-      "display": "Thecha",
-      "ingredients": [
-        "Green chilli – 200 g",
-        "Garlic – 60 g",
-        "Peanuts – 150 g (optional)",
-        "Salt – to taste",
-        "Oil – 50 ml"
-      ],
-      "method": [
-        "Roast chillies and garlic lightly.",
-        "Crush coarsely (not paste).",
-        "Add salt and roasted peanuts (optional).",
-        "Finish with hot oil."
-      ]
-    },
-    "bharli_vangi": {
-      "display": "Bharli Vangi",
-      "ingredients": [
-        "Small brinjal – 1.5 kg",
-        "Peanut + sesame powder – 350 g",
-        "Goda masala – 40 g",
-        "Jaggery – 50 g",
-        "Tamarind – 40 g",
-        "Oil – 150 ml",
-        "Salt – to taste"
-      ],
-      "method": [
-        "Make stuffing mix with masala, jaggery, tamarind.",
-        "Cut brinjals and stuff.",
-        "Cook in oil on low flame with little water.",
-        "Cook till tender, thick gravy."
-      ]
-    }
-  },
-  "thalis": {
-    "classic_maharashtrian_thali": {
-      "display": "Classic Maharashtrian Thali",
-      "items": [
-        "kanda_pohe",
-        "varan",
-        "steam_rice",
-        "batata_bhaji",
-        "jowar_bhakri",
-        "thecha",
-        "solkadhi",
-        "puranpoli"
-      ],
-      "notes": [
-        "Keep spice balanced.",
-        "Add lemon, pickle, papad as per availability."
-      ]
-    },
-    "upvas_thali": {
-      "display": "Upvas (Fasting) Thali",
-      "items": [
-        "sabudana_khichdi",
-        "sabudana_vada",
-        "rajgira_thalipeeth",
-        "solkadhi"
-      ],
-      "notes": [
-        "Use sendha namak only.",
-        "No onion/garlic as per upvas rule."
-      ]
-    },
-    "misal_combo": {
-      "display": "Misal Combo",
-      "items": [
-        "misal",
-        "tarri_pohe"
-      ],
-      "notes": [
-        "Serve with pav/farsan/onion.",
-        "Tarri level: mild/medium/spicy option."
-      ]
-    },
-    "festival_sweet_platter": {
-      "display": "Festival Sweet Platter",
-      "items": [
-        "tilgul_ladoo",
-        "shrikhand",
-        "basundi",
-        "sheera",
-        "gajar_halwa"
-      ],
-      "notes": [
-        "Use chilled items cold chain.",
-        "Label allergens: dairy, nuts."
-      ]
-    },
-    "balgopal_thali_set": {
-      "display": "Balgopal Special Set",
-      "items": [
-        "balgopal_thali",
-        "balgopal_vada_pav",
-        "shrikhand"
-      ],
-      "notes": [
-        "Mild spice only.",
-        "Offer star reward sticker for kids."
-      ]
-    }
-  },
-  "bhojanGuru": {
-    "vada_pav": {
-      "display": "Vada Pav",
-      "mood": [
-        "comfort",
-        "quick bite",
-        "nostalgic"
-      ],
-      "occasion": [
-        "snack",
-        "evening chai",
-        "travel"
-      ],
-      "season": [
-        "all",
-        "monsoon"
-      ],
-      "spice": "medium",
-      "best_with": [
-        "masala_tea",
-        "ginger_tea",
-        "solkadhi"
-      ],
-      "combo": [
-        {
-          "name": "Vada Pav + Cutting Chai",
-          "items": [
-            "vada_pav",
-            "simple_tea"
-          ]
-        },
-        {
-          "name": "Vada Pav + Solkadhi Cooldown",
-          "items": [
-            "vada_pav",
-            "solkadhi"
-          ]
-        }
-      ],
-      "upsell": [
-        "batata_vada_4pcs",
-        "kothimbir_vadi",
-        "sheera"
-      ],
-      "tags": [
-        "bestseller",
-        "street-food",
-        "kids-fav"
-      ]
-    },
-    "misal_pav": {
-      "display": "Misal Pav",
-      "mood": [
-        "power",
-        "spicy kick",
-        "weekend vibe"
-      ],
-      "occasion": [
-        "brunch",
-        "breakfast",
-        "party starter"
-      ],
-      "season": [
-        "monsoon",
-        "winter",
-        "all"
-      ],
-      "spice": "spicy",
-      "best_with": [
-        "buttermilk",
-        "solkadhi"
-      ],
-      "combo": [
-        {
-          "name": "Misal Pav + Cool Drink",
-          "items": [
-            "misal_pav",
-            "solkadhi"
-          ]
-        },
-        {
-          "name": "Misal Pav + Sweet Finish",
-          "items": [
-            "misal_pav",
-            "puranpoli"
-          ]
-        }
-      ],
-      "upsell": [
-        "kanda_bhaji",
-        "dahi_bhat",
-        "shrikhand"
-      ],
-      "tags": [
-        "bestseller",
-        "spicy",
-        "mumbai-style"
-      ]
-    },
-    "kanda_bhaji": {
-      "display": "Kanda Bhaji",
-      "mood": [
-        "crunchy",
-        "chai-time",
-        "monsoon love"
-      ],
-      "occasion": [
-        "snack",
-        "starter"
-      ],
-      "season": [
-        "monsoon",
-        "winter"
-      ],
-      "spice": "mild",
-      "best_with": [
-        "masala_tea",
-        "ginger_tea"
-      ],
-      "combo": [
-        {
-          "name": "Bhaji + Chai",
-          "items": [
-            "kanda_bhaji",
-            "masala_tea"
-          ]
-        }
-      ],
-      "upsell": [
-        "vada_pav",
-        "thecha",
-        "solkadhi"
-      ],
-      "tags": [
-        "crispy",
-        "monsoon-special"
-      ]
-    },
-    "purnabramha_special_thali": {
-      "display": "Purnabramha Special Thali",
-      "mood": [
-        "royal",
-        "satisfying",
-        "full meal"
-      ],
-      "occasion": [
-        "lunch",
-        "dinner",
-        "family"
-      ],
-      "season": [
-        "all"
-      ],
-      "spice": "balanced",
-      "best_with": [
-        "solkadhi",
-        "piyush"
-      ],
-      "combo": [
-        {
-          "name": "Thali + Solkadhi",
-          "items": [
-            "purnabramha_special_thali",
-            "solkadhi"
-          ]
-        },
-        {
-          "name": "Thali + Sweet",
-          "items": [
-            "purnabramha_special_thali",
-            "puranpoli"
-          ]
-        }
-      ],
-      "upsell": [
-        "ukadicha_modak",
-        "shrikhand",
-        "piyush"
-      ],
-      "tags": [
-        "signature",
-        "premium",
-        "family-fav"
-      ]
-    },
-    "masale_bhat": {
-      "display": "Masale Bhat",
-      "mood": [
-        "warming",
-        "homestyle",
-        "simple joy"
-      ],
-      "occasion": [
-        "lunch",
-        "tiffin",
-        "corporate"
-      ],
-      "season": [
-        "winter",
-        "monsoon",
-        "all"
-      ],
-      "spice": "mild",
-      "best_with": [
-        "kadhi",
-        "raita",
-        "solkadhi"
-      ],
-      "combo": [
-        {
-          "name": "Masale Bhat + Kadhi",
-          "items": [
-            "masale_bhat",
-            "kadhi"
-          ]
-        },
-        {
-          "name": "Masale Bhat + Curd Bowl",
-          "items": [
-            "masale_bhat",
-            "dahi"
-          ]
-        }
-      ],
-      "upsell": [
-        "kothimbir_vadi",
-        "batata_bhaji",
-        "piyush"
-      ],
-      "tags": [
-        "tiffin-friendly",
-        "comfort"
-      ]
-    },
-    "kadhi": {
-      "display": "Kadhi",
-      "mood": [
-        "light",
-        "soothing",
-        "digestion-friendly"
-      ],
-      "occasion": [
-        "lunch",
-        "post-travel",
-        "family meal"
-      ],
-      "season": [
-        "summer",
-        "all"
-      ],
-      "spice": "mild",
-      "best_with": [
-        "steam_rice",
-        "masale_bhat"
-      ],
-      "combo": [
-        {
-          "name": "Kadhi-Chawal Comfort",
-          "items": [
-            "kadhi",
-            "steam_rice"
-          ]
-        }
-      ],
-      "upsell": [
-        "papad",
-        "pickle",
-        "ghee"
-      ],
-      "tags": [
-        "light",
-        "classic"
-      ]
-    },
-    "dahi_bhat": {
-      "display": "Dahi Bhat",
-      "mood": [
-        "cooling",
-        "calm",
-        "simple"
-      ],
-      "occasion": [
-        "lunch",
-        "summer special",
-        "kid-friendly"
-      ],
-      "season": [
-        "summer",
-        "all"
-      ],
-      "spice": "very mild",
-      "best_with": [
-        "masala_mirchi",
-        "pickle",
-        "papad"
-      ],
-      "combo": [
-        {
-          "name": "Dahi Bhat + Crunch",
-          "items": [
-            "dahi_bhat",
-            "papad"
-          ]
-        }
-      ],
-      "upsell": [
-        "masale_bhat",
-        "kadhi",
-        "gajar_koshimbir"
-      ],
-      "tags": [
-        "kids-fav",
-        "cooling"
-      ]
-    },
-    "ukadicha_modak": {
-      "display": "Ukadicha Modak",
-      "mood": [
-        "festive",
-        "devotional",
-        "celebration"
-      ],
-      "occasion": [
-        "festival",
-        "party dessert",
-        "gift"
-      ],
-      "season": [
-        "festival",
-        "all"
-      ],
-      "spice": "sweet",
-      "best_with": [
-        "piyush",
-        "warm milk"
-      ],
-      "combo": [
-        {
-          "name": "Modak + Piyush",
-          "items": [
-            "ukadicha_modak",
-            "piyush"
-          ]
-        }
-      ],
-      "upsell": [
-        "shrikhand",
-        "sheera",
-        "basundi"
-      ],
-      "tags": [
-        "festival-special",
-        "premium",
-        "bestseller"
-      ]
-    },
-    "puranpoli": {
-      "display": "Puran Poli",
-      "mood": [
-        "warm",
-        "classic",
-        "family nostalgia"
-      ],
-      "occasion": [
-        "thali dessert",
-        "festival",
-        "guest treat"
-      ],
-      "season": [
-        "winter",
-        "festival",
-        "all"
-      ],
-      "spice": "sweet",
-      "best_with": [
-        "warm ghee",
-        "milk",
-        "piyush"
-      ],
-      "combo": [
-        {
-          "name": "Puran Poli + Ghee",
-          "items": [
-            "puranpoli",
-            "ghee"
-          ]
-        },
-        {
-          "name": "Puran Poli + Piyush",
-          "items": [
-            "puranpoli",
-            "piyush"
-          ]
-        }
-      ],
-      "upsell": [
-        "shrikhand",
-        "basundi",
-        "gajar_halwa"
-      ],
-      "tags": [
-        "classic",
-        "bestseller"
-      ]
-    },
-    "shrikhand": {
-      "display": "Shrikhand",
-      "mood": [
-        "cooling",
-        "celebration",
-        "refreshing"
-      ],
-      "occasion": [
-        "dessert",
-        "party",
-        "thali finish"
-      ],
-      "season": [
-        "summer",
-        "all"
-      ],
-      "spice": "sweet",
-      "best_with": [
-        "puri",
-        "thali",
-        "fruit"
-      ],
-      "combo": [
-        {
-          "name": "Shrikhand + Puri",
-          "items": [
-            "shrikhand",
-            "puri"
-          ]
-        }
-      ],
-      "upsell": [
-        "aamrakhand",
-        "basundi",
-        "tilgul_ladoo"
-      ],
-      "tags": [
-        "summer-hit",
-        "premium"
+        "In a bowl, mix all ingredients well and make a lump-free dry powder chutney.",
+        "Taste it and serve with vada pav and with batata vada."
       ]
     },
     "sabudana_khichdi": {
       "display": "Sabudana Khichdi",
-      "mood": [
-        "light energy",
-        "fasting comfort",
-        "clean food"
+      "category": "fasting",
+      "ingredients": [
+        "Sabudana (soaked): 200 gm",
+        "Boiled potato: 100 gm",
+        "Roasted peanuts powder: 50 gm",
+        "Green chillies: 2",
+        "Oil: 2 tbsp",
+        "Jeera: 1 tsp",
+        "Salt: as per taste",
+        "Sugar: 1 pinch",
+        "Lemon juice: 1 tbsp",
+        "Green coriander: for garnish"
       ],
-      "occasion": [
-        "upvas",
-        "breakfast",
-        "light lunch"
-      ],
-      "season": [
-        "all"
-      ],
-      "spice": "mild",
-      "best_with": [
-        "upvas_chutney",
-        "curd",
-        "solkadhi"
-      ],
-      "combo": [
-        {
-          "name": "Upvas Comfort Combo",
-          "items": [
-            "sabudana_khichdi",
-            "solkadhi"
-          ]
-        }
-      ],
-      "upsell": [
-        "sabudana_vada",
-        "rajgira_thalipeeth"
-      ],
-      "tags": [
-        "upvas",
-        "gluten-free"
+      "method": [
+        "Soak sabudana overnight or for 4-5 hours. Drain excess water.",
+        "Heat oil in a kadhai, add jeera and let it splutter.",
+        "Add chopped green chillies and sauté.",
+        "Add cubed boiled potatoes and sauté for 2 minutes.",
+        "Add soaked sabudana and mix gently.",
+        "Add peanut powder, salt, and sugar. Mix well.",
+        "Cook on low flame for 5-7 minutes, stirring occasionally.",
+        "Add lemon juice and garnish with coriander.",
+        "Serve hot."
       ]
     },
     "sabudana_vada": {
       "display": "Sabudana Vada",
-      "mood": [
-        "crispy",
-        "fasting treat",
-        "snack"
+      "category": "fasting",
+      "ingredients": [
+        "Wet sabudana: 1 kg",
+        "Boil potatoes: 1/2 kg",
+        "Sengdana powder: 250gm",
+        "Jeera powder: 10 gm",
+        "Salt",
+        "Oil for frying"
       ],
-      "occasion": [
-        "upvas",
-        "starter",
-        "evening snack"
-      ],
-      "season": [
-        "all"
-      ],
-      "spice": "mild",
-      "best_with": [
-        "upvas_chutney",
-        "curd"
-      ],
-      "combo": [
-        {
-          "name": "Upvas Crunch Combo",
-          "items": [
-            "sabudana_vada",
-            "sabudana_khichdi"
-          ]
-        }
-      ],
-      "upsell": [
-        "solkadhi",
-        "rajgira_thalipeeth"
-      ],
-      "tags": [
-        "upvas",
-        "crispy"
+      "method": [
+        "Firstly, in a large bowl, take sabudana and soak with enough water for 3 hours.",
+        "Drain off the water and rest for 30 minutes, allowing to drain off the water completely.",
+        "Now take the soaked sabudana in a large bowl.",
+        "Also, add potato and peanuts.",
+        "Additionally, add 1 tsp cumin powder, salt.",
+        "Mix and mash well with your hand.",
+        "Prepare vada by deep frying.",
+        "Finally, serve sabudana vada hot along with curd.",
+        "6 pieces per plate."
       ]
     },
+    "shrikhand": {
+      "display": "Shrikhand",
+      "category": "sweets",
+      "ingredients": [
+        "Hung curd: 500 gm",
+        "Sugar powder: 200 gm",
+        "Cardamom powder: 1/4 tsp",
+        "Saffron strands: few",
+        "Chopped almonds and pistachios for garnish"
+      ],
+      "method": [
+        "Hang curd in a muslin cloth overnight to remove all whey.",
+        "Transfer the thick curd to a bowl.",
+        "Add powdered sugar and mix well until smooth.",
+        "Add cardamom powder and saffron strands.",
+        "Mix until creamy and smooth.",
+        "Garnish with chopped nuts.",
+        "Refrigerate and serve chilled."
+      ]
+    },
+    "gulab_jamun": {
+      "display": "Gulab Jamun",
+      "category": "sweets",
+      "ingredients": [
+        "Khowa: 1kg",
+        "Maida: 200 gm",
+        "Sugar: 1.5 kg",
+        "Cardamom: 6-7 pieces",
+        "Water for syrup"
+      ],
+      "method": [
+        "Make sugar syrup with water and cardamom.",
+        "Mix khowa and maida to make smooth dough.",
+        "Make small balls from the dough.",
+        "Deep fry on low heat until golden brown.",
+        "Soak in warm sugar syrup for 2-3 hours.",
+        "Serve warm or cold."
+      ]
+    },
+    "aliv_kheer": {
+      "display": "Aliv Kheer",
+      "category": "sweets",
+      "ingredients": [
+        "Aliv: 10 gm",
+        "Milk: 300 ml",
+        "Sugar: 50 gm",
+        "Water: 100ml",
+        "Ghee: 10ml"
+      ],
+      "method": [
+        "In a kadhai, heat ghee and add aliv in it and sauté it till they crackle.",
+        "Then add water in it and cook it well.",
+        "Finally, add milk and sugar and cook well.",
+        "Taste it and serve it warm."
+      ]
+    },
+    "nachani_kheer": {
+      "display": "Nachani Chi Kheer",
+      "category": "sweets",
+      "ingredients": [
+        "Ghee: 10 ml",
+        "Nachani flour: 40gm",
+        "Milk: 400ml",
+        "Sugar: 50 gm"
+      ],
+      "method": [
+        "In a kadhai, heat ghee and add nachani flour and roast it well.",
+        "Then add milk and boil it.",
+        "Finally, add sugar and cook well.",
+        "Check the consistency and taste it.",
+        "And serve it warm."
+      ]
+    },
+    "puran_poli": {
+      "display": "Puran Poli",
+      "category": "sweets",
+      "ingredients": [
+        "For covering: Maida 250gm, Oil 2 tbsp, Salt pinch, Water as required",
+        "For puran: Chana dal 250gm, Jaggery 300gm, Cardamom powder 1/2 tsp, Nutmeg powder 1/4 tsp",
+        "Ghee for serving"
+      ],
+      "method": [
+        "Make soft dough with maida, oil, salt and water. Rest for 30 mins.",
+        "Cook chana dal until soft. Drain and mash.",
+        "Add jaggery to mashed dal and cook until thick.",
+        "Add cardamom and nutmeg powder. Let it cool.",
+        "Make small balls of dough and puran filling.",
+        "Stuff puran in dough and roll into thin rotis.",
+        "Cook on tawa with ghee on both sides.",
+        "Serve hot with ghee."
+      ]
+    },
+    "modak": {
+      "display": "Modak",
+      "category": "sweets",
+      "ingredients": [
+        "For covering: Rice flour 200gm, Water 300ml, Salt pinch, Oil 1 tsp",
+        "For stuffing: Fresh coconut grated 200gm, Jaggery 150gm, Cardamom powder 1/4 tsp"
+      ],
+      "method": [
+        "Boil water with salt and oil. Add rice flour and mix. Knead smooth dough.",
+        "For stuffing: Cook coconut and jaggery until thick. Add cardamom.",
+        "Make small cups from dough, fill with stuffing.",
+        "Shape into modak with pleats on top.",
+        "Steam for 10-12 minutes.",
+        "Serve hot with ghee."
+      ]
+    }
+  },
+  "thalis": {
+    "maharashtrian_thali": {
+      "display": "Maharashtrian Thali",
+      "items": ["varan", "bhaji", "bhakri", "rice", "papad", "pickle", "salad", "buttermilk"],
+      "notes": ["Complete traditional Maharashtrian meal"]
+    },
+    "sunday_special_thali": {
+      "display": "Sunday Special Thali",
+      "items": ["puran_poli", "katachi_amti", "rice", "papad", "pickle", "panchamrut"],
+      "notes": ["Special festive thali for Sundays"]
+    },
+    "fasting_thali": {
+      "display": "Fasting Thali (Upvas)",
+      "items": ["sabudana_khichdi", "sabudana_vada", "fruit", "milk", "potato_bhaji"],
+      "notes": ["For Ekadashi and other fasting days"]
+    },
     "balgopal_thali": {
-      "display": "Balgopal Thali",
-      "mood": [
-        "happy",
-        "safe",
-        "comfort"
-      ],
-      "occasion": [
-        "kids meal",
-        "family outing",
-        "school holiday"
-      ],
-      "season": [
-        "all"
-      ],
-      "spice": "very mild",
-      "best_with": [
-        "lassi",
-        "piyush",
-        "shrikhand"
-      ],
-      "combo": [
-        {
-          "name": "Balgopal Hero Combo",
-          "items": [
-            "balgopal_thali",
-            "shrikhand"
-          ]
-        }
-      ],
-      "upsell": [
-        "vada_pav",
-        "sheera"
-      ],
-      "tags": [
-        "kids-fav",
-        "mild",
-        "star-reward"
+      "display": "Balgopal Thali (Kids)",
+      "items": ["aloo_bhaji", "rice", "dal", "roti", "sweet"],
+      "notes": ["Mild spices, kid-friendly portions"]
+    },
+    "premium_thali": {
+      "display": "Premium Thali",
+      "items": ["2_bhaji", "dal", "rice", "roti", "sweet", "papad", "pickle", "salad", "buttermilk"],
+      "notes": ["Full course meal with all accompaniments"]
+    }
+  },
+  "bhojanGuru": {
+    "cooking_tips": {
+      "display": "Cooking Tips",
+      "tips": [
+        "Always taste and adjust seasoning",
+        "Use fresh spices for best flavor",
+        "Cook masala until oil separates",
+        "Add hot water to avoid burning of masalas"
+      ]
+    },
+    "serving_suggestions": {
+      "display": "Serving Suggestions",
+      "tips": [
+        "Serve hot for best taste",
+        "Garnish with fresh coriander",
+        "Pair drinks with appropriate snacks",
+        "Use proper thali plates for traditional service"
       ]
     }
   }
