@@ -705,6 +705,115 @@ async def lock_payroll(req: MonthRequest):
     
     return {"success": True, "message": f"Payroll locked for {req.month}"}
 
+@api_router.post("/salary_preview")
+async def salary_preview(req: SalaryPreviewRequest):
+    """Preview salary data on screen for a specific center"""
+    session = verify_token(req.token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can view salary preview")
+    
+    try:
+        year, month = map(int, req.month.split("-"))
+        dim = days_in_month(year, month)
+        
+        # Get employees for selected center
+        employees = await db.employees.find(
+            {"center": req.targetCenter.upper()},
+            {"_id": 0}
+        ).to_list(1000)
+        
+        # Get attendance for the month
+        start_date = f"{req.month}-01"
+        end_date = f"{req.month}-{dim:02d}"
+        
+        attendance = await db.attendance.find(
+            {"date": {"$gte": start_date, "$lte": end_date}},
+            {"_id": 0}
+        ).to_list(50000)
+        
+        # Get advances for the month
+        advances = await db.advances.find(
+            {"date": {"$regex": f"^{req.month}"}},
+            {"_id": 0}
+        ).to_list(5000)
+        
+        # Build attendance map
+        att_map = {}
+        for a in attendance:
+            key = f"{a['employeeName']}_{a['date']}"
+            att_map[key] = a.get("status", "")
+        
+        # Build advances map
+        adv_map = {}
+        for a in advances:
+            emp = a.get("employeeName", "")
+            adv_map[emp] = adv_map.get(emp, 0) + float(a.get("advanceAmount", 0) or 0)
+        
+        # Weight rules
+        weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+        
+        # Calculate salary for each employee
+        salary_data = []
+        total_gross = 0
+        total_advance = 0
+        total_net = 0
+        
+        for emp in employees:
+            emp_name = emp.get("name", "").upper()
+            salary = float(emp.get("currentSalary", 0) or 0)
+            
+            # Calculate working days
+            present_days = 0
+            for d in range(1, dim + 1):
+                date_str = f"{req.month}-{d:02d}"
+                key = f"{emp_name}_{date_str}"
+                status = att_map.get(key, "")
+                weight = weights.get(status, 0)
+                present_days += weight
+            
+            # Calculate salary
+            daily_rate = salary / dim if dim > 0 else 0
+            gross_salary = daily_rate * present_days
+            advance = adv_map.get(emp_name, 0)
+            net_salary = max(0, gross_salary - advance)
+            
+            total_gross += gross_salary
+            total_advance += advance
+            total_net += net_salary
+            
+            salary_data.append({
+                "employeeName": emp_name,
+                "designation": emp.get("designation", ""),
+                "center": emp.get("center", ""),
+                "monthlySalary": salary,
+                "daysInMonth": dim,
+                "presentDays": round(present_days, 1),
+                "grossSalary": round(gross_salary, 2),
+                "advance": round(advance, 2),
+                "netSalary": round(net_salary, 2),
+                "bankAccount": emp.get("beneAccNo", ""),
+                "ifsc": emp.get("ifsc", ""),
+                "mobile": emp.get("mobile", "")
+            })
+        
+        return {
+            "success": True,
+            "center": req.targetCenter.upper(),
+            "month": req.month,
+            "daysInMonth": dim,
+            "employeeCount": len(salary_data),
+            "totals": {
+                "gross": round(total_gross, 2),
+                "advance": round(total_advance, 2),
+                "net": round(total_net, 2)
+            },
+            "salaryData": salary_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Salary preview error: {e}")
+        raise HTTPException(500, str(e))
+
 @api_router.post("/generate_salary")
 async def generate_salary(req: SalaryGenRequest):
     """Generate salary Excel for ICICI upload"""
