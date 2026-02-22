@@ -23,15 +23,12 @@ import {
   Calculator
 } from "lucide-react";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-
 export default function Salary({ isPayslips = false }) {
   const { session } = useAuth();
   const [month, setMonth] = useState(getCurrentMonth());
   const [targetCenter, setTargetCenter] = useState("");
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState("");
   const [salaryData, setSalaryData] = useState(null);
   
   // Payslips specific
