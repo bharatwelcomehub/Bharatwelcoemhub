@@ -2099,6 +2099,288 @@ async def get_employees_for_hr(token: str):
     
     return {"employees": employees}
 
+class HRLetterDownloadRequest(BaseModel):
+    token: str
+    content: str
+    letterType: str
+    employeeName: str
+    format: str  # pdf or docx
+
+@api_router.post("/hr_letter/download")
+async def download_hr_letter(req: HRLetterDownloadRequest):
+    """Download HR letter as PDF or Word document"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can download HR letters")
+    
+    today = datetime.now().strftime("%d-%m-%Y")
+    safe_name = req.employeeName.replace(" ", "_")
+    
+    if req.format == "pdf":
+        # Generate PDF
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Image
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+        
+        pdf_buffer = BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, 
+                               leftMargin=0.75*inch, rightMargin=0.75*inch,
+                               topMargin=0.5*inch, bottomMargin=0.75*inch)
+        
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        title_style = ParagraphStyle(
+            'Title',
+            parent=styles['Heading1'],
+            fontSize=14,
+            alignment=TA_CENTER,
+            spaceAfter=6
+        )
+        
+        company_style = ParagraphStyle(
+            'Company',
+            parent=styles['Normal'],
+            fontSize=11,
+            alignment=TA_CENTER,
+            spaceAfter=3
+        )
+        
+        address_style = ParagraphStyle(
+            'Address',
+            parent=styles['Normal'],
+            fontSize=8,
+            alignment=TA_CENTER,
+            spaceAfter=12
+        )
+        
+        body_style = ParagraphStyle(
+            'Body',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_JUSTIFY,
+            leading=14,
+            spaceAfter=8
+        )
+        
+        signature_style = ParagraphStyle(
+            'Signature',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_LEFT,
+            spaceBefore=30
+        )
+        
+        story = []
+        
+        # Try to add logo
+        logo_path = ROOT_DIR / "pb_logo.png"
+        if logo_path.exists():
+            try:
+                img = Image(str(logo_path), width=1.5*inch, height=1*inch)
+                img.hAlign = 'CENTER'
+                story.append(img)
+            except:
+                story.append(Paragraph("<b>Purnabramha®</b>", title_style))
+        else:
+            story.append(Paragraph("<b>Purnabramha®</b>", title_style))
+        
+        story.append(Paragraph("<b>MANASWINI FOODS PVT. LTD.</b>", company_style))
+        story.append(Paragraph("17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102", address_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Letter type title
+        letter_titles = {
+            "offer": "OFFER LETTER",
+            "exit": "EXIT / RESIGNATION ACCEPTANCE LETTER", 
+            "experience": "EXPERIENCE CERTIFICATE",
+            "visa": "VISA SUPPORT LETTER"
+        }
+        story.append(Paragraph(f"<b>{letter_titles.get(req.letterType, 'HR LETTER')}</b>", title_style))
+        story.append(Paragraph(f"Date: {today}", ParagraphStyle('Date', parent=styles['Normal'], fontSize=10, alignment=TA_LEFT)))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Process content - convert markdown-like formatting to HTML
+        content_lines = req.content.split('\n')
+        for line in content_lines:
+            line = line.strip()
+            if not line:
+                story.append(Spacer(1, 0.1*inch))
+                continue
+            
+            # Convert markdown bold to HTML
+            line = line.replace('**', '<b>').replace('**', '</b>')
+            # Handle single asterisks for bullet points
+            if line.startswith('- '):
+                line = f"• {line[2:]}"
+            elif line.startswith('* '):
+                line = f"• {line[2:]}"
+            
+            story.append(Paragraph(line, body_style))
+        
+        # Signature section
+        story.append(Spacer(1, 0.3*inch))
+        story.append(Paragraph("For <b>MANASWINI FOODS PVT. LTD.</b>", signature_style))
+        story.append(Spacer(1, 0.1*inch))
+        
+        # Try to add signature image
+        sign_path = ROOT_DIR / "sign.png"
+        if sign_path.exists():
+            try:
+                sign_img = Image(str(sign_path), width=1.2*inch, height=0.7*inch)
+                story.append(sign_img)
+            except:
+                pass
+        
+        story.append(Paragraph("<b>Mr. Sandeep Gadhwal</b>", signature_style))
+        story.append(Paragraph("Director", signature_style))
+        
+        doc.build(story)
+        pdf_buffer.seek(0)
+        
+        filename = f"{req.letterType}_letter_{safe_name}_{today.replace('-', '')}.pdf"
+        
+        return Response(
+            content=pdf_buffer.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    
+    elif req.format == "docx":
+        # Generate Word document
+        from docx import Document
+        from docx.shared import Inches, Pt
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.enum.style import WD_STYLE_TYPE
+        
+        doc = Document()
+        
+        # Set margins
+        sections = doc.sections
+        for section in sections:
+            section.left_margin = Inches(0.75)
+            section.right_margin = Inches(0.75)
+            section.top_margin = Inches(0.5)
+            section.bottom_margin = Inches(0.75)
+        
+        # Add logo if exists
+        logo_path = ROOT_DIR / "pb_logo.png"
+        if logo_path.exists():
+            try:
+                para = doc.add_paragraph()
+                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = para.add_run()
+                run.add_picture(str(logo_path), width=Inches(1.5))
+            except:
+                title = doc.add_paragraph("Purnabramha®")
+                title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                title.runs[0].bold = True
+                title.runs[0].font.size = Pt(18)
+        else:
+            title = doc.add_paragraph("Purnabramha®")
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title.runs[0].bold = True
+            title.runs[0].font.size = Pt(18)
+        
+        # Company name
+        company = doc.add_paragraph("MANASWINI FOODS PVT. LTD.")
+        company.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        company.runs[0].bold = True
+        company.runs[0].font.size = Pt(12)
+        
+        # Address
+        address = doc.add_paragraph("17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102")
+        address.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        address.runs[0].font.size = Pt(8)
+        
+        doc.add_paragraph()  # Spacer
+        
+        # Letter title
+        letter_titles = {
+            "offer": "OFFER LETTER",
+            "exit": "EXIT / RESIGNATION ACCEPTANCE LETTER",
+            "experience": "EXPERIENCE CERTIFICATE",
+            "visa": "VISA SUPPORT LETTER"
+        }
+        letter_title = doc.add_paragraph(letter_titles.get(req.letterType, "HR LETTER"))
+        letter_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        letter_title.runs[0].bold = True
+        letter_title.runs[0].font.size = Pt(14)
+        
+        # Date
+        date_para = doc.add_paragraph(f"Date: {today}")
+        date_para.runs[0].font.size = Pt(10)
+        
+        doc.add_paragraph()  # Spacer
+        
+        # Content
+        content_lines = req.content.split('\n')
+        for line in content_lines:
+            line = line.strip()
+            if not line:
+                doc.add_paragraph()
+                continue
+            
+            # Remove markdown formatting for Word
+            line = line.replace('**', '')
+            
+            para = doc.add_paragraph(line)
+            para.runs[0].font.size = Pt(10)
+            
+            # Handle bullet points
+            if line.startswith('- ') or line.startswith('• '):
+                para.paragraph_format.left_indent = Inches(0.25)
+        
+        # Signature section
+        doc.add_paragraph()
+        doc.add_paragraph()
+        
+        sig = doc.add_paragraph("For MANASWINI FOODS PVT. LTD.")
+        sig.runs[0].bold = True
+        sig.runs[0].font.size = Pt(10)
+        
+        # Add signature image if exists
+        sign_path = ROOT_DIR / "sign.png"
+        if sign_path.exists():
+            try:
+                sig_para = doc.add_paragraph()
+                run = sig_para.add_run()
+                run.add_picture(str(sign_path), width=Inches(1.2))
+            except:
+                doc.add_paragraph()
+        else:
+            doc.add_paragraph()
+        
+        director = doc.add_paragraph("Mr. Sandeep Gadhwal")
+        director.runs[0].bold = True
+        director.runs[0].font.size = Pt(10)
+        
+        title_para = doc.add_paragraph("Director")
+        title_para.runs[0].font.size = Pt(10)
+        
+        # Save to buffer
+        docx_buffer = BytesIO()
+        doc.save(docx_buffer)
+        docx_buffer.seek(0)
+        
+        filename = f"{req.letterType}_letter_{safe_name}_{today.replace('-', '')}.docx"
+        
+        return Response(
+            content=docx_buffer.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+
 # =======================================
 # DATA SEEDING ENDPOINT
 # =======================================
