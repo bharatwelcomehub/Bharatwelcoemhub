@@ -8,71 +8,68 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Feb 22, 2026)
+### Latest Update (Feb 22, 2026 - Session 2)
+- ✅ **Salary Excel CREDIT_NARR/DEB_NARR Fix**
+  - CREDIT_NARR and DEBIT_NARR columns now ONLY populated when employee has Notes/Remark field filled
+  - Employees without remark have empty NARR columns
+
+- ✅ **Bhojan Guru Complete Overhaul** - Matching original purnabramhai.html logic
+  - **Region Thali Tab**: Day-wise regional thali recommendations
+    - Sunday: Kolhapur - Mahalaxmi Thali
+    - Monday: Pune - Peshwe Thali
+    - Tuesday: Vidarbha - Vidarbha Thali
+    - Wednesday: Konkan - Konkan Thali
+    - Thursday: Marathwada - Marathwada Thali
+    - Friday: Mumbai - Mumbai Street Special
+    - Saturday: Khandesh - Khandeshi Thali
+  - **Body Need Tab**: 6-question questionnaire with AI recommendations
+    - Energy, Digestion, Mood, Spice comfort, Purpose, Weather
+  - **Recipes Tab**: 42+ recipes with category filters (Drinks, Snacks, Mains, Sweets, Fasting, Chutneys)
+  - **Menu Descriptions Tab**: English and Marathi descriptions
+
+### Previous Implementations
 - ✅ **OTP Email System** - Using EXACT method from original server.py
-  - Uses `config.json` for email settings (same as original)
-  - Uses `EmailMessage` class (same as original)
-  - Falls back to console logging when SMTP not configured
-  
-- ✅ **Bhojan Guru with PDF Recipes** - 41 recipes from "Purnabramha Recipe all - final 16112021.pdf"
-  - Masala Buttermilk, Plain Buttermilk, Solkadhi, Masala Kokam, Kokam
-  - Piyush, Rose Piyush, Mango Piyush, Awala, Aam Panha
-  - Limbu Pani, Masala Lemon, Tea & Masala Tea
-  - Kanda Bhaji, Appa Pakoda, Kothimbir Vadi, Kachori, Batata Vada
-  - Kandapohe, Dadpe Pohe, Ghavan, Mix Dal Vada, Moong Dal Pakoda
-  - Palak Pakoda, Kadhi, Varans (Jeera, Methi, Palak, Chincha Gulacha)
-  - Chutneys (Green, Tamarind, Vada Pav)
-  - Fasting items (Sabudana Khichdi, Sabudana Vada)
-  - Sweets (Shrikhand, Gulab Jamun, Aliv Kheer, Nachani Chi Kheer, Puran Poli, Modak)
-
-- ✅ **ResizeObserver Error Fixed** - No more error overlay on dropdown clicks
-
 - ✅ **Recipe Admin Panel (MGT Only)** - Full CRUD for recipes
-  - Create, Edit, Delete recipes
-  - Search and filter by category
-
 - ✅ **Guest Response AI with Center Selector**
+- ✅ **Salary Generation** - Excel file with ICICI bank format
+- ✅ **Payslip PDF Generation** - Formatted to match user's template
 
-## How to Enable OTP Email
+## Key API Endpoints
+- `GET /api/bhojan_guru` - Returns bhojanGuru items, regionWise data, bodyNeedMatrix
+- `POST /api/bhojan_guru/body_need` - AI recommendations based on body needs
+- `GET /api/bhojan_guru/region/{day}` - Day-wise regional thali
+- `POST /api/generate_salary` - Generate salary Excel with NARR logic
+- `POST /api/payslips_generate` - Generate payslip PDFs
 
-Edit `/app/backend/config.json`:
-```json
-{
-    "otp": {"length": 6, "ttl_seconds": 300},
-    "security": {"session_ttl_seconds": 43200},
-    "email": {
-        "enabled": true,
-        "smtp_host": "smtp.gmail.com",
-        "smtp_port": 587,
-        "smtp_user": "YOUR_EMAIL@gmail.com",
-        "smtp_pass": "YOUR_APP_PASSWORD",
-        "from_name": "Purnabramha Attendance",
-        "from_email": "YOUR_EMAIL@gmail.com"
-    }
-}
-```
-
-For Gmail, create an App Password at: https://myaccount.google.com/apppasswords
+## Key Files
+- `/app/backend/server.py` - Main API server
+- `/app/backend/bhojan_guru_data.json` - Bhojan Guru region/body need data
+- `/app/backend/recipe_data.json` - 42 recipes from PDF
+- `/app/backend/config.json` - Email/SMTP configuration
+- `/app/frontend/src/pages/BhojanGuru.jsx` - Bhojan Guru frontend
 
 ## Centers & Managers
 | Center | Manager | Mobile | Email |
 |--------|---------|--------|-------|
-| PB-MGT | Jayanti Kathale | 9741399190 | (from Managers worksheet) |
-| PB-MGT | Sandeep Gadhwal | 9960886185 | (from Managers worksheet) |
+| PB-MGT | Jayanti Kathale | 9741399190 | jayanti.kathale@purnabramha.com |
+| PB-MGT | Sandeep Gadhwal | 9960886185 | sandeep.gadhwal@purnabramha.com |
 
-## Key Files
-- `/app/backend/config.json` - Email configuration (same as original server.py)
-- `/app/backend/recipe_data.json` - 41 recipes from PDF
-- `/app/backend/description_data.json` - 126 menu descriptions
-- `/app/frontend/src/pages/BhojanGuru.jsx` - Recipe display
-- `/app/frontend/src/pages/RecipeAdmin.jsx` - Recipe management
-- `/app/frontend/src/pages/GuestResponse.jsx` - AI chat with center selector
+## Testing Credentials
+- Center: PB-MGT
+- Mobile: 9741399190
+- Master OTP (dev mode): 123456
+- OTP sent to manager's registered email
 
-## Dev Mode
-- Master OTP: 123456 (works for testing)
-- OTP logged to console when email not configured
+## Test Reports
+- `/app/test_reports/iteration_5.json` - All tests passed (100% backend, 100% frontend)
 
-## Testing
-- Backend: All APIs working
-- Frontend: All pages functional
-- Recipe CRUD: Tested and working
+## Verified Features
+1. Bhojan Guru Region Thali - All 7 days working
+2. Bhojan Guru Body Need - 6 questions, returns recommendations
+3. Salary Excel NARR columns - Only populated with remark
+4. Payslip PDF generation - MANASWINI FOODS PVT. LTD. format
+5. OTP Email delivery - Working with user's SMTP credentials
+
+## Backlog/Future
+- Refactor server.py into modular FastAPI routers for better maintainability
+- Add more Bhojan Guru items based on user feedback
