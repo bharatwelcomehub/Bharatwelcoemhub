@@ -83,12 +83,24 @@ export default function Salary({ isPayslips = false }) {
         month: month,
         mode: "single",
         targetCenter: targetCenter
+      }, {
+        responseType: 'blob'
       });
       
-      const url = `${BACKEND_URL}${res.data.downloadUrl}`;
-      setDownloadUrl(url);
-      toast.success("Salary Excel generated!");
-      window.open(url, "_blank");
+      // Create download link
+      const blob = new Blob([res.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Salary_${targetCenter}_${month}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Salary Excel downloaded!");
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to generate salary");
     } finally {
@@ -118,6 +130,33 @@ export default function Salary({ isPayslips = false }) {
         mode: payslipMode,
         targetCenter: targetCenter,
         employeeName: payslipMode === "single" ? employeeName.toUpperCase() : null
+      }, {
+        responseType: 'blob'
+      });
+      
+      // Determine file type
+      const isZip = res.headers['content-type']?.includes('zip');
+      const blob = new Blob([res.data], { 
+        type: isZip ? 'application/zip' : 'application/pdf' 
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = isZip 
+        ? `Payslips_${targetCenter}_${month}.zip` 
+        : `Payslip_${targetCenter}_${month}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Payslip(s) downloaded!");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to generate payslips");
+    } finally {
+      setLoading(false);
+    }
+  };
       });
       
       const url = `${BACKEND_URL}${res.data.downloadUrl}`;
