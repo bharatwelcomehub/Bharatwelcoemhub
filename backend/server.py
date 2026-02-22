@@ -1029,6 +1029,111 @@ async def get_descriptions():
     """Get all menu item descriptions in English and Marathi"""
     return {"descriptions": load_description_data()}
 
+# Recipe management models
+class RecipeCreate(BaseModel):
+    key: str
+    display: str
+    ingredients: List[str] = []
+    method: List[str] = []
+    category: Optional[str] = "mains"
+
+class RecipeUpdate(BaseModel):
+    display: Optional[str] = None
+    ingredients: Optional[List[str]] = None
+    method: Optional[List[str]] = None
+    category: Optional[str] = None
+
+def save_recipe_data(data: dict):
+    """Save recipe data to JSON file"""
+    recipe_file = ROOT_DIR / "recipe_data.json"
+    with open(recipe_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+@api_router.post("/recipes")
+async def create_recipe(req: RecipeCreate, token: str):
+    """Create a new recipe (MGT only)"""
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage recipes")
+    
+    data = load_recipe_data()
+    
+    # Check if key already exists
+    if req.key in data.get("recipes", {}):
+        raise HTTPException(400, f"Recipe '{req.key}' already exists")
+    
+    # Add new recipe
+    if "recipes" not in data:
+        data["recipes"] = {}
+    
+    data["recipes"][req.key] = {
+        "display": req.display,
+        "ingredients": req.ingredients,
+        "method": req.method,
+        "category": req.category
+    }
+    
+    save_recipe_data(data)
+    logger.info(f"Recipe created: {req.key} by {session.get('managerName')}")
+    
+    return {"success": True, "message": f"Recipe '{req.display}' created successfully"}
+
+@api_router.put("/recipes/{recipe_key}")
+async def update_recipe(recipe_key: str, req: RecipeUpdate, token: str):
+    """Update an existing recipe (MGT only)"""
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage recipes")
+    
+    data = load_recipe_data()
+    
+    if recipe_key not in data.get("recipes", {}):
+        raise HTTPException(404, f"Recipe '{recipe_key}' not found")
+    
+    # Update fields
+    recipe = data["recipes"][recipe_key]
+    if req.display is not None:
+        recipe["display"] = req.display
+    if req.ingredients is not None:
+        recipe["ingredients"] = req.ingredients
+    if req.method is not None:
+        recipe["method"] = req.method
+    if req.category is not None:
+        recipe["category"] = req.category
+    
+    save_recipe_data(data)
+    logger.info(f"Recipe updated: {recipe_key} by {session.get('managerName')}")
+    
+    return {"success": True, "message": f"Recipe '{recipe_key}' updated successfully"}
+
+@api_router.delete("/recipes/{recipe_key}")
+async def delete_recipe(recipe_key: str, token: str):
+    """Delete a recipe (MGT only)"""
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage recipes")
+    
+    data = load_recipe_data()
+    
+    if recipe_key not in data.get("recipes", {}):
+        raise HTTPException(404, f"Recipe '{recipe_key}' not found")
+    
+    # Delete recipe
+    del data["recipes"][recipe_key]
+    save_recipe_data(data)
+    logger.info(f"Recipe deleted: {recipe_key} by {session.get('managerName')}")
+    
+    return {"success": True, "message": f"Recipe '{recipe_key}' deleted successfully"}
+
 # =======================================
 # GUEST RESPONSE AI ENDPOINTS
 # =======================================
