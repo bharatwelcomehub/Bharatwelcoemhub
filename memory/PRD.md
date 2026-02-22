@@ -153,9 +153,12 @@ User had existing HTML/Python files for an attendance and salary management syst
 ## Test Reports
 - `/app/test_reports/iteration_6.json` - Centers & Managers tests
 - `/app/test_reports/iteration_7.json` - Recipe Admin tests (100% pass)
+- `/app/test_reports/iteration_8.json` - Additional tests
 
 ## Backlog/Future
 - Add company CIN number to HR letter templates
 - Email generated letters directly to employees
-- Refactor server.py into modular FastAPI routers
+- **Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large)
 - Add image upload (currently URL only)
+- Verify HR Letter PDF download functionality
+- Check payslip data overlap issue is fully resolved
