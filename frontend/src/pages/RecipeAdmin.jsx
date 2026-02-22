@@ -44,10 +44,7 @@ import {
   Wheat,
   Cookie,
   Salad,
-  GlassWater,
-  FileText,
-  Download,
-  BookOpen
+  GlassWater
 } from "lucide-react";
 
 const CATEGORIES = [
