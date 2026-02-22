@@ -1350,16 +1350,24 @@ async def payslips_generate(req: PayslipGenRequest):
                 
                 # ============ FOOTER ============
                 c.setFont("Helvetica", 7)
-                c.drawString(0.5*inch, 1.1*inch, "No Signature Section Needed — this file is ready for computer use.")
+                c.drawString(0.5*inch, 1.2*inch, "No Signature Section Needed — this file is ready for computer use.")
                 
-                # Purnabramha branding and Signature
-                c.setFont("Helvetica-Bold", 10)
-                c.drawRightString(width - 0.5*inch, 1.0*inch, "purnabramha")
+                # Try to add signature image
+                sign_path = ROOT_DIR / "sign.png"
+                if sign_path.exists():
+                    try:
+                        c.drawImage(str(sign_path), width - 2.2*inch, 0.4*inch, width=1.5*inch, height=0.9*inch, preserveAspectRatio=True, mask='auto')
+                    except Exception as e:
+                        logger.warning(f"Could not add signature: {e}")
+                
+                # Purnabramha branding and Signature text
+                c.setFont("Helvetica-Bold", 11)
+                c.drawRightString(width - 0.5*inch, 1.4*inch, "Purnabramha")
                 c.setFont("Helvetica-Bold", 9)
-                c.drawRightString(width - 0.5*inch, 0.8*inch, "MANASWINI FOODS PVT. LTD.")
+                c.drawRightString(width - 0.5*inch, 1.2*inch, "MANASWINI FOODS PVT. LTD.")
                 c.setFont("Helvetica", 8)
-                c.drawRightString(width - 0.5*inch, 0.6*inch, "Mr. Sandeep Gadhwal")
-                c.drawRightString(width - 0.5*inch, 0.45*inch, "Director")
+                c.drawRightString(width - 0.5*inch, 0.35*inch, "Mr. Sandeep Gadhwal")
+                c.drawRightString(width - 0.5*inch, 0.2*inch, "Director")
                 
                 c.save()
                 files_created.append(filename)
