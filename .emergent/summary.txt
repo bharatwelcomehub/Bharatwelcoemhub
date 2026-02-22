@@ -5,90 +5,65 @@ The user wants to migrate a local application, Purnabramha IntraPB System, from 
 1.  **Restructure the App:** Convert the existing file-based system into a proper web application with a robust backend and modern frontend.
 2.  **Database Migration:** Replace the Excel file-based data storage with a scalable database (MongoDB was chosen).
 3.  **Data Integrity:** Import and use the live data from the user's provided Excel file for employees, managers, and other entities.
-4.  **Manager Access Control:** Implement a login system for managers based on credentials provided in the Excel sheet. Managers should only see relevant data.
-5.  **Guest Response AI (Feature):**
-    *   Create a feature where managers can input guest questions.
-    *   An AI (OpenAI GPT-5.2) should respond, using context about Purnabramha's centers (locations, phone numbers, hours).
-    *   Managers should be able to select a specific center when asking a question on behalf of a guest.
-6.  **Employee Management UI/UX (Enhancement):**
-    *   Overhaul the employee management page.
-    *   When an employee is selected (via checkbox), their details should populate a form at the top of the page for easy editing.
-    *   Add a Notes/Remark column to the employee data for accounting/fund transfer notes.
-7.  **Bhojan Guru - Recipe DB (Feature):**
-    *   Integrate the user's recipe and menu description databases (, ).
-    *   This section should be accessible to chefs (to copy recipes) and managers (to explain dishes to guests).
+4.  **Manager Access Control:** Implement a login system for managers based on credentials provided in the Excel sheet.
+5.  **Guest Response AI (Feature):** Create a feature where managers can input guest questions, and an AI (OpenAI GPT-5.2) should respond using context about Purnabramha's centers.
+6.  **Employee Management UI/UX (Enhancement):** Overhaul the employee management page for easier editing and add a Notes/Remark column.
+7.  **Bhojan Guru - Recipe DB (Feature):** Integrate the user's recipe database. This evolved into creating a view-only page for all users and a full CRUD admin panel for MGT users.
 8.  **OTP Login Flow:** The OTP generated during login must be sent to the manager's registered email address.
-9.  **Bug Fixes:** Address a  console error and fix caching issues with dropdowns.
+9.  **Salary & Payslip Generation:** Implement on-screen preview and direct file download for salary reports and payslips, with flexible center selection.
+10. **Bug Fixes:** Address various UI and functionality bugs as they arise.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application (React frontend, FastAPI backend, MongoDB database) has been successfully built. Key features like manager login, attendance, and an AI-powered Guest Response page are implemented. The employee data (122 employees) has been migrated from the user's Excel file into MongoDB, and the Employee Management page has been redesigned as requested. Several bugs, including a UI console error and dropdown issues, have been fixed.
+A comprehensive full-stack application (React frontend, FastAPI backend, MongoDB) has been built. The application supports manager login with fully functional OTP-via-email, employee management, an AI-powered guest response system, a complete recipe management module (Bhojan Guru) with an admin panel, and a detailed salary and payslip generation system. Data from the user's original Excel, JS, and PDF files has been migrated and is in use. File downloads have been fixed to trigger directly in the browser.
 
 **Last working item**:
-*   **Last item agent was working:** The agent was beginning to implement a major update for the **Bhojan Guru** (recipe) feature and address two new user requests. The user provided  and  files, which the agent extracted and saved as  and .
-*   **Status:** IN PROGRESS
-*   **Agent Testing Done:** N
-*   **Which testing method agent to use?** both
-*   **User Testing Done:** N
+- **Last item agent was working:** The agent was addressing two user requests:
+    1.  Reformatting the generated payslip PDF to match a specific template provided by the user.
+    2.  Ensuring the Notes / Remark field from an employee's record is used as the  and  values in the downloaded salary Excel sheet.
+- **Status:** IN PROGRESS
+- **Agent Testing Done:** N (The agent implemented the code changes in  but did not complete the verification. A  test confirmed the payslip API returns a file, but the content of the PDF and the narration in the Excel file have not been checked against the user's requirements.)
+- **Which testing method agent to use?** backend testing agent (The next agent must generate both the salary Excel and a payslip PDF, then inspect their contents to confirm the format and data are correct.)
+- **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-*   **Issue 1 (P0): OTPs are not sent via email.**
-*   **Issue 2 (P1): The Guest Response page lacks a center selector.**
+*   **Issue 1 (P0): Verify final format of Payslip PDF and Salary Excel.**
 
 **Issues Detail:**
-*   **Issue 1: OTPs are not sent via email.**
-    *   **Attempted fixes:** None. The current implementation only logs the OTP to the supervisor console for debugging.
+*   **Issue 1: Verify final format of Payslip PDF and Salary Excel.**
+    *   **Attempted fixes:** The agent has already rewritten the PDF generation logic in the  function and updated the Excel generation logic in the  function within .
     *   **Next debug checklist:**
-        *   File: 
-        *   Method:  endpoint.
-        *   Action: Integrate an email sending service (e.g., using  for SendGrid or Resend) to send the generated OTP to the manager's email address stored in the database.
-    *   **Why fix this issue and what will be achieved with the fix?** This is critical for making the login process functional and secure for end-users, as they cannot currently receive the OTP to log in.
-    *   **Status:** NOT STARTED
+        1.  Trigger the salary Excel download for a center/month that has an employee with a Remark. Unpack and verify the  and  columns are populated correctly.
+        2.  Trigger the payslip PDF generation.
+        3.  Compare the generated PDF's layout, headers (MANASWINI FOODS PVT. LTD.), and data fields against the user-provided sample: .
+    *   **Why fix this issue and what will be achieved with the fix?** This is the final step to meet the user's explicit formatting requirements for critical financial documents.
+    *   **Status:** IN PROGRESS
     *   **Is recurring issue?** N
-    *   **Should Test backend/backend/both after fix?** Backend. A  test on the login endpoint and checking mail logs/a test inbox would suffice.
-    *   **Blocked on other issue:** None.
-*   **Issue 2: The Guest Response page lacks a center selector.**
-    *   **Attempted fixes:** None.
-    *   **Next debug checklist:**
-        *   Frontend: . Add a dropdown menu populated with data from the  endpoint. Pass the selected center's ID/name in the API call to .
-        *   Backend: . Modify the  endpoint to accept a  parameter and update the prompt sent to the LLM to include context for the selected center.
-    *   **Why fix this issue and what will be achieved with the fix?** To allow managers to get AI-generated responses that are specific to a particular Purnabramha location, as requested by the user for handling guest bookings and queries.
-    *   **Status:** NOT STARTED
-    *   **Is recurring issue?** N
-    *   **Should Test frontend/backend/both after fix?** Both.
-    *   **Blocked on other issue:** None.
+    *   **Should Test frontend/backend/both after fix?** Backend
+    *   **Blocked on other issue:** None
 
 **In progress Task List**:
-*   **Task 1 (P0): Update Bhojan Guru page with recipe and menu data.**
-    *   **Where to resume:**
-        1.  **Backend:** In , create a new endpoint (e.g., ) or update the existing  endpoint to read from  and  and serve the content.
-        2.  **Frontend:** In , fetch data from the new endpoint and render it. The UI should be user-friendly for chefs to easily copy recipe text and for managers to read descriptions.
-    *   **What will be achieved with this?** The Bhojan Guru page will become a functional tool for staff, containing the complete, correct recipe and menu information provided by the user.
-    *   **Status:** IN PROGRESS
-    *   **Should Test frontend/backend/both after fix?** Both.
-    *   **Blocked on something:** None.
+There are no other in-progress tasks.
 
 **Upcoming and Future Tasks**
-There are no other future tasks defined beyond the pending issues and in-progress task list.
+There are no outstanding tasks from the original problem statement. The next steps will likely be based on user feedback after they verify the latest fixes.
 
 **Completed work in this session**
-*   **Database Migration:** Successfully migrated data storage from Excel to MongoDB.
-*   **Data Seeding:** Created  to parse and import all manager and employee (122 records) data from the user's Excel file.
-*   **Feature - Employee Management UI Overhaul:**
-    *   File: 
-    *   Implemented an edit-in-card UI, added a Notes/Remark field, and fixed dropdown caching issues.
-*   **Feature - Guest Response AI:**
-    *   File: , 
-    *   Integrated OpenAI GPT-5.2 to provide contextual answers about Purnabramha centers.
-*   **Feature - Center Information:**
-    *   Scraped center details from Google Maps links and stored them in the database, available via .
-*   **Bug Fix -  Error:**
-    *   File: 
-    *   Suppressed a non-critical console warning to improve user experience.
+- **Feature - OTP Email Delivery:** Implemented a robust email sending mechanism using the user's provided SMTP credentials, solving the critical login blocker.
+- **Feature - Bhojan Guru & Recipe Admin:**
+    - Replaced placeholder recipes with the complete list from the user's final PDF file.
+    - Created a full CRUD Recipe Admin page, accessible only to MGT users, for managing all recipes.
+- **Feature - Salary & Payslip Overhaul:**
+    - Fixed file downloads to trigger directly in the browser instead of opening in a new tab.
+    - Added an All Centers option for salary generation.
+    - Included PB-MGT in the center selection dropdowns.
+    - Implemented a more robust, case-insensitive search for single-employee payslip generation.
+- **Feature - Guest Response UI:** Added a center selector dropdown as requested.
+- **Bug Fix -  error:** Resolved a recurring UI error triggered by the dropdown component.
 
 **Earlier issues found/mentioned but not fixed**
-None. All identified issues are either resolved or listed in the pending/in-progress sections.
+None.
 
 **Known issue recurrence from previous fork**
 N/A
@@ -97,80 +72,68 @@ N/A
 
 
 **Key Technical Concepts**
-*   **Frontend:** React, Tailwind CSS,  for API calls.
-*   **Backend:** FastAPI, Pydantic for data models.
-*   **Database:** MongoDB, accessed via . A one-time seeding script () was used for initial migration.
-*   **AI Integration:** OpenAI GPT-5.2 accessed via the  library for the Guest Response feature.
+*   **Frontend:** React, Tailwind CSS,  (with  responseType for file downloads).
+*   **Backend:** FastAPI, Pydantic, .
+*   **Document Generation:**  for PDFs,  for Excel.
+*   **Database:** MongoDB.
+*   **AI Integration:** OpenAI GPT-5.2 via .
 
 **key DB schema**
 *   **managers:** 
 *   **employees:** 
 *   **centers:** 
+*   **recipes:** (This is now managed via a flat file, , not MongoDB) 
 
 **changes in tech stack**
-*   **Database:** The primary data store was migrated from local Excel files to a cloud-hosted MongoDB instance.
+*   No changes to the core stack. Added Python libraries , , and  for document handling.
 
 **All files of reference**
-*   : Core of the application logic. Contains all API endpoints for login, employees, centers, and AI features.
-*   : Crucial script used for the one-time migration of employee and manager data from Excel to MongoDB.
-*   : Completely rewritten to provide the enhanced editing UI/UX as requested by the user.
-*   : Contains the UI for the manager-facing AI chat feature.
-*   : The page that is currently being updated to include real recipe data.
-*   : The newly created data file for recipes that needs to be served via an API.
+*   : Heavily modified to implement new payslip/salary formats, recipe CRUD, and OTP email logic.
+*   : Significantly updated to handle on-screen previews and direct blob downloads.
+*   : Updated to handle blob downloads.
+*   : New page for MGT recipe management.
+*   : New file holding user's SMTP credentials.
+*   : The new source of truth for all recipe data, parsed from the user's PDF.
 
 **Areas that need refactoring**:
-*   The  fix in  is a workaround that suppresses the error message. It doesn't fix the root cause, which is likely within a UI component library, but it is effective and low-risk.
+*    has become a large monolithic file containing logic for authentication, employees, AI, recipes, salary, and payslips. It should be broken down into a modular structure with FastAPI routers (e.g., , ) to improve maintainability.
 
 **key api endpoints**
-*   : Authenticates a manager and generates an OTP (currently logs to console).
-*   : Verifies OTP and issues a JWT.
-*   : Full CRUD for employee records.
-*   : Lists all business locations.
-*   : The AI chat endpoint for the Guest Response feature.
-*   : Triggers the database seeding process. **Use with caution.**
+*   : Returns salary calculation data as JSON.
+*   : Modified to return an Excel file directly as a .
+*   : Modified to return a ZIP of PDF files directly as a .
+*   : New RESTful endpoints for recipe CRUD.
 
 **Critical Info for New Agent**
-*   The user provides requirements and data incrementally. Be prepared to adapt and implement new features on the fly.
-*   **DO NOT** re-run the data seeding () unless absolutely necessary, as it clears collections and re-imports data from the source files. The current database contains the live data the user wants to preserve.
-*   The login credentials are based on the original Excel file. Refer to  or the  collection to find valid credentials for testing (e.g., Jayanti Kathale, Sandeep Gadhwal for ).
-*   You will need to implement a real email-sending solution to fix the OTP flow. Use  to get a playbook for a service like SendGrid or Resend.
+*   The immediate priority is to verify the format of the generated payslip PDF and salary Excel files. The code is written, but validation is pending.
+*   User's SMTP credentials are live in . OTP emails are functional.
+*   Recipe data is now sourced entirely from .
 
 **documents and test reports created in this job**
 *   
-*   
-*   
-*   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User #194**: Provided recipe/menu files and requested they be integrated into the Bhojan Guru page for chefs/managers. **(In Progress)**
-2.  **User #191**: Reported that OTPs are not sent to email and that the Guest Response AI needs a center selector. **(Pending)**
-3.  **User #189**: Acknowledged passing tests and requested a summary. (Completed)
-4.  **User #185**: Acknowledged the employee edit form works correctly and requested testing. (Completed)
-5.  **User #183**: Acknowledged the employee list is correct and asked to see the populated edit form. (Completed)
-6.  **User #181**: Acknowledged the new employee UI and asked to see the list and test selection. (Completed)
-7.  **User #179**: Acknowledged employee data import was done and asked to see the new UI. (Completed)
-8.  **User #154**: Requested a major overhaul of the Employee page (edit-in-card UI, notes column) and a fix for dropdowns, insisting on using the live Excel data. (Completed)
-9.  **User #151**: Confirmed the  error was fixed and asked for a full login test. (Completed)
-10. **User #142**: Reported a  error in the preview. (Completed)
+1.  **User (msg #284):** hope u have added PMGT in the list for salary geenration - **Status: Completed**. The agent confirmed PB-MGT was added.
+2.  **User (msg #291):** Confirmed salary file download works. **New Request:** Add an All Centers option for salary generation. **New Issue:** Reported an error with payslips (provided screenshot). - **Status: Completed**. Both items were fixed.
+3.  **User (msg #311):** **New Issue 1:** The payslip PDF format is wrong and needs to match a provided sample PDF. **New Issue 2:** The Notes / Remark field from employee data should be used as / in the salary Excel. - **Status: In Progress**. This is the current 
+wtmp begins Sun Feb 22 04:49:21 2026.
 
 **Project Health Check:**
-*   **Broken:** The OTP email delivery mechanism is missing, making the login flow incomplete for end-users.
-*   **Mocked:** The OTP system is currently mocked by logging the code to the server console instead of emailing it.
+*   **Broken:** Verification is pending for the payslip PDF format and salary Excel narration columns. The functionality may not meet user expectations until verified.
+*   **Mocked:** None. The OTP system is live.
 
 **3rd Party Integrations**
-*   **OpenAI GPT-5.2:** Powers the Guest Response AI feature. This integration uses the **Emergent LLM Key**.
+*   **OpenAI GPT-5.2:** Used for the Guest Response feature, via Emergent LLM Key.
+*   **Gmail SMTP:** Used for sending OTP emails, via user-provided credentials in .
 
 **Testing status**
 *   **Testing agent used after significant changes:** YES
 *   **Troubleshoot agent used after agent stuck in loop:** NO
-*   **Test files created:**
-    *   
-    *   
-    *   
-*   **Known regressions:** None
+*   **Test files created:** None in this session.
+*   **Known regressions:** None.
 
 **Credentials to test flow:**
-Login is based on the managers in the user's Excel file. Use credentials for Jayanti Kathale or Sandeep Gadhwal from the  center. The password was likely set in the  script. Check the script or database if unable to log in. The OTP will be printed in the backend supervisor logs.
+Use manager credentials from the seeded data (e.g., for user Jayanti Kathale). The OTP will be sent to the configured email () but will also appear in the backend supervisor logs as a fallback.
 
 **What agent forgot to execute**
-The agent has not forgotten any tasks but was in the process of implementing several new user requests when the session ended. The highest priority pending tasks are implementing OTP email delivery and updating the Bhojan Guru and Guest Response pages.</analysis>
+The agent implemented the fixes for the payslip and salary report formats but did not perform a final verification to confirm the content and layout of the generated files match the user's explicit requirements. This verification is the immediate next step.</analysis>
