@@ -37,6 +37,15 @@ User had existing HTML/Python files for an attendance and salary management syst
   - 6 featured recipes with full details
   - Download button added to Recipe Admin page
 
+- ✅ **HR Letters Center Dropdown Fix**
+  - Fixed: Centers now load from database instead of hardcoded values
+  - Dropdown shows actual centers: PB-HSR, PB-TH, PB-SN, PB-DV, PB-HW, PB-KN, PB-KAL, PB-PERTH, PB-MGT
+
+- ✅ **Manager Phone Update Fix**
+  - Fixed: Update now uses original email as identifier
+  - Email field made read-only in edit dialog
+  - Mobile number can now be updated without errors
+
 - ✅ **Recipe Admin Complete Overhaul**
   - Added 79 recipes from user's PDF document to recipes_db.json
   - Organized by 10 categories: SNACKS(15), DRINKS(10), BALGOPAL(2), MAINS(6), CURRIES(8), RICE(2), CHAPATI(4), SWEETS(19), CHUTNEYS(8), SALADS(5)
