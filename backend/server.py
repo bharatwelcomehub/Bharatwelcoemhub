@@ -1437,7 +1437,9 @@ async def get_recipes():
     """Get all recipes with ingredients and methods"""
     data = load_recipe_data()
     return {
+        "categories": data.get("categories", []),
         "recipes": data.get("recipes", {}),
+    }
         "thalis": data.get("thalis", {}),
         "bhojanGuru": data.get("bhojanGuru", {})
     }
