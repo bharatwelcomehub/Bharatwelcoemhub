@@ -37,8 +37,8 @@ export default function Salary({ isPayslips = false }) {
   const [employeeName, setEmployeeName] = useState("");
   const [payslipMode, setPayslipMode] = useState("bulk");
 
-  // All centers except MGT for selection
-  const centerOptions = CENTERS.filter(c => c.code !== "PB-MGT");
+  // All centers for selection (including PB-MGT)
+  const centerOptions = CENTERS;
 
   // Preview salary on screen
   const previewSalary = async () => {
