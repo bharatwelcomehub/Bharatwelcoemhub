@@ -1440,9 +1440,6 @@ async def get_recipes():
         "categories": data.get("categories", []),
         "recipes": data.get("recipes", {}),
     }
-        "thalis": data.get("thalis", {}),
-        "bhojanGuru": data.get("bhojanGuru", {})
-    }
 
 @api_router.get("/descriptions")
 async def get_descriptions():
