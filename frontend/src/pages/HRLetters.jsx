@@ -147,7 +147,17 @@ export default function HRLetters() {
     setGeneratedLetter("");
 
     try {
-      const token = localStorage.getItem("token");
+      // Get token from session storage
+      const sessionStr = localStorage.getItem("pb_session_v2");
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      const token = session?.token;
+      
+      if (!token) {
+        toast.error("Session expired, please login again");
+        setGenerating(false);
+        return;
+      }
+      
       const payload = {
         token,
         employeeName: selectedEmployee,
