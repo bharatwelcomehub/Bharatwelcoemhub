@@ -158,6 +158,11 @@ class SalaryGenRequest(BaseModel):
     mode: str  # single or all
     targetCenter: Optional[str] = None
 
+class SalaryPreviewRequest(BaseModel):
+    token: str
+    month: str
+    targetCenter: str
+
 class PayslipGenRequest(BaseModel):
     token: str
     center: str
