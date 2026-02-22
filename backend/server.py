@@ -910,6 +910,180 @@ async def get_descriptions():
     return {"descriptions": descriptions}
 
 # =======================================
+# GUEST RESPONSE AI ENDPOINTS
+# =======================================
+
+# Center information for AI context
+CENTER_INFO = {
+    "PB-HSR": {
+        "name": "Purnabramha HSR - Bangalore",
+        "address": "Bhagyalakshmi Square, 17/N, 18th Cross Rd, near Zepto, Sector 3, HSR Layout, Bengaluru, Karnataka 560102",
+        "phone": "+91 85500 78515",
+        "timings": "12:00 PM - 10:30 PM",
+        "country": "India"
+    },
+    "PB-TH": {
+        "name": "Purnabramha Thane - Mumbai",
+        "address": "Thane, Mumbai, Maharashtra",
+        "phone": "+91 89047 49084",
+        "timings": "12:00 PM - 10:30 PM",
+        "country": "India"
+    },
+    "PB-SN": {
+        "name": "Purnabramha Sambhajinagar (Aurangabad)",
+        "address": "Ch. Sambhajinagar, Maharashtra",
+        "phone": "+91 89710 49084",
+        "timings": "12:00 PM - 10:30 PM",
+        "country": "India"
+    },
+    "PB-DV": {
+        "name": "Purnabramha Dombivli - Mumbai",
+        "address": "Dombivli, Mumbai, Maharashtra",
+        "phone": "+91 96064 55433",
+        "timings": "12:00 PM - 10:30 PM",
+        "country": "India"
+    },
+    "PB-HW": {
+        "name": "Purnabramha Hinjawadi - Pune",
+        "address": "Hinjawadi, Pune, Maharashtra",
+        "phone": "+91 96064 55434",
+        "timings": "12:00 PM - 10:30 PM",
+        "country": "India"
+    },
+    "PB-KN": {
+        "name": "Purnabramha Kharadi Nyati - Pune",
+        "address": "Kharadi Nyati, Pune, Maharashtra",
+        "phone": "+91 99000 89803",
+        "timings": "12:00 PM - 10:30 PM",
+        "country": "India"
+    },
+    "PB-KAL": {
+        "name": "Purnabramha Kalyan",
+        "address": "Kalyan, Maharashtra",
+        "phone": "+91 96064 55433",
+        "timings": "12:00 PM - 10:30 PM",
+        "country": "India"
+    },
+    "PB-PERTH": {
+        "name": "Purnabramha Perth - Australia",
+        "address": "Perth, Western Australia",
+        "phone": "+61 401 832 922",
+        "timings": "12:00 PM - 10:00 PM",
+        "country": "Australia"
+    }
+}
+
+# System prompt for Guest AI
+GUEST_AI_SYSTEM_PROMPT = """You are the Guest Response AI for Purnabramha - The Largest Maharashtrian Restaurant chain.
+
+Jai Hind! Namaskar! Welcome to Purnabramha!
+
+About Purnabramha:
+- Authentic Maharashtrian Thali restaurant serving traditional cuisine
+- Locations in India (Bangalore, Mumbai, Pune) and Australia (Perth)
+- Famous for: Puranpoli, Misal Pav, Vada Pav, Kothimbir Vadi, Bharli Vangi, Sol Kadhi
+- Thali-style dining with unlimited servings
+- Vegetarian restaurant
+- Price range: ₹400-600 per person (India), AUD for Australia
+- Online Menu: https://online.fliphtml5.com/mgldc/umnq/
+
+Center Contact Information:
+INDIA 🇮🇳
+- HSR Bangalore: +91 85500 78515 (Bhagyalakshmi Square, 17/N, 18th Cross Rd, HSR Layout)
+- Ch. Sambhajinagar: +91 89710 49084
+- Thane Mumbai: +91 89047 49084
+- Dombivli Mumbai: +91 96064 55433
+- Kharadi Pune: +91 99000 89803
+- Hinjawadi Pune: +91 96064 55434
+- Kalyan: +91 96064 55433
+
+AUSTRALIA 🇦🇺
+- Perth: +61 401 832 922
+
+Timings: 12:00 PM - 10:30 PM (most locations)
+
+Instructions:
+1. Answer guest queries politely and professionally
+2. Use Marathi phrases like "Namaskar", "Dhanyawad" when appropriate
+3. Provide accurate location, timing, and contact information
+4. Recommend popular dishes when asked
+5. Handle complaints professionally and suggest contacting the center manager
+6. If unsure, direct guests to call the nearest center
+
+Remember: You represent Purnabramha's legendary hospitality!"""
+
+class GuestAIRequest(BaseModel):
+    token: str
+    center: str
+    question: str
+    sessionId: Optional[str] = None
+
+class GuestAIResponse(BaseModel):
+    answer: str
+    sessionId: str
+
+@api_router.post("/guest_ai")
+async def guest_ai(req: GuestAIRequest):
+    """AI-powered guest response for managers"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(500, "AI service not configured")
+        
+        # Create session ID if not provided
+        session_id = req.sessionId or f"guest_{req.center}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        # Get center context
+        center_info = CENTER_INFO.get(req.center.upper(), {})
+        center_context = f"\n\nCurrent Center: {req.center}\n"
+        if center_info:
+            center_context += f"Center Name: {center_info.get('name', '')}\n"
+            center_context += f"Address: {center_info.get('address', '')}\n"
+            center_context += f"Phone: {center_info.get('phone', '')}\n"
+            center_context += f"Timings: {center_info.get('timings', '')}\n"
+        
+        # Initialize chat
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message=GUEST_AI_SYSTEM_PROMPT + center_context
+        ).with_model("openai", "gpt-5.2")
+        
+        # Send message
+        user_message = UserMessage(text=req.question)
+        response = await chat.send_message(user_message)
+        
+        # Store chat history
+        await db.chat_history.insert_one({
+            "sessionId": session_id,
+            "center": req.center,
+            "question": req.question,
+            "answer": response,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "managerMobile": session.get("mobile", "")
+        })
+        
+        return {"answer": response, "sessionId": session_id}
+        
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
+        raise HTTPException(500, "AI library not available. Please install emergentintegrations.")
+    except Exception as e:
+        logger.error(f"Guest AI error: {e}")
+        raise HTTPException(500, f"AI service error: {str(e)}")
+
+@api_router.get("/center_info")
+async def get_center_info():
+    """Get all center information"""
+    return {"centers": CENTER_INFO}
+
+# =======================================
 # DATA SEEDING ENDPOINT
 # =======================================
 
