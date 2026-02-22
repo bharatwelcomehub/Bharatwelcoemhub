@@ -1091,7 +1091,7 @@ async def get_center_info():
 async def seed_data():
     """Seed initial data into MongoDB"""
     
-    # Seed managers
+    # Seed managers (including both PB-MGT entries)
     managers = [
         {"center": "PB-HSR", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.hsr09@gmail.com", "active": True, "otpChannel": "email"},
         {"center": "PB-HW", "managerName": "Center Manager", "mobile": "", "email": "Purnabramha.hinjawadi@gmail.com", "active": True, "otpChannel": "email"},
@@ -1100,7 +1100,8 @@ async def seed_data():
         {"center": "PB-DV", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.dombivli@gmail.com", "active": True, "otpChannel": "email"},
         {"center": "PB-TH", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.newthane@gmail.com", "active": True, "otpChannel": "email"},
         {"center": "PB-PERTH", "managerName": "Center Manager", "mobile": "0401832922", "email": "Purnabramha.perth@gmail.com", "active": True, "otpChannel": "email"},
-        {"center": "PB-MGT", "managerName": "Admin Manager", "mobile": "9741399190", "email": "jayanti.kathale@purnabramha.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-MGT", "managerName": "Jayanti Kathale", "mobile": "9741399190", "email": "jayanti.kathale@purnabramha.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-MGT", "managerName": "Sandeep Gadhwal", "mobile": "9960886185", "email": "sandeep.gadhwal@purnabramha.com", "active": True, "otpChannel": "email"},
         {"center": "PB-KAL", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.kalyan@gmail.com", "active": True, "otpChannel": "email"},
     ]
     
