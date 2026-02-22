@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,7 +18,6 @@ import {
 import {
   FileText,
   Loader2,
-  Download,
   Copy,
   Check,
   Briefcase,
@@ -26,55 +25,46 @@ import {
   Award,
   Plane,
   Building2,
-  Calendar,
   User,
-  FileDown,
-  File
+  Search,
+  MapPin
 } from "lucide-react";
 
 const LETTER_TYPES = [
-  { 
-    value: "offer", 
-    label: "Offer Letter", 
-    icon: Briefcase,
-    description: "New employee joining offer"
-  },
-  { 
-    value: "exit", 
-    label: "Exit Letter", 
-    icon: UserMinus,
-    description: "Resignation acceptance letter"
-  },
-  { 
-    value: "experience", 
-    label: "Experience Letter", 
-    icon: Award,
-    description: "Work experience certificate"
-  },
-  { 
-    value: "visa", 
-    label: "Visa/Immigration Letter", 
-    icon: Plane,
-    description: "Invitation letter for visa purposes"
-  }
+  { value: "offer", label: "Offer Letter", icon: Briefcase, description: "New employee joining offer" },
+  { value: "exit", label: "Exit Letter", icon: UserMinus, description: "Resignation acceptance" },
+  { value: "experience", label: "Experience Letter", icon: Award, description: "Work experience certificate" },
+  { value: "visa", label: "Visa Letter", icon: Plane, description: "Immigration support letter" }
+];
+
+const CENTERS = [
+  { value: "PB-MGT", label: "PB-MGT - Management (HQ)" },
+  { value: "PB-HSR", label: "PB-HSR - HSR Layout" },
+  { value: "PB-KAL", label: "PB-KAL - Kalyan Nagar" },
+  { value: "PB-IND", label: "PB-IND - Indiranagar" },
+  { value: "PB-JAY", label: "PB-JAY - Jayanagar" },
+  { value: "PB-MAL", label: "PB-MAL - Malleshwaram" },
+  { value: "PB-WHI", label: "PB-WHI - Whitefield" },
+  { value: "PB-BAN", label: "PB-BAN - Banashankari" },
+  { value: "ALL", label: "All Centers" }
 ];
 
 export default function HRLetters() {
-  const [employees, setEmployees] = useState([]);
+  const [allEmployees, setAllEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   
   // Form state
+  const [selectedCenter, setSelectedCenter] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [letterType, setLetterType] = useState("");
-  const [generatedLetter, setGeneratedLetter] = useState("");
+  const [generatedLetter, setGeneratedLetter] = useState(null);
   
-  // Additional fields - prepopulated from employee data
+  // Additional fields
   const [joiningDate, setJoiningDate] = useState("");
   const [salary, setSalary] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [center, setCenter] = useState("");
   const [lastWorkingDate, setLastWorkingDate] = useState("");
   const [exitReason, setExitReason] = useState("");
   
@@ -92,7 +82,6 @@ export default function HRLetters() {
   useEffect(() => {
     const loadEmployees = async () => {
       try {
-        // Get token from session storage (pb_session_v2)
         const sessionStr = localStorage.getItem("pb_session_v2");
         if (!sessionStr) {
           toast.error("Please login first");
@@ -103,14 +92,13 @@ export default function HRLetters() {
         const token = session?.token;
         
         if (!token) {
-          toast.error("Invalid session, please login again");
+          toast.error("Invalid session");
           setLoading(false);
           return;
         }
         
         const res = await api.get(`/hr_letter/employees?token=${token}`);
-        console.log("Loaded employees:", res.data.employees?.length);
-        setEmployees(res.data.employees || []);
+        setAllEmployees(res.data.employees || []);
       } catch (e) {
         console.error("Failed to load employees:", e);
         if (e.response?.status === 403) {
@@ -125,18 +113,44 @@ export default function HRLetters() {
     loadEmployees();
   }, []);
 
+  // Filter employees by center and search
+  const filteredEmployees = useMemo(() => {
+    let filtered = allEmployees;
+    
+    // Filter by center
+    if (selectedCenter && selectedCenter !== "ALL") {
+      filtered = filtered.filter(e => e.center === selectedCenter);
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(e => 
+        e.name?.toLowerCase().includes(query) ||
+        e.designation?.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [allEmployees, selectedCenter, searchQuery]);
+
   // Get selected employee details
-  const selectedEmpDetails = employees.find(e => e.name === selectedEmployee);
+  const selectedEmpDetails = allEmployees.find(e => e.name === selectedEmployee);
 
   // Prepopulate fields when employee is selected
   useEffect(() => {
     if (selectedEmpDetails) {
       setJoiningDate(selectedEmpDetails.dateOfJoining || "");
       setSalary(selectedEmpDetails.currentSalary?.toString() || "");
-      setDesignation(selectedEmpDetails.designation || "");
-      setCenter(selectedEmpDetails.center || "");
     }
   }, [selectedEmployee, selectedEmpDetails]);
+
+  // Get token helper
+  const getToken = () => {
+    const sessionStr = localStorage.getItem("pb_session_v2");
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
+    return session?.token;
+  };
 
   // Generate letter
   const handleGenerate = async () => {
@@ -146,16 +160,12 @@ export default function HRLetters() {
     }
 
     setGenerating(true);
-    setGeneratedLetter("");
+    setGeneratedLetter(null);
 
     try {
-      // Get token from session storage
-      const sessionStr = localStorage.getItem("pb_session_v2");
-      const session = sessionStr ? JSON.parse(sessionStr) : null;
-      const token = session?.token;
-      
+      const token = getToken();
       if (!token) {
-        toast.error("Session expired, please login again");
+        toast.error("Session expired");
         setGenerating(false);
         return;
       }
@@ -179,8 +189,17 @@ export default function HRLetters() {
       };
 
       const res = await api.post("/hr_letter/generate", payload);
-      setGeneratedLetter(res.data.content);
-      toast.success(`${LETTER_TYPES.find(t => t.value === letterType)?.label} generated successfully!`);
+      
+      // Parse the response into structured format
+      setGeneratedLetter({
+        type: letterType,
+        employeeName: selectedEmployee,
+        content: res.data.content,
+        date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        empDetails: selectedEmpDetails
+      });
+      
+      toast.success(`${LETTER_TYPES.find(t => t.value === letterType)?.label} generated!`);
     } catch (e) {
       console.error("Failed to generate letter:", e);
       toast.error(e.response?.data?.detail || "Failed to generate letter");
@@ -189,19 +208,7 @@ export default function HRLetters() {
     }
   };
 
-  // Copy to clipboard
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(generatedLetter);
-      setCopied(true);
-      toast.success("Letter copied to clipboard!");
-      setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      toast.error("Failed to copy");
-    }
-  };
-
-  // Download as PDF or Word
+  // Download letter
   const downloadLetter = async (format) => {
     if (!generatedLetter) {
       toast.error("No letter to download");
@@ -209,10 +216,7 @@ export default function HRLetters() {
     }
     
     try {
-      const sessionStr = localStorage.getItem("pb_session_v2");
-      const session = sessionStr ? JSON.parse(sessionStr) : null;
-      const token = session?.token;
-      
+      const token = getToken();
       if (!token) {
         toast.error("Session expired");
         return;
@@ -220,41 +224,50 @@ export default function HRLetters() {
       
       const response = await api.post("/hr_letter/download", {
         token,
-        content: generatedLetter,
-        letterType,
-        employeeName: selectedEmployee,
+        content: generatedLetter.content,
+        letterType: generatedLetter.type,
+        employeeName: generatedLetter.employeeName,
         format
-      }, {
-        responseType: 'blob'
-      });
+      }, { responseType: 'blob' });
       
-      // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement("a");
       a.href = url;
       const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const ext = format === 'pdf' ? 'pdf' : 'docx';
-      a.download = `${letterType}_letter_${selectedEmployee.replace(/\s+/g, "_")}_${today}.${ext}`;
+      a.download = `${generatedLetter.type}_letter_${generatedLetter.employeeName.replace(/\s+/g, "_")}_${today}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      toast.success(`Letter downloaded as ${format.toUpperCase()}!`);
+      toast.success(`Downloaded as ${format.toUpperCase()}`);
     } catch (e) {
       console.error("Download error:", e);
-      toast.error("Failed to download letter");
+      toast.error("Failed to download");
+    }
+  };
+
+  // Copy to clipboard
+  const copyToClipboard = async () => {
+    if (!generatedLetter) return;
+    try {
+      await navigator.clipboard.writeText(generatedLetter.content);
+      setCopied(true);
+      toast.success("Copied!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      toast.error("Failed to copy");
     }
   };
 
   // Reset form
   const resetForm = () => {
+    setSelectedCenter("");
     setSelectedEmployee("");
+    setSearchQuery("");
     setLetterType("");
-    setGeneratedLetter("");
+    setGeneratedLetter(null);
     setJoiningDate("");
     setSalary("");
-    setDesignation("");
-    setCenter("");
     setLastWorkingDate("");
     setExitReason("");
     setDestinationCountry("");
@@ -267,11 +280,130 @@ export default function HRLetters() {
     setProjectDetails("");
   };
 
+  // Render letter preview with proper formatting
+  const renderLetterPreview = () => {
+    if (!generatedLetter) return null;
+    
+    const { type, employeeName, date, empDetails, content } = generatedLetter;
+    const letterTitle = LETTER_TYPES.find(t => t.value === type)?.label?.toUpperCase() || "HR LETTER";
+    
+    // Parse content into paragraphs
+    const paragraphs = content.split('\n').filter(p => p.trim());
+    
+    return (
+      <div className="bg-white border-2 border-gray-200 rounded-lg shadow-lg p-8 min-h-[700px]">
+        {/* Letterhead */}
+        <div className="text-center border-b-2 border-primary pb-4 mb-6">
+          <img 
+            src="https://customer-assets.emergentagent.com/job_642d5081-fe67-412f-9b66-6148b69260ec/artifacts/ndlupwdb_pb_logo.png" 
+            alt="Purnabramha" 
+            className="h-16 mx-auto mb-2"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'block';
+            }}
+          />
+          <h1 className="text-2xl font-bold text-primary hidden">Purnabramha®</h1>
+          <h2 className="text-lg font-bold text-gray-800">MANASWINI FOODS PVT. LTD.</h2>
+          <p className="text-xs text-gray-500">
+            17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102
+          </p>
+        </div>
+        
+        {/* Letter Title */}
+        <div className="text-center mb-6">
+          <h3 className="text-xl font-bold text-gray-800 underline decoration-2 underline-offset-4">
+            {letterTitle}
+          </h3>
+        </div>
+        
+        {/* Date and Reference */}
+        <div className="flex justify-between mb-6 text-sm">
+          <div>
+            <span className="font-semibold">Date:</span> {date}
+          </div>
+          <div>
+            <span className="font-semibold">Ref:</span> MFPL/HR/{type.toUpperCase()}/{new Date().getFullYear()}
+          </div>
+        </div>
+        
+        {/* To Section */}
+        <div className="mb-6">
+          <p className="font-semibold">To,</p>
+          <p className="font-bold">{employeeName}</p>
+          {empDetails && (
+            <>
+              <p>{empDetails.designation || 'Employee'}</p>
+              <p>{empDetails.center}</p>
+            </>
+          )}
+        </div>
+        
+        {/* Subject */}
+        <div className="mb-4">
+          <p>
+            <span className="font-semibold">Subject:</span>{' '}
+            {type === 'offer' && 'Offer of Employment'}
+            {type === 'exit' && 'Acceptance of Resignation'}
+            {type === 'experience' && 'Experience / Service Certificate'}
+            {type === 'visa' && 'Employment Verification for Visa Purpose'}
+          </p>
+        </div>
+        
+        {/* Body Content */}
+        <div className="space-y-3 text-sm leading-relaxed text-justify">
+          {paragraphs.map((para, idx) => {
+            // Skip if it's just formatting markers
+            if (para.startsWith('**MANASWINI') || para.startsWith('*Purnabramha')) return null;
+            if (para.startsWith('**Date:') || para.startsWith('Registered Address')) return null;
+            if (para.startsWith('CIN:') || para.startsWith('##')) return null;
+            
+            // Clean up markdown
+            let cleanPara = para
+              .replace(/\*\*/g, '')
+              .replace(/\*/g, '')
+              .replace(/##/g, '')
+              .trim();
+            
+            if (!cleanPara) return null;
+            
+            // Check if it's a bullet point
+            if (cleanPara.startsWith('-') || cleanPara.startsWith('•')) {
+              return (
+                <p key={idx} className="pl-6">
+                  • {cleanPara.substring(1).trim()}
+                </p>
+              );
+            }
+            
+            return <p key={idx}>{cleanPara}</p>;
+          })}
+        </div>
+        
+        {/* Signature Section */}
+        <div className="mt-10 pt-6">
+          <p className="mb-2">Yours sincerely,</p>
+          <p className="font-semibold">For MANASWINI FOODS PVT. LTD.</p>
+          <div className="mt-4">
+            <img 
+              src="https://customer-assets.emergentagent.com/job_642d5081-fe67-412f-9b66-6148b69260ec/artifacts/rnk77act_sign.png" 
+              alt="Signature" 
+              className="h-16"
+              onError={(e) => e.target.style.display = 'none'}
+            />
+          </div>
+          <p className="font-bold mt-2">Mr. Sandeep Gadhwal</p>
+          <p>Director</p>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-2">Loading HR Letters...</span>
+        <span className="ml-2">Loading...</span>
       </div>
     );
   }
@@ -283,7 +415,7 @@ export default function HRLetters() {
           HR Letters Generator
         </h1>
         <p className="text-muted-foreground mt-2">
-          Generate professional HR documents using AI
+          Generate professional HR documents with company letterhead
         </p>
       </div>
 
@@ -295,245 +427,181 @@ export default function HRLetters() {
               <FileText className="w-5 h-5 text-primary" />
               Generate Letter
             </CardTitle>
-            <CardDescription>
-              Select employee and letter type, then fill in the required details
-            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Employee Selection */}
+          <CardContent className="space-y-5">
+            {/* Step 1: Select Center */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Select Employee
+                <MapPin className="w-4 h-4" />
+                1. Select Center
               </Label>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger data-testid="employee-select">
-                  <SelectValue placeholder="Choose an employee" />
+              <Select value={selectedCenter} onValueChange={(v) => { setSelectedCenter(v); setSelectedEmployee(""); }}>
+                <SelectTrigger data-testid="center-select">
+                  <SelectValue placeholder="Choose center first" />
                 </SelectTrigger>
                 <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.name} value={emp.name}>
-                      {emp.name} - {emp.designation || "N/A"} ({emp.center})
-                    </SelectItem>
+                  {CENTERS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {employees.length === 0 && !loading && (
-                <p className="text-sm text-destructive">No employees found. Please add employees first.</p>
-              )}
-              {employees.length > 0 && (
-                <p className="text-xs text-muted-foreground">{employees.length} employees available</p>
-              )}
-              {selectedEmpDetails && (
-                <div className="text-sm bg-primary/5 border border-primary/20 p-3 rounded-lg space-y-1">
-                  <p className="font-semibold text-primary">{selectedEmpDetails.name}</p>
-                  <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-                    <p><strong>Center:</strong> {selectedEmpDetails.center}</p>
-                    <p><strong>Designation:</strong> {selectedEmpDetails.designation || "N/A"}</p>
-                    <p><strong>DOJ:</strong> {selectedEmpDetails.dateOfJoining || "N/A"}</p>
-                    <p><strong>Salary:</strong> Rs. {selectedEmpDetails.currentSalary?.toLocaleString() || "N/A"}</p>
-                  </div>
+            </div>
+
+            {/* Step 2: Search & Select Employee */}
+            {selectedCenter && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  2. Search & Select Employee
+                </Label>
+                
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or designation..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                    data-testid="employee-search"
+                  />
                 </div>
-              )}
-            </div>
-
-            {/* Letter Type Selection */}
-            <div className="space-y-2">
-              <Label>Letter Type</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {LETTER_TYPES.map((type) => (
-                  <Button
-                    key={type.value}
-                    variant={letterType === type.value ? "default" : "outline"}
-                    className="h-auto py-3 flex flex-col items-center gap-1"
-                    onClick={() => setLetterType(type.value)}
-                    data-testid={`letter-type-${type.value}`}
-                  >
-                    <type.icon className="w-5 h-5" />
-                    <span className="text-xs">{type.label}</span>
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Conditional Fields based on Letter Type */}
-            {letterType === "offer" && (
-              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <Briefcase className="w-4 h-4" />
-                  Offer Letter Details
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Joining Date</Label>
-                    <Input
-                      type="date"
-                      value={joiningDate}
-                      onChange={(e) => setJoiningDate(e.target.value)}
-                      data-testid="joining-date"
-                    />
+                
+                {/* Employee Dropdown */}
+                <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                  <SelectTrigger data-testid="employee-select">
+                    <SelectValue placeholder={`Select from ${filteredEmployees.length} employees`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredEmployees.map((emp) => (
+                      <SelectItem key={emp.name} value={emp.name}>
+                        {emp.name} - {emp.designation || "Employee"} ({emp.center})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {/* Selected Employee Details */}
+                {selectedEmpDetails && (
+                  <div className="bg-primary/5 border border-primary/20 p-3 rounded-lg">
+                    <p className="font-semibold text-primary">{selectedEmpDetails.name}</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mt-1">
+                      <p><strong>Center:</strong> {selectedEmpDetails.center}</p>
+                      <p><strong>Designation:</strong> {selectedEmpDetails.designation || "N/A"}</p>
+                      <p><strong>DOJ:</strong> {selectedEmpDetails.dateOfJoining || "N/A"}</p>
+                      <p><strong>Salary:</strong> ₹{selectedEmpDetails.currentSalary?.toLocaleString() || "N/A"}</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Monthly Salary (Rs.)</Label>
-                    <Input
-                      type="number"
-                      placeholder="e.g., 25000"
-                      value={salary}
-                      onChange={(e) => setSalary(e.target.value)}
-                      data-testid="salary-input"
-                    />
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Letter Type */}
+            {selectedEmployee && (
+              <div className="space-y-2">
+                <Label>3. Select Letter Type</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {LETTER_TYPES.map((type) => (
+                    <Button
+                      key={type.value}
+                      variant={letterType === type.value ? "default" : "outline"}
+                      className="h-auto py-3 flex flex-col items-center gap-1"
+                      onClick={() => setLetterType(type.value)}
+                      data-testid={`letter-type-${type.value}`}
+                    >
+                      <type.icon className="w-5 h-5" />
+                      <span className="text-xs">{type.label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Letter-specific fields */}
+            {letterType === "offer" && (
+              <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                <h4 className="font-semibold text-sm">Offer Letter Details</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Joining Date</Label>
+                    <Input type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Monthly Salary (₹)</Label>
+                    <Input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="25000" />
                   </div>
                 </div>
               </div>
             )}
 
             {letterType === "exit" && (
-              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <UserMinus className="w-4 h-4" />
-                  Exit Letter Details
-                </h4>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Last Working Date</Label>
-                    <Input
-                      type="date"
-                      value={lastWorkingDate}
-                      onChange={(e) => setLastWorkingDate(e.target.value)}
-                      data-testid="last-working-date"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Reason for Exit (Optional)</Label>
-                    <Input
-                      placeholder="e.g., Personal reasons, Career growth"
-                      value={exitReason}
-                      onChange={(e) => setExitReason(e.target.value)}
-                      data-testid="exit-reason"
-                    />
-                  </div>
+              <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                <h4 className="font-semibold text-sm">Exit Letter Details</h4>
+                <div>
+                  <Label className="text-xs">Last Working Date</Label>
+                  <Input type="date" value={lastWorkingDate} onChange={(e) => setLastWorkingDate(e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs">Reason (Optional)</Label>
+                  <Input value={exitReason} onChange={(e) => setExitReason(e.target.value)} placeholder="Personal reasons" />
                 </div>
               </div>
             )}
 
             {letterType === "experience" && (
-              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <Award className="w-4 h-4" />
-                  Experience Letter Details
-                </h4>
-                <div className="space-y-2">
-                  <Label>Last Working Date</Label>
-                  <Input
-                    type="date"
-                    value={lastWorkingDate}
-                    onChange={(e) => setLastWorkingDate(e.target.value)}
-                    data-testid="exp-last-date"
-                  />
+              <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                <h4 className="font-semibold text-sm">Experience Letter Details</h4>
+                <div>
+                  <Label className="text-xs">Last Working Date</Label>
+                  <Input type="date" value={lastWorkingDate} onChange={(e) => setLastWorkingDate(e.target.value)} />
                 </div>
               </div>
             )}
 
             {letterType === "visa" && (
-              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <Plane className="w-4 h-4" />
-                  Visa/Immigration Letter Details
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Destination Country *</Label>
-                    <Input
-                      placeholder="e.g., United States, Australia"
-                      value={destinationCountry}
-                      onChange={(e) => setDestinationCountry(e.target.value)}
-                      data-testid="destination-country"
-                    />
+              <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                <h4 className="font-semibold text-sm">Visa Letter Details</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Destination Country *</Label>
+                    <Input value={destinationCountry} onChange={(e) => setDestinationCountry(e.target.value)} placeholder="Australia" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Visa Number (if available)</Label>
-                    <Input
-                      placeholder="e.g., B1/B2, Work Visa"
-                      value={visaNumber}
-                      onChange={(e) => setVisaNumber(e.target.value)}
-                      data-testid="visa-number"
-                    />
+                  <div>
+                    <Label className="text-xs">Visa Type</Label>
+                    <Input value={visaNumber} onChange={(e) => setVisaNumber(e.target.value)} placeholder="Business Visa" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Travel Start Date</Label>
+                    <Input type="date" value={travelStartDate} onChange={(e) => setTravelStartDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Travel End Date</Label>
+                    <Input type="date" value={travelEndDate} onChange={(e) => setTravelEndDate(e.target.value)} />
                   </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label>Purpose of Travel *</Label>
+                <div>
+                  <Label className="text-xs">Purpose of Travel</Label>
                   <Select value={travelPurpose} onValueChange={setTravelPurpose}>
-                    <SelectTrigger data-testid="travel-purpose">
+                    <SelectTrigger>
                       <SelectValue placeholder="Select purpose" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="business_visit">Business Visit / Meetings</SelectItem>
+                      <SelectItem value="business">Business Meeting</SelectItem>
                       <SelectItem value="training">Training / Workshop</SelectItem>
-                      <SelectItem value="project_work">Project Work / Assignment</SelectItem>
-                      <SelectItem value="conference">Conference / Exhibition</SelectItem>
-                      <SelectItem value="client_meeting">Client Meeting</SelectItem>
-                      <SelectItem value="branch_setup">Branch Setup / Expansion</SelectItem>
+                      <SelectItem value="project">Project Work</SelectItem>
+                      <SelectItem value="conference">Conference</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Travel Start Date</Label>
-                    <Input
-                      type="date"
-                      value={travelStartDate}
-                      onChange={(e) => setTravelStartDate(e.target.value)}
-                      data-testid="travel-start"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Travel End Date</Label>
-                    <Input
-                      type="date"
-                      value={travelEndDate}
-                      onChange={(e) => setTravelEndDate(e.target.value)}
-                      data-testid="travel-end"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Duration of Stay</Label>
-                  <Input
-                    placeholder="e.g., 15 days, 2 weeks, 3 months"
-                    value={travelDuration}
-                    onChange={(e) => setTravelDuration(e.target.value)}
-                    data-testid="travel-duration"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Inviting Company/Organization (if any)</Label>
-                  <Input
-                    placeholder="e.g., ABC Corporation, XYZ Partners"
-                    value={invitingCompany}
-                    onChange={(e) => setInvitingCompany(e.target.value)}
-                    data-testid="inviting-company"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Project/Business Details</Label>
-                  <Textarea
-                    placeholder="Brief description of the project or business purpose..."
-                    value={projectDetails}
-                    onChange={(e) => setProjectDetails(e.target.value)}
-                    rows={3}
-                    data-testid="project-details"
-                  />
+                <div>
+                  <Label className="text-xs">Inviting Company (if any)</Label>
+                  <Input value={invitingCompany} onChange={(e) => setInvitingCompany(e.target.value)} placeholder="Company name" />
                 </div>
               </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-2 pt-4">
+            <div className="flex gap-2 pt-2">
               <Button
                 onClick={handleGenerate}
                 disabled={!selectedEmployee || !letterType || generating}
@@ -541,100 +609,58 @@ export default function HRLetters() {
                 data-testid="generate-letter-btn"
               >
                 {generating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating with AI...
-                  </>
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
                 ) : (
-                  <>
-                    <FileText className="w-4 h-4 mr-2" />
-                    Generate Letter
-                  </>
+                  <><FileText className="w-4 h-4 mr-2" />Generate Letter</>
                 )}
               </Button>
-              <Button variant="outline" onClick={resetForm} data-testid="reset-btn">
-                Reset
-              </Button>
+              <Button variant="outline" onClick={resetForm}>Reset</Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Generated Letter Section */}
+        {/* Letter Preview Section */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-secondary" />
-                Generated Letter
-              </span>
+                Letter Preview
+              </CardTitle>
               {generatedLetter && (
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyToClipboard}
-                    data-testid="copy-letter-btn"
-                    title="Copy to clipboard"
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
+                  <Button variant="outline" size="sm" onClick={copyToClipboard} title="Copy">
+                    {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => downloadLetter('pdf')}
-                    data-testid="download-pdf-btn"
-                    className="text-red-600 hover:text-red-700"
-                    title="Download as PDF"
-                  >
-                    <FileText className="w-4 h-4 mr-1" />
-                    PDF
+                  <Button variant="outline" size="sm" onClick={() => downloadLetter('pdf')} className="text-red-600">
+                    <FileText className="w-4 h-4 mr-1" />PDF
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => downloadLetter('docx')}
-                    data-testid="download-docx-btn"
-                    className="text-blue-600 hover:text-blue-700"
-                    title="Download as Word"
-                  >
-                    <File className="w-4 h-4 mr-1" />
-                    Word
+                  <Button variant="outline" size="sm" onClick={() => downloadLetter('docx')} className="text-blue-600">
+                    <FileText className="w-4 h-4 mr-1" />Word
                   </Button>
                 </div>
               )}
-            </CardTitle>
-            {letterType && (
-              <Badge variant="secondary">
-                {LETTER_TYPES.find(t => t.value === letterType)?.label}
-              </Badge>
-            )}
+            </div>
             {generatedLetter && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Generated on: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </p>
+              <Badge variant="secondary" className="w-fit">
+                {LETTER_TYPES.find(t => t.value === generatedLetter.type)?.label}
+              </Badge>
             )}
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[700px]">
               {generating ? (
-                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                  <Loader2 className="w-12 h-12 animate-spin mb-4" />
-                  <p>AI is generating your letter...</p>
-                  <p className="text-sm mt-2">This may take a few seconds</p>
+                <div className="flex flex-col items-center justify-center h-64">
+                  <Loader2 className="w-12 h-12 animate-spin mb-4 text-primary" />
+                  <p className="text-muted-foreground">Generating letter with AI...</p>
                 </div>
               ) : generatedLetter ? (
-                <div className="whitespace-pre-wrap font-mono text-sm bg-muted/30 p-4 rounded-lg border">
-                  {generatedLetter}
-                </div>
+                renderLetterPreview()
               ) : (
                 <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
                   <FileText className="w-16 h-16 mb-4 opacity-30" />
-                  <p>Your generated letter will appear here</p>
-                  <p className="text-sm mt-2">Select employee and letter type to begin</p>
+                  <p>Letter preview will appear here</p>
+                  <p className="text-sm mt-2">Select center → employee → letter type</p>
                 </div>
               )}
             </ScrollArea>
