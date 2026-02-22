@@ -128,8 +128,8 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `POST /api/hr/download-letter-word` - Download letter as DOCX
 
 ## Key Files
-- `/app/backend/server.py` - Main API server
-- `/app/backend/recipes_db.json` - 79 recipes from user's PDF
+- `/app/backend/server.py` - Main API server (includes PDF generation endpoints)
+- `/app/backend/recipes_db.json` - 164 recipes from user's PDF (expanded from 79)
 - `/app/frontend/src/pages/RecipeAdmin.jsx` - Recipe management UI with category tabs
 - `/app/frontend/src/pages/CentersManagement.jsx` - Centers management UI
 - `/app/frontend/src/pages/ManagersManagement.jsx` - Managers management UI
