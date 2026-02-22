@@ -14,8 +14,7 @@ import random
 import string
 import secrets
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from email.message import EmailMessage
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -26,6 +25,30 @@ import json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Load config.json for email settings (same as your original server.py)
+def load_config() -> dict:
+    path = ROOT_DIR / "config.json"
+    if not path.exists():
+        return {
+            "otp": {"length": 6, "ttl_seconds": 300},
+            "security": {"session_ttl_seconds": 43200},
+            "email": {
+                "enabled": False,
+                "smtp_host": "smtp.gmail.com",
+                "smtp_port": 587,
+                "smtp_user": "",
+                "smtp_pass": "",
+                "from_name": "Purnabramha Attendance",
+                "from_email": ""
+            }
+        }
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+CFG = load_config()
+OTP_LEN = int((CFG.get("otp") or {}).get("length", 6))
+OTP_TTL = int((CFG.get("otp") or {}).get("ttl_seconds", 300))
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
