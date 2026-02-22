@@ -2779,7 +2779,10 @@ async def mgt_manager_delete(data: dict):
 @api_router.get("/download/user-manual")
 async def download_user_manual():
     """Download the pre-generated User Manual PDF - No auth required"""
-    pdf_path = ROOT_DIR / "static" / "Purnabramha_User_Manual.pdf"
+    pdf_path = ROOT_DIR / "static" / "Purnabramha_User_Manual_With_Screenshots.pdf"
+    if not pdf_path.exists():
+        # Fallback to text-only version
+        pdf_path = ROOT_DIR / "static" / "Purnabramha_User_Manual.pdf"
     if not pdf_path.exists():
         raise HTTPException(404, "User Manual not found")
     
