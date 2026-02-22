@@ -118,6 +118,10 @@ User had existing HTML/Python files for an attendance and salary management syst
 ### Payslips
 - `POST /api/payslips_generate` - Generate payslips (supports fmt=pdf|docx)
 
+### Documentation PDFs
+- `GET /api/docs/user-manual` - Download User Manual PDF
+- `GET /api/docs/brochure` - Download Recipe Brochure PDF
+
 ### HR Letters
 - `POST /api/hr/generate-letter` - Generate HR letter with AI
 - `POST /api/hr/download-letter-pdf` - Download letter as PDF
