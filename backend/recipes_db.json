@@ -1754,22 +1754,6 @@
         "Serve with tamarind chutney"
       ],
       "image": ""
-    },
-    "test_test_recipe": {
-      "name": "Test Recipe",
-      "display": "Test Recipe / टेस्ट रेसिपी",
-      "ingredients": [
-        "Test ingredient 1",
-        "Test ingredient 2",
-        "Test ingredient 3"
-      ],
-      "method": [
-        "Step 1: Test step one",
-        "Step 2: Test step two",
-        "Step 3: Test step three"
-      ],
-      "category": "MAINS",
-      "image": "https://example.com/test.jpg"
     }
   }
 }
