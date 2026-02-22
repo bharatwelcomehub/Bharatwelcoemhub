@@ -1419,11 +1419,11 @@ async def payslips_generate(req: PayslipGenRequest):
 
 # Load recipe and description data from JSON files
 def load_recipe_data():
-    recipe_file = ROOT_DIR / "recipe_data.json"
+    recipe_file = ROOT_DIR / "recipes_db.json"
     if recipe_file.exists():
         with open(recipe_file, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"recipes": {}, "thalis": {}, "bhojanGuru": {}}
+    return {"categories": [], "recipes": {}}
 
 def load_description_data():
     desc_file = ROOT_DIR / "description_data.json"
