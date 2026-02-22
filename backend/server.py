@@ -970,6 +970,10 @@ async def payslips_generate(req: PayslipGenRequest):
         if not employees:
             raise HTTPException(404, "No employees found")
         
+        # Track generated PDFs in memory
+        files_created = []
+        pdf_buffers = []
+        
         # Generate months
         months = []
         for i in range(period):
