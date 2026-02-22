@@ -116,6 +116,16 @@ export default function HRLetters() {
   // Get selected employee details
   const selectedEmpDetails = employees.find(e => e.name === selectedEmployee);
 
+  // Prepopulate fields when employee is selected
+  useEffect(() => {
+    if (selectedEmpDetails) {
+      setJoiningDate(selectedEmpDetails.dateOfJoining || "");
+      setSalary(selectedEmpDetails.currentSalary?.toString() || "");
+      setDesignation(selectedEmpDetails.designation || "");
+      setCenter(selectedEmpDetails.center || "");
+    }
+  }, [selectedEmployee, selectedEmpDetails]);
+
   // Generate letter
   const handleGenerate = async () => {
     if (!selectedEmployee || !letterType) {
