@@ -1860,6 +1860,227 @@ async def get_center_info():
     return {"centers": CENTER_INFO}
 
 # =======================================
+# HR LETTERS AI ENDPOINTS (MGT ONLY)
+# =======================================
+
+class HRLetterRequest(BaseModel):
+    token: str
+    employeeName: str
+    letterType: str  # offer, exit, experience, visa
+    # Additional fields for specific letter types
+    joiningDate: Optional[str] = None  # For offer letter
+    salary: Optional[str] = None  # For offer letter
+    lastWorkingDate: Optional[str] = None  # For exit letter
+    exitReason: Optional[str] = None  # For exit letter
+    # Visa letter specific fields
+    destinationCountry: Optional[str] = None
+    visaNumber: Optional[str] = None
+    travelPurpose: Optional[str] = None  # business visit, training, project work
+    travelDuration: Optional[str] = None  # e.g., "15 days", "3 months"
+    travelStartDate: Optional[str] = None
+    travelEndDate: Optional[str] = None
+    invitingCompany: Optional[str] = None  # For business visits
+    projectDetails: Optional[str] = None  # For project-based letters
+
+HR_LETTER_SYSTEM_PROMPT = """You are an expert HR letter writer for Manaswini Foods Pvt. Ltd. (Purnabramha Restaurant Chain).
+
+Company Details:
+- Company Name: MANASWINI FOODS PVT. LTD.
+- Brand: Purnabramha - The Largest Maharashtrian Restaurant Chain
+- Registered Address: 17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102
+- Director: Mr. Sandeep Gadhwal
+- CIN: (Company Identification Number will be added)
+
+Your task is to generate professional, legally appropriate HR letters. Each letter should:
+1. Be formal and professional in tone
+2. Include all necessary details provided
+3. Follow standard Indian HR letter formats
+4. Include appropriate date formatting (DD-MM-YYYY)
+5. End with signature block for Mr. Sandeep Gadhwal, Director
+
+Important: Generate ONLY the letter content. Do not include any explanations or notes outside the letter."""
+
+@api_router.post("/hr_letter/generate")
+async def generate_hr_letter(req: HRLetterRequest):
+    """Generate HR letters using AI (MGT only)"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can generate HR letters")
+    
+    # Get employee details from database
+    emp = await db.employees.find_one(
+        {"name": {"$regex": f"^{req.employeeName}$", "$options": "i"}},
+        {"_id": 0}
+    )
+    
+    if not emp:
+        raise HTTPException(404, f"Employee '{req.employeeName}' not found in database")
+    
+    # Build the prompt based on letter type
+    today = datetime.now().strftime("%d-%m-%Y")
+    
+    if req.letterType == "offer":
+        prompt = f"""Generate a professional OFFER LETTER for the following employee:
+
+Employee Name: {emp.get('name')}
+Designation: {emp.get('designation', 'N/A')}
+Department: {emp.get('center', 'N/A')}
+Date of Joining: {req.joiningDate or emp.get('dateOfJoining', 'N/A')}
+Monthly Salary: Rs. {req.salary or emp.get('currentSalary', 'N/A')}
+Bank Details: {emp.get('bankName', 'N/A')} - A/C: {emp.get('beneAccNo', 'N/A')}
+
+Today's Date: {today}
+
+The offer letter should include:
+1. Welcome and congratulations
+2. Position offered and reporting structure
+3. Compensation details
+4. Terms of employment
+5. Joining formalities
+6. Company policies overview
+7. Acceptance clause"""
+
+    elif req.letterType == "exit":
+        prompt = f"""Generate a professional EXIT/RESIGNATION ACCEPTANCE LETTER for the following employee:
+
+Employee Name: {emp.get('name')}
+Designation: {emp.get('designation', 'N/A')}
+Department: {emp.get('center', 'N/A')}
+Date of Joining: {emp.get('dateOfJoining', 'N/A')}
+Last Working Date: {req.lastWorkingDate or 'As per notice period'}
+Reason for Exit: {req.exitReason or 'Personal reasons'}
+
+Today's Date: {today}
+
+The exit letter should include:
+1. Acknowledgment of resignation
+2. Acceptance of last working date
+3. Handover responsibilities
+4. Settlement of dues
+5. Return of company property
+6. Wishes for future endeavors"""
+
+    elif req.letterType == "experience":
+        prompt = f"""Generate a professional EXPERIENCE/SERVICE CERTIFICATE for the following employee:
+
+Employee Name: {emp.get('name')}
+Designation: {emp.get('designation', 'N/A')}
+Department: {emp.get('center', 'N/A')}
+Date of Joining: {emp.get('dateOfJoining', 'N/A')}
+Last Working Date: {req.lastWorkingDate or today}
+Gender: {emp.get('gender', 'N/A')}
+
+Today's Date: {today}
+
+The experience letter should include:
+1. Employment confirmation with dates
+2. Designation and responsibilities
+3. Performance appreciation
+4. Character and conduct certification
+5. Best wishes for future"""
+
+    elif req.letterType == "visa":
+        prompt = f"""Generate a professional VISA SUPPORT/INVITATION LETTER for immigration purposes:
+
+Employee Name: {emp.get('name')}
+Designation: {emp.get('designation', 'N/A')}
+Department: {emp.get('center', 'N/A')}
+Date of Joining: {emp.get('dateOfJoining', 'N/A')}
+Current Salary: Rs. {emp.get('currentSalary', 'N/A')} per month
+Gender: {emp.get('gender', 'N/A')}
+
+Travel Details:
+- Destination Country: {req.destinationCountry or 'N/A'}
+- Visa Number (if available): {req.visaNumber or 'Applied/Pending'}
+- Purpose of Travel: {req.travelPurpose or 'Business Visit'}
+- Duration of Stay: {req.travelDuration or 'N/A'}
+- Travel Start Date: {req.travelStartDate or 'N/A'}
+- Travel End Date: {req.travelEndDate or 'N/A'}
+- Inviting Company/Organization: {req.invitingCompany or 'N/A'}
+- Project/Business Details: {req.projectDetails or 'Business meetings and coordination'}
+
+Today's Date: {today}
+
+The visa support letter should include:
+1. Company introduction and legitimacy
+2. Employee confirmation and role
+3. Purpose of visit clearly stated
+4. Travel dates and duration
+5. Financial responsibility statement (company will bear expenses OR employee self-funded)
+6. Guarantee of return to India after visit
+7. Contact details for verification
+8. Request for visa approval
+
+This letter is for immigration/visa authorities of {req.destinationCountry or 'the destination country'}."""
+
+    else:
+        raise HTTPException(400, f"Invalid letter type: {req.letterType}")
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(500, "AI service not configured")
+        
+        session_id = f"hr_letter_{req.letterType}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message=HR_LETTER_SYSTEM_PROMPT
+        ).with_model("openai", "gpt-5.2")
+        
+        user_message = UserMessage(text=prompt)
+        letter_content = await chat.send_message(user_message)
+        
+        # Log the letter generation
+        await db.hr_letters.insert_one({
+            "employeeName": emp.get('name'),
+            "letterType": req.letterType,
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "generatedBy": session.get("managerName", ""),
+            "content": letter_content[:500] + "..."  # Store summary only
+        })
+        
+        logger.info(f"HR Letter ({req.letterType}) generated for {emp.get('name')} by {session.get('managerName')}")
+        
+        return {
+            "success": True,
+            "letterType": req.letterType,
+            "employeeName": emp.get('name'),
+            "content": letter_content,
+            "generatedAt": today
+        }
+        
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
+        raise HTTPException(500, "AI library not available")
+    except Exception as e:
+        logger.error(f"HR Letter generation error: {e}")
+        raise HTTPException(500, f"Failed to generate letter: {str(e)}")
+
+@api_router.get("/hr_letter/employees")
+async def get_employees_for_hr(token: str):
+    """Get list of employees for HR letter generation (MGT only)"""
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can access HR features")
+    
+    employees = await db.employees.find(
+        {},
+        {"_id": 0, "name": 1, "designation": 1, "center": 1, "dateOfJoining": 1, "currentSalary": 1, "gender": 1}
+    ).to_list(1000)
+    
+    return {"employees": employees}
+
+# =======================================
 # DATA SEEDING ENDPOINT
 # =======================================
 
