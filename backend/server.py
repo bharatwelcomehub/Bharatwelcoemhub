@@ -2771,6 +2771,625 @@ async def mgt_manager_delete(data: dict):
     logger.info(f"Manager deleted: {email} by {session.get('managerName')}")
     return {"success": True, "message": f"Manager deleted successfully"}
 
+# =======================================
+# USER MANUAL & BROCHURE PDF GENERATION
+# =======================================
+
+@api_router.get("/docs/user-manual")
+async def generate_user_manual():
+    """Generate User Manual PDF for the Purnabramha IntraPB System"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    from reportlab.lib.colors import HexColor
+    
+    pdf_buffer = BytesIO()
+    c = canvas.Canvas(pdf_buffer, pagesize=A4)
+    width, height = A4
+    
+    # Cover Page
+    c.setFillColor(HexColor("#d97706"))  # Orange/amber color
+    c.rect(0, height - 200, width, 200, fill=True, stroke=False)
+    
+    c.setFillColor(HexColor("#ffffff"))
+    c.setFont("Helvetica-Bold", 36)
+    c.drawCentredString(width/2, height - 100, "PURNABRAMHA")
+    c.setFont("Helvetica-Bold", 24)
+    c.drawCentredString(width/2, height - 140, "IntraPB System")
+    
+    c.setFillColor(HexColor("#000000"))
+    c.setFont("Helvetica-Bold", 28)
+    c.drawCentredString(width/2, height - 280, "USER MANUAL")
+    
+    c.setFont("Helvetica", 14)
+    c.drawCentredString(width/2, height - 320, "Complete Guide for Managers & Staff")
+    c.drawCentredString(width/2, height - 340, f"Version 1.0 | December 2025")
+    
+    c.showPage()
+    
+    # Table of Contents
+    c.setFont("Helvetica-Bold", 24)
+    c.drawString(50, height - 60, "Table of Contents")
+    c.setFont("Helvetica", 12)
+    
+    toc = [
+        ("1. Introduction", "3"),
+        ("2. Getting Started - Login", "4"),
+        ("3. Dashboard Overview", "5"),
+        ("4. Attendance Management", "6"),
+        ("5. Salary Management", "8"),
+        ("6. Employee Management", "10"),
+        ("7. Recipe Management", "12"),
+        ("8. Center & Manager Management", "14"),
+        ("9. HR Letters Generation", "15"),
+        ("10. Guest Response AI", "16"),
+        ("11. Troubleshooting", "17"),
+    ]
+    
+    y_pos = height - 100
+    for title, page in toc:
+        c.drawString(60, y_pos, title)
+        c.drawString(500, y_pos, page)
+        y_pos -= 25
+    
+    c.showPage()
+    
+    # Section 1: Introduction
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "1. Introduction")
+    c.setFont("Helvetica", 11)
+    
+    intro_text = [
+        "Welcome to Purnabramha IntraPB System - a comprehensive management solution",
+        "designed for Purnabramha restaurant chain's internal operations.",
+        "",
+        "This system helps you manage:",
+        "• Employee attendance tracking",
+        "• Salary calculations and payslip generation",
+        "• Recipe database management",
+        "• Center and manager administration",
+        "• HR letter generation (Offer, Relieving, Experience, etc.)",
+        "• AI-powered guest response generation",
+        "",
+        "System Requirements:",
+        "• Modern web browser (Chrome, Firefox, Safari, Edge)",
+        "• Stable internet connection",
+        "• Valid manager credentials"
+    ]
+    
+    y = height - 100
+    for line in intro_text:
+        c.drawString(60, y, line)
+        y -= 18
+    
+    c.showPage()
+    
+    # Section 2: Login
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "2. Getting Started - Login")
+    c.setFont("Helvetica", 11)
+    
+    login_text = [
+        "To access the IntraPB System, follow these steps:",
+        "",
+        "Step 1: Open the Login Page",
+        "Navigate to the system URL provided by your administrator.",
+        "",
+        "Step 2: Select Your Center",
+        "Choose your center from the dropdown menu:",
+        "• PB-HSR (Bangalore)",
+        "• PB-TH (Thane)",
+        "• PB-SN (Sambhajinagar)",
+        "• PB-DV (Dombivli)",
+        "• PB-HW (Hinjawadi)",
+        "• PB-KN (Kharadi Nyati)",
+        "• PB-MGT (Management)",
+        "",
+        "Step 3: Enter Mobile Number",
+        "Enter your registered mobile number.",
+        "",
+        "Step 4: Request OTP",
+        "Click 'Send OTP' to receive a verification code via SMS/Email.",
+        "",
+        "Step 5: Enter OTP & Login",
+        "Enter the OTP received and click 'Verify' to access the dashboard."
+    ]
+    
+    y = height - 100
+    for line in login_text:
+        c.drawString(60, y, line)
+        y -= 16
+    
+    c.showPage()
+    
+    # Section 3: Dashboard
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "3. Dashboard Overview")
+    c.setFont("Helvetica", 11)
+    
+    dashboard_text = [
+        "After logging in, you'll see the main Dashboard with:",
+        "",
+        "Navigation Menu (Sidebar):",
+        "• Dashboard - Quick overview and statistics",
+        "• Attendance - Mark and view employee attendance",
+        "• Salary - Calculate salaries and generate payslips",
+        "• Employee Management - Add/Edit/View employees",
+        "• Recipe Admin - Manage recipe database (MGT only)",
+        "• Centers Management - Manage center locations (MGT only)",
+        "• Managers Management - Manage managers (MGT only)",
+        "• HR Letters - Generate official HR documents",
+        "• Guest Response - AI-powered guest feedback replies",
+        "",
+        "Dashboard Cards:",
+        "• Total Employees count",
+        "• Today's Attendance summary",
+        "• Current Month statistics",
+        "• Quick action buttons",
+        "",
+        "Note: Some features are restricted to PB-MGT managers only."
+    ]
+    
+    y = height - 100
+    for line in dashboard_text:
+        c.drawString(60, y, line)
+        y -= 16
+    
+    c.showPage()
+    
+    # Section 4: Attendance
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "4. Attendance Management")
+    c.setFont("Helvetica", 11)
+    
+    attendance_text = [
+        "The Attendance module allows you to track daily attendance:",
+        "",
+        "Marking Attendance:",
+        "1. Select the date from the date picker",
+        "2. View all employees in your center",
+        "3. Mark each employee as:",
+        "   • Present (P) - Full day attendance",
+        "   • Half-Day (H) - Half day attendance",
+        "   • Absent (A) - Not present",
+        "   • Week Off (W) - Scheduled day off",
+        "   • Leave (L) - Approved leave",
+        "",
+        "Bulk Actions:",
+        "• 'Mark All Present' - Quick mark all as present",
+        "• 'Mark All Week Off' - For weekly off days",
+        "",
+        "Viewing History:",
+        "• Navigate to different dates",
+        "• View monthly attendance summary",
+        "• Export attendance data (Excel format)",
+        "",
+        "Important Notes:",
+        "• Attendance affects salary calculations",
+        "• Past dates can only be edited by MGT",
+        "• Always verify before saving"
+    ]
+    
+    y = height - 100
+    for line in attendance_text:
+        c.drawString(60, y, line)
+        y -= 15
+    
+    c.showPage()
+    
+    # Continue with more sections...
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "5. Salary Management")
+    c.setFont("Helvetica", 11)
+    
+    salary_text = [
+        "The Salary module handles all payroll operations:",
+        "",
+        "Viewing Salary Details:",
+        "1. Select month and year",
+        "2. View calculated salaries for all employees",
+        "3. See breakdown: Base + Bonus - Deductions",
+        "",
+        "Salary Calculation Formula:",
+        "• Per Day = Monthly Salary / Working Days",
+        "• Present Days counted fully",
+        "• Half-days counted as 0.5",
+        "• Deductions for unauthorized absence",
+        "",
+        "Generating Payslips:",
+        "1. Select employee(s)",
+        "2. Choose format: PDF or DOCX",
+        "3. Click 'Generate Payslips'",
+        "4. Download individual or bulk zip file",
+        "",
+        "Payslip Contents:",
+        "• Employee details",
+        "• Attendance summary",
+        "• Earnings breakdown",
+        "• Deductions (if any)",
+        "• Net salary payable"
+    ]
+    
+    y = height - 100
+    for line in salary_text:
+        c.drawString(60, y, line)
+        y -= 16
+    
+    c.showPage()
+    
+    # Recipe Management
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "6. Recipe Management (MGT Only)")
+    c.setFont("Helvetica", 11)
+    
+    recipe_text = [
+        "The Recipe Admin module manages Purnabramha's recipe database:",
+        "",
+        "Accessing Recipes:",
+        "1. Navigate to Recipe Admin from sidebar",
+        "2. Browse categories: Snacks, Drinks, Sweets, Mains, etc.",
+        "3. Use search to find specific recipes",
+        "",
+        "Recipe Categories:",
+        "• SNACKS - Bhaji, Vada, Pakoda, etc.",
+        "• DRINKS - Buttermilk, Kokam, Tea, etc.",
+        "• SWEETS - Puranpoli, Modak, Kheer, etc.",
+        "• MAINS - Bhaji, Usal, Pithala, etc.",
+        "• CURRIES - Dal, Kadhi, Rassa, etc.",
+        "• RICE - Plain Rice, Masale Bhaat, etc.",
+        "• CHAPATI - Bhakri, Puri, Paratha, etc.",
+        "• CHUTNEYS - Green, Tamarind, etc.",
+        "• SALADS - Various Koshimbir",
+        "• BALGOPAL - Kid-friendly recipes",
+        "",
+        "Adding/Editing Recipes:",
+        "1. Click 'Add New Recipe' or 'Edit'",
+        "2. Fill in: Name, Display name, Category",
+        "3. Add ingredients (one per line)",
+        "4. Add method steps (one per line)",
+        "5. Optional: Add image URL",
+        "6. Save recipe"
+    ]
+    
+    y = height - 100
+    for line in recipe_text:
+        c.drawString(60, y, line)
+        y -= 15
+    
+    c.showPage()
+    
+    # HR Letters
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "7. HR Letters Generation")
+    c.setFont("Helvetica", 11)
+    
+    hr_text = [
+        "Generate official HR documents for employees:",
+        "",
+        "Available Letter Types:",
+        "• Offer Letter - For new joiners",
+        "• Appointment Letter - After probation",
+        "• Relieving Letter - For resigned employees",
+        "• Experience Letter - Work experience certificate",
+        "• Warning Letter - For disciplinary issues",
+        "• Promotion Letter - For promotions",
+        "",
+        "Generating Letters:",
+        "1. Select letter type",
+        "2. Enter employee details",
+        "3. Fill additional fields as required",
+        "4. Choose format: PDF or DOCX",
+        "5. Click 'Generate Letter'",
+        "6. Download and print",
+        "",
+        "AI-Assisted Content:",
+        "Letters are generated with AI assistance for",
+        "professional language and formatting.",
+        "",
+        "Note: Always review generated content before use."
+    ]
+    
+    y = height - 100
+    for line in hr_text:
+        c.drawString(60, y, line)
+        y -= 16
+    
+    c.showPage()
+    
+    # Guest Response AI
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "8. Guest Response AI")
+    c.setFont("Helvetica", 11)
+    
+    guest_text = [
+        "AI-powered guest feedback response generator:",
+        "",
+        "Purpose:",
+        "Quickly generate professional, personalized responses",
+        "to customer reviews and feedback.",
+        "",
+        "How to Use:",
+        "1. Navigate to Guest Response page",
+        "2. Select your center",
+        "3. Choose response tone:",
+        "   • Professional - Formal business tone",
+        "   • Friendly - Warm and welcoming",
+        "   • Apologetic - For complaints",
+        "4. Enter guest feedback/review",
+        "5. Click 'Generate Response'",
+        "6. Review and copy the AI-generated response",
+        "",
+        "Best Practices:",
+        "• Always personalize before posting",
+        "• Address specific concerns mentioned",
+        "• Thank customers for feedback",
+        "• Keep responses concise and helpful"
+    ]
+    
+    y = height - 100
+    for line in guest_text:
+        c.drawString(60, y, line)
+        y -= 16
+    
+    c.showPage()
+    
+    # Troubleshooting
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(50, height - 60, "9. Troubleshooting")
+    c.setFont("Helvetica", 11)
+    
+    trouble_text = [
+        "Common issues and solutions:",
+        "",
+        "Login Issues:",
+        "• OTP not received: Check mobile number, try again",
+        "• Invalid OTP: Request new OTP, check email spam",
+        "• Session expired: Re-login to continue",
+        "",
+        "Attendance Issues:",
+        "• Cannot edit past dates: Contact MGT",
+        "• Employee not showing: Verify center assignment",
+        "",
+        "Salary Issues:",
+        "• Calculation mismatch: Verify attendance data",
+        "• Payslip generation fails: Check employee details",
+        "",
+        "Recipe Issues:",
+        "• Access denied: Only MGT can manage recipes",
+        "• Image not loading: Verify URL is accessible",
+        "",
+        "General Tips:",
+        "• Clear browser cache if pages not loading",
+        "• Use latest browser version",
+        "• Check internet connection",
+        "",
+        "Support Contact:",
+        "Email: support@purnabramha.com",
+        "Phone: +91 89047 49084"
+    ]
+    
+    y = height - 100
+    for line in trouble_text:
+        c.drawString(60, y, line)
+        y -= 15
+    
+    c.save()
+    pdf_buffer.seek(0)
+    
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=Purnabramha_User_Manual.pdf"}
+    )
+
+@api_router.get("/docs/brochure")
+async def generate_brochure():
+    """Generate Recipe Brochure PDF for users"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.colors import HexColor
+    
+    # Load recipes
+    recipe_file = ROOT_DIR / "recipes_db.json"
+    if not recipe_file.exists():
+        raise HTTPException(404, "Recipe database not found")
+    
+    with open(recipe_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    
+    recipes = data.get("recipes", {})
+    categories = data.get("categories", [])
+    
+    pdf_buffer = BytesIO()
+    c = canvas.Canvas(pdf_buffer, pagesize=A4)
+    width, height = A4
+    
+    # Colors
+    primary_color = HexColor("#d97706")
+    dark_color = HexColor("#1f2937")
+    light_color = HexColor("#f3f4f6")
+    
+    # Cover Page
+    c.setFillColor(primary_color)
+    c.rect(0, 0, width, height, fill=True, stroke=False)
+    
+    c.setFillColor(HexColor("#ffffff"))
+    c.setFont("Helvetica-Bold", 48)
+    c.drawCentredString(width/2, height - 200, "PURNABRAMHA")
+    
+    c.setFont("Helvetica-Bold", 28)
+    c.drawCentredString(width/2, height - 260, "Recipe Collection")
+    
+    c.setFont("Helvetica", 16)
+    c.drawCentredString(width/2, height - 320, "Authentic Maharashtrian Cuisine")
+    c.drawCentredString(width/2, height - 345, f"Over {len(recipes)} Traditional Recipes")
+    
+    c.setFont("Helvetica-Oblique", 12)
+    c.drawCentredString(width/2, 100, "\"Where tradition meets taste\"")
+    c.drawCentredString(width/2, 80, "Curated by Jayanti Kathale")
+    
+    c.showPage()
+    
+    # Table of Contents
+    c.setFillColor(dark_color)
+    c.setFont("Helvetica-Bold", 28)
+    c.drawString(50, height - 60, "Recipe Categories")
+    
+    c.setFont("Helvetica", 14)
+    y_pos = height - 100
+    
+    cat_counts = {}
+    for key, recipe in recipes.items():
+        cat = recipe.get("category", "MAINS").upper()
+        cat_counts[cat] = cat_counts.get(cat, 0) + 1
+    
+    for cat in categories:
+        count = cat_counts.get(cat, 0)
+        if count > 0:
+            c.drawString(60, y_pos, f"• {cat}")
+            c.drawString(250, y_pos, f"({count} recipes)")
+            y_pos -= 25
+    
+    c.setFont("Helvetica-Oblique", 11)
+    c.drawString(60, y_pos - 30, f"Total: {len(recipes)} authentic recipes")
+    
+    c.showPage()
+    
+    # Recipe Pages by Category
+    for cat in categories:
+        cat_recipes = {k: v for k, v in recipes.items() if v.get("category", "").upper() == cat}
+        if not cat_recipes:
+            continue
+        
+        # Category Header Page
+        c.setFillColor(primary_color)
+        c.rect(0, height - 120, width, 120, fill=True, stroke=False)
+        
+        c.setFillColor(HexColor("#ffffff"))
+        c.setFont("Helvetica-Bold", 32)
+        c.drawCentredString(width/2, height - 70, cat)
+        c.setFont("Helvetica", 14)
+        c.drawCentredString(width/2, height - 95, f"{len(cat_recipes)} recipes")
+        
+        # List recipes in this category
+        c.setFillColor(dark_color)
+        c.setFont("Helvetica", 11)
+        y = height - 160
+        
+        for key, recipe in sorted(cat_recipes.items()):
+            if y < 80:
+                c.showPage()
+                c.setFillColor(dark_color)
+                c.setFont("Helvetica-Bold", 14)
+                c.drawString(50, height - 40, f"{cat} (continued)")
+                c.setFont("Helvetica", 11)
+                y = height - 70
+            
+            display = recipe.get("display", recipe.get("name", key))
+            ingredients = recipe.get("ingredients", [])
+            
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(60, y, f"• {display}")
+            c.setFont("Helvetica", 9)
+            c.setFillColor(HexColor("#6b7280"))
+            ingredient_text = ", ".join(ingredients[:5])
+            if len(ingredients) > 5:
+                ingredient_text += "..."
+            if len(ingredient_text) > 80:
+                ingredient_text = ingredient_text[:80] + "..."
+            c.drawString(70, y - 14, ingredient_text)
+            c.setFillColor(dark_color)
+            
+            y -= 40
+        
+        c.showPage()
+    
+    # Selected Featured Recipes (5-6 full recipes)
+    featured_keys = ["puranpoli", "solkadhi", "batata_vada", "misal_curry", "shrikhand", "ukadiche_modak"]
+    featured = [(k, recipes[k]) for k in featured_keys if k in recipes]
+    
+    if featured:
+        # Featured Recipes Header
+        c.setFillColor(primary_color)
+        c.rect(0, height - 100, width, 100, fill=True, stroke=False)
+        
+        c.setFillColor(HexColor("#ffffff"))
+        c.setFont("Helvetica-Bold", 28)
+        c.drawCentredString(width/2, height - 55, "Featured Recipes")
+        c.setFont("Helvetica", 12)
+        c.drawCentredString(width/2, height - 80, "Our Most Popular Dishes")
+        
+        c.showPage()
+        
+        for key, recipe in featured:
+            display = recipe.get("display", recipe.get("name", key))
+            ingredients = recipe.get("ingredients", [])
+            method = recipe.get("method", [])
+            
+            # Recipe title
+            c.setFillColor(primary_color)
+            c.setFont("Helvetica-Bold", 20)
+            c.drawString(50, height - 50, display)
+            
+            c.setFillColor(dark_color)
+            c.setFont("Helvetica", 10)
+            c.drawString(50, height - 70, f"Category: {recipe.get('category', 'MAINS')}")
+            
+            # Ingredients
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, height - 100, "Ingredients:")
+            c.setFont("Helvetica", 10)
+            y = height - 120
+            for ing in ingredients[:12]:
+                if y < 300:
+                    break
+                c.drawString(60, y, f"• {ing}")
+                y -= 14
+            
+            # Method
+            c.setFont("Helvetica-Bold", 14)
+            c.drawString(50, y - 20, "Method:")
+            c.setFont("Helvetica", 10)
+            y = y - 40
+            for i, step in enumerate(method[:10], 1):
+                if y < 100:
+                    break
+                step_text = step[:90] + "..." if len(step) > 90 else step
+                c.drawString(60, y, f"{i}. {step_text}")
+                y -= 14
+            
+            c.showPage()
+    
+    # Back Cover
+    c.setFillColor(primary_color)
+    c.rect(0, 0, width, height, fill=True, stroke=False)
+    
+    c.setFillColor(HexColor("#ffffff"))
+    c.setFont("Helvetica-Bold", 36)
+    c.drawCentredString(width/2, height/2 + 100, "PURNABRAMHA")
+    
+    c.setFont("Helvetica", 16)
+    c.drawCentredString(width/2, height/2 + 60, "Authentic Maharashtrian Cuisine")
+    c.drawCentredString(width/2, height/2 + 35, "Since Tradition Began")
+    
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(width/2, height/2 - 30, "Visit us at:")
+    c.drawCentredString(width/2, height/2 - 50, "HSR Layout, Bangalore | Thane | Sambhajinagar")
+    c.drawCentredString(width/2, height/2 - 70, "Dombivli | Hinjawadi | Kharadi Nyati | Kalyan")
+    c.drawCentredString(width/2, height/2 - 90, "Nashik | Perth, Australia")
+    
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width/2, 100, "www.purnabramha.com")
+    
+    c.save()
+    pdf_buffer.seek(0)
+    
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=Purnabramha_Recipe_Brochure.pdf"}
+    )
+
 # Include router
 app.include_router(api_router)
 
