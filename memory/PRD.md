@@ -1,148 +1,78 @@
 # Purnabramha IntraPB - Product Requirements Document
 
 ## Original Problem Statement
-User had existing HTML/Python files for an attendance and salary management system using Excel as database storage. Required migration to MongoDB with modern UI design while preserving all functionality. Added Guest Response AI feature for managers to answer guest queries. Updated Bhojan Guru with real recipe data and added center selector to Guest Response AI.
+User had existing HTML/Python files for an attendance and salary management system using Excel as database storage. Required migration to MongoDB with modern UI design while preserving all functionality. Added Guest Response AI feature, Bhojan Guru with recipes from user's PDF file, and Recipe Admin panel for MGT.
 
 ## Project Overview
 **Purnabramha IntraPB** - Internal portal for attendance, salary management, and guest response for Purnabramha Restaurant Chain (Manswini Foods Pvt. Ltd.)
 
-## Target Audience
-- Restaurant center managers across India and Australia
-- Management headquarters (PB-MGT) - Jayanti Kathale & Sandeep Gadhwal
-- Chefs (for Bhojan Guru recipes)
-
-## Core Requirements
-1. **Authentication**: OTP-based login for center managers
-2. **Attendance Management**: Daily and monthly tracking
-3. **Advances Tracking**: Record salary advances
-4. **Salary Generation**: Export for ICICI bank upload
-5. **Payslip Generation**: PDF payslips
-6. **Employee Management**: CRUD operations (PB-MGT only)
-7. **Bhojan Guru**: Maharashtrian recipe database with 47 recipes, 5 thalis, 126 menu descriptions
-8. **Guest Response AI**: GPT-5.2 powered assistant with center-specific context
-9. **Recipe Admin**: Full CRUD for recipes (PB-MGT only)
-
-## Centers & Contact Information
-| Center | Location | Phone |
-|--------|----------|-------|
-| PB-HSR | Bangalore | +91 85500 78515 |
-| PB-TH | Thane, Mumbai | +91 89047 49084 |
-| PB-SN | Sambhajinagar | +91 89710 49084 |
-| PB-DV | Dombivli, Mumbai | +91 96064 55433 |
-| PB-HW | Hinjawadi, Pune | +91 96064 55434 |
-| PB-KN | Kharadi, Pune | +91 99000 89803 |
-| PB-KAL | Kalyan | +91 96064 55433 |
-| PB-MEL | Melbourne, Australia | +61 401 832 922 |
-| PB-PERTH | Perth, Australia | +61 401 832 922 |
-
-## PB-MGT Admin Users
-- Jayanti Kathale (Mobile: 9741399190)
-- Sandeep Gadhwal (Mobile: 9960886185)
-
 ## What's Been Implemented
 
 ### Latest Update (Feb 22, 2026)
-- ✅ **ResizeObserver Error Fixed**: Enhanced error suppression with debounced ResizeObserver
-- ✅ **Bhojan Guru with Real Recipes**: Using exact data from RECIPE_DB.js and DESC_DB_WITH_MR.js
-  - 47 recipes with ingredients and method steps
-  - 5 thali configurations
-  - 126 menu descriptions in English and Marathi
-  - Copy to clipboard functionality for chefs
-  - Category filters (All, Drinks, Snacks, Mains, Sweets, Thalis)
-  
-- ✅ **Recipe Admin Panel (MGT Only)**: Full CRUD for recipes
-  - Create new recipes with ingredients and method steps
-  - Edit existing recipes
-  - Delete recipes
-  - Search functionality
-  - Category selection (Drinks, Snacks, Main Course, Sweets/Desserts)
-  
-- ✅ **Guest Response AI Center Selector**: Added dropdown to select specific center
-  - All 8 centers available in dropdown
-  - AI responds with center-specific context (address, phone, timings)
-  - Selected center badge displayed in chat
-
-- ✅ **OTP Email System**: SMTP email integration ready
-  - Sends HTML-formatted OTP emails
+- ✅ **OTP Email System** - Using EXACT method from original server.py
+  - Uses `config.json` for email settings (same as original)
+  - Uses `EmailMessage` class (same as original)
   - Falls back to console logging when SMTP not configured
-  - Beautiful email template with Purnabramha branding
+  
+- ✅ **Bhojan Guru with PDF Recipes** - 41 recipes from "Purnabramha Recipe all - final 16112021.pdf"
+  - Masala Buttermilk, Plain Buttermilk, Solkadhi, Masala Kokam, Kokam
+  - Piyush, Rose Piyush, Mango Piyush, Awala, Aam Panha
+  - Limbu Pani, Masala Lemon, Tea & Masala Tea
+  - Kanda Bhaji, Appa Pakoda, Kothimbir Vadi, Kachori, Batata Vada
+  - Kandapohe, Dadpe Pohe, Ghavan, Mix Dal Vada, Moong Dal Pakoda
+  - Palak Pakoda, Kadhi, Varans (Jeera, Methi, Palak, Chincha Gulacha)
+  - Chutneys (Green, Tamarind, Vada Pav)
+  - Fasting items (Sabudana Khichdi, Sabudana Vada)
+  - Sweets (Shrikhand, Gulab Jamun, Aliv Kheer, Nachani Chi Kheer, Puran Poli, Modak)
 
-### Backend APIs (35+ endpoints - 100% working)
-- Authentication (send_otp, verify_otp)
-- Employee CRUD (create, update, delete, list)
-- Attendance (daily, monthly, bulk save)
-- Advances management
-- Payroll (status, lock, generate)
-- Payslips generation
-- **Guest AI** (OpenAI GPT-5.2 powered) with center context
-- Center info API
-- **Recipes API** (GET, POST, PUT, DELETE) - 47 recipes, 5 thalis
-- **Descriptions API** (126 menu items with English + Marathi)
+- ✅ **ResizeObserver Error Fixed** - No more error overlay on dropdown clicks
 
-### Frontend Pages
-- Login page with OTP verification
-- Dashboard with sidebar navigation
-- Attendance (Daily + Monthly + Advances)
-- Employees management (MGT only)
-- Salary generation (MGT only)
-- Payslips generation (MGT only)
-- **Bhojan Guru** - Recipe database with 3 tabs (Recipes, Thalis, Descriptions)
-- **Guest Response AI** - Chat interface with center selector
-- **Recipe Admin** - Full CRUD for recipes (MGT only)
+- ✅ **Recipe Admin Panel (MGT Only)** - Full CRUD for recipes
+  - Create, Edit, Delete recipes
+  - Search and filter by category
 
-### Database Collections
-- managers, employees, attendance, advances, payroll_locks, salary_rules, chat_history
+- ✅ **Guest Response AI with Center Selector**
 
-## Prioritized Backlog
+## How to Enable OTP Email
 
-### P0 (Completed)
-- ✅ MongoDB migration
-- ✅ OTP authentication (both MGT managers)
-- ✅ Attendance management
-- ✅ Employee CRUD
-- ✅ Salary/Payslip generation
-- ✅ Guest Response AI with GPT-5.2
-- ✅ Center info with phone numbers
-- ✅ Bhojan Guru with real recipe data (47 recipes, 126 descriptions)
-- ✅ Guest Response center selector
-- ✅ Recipe Admin panel (MGT only)
-- ✅ ResizeObserver error fix
+Edit `/app/backend/config.json`:
+```json
+{
+    "otp": {"length": 6, "ttl_seconds": 300},
+    "security": {"session_ttl_seconds": 43200},
+    "email": {
+        "enabled": true,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_user": "YOUR_EMAIL@gmail.com",
+        "smtp_pass": "YOUR_APP_PASSWORD",
+        "from_name": "Purnabramha Attendance",
+        "from_email": "YOUR_EMAIL@gmail.com"
+    }
+}
+```
 
-### P1 (Ready but needs config)
-- 🟡 Email OTP delivery (SMTP code ready, needs credentials)
-  - Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS to backend/.env
+For Gmail, create an App Password at: https://myaccount.google.com/apppasswords
 
-### P2 (Future)
-- Chat history persistence per manager
-- Employee self-service portal
-- Mobile app version
-- Photo attendance
-- Leave management
-- Attendance analytics dashboard
+## Centers & Managers
+| Center | Manager | Mobile | Email |
+|--------|---------|--------|-------|
+| PB-MGT | Jayanti Kathale | 9741399190 | (from Managers worksheet) |
+| PB-MGT | Sandeep Gadhwal | 9960886185 | (from Managers worksheet) |
 
-## Testing Status
-- Backend: 100% tests passed
-- Frontend: 100% tests passed
+## Key Files
+- `/app/backend/config.json` - Email configuration (same as original server.py)
+- `/app/backend/recipe_data.json` - 41 recipes from PDF
+- `/app/backend/description_data.json` - 126 menu descriptions
+- `/app/frontend/src/pages/BhojanGuru.jsx` - Recipe display
+- `/app/frontend/src/pages/RecipeAdmin.jsx` - Recipe management
+- `/app/frontend/src/pages/GuestResponse.jsx` - AI chat with center selector
+
+## Dev Mode
+- Master OTP: 123456 (works for testing)
+- OTP logged to console when email not configured
+
+## Testing
+- Backend: All APIs working
+- Frontend: All pages functional
 - Recipe CRUD: Tested and working
-
-## Technical Notes
-
-### OTP Email Configuration
-To enable OTP emails, add to `/app/backend/.env`:
-```
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-SMTP_FROM=noreply@purnabramha.com
-```
-
-### Recipe Data Files
-- `/app/backend/recipe_data.json` - Parsed recipes (47 items from RECIPE_DB.js)
-- `/app/backend/description_data.json` - Menu descriptions (126 items from DESC_DB_WITH_MR.js)
-
-### Dev Mode OTP
-For testing without email, OTP is logged to console and master OTP "123456" works.
-
-### Recipe Admin Access
-Only PB-MGT center managers can access Recipe Admin panel.
