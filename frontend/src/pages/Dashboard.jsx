@@ -167,6 +167,7 @@ export default function Dashboard() {
             <Route path="/employees" element={<Employees />} />
             <Route path="/salary" element={<Salary />} />
             <Route path="/payslips" element={<Salary isPayslips />} />
+            <Route path="/hr-letters" element={<HRLetters />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
           </Routes>
