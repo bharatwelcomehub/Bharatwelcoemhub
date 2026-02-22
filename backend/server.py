@@ -164,6 +164,90 @@ def verify_token(token: str) -> Optional[Dict]:
 def days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
 
+def send_otp_email(to_email: str, otp: str, manager_name: str, center: str) -> bool:
+    """Send OTP via SMTP email"""
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_pass = os.environ.get("SMTP_PASS", "")
+    from_email = os.environ.get("SMTP_FROM", smtp_user)
+    
+    if not smtp_user or not smtp_pass:
+        logger.warning("SMTP credentials not configured. OTP will be logged only.")
+        return False
+    
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Purnabramha IntraPB - Your Login OTP"
+        msg["From"] = f"Purnabramha IntraPB <{from_email}>"
+        msg["To"] = to_email
+        
+        # Plain text version
+        text = f"""
+Namaskar {manager_name},
+
+Your OTP for Purnabramha IntraPB Login is: {otp}
+
+Center: {center}
+Valid for: 10 minutes
+
+If you did not request this OTP, please ignore this email.
+
+Dhanyawad,
+Purnabramha Team
+"""
+        
+        # HTML version
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px; }}
+        .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .header {{ text-align: center; color: #8B4513; margin-bottom: 20px; }}
+        .otp-box {{ background: linear-gradient(135deg, #8B4513, #D2691E); color: white; font-size: 32px; letter-spacing: 8px; text-align: center; padding: 20px; border-radius: 8px; margin: 20px 0; font-weight: bold; }}
+        .info {{ color: #666; font-size: 14px; }}
+        .footer {{ margin-top: 30px; text-align: center; color: #999; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍽️ Purnabramha IntraPB</h1>
+            <p>Namaskar {manager_name}!</p>
+        </div>
+        <p>Your One-Time Password (OTP) for login:</p>
+        <div class="otp-box">{otp}</div>
+        <div class="info">
+            <p><strong>Center:</strong> {center}</p>
+            <p><strong>Valid for:</strong> 10 minutes</p>
+            <p>If you did not request this OTP, please ignore this email.</p>
+        </div>
+        <div class="footer">
+            <p>Dhanyawad! 🙏</p>
+            <p>Purnabramha - The Largest Maharashtrian Restaurant</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        msg.attach(MIMEText(text, "plain"))
+        msg.attach(MIMEText(html, "html"))
+        
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(from_email, to_email, msg.as_string())
+        
+        logger.info(f"OTP email sent successfully to {to_email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send OTP email: {e}")
+        return False
+
 # =======================================
 # AUTH ENDPOINTS
 # =======================================
@@ -188,22 +272,33 @@ async def send_otp(req: OTPRequest):
     
     otp = generate_otp()
     key = f"{req.center}_{req.mobile}"
+    manager_email = manager.get("email", "")
+    manager_name = manager.get("managerName", "Manager")
+    
     otp_store[key] = {
         "otp": otp,
         "center": req.center.upper(),
         "mobile": req.mobile,
-        "managerName": manager.get("managerName", "Manager"),
-        "email": manager.get("email", ""),
+        "managerName": manager_name,
+        "email": manager_email,
         "created": datetime.now(timezone.utc).isoformat()
     }
     
-    # Log OTP for development
+    # Always log OTP for development/debugging
     logger.info(f"OTP for {req.center}/{req.mobile}: {otp}")
     
-    # In production, send email here via SMTP
-    # For now, OTP is logged to console
+    # Try to send email if configured
+    email_sent = False
+    if manager_email:
+        email_sent = send_otp_email(manager_email, otp, manager_name, req.center.upper())
     
-    return {"success": True, "message": "OTP sent (check server console for dev)"}
+    if email_sent:
+        # Mask email for response
+        email_parts = manager_email.split("@")
+        masked_email = email_parts[0][:3] + "***@" + email_parts[1] if len(email_parts) == 2 else "***"
+        return {"success": True, "message": f"OTP sent to {masked_email}"}
+    else:
+        return {"success": True, "message": "OTP generated (check server console for dev mode)"}
 
 @api_router.post("/verify_otp")
 async def verify_otp(req: OTPVerify):
