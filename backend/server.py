@@ -173,7 +173,9 @@ class PayslipGenRequest(BaseModel):
 # =======================================
 
 def generate_otp():
-    return ''.join(random.choices(string.digits, k=6))
+    lo = 10 ** (OTP_LEN - 1)
+    hi = (10 ** OTP_LEN) - 1
+    return str(random.randint(lo, hi))
 
 def generate_token():
     return secrets.token_urlsafe(32)
@@ -188,76 +190,48 @@ def days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
 
 def send_otp_email(to_email: str, otp: str, manager_name: str, center: str) -> bool:
-    """Send OTP via SMTP email"""
-    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ.get("SMTP_USER", "")
-    smtp_pass = os.environ.get("SMTP_PASS", "")
-    from_email = os.environ.get("SMTP_FROM", smtp_user)
+    """Send OTP via SMTP email - EXACT method from your original server.py"""
+    email_cfg = CFG.get("email", {}) or {}
+    
+    if not email_cfg.get("enabled"):
+        logger.warning("Email is disabled in config.json. OTP will be logged only.")
+        return False
+    
+    smtp_host = email_cfg.get("smtp_host", "smtp.gmail.com")
+    smtp_port = int(email_cfg.get("smtp_port", 587))
+    smtp_user = email_cfg.get("smtp_user", "")
+    smtp_pass = email_cfg.get("smtp_pass", "")
+    from_name = email_cfg.get("from_name", "Purnabramha Attendance")
+    from_email = email_cfg.get("from_email", smtp_user)
     
     if not smtp_user or not smtp_pass:
-        logger.warning("SMTP credentials not configured. OTP will be logged only.")
+        logger.warning("SMTP credentials not configured in config.json. OTP will be logged only.")
         return False
     
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Purnabramha IntraPB - Your Login OTP"
-        msg["From"] = f"Purnabramha IntraPB <{from_email}>"
+        msg = EmailMessage()
+        msg["Subject"] = "Your PB Attendance Login OTP"
+        msg["From"] = f"{from_name} <{from_email}>"
         msg["To"] = to_email
+        msg.set_content(
+            f"Dear {manager_name},\n\n"
+            f"Your OTP is: {otp}\n\n"
+            f"Center: {center}\n"
+            f"Valid for {OTP_TTL//60} minutes.\n\n"
+            "– Purnabramha Team\n"
+        )
         
-        # Plain text version
-        text = f"""
-Namaskar {manager_name},
-
-Your OTP for Purnabramha IntraPB Login is: {otp}
-
-Center: {center}
-Valid for: 10 minutes
-
-If you did not request this OTP, please ignore this email.
-
-Dhanyawad,
-Purnabramha Team
-"""
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
         
-        # HTML version
-        html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px; }}
-        .container {{ max-width: 500px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-        .header {{ text-align: center; color: #8B4513; margin-bottom: 20px; }}
-        .otp-box {{ background: linear-gradient(135deg, #8B4513, #D2691E); color: white; font-size: 32px; letter-spacing: 8px; text-align: center; padding: 20px; border-radius: 8px; margin: 20px 0; font-weight: bold; }}
-        .info {{ color: #666; font-size: 14px; }}
-        .footer {{ margin-top: 30px; text-align: center; color: #999; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🍽️ Purnabramha IntraPB</h1>
-            <p>Namaskar {manager_name}!</p>
-        </div>
-        <p>Your One-Time Password (OTP) for login:</p>
-        <div class="otp-box">{otp}</div>
-        <div class="info">
-            <p><strong>Center:</strong> {center}</p>
-            <p><strong>Valid for:</strong> 10 minutes</p>
-            <p>If you did not request this OTP, please ignore this email.</p>
-        </div>
-        <div class="footer">
-            <p>Dhanyawad! 🙏</p>
-            <p>Purnabramha - The Largest Maharashtrian Restaurant</p>
-        </div>
-    </div>
-</body>
-</html>
-"""
+        logger.info(f"OTP email sent successfully to {to_email}")
+        return True
         
-        msg.attach(MIMEText(text, "plain"))
-        msg.attach(MIMEText(html, "html"))
+    except Exception as e:
+        logger.error(f"[OTP-EMAIL-FAIL] {e}")
+        return False
         
         with smtplib.SMTP(smtp_host, smtp_port) as server:
             server.starttls()
