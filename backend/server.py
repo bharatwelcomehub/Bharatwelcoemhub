@@ -1086,7 +1086,7 @@ async def payslips_generate(req: PayslipGenRequest):
                 c.drawCentredString(width/2, height - 1.65*inch, "SALARY SLIP")
                 
                 # ============ EMPLOYEE DETAILS ============
-                y = height - 1.5*inch
+                y = height - 1.9*inch
                 c.setFont("Helvetica", 9)
                 
                 # Left side - Employee info
@@ -1111,8 +1111,8 @@ async def payslips_generate(req: PayslipGenRequest):
                 c.drawString(0.5*inch, y, f"Date of Joining : {emp.get('doj', 'N/A')}")
                 
                 # ============ MAIN TABLE BOX ============
-                box_top = height - 2.4*inch
-                box_bottom = 1.4*inch
+                box_top = height - 2.8*inch
+                box_bottom = 1.6*inch
                 box_left = 0.4*inch
                 box_right = width - 0.4*inch
                 mid_col = 4.2*inch  # Divider between left and right sections
