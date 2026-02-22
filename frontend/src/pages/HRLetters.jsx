@@ -37,20 +37,9 @@ const LETTER_TYPES = [
   { value: "visa", label: "Visa Letter", icon: Plane, description: "Immigration support letter" }
 ];
 
-const CENTERS = [
-  { value: "PB-MGT", label: "PB-MGT - Management (HQ)" },
-  { value: "PB-HSR", label: "PB-HSR - HSR Layout" },
-  { value: "PB-KAL", label: "PB-KAL - Kalyan Nagar" },
-  { value: "PB-IND", label: "PB-IND - Indiranagar" },
-  { value: "PB-JAY", label: "PB-JAY - Jayanagar" },
-  { value: "PB-MAL", label: "PB-MAL - Malleshwaram" },
-  { value: "PB-WHI", label: "PB-WHI - Whitefield" },
-  { value: "PB-BAN", label: "PB-BAN - Banashankari" },
-  { value: "ALL", label: "All Centers" }
-];
-
 export default function HRLetters() {
   const [allEmployees, setAllEmployees] = useState([]);
+  const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
