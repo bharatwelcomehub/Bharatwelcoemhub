@@ -26,7 +26,7 @@ export default function Login() {
     setLoading(true);
     try {
       await api.post("/send_otp", { center, mobile });
-      toast.success("OTP sent! Check server console for dev OTP (or use 123456)");
+      toast.success("OTP sent to your registered email!");
       setStep(2);
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to send OTP");
@@ -156,7 +156,7 @@ export default function Login() {
                       maxLength={6}
                     />
                     <p className="text-xs text-muted-foreground text-center">
-                      Dev mode: Use <span className="font-mono bg-muted px-1 rounded">123456</span> as OTP
+                      OTP is sent to registered manager email. Contact admin if you don't receive it.
                     </p>
                   </div>
 
