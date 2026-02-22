@@ -2214,15 +2214,26 @@ async def download_hr_letter(req: HRLetterDownloadRequest):
                 story.append(Spacer(1, 0.1*inch))
                 continue
             
-            # Convert markdown bold to HTML
-            line = line.replace('**', '<b>').replace('**', '</b>')
+            # Convert markdown bold to HTML properly
+            # Replace pairs of ** with <b> and </b>
+            import re
+            line = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', line)
+            
             # Handle single asterisks for bullet points
             if line.startswith('- '):
                 line = f"• {line[2:]}"
             elif line.startswith('* '):
                 line = f"• {line[2:]}"
             
-            story.append(Paragraph(line, body_style))
+            # Escape any remaining problematic characters
+            line = line.replace('&', '&amp;')
+            
+            try:
+                story.append(Paragraph(line, body_style))
+            except Exception as pe:
+                # If paragraph fails, add as plain text without formatting
+                clean_line = re.sub(r'<[^>]+>', '', line)  # Remove all HTML tags
+                story.append(Paragraph(clean_line, body_style))
         
         # Signature section
         story.append(Spacer(1, 0.3*inch))
