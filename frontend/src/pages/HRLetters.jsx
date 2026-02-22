@@ -86,14 +86,28 @@ export default function HRLetters() {
           return;
         }
         
-        const res = await api.get(`/hr_letter/employees?token=${token}`);
-        setAllEmployees(res.data.employees || []);
+        // Load employees and centers in parallel
+        const [empRes, centerRes] = await Promise.all([
+          api.get(`/hr_letter/employees?token=${token}`),
+          api.post("/mgt/centers", { token })
+        ]);
+        
+        setAllEmployees(empRes.data.employees || []);
+        
+        // Transform centers for dropdown
+        const centersFromDb = (centerRes.data.centers || []).map(c => ({
+          value: c.code,
+          label: `${c.code} - ${c.name?.replace('Purnabramha ', '')}`
+        }));
+        // Add "ALL" option
+        centersFromDb.push({ value: "ALL", label: "All Centers" });
+        setCenters(centersFromDb);
       } catch (e) {
-        console.error("Failed to load employees:", e);
+        console.error("Failed to load data:", e);
         if (e.response?.status === 403) {
           toast.error("Only PB-MGT can access HR Letters");
         } else {
-          toast.error("Failed to load employees");
+          toast.error("Failed to load data");
         }
       } finally {
         setLoading(false);
