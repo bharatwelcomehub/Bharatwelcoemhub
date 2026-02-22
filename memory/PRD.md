@@ -20,6 +20,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 6. **Employee Management**: CRUD operations (PB-MGT only)
 7. **Bhojan Guru**: Maharashtrian recipe database with 47 recipes, 5 thalis, 126 menu descriptions
 8. **Guest Response AI**: GPT-5.2 powered assistant with center-specific context
+9. **Recipe Admin**: Full CRUD for recipes (PB-MGT only)
 
 ## Centers & Contact Information
 | Center | Location | Phone |
@@ -41,12 +42,20 @@ User had existing HTML/Python files for an attendance and salary management syst
 ## What's Been Implemented
 
 ### Latest Update (Feb 22, 2026)
-- ✅ **Bhojan Guru Real Data**: Integrated user's RECIPE_DB.js and DESC_DB_WITH_MR.js files
+- ✅ **ResizeObserver Error Fixed**: Enhanced error suppression with debounced ResizeObserver
+- ✅ **Bhojan Guru with Real Recipes**: Using exact data from RECIPE_DB.js and DESC_DB_WITH_MR.js
   - 47 recipes with ingredients and method steps
   - 5 thali configurations
   - 126 menu descriptions in English and Marathi
   - Copy to clipboard functionality for chefs
   - Category filters (All, Drinks, Snacks, Mains, Sweets, Thalis)
+  
+- ✅ **Recipe Admin Panel (MGT Only)**: Full CRUD for recipes
+  - Create new recipes with ingredients and method steps
+  - Edit existing recipes
+  - Delete recipes
+  - Search functionality
+  - Category selection (Drinks, Snacks, Main Course, Sweets/Desserts)
   
 - ✅ **Guest Response AI Center Selector**: Added dropdown to select specific center
   - All 8 centers available in dropdown
@@ -58,7 +67,7 @@ User had existing HTML/Python files for an attendance and salary management syst
   - Falls back to console logging when SMTP not configured
   - Beautiful email template with Purnabramha branding
 
-### Backend APIs (30+ endpoints - 100% working)
+### Backend APIs (35+ endpoints - 100% working)
 - Authentication (send_otp, verify_otp)
 - Employee CRUD (create, update, delete, list)
 - Attendance (daily, monthly, bulk save)
@@ -67,7 +76,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 - Payslips generation
 - **Guest AI** (OpenAI GPT-5.2 powered) with center context
 - Center info API
-- **Recipes API** (47 recipes, 5 thalis, 13 bhojan guru items)
+- **Recipes API** (GET, POST, PUT, DELETE) - 47 recipes, 5 thalis
 - **Descriptions API** (126 menu items with English + Marathi)
 
 ### Frontend Pages
@@ -79,6 +88,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 - Payslips generation (MGT only)
 - **Bhojan Guru** - Recipe database with 3 tabs (Recipes, Thalis, Descriptions)
 - **Guest Response AI** - Chat interface with center selector
+- **Recipe Admin** - Full CRUD for recipes (MGT only)
 
 ### Database Collections
 - managers, employees, attendance, advances, payroll_locks, salary_rules, chat_history
@@ -95,13 +105,15 @@ User had existing HTML/Python files for an attendance and salary management syst
 - ✅ Center info with phone numbers
 - ✅ Bhojan Guru with real recipe data (47 recipes, 126 descriptions)
 - ✅ Guest Response center selector
+- ✅ Recipe Admin panel (MGT only)
+- ✅ ResizeObserver error fix
 
 ### P1 (Ready but needs config)
 - 🟡 Email OTP delivery (SMTP code ready, needs credentials)
   - Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS to backend/.env
 
 ### P2 (Future)
-- Chat history per manager
+- Chat history persistence per manager
 - Employee self-service portal
 - Mobile app version
 - Photo attendance
@@ -109,9 +121,9 @@ User had existing HTML/Python files for an attendance and salary management syst
 - Attendance analytics dashboard
 
 ## Testing Status
-- Backend: 100% tests passed (23/23)
+- Backend: 100% tests passed
 - Frontend: 100% tests passed
-- Latest test report: /app/test_reports/iteration_4.json
+- Recipe CRUD: Tested and working
 
 ## Technical Notes
 
@@ -126,8 +138,11 @@ SMTP_FROM=noreply@purnabramha.com
 ```
 
 ### Recipe Data Files
-- `/app/backend/recipe_data.json` - Parsed recipes (47 items)
-- `/app/backend/description_data.json` - Menu descriptions (126 items)
+- `/app/backend/recipe_data.json` - Parsed recipes (47 items from RECIPE_DB.js)
+- `/app/backend/description_data.json` - Menu descriptions (126 items from DESC_DB_WITH_MR.js)
 
 ### Dev Mode OTP
 For testing without email, OTP is logged to console and master OTP "123456" works.
+
+### Recipe Admin Access
+Only PB-MGT center managers can access Recipe Admin panel.
