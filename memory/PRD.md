@@ -79,19 +79,19 @@ User had existing HTML/Python files for an attendance and salary management syst
 - ✅ **OTP Email System** - Live email delivery
 - ✅ **Guest Response AI** - Center-based AI responses
 
-## Recipe Categories & Counts
+## Recipe Categories & Counts (Updated - 164 Total)
 | Category | Count | Examples |
 |----------|-------|----------|
-| SNACKS | 15 | Kanda Bhaji, Batata Vada, Kothimbir Vadi |
-| DRINKS | 10 | Solkadhi, Masala Buttermilk, Aam Panha |
-| BALGOPAL | 2 | Balgopal Aloochi Bhaji, Balgopal Misal Pav |
-| MAINS | 6 | Aloo Bhaji, Zhunka, Misal Usal |
-| CURRIES | 8 | Bharli Vangi, Kaju Curry, Special Kadhi |
-| RICE | 2 | Masale Bhaat, Plain Rice |
-| CHAPATI | 4 | Tandalachi Bhakri, Jowar Bhakri, Puri |
-| SWEETS | 19 | Puran Poli, Gajar Halwa, Modak, Shrikhand |
-| CHUTNEYS | 8 | Green Chutney, Thecha, Tamarind Chutney |
-| SALADS | 5 | Gajar Koshimber, Kakdi Koshimber |
+| SNACKS | 30+ | Kanda Bhaji, Batata Vada, Kothimbir Vadi, Sabudana Vada |
+| DRINKS | 12 | Solkadhi, Masala Buttermilk, Aam Panha, Rose Piyush |
+| BALGOPAL | 7 | Sabudana Khichadi, Sabudana Vada, Aloo Paratha, Kanda Poha |
+| MAINS | 25+ | Aloo Bhaji, Zhunka, Thalipith, Pithala, Various Bhajis |
+| CURRIES | 20+ | Bharli Vangi, Kaju Curry, Special Kadhi, Katachi Aamti |
+| RICE | 18 | Masale Bhaat, Dahi Bhat, Pulao, Wangi Bhat, Jeera Rice |
+| CHAPATI | 10 | Bhakri, Paratha, Phulka, Puri, Masala Puri |
+| SWEETS | 25+ | Puran Poli, Gajar Halwa, Modak, Shrikhand, Gulab Jamun |
+| CHUTNEYS | 10 | Green Chutney, Thecha, Tamarind, Panchamrut |
+| SALADS | 7 | Gajar Koshimber, Kakdi, Lauki, Pachaddi Koshimbir |
 
 ## Key API Endpoints
 
