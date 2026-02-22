@@ -1,52 +1,59 @@
 # Purnabramha IntraPB - Product Requirements Document
 
 ## Original Problem Statement
-User had existing HTML/Python files for an attendance and salary management system using Excel as database storage. Required migration to MongoDB with modern UI design while preserving all functionality. Added Guest Response AI feature, Bhojan Guru with recipes from user's PDF file, and Recipe Admin panel for MGT.
+User had existing HTML/Python files for an attendance and salary management system using Excel as database storage. Required migration to MongoDB with modern UI design while preserving all functionality. Added Guest Response AI feature, Bhojan Guru with recipes from user's PDF file, Recipe Admin panel for MGT, and HR Letters generation.
 
 ## Project Overview
-**Purnabramha IntraPB** - Internal portal for attendance, salary management, and guest response for Purnabramha Restaurant Chain (Manswini Foods Pvt. Ltd.)
+**Purnabramha IntraPB** - Internal portal for attendance, salary management, HR documents, and guest response for Purnabramha Restaurant Chain (Manswini Foods Pvt. Ltd.)
 
 ## What's Been Implemented
 
-### Latest Update (Feb 22, 2026 - Session 2)
-- ✅ **Salary Excel CREDIT_NARR/DEB_NARR Fix**
-  - CREDIT_NARR and DEBIT_NARR columns now ONLY populated when employee has Notes/Remark field filled
-  - Employees without remark have empty NARR columns
+### Latest Update (Feb 22, 2026 - Session 3)
 
-- ✅ **Bhojan Guru Complete Overhaul** - Matching original purnabramhai.html logic
-  - **Region Thali Tab**: Day-wise regional thali recommendations
-    - Sunday: Kolhapur - Mahalaxmi Thali
-    - Monday: Pune - Peshwe Thali
-    - Tuesday: Vidarbha - Vidarbha Thali
-    - Wednesday: Konkan - Konkan Thali
-    - Thursday: Marathwada - Marathwada Thali
-    - Friday: Mumbai - Mumbai Street Special
-    - Saturday: Khandesh - Khandeshi Thali
-  - **Body Need Tab**: 6-question questionnaire with AI recommendations
-    - Energy, Digestion, Mood, Spice comfort, Purpose, Weather
-  - **Recipes Tab**: 42+ recipes with category filters (Drinks, Snacks, Mains, Sweets, Fasting, Chutneys)
-  - **Menu Descriptions Tab**: English and Marathi descriptions
+- ✅ **Payslip PDF Format Fixed**
+  - Fixed text overlap issue (NET TAKE/Rs. overlapping)
+  - Added proper spacing between fields
+  - Updated footer with Purnabramha branding
+  - **New Signature**: "Mr. Sandeep Gadhwal, Director, MANASWINI FOODS PVT. LTD."
+
+- ✅ **HR Letters Generator (AI-Powered)** - New Feature
+  - **Offer Letter**: Generate professional offer letters for new employees
+  - **Exit Letter**: Resignation acceptance letters
+  - **Experience Letter**: Work experience certificates
+  - **Visa/Immigration Letter**: Support letters for visa applications with:
+    - Destination country
+    - Visa number
+    - Travel purpose (business, training, project work)
+    - Travel duration and dates
+    - Inviting company/organization
+    - Project details
+  - Uses GPT-5.2 for professional content generation
+  - Picks employee data from database automatically
+  - MGT-only access
 
 ### Previous Implementations
-- ✅ **OTP Email System** - Using EXACT method from original server.py
+- ✅ **Salary Excel CREDIT_NARR/DEB_NARR** - Uses remark if filled, defaults otherwise
+- ✅ **Bhojan Guru** - Region Thali, Body Need questionnaire, Recipes, Menu Descriptions
+- ✅ **OTP Email System** - Live email delivery
 - ✅ **Recipe Admin Panel (MGT Only)** - Full CRUD for recipes
-- ✅ **Guest Response AI with Center Selector**
-- ✅ **Salary Generation** - Excel file with ICICI bank format
-- ✅ **Payslip PDF Generation** - Formatted to match user's template
+- ✅ **Guest Response AI** - Center-based AI responses
 
 ## Key API Endpoints
-- `GET /api/bhojan_guru` - Returns bhojanGuru items, regionWise data, bodyNeedMatrix
-- `POST /api/bhojan_guru/body_need` - AI recommendations based on body needs
-- `GET /api/bhojan_guru/region/{day}` - Day-wise regional thali
-- `POST /api/generate_salary` - Generate salary Excel with NARR logic
+
+### HR Letters
+- `GET /api/hr_letter/employees?token=` - Get employees list (MGT only)
+- `POST /api/hr_letter/generate` - Generate HR letter with AI
+
+### Other Endpoints
+- `GET /api/bhojan_guru` - Bhojan Guru data
+- `POST /api/bhojan_guru/body_need` - Body need recommendations
+- `POST /api/generate_salary` - Generate salary Excel
 - `POST /api/payslips_generate` - Generate payslip PDFs
 
 ## Key Files
-- `/app/backend/server.py` - Main API server
-- `/app/backend/bhojan_guru_data.json` - Bhojan Guru region/body need data
-- `/app/backend/recipe_data.json` - 42 recipes from PDF
-- `/app/backend/config.json` - Email/SMTP configuration
-- `/app/frontend/src/pages/BhojanGuru.jsx` - Bhojan Guru frontend
+- `/app/backend/server.py` - Main API server with HR Letters endpoints
+- `/app/frontend/src/pages/HRLetters.jsx` - HR Letters UI
+- `/app/frontend/src/pages/Dashboard.jsx` - Updated with HR Letters nav
 
 ## Centers & Managers
 | Center | Manager | Mobile | Email |
@@ -58,18 +65,15 @@ User had existing HTML/Python files for an attendance and salary management syst
 - Center: PB-MGT
 - Mobile: 9741399190
 - Master OTP (dev mode): 123456
-- OTP sent to manager's registered email
-
-## Test Reports
-- `/app/test_reports/iteration_5.json` - All tests passed (100% backend, 100% frontend)
 
 ## Verified Features
-1. Bhojan Guru Region Thali - All 7 days working
-2. Bhojan Guru Body Need - 6 questions, returns recommendations
-3. Salary Excel NARR columns - Only populated with remark
-4. Payslip PDF generation - MANASWINI FOODS PVT. LTD. format
-5. OTP Email delivery - Working with user's SMTP credentials
+1. Payslip PDF - Fixed formatting, proper signature
+2. HR Letters - All 4 types working (offer, exit, experience, visa)
+3. Visa letters include all travel details from form inputs
+4. Employee data pulled from database automatically
 
 ## Backlog/Future
-- Refactor server.py into modular FastAPI routers for better maintainability
-- Add more Bhojan Guru items based on user feedback
+- Add company CIN number to letter templates
+- Generate PDF versions of HR letters
+- Add letterhead/logo to PDF letters
+- Email generated letters directly to employees
