@@ -269,7 +269,7 @@ export default function RecipeAdmin() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-primary" data-testid="recipe-admin-title">
             Recipe Admin
@@ -278,10 +278,28 @@ export default function RecipeAdmin() {
             Manage Purnabramha recipes • {Object.keys(recipes).length} total recipes
           </p>
         </div>
-        <Button onClick={startCreate} data-testid="add-recipe-btn">
-          <Plus className="w-4 h-4 mr-2" />
-          Add New Recipe
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button 
+            variant="outline" 
+            onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/docs/user-manual`, '_blank')}
+            data-testid="download-manual-btn"
+          >
+            <BookOpen className="w-4 h-4 mr-2" />
+            User Manual
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}/api/docs/brochure`, '_blank')}
+            data-testid="download-brochure-btn"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Recipe Brochure
+          </Button>
+          <Button onClick={startCreate} data-testid="add-recipe-btn">
+            <Plus className="w-4 h-4 mr-2" />
+            Add New Recipe
+          </Button>
+        </div>
       </div>
 
       {/* Search Bar */}
