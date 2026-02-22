@@ -313,6 +313,68 @@ class PurnabramhaAPITester:
         }
         self.run_test("Generate Payslips", "POST", "/payslips_generate", 200, payslip_req)
 
+    def test_guest_response_ai(self):
+        """Test Guest Response AI feature"""
+        if not self.token:
+            print("❌ No auth token - skipping Guest AI tests")
+            return
+            
+        print("\n" + "="*60)
+        print("TESTING GUEST RESPONSE AI")
+        print("="*60)
+        
+        # Test center info endpoint
+        success, response = self.run_test("Get Center Info", "GET", "/center_info", 200)
+        if success:
+            centers = response.get('centers', {})
+            print(f"   Found {len(centers)} centers in info")
+            
+            # Check if key centers exist
+            key_centers = ["PB-HSR", "PB-TH", "PB-SN", "PB-DV", "PB-HW", "PB-KN", "PB-KAL", "PB-PERTH"]
+            for center in key_centers:
+                if center in centers:
+                    center_data = centers[center]
+                    print(f"   ✅ {center}: {center_data.get('name', 'N/A')} - {center_data.get('phone', 'N/A')}")
+                else:
+                    print(f"   ❌ {center} not found in center info")
+        
+        # Test AI chat functionality
+        ai_request = {
+            "token": self.token,
+            "center": "PB-MGT",
+            "question": "What are the timings for Purnabramha restaurants?",
+            "sessionId": f"test_session_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        }
+        
+        success, response = self.run_test("Guest AI Response", "POST", "/guest_ai", 200, ai_request)
+        if success:
+            if 'answer' in response and 'sessionId' in response:
+                print(f"   ✅ AI Response received (length: {len(response.get('answer', ''))} chars)")
+                print(f"   Session ID: {response.get('sessionId', 'N/A')}")
+                
+                # Check if response contains restaurant info
+                answer = response.get('answer', '').lower()
+                if any(keyword in answer for keyword in ['12:00', 'pm', 'timing', 'purnabramha']):
+                    print(f"   ✅ Response contains relevant restaurant information")
+                else:
+                    print(f"   ⚠️  Response may not contain expected restaurant information")
+            else:
+                print(f"   ❌ AI response missing required fields")
+        
+        # Test another question
+        ai_request2 = {
+            "token": self.token,
+            "center": "PB-HSR",
+            "question": "What is the phone number for HSR location?",
+            "sessionId": ai_request["sessionId"]
+        }
+        
+        success, response = self.run_test("Guest AI HSR Query", "POST", "/guest_ai", 200, ai_request2)
+        if success and 'answer' in response:
+            answer = response.get('answer', '').lower()
+            if '85500' in answer or 'hsr' in answer:
+                print(f"   ✅ HSR-specific response detected")
+
     def test_bhojan_guru(self):
         """Test Bhojan Guru recipe endpoints"""
         print("\n" + "="*60)
