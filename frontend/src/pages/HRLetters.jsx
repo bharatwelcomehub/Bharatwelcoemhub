@@ -27,7 +27,9 @@ import {
   Plane,
   Building2,
   Calendar,
-  User
+  User,
+  FileDown,
+  File
 } from "lucide-react";
 
 const LETTER_TYPES = [
