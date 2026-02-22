@@ -37,8 +37,11 @@ export default function Salary({ isPayslips = false }) {
   const [employeeName, setEmployeeName] = useState("");
   const [payslipMode, setPayslipMode] = useState("bulk");
 
-  // All centers for selection (including PB-MGT)
-  const centerOptions = CENTERS;
+  // All centers for selection (including PB-MGT) + "ALL" option
+  const centerOptions = [
+    { code: "ALL", name: "All Centers (Combined)" },
+    ...CENTERS
+  ];
 
   // Preview salary on screen
   const previewSalary = async () => {
@@ -50,19 +53,75 @@ export default function Salary({ isPayslips = false }) {
     setPreviewLoading(true);
     setSalaryData(null);
     try {
-      const res = await api.post("/salary_preview", {
-        token: session.token,
-        month: month,
-        targetCenter: targetCenter
-      });
-      
-      setSalaryData(res.data);
-      toast.success(`Loaded salary data for ${res.data.employeeCount} employees`);
+      // If ALL selected, make multiple API calls and combine
+      if (targetCenter === "ALL") {
+        let allSalaryData = [];
+        let totalGross = 0, totalAdvance = 0, totalNet = 0;
+        let totalEmployees = 0;
+        
+        for (const center of CENTERS) {
+          try {
+            const res = await api.post("/salary_preview", {
+              token: session.token,
+              month: month,
+              targetCenter: center.code
+            });
+            
+            if (res.data.salaryData) {
+              allSalaryData = [...allSalaryData, ...res.data.salaryData];
+              totalGross += res.data.totals?.gross || 0;
+              totalAdvance += res.data.totals?.advance || 0;
+              totalNet += res.data.totals?.net || 0;
+              totalEmployees += res.data.employeeCount || 0;
+            }
+          } catch (e) {
+            // Skip centers with errors
+          }
+        }
+        
+        setSalaryData({
+          center: "ALL CENTERS",
+          month: month,
+          daysInMonth: new Date(month.split("-")[0], month.split("-")[1], 0).getDate(),
+          employeeCount: totalEmployees,
+          totals: {
+            gross: totalGross,
+            advance: totalAdvance,
+            net: totalNet
+          },
+          salaryData: allSalaryData
+        });
+        toast.success(`Loaded salary data for ${totalEmployees} employees across all centers`);
+      } else {
+        const res = await api.post("/salary_preview", {
+          token: session.token,
+          month: month,
+          targetCenter: targetCenter
+        });
+        
+        setSalaryData(res.data);
+        toast.success(`Loaded salary data for ${res.data.employeeCount} employees`);
+      }
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to load salary preview");
+      const errorMsg = await parseErrorFromBlob(e);
+      toast.error(errorMsg || "Failed to load salary preview");
     } finally {
       setPreviewLoading(false);
     }
+  };
+
+  // Helper to parse error from blob response
+  const parseErrorFromBlob = async (error) => {
+    if (error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text();
+        const json = JSON.parse(text);
+        return json.detail || "An error occurred";
+      } catch {
+        return "An error occurred";
+      }
+    }
+    return error.response?.data?.detail || error.message || "An error occurred";
   };
 
   // Generate and download salary Excel
@@ -78,11 +137,19 @@ export default function Salary({ isPayslips = false }) {
         token: session.token,
         center: "PB-MGT",
         month: month,
-        mode: "single",
-        targetCenter: targetCenter
+        mode: targetCenter === "ALL" ? "all" : "single",
+        targetCenter: targetCenter === "ALL" ? null : targetCenter
       }, {
         responseType: 'blob'
       });
+      
+      // Check if response is an error (JSON) instead of file
+      if (res.data.type === 'application/json') {
+        const text = await res.data.text();
+        const json = JSON.parse(text);
+        toast.error(json.detail || "Failed to generate salary");
+        return;
+      }
       
       // Create download link
       const blob = new Blob([res.data], { 
@@ -99,7 +166,8 @@ export default function Salary({ isPayslips = false }) {
       
       toast.success("Salary Excel downloaded!");
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to generate salary");
+      const errorMsg = await parseErrorFromBlob(e);
+      toast.error(errorMsg || "Failed to generate salary");
     } finally {
       setLoading(false);
     }
@@ -107,11 +175,11 @@ export default function Salary({ isPayslips = false }) {
 
   // Generate payslips
   const generatePayslips = async () => {
-    if (!targetCenter) {
-      toast.error("Please select a center first");
+    if (!targetCenter || targetCenter === "ALL") {
+      toast.error("Please select a specific center (not ALL)");
       return;
     }
-    if (payslipMode === "single" && !employeeName) {
+    if (payslipMode === "single" && !employeeName.trim()) {
       toast.error("Enter employee name for single mode");
       return;
     }
@@ -126,13 +194,22 @@ export default function Salary({ isPayslips = false }) {
         fmt: fmt,
         mode: payslipMode,
         targetCenter: targetCenter,
-        employeeName: payslipMode === "single" ? employeeName.toUpperCase() : null
+        employeeName: payslipMode === "single" ? employeeName.trim().toUpperCase() : null
       }, {
         responseType: 'blob'
       });
       
+      // Check if response is an error (JSON) instead of file
+      const contentType = res.headers['content-type'] || '';
+      if (contentType.includes('application/json')) {
+        const text = await res.data.text();
+        const json = JSON.parse(text);
+        toast.error(json.detail || "Failed to generate payslips");
+        return;
+      }
+      
       // Determine file type
-      const isZip = res.headers['content-type']?.includes('zip');
+      const isZip = contentType.includes('zip');
       const blob = new Blob([res.data], { 
         type: isZip ? 'application/zip' : 'application/pdf' 
       });
@@ -141,7 +218,7 @@ export default function Salary({ isPayslips = false }) {
       link.href = url;
       link.download = isZip 
         ? `Payslips_${targetCenter}_${month}.zip` 
-        : `Payslip_${targetCenter}_${month}.pdf`;
+        : `Payslip_${payslipMode === "single" ? employeeName.trim().toUpperCase() : targetCenter}_${month}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -149,7 +226,8 @@ export default function Salary({ isPayslips = false }) {
       
       toast.success("Payslip(s) downloaded!");
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to generate payslips");
+      const errorMsg = await parseErrorFromBlob(e);
+      toast.error(errorMsg || "Failed to generate payslips");
     } finally {
       setLoading(false);
     }
@@ -225,7 +303,9 @@ export default function Salary({ isPayslips = false }) {
                 </SelectTrigger>
                 <SelectContent>
                   {centerOptions.map(c => (
-                    <SelectItem key={c.code} value={c.code}>{c.code} - {c.name}</SelectItem>
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.code === "ALL" ? "📊 ALL CENTERS (Combined)" : `${c.code} - ${c.name}`}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -276,13 +356,16 @@ export default function Salary({ isPayslips = false }) {
 
                 {payslipMode === "single" && (
                   <div className="space-y-2">
-                    <Label>Employee Name</Label>
+                    <Label>Employee Name (exact match)</Label>
                     <Input
                       value={employeeName}
                       onChange={(e) => setEmployeeName(e.target.value)}
-                      placeholder="EMPLOYEE NAME (CAPS)"
+                      placeholder="e.g., EKTA SURESHKUMAR RAVAL"
                       data-testid="employee-name"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Enter FULL name in CAPS as shown in employee list
+                    </p>
                   </div>
                 )}
               </>
@@ -309,7 +392,7 @@ export default function Salary({ isPayslips = false }) {
             
             <Button
               onClick={isPayslips ? generatePayslips : generateSalary}
-              disabled={loading || !targetCenter}
+              disabled={loading || !targetCenter || (isPayslips && targetCenter === "ALL")}
               data-testid="generate-btn"
             >
               {loading ? (
@@ -373,6 +456,7 @@ export default function Salary({ isPayslips = false }) {
                   <TableRow>
                     <TableHead className="w-[200px]">Employee</TableHead>
                     <TableHead>Designation</TableHead>
+                    <TableHead>Center</TableHead>
                     <TableHead className="text-right">Monthly</TableHead>
                     <TableHead className="text-right">Days</TableHead>
                     <TableHead className="text-right">Gross</TableHead>
@@ -385,6 +469,7 @@ export default function Salary({ isPayslips = false }) {
                     <TableRow key={idx} data-testid={`salary-row-${idx}`}>
                       <TableCell className="font-medium">{emp.employeeName}</TableCell>
                       <TableCell>{emp.designation}</TableCell>
+                      <TableCell><Badge variant="outline">{emp.center}</Badge></TableCell>
                       <TableCell className="text-right">{formatCurrency(emp.monthlySalary)}</TableCell>
                       <TableCell className="text-right">
                         <Badge variant="outline">{emp.presentDays}/{emp.daysInMonth}</Badge>
@@ -415,12 +500,14 @@ export default function Salary({ isPayslips = false }) {
           </h4>
           {isPayslips ? (
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Select center to generate payslips for all employees</li>
+              <li>• Select a specific center to generate payslips</li>
               <li>• Use "Single Employee" mode for individual payslip</li>
+              <li>• Enter FULL employee name in CAPS (e.g., EKTA SURESHKUMAR RAVAL)</li>
               <li>• PDF format recommended for printing</li>
             </ul>
           ) : (
             <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• Select "ALL CENTERS" to view combined salary for all locations</li>
               <li>• <Badge variant="outline" className="status-P">P</Badge> Present = 1 day</li>
               <li>• <Badge variant="outline" className="status-HD">HD</Badge> Half Day = 0.5 day</li>
               <li>• <Badge variant="outline" className="status-WO">WO</Badge> Weekly Off = 1 day (paid)</li>
