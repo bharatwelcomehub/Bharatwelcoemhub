@@ -443,7 +443,7 @@ export default function HRLetters() {
                   <SelectValue placeholder="Choose center first" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CENTERS.map((c) => (
+                  {centers.map((c) => (
                     <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                   ))}
                 </SelectContent>
