@@ -1612,20 +1612,24 @@ async def body_need_suggestion(
 # Recipe management models
 class RecipeCreate(BaseModel):
     key: str
+    name: str
     display: str
     ingredients: List[str] = []
     method: List[str] = []
-    category: Optional[str] = "mains"
+    category: str = "MAINS"
+    image: Optional[str] = ""
 
 class RecipeUpdate(BaseModel):
+    name: Optional[str] = None
     display: Optional[str] = None
     ingredients: Optional[List[str]] = None
     method: Optional[List[str]] = None
     category: Optional[str] = None
+    image: Optional[str] = None
 
 def save_recipe_data(data: dict):
     """Save recipe data to JSON file"""
-    recipe_file = ROOT_DIR / "recipe_data.json"
+    recipe_file = ROOT_DIR / "recipes_db.json"
     with open(recipe_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -1650,10 +1654,12 @@ async def create_recipe(req: RecipeCreate, token: str):
         data["recipes"] = {}
     
     data["recipes"][req.key] = {
+        "name": req.name,
         "display": req.display,
         "ingredients": req.ingredients,
         "method": req.method,
-        "category": req.category
+        "category": req.category.upper(),
+        "image": req.image or ""
     }
     
     save_recipe_data(data)
@@ -1678,6 +1684,8 @@ async def update_recipe(recipe_key: str, req: RecipeUpdate, token: str):
     
     # Update fields
     recipe = data["recipes"][recipe_key]
+    if req.name is not None:
+        recipe["name"] = req.name
     if req.display is not None:
         recipe["display"] = req.display
     if req.ingredients is not None:
@@ -1685,7 +1693,9 @@ async def update_recipe(recipe_key: str, req: RecipeUpdate, token: str):
     if req.method is not None:
         recipe["method"] = req.method
     if req.category is not None:
-        recipe["category"] = req.category
+        recipe["category"] = req.category.upper()
+    if req.image is not None:
+        recipe["image"] = req.image
     
     save_recipe_data(data)
     logger.info(f"Recipe updated: {recipe_key} by {session.get('managerName')}")
@@ -1713,6 +1723,32 @@ async def delete_recipe(recipe_key: str, token: str):
     logger.info(f"Recipe deleted: {recipe_key} by {session.get('managerName')}")
     
     return {"success": True, "message": f"Recipe '{recipe_key}' deleted successfully"}
+
+@api_router.get("/recipes/categories")
+async def get_recipe_categories():
+    """Get all recipe categories"""
+    data = load_recipe_data()
+    return {"categories": data.get("categories", [])}
+
+@api_router.get("/recipes/search")
+async def search_recipes(q: str = ""):
+    """Search recipes by name or display"""
+    data = load_recipe_data()
+    recipes = data.get("recipes", {})
+    
+    if not q:
+        return {"recipes": recipes}
+    
+    q_lower = q.lower()
+    filtered = {}
+    for key, recipe in recipes.items():
+        name = recipe.get("name", "").lower()
+        display = recipe.get("display", "").lower()
+        category = recipe.get("category", "").lower()
+        if q_lower in name or q_lower in display or q_lower in key or q_lower in category:
+            filtered[key] = recipe
+    
+    return {"recipes": filtered}
 
 # =======================================
 # GUEST RESPONSE AI ENDPOINTS
