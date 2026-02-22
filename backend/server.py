@@ -887,9 +887,10 @@ async def generate_salary(req: SalaryGenRequest):
             salary = float(emp.get("currentSalary", 0) or 0)
             
             # Get remark/notes for CREDIT_NARR and DEBIT_NARR
+            # ONLY populate if employee has a remark/notes filled in their data
             emp_remark = emp.get("remark", "").strip()
-            credit_narr = emp_remark if emp_remark else f"SALARY {req.month}"
-            debit_narr = emp_remark if emp_remark else "SALARY"
+            credit_narr = emp_remark if emp_remark else ""
+            debit_narr = emp_remark if emp_remark else ""
             
             # Calculate working days
             present_days = 0
