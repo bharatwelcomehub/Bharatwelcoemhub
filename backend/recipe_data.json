@@ -791,19 +791,6 @@
         "Cook in oil on low flame with little water.",
         "Cook till tender, thick gravy."
       ]
-    },
-    "test_recipe_123": {
-      "display": "Test Recipe for Chef",
-      "ingredients": [
-        "Water - 500ml",
-        "Sugar - 100g"
-      ],
-      "method": [
-        "Boil water",
-        "Add sugar",
-        "Mix well"
-      ],
-      "category": "drinks"
     }
   },
   "thalis": {
