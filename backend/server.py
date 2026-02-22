@@ -926,14 +926,16 @@ async def generate_salary(req: SalaryGenRequest):
         wb.save(output)
         output.seek(0)
         
-        filename = f"Salary_{req.month}_{req.mode}.xlsx"
+        filename = f"Salary_{req.targetCenter or 'ALL'}_{req.month}.xlsx"
         
-        # Save to static for download
-        file_path = static_path / filename
-        with open(file_path, "wb") as f:
-            f.write(output.getvalue())
-        
-        return {"success": True, "file": filename, "downloadUrl": f"/static/{filename}"}
+        # Return file directly as download
+        return Response(
+            content=output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
         
     except Exception as e:
         logger.error(f"Salary generation error: {e}")
