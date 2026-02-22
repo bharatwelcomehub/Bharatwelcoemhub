@@ -1269,6 +1269,166 @@ async def get_descriptions():
     """Get all menu item descriptions in English and Marathi"""
     return {"descriptions": load_description_data()}
 
+# Load Bhojan Guru data
+def load_bhojan_guru_data():
+    bhojan_file = ROOT_DIR / "bhojan_guru_data.json"
+    if bhojan_file.exists():
+        with open(bhojan_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"bhojanGuru": {}, "regionWise": {}, "bodyNeedMatrix": {}}
+
+@api_router.get("/bhojan_guru")
+async def get_bhojan_guru():
+    """Get Bhojan Guru recommendations data - mood/occasion/season based suggestions"""
+    data = load_bhojan_guru_data()
+    return {
+        "bhojanGuru": data.get("bhojanGuru", {}),
+        "regionWise": data.get("regionWise", {}),
+        "bodyNeedMatrix": data.get("bodyNeedMatrix", {})
+    }
+
+@api_router.post("/bhojan_guru/suggest")
+async def suggest_by_filters(
+    mood: Optional[str] = None,
+    occasion: Optional[str] = None,
+    season: Optional[str] = None,
+    spice: Optional[str] = None
+):
+    """Get dish suggestions based on mood, occasion, season, and spice preference"""
+    data = load_bhojan_guru_data()
+    bhojan_guru = data.get("bhojanGuru", {})
+    
+    suggestions = []
+    for key, item in bhojan_guru.items():
+        score = 0
+        
+        # Check mood match
+        if mood and mood.lower() in [m.lower() for m in item.get("mood", [])]:
+            score += 2
+        
+        # Check occasion match
+        if occasion and occasion.lower() in [o.lower() for o in item.get("occasion", [])]:
+            score += 2
+        
+        # Check season match
+        item_seasons = [s.lower() for s in item.get("season", [])]
+        if season and (season.lower() in item_seasons or "all" in item_seasons):
+            score += 1
+        
+        # Check spice match
+        if spice and spice.lower() == item.get("spice", "").lower():
+            score += 1
+        
+        if score > 0:
+            suggestions.append({
+                "key": key,
+                "display": item.get("display"),
+                "score": score,
+                "mood": item.get("mood", []),
+                "occasion": item.get("occasion", []),
+                "spice": item.get("spice"),
+                "tags": item.get("tags", []),
+                "best_with": item.get("best_with", []),
+                "combo": item.get("combo", []),
+                "upsell": item.get("upsell", [])
+            })
+    
+    # Sort by score descending
+    suggestions.sort(key=lambda x: x["score"], reverse=True)
+    
+    return {"suggestions": suggestions[:10]}
+
+@api_router.get("/bhojan_guru/region/{day}")
+async def get_region_recommendation(day: str):
+    """Get region-wise thali recommendation for a specific day"""
+    data = load_bhojan_guru_data()
+    region_wise = data.get("regionWise", {})
+    
+    day_capitalized = day.capitalize()
+    if day_capitalized in region_wise:
+        return {"day": day_capitalized, "recommendation": region_wise[day_capitalized]}
+    
+    return {"day": day_capitalized, "recommendation": None, "message": "No recommendation for this day"}
+
+@api_router.post("/bhojan_guru/body_need")
+async def body_need_suggestion(
+    energy: str = "normal",
+    digestion: str = "normal",
+    mood: str = "calm",
+    spice: str = "mild",
+    purpose: str = "family",
+    weather: str = "any"
+):
+    """Generate food recommendation based on body needs (6 questions)"""
+    data = load_bhojan_guru_data()
+    matrix = data.get("bodyNeedMatrix", {})
+    bhojan_guru = data.get("bhojanGuru", {})
+    
+    # Collect preferences and avoidances
+    prefer_tags = set()
+    avoid_tags = set()
+    
+    for category, value in [
+        ("energy", energy),
+        ("digestion", digestion),
+        ("mood", mood),
+        ("spice", spice),
+        ("purpose", purpose),
+        ("weather", weather)
+    ]:
+        if category in matrix and value in matrix[category]:
+            prefer_tags.update(matrix[category][value].get("prefer", []))
+            avoid_tags.update(matrix[category][value].get("avoid", []))
+    
+    # Score items based on preferences
+    recommendations = []
+    for key, item in bhojan_guru.items():
+        item_tags = set([t.lower() for t in item.get("tags", [])])
+        item_tags.add(item.get("spice", "").lower())
+        
+        # Calculate score
+        score = 0
+        
+        # Add points for matching preferences
+        for pref in prefer_tags:
+            if pref.lower() in item_tags or pref.lower() in key.lower():
+                score += 1
+        
+        # Subtract points for things to avoid
+        for avoid in avoid_tags:
+            if avoid.lower() in item_tags or avoid.lower() in key.lower():
+                score -= 2
+        
+        # Bonus for mild items if digestion is sensitive
+        if digestion == "sensitive" and item.get("spice") in ["mild", "very mild", "sweet"]:
+            score += 2
+        
+        # Bonus for cooling items in hot weather
+        if weather == "hot" and "cooling" in [m.lower() for m in item.get("mood", [])]:
+            score += 2
+        
+        # Bonus for comfort food when stressed
+        if mood == "stressed" and "comfort" in [m.lower() for m in item.get("mood", [])]:
+            score += 2
+        
+        recommendations.append({
+            "key": key,
+            "display": item.get("display"),
+            "score": score,
+            "spice": item.get("spice"),
+            "tags": item.get("tags", []),
+            "best_with": item.get("best_with", [])
+        })
+    
+    # Sort and return top recommendations
+    recommendations.sort(key=lambda x: x["score"], reverse=True)
+    
+    return {
+        "recommendations": recommendations[:5],
+        "preferences": list(prefer_tags),
+        "avoidances": list(avoid_tags)
+    }
+
 # Recipe management models
 class RecipeCreate(BaseModel):
     key: str
