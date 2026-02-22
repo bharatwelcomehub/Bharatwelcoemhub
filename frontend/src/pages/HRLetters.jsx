@@ -263,11 +263,21 @@ export default function HRLetters() {
                   ))}
                 </SelectContent>
               </Select>
+              {employees.length === 0 && !loading && (
+                <p className="text-sm text-destructive">No employees found. Please add employees first.</p>
+              )}
+              {employees.length > 0 && (
+                <p className="text-xs text-muted-foreground">{employees.length} employees available</p>
+              )}
               {selectedEmpDetails && (
-                <div className="text-sm text-muted-foreground bg-muted p-2 rounded">
-                  <p><strong>Designation:</strong> {selectedEmpDetails.designation || "N/A"}</p>
-                  <p><strong>Center:</strong> {selectedEmpDetails.center}</p>
-                  <p><strong>DOJ:</strong> {selectedEmpDetails.dateOfJoining || "N/A"}</p>
+                <div className="text-sm bg-primary/5 border border-primary/20 p-3 rounded-lg space-y-1">
+                  <p className="font-semibold text-primary">{selectedEmpDetails.name}</p>
+                  <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                    <p><strong>Center:</strong> {selectedEmpDetails.center}</p>
+                    <p><strong>Designation:</strong> {selectedEmpDetails.designation || "N/A"}</p>
+                    <p><strong>DOJ:</strong> {selectedEmpDetails.dateOfJoining || "N/A"}</p>
+                    <p><strong>Salary:</strong> Rs. {selectedEmpDetails.currentSalary?.toLocaleString() || "N/A"}</p>
+                  </div>
                 </div>
               )}
             </div>
