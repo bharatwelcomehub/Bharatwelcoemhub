@@ -15,7 +15,8 @@ import {
   X,
   Building2,
   Clock,
-  MessageCircle
+  MessageCircle,
+  Settings
 } from "lucide-react";
 
 // Import pages
@@ -24,6 +25,7 @@ import Employees from "@/pages/Employees";
 import Salary from "@/pages/Salary";
 import BhojanGuru from "@/pages/BhojanGuru";
 import GuestResponse from "@/pages/GuestResponse";
+import RecipeAdmin from "@/pages/RecipeAdmin";
 
 const navItems = [
   { path: "/", icon: Calendar, label: "Attendance", forAll: true },
@@ -32,6 +34,7 @@ const navItems = [
   { path: "/salary", icon: FileSpreadsheet, label: "Salary", forMGT: true },
   { path: "/payslips", icon: FileText, label: "Payslips", forMGT: true },
   { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", forAll: true },
+  { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", forMGT: true },
 ];
 
 export default function Dashboard() {
