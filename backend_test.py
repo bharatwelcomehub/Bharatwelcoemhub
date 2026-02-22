@@ -410,12 +410,13 @@ class PurnabramhaAPITester:
         # Test authentication (critical for other tests)
         auth_success = self.test_auth_flow()
         
+        # Test all authenticated endpoints
         if auth_success:
-            # Test all authenticated endpoints
             self.test_employee_management()
             self.test_attendance_management() 
             self.test_advances_management()
             self.test_payroll_management()
+            self.test_guest_response_ai()  # New Guest AI tests
         
         # Test public endpoints
         self.test_bhojan_guru()
