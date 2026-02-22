@@ -2775,6 +2775,19 @@ async def mgt_manager_delete(data: dict):
 # USER MANUAL & BROCHURE PDF GENERATION
 # =======================================
 
+@api_router.get("/download/user-manual")
+async def download_user_manual():
+    """Download the pre-generated User Manual PDF - No auth required"""
+    pdf_path = ROOT_DIR / "static" / "Purnabramha_User_Manual.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(404, "User Manual not found")
+    
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename="Purnabramha_User_Manual.pdf"
+    )
+
 @api_router.get("/docs/user-manual")
 async def generate_user_manual():
     """Generate User Manual PDF for the Purnabramha IntraPB System"""
