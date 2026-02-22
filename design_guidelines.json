@@ -1,0 +1,180 @@
+{
+  "identity": {
+    "name": "Purnabramha IntraPB",
+    "persona": "The Royal Manager",
+    "vibe": "Authentic, Efficient, Culturally Rich, Trustworthy",
+    "theme_mode": "light",
+    "emotional_archetype": "Organic & Earthy (with Royal accents)"
+  },
+  "typography": {
+    "fonts": {
+      "heading_english": "Playfair Display, serif",
+      "heading_marathi": "Tiro Devanagari Marathi, serif",
+      "body_english": "Manrope, sans-serif",
+      "body_marathi": "Noto Sans Devanagari, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl font-bold tracking-tight",
+      "h2": "text-3xl md:text-4xl font-semibold tracking-tight",
+      "h3": "text-2xl font-semibold",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm font-medium tracking-wide"
+    },
+    "usage_rules": [
+      "Use 'Playfair Display' for all English Headings (h1, h2, h3).",
+      "Use 'Tiro Devanagari Marathi' for all Marathi Headings.",
+      "Use 'Manrope' for all English UI text (buttons, inputs, tables).",
+      "Use 'Noto Sans Devanagari' for all Marathi UI text.",
+      "For bilingual text, prioritize Marathi visibility if the user locale is Marathi, otherwise English.",
+      "Headings must have 'text-primary' color unless on a dark background."
+    ]
+  },
+  "colors": {
+    "palette": {
+      "primary": "#7A0000",
+      "primary_foreground": "#FDFBF7",
+      "secondary": "#C79B2F",
+      "secondary_foreground": "#2D2424",
+      "accent": "#F4EBD0",
+      "accent_foreground": "#7A0000",
+      "background": "#FFFCF5",
+      "foreground": "#2D2424",
+      "card": "#FFFFFF",
+      "card_foreground": "#2D2424",
+      "border": "#E6DCC5",
+      "input": "#E6DCC5",
+      "ring": "#7A0000",
+      "muted": "#F5F0E6",
+      "muted_foreground": "#6C6464",
+      "success": "#2E7D32",
+      "warning": "#F57F17",
+      "error": "#D32F2F"
+    },
+    "gradients": {
+      "royal_gold": "linear-gradient(135deg, #C79B2F 0%, #E6DCC5 100%)",
+      "deep_maroon": "linear-gradient(135deg, #7A0000 0%, #4A0000 100%)",
+      "warm_overlay": "linear-gradient(to bottom, rgba(255, 252, 245, 0) 0%, #FFFCF5 100%)"
+    },
+    "usage_rules": [
+      "Primary (Maroon) is for Main Actions (Buttons) and Key Headers.",
+      "Secondary (Gold) is for Borders, Icons, and Accent Highlights. NEVER use Gold for main body text.",
+      "Background is Warm Cream (#FFFCF5), not pure white.",
+      "Cards are Pure White (#FFFFFF) with a subtle 'border-sand' border.",
+      "Error states (Absent) should be distinct from Brand Maroon. Use '#D32F2F' for errors/alerts."
+    ]
+  },
+  "layout": {
+    "spacing_system": [
+      "p-1", "p-2", "p-4", "p-6", "p-8", "p-12", "p-16", "p-24", "p-32"
+    ],
+    "border_radius": {
+      "default": "rounded-lg",
+      "card": "rounded-xl",
+      "button": "rounded-md"
+    },
+    "grid_strategy": {
+      "dashboard": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+      "attendance": "grid-cols-1 gap-4 (High Density)",
+      "bento_hero": "grid-cols-1 md:grid-cols-12 gap-6"
+    },
+    "containers": {
+      "main": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+      "narrow": "max-w-3xl mx-auto px-4"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md",
+      "secondary": "bg-secondary/20 text-secondary-foreground hover:bg-secondary/30 border border-secondary/50",
+      "outline": "border-2 border-primary text-primary hover:bg-primary/5",
+      "ghost": "hover:bg-accent hover:text-accent-foreground"
+    },
+    "cards": {
+      "style": "bg-card text-card-foreground border border-border shadow-sm hover:shadow-md transition-shadow duration-200",
+      "padding": "p-6"
+    },
+    "inputs": {
+      "style": "bg-white border-input focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-md h-10 px-3"
+    },
+    "navigation": {
+      "sidebar": "bg-primary text-primary-foreground w-64 fixed h-full",
+      "sidebar_item": "flex items-center px-4 py-3 hover:bg-white/10 transition-colors cursor-pointer text-sm font-medium",
+      "sidebar_item_active": "bg-secondary text-secondary-foreground font-bold border-l-4 border-white"
+    }
+  },
+  "motion": {
+    "transitions": {
+      "default": "transition-all duration-200 ease-in-out",
+      "hover": "transition-colors duration-200"
+    },
+    "animations": {
+      "fade_in": "animate-in fade-in duration-500",
+      "slide_up": "animate-in slide-in-from-bottom-4 duration-500",
+      "pulse_slow": "animate-pulse duration-[3000ms]"
+    }
+  },
+  "images": {
+    "login_bg": {
+      "url": "https://images.unsplash.com/photo-1765360773028-6affda725695?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjByZXN0YXVyYW50JTIwaW50ZXJpb3IlMjBsdXh1cnl8ZW58MHx8fHwxNzcxNzI4MTUwfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Elegant dining room, luxurious Indian restaurant interior. Use as full-screen background with overlay for Login.",
+      "category": "background"
+    },
+    "food_thali": {
+      "url": "https://images.pexels.com/photos/17223838/pexels-photo-17223838.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Traditional Maharashtra thali. Use for Bhojan Guru landing or dashboard widgets.",
+      "category": "content"
+    },
+    "food_misal": {
+      "url": "https://images.pexels.com/photos/17223835/pexels-photo-17223835.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Misal Pav platter. Use for Bhojan Guru recommendations.",
+      "category": "content"
+    },
+    "marigold_accent": {
+      "url": "https://images.unsplash.com/photo-1765087910207-c3942f93714a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxtYXJpZ29sZCUyMGZsb3dlcnMlMjBkZWNvcmF0aW9ufGVufDB8fHx8MTc3MTcyODE1Mnww&ixlib=rb-4.1.0&q=85",
+      "description": "Bright orange marigolds. Use as a subtle texture or header accent image.",
+      "category": "accent"
+    },
+    "chef_cooking": {
+      "url": "https://images.pexels.com/photos/32742922/pexels-photo-32742922.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Chef seasoning dish. Use for Employee Management or Kitchen view.",
+      "category": "content"
+    }
+  },
+  "assets": {
+    "icons_library": "lucide-react",
+    "logo_placeholder": "Use Text 'Purnabramha' in 'Playfair Display' font, Gold color."
+  },
+  "instructions_to_main_agent": [
+    "1. UPDATE THEME: Immediately update 'index.css' to reflect the new color variables (Cream background, Maroon Primary).",
+    "2. FONT SETUP: Add 'Playfair Display', 'Manrope', 'Tiro Devanagari Marathi', and 'Noto Sans Devanagari' via Google Fonts in 'index.html' or CSS import.",
+    "3. LAYOUT: Implement a Sidebar Layout for the Dashboard. The Sidebar must use the Primary (Maroon) background.",
+    "4. ATTENDANCE: Use Shadcn Table for the Attendance Grid. It must be dense and scanable.",
+    "5. AUTH: The Login page must use the 'login_bg' image with a heavy dark overlay (bg-black/60) to ensure the Login Form pops.",
+    "6. BHOJAN GURU: This is a Chat/Recommendation interface. Make it friendly, using 'food_thali' images as distinct cards.",
+    "7. COMPONENTS: Use existing Shadcn components but style them with the 'rounded-lg' and specific border colors defined here.",
+    "8. I18N: Ensure all text nodes can support Marathi characters (UTF-8 encoding is standard, just ensure fonts are loaded)."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition. Eg: 'transition: all'. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms.",
+    "You MUST NOT center align the app container, ie do not add '.App { text-align: center; }' in the css file. This disrupts the human natural reading flow of text.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Create new components that match the style and conventions of existing components when needed.",
+    "Examine existing components to understand the project's component patterns before creating new ones.",
+    "Components MUST use named exports (export const ComponentName = ...).",
+    "Pages MUST use default exports (export default function PageName() {...}).",
+    "Use 'sonner' for toasts.",
+    "Sonner component are located in '/app/src/components/ui/sonner.tsx'."
+  ]
+}
