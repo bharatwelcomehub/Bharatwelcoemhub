@@ -28,6 +28,8 @@ import BhojanGuru from "@/pages/BhojanGuru";
 import GuestResponse from "@/pages/GuestResponse";
 import RecipeAdmin from "@/pages/RecipeAdmin";
 import HRLetters from "@/pages/HRLetters";
+import CentersManagement from "@/pages/CentersManagement";
+import ManagersManagement from "@/pages/ManagersManagement";
 
 const navItems = [
   { path: "/", icon: Calendar, label: "Attendance", forAll: true },
