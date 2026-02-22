@@ -1061,18 +1061,29 @@ async def payslips_generate(req: PayslipGenRequest):
                 width, height = A4
                 
                 # ============ HEADER ============
-                c.setFont("Helvetica-Bold", 18)
-                c.drawCentredString(width/2, height - 0.6*inch, "purnabramha®")
+                # Try to add logo image
+                logo_path = ROOT_DIR / "pb_logo.png"
+                if logo_path.exists():
+                    try:
+                        c.drawImage(str(logo_path), width/2 - 0.75*inch, height - 1.1*inch, width=1.5*inch, height=1.0*inch, preserveAspectRatio=True, mask='auto')
+                    except Exception as e:
+                        logger.warning(f"Could not add logo: {e}")
+                        # Fallback to text
+                        c.setFont("Helvetica-Bold", 18)
+                        c.drawCentredString(width/2, height - 0.6*inch, "Purnabramha®")
+                else:
+                    c.setFont("Helvetica-Bold", 18)
+                    c.drawCentredString(width/2, height - 0.6*inch, "Purnabramha®")
                 
                 c.setFont("Helvetica-Bold", 11)
-                c.drawCentredString(width/2, height - 0.85*inch, "MANASWINI FOODS PVT. LTD.")
+                c.drawCentredString(width/2, height - 1.25*inch, "MANASWINI FOODS PVT. LTD.")
                 
                 c.setFont("Helvetica", 8)
-                c.drawCentredString(width/2, height - 1.0*inch, "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102")
+                c.drawCentredString(width/2, height - 1.4*inch, "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102")
                 
                 # ============ SALARY SLIP TITLE ============
                 c.setFont("Helvetica-Bold", 12)
-                c.drawCentredString(width/2, height - 1.25*inch, "SALARY SLIP")
+                c.drawCentredString(width/2, height - 1.65*inch, "SALARY SLIP")
                 
                 # ============ EMPLOYEE DETAILS ============
                 y = height - 1.5*inch
