@@ -90,12 +90,12 @@ class PurnabramhaAPITester:
         print("TESTING AUTHENTICATION FLOW")
         print("="*60)
         
-        # Send OTP
+        # Test Jayanti login
         otp_data = {
             "center": "PB-MGT",
             "mobile": "9741399190"
         }
-        success, response = self.run_test("Send OTP", "POST", "/send_otp", 200, otp_data)
+        success, response = self.run_test("Send OTP (Jayanti)", "POST", "/send_otp", 200, otp_data)
         if not success:
             print("❌ Cannot proceed without OTP sending capability")
             return False
@@ -106,17 +106,52 @@ class PurnabramhaAPITester:
             "mobile": "9741399190",
             "otp": "123456"  # Master OTP for dev
         }
-        success, response = self.run_test("Verify OTP", "POST", "/verify_otp", 200, verify_data)
+        success, response = self.run_test("Verify OTP (Jayanti)", "POST", "/verify_otp", 200, verify_data)
         if success and 'token' in response:
             self.token = response['token']
             self.session_data = response
-            print(f"   ✅ Authentication successful, token obtained")
+            print(f"   ✅ Jayanti login successful")
             print(f"   Manager: {response.get('managerName', 'N/A')}")
             print(f"   Center: {response.get('center', 'N/A')}")
+            
+            # Verify manager name
+            expected_name = "Jayanti Kathale"
+            actual_name = response.get('managerName', '')
+            if expected_name in actual_name:
+                print(f"   ✅ Manager name correct: {actual_name}")
+            else:
+                print(f"   ❌ Manager name incorrect. Expected: {expected_name}, Got: {actual_name}")
+        else:
+            print("❌ Jayanti authentication failed")
+        
+        # Test Sandeep login
+        otp_data_sandeep = {
+            "center": "PB-MGT",
+            "mobile": "9960886185"
+        }
+        success, response = self.run_test("Send OTP (Sandeep)", "POST", "/send_otp", 200, otp_data_sandeep)
+        
+        verify_data_sandeep = {
+            "center": "PB-MGT", 
+            "mobile": "9960886185",
+            "otp": "123456"  # Master OTP for dev
+        }
+        success, response = self.run_test("Verify OTP (Sandeep)", "POST", "/verify_otp", 200, verify_data_sandeep)
+        if success and 'token' in response:
+            print(f"   ✅ Sandeep login successful")
+            print(f"   Manager: {response.get('managerName', 'N/A')}")
+            
+            # Verify manager name
+            expected_name = "Sandeep Gadhwal"
+            actual_name = response.get('managerName', '')
+            if expected_name in actual_name:
+                print(f"   ✅ Manager name correct: {actual_name}")
+            else:
+                print(f"   ❌ Manager name incorrect. Expected: {expected_name}, Got: {actual_name}")
             return True
         else:
-            print("❌ Authentication failed - cannot proceed with authenticated tests")
-            return False
+            print("❌ Sandeep authentication failed")
+            return self.token is not None
 
     def test_employee_management(self):
         """Test employee management endpoints (PB-MGT only)"""
