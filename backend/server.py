@@ -2480,19 +2480,261 @@ async def health():
 
 @api_router.get("/centers")
 async def get_centers():
-    """Get list of all centers"""
-    centers = [
-        {"code": "PB-HSR", "name": "Purnabramha HSR - Bangalore"},
-        {"code": "PB-TH", "name": "Purnabramha Thane - Mumbai"},
-        {"code": "PB-SN", "name": "Purnabramha Sambhajinagar"},
-        {"code": "PB-DV", "name": "Purnabramha Dombivli - Mumbai"},
-        {"code": "PB-HW", "name": "Purnabramha Hinjawadi - Pune"},
-        {"code": "PB-KN", "name": "Purnabramha Kharadi Nyati - Pune"},
-        {"code": "PB-KAL", "name": "Purnabramha Kalyan"},
-        {"code": "PB-PERTH", "name": "Purnabramha Perth - Australia"},
-        {"code": "PB-MGT", "name": "Purnabramha Management (HQ)"},
-    ]
+    """Get list of all centers from DB or default"""
+    centers = await db.centers.find({}, {"_id": 0}).to_list(100)
+    if not centers:
+        # Return default centers if none in DB
+        centers = [
+            {"code": "PB-HSR", "name": "Purnabramha HSR - Bangalore", "phone": "+91 85500 78515", "email": "purnabramha.hsr09@gmail.com", "address": "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102", "active": True},
+            {"code": "PB-TH", "name": "Purnabramha Thane - Mumbai", "phone": "+91 89047 49084", "email": "purnabramha.newthane@gmail.com", "address": "Thane, Mumbai, Maharashtra", "active": True},
+            {"code": "PB-SN", "name": "Purnabramha Sambhajinagar", "phone": "+91 89710 49084", "email": "Purnabramha.aurangabad@gmail.com", "address": "Ch. Sambhajinagar, Maharashtra", "active": True},
+            {"code": "PB-DV", "name": "Purnabramha Dombivli - Mumbai", "phone": "+91 96064 55433", "email": "purnabramha.dombivli@gmail.com", "address": "Dombivli, Mumbai, Maharashtra", "active": True},
+            {"code": "PB-HW", "name": "Purnabramha Hinjawadi - Pune", "phone": "+91 96064 55434", "email": "Purnabramha.hinjawadi@gmail.com", "address": "Hinjawadi, Pune, Maharashtra", "active": True},
+            {"code": "PB-KN", "name": "Purnabramha Kharadi Nyati - Pune", "phone": "", "email": "Purnabramha.kharadinyati@gmail.com", "address": "Kharadi Nyati, Pune, Maharashtra", "active": True},
+            {"code": "PB-KAL", "name": "Purnabramha Kalyan", "phone": "", "email": "purnabramha.kalyan@gmail.com", "address": "Kalyan, Maharashtra", "active": True},
+            {"code": "PB-PERTH", "name": "Purnabramha Perth - Australia", "phone": "0401832922", "email": "Purnabramha.perth@gmail.com", "address": "Perth, Australia", "active": True},
+            {"code": "PB-MGT", "name": "Purnabramha Management (HQ)", "phone": "+91 9960886185", "email": "sandeep.gadhwal@purnabramha.com", "address": "HSR Layout, Bangalore", "active": True},
+        ]
     return {"centers": centers}
+
+# =======================================
+# CENTERS MANAGEMENT ENDPOINTS (MGT Only)
+# =======================================
+
+class CenterCreate(BaseModel):
+    code: str
+    name: str
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    address: Optional[str] = ""
+    active: Optional[bool] = True
+
+class CenterUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    active: Optional[bool] = None
+
+@api_router.post("/mgt/centers")
+async def mgt_get_centers(data: dict):
+    """Get all centers for management (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage centers")
+    
+    centers = await db.centers.find({}, {"_id": 0}).to_list(100)
+    if not centers:
+        # Seed default centers if none exist
+        default_centers = [
+            {"code": "PB-HSR", "name": "Purnabramha HSR - Bangalore", "phone": "+91 85500 78515", "email": "purnabramha.hsr09@gmail.com", "address": "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102", "active": True},
+            {"code": "PB-TH", "name": "Purnabramha Thane - Mumbai", "phone": "+91 89047 49084", "email": "purnabramha.newthane@gmail.com", "address": "Thane, Mumbai, Maharashtra", "active": True},
+            {"code": "PB-SN", "name": "Purnabramha Sambhajinagar", "phone": "+91 89710 49084", "email": "Purnabramha.aurangabad@gmail.com", "address": "Ch. Sambhajinagar, Maharashtra", "active": True},
+            {"code": "PB-DV", "name": "Purnabramha Dombivli - Mumbai", "phone": "+91 96064 55433", "email": "purnabramha.dombivli@gmail.com", "address": "Dombivli, Mumbai, Maharashtra", "active": True},
+            {"code": "PB-HW", "name": "Purnabramha Hinjawadi - Pune", "phone": "+91 96064 55434", "email": "Purnabramha.hinjawadi@gmail.com", "address": "Hinjawadi, Pune, Maharashtra", "active": True},
+            {"code": "PB-KN", "name": "Purnabramha Kharadi Nyati - Pune", "phone": "", "email": "Purnabramha.kharadinyati@gmail.com", "address": "Kharadi Nyati, Pune, Maharashtra", "active": True},
+            {"code": "PB-KAL", "name": "Purnabramha Kalyan", "phone": "", "email": "purnabramha.kalyan@gmail.com", "address": "Kalyan, Maharashtra", "active": True},
+            {"code": "PB-PERTH", "name": "Purnabramha Perth - Australia", "phone": "0401832922", "email": "Purnabramha.perth@gmail.com", "address": "Perth, Australia", "active": True},
+            {"code": "PB-MGT", "name": "Purnabramha Management (HQ)", "phone": "+91 9960886185", "email": "sandeep.gadhwal@purnabramha.com", "address": "HSR Layout, Bangalore", "active": True},
+        ]
+        for c in default_centers:
+            await db.centers.update_one({"code": c["code"]}, {"$set": c}, upsert=True)
+        centers = default_centers
+    
+    return {"centers": centers}
+
+@api_router.post("/mgt/center_create")
+async def mgt_center_create(data: dict):
+    """Create a new center (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can create centers")
+    
+    code = data.get("code", "").upper().strip()
+    if not code:
+        raise HTTPException(400, "Center code is required")
+    
+    # Check if center code already exists
+    existing = await db.centers.find_one({"code": code}, {"_id": 0})
+    if existing:
+        raise HTTPException(400, f"Center with code '{code}' already exists")
+    
+    center = {
+        "code": code,
+        "name": data.get("name", "").strip(),
+        "phone": data.get("phone", "").strip(),
+        "email": data.get("email", "").strip(),
+        "address": data.get("address", "").strip(),
+        "active": data.get("active", True),
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.centers.insert_one(center)
+    logger.info(f"Center created: {code} by {session.get('managerName')}")
+    
+    return {"success": True, "message": f"Center '{code}' created successfully"}
+
+@api_router.post("/mgt/center_update")
+async def mgt_center_update(data: dict):
+    """Update an existing center (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can update centers")
+    
+    code = data.get("code", "").upper().strip()
+    if not code:
+        raise HTTPException(400, "Center code is required")
+    
+    update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
+    if "name" in data and data["name"] is not None:
+        update_data["name"] = data["name"].strip()
+    if "phone" in data and data["phone"] is not None:
+        update_data["phone"] = data["phone"].strip()
+    if "email" in data and data["email"] is not None:
+        update_data["email"] = data["email"].strip()
+    if "address" in data and data["address"] is not None:
+        update_data["address"] = data["address"].strip()
+    if "active" in data and data["active"] is not None:
+        update_data["active"] = data["active"]
+    
+    result = await db.centers.update_one({"code": code}, {"$set": update_data})
+    
+    if result.matched_count == 0:
+        raise HTTPException(404, f"Center '{code}' not found")
+    
+    logger.info(f"Center updated: {code} by {session.get('managerName')}")
+    return {"success": True, "message": f"Center '{code}' updated successfully"}
+
+@api_router.post("/mgt/center_delete")
+async def mgt_center_delete(data: dict):
+    """Delete a center (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can delete centers")
+    
+    code = data.get("code", "").upper().strip()
+    if not code:
+        raise HTTPException(400, "Center code is required")
+    
+    if code == "PB-MGT":
+        raise HTTPException(400, "Cannot delete the Management HQ center")
+    
+    result = await db.centers.delete_one({"code": code})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(404, f"Center '{code}' not found")
+    
+    logger.info(f"Center deleted: {code} by {session.get('managerName')}")
+    return {"success": True, "message": f"Center '{code}' deleted successfully"}
+
+# =======================================
+# MANAGERS MANAGEMENT ENDPOINTS (MGT Only)
+# =======================================
+
+@api_router.post("/mgt/managers")
+async def mgt_get_managers(data: dict):
+    """Get all managers (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage managers")
+    
+    managers = await db.managers.find({}, {"_id": 0}).to_list(100)
+    return {"managers": managers}
+
+@api_router.post("/mgt/manager_create")
+async def mgt_manager_create(data: dict):
+    """Create a new manager (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can create managers")
+    
+    center = data.get("center", "").upper().strip()
+    email = data.get("email", "").strip().lower()
+    
+    if not center or not email:
+        raise HTTPException(400, "Center and email are required")
+    
+    # Check if manager with same email already exists
+    existing = await db.managers.find_one({"email": email}, {"_id": 0})
+    if existing:
+        raise HTTPException(400, f"Manager with email '{email}' already exists")
+    
+    manager = {
+        "center": center,
+        "managerName": data.get("managerName", "").strip(),
+        "mobile": data.get("mobile", "").strip(),
+        "email": email,
+        "active": data.get("active", True),
+        "otpChannel": data.get("otpChannel", "email"),
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.managers.insert_one(manager)
+    logger.info(f"Manager created: {email} for {center} by {session.get('managerName')}")
+    
+    return {"success": True, "message": f"Manager '{manager['managerName']}' created successfully"}
+
+@api_router.post("/mgt/manager_update")
+async def mgt_manager_update(data: dict):
+    """Update an existing manager (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can update managers")
+    
+    email = data.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(400, "Manager email is required for identification")
+    
+    update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
+    if "center" in data and data["center"] is not None:
+        update_data["center"] = data["center"].upper().strip()
+    if "managerName" in data and data["managerName"] is not None:
+        update_data["managerName"] = data["managerName"].strip()
+    if "mobile" in data and data["mobile"] is not None:
+        update_data["mobile"] = data["mobile"].strip()
+    if "active" in data and data["active"] is not None:
+        update_data["active"] = data["active"]
+    if "otpChannel" in data and data["otpChannel"] is not None:
+        update_data["otpChannel"] = data["otpChannel"]
+    
+    result = await db.managers.update_one({"email": email}, {"$set": update_data})
+    
+    if result.matched_count == 0:
+        raise HTTPException(404, f"Manager with email '{email}' not found")
+    
+    logger.info(f"Manager updated: {email} by {session.get('managerName')}")
+    return {"success": True, "message": f"Manager updated successfully"}
+
+@api_router.post("/mgt/manager_delete")
+async def mgt_manager_delete(data: dict):
+    """Delete a manager (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can delete managers")
+    
+    email = data.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(400, "Manager email is required")
+    
+    # Prevent deleting current user
+    if email == session.get("email", "").lower():
+        raise HTTPException(400, "Cannot delete your own account")
+    
+    result = await db.managers.delete_one({"email": email})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(404, f"Manager with email '{email}' not found")
+    
+    logger.info(f"Manager deleted: {email} by {session.get('managerName')}")
+    return {"success": True, "message": f"Manager deleted successfully"}
 
 # Include router
 app.include_router(api_router)
