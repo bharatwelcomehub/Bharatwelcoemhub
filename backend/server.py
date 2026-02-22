@@ -1,15 +1,25 @@
-from fastapi import FastAPI, APIRouter
+# =======================================
+# Purnabramha IntraPB - Backend Server
+# MongoDB-based Attendance & Salary System
+# =======================================
+
+from fastapi import FastAPI, APIRouter, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import random
+import string
+import secrets
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
-
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone, timedelta
+from io import BytesIO
+import calendar
+import json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -19,56 +29,988 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
+app = FastAPI(title="Purnabramha IntraPB API")
 api_router = APIRouter(prefix="/api")
 
+# Static files
+static_path = ROOT_DIR / "static"
+static_path.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# OTP Storage (in-memory for dev, use Redis in production)
+otp_store: Dict[str, Dict] = {}
+
+# =======================================
+# PYDANTIC MODELS
+# =======================================
+
+class OTPRequest(BaseModel):
+    center: str
+    mobile: str
+
+class OTPVerify(BaseModel):
+    center: str
+    mobile: str
+    otp: str
+
+class EmployeeCreate(BaseModel):
+    center: str
+    name: str
+    gender: Optional[str] = ""
+    designation: Optional[str] = ""
+    salaryBase: Optional[float] = 0
+    dateOfJoining: Optional[str] = ""
+    currentSalary: Optional[float] = 0
+    bankName: Optional[str] = ""
+    beneAccNo: Optional[str] = ""
+    ifsc: Optional[str] = ""
+    mobile: Optional[str] = ""
+    email: Optional[str] = ""
+    remark: Optional[str] = ""
+
+class AttendanceRecord(BaseModel):
+    employeeName: str
+    designation: Optional[str] = ""
+    status: str  # P, A, HD, WO, L
+    notes: Optional[str] = ""
+
+class BulkAttendance(BaseModel):
+    token: str
+    center: str
+    date: str
+    submittedBy: Optional[str] = ""
+    rows: List[AttendanceRecord]
+
+class AdvanceRecord(BaseModel):
+    employeeName: str
+    advanceAmount: float
+    mode: str  # CASH, GPAY, NEFT, ONLINE
+    notes: Optional[str] = ""
+
+class BulkAdvances(BaseModel):
+    token: str
+    center: str
+    date: str
+    submittedBy: Optional[str] = ""
+    rows: List[AdvanceRecord]
+
+class MonthlyCell(BaseModel):
+    employeeName: str
+    day: int
+    status: str
+    notes: Optional[str] = ""
+
+class BulkMonthlyAttendance(BaseModel):
+    token: str
+    center: str
+    month: str  # YYYY-MM
+    submittedBy: Optional[str] = ""
+    cells: List[MonthlyCell]
+
+class TokenRequest(BaseModel):
+    token: str
+    center: str
+
+class MonthRequest(BaseModel):
+    token: str
+    center: str
+    month: str
+
+class DateRequest(BaseModel):
+    token: str
+    center: str
+    date: str
+
+class SalaryGenRequest(BaseModel):
+    token: str
+    center: str
+    month: str
+    mode: str  # single or all
+    targetCenter: Optional[str] = None
+
+class PayslipGenRequest(BaseModel):
+    token: str
+    center: str
+    month: str
+    period: str  # 1, 3, 6
+    fmt: str  # pdf or docx
+    mode: str  # bulk or single
+    targetCenter: Optional[str] = None
+    employeeName: Optional[str] = None
+
+# =======================================
+# HELPER FUNCTIONS
+# =======================================
+
+def generate_otp():
+    return ''.join(random.choices(string.digits, k=6))
+
+def generate_token():
+    return secrets.token_urlsafe(32)
+
+def verify_token(token: str) -> Optional[Dict]:
+    for key, data in otp_store.items():
+        if data.get("token") == token:
+            return data
+    return None
+
+def days_in_month(year: int, month: int) -> int:
+    return calendar.monthrange(year, month)[1]
+
+# =======================================
+# AUTH ENDPOINTS
+# =======================================
+
+@api_router.post("/send_otp")
+async def send_otp(req: OTPRequest):
+    """Send OTP to manager's email"""
+    # Find manager in database
+    manager = await db.managers.find_one({
+        "center": req.center.upper(),
+        "$or": [
+            {"mobile": req.mobile},
+            {"mobile": req.mobile.lstrip("0")},  # Handle leading zeros
+        ]
+    }, {"_id": 0})
     
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    if not manager:
+        # For demo, allow any center-mobile combo
+        manager = await db.managers.find_one({"center": req.center.upper()}, {"_id": 0})
+        if not manager:
+            raise HTTPException(400, "Center not found or mobile not registered")
+    
+    otp = generate_otp()
+    key = f"{req.center}_{req.mobile}"
+    otp_store[key] = {
+        "otp": otp,
+        "center": req.center.upper(),
+        "mobile": req.mobile,
+        "managerName": manager.get("managerName", "Manager"),
+        "email": manager.get("email", ""),
+        "created": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Log OTP for development
+    logger.info(f"OTP for {req.center}/{req.mobile}: {otp}")
+    
+    # In production, send email here via SMTP
+    # For now, OTP is logged to console
+    
+    return {"success": True, "message": "OTP sent (check server console for dev)"}
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+@api_router.post("/verify_otp")
+async def verify_otp(req: OTPVerify):
+    """Verify OTP and return session token"""
+    key = f"{req.center}_{req.mobile}"
+    stored = otp_store.get(key)
+    
+    if not stored:
+        raise HTTPException(400, "OTP expired or not requested")
+    
+    # For development, accept "123456" as master OTP
+    if req.otp != stored["otp"] and req.otp != "123456":
+        raise HTTPException(400, "Invalid OTP")
+    
+    token = generate_token()
+    stored["token"] = token
+    otp_store[key] = stored
+    
+    return {
+        "success": True,
+        "token": token,
+        "center": stored["center"],
+        "managerName": stored.get("managerName", "Manager"),
+        "mobile": req.mobile
+    }
 
-# Add your routes to the router instead of directly to app
+# =======================================
+# EMPLOYEE ENDPOINTS
+# =======================================
+
+@api_router.post("/employees")
+async def get_employees(req: TokenRequest):
+    """Get employees for a center"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    query = {"center": req.center.upper()}
+    if req.center.upper() != "PB-MGT":
+        query = {"center": req.center.upper()}
+    
+    employees = await db.employees.find(query, {"_id": 0}).sort("name", 1).to_list(1000)
+    return {"employees": employees}
+
+@api_router.post("/mgt_employees_list")
+async def mgt_employees_list(req: TokenRequest):
+    """Get all employees (MGT only) with search"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can access employee management")
+    
+    employees = await db.employees.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
+    
+    # Add row index for updates
+    for idx, emp in enumerate(employees):
+        emp["rowIndex"] = idx
+    
+    return {"employees": employees}
+
+@api_router.post("/mgt_employee_create")
+async def mgt_employee_create(data: dict):
+    """Create new employee (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can create employees")
+    
+    employee = {
+        "center": data.get("empCenter", "").upper(),
+        "name": data.get("name", "").upper(),
+        "gender": data.get("gender", ""),
+        "designation": data.get("designation", ""),
+        "salaryBase": float(data.get("salaryBase", 0) or 0),
+        "currentSalary": float(data.get("currentSalary", 0) or 0),
+        "dateOfJoining": data.get("dateOfJoining", ""),
+        "bankName": data.get("bankName", ""),
+        "beneAccNo": data.get("beneAccNo", ""),
+        "ifsc": data.get("ifsc", ""),
+        "mobile": data.get("mobile", ""),
+        "email": data.get("email", ""),
+        "remark": data.get("remark", ""),
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.employees.insert_one(employee)
+    return {"success": True, "message": "Employee created"}
+
+@api_router.post("/mgt_employee_update")
+async def mgt_employee_update(data: dict):
+    """Update employee (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can update employees")
+    
+    update_data = {
+        "center": data.get("empCenter", "").upper(),
+        "name": data.get("name", "").upper(),
+        "designation": data.get("designation", ""),
+        "currentSalary": float(data.get("currentSalary", 0) or 0),
+        "bankName": data.get("bankName", ""),
+        "beneAccNo": data.get("beneAccNo", ""),
+        "ifsc": data.get("ifsc", ""),
+        "mobile": data.get("mobile", ""),
+        "email": data.get("email", ""),
+        "updatedAt": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Find by name and center
+    result = await db.employees.update_one(
+        {"name": data.get("name", "").upper()},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(404, "Employee not found")
+    
+    return {"success": True, "message": "Employee updated"}
+
+@api_router.post("/mgt_employee_delete")
+async def mgt_employee_delete(data: dict):
+    """Delete employee (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can delete employees")
+    
+    # Delete by rowIndex is tricky - need to find by name
+    employees = await db.employees.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
+    row_index = data.get("rowIndex", -1)
+    
+    if 0 <= row_index < len(employees):
+        emp = employees[row_index]
+        await db.employees.delete_one({"name": emp["name"]})
+        return {"success": True, "message": "Employee deleted"}
+    
+    raise HTTPException(404, "Employee not found")
+
+# =======================================
+# ATTENDANCE ENDPOINTS
+# =======================================
+
+@api_router.post("/bulk_attendance")
+async def bulk_attendance(req: BulkAttendance):
+    """Save daily attendance for multiple employees"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Check payroll lock
+    month = req.date[:7]
+    lock = await db.payroll_locks.find_one({"month": month}, {"_id": 0})
+    if lock and lock.get("locked"):
+        raise HTTPException(400, f"Payroll locked for {month}")
+    
+    inserted = 0
+    updated = 0
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    for row in req.rows:
+        doc = {
+            "date": req.date,
+            "center": req.center.upper(),
+            "employeeName": row.employeeName.upper(),
+            "designation": row.designation,
+            "status": row.status.upper(),
+            "notes": row.notes or "",
+            "submittedByMobile": req.submittedBy or session.get("mobile", ""),
+            "timestamp": timestamp
+        }
+        
+        # Upsert
+        result = await db.attendance.update_one(
+            {"date": req.date, "center": req.center.upper(), "employeeName": row.employeeName.upper()},
+            {"$set": doc},
+            upsert=True
+        )
+        
+        if result.upserted_id:
+            inserted += 1
+        else:
+            updated += 1
+    
+    return {"success": True, "inserted": inserted, "updated": updated}
+
+@api_router.post("/attendance_by_date")
+async def attendance_by_date(req: DateRequest):
+    """Get attendance for a specific date"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    rows = await db.attendance.find(
+        {"date": req.date, "center": req.center.upper()},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    return {"rows": rows}
+
+@api_router.post("/attendance_month")
+async def attendance_month(req: MonthRequest):
+    """Get monthly attendance grid"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    year, month = map(int, req.month.split("-"))
+    dim = days_in_month(year, month)
+    
+    # Get employees for center
+    employees = await db.employees.find(
+        {"center": req.center.upper()},
+        {"_id": 0}
+    ).sort("name", 1).to_list(1000)
+    
+    # Get all attendance for month
+    start_date = f"{req.month}-01"
+    end_date = f"{req.month}-{dim:02d}"
+    
+    attendance = await db.attendance.find(
+        {
+            "center": req.center.upper(),
+            "date": {"$gte": start_date, "$lte": end_date}
+        },
+        {"_id": 0}
+    ).to_list(10000)
+    
+    # Build lookup
+    att_map = {}
+    for a in attendance:
+        key = f"{a['employeeName']}_{a['date']}"
+        att_map[key] = a.get("status", "")
+    
+    # Build grid
+    grid = []
+    for emp in employees:
+        emp_name = emp.get("name", "").upper()
+        days = []
+        for d in range(1, dim + 1):
+            date_str = f"{req.month}-{d:02d}"
+            key = f"{emp_name}_{date_str}"
+            status = att_map.get(key, "")
+            days.append({"day": d, "status": status})
+        
+        grid.append({
+            "employeeName": emp_name,
+            "designation": emp.get("designation", ""),
+            "days": days
+        })
+    
+    return {"grid": grid, "daysInMonth": dim}
+
+@api_router.post("/bulk_attendance_month")
+async def bulk_attendance_month(req: BulkMonthlyAttendance):
+    """Save full month attendance"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Check payroll lock
+    lock = await db.payroll_locks.find_one({"month": req.month}, {"_id": 0})
+    if lock and lock.get("locked"):
+        raise HTTPException(400, f"Payroll locked for {req.month}")
+    
+    inserted = 0
+    updated = 0
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    for cell in req.cells:
+        date_str = f"{req.month}-{cell.day:02d}"
+        doc = {
+            "date": date_str,
+            "center": req.center.upper(),
+            "employeeName": cell.employeeName.upper(),
+            "status": cell.status.upper(),
+            "notes": cell.notes or "",
+            "submittedByMobile": req.submittedBy or session.get("mobile", ""),
+            "timestamp": timestamp
+        }
+        
+        result = await db.attendance.update_one(
+            {"date": date_str, "center": req.center.upper(), "employeeName": cell.employeeName.upper()},
+            {"$set": doc},
+            upsert=True
+        )
+        
+        if result.upserted_id:
+            inserted += 1
+        else:
+            updated += 1
+    
+    return {"success": True, "inserted": inserted, "updated": updated}
+
+# =======================================
+# ADVANCES ENDPOINTS
+# =======================================
+
+@api_router.post("/bulk_advances")
+async def bulk_advances(req: BulkAdvances):
+    """Save advances for a date"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    inserted = 0
+    updated = 0
+    timestamp = datetime.now(timezone.utc).isoformat()
+    
+    for row in req.rows:
+        if row.advanceAmount <= 0:
+            continue
+            
+        doc = {
+            "date": req.date,
+            "center": req.center.upper(),
+            "employeeName": row.employeeName.upper(),
+            "advanceAmount": row.advanceAmount,
+            "mode": row.mode.upper(),
+            "notes": row.notes or "",
+            "submittedByMobile": req.submittedBy or session.get("mobile", ""),
+            "timestamp": timestamp
+        }
+        
+        result = await db.advances.update_one(
+            {"date": req.date, "center": req.center.upper(), "employeeName": row.employeeName.upper()},
+            {"$set": doc},
+            upsert=True
+        )
+        
+        if result.upserted_id:
+            inserted += 1
+        else:
+            updated += 1
+    
+    return {"success": True, "inserted": inserted, "updated": updated}
+
+@api_router.post("/advances_by_date")
+async def advances_by_date(req: DateRequest):
+    """Get advances for a specific date"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    rows = await db.advances.find(
+        {"date": req.date, "center": req.center.upper()},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    return {"rows": rows}
+
+@api_router.post("/advances_by_month")
+async def advances_by_month(req: MonthRequest):
+    """Get all advances for a month"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    rows = await db.advances.find(
+        {
+            "center": req.center.upper(),
+            "date": {"$regex": f"^{req.month}"}
+        },
+        {"_id": 0}
+    ).sort("date", 1).to_list(1000)
+    
+    return {"rows": rows}
+
+# =======================================
+# PAYROLL ENDPOINTS
+# =======================================
+
+@api_router.post("/payroll_status")
+async def payroll_status(req: MonthRequest):
+    """Check if payroll is locked for a month"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    lock = await db.payroll_locks.find_one({"month": req.month}, {"_id": 0})
+    
+    return {
+        "locked": lock.get("locked", False) if lock else False,
+        "lockedAt": lock.get("lockedAt", "") if lock else "",
+        "lockedBy": lock.get("lockedBy", "") if lock else ""
+    }
+
+@api_router.post("/lock_payroll")
+async def lock_payroll(req: MonthRequest):
+    """Lock payroll for a month (MGT only)"""
+    session = verify_token(req.token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can lock payroll")
+    
+    doc = {
+        "month": req.month,
+        "center": "ALL",
+        "locked": True,
+        "lockedAt": datetime.now(timezone.utc).isoformat(),
+        "lockedBy": session.get("mobile", "")
+    }
+    
+    await db.payroll_locks.update_one(
+        {"month": req.month},
+        {"$set": doc},
+        upsert=True
+    )
+    
+    return {"success": True, "message": f"Payroll locked for {req.month}"}
+
+@api_router.post("/generate_salary")
+async def generate_salary(req: SalaryGenRequest):
+    """Generate salary Excel for ICICI upload"""
+    session = verify_token(req.token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can generate salary")
+    
+    try:
+        from openpyxl import Workbook
+        
+        year, month = map(int, req.month.split("-"))
+        dim = days_in_month(year, month)
+        
+        # Get employees
+        if req.mode == "single" and req.targetCenter:
+            employees = await db.employees.find(
+                {"center": req.targetCenter.upper()},
+                {"_id": 0}
+            ).to_list(1000)
+        else:
+            employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+        
+        # Get attendance
+        start_date = f"{req.month}-01"
+        end_date = f"{req.month}-{dim:02d}"
+        
+        attendance = await db.attendance.find(
+            {"date": {"$gte": start_date, "$lte": end_date}},
+            {"_id": 0}
+        ).to_list(50000)
+        
+        # Get advances
+        advances = await db.advances.find(
+            {"date": {"$regex": f"^{req.month}"}},
+            {"_id": 0}
+        ).to_list(5000)
+        
+        # Build attendance map
+        att_map = {}
+        for a in attendance:
+            key = f"{a['employeeName']}_{a['date']}"
+            att_map[key] = a.get("status", "")
+        
+        # Build advances map
+        adv_map = {}
+        for a in advances:
+            emp = a.get("employeeName", "")
+            adv_map[emp] = adv_map.get(emp, 0) + float(a.get("advanceAmount", 0) or 0)
+        
+        # Weight rules
+        weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Salary"
+        
+        # Headers
+        headers = [
+            "PYMT_PROD_TYPE_CODE", "PYMT_MODE", "DEBIT_ACC_NO", "BNF_NAME",
+            "BENE_ACC_NO", "BENE_IFSC", "AMOUNT", "DEBIT_NARR", "CREDIT_NARR",
+            "MOBILE_NUM", "EMAIL_ID", "REMARK", "CENTER", "WORKING_DAYS",
+            "PRESENT_DAYS", "GROSS_SALARY", "ADVANCE_DEDUCTION", "NET_SALARY"
+        ]
+        for col, h in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=h)
+        
+        row = 2
+        for emp in employees:
+            emp_name = emp.get("name", "").upper()
+            salary = float(emp.get("currentSalary", 0) or 0)
+            
+            # Calculate working days
+            present_days = 0
+            for d in range(1, dim + 1):
+                date_str = f"{req.month}-{d:02d}"
+                key = f"{emp_name}_{date_str}"
+                status = att_map.get(key, "")
+                weight = weights.get(status, 0)
+                present_days += weight
+            
+            # Calculate salary
+            daily_rate = salary / dim if dim > 0 else 0
+            gross_salary = daily_rate * present_days
+            advance = adv_map.get(emp_name, 0)
+            net_salary = max(0, gross_salary - advance)
+            
+            ws.cell(row=row, column=1, value="PAB_VENDOR")
+            ws.cell(row=row, column=2, value="NEFT")
+            ws.cell(row=row, column=3, value="55205000830")
+            ws.cell(row=row, column=4, value=emp_name)
+            ws.cell(row=row, column=5, value=emp.get("beneAccNo", ""))
+            ws.cell(row=row, column=6, value=emp.get("ifsc", ""))
+            ws.cell(row=row, column=7, value=round(net_salary, 2))
+            ws.cell(row=row, column=8, value="SALARY")
+            ws.cell(row=row, column=9, value=f"SALARY {req.month}")
+            ws.cell(row=row, column=10, value=emp.get("mobile", ""))
+            ws.cell(row=row, column=11, value=emp.get("email", ""))
+            ws.cell(row=row, column=12, value=emp.get("center", ""))
+            ws.cell(row=row, column=13, value=emp.get("center", ""))
+            ws.cell(row=row, column=14, value=dim)
+            ws.cell(row=row, column=15, value=round(present_days, 1))
+            ws.cell(row=row, column=16, value=round(gross_salary, 2))
+            ws.cell(row=row, column=17, value=round(advance, 2))
+            ws.cell(row=row, column=18, value=round(net_salary, 2))
+            row += 1
+        
+        # Save to bytes
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        filename = f"Salary_{req.month}_{req.mode}.xlsx"
+        
+        # Save to static for download
+        file_path = static_path / filename
+        with open(file_path, "wb") as f:
+            f.write(output.getvalue())
+        
+        return {"success": True, "file": filename, "downloadUrl": f"/static/{filename}"}
+        
+    except Exception as e:
+        logger.error(f"Salary generation error: {e}")
+        raise HTTPException(500, str(e))
+
+@api_router.post("/payslips_generate")
+async def payslips_generate(req: PayslipGenRequest):
+    """Generate payslips (PDF/DOCX)"""
+    session = verify_token(req.token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can generate payslips")
+    
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+        import zipfile
+        
+        year, month = map(int, req.month.split("-"))
+        dim = days_in_month(year, month)
+        period = int(req.period)
+        
+        # Get employees
+        query = {}
+        if req.targetCenter:
+            query["center"] = req.targetCenter.upper()
+        if req.mode == "single" and req.employeeName:
+            query["name"] = req.employeeName.upper()
+        
+        employees = await db.employees.find(query, {"_id": 0}).to_list(1000)
+        
+        if not employees:
+            raise HTTPException(404, "No employees found")
+        
+        # Generate months
+        months = []
+        for i in range(period):
+            m = month - i
+            y = year
+            while m <= 0:
+                m += 12
+                y -= 1
+            months.append(f"{y}-{m:02d}")
+        
+        files_created = []
+        
+        for emp in employees:
+            emp_name = emp.get("name", "")
+            
+            # Calculate salary for each month
+            total_gross = 0
+            total_advance = 0
+            total_net = 0
+            
+            for mon in months:
+                y2, m2 = map(int, mon.split("-"))
+                d2 = days_in_month(y2, m2)
+                salary = float(emp.get("currentSalary", 0) or 0)
+                
+                # Get attendance
+                attendance = await db.attendance.find(
+                    {"employeeName": emp_name.upper(), "date": {"$regex": f"^{mon}"}},
+                    {"_id": 0}
+                ).to_list(100)
+                
+                weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+                present = sum(weights.get(a.get("status", ""), 0) for a in attendance)
+                
+                # Get advances
+                advances = await db.advances.find(
+                    {"employeeName": emp_name.upper(), "date": {"$regex": f"^{mon}"}},
+                    {"_id": 0}
+                ).to_list(100)
+                
+                adv = sum(float(a.get("advanceAmount", 0) or 0) for a in advances)
+                
+                daily = salary / d2 if d2 > 0 else 0
+                gross = daily * present
+                net = max(0, gross - adv)
+                
+                total_gross += gross
+                total_advance += adv
+                total_net += net
+            
+            # Create PDF
+            if req.fmt == "pdf":
+                filename = f"Payslip_{emp_name.replace(' ', '_')}_{req.month}.pdf"
+                file_path = static_path / filename
+                
+                c = canvas.Canvas(str(file_path), pagesize=A4)
+                width, height = A4
+                
+                # Header
+                c.setFont("Helvetica-Bold", 18)
+                c.drawString(1*inch, height - 1*inch, "PURNABRAMHA")
+                c.setFont("Helvetica", 10)
+                c.drawString(1*inch, height - 1.3*inch, "Manswini Foods Pvt. Ltd.")
+                
+                # Title
+                c.setFont("Helvetica-Bold", 14)
+                c.drawString(1*inch, height - 2*inch, f"PAYSLIP - {req.month}")
+                
+                # Employee details
+                c.setFont("Helvetica", 11)
+                y = height - 2.5*inch
+                c.drawString(1*inch, y, f"Employee: {emp_name}")
+                y -= 0.3*inch
+                c.drawString(1*inch, y, f"Designation: {emp.get('designation', '')}")
+                y -= 0.3*inch
+                c.drawString(1*inch, y, f"Center: {emp.get('center', '')}")
+                y -= 0.3*inch
+                c.drawString(1*inch, y, f"Bank: {emp.get('bankName', '')} - {emp.get('beneAccNo', '')}")
+                
+                # Salary details
+                y -= 0.5*inch
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(1*inch, y, "Earnings & Deductions")
+                c.setFont("Helvetica", 11)
+                y -= 0.4*inch
+                c.drawString(1*inch, y, f"Gross Salary: Rs. {total_gross:,.2f}")
+                y -= 0.3*inch
+                c.drawString(1*inch, y, f"Advance Deduction: Rs. {total_advance:,.2f}")
+                y -= 0.3*inch
+                c.setFont("Helvetica-Bold", 11)
+                c.drawString(1*inch, y, f"Net Salary: Rs. {total_net:,.2f}")
+                
+                # Footer
+                c.setFont("Helvetica", 9)
+                c.drawString(1*inch, 1*inch, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+                
+                c.save()
+                files_created.append(filename)
+        
+        if len(files_created) == 1:
+            return {
+                "success": True,
+                "count": 1,
+                "file": files_created[0],
+                "downloadUrl": f"/static/{files_created[0]}"
+            }
+        else:
+            # Create ZIP
+            zip_filename = f"Payslips_{req.month}.zip"
+            zip_path = static_path / zip_filename
+            
+            with zipfile.ZipFile(zip_path, 'w') as zf:
+                for fn in files_created:
+                    zf.write(static_path / fn, fn)
+            
+            return {
+                "success": True,
+                "count": len(files_created),
+                "file": zip_filename,
+                "downloadUrl": f"/static/{zip_filename}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Payslip generation error: {e}")
+        raise HTTPException(500, str(e))
+
+# =======================================
+# BHOJAN GURU ENDPOINTS
+# =======================================
+
+@api_router.get("/recipes")
+async def get_recipes():
+    """Get all recipes"""
+    recipes = await db.recipes.find({}, {"_id": 0}).to_list(1000)
+    return {"recipes": recipes}
+
+@api_router.get("/descriptions")
+async def get_descriptions():
+    """Get all descriptions"""
+    descriptions = await db.descriptions.find({}, {"_id": 0}).to_list(1000)
+    return {"descriptions": descriptions}
+
+# =======================================
+# DATA SEEDING ENDPOINT
+# =======================================
+
+@api_router.post("/seed_data")
+async def seed_data():
+    """Seed initial data into MongoDB"""
+    
+    # Seed managers
+    managers = [
+        {"center": "PB-HSR", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.hsr09@gmail.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-HW", "managerName": "Center Manager", "mobile": "", "email": "Purnabramha.hinjawadi@gmail.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-KN", "managerName": "Center Manager", "mobile": "", "email": "Purnabramha.kharadinyati@gmail.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-SN", "managerName": "Center Manager", "mobile": "", "email": "Purnabramha.aurangabad@gmail.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-DV", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.dombivli@gmail.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-TH", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.newthane@gmail.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-PERTH", "managerName": "Center Manager", "mobile": "0401832922", "email": "Purnabramha.perth@gmail.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-MGT", "managerName": "Admin Manager", "mobile": "9741399190", "email": "jayanti.kathale@purnabramha.com", "active": True, "otpChannel": "email"},
+        {"center": "PB-KAL", "managerName": "Center Manager", "mobile": "", "email": "purnabramha.kalyan@gmail.com", "active": True, "otpChannel": "email"},
+    ]
+    
+    for m in managers:
+        await db.managers.update_one(
+            {"center": m["center"], "email": m["email"]},
+            {"$set": m},
+            upsert=True
+        )
+    
+    # Seed sample employees
+    employees = [
+        {"center": "PB-MGT", "name": "JAYANTI PRANAV KATHALE", "gender": "FEMALE", "designation": "DIRECTOR", "currentSalary": 100000, "bankName": "IDFC", "beneAccNo": "10093902585", "ifsc": "IDFB0080172", "mobile": "9741399190", "email": "jayantikathale@purnabramha.com"},
+        {"center": "PB-MGT", "name": "SANDEEP GADHWAL", "gender": "MALE", "designation": "DIRECTOR", "currentSalary": 100000, "bankName": "HDFC", "beneAccNo": "50100291509491", "ifsc": "HDFC0004220", "mobile": "9960886185", "email": "sandeep.gadhwal@purnabramha.com"},
+        {"center": "PB-MGT", "name": "SHARAYU SHASHIKANT PANDE", "gender": "MALE", "designation": "ACCOUNTANT", "currentSalary": 45000, "bankName": "BOB", "beneAccNo": "40690100004206", "ifsc": "BARB0MEDNAG", "mobile": "8007863037", "email": "sarveshpande@purnabramha.com"},
+        {"center": "PB-MGT", "name": "BHAGYESH PATIL", "gender": "MALE", "designation": "HEAD CHEF", "currentSalary": 55000, "bankName": "IDFC", "beneAccNo": "10096796367", "ifsc": "IDFB0080151", "mobile": "8149706560", "email": "bhagyeshpatil2014@rediffmail.com"},
+        {"center": "PB-HSR", "name": "SUMITRA", "gender": "FEMALE", "designation": "EMPLOYEE", "currentSalary": 25000, "bankName": "KM", "beneAccNo": "", "ifsc": "KKBK0001417", "mobile": "", "email": ""},
+        {"center": "PB-HSR", "name": "EKTA SURESHKUMAR RAVAL", "gender": "FEMALE", "designation": "EMPLOYEE", "currentSalary": 28000, "bankName": "BOB", "beneAccNo": "18890100018790", "ifsc": "BARB0KAMELA", "mobile": "", "email": ""},
+        {"center": "PB-TH", "name": "KUNAL BHOSLE", "gender": "MALE", "designation": "MANAGER", "currentSalary": 40000, "bankName": "HDFC", "beneAccNo": "", "ifsc": "", "mobile": "8904749084", "email": ""},
+        {"center": "PB-TH", "name": "RUPALI SUTAR", "gender": "FEMALE", "designation": "EMPLOYEE", "currentSalary": 22000, "bankName": "", "beneAccNo": "", "ifsc": "", "mobile": "", "email": ""},
+        {"center": "PB-KAL", "name": "SAHIL", "gender": "MALE", "designation": "EMPLOYEE", "currentSalary": 23000, "bankName": "IDFC", "beneAccNo": "06040100035505", "ifsc": "BARB0AMBAZA", "mobile": "8390292539", "email": ""},
+        {"center": "PB-KAL", "name": "ANJALI", "gender": "FEMALE", "designation": "HOUSEKEEPER", "currentSalary": 18000, "bankName": "BOB", "beneAccNo": "05940100008080", "ifsc": "BARBOCHITRI", "mobile": "", "email": ""},
+    ]
+    
+    for e in employees:
+        await db.employees.update_one(
+            {"name": e["name"]},
+            {"$set": e},
+            upsert=True
+        )
+    
+    # Seed salary rules
+    salary_rules = {
+        "P_value": 1,
+        "HD_value": 0.5,
+        "WO_value": 1,
+        "L_value": 1,
+        "A_value": 0,
+        "debit_acc_no": "55205000830",
+        "pymt_prod_type_code": "PAB_VENDOR",
+        "pymt_mode": "NEFT",
+        "credit_narr_prefix": "SALARY"
+    }
+    
+    await db.salary_rules.update_one(
+        {"_type": "rules"},
+        {"$set": {**salary_rules, "_type": "rules"}},
+        upsert=True
+    )
+    
+    return {"success": True, "message": "Data seeded successfully"}
+
+# =======================================
+# BASIC ENDPOINTS
+# =======================================
+
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Purnabramha IntraPB API", "version": "2.0"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+@api_router.get("/health")
+async def health():
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+@api_router.get("/centers")
+async def get_centers():
+    """Get list of all centers"""
+    centers = [
+        {"code": "PB-HSR", "name": "Purnabramha HSR - Bangalore"},
+        {"code": "PB-TH", "name": "Purnabramha Thane - Mumbai"},
+        {"code": "PB-SN", "name": "Purnabramha Sambhajinagar"},
+        {"code": "PB-DV", "name": "Purnabramha Dombivli - Mumbai"},
+        {"code": "PB-HW", "name": "Purnabramha Hinjawadi - Pune"},
+        {"code": "PB-KN", "name": "Purnabramha Kharadi Nyati - Pune"},
+        {"code": "PB-KAL", "name": "Purnabramha Kalyan"},
+        {"code": "PB-PERTH", "name": "Purnabramha Perth - Australia"},
+        {"code": "PB-MGT", "name": "Purnabramha Management (HQ)"},
+    ]
+    return {"centers": centers}
 
-# Include the router in the main app
+# Include router
 app.include_router(api_router)
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -76,13 +1018,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
