@@ -87,9 +87,9 @@ export default function RoleManagement() {
     try {
       const res = await api.post("/mgt/managers", { token: session?.token });
       if (res.data.managers) {
-        // Filter out PB-MGT managers as they have full access
-        const filtered = res.data.managers.filter(m => m.center !== "PB-MGT");
-        setManagers(filtered);
+        // Backend handles filtering based on user permissions
+        // Jayanti sees all managers, others see filtered list
+        setManagers(res.data.managers);
       }
     } catch (err) {
       console.error("Failed to fetch managers:", err);
