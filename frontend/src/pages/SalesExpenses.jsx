@@ -203,12 +203,12 @@ export default function SalesExpenses() {
           </div>
           
           {isMGT && (
-            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+            <Select value={selectedCenter || "all"} onValueChange={(val) => setSelectedCenter(val === "all" ? "" : val)}>
               <SelectTrigger className="w-40" data-testid="center-filter">
                 <SelectValue placeholder="All Centers" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Centers</SelectItem>
+                <SelectItem value="all">All Centers</SelectItem>
                 {centers.map(c => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
