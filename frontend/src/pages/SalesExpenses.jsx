@@ -90,18 +90,25 @@ export default function SalesExpenses() {
 
   // Fetch monthly summary
   const fetchMonthlySummary = async () => {
-    if (!selectedMonth) return;
+    if (!selectedMonth || !session?.token) {
+      console.log("Skipping fetch - no month or token", { selectedMonth, hasToken: !!session?.token });
+      return;
+    }
     
     setLoading(true);
     try {
+      console.log("Fetching monthly summary:", { month: selectedMonth, center: selectedCenter, token: session?.token?.substring(0,10) + "..." });
+      
       const res = await api.post("/sales/reports/monthly-summary", {
-        token: session?.token,
+        token: session.token,
         month: selectedMonth,
         center: selectedCenter || "all"
       });
       
+      console.log("API Response:", res.data);
+      
       if (res.data) {
-        setMonthlySummary(res.data.summary || res.data.grand_total);
+        setMonthlySummary(res.data.summary || res.data.grand_total || null);
         setDailyData(res.data.daily_data || []);
         setExpenseByType(res.data.expense_by_type || {});
         
@@ -111,8 +118,8 @@ export default function SalesExpenses() {
         }
       }
     } catch (err) {
-      console.error("Failed to fetch summary:", err);
-      toast.error("Failed to load sales data");
+      console.error("Failed to fetch summary:", err.response?.data || err.message || err);
+      toast.error(err.response?.data?.detail || "Failed to load sales data");
     } finally {
       setLoading(false);
     }
