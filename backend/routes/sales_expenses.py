@@ -199,11 +199,15 @@ async def get_daily_sales(req: SalesQueryRequest):
     
     query = {}
     
-    # Center filter - managers can only see their center unless MGT
-    if session.get("center") != "PB-MGT":
+    # Check if user has access to all centers
+    can_view_all = has_all_centers_access(session)
+    
+    # Center filter - managers can only see their center unless admin/super admin/MGT
+    if not can_view_all:
         query["center"] = session.get("center")
-    elif req.center:
+    elif req.center and req.center.lower() != "all":
         query["center"] = req.center.upper()
+    # else: no center filter = all centers
     
     # Date filters
     if req.month:
@@ -230,8 +234,9 @@ async def create_daily_sale(req: DailySaleCreate, token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Check permission - can only create for own center unless MGT
-    if session.get("center") != "PB-MGT" and session.get("center") != req.center.upper():
+    # Check permission - can only create for own center unless admin/MGT
+    can_view_all = has_all_centers_access(session)
+    if not can_view_all and session.get("center") != req.center.upper():
         raise HTTPException(403, "Cannot create sales record for another center")
     
     # Check if record already exists
