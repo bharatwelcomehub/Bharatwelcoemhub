@@ -307,6 +307,18 @@ async def verify_otp(req: OTPVerify):
     
     token = generate_token()
     stored["token"] = token
+    
+    # Fetch manager's roles from database
+    manager = await db.managers.find_one({
+        "center": stored["center"],
+        "$or": [
+            {"mobile": req.mobile},
+            {"mobile": req.mobile.lstrip("0")},
+        ]
+    }, {"_id": 0, "roles": 1})
+    
+    roles = manager.get("roles", {}) if manager else {}
+    stored["roles"] = roles
     otp_store[key] = stored
     
     return {
@@ -314,7 +326,8 @@ async def verify_otp(req: OTPVerify):
         "token": token,
         "center": stored["center"],
         "managerName": stored.get("managerName", "Manager"),
-        "mobile": req.mobile
+        "mobile": req.mobile,
+        "roles": roles
     }
 
 # =======================================
