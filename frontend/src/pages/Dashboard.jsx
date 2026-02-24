@@ -260,6 +260,7 @@ export default function Dashboard() {
           <Routes>
             <Route path="/" element={<Attendance />} />
             <Route path="/sales" element={<SalesExpenses />} />
+            <Route path="/expense-heads" element={<ExpenseHeads />} />
             <Route path="/guest-response" element={<GuestResponse />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/salary" element={<Salary />} />
