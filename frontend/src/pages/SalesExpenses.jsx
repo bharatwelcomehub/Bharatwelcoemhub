@@ -97,7 +97,7 @@ export default function SalesExpenses() {
       const res = await api.post("/sales/reports/monthly-summary", {
         token: session?.token,
         month: selectedMonth,
-        center: selectedCenter || undefined
+        center: selectedCenter || "all"
       });
       
       if (res.data) {
@@ -105,7 +105,7 @@ export default function SalesExpenses() {
         setDailyData(res.data.daily_data || []);
         setExpenseByType(res.data.expense_by_type || {});
         
-        // If we got centers data (MGT view without specific center)
+        // If we got centers data (all centers view)
         if (res.data.centers) {
           setDailyData(res.data.centers);
         }
