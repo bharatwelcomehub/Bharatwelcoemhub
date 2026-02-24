@@ -38,6 +38,7 @@ import CentersManagement from "@/pages/CentersManagement";
 import ManagersManagement from "@/pages/ManagersManagement";
 import SalesExpenses from "@/pages/SalesExpenses";
 import ExpenseHeads from "@/pages/ExpenseHeads";
+import RoleManagement from "@/pages/RoleManagement";
 
 // Menu categories structure
 const menuCategories = [
@@ -45,18 +46,18 @@ const menuCategories = [
     id: "attendance",
     label: "Attendance",
     icon: Calendar,
-    forAll: true,
+    roleKey: "attendance",
     items: [
-      { path: "/", icon: Calendar, label: "Daily Attendance", forAll: true },
+      { path: "/", icon: Calendar, label: "Daily Attendance", roleKey: "attendance" },
     ]
   },
   {
     id: "sales",
     label: "Sales & Cash",
     icon: IndianRupee,
-    forAll: true,
+    roleKey: "sales_cash",
     items: [
-      { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", forAll: true },
+      { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", roleKey: "sales_cash" },
       { path: "/expense-heads", icon: Tags, label: "Expense Heads", forMGT: true },
     ]
   },
@@ -64,32 +65,35 @@ const menuCategories = [
     id: "hr",
     label: "HR Management",
     icon: Users,
+    roleKey: "hr",
     forMGT: true,
     items: [
-      { path: "/employees", icon: Users, label: "Employees", forMGT: true },
-      { path: "/salary", icon: FileSpreadsheet, label: "Salary", forMGT: true },
-      { path: "/payslips", icon: FileText, label: "Payslips", forMGT: true },
-      { path: "/hr-letters", icon: Briefcase, label: "HR Letters", forMGT: true },
+      { path: "/employees", icon: Users, label: "Employees", roleKey: "hr" },
+      { path: "/salary", icon: FileSpreadsheet, label: "Salary", roleKey: "hr" },
+      { path: "/payslips", icon: FileText, label: "Payslips", roleKey: "hr" },
+      { path: "/hr-letters", icon: Briefcase, label: "HR Letters", roleKey: "hr" },
     ]
   },
   {
     id: "mgt",
     label: "Management",
     icon: Building2,
+    roleKey: "mgt",
     forMGT: true,
     items: [
       { path: "/centers", icon: Building2, label: "Centers", forMGT: true },
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
+      { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
     ]
   },
   {
     id: "operations",
     label: "Operations",
     icon: ChefHat,
-    forAll: true,
+    roleKey: "operations",
     items: [
-      { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", forAll: true },
-      { path: "/guest-response", icon: MessageCircle, label: "Guest Response", forAll: true },
+      { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", roleKey: "operations" },
+      { path: "/guest-response", icon: MessageCircle, label: "Guest Response", roleKey: "operations" },
       { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", forMGT: true },
     ]
   },
