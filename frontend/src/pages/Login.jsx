@@ -50,6 +50,7 @@ export default function Login() {
         center: res.data.center,
         managerName: res.data.managerName,
         mobile: res.data.mobile,
+        roles: res.data.roles || {},
       });
     } catch (e) {
       toast.error(e.response?.data?.detail || "Invalid OTP");
