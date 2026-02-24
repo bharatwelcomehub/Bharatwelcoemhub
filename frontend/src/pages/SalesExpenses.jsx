@@ -23,7 +23,7 @@ import {
   RefreshCw,
   PieChart
 } from "lucide-react";
-import api from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
