@@ -208,7 +208,7 @@ export default function SalesExpenses() {
             />
           </div>
           
-          {isMGT && (
+          {hasAllCentersAccess && (
             <Select value={selectedCenter || "all"} onValueChange={(val) => setSelectedCenter(val === "all" ? "" : val)}>
               <SelectTrigger className="w-40" data-testid="center-filter">
                 <SelectValue placeholder="All Centers" />
@@ -380,7 +380,7 @@ export default function SalesExpenses() {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
-                      {isMGT && !selectedCenter && <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>}
+                      {hasAllCentersAccess && !selectedCenter && <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>}
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Total Sale</th>
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Cash</th>
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Online</th>
@@ -393,7 +393,7 @@ export default function SalesExpenses() {
                       dailyData.map((row, idx) => (
                         <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
                           <td className="py-3 px-2">{row.date ? formatDateDisplay(row.date) : '-'}</td>
-                          {isMGT && !selectedCenter && <td className="py-3 px-2">{row.center}</td>}
+                          {hasAllCentersAccess && !selectedCenter && <td className="py-3 px-2">{row.center}</td>}
                           <td className="text-right py-3 px-2 font-medium">{formatCurrency(row.total_sale)}</td>
                           <td className="text-right py-3 px-2">{formatCurrency(row.cash_sale || row.total_cash_sale)}</td>
                           <td className="text-right py-3 px-2">{formatCurrency(row.online_sale || row.total_online_sale)}</td>
@@ -409,7 +409,7 @@ export default function SalesExpenses() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={isMGT && !selectedCenter ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                        <td colSpan={hasAllCentersAccess && !selectedCenter ? 7 : 6} className="text-center py-8 text-muted-foreground">
                           No data available for selected period
                         </td>
                       </tr>
@@ -436,7 +436,7 @@ export default function SalesExpenses() {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
-                      {isMGT && <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>}
+                      {hasAllCentersAccess && <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>}
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Description</th>
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Category</th>
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Mode</th>
@@ -448,7 +448,7 @@ export default function SalesExpenses() {
                       expenses.slice(0, 50).map((exp, idx) => (
                         <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
                           <td className="py-3 px-2">{formatDateDisplay(exp.date)}</td>
-                          {isMGT && <td className="py-3 px-2 text-xs">{exp.center}</td>}
+                          {hasAllCentersAccess && <td className="py-3 px-2 text-xs">{exp.center}</td>}
                           <td className="py-3 px-2 max-w-[200px] truncate">{exp.description}</td>
                           <td className="py-3 px-2 text-xs">
                             <span className="px-2 py-1 rounded-full bg-muted">{exp.expense_type}</span>
@@ -459,7 +459,7 @@ export default function SalesExpenses() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={isMGT ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                        <td colSpan={hasAllCentersAccess ? 6 : 5} className="text-center py-8 text-muted-foreground">
                           No expenses recorded for selected period
                         </td>
                       </tr>
