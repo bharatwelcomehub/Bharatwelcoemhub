@@ -2787,8 +2787,9 @@ async def mgt_manager_roles(data: dict):
     if not email:
         raise HTTPException(400, "Manager email is required")
     
-    # Find the manager (case-insensitive email search)
-    manager = await db.managers.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}})
+    # Find the manager (case-insensitive email search with proper escaping)
+    escaped_email = re.escape(email)
+    manager = await db.managers.find_one({"email": {"$regex": f"^{escaped_email}$", "$options": "i"}})
     if not manager:
         raise HTTPException(404, f"Manager with email '{email}' not found")
     
