@@ -56,9 +56,15 @@ export default function SalesExpenses() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   
+  // Check if user has admin access (can view all centers)
+  const hasAllCentersAccess = session?.center === "PB-MGT" || 
+                              session?.is_super_admin === true || 
+                              session?.is_admin === true ||
+                              session?.roles?.view_all_centers === true;
+  
   // Filters
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthStr());
-  const [selectedCenter, setSelectedCenter] = useState(session?.center === "PB-MGT" ? "" : session?.center);
+  const [selectedCenter, setSelectedCenter] = useState(hasAllCentersAccess ? "all" : session?.center);
   const [centers, setCenters] = useState([]);
   
   // Data
@@ -66,8 +72,6 @@ export default function SalesExpenses() {
   const [dailyData, setDailyData] = useState([]);
   const [expenseByType, setExpenseByType] = useState({});
   const [expenses, setExpenses] = useState([]);
-  
-  const isMGT = session?.center === "PB-MGT";
 
   // Fetch centers list
   useEffect(() => {
