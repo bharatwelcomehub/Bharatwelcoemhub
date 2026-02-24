@@ -106,6 +106,21 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "operations"]);
   const isMGT = session?.center === "PB-MGT";
+  
+  // Get user's role permissions (MGT has all access)
+  const userRoles = isMGT ? {
+    attendance: true,
+    sales_cash: true,
+    hr: true,
+    mgt: true,
+    operations: true
+  } : (session?.roles || {
+    attendance: true,
+    sales_cash: true,
+    hr: false,
+    mgt: false,
+    operations: true
+  });
 
   // Toggle category expansion
   const toggleCategory = (categoryId) => {
@@ -116,12 +131,28 @@ export default function Dashboard() {
     );
   };
 
+  // Check if user has access to an item
+  const hasAccess = (item) => {
+    if (isMGT) return true; // MGT has full access
+    if (item.forMGT) return false; // MGT-only items
+    if (item.roleKey) return userRoles[item.roleKey] !== false;
+    return true;
+  };
+
+  // Check if user has access to a category
+  const hasCategoryAccess = (category) => {
+    if (isMGT) return true;
+    if (category.forMGT) return false;
+    if (category.roleKey) return userRoles[category.roleKey] !== false;
+    return true;
+  };
+
   // Filter categories and items based on access
   const filteredCategories = menuCategories
-    .filter(cat => cat.forAll || (cat.forMGT && isMGT))
+    .filter(cat => hasCategoryAccess(cat))
     .map(cat => ({
       ...cat,
-      items: cat.items.filter(item => item.forAll || (item.forMGT && isMGT))
+      items: cat.items.filter(item => hasAccess(item))
     }))
     .filter(cat => cat.items.length > 0);
 
