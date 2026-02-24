@@ -311,7 +311,7 @@ async def update_daily_sale(center: str, date: str, req: DailySaleUpdate, token:
 
 @router.delete("/daily/{center}/{date}")
 async def delete_daily_sale(center: str, date: str, token: str):
-    """Delete a daily sales record (MGT only)"""
+    """Delete a daily sales record (Admin/MGT only)"""
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
@@ -319,8 +319,9 @@ async def delete_daily_sale(center: str, date: str, token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can delete sales records")
+    can_view_all = has_all_centers_access(session)
+    if not can_view_all:
+        raise HTTPException(403, "Only Admin/Super Admin can delete sales records")
     
     result = await db.daily_sales.delete_one({
         "center": center.upper(),
@@ -350,10 +351,13 @@ async def get_expenses(req: ExpenseQueryRequest):
     
     query = {}
     
+    # Check if user has access to all centers
+    can_view_all = has_all_centers_access(session)
+    
     # Center filter
-    if session.get("center") != "PB-MGT":
+    if not can_view_all:
         query["center"] = session.get("center")
-    elif req.center:
+    elif req.center and req.center.lower() != "all":
         query["center"] = req.center.upper()
     
     # Date filters
