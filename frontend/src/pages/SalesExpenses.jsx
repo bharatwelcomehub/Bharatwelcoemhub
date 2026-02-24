@@ -125,7 +125,7 @@ export default function SalesExpenses() {
       const res = await api.post("/sales/expenses", {
         token: session?.token,
         month: selectedMonth,
-        center: selectedCenter || undefined
+        center: selectedCenter || "all"
       });
       
       if (res.data.expenses) {
