@@ -51,6 +51,8 @@ export default function Login() {
         managerName: res.data.managerName,
         mobile: res.data.mobile,
         roles: res.data.roles || {},
+        is_super_admin: res.data.is_super_admin || false,
+        is_admin: res.data.is_admin || false,
       });
     } catch (e) {
       toast.error(e.response?.data?.detail || "Invalid OTP");
