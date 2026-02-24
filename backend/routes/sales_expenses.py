@@ -549,13 +549,20 @@ async def get_monthly_summary(req: SalesQueryRequest):
     if not req.month:
         raise HTTPException(400, "Month is required (YYYY-MM format)")
     
+    # Check if user has access to all centers
+    can_view_all = has_all_centers_access(session)
+    
     # Build query
     query = {"date": {"$regex": f"^{req.month}"}}
     
-    if session.get("center") != "PB-MGT":
+    # Determine which center(s) to query
+    if not can_view_all:
+        # Regular user can only see their own center
         query["center"] = session.get("center")
-    elif req.center:
+    elif req.center and req.center.lower() != "all":
+        # Admin/SuperAdmin filtering by specific center
         query["center"] = req.center.upper()
+    # else: no center filter = all centers
     
     # Get all sales for the month
     sales = await db.daily_sales.find(query, {"_id": 0}).sort("date", 1).to_list(1000)
@@ -564,7 +571,7 @@ async def get_monthly_summary(req: SalesQueryRequest):
     expenses = await db.expenses.find(query, {"_id": 0}).sort("date", 1).to_list(5000)
     
     # If querying all centers, group by center
-    if session.get("center") == "PB-MGT" and not req.center:
+    if can_view_all and (not req.center or req.center.lower() == "all"):
         # Group by center
         centers_data = {}
         for sale in sales:
