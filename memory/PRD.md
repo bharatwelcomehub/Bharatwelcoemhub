@@ -198,12 +198,13 @@ User had existing HTML/Python files for an attendance and salary management syst
 ## Test Reports
 - `/app/test_reports/iteration_6.json` - Centers & Managers tests
 - `/app/test_reports/iteration_7.json` - Recipe Admin tests (100% pass)
-- `/app/test_reports/iteration_8.json` - Additional tests
+- `/app/test_reports/iteration_8.json` - Sales & Expenses tests (100% pass - 11/11 backend, full frontend)
 
 ## Backlog/Future
+- **Role-Based Access Control (RBAC)** - Create two management roles: "hsr related work" and "data related work" (USER REQUESTED)
+- Implement CRUD operations for Sales & Expenses (Create/Update/Delete) - Currently read-only view
 - Add company CIN number to HR letter templates
 - Email generated letters directly to employees
 - **Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large)
-- Add image upload (currently URL only)
-- Verify HR Letter PDF download functionality
-- Check payslip data overlap issue is fully resolved
+- Add image upload for recipes (currently URL only)
+- Verify payslip data overlap issue is fully resolved
