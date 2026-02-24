@@ -52,7 +52,20 @@ const ROLE_MODULES = [
     label: "Operations",
     icon: ChefHat,
     description: "Bhojan Guru, guest response, recipes"
+  },
+  {
+    id: "view_all_centers",
+    label: "View All Centers",
+    icon: Building2,
+    description: "Access data from all centers (not just own)"
   }
+];
+
+// Admin level options
+const ADMIN_LEVELS = [
+  { id: "none", label: "Regular User", description: "Access based on assigned roles only" },
+  { id: "admin", label: "Admin", description: "Full access to all features, can view all centers" },
+  { id: "super_admin", label: "Super Admin", description: "Full access + can manage other admins" }
 ];
 
 export default function RoleManagement() {
