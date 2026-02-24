@@ -253,6 +253,28 @@ User had existing HTML/Python files for an attendance and salary management syst
 - **Payslip Data Overlap (P1)**: Verify and fix any remaining overlap issues in PDF payslip generation
 - **HR Letter PDF Download Verification (P2)**: User verification pending for the fix applied earlier
 - **Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large, ~3500 lines)
+- Add custom roles (Accounts, Trainer, Marketing)
 - Add image upload for recipes (currently URL only)
 - Add company CIN number to HR letter templates
 - Email generated letters directly to employees
+
+## Latest Updates (Feb 24, 2026)
+
+### Session 7 - Admin Role System & Data Access Fix
+- ✅ **Super Admin & Admin Role System**
+  - Super Admin (Jayanti): Full access, can manage other Super Admins
+  - Admin: Full access to features, cannot modify Super Admins
+  - Regular User: Access based on assigned module roles
+  - Jayanti's record hidden from all other users
+  
+- ✅ **All Centers Access Fix**
+  - Super Admins, Admins, and users with "View All Centers" role can now see data from ALL centers
+  - Sales Dashboard now shows combined data for all centers
+  - Center dropdown shows "All Centers" option for authorized users
+  - Backend helper functions `has_admin_access()` and `has_all_centers_access()` added
+  
+- ✅ **API Access Control Updates**
+  - `/api/sales/reports/monthly-summary` - respects admin roles
+  - `/api/sales/expenses` - respects admin roles
+  - `/api/mgt/managers` - filters based on user permissions
+  - Employee management endpoints updated for admin access
