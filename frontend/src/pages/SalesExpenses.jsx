@@ -251,17 +251,23 @@ export default function SalesExpenses() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted">
+        <TabsList className="bg-muted flex-wrap">
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-          <TabsTrigger value="entry" data-testid="tab-entry">Data Entry</TabsTrigger>
+          <TabsTrigger value="sales-entry" data-testid="tab-sales-entry">Sales Entry</TabsTrigger>
+          <TabsTrigger value="expense-entry" data-testid="tab-expense-entry">Expense Entry</TabsTrigger>
           <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
-          <TabsTrigger value="expenses" data-testid="tab-expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="expenses" data-testid="tab-expenses">Expense List</TabsTrigger>
           <TabsTrigger value="breakdown" data-testid="tab-breakdown">Payment Breakdown</TabsTrigger>
         </TabsList>
 
-        {/* Data Entry Tab */}
-        <TabsContent value="entry">
+        {/* Sales Data Entry Tab */}
+        <TabsContent value="sales-entry">
           <SalesDataEntry session={session} selectedCenter={selectedCenter} />
+        </TabsContent>
+
+        {/* Expense Entry Tab */}
+        <TabsContent value="expense-entry">
+          <ExpenseEntry session={session} selectedCenter={selectedCenter} />
         </TabsContent>
 
         {/* Overview Tab */}
