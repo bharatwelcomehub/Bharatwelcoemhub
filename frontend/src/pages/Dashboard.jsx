@@ -17,7 +17,8 @@ import {
   Clock,
   MessageCircle,
   Settings,
-  Briefcase
+  Briefcase,
+  IndianRupee
 } from "lucide-react";
 
 // Import pages
@@ -30,9 +31,11 @@ import RecipeAdmin from "@/pages/RecipeAdmin";
 import HRLetters from "@/pages/HRLetters";
 import CentersManagement from "@/pages/CentersManagement";
 import ManagersManagement from "@/pages/ManagersManagement";
+import SalesExpenses from "@/pages/SalesExpenses";
 
 const navItems = [
   { path: "/", icon: Calendar, label: "Attendance", forAll: true },
+  { path: "/sales", icon: IndianRupee, label: "Sales & Cash", forAll: true },
   { path: "/guest-response", icon: MessageCircle, label: "Guest Response", forAll: true },
   { path: "/employees", icon: Users, label: "Employees", forMGT: true },
   { path: "/salary", icon: FileSpreadsheet, label: "Salary", forMGT: true },
