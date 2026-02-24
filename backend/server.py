@@ -2772,6 +2772,42 @@ async def mgt_manager_delete(data: dict):
     logger.info(f"Manager deleted: {email} by {session.get('managerName')}")
     return {"success": True, "message": f"Manager deleted successfully"}
 
+@api_router.post("/mgt/manager_roles")
+async def mgt_manager_roles(data: dict):
+    """Update a manager's role permissions (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage roles")
+    
+    email = data.get("email", "").strip().lower()
+    roles = data.get("roles", {})
+    
+    if not email:
+        raise HTTPException(400, "Manager email is required")
+    
+    # Find the manager
+    manager = await db.managers.find_one({"email": email})
+    if not manager:
+        raise HTTPException(404, f"Manager with email '{email}' not found")
+    
+    # Cannot modify MGT manager's roles
+    if manager.get("center") == "PB-MGT":
+        raise HTTPException(400, "Cannot modify PB-MGT manager roles - they have full access")
+    
+    # Update roles
+    await db.managers.update_one(
+        {"email": email},
+        {"$set": {
+            "roles": roles,
+            "rolesUpdatedAt": datetime.now(timezone.utc).isoformat(),
+            "rolesUpdatedBy": session.get("managerName", "Unknown")
+        }}
+    )
+    
+    logger.info(f"Manager roles updated: {email} by {session.get('managerName')}")
+    return {"success": True, "message": "Manager roles updated successfully"}
+
 # =======================================
 # USER MANUAL & BROCHURE PDF GENERATION
 # =======================================
