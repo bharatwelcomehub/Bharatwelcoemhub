@@ -99,9 +99,26 @@ export default function Dashboard() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "operations"]);
   const isMGT = session?.center === "PB-MGT";
 
-  const filteredNav = navItems.filter(item => item.forAll || (item.forMGT && isMGT));
+  // Toggle category expansion
+  const toggleCategory = (categoryId) => {
+    setExpandedCategories(prev => 
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  // Filter categories and items based on access
+  const filteredCategories = menuCategories
+    .filter(cat => cat.forAll || (cat.forMGT && isMGT))
+    .map(cat => ({
+      ...cat,
+      items: cat.items.filter(item => item.forAll || (item.forMGT && isMGT))
+    }))
+    .filter(cat => cat.items.length > 0);
 
   const handleLogout = () => {
     logout();
