@@ -374,7 +374,7 @@ export default function SalesExpenses() {
                     {dailyData.length > 0 ? (
                       dailyData.map((row, idx) => (
                         <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
-                          <td className="py-3 px-2">{row.date ? formatDate(row.date) : '-'}</td>
+                          <td className="py-3 px-2">{row.date ? formatDateDisplay(row.date) : '-'}</td>
                           {isMGT && !selectedCenter && <td className="py-3 px-2">{row.center}</td>}
                           <td className="text-right py-3 px-2 font-medium">{formatCurrency(row.total_sale)}</td>
                           <td className="text-right py-3 px-2">{formatCurrency(row.cash_sale || row.total_cash_sale)}</td>
