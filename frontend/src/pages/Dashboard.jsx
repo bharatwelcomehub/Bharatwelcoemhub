@@ -170,6 +170,7 @@ export default function Dashboard() {
         <div className="p-4 lg:p-8 animate-fadeIn">
           <Routes>
             <Route path="/" element={<Attendance />} />
+            <Route path="/sales" element={<SalesExpenses />} />
             <Route path="/guest-response" element={<GuestResponse />} />
             <Route path="/employees" element={<Employees />} />
             <Route path="/salary" element={<Salary />} />
