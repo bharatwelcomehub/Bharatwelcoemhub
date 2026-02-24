@@ -18,7 +18,12 @@ import {
   MessageCircle,
   Settings,
   Briefcase,
-  IndianRupee
+  IndianRupee,
+  Receipt,
+  Tags,
+  ChevronDown,
+  ChevronRight,
+  UserCog
 } from "lucide-react";
 
 // Import pages
@@ -32,19 +37,62 @@ import HRLetters from "@/pages/HRLetters";
 import CentersManagement from "@/pages/CentersManagement";
 import ManagersManagement from "@/pages/ManagersManagement";
 import SalesExpenses from "@/pages/SalesExpenses";
+import ExpenseHeads from "@/pages/ExpenseHeads";
 
-const navItems = [
-  { path: "/", icon: Calendar, label: "Attendance", forAll: true },
-  { path: "/sales", icon: IndianRupee, label: "Sales & Cash", forAll: true },
-  { path: "/guest-response", icon: MessageCircle, label: "Guest Response", forAll: true },
-  { path: "/employees", icon: Users, label: "Employees", forMGT: true },
-  { path: "/salary", icon: FileSpreadsheet, label: "Salary", forMGT: true },
-  { path: "/payslips", icon: FileText, label: "Payslips", forMGT: true },
-  { path: "/hr-letters", icon: Briefcase, label: "HR Letters", forMGT: true },
-  { path: "/centers", icon: Building2, label: "Centers", forMGT: true },
-  { path: "/managers", icon: Users, label: "Managers", forMGT: true },
-  { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", forAll: true },
-  { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", forMGT: true },
+// Menu categories structure
+const menuCategories = [
+  {
+    id: "attendance",
+    label: "Attendance",
+    icon: Calendar,
+    forAll: true,
+    items: [
+      { path: "/", icon: Calendar, label: "Daily Attendance", forAll: true },
+    ]
+  },
+  {
+    id: "sales",
+    label: "Sales & Cash",
+    icon: IndianRupee,
+    forAll: true,
+    items: [
+      { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", forAll: true },
+      { path: "/expense-heads", icon: Tags, label: "Expense Heads", forMGT: true },
+    ]
+  },
+  {
+    id: "hr",
+    label: "HR Management",
+    icon: Users,
+    forMGT: true,
+    items: [
+      { path: "/employees", icon: Users, label: "Employees", forMGT: true },
+      { path: "/salary", icon: FileSpreadsheet, label: "Salary", forMGT: true },
+      { path: "/payslips", icon: FileText, label: "Payslips", forMGT: true },
+      { path: "/hr-letters", icon: Briefcase, label: "HR Letters", forMGT: true },
+    ]
+  },
+  {
+    id: "mgt",
+    label: "Management",
+    icon: Building2,
+    forMGT: true,
+    items: [
+      { path: "/centers", icon: Building2, label: "Centers", forMGT: true },
+      { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
+    ]
+  },
+  {
+    id: "operations",
+    label: "Operations",
+    icon: ChefHat,
+    forAll: true,
+    items: [
+      { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", forAll: true },
+      { path: "/guest-response", icon: MessageCircle, label: "Guest Response", forAll: true },
+      { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", forMGT: true },
+    ]
+  },
 ];
 
 export default function Dashboard() {
