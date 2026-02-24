@@ -237,34 +237,69 @@ export default function RoleManagement() {
               <span className="ml-2 text-sm font-normal text-muted-foreground">({editingManager.center})</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {ROLE_MODULES.map(role => (
-                <div 
-                  key={role.id}
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                    selectedRoles[role.id] 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-border hover:border-muted-foreground'
-                  }`}
-                  onClick={() => toggleRole(role.id)}
-                >
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      checked={selectedRoles[role.id] || false}
-                      onCheckedChange={() => toggleRole(role.id)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
+          <CardContent className="space-y-6">
+            {/* Admin Level Selector */}
+            {isSuperAdmin && (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-primary">Access Level</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {ADMIN_LEVELS.map(level => (
+                    <div 
+                      key={level.id}
+                      className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        selectedAdminLevel === level.id 
+                          ? 'border-primary bg-primary/10' 
+                          : 'border-border hover:border-muted-foreground'
+                      }`}
+                      onClick={() => setSelectedAdminLevel(level.id)}
+                    >
                       <div className="flex items-center gap-2">
-                        <role.icon className={`w-4 h-4 ${selectedRoles[role.id] ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <span className="font-medium">{role.label}</span>
+                        <input 
+                          type="radio" 
+                          checked={selectedAdminLevel === level.id}
+                          onChange={() => setSelectedAdminLevel(level.id)}
+                          className="w-4 h-4"
+                        />
+                        <span className="font-medium text-sm">{level.label}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">{role.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1 ml-6">{level.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Module Roles */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm text-primary">Module Access</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {ROLE_MODULES.map(role => (
+                  <div 
+                    key={role.id}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                      selectedRoles[role.id] 
+                        ? 'border-primary bg-primary/5' 
+                        : 'border-border hover:border-muted-foreground'
+                    }`}
+                    onClick={() => toggleRole(role.id)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={selectedRoles[role.id] || false}
+                        onCheckedChange={() => toggleRole(role.id)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <role.icon className={`w-4 h-4 ${selectedRoles[role.id] ? 'text-primary' : 'text-muted-foreground'}`} />
+                          <span className="font-medium">{role.label}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{role.description}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
             
             <div className="flex gap-2 justify-end pt-4">
