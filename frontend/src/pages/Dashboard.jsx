@@ -105,21 +105,28 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "operations"]);
-  const isMGT = session?.center === "PB-MGT";
   
-  // Get user's role permissions (MGT has all access)
-  const userRoles = isMGT ? {
+  // Check user access levels
+  const isMGT = session?.center === "PB-MGT";
+  const isSuperAdmin = session?.is_super_admin === true;
+  const isAdmin = session?.is_admin === true;
+  const hasFullAccess = isMGT || isSuperAdmin || isAdmin;
+  
+  // Get user's role permissions
+  const userRoles = hasFullAccess ? {
     attendance: true,
     sales_cash: true,
     hr: true,
     mgt: true,
-    operations: true
+    operations: true,
+    view_all_centers: true
   } : (session?.roles || {
     attendance: true,
     sales_cash: true,
     hr: false,
     mgt: false,
-    operations: true
+    operations: true,
+    view_all_centers: false
   });
 
   // Toggle category expansion
@@ -133,15 +140,15 @@ export default function Dashboard() {
 
   // Check if user has access to an item
   const hasAccess = (item) => {
-    if (isMGT) return true; // MGT has full access
-    if (item.forMGT) return false; // MGT-only items
+    if (hasFullAccess) return true; // Super Admin, Admin, MGT have full access
+    if (item.forMGT) return false; // MGT-only items require admin access
     if (item.roleKey) return userRoles[item.roleKey] !== false;
     return true;
   };
 
   // Check if user has access to a category
   const hasCategoryAccess = (category) => {
-    if (isMGT) return true;
+    if (hasFullAccess) return true;
     if (category.forMGT) return false;
     if (category.roleKey) return userRoles[category.roleKey] !== false;
     return true;
