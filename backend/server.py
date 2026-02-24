@@ -2811,21 +2811,38 @@ async def mgt_manager_update(data: dict):
 
 @api_router.post("/mgt/manager_delete")
 async def mgt_manager_delete(data: dict):
-    """Delete a manager (MGT only)"""
+    """Delete a manager (Admin/MGT only, Super Admin deletion only by Jayanti)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can delete managers")
+    
+    is_super_admin = session.get("is_super_admin", False) if session else False
+    is_admin = session.get("is_admin", False) if session else False
+    is_mgt = session.get("center") == "PB-MGT" if session else False
+    current_email = session.get("email", "").lower() if session else ""
+    jayanti_email = "jayanti.kathale@purnabramha.com"
+    is_jayanti = current_email == jayanti_email
+    
+    if not session or (not is_super_admin and not is_admin and not is_mgt):
+        raise HTTPException(403, "Only Admin or PB-MGT can delete managers")
     
     email = data.get("email", "").strip().lower()
     if not email:
         raise HTTPException(400, "Manager email is required")
     
-    # Prevent deleting current user
-    if email == session.get("email", "").lower():
-        raise HTTPException(400, "Cannot delete your own account")
+    # Find the manager to check their status
+    manager = await db.managers.find_one({"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}})
+    if not manager:
+        raise HTTPException(404, f"Manager with email '{email}' not found")
     
-    result = await db.managers.delete_one({"email": email})
+    # Only Jayanti can delete Super Admins
+    if manager.get("is_super_admin") and not is_jayanti:
+        raise HTTPException(403, "Only Jayanti Kathale can delete Super Admin accounts")
+    
+    # Prevent deleting Jayanti (master account)
+    if email == jayanti_email and not is_jayanti:
+        raise HTTPException(403, "Cannot delete the master Super Admin account")
+    
+    result = await db.managers.delete_one({"email": manager.get("email")})
     
     if result.deleted_count == 0:
         raise HTTPException(404, f"Manager with email '{email}' not found")
