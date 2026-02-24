@@ -16,25 +16,32 @@ User had existing HTML/Python files for an attendance and salary management syst
   - **Sales Dashboard** with 6 tabs:
     - **Overview Tab**: Summary cards, Online Payment Breakdown, Expenses by Category, Net Profit
     - **Sales Entry Tab**: Form for daily sales with editable (white) vs calculated (gray) fields
-    - **Expense Entry Tab (NEW)**: Form to add daily expenses with category, amount, payment mode
+    - **Expense Entry Tab**: Form to add daily expenses with category, amount, payment mode
     - **Daily Report Tab**: Center-wise breakdown
     - **Expense List Tab**: All expense records
     - **Payment Breakdown Tab**: Cash vs Online comparison
 
-- ✅ **Expense Heads Master (NEW)**
+- ✅ **Expense Heads Master**
   - CRUD page for managing expense categories (`/expense-heads`)
   - 20 standard expense categories pre-loaded
   - Add/Edit/Delete functionality for MGT users
-  - Search and filter capabilities
 
-- ✅ **Sidebar Reorganization (NEW)**
-  - Categorized navigation menu:
-    - **Attendance**: Daily Attendance
-    - **Sales & Cash**: Sales Dashboard, Expense Heads
-    - **HR Management**: Employees, Salary, Payslips, HR Letters
-    - **Management**: Centers, Managers
-    - **Operations**: Bhojan Guru, Guest Response, Recipe Admin
-  - Collapsible category sections with expand/collapse icons
+- ✅ **Role & Access Management (NEW)**
+  - New page at `/role-management` for MGT to assign module access to managers
+  - 5 role modules: Attendance, Sales & Cash, HR Management, Management, Operations
+  - Visual checkboxes for each role with descriptions
+  - Role-based sidebar filtering (managers only see allowed modules)
+  - Backend API: `/api/mgt/manager_roles` for saving role assignments
+
+- ✅ **Sidebar Reorganization**
+  - Categorized navigation: Attendance, Sales & Cash, HR Management, Management, Operations
+  - Role Management added under Management section
+  - Collapsible category sections
+
+- ✅ **Bug Fix: Input Focus Issue**
+  - Fixed text input focus jumping when typing in Sales Entry and Expense Entry forms
+  - Changed from `type="number"` to `type="text"` with `inputMode="decimal"` for better control
+  - Input fields now retain focus while typing multiple digits
 
 ### Previous Update (Feb 22, 2026 - Session 5)
 
