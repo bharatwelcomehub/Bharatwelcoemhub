@@ -25,8 +25,6 @@ import {
 } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 
-const API = process.env.REACT_APP_BACKEND_URL;
-
 // Format currency
 const formatCurrency = (amount) => {
   if (amount === null || amount === undefined) return "₹0";
@@ -39,14 +37,14 @@ const formatCurrency = (amount) => {
 };
 
 // Format date for display
-const formatDate = (dateStr) => {
+const formatDateDisplay = (dateStr) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 // Get current month in YYYY-MM format
-const getCurrentMonth = () => {
+const getCurrentMonthStr = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
@@ -57,7 +55,7 @@ export default function SalesExpenses() {
   const [activeTab, setActiveTab] = useState("overview");
   
   // Filters
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthStr());
   const [selectedCenter, setSelectedCenter] = useState(session?.center === "PB-MGT" ? "" : session?.center);
   const [centers, setCenters] = useState([]);
   
@@ -73,7 +71,7 @@ export default function SalesExpenses() {
   useEffect(() => {
     const fetchCenters = async () => {
       try {
-        const res = await api.get(`${API}/api/sales/centers-list`);
+        const res = await api.get("/sales/centers-list");
         if (res.data.centers) {
           setCenters(res.data.centers);
         }
@@ -90,7 +88,7 @@ export default function SalesExpenses() {
     
     setLoading(true);
     try {
-      const res = await api.post(`${API}/api/sales/reports/monthly-summary`, {
+      const res = await api.post("/sales/reports/monthly-summary", {
         token: session?.token,
         month: selectedMonth,
         center: selectedCenter || undefined
