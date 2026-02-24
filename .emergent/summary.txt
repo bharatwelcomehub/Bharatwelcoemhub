@@ -2,82 +2,100 @@
 The user wants to migrate a local application, Purnabramha IntraPB System, to a modern full-stack web application.
 
 **PRODUCT REQUIREMENTS (current session):**
-1.  **Payslip Enhancements:**
-    *   Add an option to download payslips in both PDF and DOCX formats.
-    *   Fix an issue where data overlaps in the generated payslip.
-2.  **Center & Manager Management:**
-    *   Create dedicated UI screens for full CRUD (Create, Read, Update, Delete) operations on Centers.
-    *   Create dedicated UI screens for full CRUD operations on Managers.
-3.  **Recipe System Overhaul:**
-    *   Replace the entire existing recipe database with a new set of recipes provided in a PDF file ().
-    *   The new system must segregate recipes by categories (SNACKS, DRINKS, SWEETS, etc.).
-    *   Implement full CRUD (Add, Update, Delete) functionality for all recipes.
-    *   Include a search option to find recipes by name.
-    *   Add support for attaching an image URL to each recipe, with the ability to add or update the image later.
+1.  **Sales & Expenses Tracking System (New Major Feature):**
+    *   Implement a new system based on a user-provided Excel file format for tracking sales and expenses.
+    *   Provide full CRUD operation facilities for managers to input and manage this data.
+    *   Create a new dashboard with reports:
+        *   Day-wise and month-wise reports per center.
+        *   For management: Day-wise reports for all centers and single centers.
+        *   For management: Month-wise reports for single and all centers.
+    *   Display expenses by category (e.g., card, cash, UPI) on the dashboard.
+    *   Populate the system with data from Excel files provided by the user for each center.
+2.  **Role-Based Access Control:**
+    *   Create two new roles for management: one for hsr related work and one for data related work.
+3.  **User Manual:**
+    *   Create a comprehensive user manual PDF with actual screenshots from the application.
+    *   The manual should be downloadable without requiring a login.
+    *   Remove the old user manual/brochure download buttons from the Recipe Admin page.
+4.  **Bug Fixes & UI Clean-up:**
+    *   Fix the HR Letter generator to pull the list of centers from the database instead of a hardcoded list.
+    *   Resolve an error that occurred when updating a manager's phone number.
+    *   Remove a debug pop-up on the login screen that showed a default OTP.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application with a React frontend, FastAPI backend, and MongoDB database. In this session, several major features were added:
-1.  **Center & Manager Management:** Fully functional CRUD pages for managing centers and managers have been created and integrated into the dashboard.
-2.  **Payslip Formats:** The payslip generation feature now supports both PDF and DOCX downloads, selectable via a dropdown in the UI.
-3.  **Recipe Management System:** The entire recipe module has been overhauled. It now uses a new database of 79 recipes extracted from the user's PDF, displayed on a completely new Recipe Admin page. This page features category tabs, search functionality, and full CRUD operations, including support for adding image URLs.
+A full-stack application with a React frontend, FastAPI backend, and MongoDB database. The application includes:
+-   Full CRUD management for Centers, Managers, and Employees.
+-   An expanded recipe database with 164 recipes, managed via a dedicated Recipe Admin page.
+-   Features for Attendance, Salary generation, and Payslip downloads (PDF/DOCX).
+-   AI-powered Bhojan Guru (menu suggestions) and Guest Response tools.
+-   An HR Letter generation module.
+-   A publicly accessible endpoint () to download a comprehensive 12-page user manual complete with application screenshots.
 
 **Last working item**:
-- **Last item agent was working:** The agent completed a full overhaul of the recipe management system as requested by the user. This involved extracting 79 recipes from a PDF, creating a new JSON database, rewriting the backend endpoints, and building a new frontend interface with categories, CRUD, search, and image support. The agent confirmed completion to the user after comprehensive testing.
-- **Status:** USER VERIFICATION PENDING
-- **Agent Testing Done:** Y (Tested via API calls, screenshots, and a successful run of the )
-- **Which testing method agent to use?** Manual testing by the user. The agent has already performed comprehensive automated testing. The next agent should wait for user feedback before taking further action.
-- **User Testing Done:** N
+- **Last item agent was working:** The agent was in the process of gathering requirements for a brand-new **Sales & Expenses Tracking System**. The user clarified that this is a new feature based on an Excel format and has started uploading the relevant files (e.g., ). The agent acknowledged the request and was waiting to analyze the provided files to begin implementation.
+- **Status:** NOT STARTED
+- **Agent Testing Done:** N/A
+- **Which testing method agent to use?** both (This is a large new feature that will require backend and frontend testing upon completion).
+- **User Testing Done:** N/A
 
 **All Pending/In progress Issue list**:
-*   **Issue 1 (P0): Verify new Recipe Management System.**
-*   **Issue 2 (P1): Verify HR Letter PDF Download Functionality (Carried over).**
+*   **Issue 1: Payslip Data Overlap (P1).**
+*   **Issue 2: Verify HR Letter PDF Download Functionality (P2).**
 
 **Issues Detail:**
-*   **Issue 1: Verify new Recipe Management System.**
-    *   **Attempted fixes:** N/A. This is a new feature that has been fully implemented and tested by the agent.
+*   **Issue 1: Payslip Data Overlap**
+    *   **Attempted fixes:** None directly. The agent added DOCX support as requested but did not circle back to confirm if the original data overlap issue in PDFs was resolved.
     *   **Next debug checklist:**
-        1.  Log in as a manager and navigate to the Recipe Admin page.
-        2.  Confirm the category tabs (SNACKS, DRINKS, SWEETS, etc.) and recipe counts are correct.
-        3.  Test the search functionality by typing a recipe name.
-        4.  Use the Add New Recipe button to create a new recipe.
-        5.  Edit and then Delete the newly created recipe to test the full CRUD cycle.
-        6.  Verify the Image URL field is present and can be edited.
-    *   **Why fix this issue and what will be achieved with the fix?** This is a major feature requested by the user. Verification is required to confirm the implementation meets the user's expectations.
-    *   **Status:** USER VERIFICATION PENDING
-    *   **Is recurring issue?** N
-    *   **Should Test frontend/backend/both after fix?** Frontend
+        1.  Generate a payslip in PDF format for an employee.
+        2.  Inspect the generated PDF to see if any text fields or sections overlap.
+        3.  If overlap exists, examine the  generation logic in  within the  endpoint to adjust coordinates or flowable elements.
+    *   **Why fix this issue and what will be achieved with the fix?** To ensure payslips are professional and legible.
+    *   **Status:** NOT STARTED
+    *   **Is recurring issue?** Y
+    *   **Should Test frontend/backend/both after fix?** backend
     *   **Blocked on other issue:** None
 
-*   **Issue 2: Verify HR Letter PDF Download Functionality (Carried over).**
-    *   **Attempted fixes:** In the previous session, a bug with a malformed bold tag in  was fixed, which was preventing PDF downloads.
-    *   **Next debug checklist:** This verification task was superseded by the user's new requests in this session. The agent should re-confirm with the user if this is still pending or if they are satisfied with the previous fix.
-    *   **Why fix this issue and what will be achieved with the fix?** This was a core part of the HR Letter feature from the previous session.
+*   **Issue 2: Verify HR Letter PDF Download Functionality**
+    *   **Attempted fixes:** A fix was implemented in a previous session for a malformed HTML tag.
+    *   **Next debug checklist:** This verification task was deprioritized by the user's other requests. The agent should re-confirm with the user if this is still a concern.
+    *   **Why fix this issue and what will be achieved with the fix?** To close out a pending verification from a previous session.
     *   **Status:** USER VERIFICATION PENDING
     *   **Is recurring issue?** N
     *   **Should Test frontend/backend/both after fix?** Frontend
     *   **Blocked on other issue:** None
 
 **In progress Task List**:
-There are no tasks currently in progress. All requested work for this session has been completed.
+There are no tasks currently in progress. The agent is waiting to start the new Sales & Expenses feature.
 
 **Upcoming and Future Tasks**
-*   **Refactor  (P1):** The main backend file has grown excessively large and complex. It should be refactored by breaking it down into a modular structure using FastAPI's  for better maintainability. This is a critical technical debt item.
-*   Await user feedback on the newly implemented features to determine the next set of tasks.
+*   **Upcoming Tasks:**
+    *   **(P0) Implement Sales & Expenses Tracking System:**
+        *   Analyze the user-provided Excel files (starting with ).
+        *   Design and create a new database schema (collections/tables) for sales and expenses.
+        *   Develop backend APIs for CRUD operations on sales/expense data.
+        *   Build a new frontend dashboard for sales/expense reporting.
+    *   **(P0) Implement Role-Based Access Control (RBAC):**
+        *   Modify the  schema to include a  field.
+        *   Implement logic in the backend to restrict access based on two new roles: hsr related work and data related work.
+        *   Update frontend to conditionally render UI elements based on the logged-in manager's role.
+
+*   **Future Tasks:**
+    *   **(P1) Refactor :** Break down the monolithic  into a modular structure using FastAPI's  for better maintainability.
+    *   **(P2) Add Image Upload for Recipes:** The current system only supports image URLs. Implement a file upload mechanism to host recipe images directly.
 
 **Completed work in this session**
-- **Feature - Center & Manager Management:** Implemented full CRUD functionality for both centers and managers, including dedicated frontend pages (, ) and corresponding backend APIs in .
-- **Enhancement - Payslip DOCX Support:** Added DOCX format as a download option for payslips in  and updated the  endpoint in .
-- **Feature - Recipe System Overhaul:**
-    - Replaced the entire recipe system based on a user-provided PDF.
-    - Created a new data source:  with 79 recipes.
-    - Completely rewrote  to include category tabs, search, and full CRUD operations.
-    - Rewrote the recipe-related API endpoints in .
-    - All new features were successfully tested by the .
+- **Feature - User Manual with Screenshots:** Created a comprehensive 12-page user manual with embedded application screenshots. The manual is served as a PDF from a new public API endpoint () that does not require login.
+- **Bug Fix - HR Letter Center Dropdown:** Modified the  page to dynamically fetch the list of centers from the  endpoint, fixing an issue where it used a stale, hardcoded list.
+- **Bug Fix - Manager Phone Number Update:** Resolved an error in  that prevented manager details from being updated. The fix ensures the correct manager is identified during the update API call.
+- **Recipe DB Expansion:** Updated the recipe database from 79 to 164 entries in .
+- **UI Cleanup:**
+    - Removed the debug OTP hint/toast from the  page.
+    - Removed the now-obsolete PDF download buttons from the  page.
 
 **Earlier issues found/mentioned but not fixed**
-*   **Payslip Data Overlap:** The user initially reported that data was overlapping in payslips. While the agent implemented DOCX support, it did not explicitly confirm if the overlapping issue in the PDF was also resolved. This should be verified.
+*   **Payslip Data Overlap:** As mentioned in the Pending/In progress Issue list, this was reported by the user but never explicitly verified as fixed.
 
 **Known issue recurrence from previous fork**
 N/A
@@ -88,55 +106,58 @@ N/A
 **Key Technical Concepts**
 *   **Frontend:** React, Tailwind CSS, .
 *   **Backend:** FastAPI, Pydantic, .
-*   **Document Generation:**  (PDF),  (DOCX),  (Excel), .
+*   **Document Generation:**  (PDF),  (DOCX).
+*   **Browser Automation:**  (used to capture screenshots for the user manual).
 *   **Database:** MongoDB.
-*   **AI Integration:** OpenAI GPT-5.2.
-*   **File Analysis:**  used to extract data from a PDF.
+*   **Static File Serving:** Using  in FastAPI to serve a PDF.
 
 **key DB schema**
-*   **managers:**  (Now has a UI)
+*   **managers:**  (To be updated for RBAC)
 *   **employees:** 
-*   **centers:**  (Now has a UI)
+*   **centers:** 
 *   **recipes (JSON file):** 
+*   **(New) sales_data:** To be defined based on user's Excel file.
+*   **(New) expenses_data:** To be defined based on user's Excel file.
 
 **changes in tech stack**
-*   Increased reliance on  for Word document generation.
+*    was introduced and used via a Python script to programmatically capture application screenshots.
 
 **All files of reference**
-*   : Heavily modified with new CRUD endpoints for Centers, Managers, and a complete overhaul of Recipe endpoints. Payslip logic was also updated.
-*   : Completely rewritten.
-*   : New file.
-*   : New file.
-*   : Updated with new routes.
-*   : Updated with new sidebar links.
-*   : New file containing all 79 recipes.
-*   : Updated with payslip format selector.
+*   : Heavily modified to add the user manual download endpoint (), the screenshot generation script, and bug fixes for manager updates.
+*   : Updated to fetch centers dynamically.
+*   : Updated with a fix for the manager update functionality.
+*   : Updated to remove a debug toast message.
+*   : Updated to remove PDF download buttons.
+*   : New user manual file.
+*   : Updated with more recipes.
 
 **Areas that need refactoring**:
-*    is extremely large and monolithic. It urgently needs to be broken down into a modular structure using FastAPI's  to improve maintainability.
+*    remains a large monolithic file. The upcoming Sales & Expenses feature should be built modularly, and the existing code should be refactored with  when possible.
 
 **key api endpoints**
-*   **Centers CRUD:** , , , 
-*   **Managers CRUD:** , , , 
-*   **Recipes CRUD:** , , , , 
-*   **Payslips:**  (updated to accept )
+*   : **New endpoint** to download the user manual PDF without authentication.
+*   : Logic was reviewed and fixed on the frontend.
+*   : Now used by the HR Letters page.
 
 **Critical Info for New Agent**
-*   The immediate task is to await user verification for the massive recipe system overhaul. Do not start new work until the user provides feedback.
-*   A verification task from the previous session (HR Letter PDF download) was skipped. You should ask the user if this is still a concern or if it can be considered resolved.
-*   The refactoring of  is the most important piece of technical debt. Propose this as the next major task after all current feature requests are closed and verified by the user.
+*   The highest priority is the new **Sales & Expenses Tracking System**. You must start by analyzing the Excel file(s) the user has provided (e.g., ) to understand the data structure, formulas, and reporting requirements.
+*   The implementation of this new feature must also include the creation of two new management roles (, ), which will require building a basic Role-Based Access Control (RBAC) system.
+*   The user manual has been a point of significant back-and-forth. The final, correct implementation generates a PDF with embedded screenshots and serves it via a public API endpoint. Do not try to re-implement this unless requested. The code for generating the manual and screenshots is in .
 
 **documents and test reports created in this job**
-*    (updated)
-*   
 *   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Initial Request):** Requested DOCX/PDF payslips, a fix for payslip data overlap, and CRUD screens for Centers and Managers.
-2.  **User (Recipe Overhaul):** Uploaded a PDF of recipes and requested a complete replacement of the recipe system with categories, CRUD, search, and image support.
-3.  **User (Follow-up):** Asked for a status update on the recipe implementation.
-4.  **User (Concern):** Asked if the large size of the recipe PDF was an issue for the agent.
-5.  **Agent (Response):** Confirmed that all 79 recipes were successfully extracted and the new system was fully functional, and awaited user feedback.
+1.  **User:** Asks for a user manual PDF with screenshots from the app for various modules (Bhojan Guru, Guest Response, Attendance, etc.) and requests removal of the old PDF buttons from the recipe section.
+2.  **Agent:** Acknowledges and starts work on creating the manual.
+3.  **User:** WHERE IS THE PDF FILE?
+4.  **Agent:** Provides a direct download link.
+5.  **User:** IT IS ASKING ME TO LOGGED IN
+6.  **Agent:** Fixes the issue by creating a public, no-login download endpoint.
+7.  **User:** NO SCREEN AT ALL JUST TEXT
+8.  **Agent:** Understands the text-only PDF was wrong and re-does the entire process to capture screenshots and embed them into a new PDF.
+9.  **Agent:** Provides the final, correct download link for the user manual with screenshots.
+10. **User:** Pivots to a completely new feature request: a sales/expenses tracking system based on an Excel file, with CRUD for managers, specific reporting requirements, and two new management roles. Uploads a file named Hsr file.
 
 **Project Health Check:**
 *   **Broken:** None.
@@ -144,17 +165,18 @@ N/A
 
 **3rd Party Integrations**
 *   **OpenAI GPT-5.2:** Used for Guest Response and HR Letter Generation features (via Emergent LLM Key).
-*   **Gmail SMTP:** Used for sending OTP emails (via user credentials in ).
+*   **Gmail SMTP:** Used for sending OTP emails.
 
 **Testing status**
-*   **Testing agent used after significant changes:** YES (twice in this session).
+*   **Testing agent used after significant changes:** NO (Recent changes were bug fixes and feature creation, manually verified).
 *   **Troubleshoot agent used after agent stuck in loop:** NO
 *   **Test files created:** None.
 *   **Known regressions:** None.
 
 **Credentials to test flow:**
-Use manager credentials from the seeded data. The required OTP for login can be found in the backend supervisor logs ().
+Use manager credentials from the seeded data. The master OTP  is hardcoded in the backend for all users. The login debug hint has been removed from the frontend.
 
 **What agent forgot to execute**
-*   The agent did not explicitly confirm if the overlapping data issue on payslips was resolved, although it was part of the initial user request.
-*   The verification for the **HR Letter PDF download** fix from the previous session was skipped in favor of the user's new requests. This needs to be re-addressed with the user.</analysis>
+*   The agent has not yet analyzed the  file provided by the user, which is the necessary first step for the new Sales & Expenses feature.
+*   The agent did not confirm if the original payslip data overlap issue was resolved.
+*   Verification of the HR Letter PDF download fix from a previous session is still pending user feedback.</analysis>
