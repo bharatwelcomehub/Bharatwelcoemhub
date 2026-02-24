@@ -122,6 +122,25 @@ def set_verify_token(func):
     global verify_token
     verify_token = func
 
+def has_all_centers_access(session):
+    """Check if user has access to view all centers data"""
+    if not session:
+        return False
+    # PB-MGT center always has access
+    if session.get("center") == "PB-MGT":
+        return True
+    # Super Admin has access
+    if session.get("is_super_admin"):
+        return True
+    # Admin has access
+    if session.get("is_admin"):
+        return True
+    # Check view_all_centers role
+    roles = session.get("roles", {})
+    if roles.get("view_all_centers"):
+        return True
+    return False
+
 # =======================================
 # HELPER FUNCTIONS
 # =======================================
