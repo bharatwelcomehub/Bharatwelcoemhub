@@ -2795,14 +2795,21 @@ async def mgt_manager_delete(data: dict):
 
 @api_router.post("/mgt/manager_roles")
 async def mgt_manager_roles(data: dict):
-    """Update a manager's role permissions (MGT only)"""
+    """Update a manager's role permissions (Super Admin / MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage roles")
+    
+    # Check if user has permission to manage roles
+    is_super_admin = session.get("is_super_admin", False) if session else False
+    is_mgt = session.get("center") == "PB-MGT" if session else False
+    
+    if not session or (not is_super_admin and not is_mgt):
+        raise HTTPException(403, "Only Super Admin or PB-MGT can manage roles")
     
     email = data.get("email", "").strip()
     roles = data.get("roles", {})
+    set_is_super_admin = data.get("is_super_admin", False)
+    set_is_admin = data.get("is_admin", False)
     
     if not email:
         raise HTTPException(400, "Manager email is required")
@@ -2813,21 +2820,24 @@ async def mgt_manager_roles(data: dict):
     if not manager:
         raise HTTPException(404, f"Manager with email '{email}' not found")
     
-    # Cannot modify MGT manager's roles
-    if manager.get("center") == "PB-MGT":
-        raise HTTPException(400, "Cannot modify PB-MGT manager roles - they have full access")
+    # Cannot modify own super admin status (safety check)
+    if manager.get("email", "").lower() == session.get("email", "").lower():
+        if manager.get("is_super_admin") and not set_is_super_admin:
+            raise HTTPException(400, "Cannot remove your own Super Admin status")
     
     # Update roles using the actual email from the database
     await db.managers.update_one(
         {"email": manager.get("email")},
         {"$set": {
             "roles": roles,
+            "is_super_admin": set_is_super_admin,
+            "is_admin": set_is_admin,
             "rolesUpdatedAt": datetime.now(timezone.utc).isoformat(),
             "rolesUpdatedBy": session.get("managerName", "Unknown")
         }}
     )
     
-    logger.info(f"Manager roles updated: {email} by {session.get('managerName')}")
+    logger.info(f"Manager roles updated: {email} (admin={set_is_admin}, super={set_is_super_admin}) by {session.get('managerName')}")
     return {"success": True, "message": "Manager roles updated successfully"}
 
 # =======================================
