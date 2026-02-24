@@ -23,7 +23,8 @@ import {
   Tags,
   ChevronDown,
   ChevronRight,
-  UserCog
+  UserCog,
+  Shield
 } from "lucide-react";
 
 // Import pages
