@@ -104,7 +104,7 @@ export default function ExpenseHeads() {
 
   // Handle edit
   const handleEdit = (type) => {
-    setEditingId(type._id);
+    setEditingId(type.name); // Use name as identifier (matches backend PUT endpoint)
     setFormData({
       name: type.name,
       description: type.description || "",
@@ -114,12 +114,13 @@ export default function ExpenseHeads() {
   };
 
   // Handle delete
-  const handleDelete = async (id) => {
+  const handleDelete = async (name) => {
     if (!confirm("Are you sure you want to delete this expense head?")) return;
     
     setLoading(true);
     try {
-      await api.delete(`/sales/expense-heads/${id}?token=${session?.token}`);
+      // Backend uses name as the path parameter
+      await api.delete(`/sales/expense-heads/${encodeURIComponent(name)}?token=${session?.token}`);
       toast.success("Expense head deleted");
       fetchExpenseTypes();
     } catch (err) {
@@ -268,7 +269,7 @@ export default function ExpenseHeads() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(type._id)}
+                          onClick={() => handleDelete(type.name)}
                           className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
                           data-testid={`delete-expense-head-${idx}`}
                         >
