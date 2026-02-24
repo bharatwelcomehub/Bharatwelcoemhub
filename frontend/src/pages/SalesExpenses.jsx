@@ -56,15 +56,9 @@ export default function SalesExpenses() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   
-  // Check if user has admin access (can view all centers)
-  const hasAllCentersAccess = session?.center === "PB-MGT" || 
-                              session?.is_super_admin === true || 
-                              session?.is_admin === true ||
-                              session?.roles?.view_all_centers === true;
-  
-  // Filters
+  // Filters - ALWAYS default to "all" centers and let backend handle access control
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthStr());
-  const [selectedCenter, setSelectedCenter] = useState(hasAllCentersAccess ? "all" : session?.center);
+  const [selectedCenter, setSelectedCenter] = useState("all");
   const [centers, setCenters] = useState([]);
   
   // Data
@@ -72,6 +66,12 @@ export default function SalesExpenses() {
   const [dailyData, setDailyData] = useState([]);
   const [expenseByType, setExpenseByType] = useState({});
   const [expenses, setExpenses] = useState([]);
+  
+  // Check if user has admin access - recalculate on every render
+  const hasAllCentersAccess = session?.center === "PB-MGT" || 
+                              session?.is_super_admin === true || 
+                              session?.is_admin === true ||
+                              session?.roles?.view_all_centers === true;
 
   // Fetch centers list
   useEffect(() => {
