@@ -2780,14 +2780,14 @@ async def mgt_manager_roles(data: dict):
     if not session or session.get("center") != "PB-MGT":
         raise HTTPException(403, "Only PB-MGT can manage roles")
     
-    email = data.get("email", "").strip().lower()
+    email = data.get("email", "").strip()
     roles = data.get("roles", {})
     
     if not email:
         raise HTTPException(400, "Manager email is required")
     
-    # Find the manager
-    manager = await db.managers.find_one({"email": email})
+    # Find the manager (case-insensitive email search)
+    manager = await db.managers.find_one({"email": {"$regex": f"^{email}$", "$options": "i"}})
     if not manager:
         raise HTTPException(404, f"Manager with email '{email}' not found")
     
@@ -2795,9 +2795,9 @@ async def mgt_manager_roles(data: dict):
     if manager.get("center") == "PB-MGT":
         raise HTTPException(400, "Cannot modify PB-MGT manager roles - they have full access")
     
-    # Update roles
+    # Update roles using the actual email from the database
     await db.managers.update_one(
-        {"email": email},
+        {"email": manager.get("email")},
         {"$set": {
             "roles": roles,
             "rolesUpdatedAt": datetime.now(timezone.utc).isoformat(),
