@@ -3410,6 +3410,12 @@ async def generate_brochure():
 # Include router
 app.include_router(api_router)
 
+# Include Sales & Expenses router
+from routes.sales_expenses import router as sales_router, set_db as set_sales_db, set_verify_token as set_sales_verify_token
+set_sales_db(db)
+set_sales_verify_token(verify_token)
+app.include_router(sales_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
