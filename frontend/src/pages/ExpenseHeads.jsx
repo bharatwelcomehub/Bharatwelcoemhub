@@ -83,7 +83,8 @@ export default function ExpenseHeads() {
     setLoading(true);
     try {
       if (editingId) {
-        await api.put(`/sales/expense-heads/${editingId}?token=${session?.token}`, formData);
+        // Use URL encoding for name with special characters
+        await api.put(`/sales/expense-heads/${encodeURIComponent(editingId)}?token=${session?.token}`, formData);
         toast.success("Expense head updated successfully");
       } else {
         await api.post(`/sales/expense-heads?token=${session?.token}`, formData);
