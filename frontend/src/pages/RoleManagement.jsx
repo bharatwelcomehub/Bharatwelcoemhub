@@ -121,9 +121,19 @@ export default function RoleManagement() {
       sales_cash: true,
       hr: false,
       mgt: false,
-      operations: true
+      operations: true,
+      view_all_centers: false
     };
     setSelectedRoles(roles);
+    
+    // Set admin level
+    if (manager.is_super_admin) {
+      setSelectedAdminLevel("super_admin");
+    } else if (manager.is_admin) {
+      setSelectedAdminLevel("admin");
+    } else {
+      setSelectedAdminLevel("none");
+    }
   };
 
   // Toggle role selection
@@ -143,12 +153,15 @@ export default function RoleManagement() {
       await api.post("/mgt/manager_roles", {
         token: session?.token,
         email: editingManager.email,
-        roles: selectedRoles
+        roles: selectedRoles,
+        is_super_admin: selectedAdminLevel === "super_admin",
+        is_admin: selectedAdminLevel === "admin" || selectedAdminLevel === "super_admin"
       });
       
       toast.success(`Roles updated for ${editingManager.managerName || editingManager.email}`);
       setEditingManager(null);
       setSelectedRoles({});
+      setSelectedAdminLevel("none");
       fetchManagers();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to update roles");
