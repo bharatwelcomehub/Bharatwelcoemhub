@@ -376,13 +376,13 @@ async def get_employees(req: TokenRequest):
 
 @api_router.post("/mgt_employees_list")
 async def mgt_employees_list(req: TokenRequest):
-    """Get all employees (MGT only) with search"""
+    """Get all employees (Admin/MGT only) with search"""
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can access employee management")
+    if not has_admin_access(session):
+        raise HTTPException(403, "Only Admin/Super Admin can access employee management")
     
     employees = await db.employees.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
     
@@ -394,11 +394,11 @@ async def mgt_employees_list(req: TokenRequest):
 
 @api_router.post("/mgt_employee_create")
 async def mgt_employee_create(data: dict):
-    """Create new employee (MGT only)"""
+    """Create new employee (Admin/MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can create employees")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin/Super Admin can create employees")
     
     employee = {
         "center": data.get("empCenter", "").upper(),
