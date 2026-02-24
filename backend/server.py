@@ -2842,6 +2842,9 @@ async def mgt_manager_roles(data: dict):
     # Check if user has permission to manage roles
     is_super_admin = session.get("is_super_admin", False) if session else False
     is_mgt = session.get("center") == "PB-MGT" if session else False
+    current_email = session.get("email", "").lower() if session else ""
+    jayanti_email = "jayanti.kathale@purnabramha.com"
+    is_jayanti = current_email == jayanti_email
     
     if not session or (not is_super_admin and not is_mgt):
         raise HTTPException(403, "Only Super Admin or PB-MGT can manage roles")
@@ -2860,10 +2863,15 @@ async def mgt_manager_roles(data: dict):
     if not manager:
         raise HTTPException(404, f"Manager with email '{email}' not found")
     
-    # Cannot modify own super admin status (safety check)
-    if manager.get("email", "").lower() == session.get("email", "").lower():
-        if manager.get("is_super_admin") and not set_is_super_admin:
-            raise HTTPException(400, "Cannot remove your own Super Admin status")
+    target_email = manager.get("email", "").lower()
+    
+    # Only Jayanti can modify Super Admins (including herself)
+    if manager.get("is_super_admin") and not is_jayanti:
+        raise HTTPException(403, "Only Jayanti Kathale can modify Super Admin accounts")
+    
+    # Only Jayanti can grant/revoke Super Admin status
+    if set_is_super_admin != manager.get("is_super_admin", False) and not is_jayanti:
+        raise HTTPException(403, "Only Jayanti Kathale can grant or revoke Super Admin status")
     
     # Update roles using the actual email from the database
     await db.managers.update_one(
