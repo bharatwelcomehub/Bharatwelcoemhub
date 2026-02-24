@@ -11,10 +11,16 @@ User had existing HTML/Python files for an attendance and salary management syst
 ### Latest Update (Feb 24, 2026 - Session 6)
 
 - ✅ **Sales & Expenses Tracking System (NEW MAJOR FEATURE)**
-  - Imported data from 7 Excel files for centers: PB-DV, PB-HW, PB-HSR, PB-KAL, PB-KN, PB-SN, PB-TH
-  - Total 1964 daily sales records and 2819 expense records imported
+  - Imported data from 8 Excel files for centers: PB-DV, PB-HW, PB-HSR, PB-KAL, PB-KN, PB-PT, PB-SN, PB-TH
+  - Total 2050 daily sales records and 2819 expense records imported
   - New dashboard with comprehensive reports:
     - **Overview Tab**: Summary cards (Total Sales, Cash Sales, Online Sales, Total Expenses), Online Payment Breakdown (Card IDFC, Bharat Pay, Swiggy, Zomato), Expenses by Category, Net Profit
+    - **Data Entry Tab (NEW)**: Form for managers to input/update daily sales data
+      - **Editable fields (white)**: Opening Balance, Petty Cash Opening, Deposited in Bank, Cash Receipts, PBM Sale, Other Products, Card IDFC, Bharat Pay, Swiggy, Zomato, Online Other, Due Amount
+      - **Calculated fields (gray)**: Total Sale, Total Online Sale, Total Cash Sale, Cash Expense, Closing Balance, To Deposit in Bank, Petty Cash Closing
+      - **Verification field (green)**: Difference for the Day
+      - Date navigation with prev/next buttons
+      - Auto-loads previous day's closing balance as opening balance for new entries
     - **Daily Report Tab**: Center-wise breakdown with Date, Center, Total Sale, Cash, Online, Expenses, Net columns
     - **Expenses Tab**: Full expense records list with Date, Description, Category, Payment Mode, Amount
     - **Payment Breakdown Tab**: Cash vs Online comparison, detailed online payment breakdown
@@ -22,6 +28,7 @@ User had existing HTML/Python files for an attendance and salary management syst
   - Center filter (MGT only) to view individual centers
   - Backend routes in `/app/backend/routes/sales_expenses.py`
   - Frontend page at `/app/frontend/src/pages/SalesExpenses.jsx`
+  - Data entry component at `/app/frontend/src/components/SalesDataEntry.jsx`
   - Navigation link "Sales & Cash" in sidebar
   - All tests passed: 100% backend (11/11), 100% frontend
 
