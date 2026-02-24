@@ -334,15 +334,33 @@ async def verify_otp(req: OTPVerify):
             {"mobile": req.mobile},
             {"mobile": req.mobile.lstrip("0")},
         ]
-    }, {"_id": 0, "roles": 1, "is_super_admin": 1, "is_admin": 1})
+    }, {"_id": 0, "roles": 1, "is_super_admin": 1, "is_admin": 1, "email": 1})
     
-    roles = manager.get("roles", {}) if manager else {}
-    is_super_admin = manager.get("is_super_admin", False) if manager else False
-    is_admin = manager.get("is_admin", False) if manager else False
+    # PB-MGT users automatically get full admin access
+    is_mgt_center = stored["center"] == "PB-MGT"
+    
+    # Get roles from DB or set defaults for MGT users
+    if is_mgt_center:
+        # MGT users get full access by default
+        roles = {
+            "attendance": True,
+            "sales_cash": True,
+            "hr": True,
+            "mgt": True,
+            "operations": True,
+            "view_all_centers": True
+        }
+        is_super_admin = True
+        is_admin = True
+    else:
+        roles = manager.get("roles", {}) if manager else {}
+        is_super_admin = manager.get("is_super_admin", False) if manager else False
+        is_admin = manager.get("is_admin", False) if manager else False
     
     stored["roles"] = roles
     stored["is_super_admin"] = is_super_admin
     stored["is_admin"] = is_admin
+    stored["email"] = manager.get("email", "") if manager else ""
     otp_store[key] = stored
     
     return {
