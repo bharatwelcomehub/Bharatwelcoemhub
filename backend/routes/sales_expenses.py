@@ -681,3 +681,142 @@ async def get_centers_for_sales():
     """Get list of centers that have sales data"""
     centers = await db.daily_sales.distinct("center")
     return {"centers": sorted(centers)}
+
+# =======================================
+# EXPENSE HEADS MASTER CRUD
+# =======================================
+
+class ExpenseHeadCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    is_active: bool = True
+
+class ExpenseHeadUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+@router.get("/expense-heads")
+async def get_expense_heads():
+    """Get all expense heads from master table"""
+    heads = await db.expense_heads.find({}, {"_id": 0}).to_list(200)
+    
+    if not heads:
+        # Return standard types if no custom heads exist
+        standard_heads = [
+            {"name": "GROCERY", "description": "Daily grocery items", "is_active": True},
+            {"name": "DAIRY PRODUCTS", "description": "Milk, curd, paneer etc.", "is_active": True},
+            {"name": "FRUITS & VEGETABLE", "description": "Fresh fruits and vegetables", "is_active": True},
+            {"name": "WATER CAN / BOTTLE", "description": "Drinking water supplies", "is_active": True},
+            {"name": "CYLINDER", "description": "Gas cylinders", "is_active": True},
+            {"name": "PAV", "description": "Bread/Pav supplies", "is_active": True},
+            {"name": "PACKAGING MATERIAL", "description": "Takeaway containers, bags", "is_active": True},
+            {"name": "CELEBRATION EXPENSES", "description": "Festival and event expenses", "is_active": True},
+            {"name": "MEDIA & ADVERTISEMENT", "description": "Marketing and ads", "is_active": True},
+            {"name": "RESTAURANT GENERAL EXPENSES", "description": "Miscellaneous restaurant expenses", "is_active": True},
+            {"name": "REPAIR & MAINTENANCE", "description": "Equipment and property repairs", "is_active": True},
+            {"name": "SALARY", "description": "Staff salary payments", "is_active": True},
+            {"name": "ADVANCE", "description": "Salary advances to staff", "is_active": True},
+            {"name": "RENT", "description": "Shop/property rent", "is_active": True},
+            {"name": "ELECTRICITY", "description": "Electricity bills", "is_active": True},
+            {"name": "STATIONARY & PACKAGING", "description": "Office supplies and packaging", "is_active": True},
+            {"name": "OVER TIME", "description": "Staff overtime payments", "is_active": True},
+            {"name": "STAFF ROOM RENT", "description": "Staff accommodation rent", "is_active": True},
+            {"name": "EMI / LOAN INSTALMENT", "description": "Loan EMI payments", "is_active": True},
+            {"name": "RENT PAID SHOP", "description": "Main shop rent", "is_active": True},
+        ]
+        return {"expense_heads": standard_heads}
+    
+    return {"expense_heads": heads}
+
+@router.post("/expense-heads")
+async def create_expense_head(req: ExpenseHeadCreate, token: str):
+    """Create a new expense head"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage expense heads")
+    
+    # Check if already exists
+    existing = await db.expense_heads.find_one({"name": req.name.upper()})
+    if existing:
+        raise HTTPException(400, f"Expense head '{req.name}' already exists")
+    
+    record = {
+        "name": req.name.upper(),
+        "description": req.description,
+        "is_active": req.is_active,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": session.get("managerName", "Unknown")
+    }
+    
+    result = await db.expense_heads.insert_one(record)
+    record["_id"] = str(result.inserted_id)
+    
+    logger.info(f"Expense head created: {req.name} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Expense head created", "expense_head": record}
+
+@router.put("/expense-heads/{head_name}")
+async def update_expense_head(head_name: str, req: ExpenseHeadUpdate, token: str):
+    """Update an expense head"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage expense heads")
+    
+    # Find existing
+    existing = await db.expense_heads.find_one({"name": head_name.upper()})
+    if not existing:
+        raise HTTPException(404, f"Expense head '{head_name}' not found")
+    
+    update_data = {k: v for k, v in req.dict().items() if v is not None}
+    
+    if "name" in update_data:
+        update_data["name"] = update_data["name"].upper()
+    
+    if update_data:
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        update_data["updated_by"] = session.get("managerName", "Unknown")
+        
+        await db.expense_heads.update_one(
+            {"name": head_name.upper()},
+            {"$set": update_data}
+        )
+    
+    logger.info(f"Expense head updated: {head_name} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Expense head updated"}
+
+@router.delete("/expense-heads/{head_name}")
+async def delete_expense_head(head_name: str, token: str):
+    """Delete an expense head"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can manage expense heads")
+    
+    result = await db.expense_heads.delete_one({"name": head_name.upper()})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(404, f"Expense head '{head_name}' not found")
+    
+    logger.info(f"Expense head deleted: {head_name} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Expense head deleted"}
+
