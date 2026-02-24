@@ -184,6 +184,8 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `attendance` - Daily attendance records
 - `advances` - Employee advances
 - `payroll_locks` - Payroll lock status
+- `daily_sales` - Daily sales and cash summary records (NEW)
+- `expenses` - Individual expense records with categories (NEW)
 
 ## Testing Credentials
 - Center: PB-MGT
