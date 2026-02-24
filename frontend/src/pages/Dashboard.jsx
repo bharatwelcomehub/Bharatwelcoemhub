@@ -304,6 +304,7 @@ export default function Dashboard() {
             <Route path="/hr-letters" element={<HRLetters />} />
             <Route path="/centers" element={<CentersManagement />} />
             <Route path="/managers" element={<ManagersManagement />} />
+            <Route path="/role-management" element={<RoleManagement />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
           </Routes>
