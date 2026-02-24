@@ -14,9 +14,27 @@ User had existing HTML/Python files for an attendance and salary management syst
   - **Role Assignment Error (Fixed)**: Consecutive role updates were failing due to regex email matching without proper escaping. Added `re.escape()` for case-insensitive email search with special character support.
   - **Expense Heads Not Listing (Fixed)**: Frontend was using `_id` for edit/delete but API returns data without `_id`. Changed to use `name` as identifier (matches backend PUT/DELETE endpoints). Also seeded 35 expense categories into database.
 
+- ✅ **Super Admin & Admin Role System (NEW)**
+  - **Super Admin (Jayanti Kathale)**: Full access to everything, can manage all users including other Super Admins
+  - **Admin**: Full access to all features, can view all centers, but cannot see/modify Super Admins
+  - **Regular User**: Access based on assigned module roles only
+  - Jayanti can see ALL managers including Super Admins
+  - Other users CANNOT see Jayanti's record (hidden from everyone except herself)
+  - Other users CANNOT see other Super Admin records (except their own)
+  - Only Jayanti can grant/revoke Super Admin status
+  - Only Jayanti can delete Super Admin accounts
+
+- ✅ **Role Management UI Updates**
+  - Added "Access Level" selector: Regular User, Admin, Super Admin
+  - Added "View All Centers" permission toggle
+  - Shows color-coded badges: Super Admin (red), Admin (purple), All Access (green)
+  - Backend filters manager list based on current user's permissions
+
 - ✅ **Frontend Improvements**
   - ExpenseHeads.jsx: Fixed edit/delete to use expense head `name` instead of `_id`
   - URL encoding for expense head names with special characters (e.g., "WATER CAN / BOTTLE")
+  - Login now stores `is_super_admin` and `is_admin` flags in session
+  - Dashboard checks `is_super_admin` and `is_admin` for access control
 
 ### Previous Update (Feb 24, 2026 - Session 6)
 
