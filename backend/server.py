@@ -193,6 +193,25 @@ def verify_token(token: str) -> Optional[Dict]:
             return data
     return None
 
+def has_admin_access(session) -> bool:
+    """Check if user has admin/super admin access"""
+    if not session:
+        return False
+    if session.get("center") == "PB-MGT":
+        return True
+    if session.get("is_super_admin"):
+        return True
+    if session.get("is_admin"):
+        return True
+    return False
+
+def has_all_centers_access(session) -> bool:
+    """Check if user can view all centers data"""
+    if has_admin_access(session):
+        return True
+    roles = session.get("roles", {})
+    return roles.get("view_all_centers", False)
+
 def days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
 
