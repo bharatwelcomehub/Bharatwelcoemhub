@@ -429,7 +429,7 @@ export default function SalesExpenses() {
                     {expenses.length > 0 ? (
                       expenses.slice(0, 50).map((exp, idx) => (
                         <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
-                          <td className="py-3 px-2">{formatDate(exp.date)}</td>
+                          <td className="py-3 px-2">{formatDateDisplay(exp.date)}</td>
                           {isMGT && <td className="py-3 px-2 text-xs">{exp.center}</td>}
                           <td className="py-3 px-2 max-w-[200px] truncate">{exp.description}</td>
                           <td className="py-3 px-2 text-xs">
