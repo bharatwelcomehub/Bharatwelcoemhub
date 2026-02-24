@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { background: #f0f0f0; padding: 10px; margin: 10px 0; white-space: pre-wrap; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Purnabramha API Test</h1>
+    
+    <div>
+        <h3>Step 1: Send OTP</h3>
+        <button onclick="sendOTP()">Send OTP to 9741399190</button>
+        <div id="otp-result" class="result"></div>
+    </div>
+    
+    <div>
+        <h3>Step 2: Verify OTP</h3>
+        <input type="text" id="otp-input" placeholder="Enter OTP (or 123456)" value="123456">
+        <button onclick="verifyOTP()">Verify OTP</button>
+        <div id="verify-result" class="result"></div>
+    </div>
+    
+    <div>
+        <h3>Step 3: Test Sales API</h3>
+        <button onclick="testSalesAPI()">Fetch Sales Data</button>
+        <div id="sales-result" class="result"></div>
+    </div>
+    
+    <div>
+        <h3>Debug: Check Database</h3>
+        <button onclick="checkDebug()">Check Database Status</button>
+        <div id="debug-result" class="result"></div>
+    </div>
+
+    <script>
+        let token = null;
+        const API_BASE = window.location.origin + '/api';
+        
+        async function sendOTP() {
+            const resultDiv = document.getElementById('otp-result');
+            try {
+                const res = await fetch(API_BASE + '/send_otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ center: 'PB-MGT', mobile: '9741399190' })
+                });
+                const data = await res.json();
+                resultDiv.innerHTML = '<span class="success">SUCCESS:</span> ' + JSON.stringify(data, null, 2);
+            } catch (e) {
+                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message;
+            }
+        }
+        
+        async function verifyOTP() {
+            const resultDiv = document.getElementById('verify-result');
+            const otp = document.getElementById('otp-input').value;
+            try {
+                const res = await fetch(API_BASE + '/verify_otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ center: 'PB-MGT', mobile: '9741399190', otp: otp })
+                });
+                const data = await res.json();
+                if (data.token) {
+                    token = data.token;
+                    resultDiv.innerHTML = '<span class="success">SUCCESS - Token received!</span>\n' + JSON.stringify(data, null, 2);
+                } else {
+                    resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + JSON.stringify(data, null, 2);
+                }
+            } catch (e) {
+                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message;
+            }
+        }
+        
+        async function testSalesAPI() {
+            const resultDiv = document.getElementById('sales-result');
+            if (!token) {
+                resultDiv.innerHTML = '<span class="error">ERROR: Please verify OTP first to get token</span>';
+                return;
+            }
+            try {
+                const res = await fetch(API_BASE + '/sales/reports/monthly-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, month: '2026-02', center: 'all' })
+                });
+                const data = await res.json();
+                if (data.grand_total) {
+                    resultDiv.innerHTML = '<span class="success">SUCCESS!</span>\nTotal Sales: Rs. ' + 
+                        (data.grand_total.total_sale || 0).toLocaleString() + '\n\n' + 
+                        JSON.stringify(data, null, 2).substring(0, 1000);
+                } else if (data.detail) {
+                    resultDiv.innerHTML = '<span class="error">API ERROR:</span> ' + data.detail;
+                } else {
+                    resultDiv.innerHTML = 'Response:\n' + JSON.stringify(data, null, 2);
+                }
+            } catch (e) {
+                resultDiv.innerHTML = '<span class="error">FETCH ERROR:</span> ' + e.message;
+            }
+        }
+        
+        async function checkDebug() {
+            const resultDiv = document.getElementById('debug-result');
+            try {
+                const res = await fetch(API_BASE + '/sales/debug-data');
+                const data = await res.json();
+                resultDiv.innerHTML = '<span class="success">Database Status:</span>\n' + JSON.stringify(data, null, 2);
+            } catch (e) {
+                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
