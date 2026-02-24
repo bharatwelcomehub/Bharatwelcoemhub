@@ -157,22 +157,46 @@ export default function Dashboard() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {filteredNav.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === "/"}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) => cn(
-                "sidebar-item",
-                isActive && "active"
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {filteredCategories.map((category) => (
+            <div key={category.id} className="space-y-1">
+              {/* Category Header */}
+              <button
+                onClick={() => toggleCategory(category.id)}
+                className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <category.icon className="w-4 h-4" />
+                  <span>{category.label}</span>
+                </div>
+                {expandedCategories.includes(category.id) 
+                  ? <ChevronDown className="w-4 h-4" />
+                  : <ChevronRight className="w-4 h-4" />
+                }
+              </button>
+              
+              {/* Category Items */}
+              {expandedCategories.includes(category.id) && (
+                <div className="ml-4 space-y-1">
+                  {category.items.map((item) => (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      end={item.path === "/"}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) => cn(
+                        "sidebar-item text-sm",
+                        isActive && "active"
+                      )}
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
               )}
-              data-testid={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span>{item.label}</span>
-            </NavLink>
+            </div>
           ))}
         </nav>
 
