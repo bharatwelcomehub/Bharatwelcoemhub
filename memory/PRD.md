@@ -8,7 +8,17 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Feb 24, 2026 - Session 6)
+### Latest Update (Feb 24, 2026 - Session 7)
+
+- ✅ **P0 Bug Fixes (Critical)**
+  - **Role Assignment Error (Fixed)**: Consecutive role updates were failing due to regex email matching without proper escaping. Added `re.escape()` for case-insensitive email search with special character support.
+  - **Expense Heads Not Listing (Fixed)**: Frontend was using `_id` for edit/delete but API returns data without `_id`. Changed to use `name` as identifier (matches backend PUT/DELETE endpoints). Also seeded 35 expense categories into database.
+
+- ✅ **Frontend Improvements**
+  - ExpenseHeads.jsx: Fixed edit/delete to use expense head `name` instead of `_id`
+  - URL encoding for expense head names with special characters (e.g., "WATER CAN / BOTTLE")
+
+### Previous Update (Feb 24, 2026 - Session 6)
 
 - ✅ **Sales & Expenses Tracking System (MAJOR FEATURE)**
   - Imported data from 8 Excel files: PB-DV, PB-HW, PB-HSR, PB-KAL, PB-KN, PB-PT, PB-SN, PB-TH
@@ -222,10 +232,9 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `/app/test_reports/iteration_8.json` - Sales & Expenses tests (100% pass - 11/11 backend, full frontend)
 
 ## Backlog/Future
-- **Role-Based Access Control (RBAC)** - Create two management roles: "hsr related work" and "data related work" (USER REQUESTED)
-- Implement CRUD operations for Sales & Expenses (Create/Update/Delete) - Currently read-only view
+- **Payslip Data Overlap (P1)**: Verify and fix any remaining overlap issues in PDF payslip generation
+- **HR Letter PDF Download Verification (P2)**: User verification pending for the fix applied earlier
+- **Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large, ~3500 lines)
+- Add image upload for recipes (currently URL only)
 - Add company CIN number to HR letter templates
 - Email generated letters directly to employees
-- **Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large)
-- Add image upload for recipes (currently URL only)
-- Verify payslip data overlap issue is fully resolved
