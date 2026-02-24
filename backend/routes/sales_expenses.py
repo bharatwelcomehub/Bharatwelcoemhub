@@ -724,6 +724,31 @@ async def get_centers_for_sales():
     centers = await db.daily_sales.distinct("center")
     return {"centers": sorted(centers)}
 
+@router.get("/debug-data")
+async def debug_sales_data():
+    """Debug endpoint to check if sales data exists"""
+    try:
+        sales_count = await db.daily_sales.count_documents({})
+        expenses_count = await db.expenses.count_documents({})
+        centers = await db.daily_sales.distinct("center")
+        
+        # Get date range
+        latest = await db.daily_sales.find_one({}, {"date": 1, "_id": 0}, sort=[("date", -1)])
+        oldest = await db.daily_sales.find_one({}, {"date": 1, "_id": 0}, sort=[("date", 1)])
+        
+        return {
+            "status": "ok",
+            "sales_count": sales_count,
+            "expenses_count": expenses_count,
+            "centers": centers,
+            "date_range": {
+                "oldest": oldest.get("date") if oldest else None,
+                "latest": latest.get("date") if latest else None
+            }
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 # =======================================
 # EXPENSE HEADS MASTER CRUD
 # =======================================
