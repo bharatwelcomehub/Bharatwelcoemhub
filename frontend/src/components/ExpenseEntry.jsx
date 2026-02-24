@@ -214,9 +214,15 @@ export default function ExpenseEntry({ session, selectedCenter }) {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Amount *</Label>
               <Input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={newExpense.amount}
-                onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
+                    setNewExpense({ ...newExpense, amount: val });
+                  }
+                }}
                 placeholder="0.00"
                 data-testid="expense-amount"
               />
