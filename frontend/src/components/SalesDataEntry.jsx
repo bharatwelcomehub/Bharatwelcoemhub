@@ -223,35 +223,6 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     setSelectedDate(date.toISOString().split('T')[0]);
   };
 
-  // Input field component - editable
-  const EditableField = ({ label, field, prefix = "₹" }) => (
-    <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <div className="relative">
-        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{prefix}</span>
-        <Input
-          type="number"
-          value={formData[field]}
-          onChange={(e) => handleChange(field, parseFloat(e.target.value) || 0)}
-          className="pl-6 bg-white border-input"
-          data-testid={`input-${field}`}
-        />
-      </div>
-    </div>
-  );
-
-  // Calculated field component - read-only (gray)
-  const CalculatedField = ({ label, value, isGreen = false }) => (
-    <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <div className={`px-3 py-2 rounded-md text-right font-medium ${
-        isGreen ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-gray-100 text-gray-700 border border-gray-300'
-      }`}>
-        ₹ {formatNum(value)}
-      </div>
-    </div>
-  );
-
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-4">
