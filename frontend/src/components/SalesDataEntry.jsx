@@ -44,7 +44,6 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
   // Get center code
   const centerCode = selectedCenter || session?.center;
-  const isMGT = session?.center === "PB-MGT";
 
   // CALCULATED fields (gray background - auto-computed)
   const calculated = useMemo(() => {
@@ -166,7 +165,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     fetchRecord();
   }, [selectedDate, centerCode, session?.token]);
 
-  // Handle form field change
+  // Handle form field change - using functional update to avoid stale closure
   const handleChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -223,6 +222,48 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     setSelectedDate(date.toISOString().split('T')[0]);
   };
 
+  // Editable input field - using controlled input with proper number handling
+  const renderEditableField = (label, field) => (
+    <div className="space-y-1" key={field}>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="relative">
+        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+        <Input
+          type="text"
+          inputMode="decimal"
+          value={formData[field] === 0 ? "" : formData[field]}
+          onChange={(e) => {
+            const val = e.target.value;
+            // Allow empty, numbers, and decimal point
+            if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
+              handleChange(field, val === "" ? 0 : parseFloat(val) || 0);
+            }
+          }}
+          onBlur={(e) => {
+            // Ensure it's a valid number on blur
+            const val = parseFloat(e.target.value) || 0;
+            handleChange(field, val);
+          }}
+          className="pl-6 bg-white border-input text-right"
+          placeholder="0"
+          data-testid={`input-${field}`}
+        />
+      </div>
+    </div>
+  );
+
+  // Calculated field - read-only (gray)
+  const renderCalculatedField = (label, value, isGreen = false) => (
+    <div className="space-y-1" key={label}>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className={`px-3 py-2 rounded-md text-right font-medium ${
+        isGreen ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-gray-100 text-gray-700 border border-gray-300'
+      }`}>
+        ₹ {formatNum(value)}
+      </div>
+    </div>
+  );
+
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-4">
@@ -278,19 +319,19 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
         {/* Opening Balances */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <EditableField label="Opening Balance" field="opening_balance" />
-          <EditableField label="Petty Cash Opening" field="petty_cash_opening" />
-          <EditableField label="Deposited in Bank" field="deposited_in_bank" />
-          <EditableField label="Cash Receipts" field="cash_receipts" />
+          {renderEditableField("Opening Balance", "opening_balance")}
+          {renderEditableField("Petty Cash Opening", "petty_cash_opening")}
+          {renderEditableField("Deposited in Bank", "deposited_in_bank")}
+          {renderEditableField("Cash Receipts", "cash_receipts")}
         </div>
 
         {/* Sales */}
         <div className="border-t pt-4">
           <h3 className="font-medium mb-3">Sales</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <EditableField label="PBM Sale" field="sale_pbm" />
-            <EditableField label="Other Products" field="sale_other" />
-            <CalculatedField label="Total Sale of the Day" value={calculated.total_sale} />
+            {renderEditableField("PBM Sale", "sale_pbm")}
+            {renderEditableField("Other Products", "sale_other")}
+            {renderCalculatedField("Total Sale of the Day", calculated.total_sale)}
           </div>
         </div>
 
@@ -298,16 +339,16 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         <div className="border-t pt-4">
           <h3 className="font-medium mb-3">Credit / Online Sales</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <EditableField label="Card IDFC" field="card_idfc" />
-            <EditableField label="Bharat Pay" field="bharat_pay" />
-            <EditableField label="Swiggy" field="swiggy" />
-            <EditableField label="Zomato" field="zomato" />
-            <EditableField label="Online Other" field="online_other" />
-            <EditableField label="Due Amount" field="due_amount" />
+            {renderEditableField("Card IDFC", "card_idfc")}
+            {renderEditableField("Bharat Pay", "bharat_pay")}
+            {renderEditableField("Swiggy", "swiggy")}
+            {renderEditableField("Zomato", "zomato")}
+            {renderEditableField("Online Other", "online_other")}
+            {renderEditableField("Due Amount", "due_amount")}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-            <CalculatedField label="Total Online Sale" value={calculated.total_online_sale} />
-            <CalculatedField label="Total Cash Sale" value={calculated.total_cash_sale} />
+            {renderCalculatedField("Total Online Sale", calculated.total_online_sale)}
+            {renderCalculatedField("Total Cash Sale", calculated.total_cash_sale)}
           </div>
         </div>
 
@@ -315,13 +356,13 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         <div className="border-t pt-4">
           <h3 className="font-medium mb-3">Day End Summary</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <CalculatedField label="Cash Expense (from Expenses)" value={calculated.cash_expense} />
-            <CalculatedField label="Closing Balance" value={calculated.closing_balance} />
-            <CalculatedField label="To Deposit in Bank" value={calculated.to_deposit_in_bank} />
-            <CalculatedField label="Petty Cash Closing" value={calculated.petty_cash_closing} />
+            {renderCalculatedField("Cash Expense (from Expenses)", calculated.cash_expense)}
+            {renderCalculatedField("Closing Balance", calculated.closing_balance)}
+            {renderCalculatedField("To Deposit in Bank", calculated.to_deposit_in_bank)}
+            {renderCalculatedField("Petty Cash Closing", calculated.petty_cash_closing)}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-            <CalculatedField label="Difference for the Day" value={calculated.difference_for_day} isGreen={true} />
+            {renderCalculatedField("Difference for the Day", calculated.difference_for_day, true)}
           </div>
         </div>
 
