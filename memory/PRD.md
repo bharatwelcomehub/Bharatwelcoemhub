@@ -180,16 +180,19 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## Key Files
 - `/app/backend/server.py` - Main API server (includes PDF generation endpoints)
-- `/app/backend/routes/sales_expenses.py` - Sales & Expenses API routes (NEW)
-- `/app/backend/scripts/import_sales_data.py` - Excel data import script (NEW)
+- `/app/backend/routes/sales_expenses.py` - Sales & Expenses API routes (includes Expense Heads CRUD)
+- `/app/backend/scripts/import_sales_data.py` - Excel data import script
 - `/app/backend/recipes_db.json` - 164 recipes from user's PDF (expanded from 79)
-- `/app/frontend/src/pages/SalesExpenses.jsx` - Sales & Cash Summary dashboard (NEW)
+- `/app/frontend/src/pages/SalesExpenses.jsx` - Sales & Cash Summary dashboard
+- `/app/frontend/src/pages/ExpenseHeads.jsx` - Expense Heads Master CRUD page (NEW)
+- `/app/frontend/src/components/SalesDataEntry.jsx` - Sales data entry form
+- `/app/frontend/src/components/ExpenseEntry.jsx` - Expense entry form (NEW)
+- `/app/frontend/src/pages/Dashboard.jsx` - Categorized navigation sidebar (UPDATED)
 - `/app/frontend/src/pages/RecipeAdmin.jsx` - Recipe management UI with category tabs
 - `/app/frontend/src/pages/CentersManagement.jsx` - Centers management UI
 - `/app/frontend/src/pages/ManagersManagement.jsx` - Managers management UI
 - `/app/frontend/src/pages/Salary.jsx` - Salary & Payslips with format selector
 - `/app/frontend/src/pages/HRLetters.jsx` - HR Letters UI
-- `/app/frontend/src/pages/Dashboard.jsx` - Navigation sidebar
 
 ## Database Collections
 - `managers` - Manager login credentials
