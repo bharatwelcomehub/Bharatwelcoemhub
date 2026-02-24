@@ -174,28 +174,64 @@ export default function RoleManagement() {
   const handleCancel = () => {
     setEditingManager(null);
     setSelectedRoles({});
+    setSelectedAdminLevel("none");
   };
 
   // Get role badges for a manager
   const getRoleBadges = (manager) => {
-    const roles = manager.roles || {};
-    const activeRoles = ROLE_MODULES.filter(r => roles[r.id] !== false);
+    // Show admin level badge first
+    const badges = [];
     
-    if (activeRoles.length === ROLE_MODULES.length || Object.keys(roles).length === 0) {
-      return <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">All Access</span>;
+    if (manager.is_super_admin) {
+      badges.push(
+        <span key="super" className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded-full font-semibold">
+          Super Admin
+        </span>
+      );
+    } else if (manager.is_admin) {
+      badges.push(
+        <span key="admin" className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded-full font-semibold">
+          Admin
+        </span>
+      );
     }
     
-    return activeRoles.map(r => (
-      <span key={r.id} className="text-xs px-2 py-1 bg-muted rounded-full mr-1">{r.label}</span>
-    ));
+    const roles = manager.roles || {};
+    const activeRoles = ROLE_MODULES.filter(r => roles[r.id] === true);
+    
+    if (manager.is_super_admin || manager.is_admin) {
+      badges.push(
+        <span key="all" className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">All Access</span>
+      );
+    } else if (activeRoles.length > 0) {
+      activeRoles.slice(0, 3).forEach(r => {
+        badges.push(
+          <span key={r.id} className="text-xs px-2 py-1 bg-muted rounded-full">{r.label}</span>
+        );
+      });
+      if (activeRoles.length > 3) {
+        badges.push(
+          <span key="more" className="text-xs px-2 py-1 bg-muted rounded-full">+{activeRoles.length - 3} more</span>
+        );
+      }
+    } else {
+      badges.push(
+        <span key="default" className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">Default</span>
+      );
+    }
+    
+    return badges;
   };
 
-  if (session?.center !== "PB-MGT") {
+  // Check access - Super Admin or PB-MGT can manage roles
+  const canManageRoles = session?.is_super_admin === true || session?.center === "PB-MGT";
+  
+  if (!canManageRoles) {
     return (
       <div className="text-center py-20">
         <Lock className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
         <h2 className="text-2xl font-bold text-muted-foreground">Access Denied</h2>
-        <p className="text-muted-foreground mt-2">Only PB-MGT can manage roles</p>
+        <p className="text-muted-foreground mt-2">Only Super Admin or PB-MGT can manage roles</p>
       </div>
     );
   }
