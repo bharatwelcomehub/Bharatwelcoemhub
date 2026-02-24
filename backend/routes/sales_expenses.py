@@ -570,6 +570,12 @@ async def get_monthly_summary(req: SalesQueryRequest):
             if c in centers_data:
                 centers_data[c]["total_expenses"] += exp.get("amount", 0)
         
+        # Calculate expense by type for all centers
+        expense_by_type = {}
+        for exp in expenses:
+            exp_type = exp.get("expense_type", "OTHER")
+            expense_by_type[exp_type] = expense_by_type.get(exp_type, 0) + exp.get("amount", 0)
+        
         return {
             "month": req.month,
             "centers": list(centers_data.values()),
@@ -577,8 +583,13 @@ async def get_monthly_summary(req: SalesQueryRequest):
                 "total_sale": sum(s.get("total_sale", 0) for s in sales),
                 "total_cash_sale": sum(s.get("total_cash_sale", 0) for s in sales),
                 "total_online_sale": sum(s.get("total_online_sale", 0) for s in sales),
+                "total_card_idfc": sum(s.get("card_idfc", 0) for s in sales),
+                "total_bharat_pay": sum(s.get("bharat_pay", 0) for s in sales),
+                "total_swiggy": sum(s.get("swiggy", 0) for s in sales),
+                "total_zomato": sum(s.get("zomato", 0) for s in sales),
                 "total_expenses": sum(e.get("amount", 0) for e in expenses)
-            }
+            },
+            "expense_by_type": expense_by_type
         }
     
     # Single center summary
