@@ -76,6 +76,10 @@ export default function RoleManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingManager, setEditingManager] = useState(null);
   const [selectedRoles, setSelectedRoles] = useState({});
+  const [selectedAdminLevel, setSelectedAdminLevel] = useState("none");
+  
+  // Check if current user is super admin
+  const isSuperAdmin = session?.is_super_admin === true || session?.center === "PB-MGT";
 
   // Fetch managers with their roles
   const fetchManagers = async () => {
