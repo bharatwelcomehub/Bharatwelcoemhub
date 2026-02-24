@@ -116,7 +116,7 @@ export default function SalesExpenses() {
   const fetchExpenses = async () => {
     setLoading(true);
     try {
-      const res = await api.post(`${API}/api/sales/expenses`, {
+      const res = await api.post("/sales/expenses", {
         token: session?.token,
         month: selectedMonth,
         center: selectedCenter || undefined
