@@ -1,0 +1,672 @@
+# =======================================
+# Sales & Expenses Routes
+# Daily Sales and Cash Summary Management
+# =======================================
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/sales", tags=["Sales & Expenses"])
+
+# Get DB reference (will be set from main server)
+db = None
+
+def set_db(database):
+    global db
+    db = database
+
+# =======================================
+# PYDANTIC MODELS
+# =======================================
+
+class DailySaleCreate(BaseModel):
+    center: str
+    date: str  # YYYY-MM-DD
+    opening_balance: float = 0
+    petty_cash_opening: float = 0
+    deposited_in_bank: float = 0
+    cash_receipts: float = 0
+    
+    # Sales breakdown
+    sale_pbm: float = 0  # PBM products
+    sale_other: float = 0  # Other products
+    total_sale: float = 0
+    
+    # Online/Card payments
+    card_idfc: float = 0
+    bharat_pay: float = 0
+    swiggy: float = 0
+    zomato: float = 0
+    online_other: float = 0
+    due_amount: float = 0
+    total_online_sale: float = 0
+    total_cash_sale: float = 0
+    
+    # Expenses and closing
+    cash_expense: float = 0
+    closing_balance: float = 0
+    to_deposit_in_bank: float = 0
+    difference_for_day: float = 0
+    petty_cash_closing: float = 0
+    
+    notes: Optional[str] = ""
+
+class DailySaleUpdate(BaseModel):
+    opening_balance: Optional[float] = None
+    petty_cash_opening: Optional[float] = None
+    deposited_in_bank: Optional[float] = None
+    cash_receipts: Optional[float] = None
+    sale_pbm: Optional[float] = None
+    sale_other: Optional[float] = None
+    total_sale: Optional[float] = None
+    card_idfc: Optional[float] = None
+    bharat_pay: Optional[float] = None
+    swiggy: Optional[float] = None
+    zomato: Optional[float] = None
+    online_other: Optional[float] = None
+    due_amount: Optional[float] = None
+    total_online_sale: Optional[float] = None
+    total_cash_sale: Optional[float] = None
+    cash_expense: Optional[float] = None
+    closing_balance: Optional[float] = None
+    to_deposit_in_bank: Optional[float] = None
+    difference_for_day: Optional[float] = None
+    petty_cash_closing: Optional[float] = None
+    notes: Optional[str] = None
+
+class ExpenseCreate(BaseModel):
+    center: str
+    date: str  # YYYY-MM-DD
+    description: str
+    amount: float
+    expense_type: str  # Category
+    payment_mode: str  # CASH, ONLINE UPI, ONLINE NEFT/IMPS
+    notes: Optional[str] = ""
+
+class ExpenseUpdate(BaseModel):
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    expense_type: Optional[str] = None
+    payment_mode: Optional[str] = None
+    notes: Optional[str] = None
+
+class TokenRequest(BaseModel):
+    token: str
+
+class SalesQueryRequest(BaseModel):
+    token: str
+    center: Optional[str] = None  # None = all centers
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    month: Optional[str] = None  # YYYY-MM format
+
+class ExpenseQueryRequest(BaseModel):
+    token: str
+    center: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    month: Optional[str] = None
+    expense_type: Optional[str] = None
+
+# Import verify_token from main server (will be set)
+verify_token = None
+
+def set_verify_token(func):
+    global verify_token
+    verify_token = func
+
+# =======================================
+# HELPER FUNCTIONS
+# =======================================
+
+def calculate_totals(sale: dict) -> dict:
+    """Calculate derived fields for a sale record"""
+    # Total sale = PBM + Other
+    sale["total_sale"] = sale.get("sale_pbm", 0) + sale.get("sale_other", 0)
+    
+    # Total online sale
+    sale["total_online_sale"] = (
+        sale.get("card_idfc", 0) + 
+        sale.get("bharat_pay", 0) + 
+        sale.get("swiggy", 0) + 
+        sale.get("zomato", 0) + 
+        sale.get("online_other", 0)
+    )
+    
+    # Total cash sale = Total sale - Online sale
+    sale["total_cash_sale"] = sale["total_sale"] - sale["total_online_sale"]
+    
+    # Closing balance calculation
+    sale["closing_balance"] = (
+        sale.get("opening_balance", 0) + 
+        sale.get("total_cash_sale", 0) + 
+        sale.get("cash_receipts", 0) - 
+        sale.get("deposited_in_bank", 0) - 
+        sale.get("cash_expense", 0)
+    )
+    
+    # Petty cash closing
+    sale["petty_cash_closing"] = (
+        sale.get("petty_cash_opening", 0) + 
+        sale.get("cash_receipts", 0) - 
+        sale.get("cash_expense", 0)
+    )
+    
+    # To deposit in bank
+    sale["to_deposit_in_bank"] = sale["closing_balance"] - sale["petty_cash_closing"]
+    
+    return sale
+
+# =======================================
+# DAILY SALES ENDPOINTS
+# =======================================
+
+@router.post("/daily")
+async def get_daily_sales(req: SalesQueryRequest):
+    """Get daily sales records with filters"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    query = {}
+    
+    # Center filter - managers can only see their center unless MGT
+    if session.get("center") != "PB-MGT":
+        query["center"] = session.get("center")
+    elif req.center:
+        query["center"] = req.center.upper()
+    
+    # Date filters
+    if req.month:
+        # Filter by month (YYYY-MM)
+        query["date"] = {"$regex": f"^{req.month}"}
+    elif req.start_date and req.end_date:
+        query["date"] = {"$gte": req.start_date, "$lte": req.end_date}
+    elif req.start_date:
+        query["date"] = {"$gte": req.start_date}
+    elif req.end_date:
+        query["date"] = {"$lte": req.end_date}
+    
+    sales = await db.daily_sales.find(query, {"_id": 0}).sort("date", -1).to_list(1000)
+    
+    return {"sales": sales, "count": len(sales)}
+
+@router.post("/daily/create")
+async def create_daily_sale(req: DailySaleCreate, token: str):
+    """Create a new daily sales record"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Check permission - can only create for own center unless MGT
+    if session.get("center") != "PB-MGT" and session.get("center") != req.center.upper():
+        raise HTTPException(403, "Cannot create sales record for another center")
+    
+    # Check if record already exists
+    existing = await db.daily_sales.find_one({
+        "center": req.center.upper(),
+        "date": req.date
+    })
+    
+    if existing:
+        raise HTTPException(400, f"Sales record for {req.center} on {req.date} already exists")
+    
+    # Create record
+    record = req.dict()
+    record["center"] = req.center.upper()
+    record = calculate_totals(record)
+    record["created_at"] = datetime.now(timezone.utc).isoformat()
+    record["created_by"] = session.get("managerName", "Unknown")
+    
+    await db.daily_sales.insert_one(record)
+    
+    # Remove _id before returning
+    record.pop("_id", None)
+    
+    logger.info(f"Daily sale created: {req.center} - {req.date} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Daily sales record created", "record": record}
+
+@router.put("/daily/{center}/{date}")
+async def update_daily_sale(center: str, date: str, req: DailySaleUpdate, token: str):
+    """Update an existing daily sales record"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Check permission
+    if session.get("center") != "PB-MGT" and session.get("center") != center.upper():
+        raise HTTPException(403, "Cannot update sales record for another center")
+    
+    # Find existing record
+    existing = await db.daily_sales.find_one({
+        "center": center.upper(),
+        "date": date
+    })
+    
+    if not existing:
+        raise HTTPException(404, f"Sales record for {center} on {date} not found")
+    
+    # Update fields
+    update_data = {k: v for k, v in req.dict().items() if v is not None}
+    
+    if update_data:
+        # Merge with existing and recalculate
+        for key, value in update_data.items():
+            existing[key] = value
+        
+        existing = calculate_totals(existing)
+        existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+        existing["updated_by"] = session.get("managerName", "Unknown")
+        
+        await db.daily_sales.update_one(
+            {"center": center.upper(), "date": date},
+            {"$set": existing}
+        )
+    
+    existing.pop("_id", None)
+    logger.info(f"Daily sale updated: {center} - {date} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Daily sales record updated", "record": existing}
+
+@router.delete("/daily/{center}/{date}")
+async def delete_daily_sale(center: str, date: str, token: str):
+    """Delete a daily sales record (MGT only)"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can delete sales records")
+    
+    result = await db.daily_sales.delete_one({
+        "center": center.upper(),
+        "date": date
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(404, f"Sales record for {center} on {date} not found")
+    
+    logger.info(f"Daily sale deleted: {center} - {date} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Daily sales record deleted"}
+
+# =======================================
+# EXPENSES ENDPOINTS
+# =======================================
+
+@router.post("/expenses")
+async def get_expenses(req: ExpenseQueryRequest):
+    """Get expense records with filters"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    query = {}
+    
+    # Center filter
+    if session.get("center") != "PB-MGT":
+        query["center"] = session.get("center")
+    elif req.center:
+        query["center"] = req.center.upper()
+    
+    # Date filters
+    if req.month:
+        query["date"] = {"$regex": f"^{req.month}"}
+    elif req.start_date and req.end_date:
+        query["date"] = {"$gte": req.start_date, "$lte": req.end_date}
+    elif req.start_date:
+        query["date"] = {"$gte": req.start_date}
+    elif req.end_date:
+        query["date"] = {"$lte": req.end_date}
+    
+    # Expense type filter
+    if req.expense_type:
+        query["expense_type"] = req.expense_type
+    
+    expenses = await db.expenses.find(query, {"_id": 0}).sort("date", -1).to_list(5000)
+    
+    return {"expenses": expenses, "count": len(expenses)}
+
+@router.post("/expenses/create")
+async def create_expense(req: ExpenseCreate, token: str):
+    """Create a new expense record"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Check permission
+    if session.get("center") != "PB-MGT" and session.get("center") != req.center.upper():
+        raise HTTPException(403, "Cannot create expense for another center")
+    
+    record = req.dict()
+    record["center"] = req.center.upper()
+    record["created_at"] = datetime.now(timezone.utc).isoformat()
+    record["created_by"] = session.get("managerName", "Unknown")
+    
+    result = await db.expenses.insert_one(record)
+    record["expense_id"] = str(result.inserted_id)
+    record.pop("_id", None)
+    
+    logger.info(f"Expense created: {req.center} - {req.date} - {req.description} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Expense record created", "record": record}
+
+@router.put("/expenses/{expense_id}")
+async def update_expense(expense_id: str, req: ExpenseUpdate, token: str):
+    """Update an expense record"""
+    from bson import ObjectId
+    
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    try:
+        obj_id = ObjectId(expense_id)
+    except:
+        raise HTTPException(400, "Invalid expense ID")
+    
+    # Find existing
+    existing = await db.expenses.find_one({"_id": obj_id})
+    if not existing:
+        raise HTTPException(404, "Expense not found")
+    
+    # Check permission
+    if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
+        raise HTTPException(403, "Cannot update expense for another center")
+    
+    update_data = {k: v for k, v in req.dict().items() if v is not None}
+    
+    if update_data:
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        update_data["updated_by"] = session.get("managerName", "Unknown")
+        
+        await db.expenses.update_one(
+            {"_id": obj_id},
+            {"$set": update_data}
+        )
+    
+    logger.info(f"Expense updated: {expense_id} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Expense updated"}
+
+@router.delete("/expenses/{expense_id}")
+async def delete_expense(expense_id: str, token: str):
+    """Delete an expense record"""
+    from bson import ObjectId
+    
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    try:
+        obj_id = ObjectId(expense_id)
+    except:
+        raise HTTPException(400, "Invalid expense ID")
+    
+    # Find existing
+    existing = await db.expenses.find_one({"_id": obj_id})
+    if not existing:
+        raise HTTPException(404, "Expense not found")
+    
+    # Check permission - MGT can delete any, others only their own center
+    if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
+        raise HTTPException(403, "Cannot delete expense for another center")
+    
+    await db.expenses.delete_one({"_id": obj_id})
+    
+    logger.info(f"Expense deleted: {expense_id} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Expense deleted"}
+
+# =======================================
+# REPORTS ENDPOINTS
+# =======================================
+
+@router.post("/reports/daily-summary")
+async def get_daily_summary(req: SalesQueryRequest):
+    """Get daily summary report for a specific date or date range"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Build query for sales
+    sales_query = {}
+    
+    if session.get("center") != "PB-MGT":
+        sales_query["center"] = session.get("center")
+    elif req.center:
+        sales_query["center"] = req.center.upper()
+    
+    if req.start_date and req.end_date:
+        sales_query["date"] = {"$gte": req.start_date, "$lte": req.end_date}
+    elif req.start_date:
+        sales_query["date"] = req.start_date
+    
+    # Get sales
+    sales = await db.daily_sales.find(sales_query, {"_id": 0}).sort("date", 1).to_list(1000)
+    
+    # Get expenses for same period
+    expense_query = dict(sales_query)
+    expenses = await db.expenses.find(expense_query, {"_id": 0}).sort("date", 1).to_list(5000)
+    
+    # Calculate summary
+    summary = {
+        "total_sale": sum(s.get("total_sale", 0) for s in sales),
+        "total_cash_sale": sum(s.get("total_cash_sale", 0) for s in sales),
+        "total_online_sale": sum(s.get("total_online_sale", 0) for s in sales),
+        "total_card_idfc": sum(s.get("card_idfc", 0) for s in sales),
+        "total_bharat_pay": sum(s.get("bharat_pay", 0) for s in sales),
+        "total_swiggy": sum(s.get("swiggy", 0) for s in sales),
+        "total_zomato": sum(s.get("zomato", 0) for s in sales),
+        "total_expenses": sum(e.get("amount", 0) for e in expenses),
+        "days_count": len(sales)
+    }
+    
+    # Expense breakdown by type
+    expense_by_type = {}
+    for exp in expenses:
+        exp_type = exp.get("expense_type", "OTHER")
+        expense_by_type[exp_type] = expense_by_type.get(exp_type, 0) + exp.get("amount", 0)
+    
+    # Expense breakdown by payment mode
+    expense_by_mode = {}
+    for exp in expenses:
+        mode = exp.get("payment_mode", "CASH")
+        expense_by_mode[mode] = expense_by_mode.get(mode, 0) + exp.get("amount", 0)
+    
+    return {
+        "summary": summary,
+        "expense_by_type": expense_by_type,
+        "expense_by_mode": expense_by_mode,
+        "sales": sales,
+        "expenses": expenses
+    }
+
+@router.post("/reports/monthly-summary")
+async def get_monthly_summary(req: SalesQueryRequest):
+    """Get monthly summary report"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if not req.month:
+        raise HTTPException(400, "Month is required (YYYY-MM format)")
+    
+    # Build query
+    query = {"date": {"$regex": f"^{req.month}"}}
+    
+    if session.get("center") != "PB-MGT":
+        query["center"] = session.get("center")
+    elif req.center:
+        query["center"] = req.center.upper()
+    
+    # Get all sales for the month
+    sales = await db.daily_sales.find(query, {"_id": 0}).sort("date", 1).to_list(1000)
+    
+    # Get expenses for the month
+    expenses = await db.expenses.find(query, {"_id": 0}).sort("date", 1).to_list(5000)
+    
+    # If querying all centers, group by center
+    if session.get("center") == "PB-MGT" and not req.center:
+        # Group by center
+        centers_data = {}
+        for sale in sales:
+            c = sale.get("center")
+            if c not in centers_data:
+                centers_data[c] = {
+                    "center": c,
+                    "total_sale": 0,
+                    "total_cash_sale": 0,
+                    "total_online_sale": 0,
+                    "total_expenses": 0,
+                    "days_count": 0
+                }
+            centers_data[c]["total_sale"] += sale.get("total_sale", 0)
+            centers_data[c]["total_cash_sale"] += sale.get("total_cash_sale", 0)
+            centers_data[c]["total_online_sale"] += sale.get("total_online_sale", 0)
+            centers_data[c]["days_count"] += 1
+        
+        # Add expenses
+        for exp in expenses:
+            c = exp.get("center")
+            if c in centers_data:
+                centers_data[c]["total_expenses"] += exp.get("amount", 0)
+        
+        return {
+            "month": req.month,
+            "centers": list(centers_data.values()),
+            "grand_total": {
+                "total_sale": sum(s.get("total_sale", 0) for s in sales),
+                "total_cash_sale": sum(s.get("total_cash_sale", 0) for s in sales),
+                "total_online_sale": sum(s.get("total_online_sale", 0) for s in sales),
+                "total_expenses": sum(e.get("amount", 0) for e in expenses)
+            }
+        }
+    
+    # Single center summary
+    summary = {
+        "month": req.month,
+        "center": req.center or session.get("center"),
+        "total_sale": sum(s.get("total_sale", 0) for s in sales),
+        "total_cash_sale": sum(s.get("total_cash_sale", 0) for s in sales),
+        "total_online_sale": sum(s.get("total_online_sale", 0) for s in sales),
+        "total_card_idfc": sum(s.get("card_idfc", 0) for s in sales),
+        "total_bharat_pay": sum(s.get("bharat_pay", 0) for s in sales),
+        "total_swiggy": sum(s.get("swiggy", 0) for s in sales),
+        "total_zomato": sum(s.get("zomato", 0) for s in sales),
+        "total_expenses": sum(e.get("amount", 0) for e in expenses),
+        "days_count": len(sales)
+    }
+    
+    # Day-wise breakdown
+    daily_data = []
+    for sale in sales:
+        day_expenses = sum(e.get("amount", 0) for e in expenses if e.get("date") == sale.get("date"))
+        daily_data.append({
+            "date": sale.get("date"),
+            "total_sale": sale.get("total_sale", 0),
+            "cash_sale": sale.get("total_cash_sale", 0),
+            "online_sale": sale.get("total_online_sale", 0),
+            "expenses": day_expenses,
+            "net": sale.get("total_sale", 0) - day_expenses
+        })
+    
+    # Expense breakdown
+    expense_by_type = {}
+    for exp in expenses:
+        exp_type = exp.get("expense_type", "OTHER")
+        expense_by_type[exp_type] = expense_by_type.get(exp_type, 0) + exp.get("amount", 0)
+    
+    return {
+        "summary": summary,
+        "daily_data": daily_data,
+        "expense_by_type": expense_by_type
+    }
+
+@router.get("/expense-types")
+async def get_expense_types():
+    """Get all unique expense types"""
+    types = await db.expenses.distinct("expense_type")
+    
+    # Standard expense types
+    standard_types = [
+        "GROCERY",
+        "DAIRY PRODUCTS",
+        "FRUITS & VEGETABLE",
+        "WATER CAN/ BOTTLE",
+        "CYLINDER",
+        "PAV",
+        "PACKAGING MATERIAL",
+        "CELEBRATION EXPENSES",
+        "MEDIA & ADVERTISEMENT",
+        "RESTAURANT GENERAL EXPENSES",
+        "REPAIR & MAINTENANCE",
+        "SALARY",
+        "ADVANCE",
+        "RENT",
+        "ELECTRICITY",
+        "OTHER"
+    ]
+    
+    # Merge with existing types
+    all_types = list(set(standard_types + types))
+    all_types.sort()
+    
+    return {"expense_types": all_types}
+
+@router.get("/payment-modes")
+async def get_payment_modes():
+    """Get all payment modes"""
+    return {
+        "payment_modes": [
+            "CASH",
+            "ONLINE UPI",
+            "ONLINE NEFT/IMPS",
+            "CARD",
+            "CHEQUE"
+        ]
+    }
+
+@router.get("/centers-list")
+async def get_centers_for_sales():
+    """Get list of centers that have sales data"""
+    centers = await db.daily_sales.distinct("center")
+    return {"centers": sorted(centers)}
