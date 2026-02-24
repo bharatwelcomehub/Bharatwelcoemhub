@@ -19,8 +19,16 @@ function App() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(SESSION_KEY);
+      console.log("Loading session from localStorage:", stored ? "found" : "not found");
       if (stored) {
         const parsed = JSON.parse(stored);
+        console.log("Parsed session:", { 
+          hasToken: !!parsed?.token, 
+          center: parsed?.center,
+          is_super_admin: parsed?.is_super_admin,
+          is_admin: parsed?.is_admin,
+          roles: parsed?.roles
+        });
         if (parsed?.token && parsed?.center) {
           setSession(parsed);
         }
@@ -32,11 +40,18 @@ function App() {
   }, []);
 
   const login = (data) => {
+    console.log("Login called with:", { 
+      center: data.center, 
+      is_super_admin: data.is_super_admin,
+      is_admin: data.is_admin,
+      roles: data.roles
+    });
     setSession(data);
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
   };
 
   const logout = () => {
+    console.log("Logout called");
     setSession(null);
     localStorage.removeItem(SESSION_KEY);
   };
