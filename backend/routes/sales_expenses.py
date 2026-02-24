@@ -391,7 +391,7 @@ async def update_expense(expense_id: str, req: ExpenseUpdate, token: str):
     
     try:
         obj_id = ObjectId(expense_id)
-    except:
+    except Exception:
         raise HTTPException(400, "Invalid expense ID")
     
     # Find existing
@@ -432,7 +432,7 @@ async def delete_expense(expense_id: str, token: str):
     
     try:
         obj_id = ObjectId(expense_id)
-    except:
+    except Exception:
         raise HTTPException(400, "Invalid expense ID")
     
     # Find existing
