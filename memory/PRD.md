@@ -121,6 +121,20 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## Key API Endpoints
 
+### Sales & Expenses (NEW)
+- `GET /api/sales/centers-list` - Get centers with sales data
+- `POST /api/sales/reports/monthly-summary` - Monthly summary with expense breakdown
+- `POST /api/sales/expenses` - Get expense records with filters
+- `POST /api/sales/daily` - Get daily sales records
+- `POST /api/sales/daily/create` - Create daily sales entry
+- `PUT /api/sales/daily/{center}/{date}` - Update daily sales
+- `DELETE /api/sales/daily/{center}/{date}` - Delete daily sales (MGT only)
+- `POST /api/sales/expenses/create` - Create expense record
+- `PUT /api/sales/expenses/{id}` - Update expense
+- `DELETE /api/sales/expenses/{id}` - Delete expense
+- `GET /api/sales/expense-types` - Get expense categories
+- `GET /api/sales/payment-modes` - Get payment modes
+
 ### Recipes
 - `GET /api/recipes` - Get all recipes with categories
 - `GET /api/recipes/categories` - Get category list
