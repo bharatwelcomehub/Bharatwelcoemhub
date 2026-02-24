@@ -24,6 +24,7 @@ import {
   PieChart
 } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
+import SalesDataEntry from "@/components/SalesDataEntry";
 
 // Format currency
 const formatCurrency = (amount) => {
