@@ -725,10 +725,10 @@ async def payroll_status(req: MonthRequest):
 
 @api_router.post("/lock_payroll")
 async def lock_payroll(req: MonthRequest):
-    """Lock payroll for a month (MGT only)"""
+    """Lock payroll for a month (Admin/MGT only)"""
     session = verify_token(req.token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can lock payroll")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin/Super Admin can lock payroll")
     
     doc = {
         "month": req.month,
@@ -750,8 +750,8 @@ async def lock_payroll(req: MonthRequest):
 async def salary_preview(req: SalaryPreviewRequest):
     """Preview salary data on screen for a specific center"""
     session = verify_token(req.token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can view salary preview")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin/Super Admin can view salary preview")
     
     try:
         year, month = map(int, req.month.split("-"))
