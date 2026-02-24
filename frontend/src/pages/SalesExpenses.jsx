@@ -209,7 +209,7 @@ export default function SalesExpenses() {
           </div>
           
           {hasAllCentersAccess && (
-            <Select value={selectedCenter || "all"} onValueChange={(val) => setSelectedCenter(val === "all" ? "" : val)}>
+            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
               <SelectTrigger className="w-40" data-testid="center-filter">
                 <SelectValue placeholder="All Centers" />
               </SelectTrigger>
