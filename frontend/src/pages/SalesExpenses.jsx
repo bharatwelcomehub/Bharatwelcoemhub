@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
+import ExpenseEntry from "@/components/ExpenseEntry";
 
 // Format currency
 const formatCurrency = (amount) => {
