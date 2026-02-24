@@ -2694,22 +2694,34 @@ async def mgt_center_delete(data: dict):
 
 @api_router.post("/mgt/managers")
 async def mgt_get_managers(data: dict):
-    """Get all managers (MGT only)"""
+    """Get all managers (Admin/MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage managers")
+    
+    # Check access: Super Admin, Admin, or PB-MGT
+    is_super_admin = session.get("is_super_admin", False) if session else False
+    is_admin = session.get("is_admin", False) if session else False
+    is_mgt = session.get("center") == "PB-MGT" if session else False
+    
+    if not session or (not is_super_admin and not is_admin and not is_mgt):
+        raise HTTPException(403, "Only Admin or PB-MGT can manage managers")
     
     managers = await db.managers.find({}, {"_id": 0}).to_list(100)
     return {"managers": managers}
 
 @api_router.post("/mgt/manager_create")
 async def mgt_manager_create(data: dict):
-    """Create a new manager (MGT only)"""
+    """Create a new manager (Admin/MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can create managers")
+    
+    # Check access
+    is_super_admin = session.get("is_super_admin", False) if session else False
+    is_admin = session.get("is_admin", False) if session else False
+    is_mgt = session.get("center") == "PB-MGT" if session else False
+    
+    if not session or (not is_super_admin and not is_admin and not is_mgt):
+        raise HTTPException(403, "Only Admin or PB-MGT can create managers")
     
     center = data.get("center", "").upper().strip()
     email = data.get("email", "").strip().lower()
