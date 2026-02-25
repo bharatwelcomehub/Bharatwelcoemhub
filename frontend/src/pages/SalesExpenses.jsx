@@ -535,7 +535,7 @@ export default function SalesExpenses() {
                             <span className="px-2 py-1 rounded-full bg-muted">{exp.expense_type}</span>
                           </td>
                           <td className="py-3 px-2 text-xs">{exp.payment_mode}</td>
-                          <td className="text-right py-3 px-2 font-medium">{formatCurrency(exp.amount)}</td>
+                          <td className="text-right py-3 px-2 font-medium">{formatCurrency(exp.amount, currentCurrency)}</td>
                         </tr>
                       ))
                     ) : (
