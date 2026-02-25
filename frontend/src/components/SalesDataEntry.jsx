@@ -7,11 +7,11 @@ import { toast } from "sonner";
 import { Save, Calculator, Calendar, RefreshCw, ChevronLeft, ChevronRight, Users, Receipt } from "lucide-react";
 import { api } from "@/lib/api";
 
-// Check if center is Perth (Australia) - handles multiple formats
+// Check if center is Perth (Australia) - standardized to PB-PERTH
 const isPerth = (center) => {
   if (!center) return false;
   const c = center.toUpperCase();
-  return c === "PB-PT" || c === "PB-PERTH" || c === "PERTH";
+  return c === "PB-PERTH" || c === "PERTH";
 };
 
 // Get currency symbol based on center
