@@ -407,7 +407,7 @@ export default function SalesExpenses() {
                       .map(([type, amount], idx) => (
                         <div key={idx} className="flex justify-between items-center py-2 border-b border-border last:border-0">
                           <span className="text-sm text-muted-foreground truncate max-w-[60%]">{type}</span>
-                          <span className="font-medium text-sm">{formatCurrency(amount, selectedCenter)}</span>
+                          <span className="font-medium text-sm">{formatCurrency(amount, currentCurrency)}</span>
                         </div>
                       ))
                   ) : (
