@@ -541,45 +541,139 @@ export default function SalesExpenses() {
         {/* Daily Report Tab */}
         <TabsContent value="daily">
           <Card className="bg-card border-border">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Daily Sales Report - {selectedMonth}</CardTitle>
+              {session?.is_super_admin && unlockRequests.filter(r => r.status === 'pending').length > 0 && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="gap-2"
+                  onClick={() => setShowUnlockRequestsPanel(!showUnlockRequestsPanel)}
+                >
+                  <Clock className="w-4 h-4" />
+                  {unlockRequests.filter(r => r.status === 'pending').length} Pending Requests
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
+              {/* Unlock Requests Panel (Super Admin Only) */}
+              {showUnlockRequestsPanel && session?.is_super_admin && (
+                <div className="mb-6 p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Pending Unlock Requests
+                  </h4>
+                  <div className="space-y-3">
+                    {unlockRequests.filter(r => r.status === 'pending').map((req) => (
+                      <div key={req.id} className="flex items-center justify-between p-3 bg-background rounded border">
+                        <div>
+                          <p className="font-medium">{req.center} - {formatDateDisplay(req.date)}</p>
+                          <p className="text-sm text-muted-foreground">By: {req.requested_by}</p>
+                          <p className="text-sm text-muted-foreground">Reason: {req.reason}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-green-600 border-green-600"
+                            onClick={() => processUnlockRequest(req.id, 'approve')}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-red-600 border-red-600"
+                            onClick={() => processUnlockRequest(req.id, 'reject')}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" /> Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {unlockRequests.filter(r => r.status === 'pending').length === 0 && (
+                      <p className="text-muted-foreground text-sm">No pending requests</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
+                      <th className="text-center py-3 px-2 font-medium text-muted-foreground w-10">Status</th>
                       {hasAllCentersAccess && !selectedCenter && <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>}
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Total Sale</th>
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Cash</th>
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Online</th>
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Expenses</th>
                       <th className="text-right py-3 px-2 font-medium text-muted-foreground">Net</th>
+                      {!session?.is_super_admin && <th className="text-center py-3 px-2 font-medium text-muted-foreground">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {dailyData.length > 0 ? (
-                      dailyData.map((row, idx) => (
-                        <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
-                          <td className="py-3 px-2">{row.date ? formatDateDisplay(row.date) : '-'}</td>
-                          {hasAllCentersAccess && !selectedCenter && <td className="py-3 px-2">{row.center}</td>}
-                          <td className="text-right py-3 px-2 font-medium">{formatCurrency(row.total_sale, currentCurrency)}</td>
-                          <td className="text-right py-3 px-2">{formatCurrency(row.cash_sale || row.total_cash_sale, currentCurrency)}</td>
-                          <td className="text-right py-3 px-2">{formatCurrency(row.online_sale || row.total_online_sale, currentCurrency)}</td>
-                          <td className="text-right py-3 px-2 text-red-500">{formatCurrency(row.expenses || row.total_expenses, currentCurrency)}</td>
-                          <td className={`text-right py-3 px-2 font-medium ${
-                            (row.net || (row.total_sale - (row.expenses || row.total_expenses || 0))) >= 0 
-                              ? 'text-green-500' 
-                              : 'text-red-500'
-                          }`}>
-                            {formatCurrency(row.net || (row.total_sale - (row.expenses || row.total_expenses || 0)), currentCurrency)}
-                          </td>
-                        </tr>
-                      ))
+                      dailyData.map((row, idx) => {
+                        const frozen = isDateFrozen(row.date);
+                        const hasPendingRequest = unlockRequests.some(
+                          r => r.date === row.date && r.center === (row.center || session?.center) && r.status === 'pending'
+                        );
+                        
+                        return (
+                          <tr key={idx} className={`border-b border-border/50 hover:bg-muted/50 ${frozen ? 'bg-muted/20' : ''}`}>
+                            <td className="py-3 px-2">{row.date ? formatDateDisplay(row.date) : '-'}</td>
+                            <td className="py-3 px-2 text-center">
+                              {frozen ? (
+                                <span title="Frozen - Previous day data locked">
+                                  <Lock className="w-4 h-4 text-amber-500 inline" />
+                                </span>
+                              ) : (
+                                <span title="Editable - Today's data">
+                                  <Unlock className="w-4 h-4 text-green-500 inline" />
+                                </span>
+                              )}
+                            </td>
+                            {hasAllCentersAccess && !selectedCenter && <td className="py-3 px-2">{row.center}</td>}
+                            <td className="text-right py-3 px-2 font-medium">{formatCurrency(row.total_sale, currentCurrency)}</td>
+                            <td className="text-right py-3 px-2">{formatCurrency(row.cash_sale || row.total_cash_sale, currentCurrency)}</td>
+                            <td className="text-right py-3 px-2">{formatCurrency(row.online_sale || row.total_online_sale, currentCurrency)}</td>
+                            <td className="text-right py-3 px-2 text-red-500">{formatCurrency(row.expenses || row.total_expenses, currentCurrency)}</td>
+                            <td className={`text-right py-3 px-2 font-medium ${
+                              (row.net || (row.total_sale - (row.expenses || row.total_expenses || 0))) >= 0 
+                                ? 'text-green-500' 
+                                : 'text-red-500'
+                            }`}>
+                              {formatCurrency(row.net || (row.total_sale - (row.expenses || row.total_expenses || 0)), currentCurrency)}
+                            </td>
+                            {!session?.is_super_admin && (
+                              <td className="py-3 px-2 text-center">
+                                {frozen && !hasPendingRequest && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs h-7"
+                                    onClick={() => {
+                                      setSelectedDateForUnlock({ date: row.date, center: row.center || session?.center });
+                                      setShowUnlockModal(true);
+                                    }}
+                                  >
+                                    Request Unlock
+                                  </Button>
+                                )}
+                                {frozen && hasPendingRequest && (
+                                  <span className="text-xs text-amber-500 flex items-center justify-center gap-1">
+                                    <Clock className="w-3 h-3" /> Pending
+                                  </span>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
-                        <td colSpan={hasAllCentersAccess && !selectedCenter ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                        <td colSpan={hasAllCentersAccess && !selectedCenter ? 9 : 8} className="text-center py-8 text-muted-foreground">
                           No data available for selected period
                         </td>
                       </tr>
