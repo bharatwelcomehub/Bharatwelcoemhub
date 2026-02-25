@@ -130,19 +130,19 @@ export default function Dashboard() {
     );
   };
 
-  // Check if user has access to an item
+  // Check if user has access to an item based on their assigned roles
   const hasAccess = (item) => {
-    if (hasFullAccess) return true; // Super Admin, Admin, MGT have full access
-    if (item.forMGT) return false; // MGT-only items require admin access
-    if (item.roleKey) return userRoles[item.roleKey] !== false;
-    return true;
+    if (isSuperAdmin) return true; // Super Admin has full access
+    if (item.forMGT) return isSuperAdmin; // MGT-only items require Super Admin
+    if (item.roleKey) return userRoles[item.roleKey] === true;
+    return true; // Items without roleKey are accessible by default
   };
 
   // Check if user has access to a category
   const hasCategoryAccess = (category) => {
-    if (hasFullAccess) return true;
-    if (category.forMGT) return false;
-    if (category.roleKey) return userRoles[category.roleKey] !== false;
+    if (isSuperAdmin) return true;
+    if (category.forMGT) return isSuperAdmin;
+    if (category.roleKey) return userRoles[category.roleKey] === true;
     return true;
   };
 
