@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/App";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,11 +24,7 @@ import {
   PieChart,
   Users,
   FileText,
-  DollarSign,
-  Upload,
-  FileSpreadsheet,
-  Loader2,
-  CheckCircle
+  DollarSign
 } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
