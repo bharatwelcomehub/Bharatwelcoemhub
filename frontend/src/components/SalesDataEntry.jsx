@@ -99,8 +99,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     notes: ""
   });
 
-  // Get center code
-  const centerCode = selectedCenter || session?.center;
+  // Get center code - use session center if selectedCenter is "all" or not set
+  const centerCode = (selectedCenter && selectedCenter !== "all") ? selectedCenter : session?.center;
   const currencySymbol = getCurrencySymbol(centerCode);
   const isPerthCenter = isPerth(centerCode);
 
