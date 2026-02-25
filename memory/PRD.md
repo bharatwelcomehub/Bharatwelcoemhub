@@ -263,7 +263,37 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## Latest Updates (Feb 25, 2026)
 
-### Session 9 - Critical P0 Bug Fixes
+### Session 10 - Sales Data Freeze & Unlock Request System (NEW FEATURE)
+
+- ✅ **Automatic Date Freeze**
+  - Previous day's sales data is **automatically frozen at midnight**
+  - Only today's date can be edited by center managers
+  - Visual **lock icons (🔒)** displayed in Daily Report table for frozen dates
+  - **Unlock icon (🔓)** shown for editable dates (today)
+
+- ✅ **Unlock Request System**
+  - Center managers can **submit unlock requests** for frozen dates
+  - Request includes: date, center, reason for unlock
+  - **Pending request indicator** shown for dates with active requests
+  - Requests stored in `unlock_requests` collection
+
+- ✅ **Super Admin Unlock Approval**
+  - Super Admin sees **"Pending Requests"** button when there are requests
+  - Can **approve or reject** unlock requests with notes
+  - Approved requests grant **24-hour temporary access** to edit frozen date
+  - Unlock grants stored in `unlock_grants` collection with expiry
+
+- ✅ **Super Admin Override**
+  - Super Admin can **always edit any date** directly (no unlock needed)
+  - Bypasses freeze check completely
+
+- ✅ **API Endpoints Added**
+  - `GET /api/sales/check-frozen/{center}/{date}` - Check if date is frozen
+  - `POST /api/sales/unlock-request` - Submit unlock request
+  - `GET /api/sales/unlock-requests` - View all unlock requests
+  - `POST /api/sales/unlock-request/{id}/action` - Approve/reject request
+
+### Session 9 - P0 Bug Fixes
 
 - ✅ **P0 Fix: Managers Missing "Sales & Cash" Feature (RESOLVED)**
   - **Root Cause**: `verify_otp` was only looking up managers by mobile number, but most managers in DB have empty mobile fields
