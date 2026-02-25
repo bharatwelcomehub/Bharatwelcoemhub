@@ -299,7 +299,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 .map(([type, amount]) => (
                   <div key={type} className="p-3 rounded-lg bg-muted/50 border border-border">
                     <p className="text-xs text-muted-foreground truncate">{type}</p>
-                    <p className="text-lg font-bold text-foreground">{formatCurrency(amount)}</p>
+                    <p className="text-lg font-bold text-foreground">{formatCurrency(amount, centerCode)}</p>
                   </div>
                 ))
               }
@@ -338,7 +338,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                       <span className="px-2 py-1 rounded-full text-xs bg-muted">{exp.expense_type}</span>
                     </td>
                     <td className="py-3 px-2 text-xs">{exp.payment_mode}</td>
-                    <td className="text-right py-3 px-2 font-medium">{formatCurrency(exp.amount)}</td>
+                    <td className="text-right py-3 px-2 font-medium">{formatCurrency(exp.amount, centerCode)}</td>
                     <td className="text-right py-3 px-2">
                       <Button
                         variant="ghost"
@@ -364,7 +364,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 <tfoot>
                   <tr className="bg-muted/50">
                     <td colSpan={4} className="py-3 px-2 font-bold text-right">Total:</td>
-                    <td className="py-3 px-2 font-bold text-right text-red-500">{formatCurrency(totalExpenses)}</td>
+                    <td className="py-3 px-2 font-bold text-right text-red-500">{formatCurrency(totalExpenses, centerCode)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
