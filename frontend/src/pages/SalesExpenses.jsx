@@ -484,7 +484,7 @@ export default function SalesExpenses() {
                               ? 'text-green-500' 
                               : 'text-red-500'
                           }`}>
-                            {formatCurrency(row.net || (row.total_sale - (row.expenses || row.total_expenses || 0)))}
+                            {formatCurrency(row.net || (row.total_sale - (row.expenses || row.total_expenses || 0)), currentCurrency)}
                           </td>
                         </tr>
                       ))
