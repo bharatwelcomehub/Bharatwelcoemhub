@@ -375,7 +375,7 @@ export default function SalesExpenses() {
                       <div key={idx} className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">{item.name}</span>
-                          <span className="font-medium">{formatCurrency(item.value, selectedCenter)}</span>
+                          <span className="font-medium">{formatCurrency(item.value, currentCurrency)}</span>
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                           <div 
