@@ -475,10 +475,10 @@ export default function SalesExpenses() {
                         <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
                           <td className="py-3 px-2">{row.date ? formatDateDisplay(row.date) : '-'}</td>
                           {hasAllCentersAccess && !selectedCenter && <td className="py-3 px-2">{row.center}</td>}
-                          <td className="text-right py-3 px-2 font-medium">{formatCurrency(row.total_sale)}</td>
-                          <td className="text-right py-3 px-2">{formatCurrency(row.cash_sale || row.total_cash_sale)}</td>
-                          <td className="text-right py-3 px-2">{formatCurrency(row.online_sale || row.total_online_sale)}</td>
-                          <td className="text-right py-3 px-2 text-red-500">{formatCurrency(row.expenses || row.total_expenses)}</td>
+                          <td className="text-right py-3 px-2 font-medium">{formatCurrency(row.total_sale, currentCurrency)}</td>
+                          <td className="text-right py-3 px-2">{formatCurrency(row.cash_sale || row.total_cash_sale, currentCurrency)}</td>
+                          <td className="text-right py-3 px-2">{formatCurrency(row.online_sale || row.total_online_sale, currentCurrency)}</td>
+                          <td className="text-right py-3 px-2 text-red-500">{formatCurrency(row.expenses || row.total_expenses, currentCurrency)}</td>
                           <td className={`text-right py-3 px-2 font-medium ${
                             (row.net || (row.total_sale - (row.expenses || row.total_expenses || 0))) >= 0 
                               ? 'text-green-500' 
