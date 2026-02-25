@@ -231,13 +231,13 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         const record = res.data.sales[0];
         setExistingRecord(record);
         
-        // Calculate total_sale from the record
-        const recordTotalSale = (record.sale_pbm || 0) + (record.sale_other || 0);
+        // Get total_sale - prefer direct total_sale, fallback to sum of sale_pbm + sale_other
+        const recordTotalSale = record.total_sale || ((record.sale_pbm || 0) + (record.sale_other || 0));
         
         setFormData({
           opening_balance: record.opening_balance || prevData?.closing_balance || 0,
           petty_cash_opening: record.petty_cash_opening || prevData?.petty_cash_closing || 0,
-          total_sale: recordTotalSale || record.total_sale || 0,
+          total_sale: recordTotalSale || 0,
           card_idfc: record.card_idfc || 0,
           bharat_pay: record.bharat_pay || 0,
           swiggy: record.swiggy || 0,
