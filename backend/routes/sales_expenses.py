@@ -266,6 +266,56 @@ def calculate_totals(sale: dict) -> dict:
     return sale
 
 # =======================================
+# FREEZE/LOCK HELPER FUNCTIONS
+# =======================================
+
+def is_date_frozen(date_str: str) -> bool:
+    """
+    Check if a date is frozen (locked).
+    Previous day and older dates are frozen at midnight.
+    Only today's date is editable.
+    """
+    from datetime import date
+    try:
+        record_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        today = date.today()
+        return record_date < today
+    except:
+        return True  # If date is invalid, consider it frozen
+
+async def is_date_unlocked(center: str, date_str: str) -> bool:
+    """
+    Check if a frozen date has been temporarily unlocked by Super Admin.
+    Returns True if unlocked, False if still frozen.
+    """
+    unlock = await db.unlock_grants.find_one({
+        "center": center.upper(),
+        "date": date_str,
+        "status": "active",
+        "expires_at": {"$gt": datetime.now(timezone.utc).isoformat()}
+    })
+    return unlock is not None
+
+async def can_edit_date(session: dict, center: str, date_str: str) -> tuple:
+    """
+    Check if user can edit a specific date's data.
+    Returns (can_edit: bool, reason: str)
+    """
+    # Super Admin can always edit
+    if session.get("is_super_admin"):
+        return (True, "Super Admin access")
+    
+    # Check if date is frozen
+    if not is_date_frozen(date_str):
+        return (True, "Date is not frozen (today)")
+    
+    # Date is frozen - check if unlocked for this center
+    if await is_date_unlocked(center, date_str):
+        return (True, "Date temporarily unlocked by Super Admin")
+    
+    return (False, "Date is frozen. Request unlock from Super Admin.")
+
+# =======================================
 # DAILY SALES ENDPOINTS
 # =======================================
 
