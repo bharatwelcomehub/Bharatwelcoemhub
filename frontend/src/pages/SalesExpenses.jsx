@@ -36,10 +36,21 @@ const isPerth = (center) => center && center.toUpperCase() === "PB-PT";
 // Get currency symbol based on center
 const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
 
-// Format currency with dynamic symbol
-const formatCurrency = (amount, center = null) => {
+// Format currency with dynamic symbol - can accept center code OR currency symbol directly
+const formatCurrency = (amount, centerOrCurrency = null) => {
   if (amount === null || amount === undefined) return "₹0";
-  const symbol = center ? getCurrencySymbol(center) : "₹";
+  
+  let symbol = "₹";
+  if (centerOrCurrency) {
+    // If it's already a symbol ($ or ₹), use it directly
+    if (centerOrCurrency === "$" || centerOrCurrency === "₹") {
+      symbol = centerOrCurrency;
+    } else {
+      // Otherwise it's a center code, get the symbol
+      symbol = getCurrencySymbol(centerOrCurrency);
+    }
+  }
+  
   return `${symbol}${new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
