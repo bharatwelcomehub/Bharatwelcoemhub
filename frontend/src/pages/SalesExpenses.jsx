@@ -416,7 +416,7 @@ export default function SalesExpenses() {
                         ? 'text-green-500' 
                         : 'text-red-500'
                     }`}>
-                      {formatCurrency((monthlySummary.total_sale || 0) - (monthlySummary.total_expenses || 0))}
+                      {formatCurrency((monthlySummary.total_sale || 0) - (monthlySummary.total_expenses || 0), selectedCenter)}
                     </p>
                   </div>
                   <div className={`p-4 rounded-full ${
