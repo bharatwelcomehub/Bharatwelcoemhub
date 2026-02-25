@@ -111,6 +111,13 @@ export default function SalesExpenses() {
   const [expenseByType, setExpenseByType] = useState({});
   const [expenses, setExpenses] = useState([]);
   
+  // Unlock Request State
+  const [unlockRequests, setUnlockRequests] = useState([]);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [selectedDateForUnlock, setSelectedDateForUnlock] = useState(null);
+  const [unlockReason, setUnlockReason] = useState("");
+  const [showUnlockRequestsPanel, setShowUnlockRequestsPanel] = useState(false);
+  
   // Check if user has admin access - recalculate on every render
   const hasAllCentersAccess = session?.center === "PB-MGT" || 
                               session?.is_super_admin === true || 
