@@ -2863,36 +2863,36 @@ async def mgt_manager_delete(data: dict):
 
 @api_router.post("/mgt/manager_roles")
 async def mgt_manager_roles(data: dict):
-    """Update a manager's role permissions (PB-MGT only)"""
+    """Update a manager's role permissions (Super Admin only)"""
     token = data.get("token")
     session = verify_token(token)
     
-    # Only PB-MGT can manage roles (simplified - no complex checks)
-    is_mgt = session.get("center") == "PB-MGT" if session else False
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
     
-    if not session or not is_mgt:
-        raise HTTPException(403, "Only PB-MGT can manage roles")
+    # Only Super Admins can manage roles
+    is_super_admin = session.get("is_super_admin", False)
+    if not is_super_admin:
+        raise HTTPException(403, "Only Super Admin can manage roles")
     
     email = data.get("email", "").strip()
     roles = data.get("roles", {})
-    set_is_super_admin = data.get("is_super_admin", False)
     set_is_admin = data.get("is_admin", False)
     
     if not email:
         raise HTTPException(400, "Manager email is required")
     
-    # Find the manager (case-insensitive email search with proper escaping)
+    # Find the manager (case-insensitive email search)
     escaped_email = re.escape(email)
     manager = await db.managers.find_one({"email": {"$regex": f"^{escaped_email}$", "$options": "i"}})
     if not manager:
         raise HTTPException(404, f"Manager with email '{email}' not found")
     
-    # Update roles using the actual email from the database
+    # Update roles - Super Admin can assign any combination of roles
     await db.managers.update_one(
         {"email": manager.get("email")},
         {"$set": {
             "roles": roles,
-            "is_super_admin": set_is_super_admin,
             "is_admin": set_is_admin,
             "rolesUpdatedAt": datetime.now(timezone.utc).isoformat(),
             "rolesUpdatedBy": session.get("managerName", "Unknown")
