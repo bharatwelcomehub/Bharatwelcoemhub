@@ -37,6 +37,13 @@
         <button onclick="checkDebug()">Check Database Status</button>
         <div id="debug-result" class="result"></div>
     </div>
+    
+    <div>
+        <h3 style="color: red;">Step 4: SEED PRODUCTION DATA (ONE-TIME ONLY)</h3>
+        <p>If database shows 0 records, click this to load sales data:</p>
+        <button onclick="seedData()" style="background: #dc3545; color: white; font-weight: bold;">SEED PRODUCTION DATABASE</button>
+        <div id="seed-result" class="result"></div>
+    </div>
 
     <script>
         let token = null;
@@ -111,6 +118,32 @@
                 const res = await fetch(API_BASE + '/sales/debug-data');
                 const data = await res.json();
                 resultDiv.innerHTML = '<span class="success">Database Status:</span>\n' + JSON.stringify(data, null, 2);
+            } catch (e) {
+                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message;
+            }
+        }
+        
+        async function seedData() {
+            const resultDiv = document.getElementById('seed-result');
+            if (!token) {
+                resultDiv.innerHTML = '<span class="error">ERROR: Please verify OTP first (Step 2)</span>';
+                return;
+            }
+            
+            resultDiv.innerHTML = 'Seeding data... Please wait...';
+            
+            try {
+                const res = await fetch(API_BASE + '/sales/seed-production-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    resultDiv.innerHTML = '<span class="success">SUCCESS! Data seeded!</span>\n' + JSON.stringify(data, null, 2);
+                } else {
+                    resultDiv.innerHTML = '<span class="error">Result:</span>\n' + JSON.stringify(data, null, 2);
+                }
             } catch (e) {
                 resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message;
             }
