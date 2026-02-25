@@ -2736,43 +2736,23 @@ async def mgt_get_managers(data: dict):
     session = verify_token(token)
     
     # Check access: Super Admin, Admin, or PB-MGT
+    is_mgt = session.get("center") == "PB-MGT" if session else False
     is_super_admin = session.get("is_super_admin", False) if session else False
     is_admin = session.get("is_admin", False) if session else False
-    is_mgt = session.get("center") == "PB-MGT" if session else False
-    current_email = session.get("email", "").lower() if session else ""
     
     if not session or (not is_super_admin and not is_admin and not is_mgt):
         raise HTTPException(403, "Only Admin or PB-MGT can manage managers")
     
     managers = await db.managers.find({}, {"_id": 0}).to_list(100)
     
-    # Special filtering rules:
-    # 1. Jayanti Kathale (jayanti.kathale@purnabramha.com) sees ALL managers including Super Admins
-    # 2. Other users don't see Jayanti Kathale's record
-    # 3. Other users don't see Super Admin records (except their own if they are super admin)
+    # PB-MGT users see ALL managers (no filtering)
+    # This ensures Jayanti can see herself and everyone else
+    if is_mgt:
+        return {"managers": managers}
     
-    jayanti_email = "jayanti.kathale@purnabramha.com"
-    is_jayanti = current_email == jayanti_email
-    
-    if not is_jayanti:
-        # Filter out Jayanti and other Super Admins (except self)
-        filtered_managers = []
-        for m in managers:
-            m_email = m.get("email", "").lower()
-            m_is_super = m.get("is_super_admin", False)
-            
-            # Hide Jayanti from everyone else
-            if m_email == jayanti_email:
-                continue
-            
-            # Hide other Super Admins (but show self if super admin)
-            if m_is_super and m_email != current_email:
-                continue
-                
-            filtered_managers.append(m)
-        managers = filtered_managers
-    
-    return {"managers": managers}
+    # Non-MGT admins: filter out PB-MGT managers for security
+    filtered = [m for m in managers if m.get("center") != "PB-MGT"]
+    return {"managers": filtered}
 
 @api_router.post("/mgt/manager_create")
 async def mgt_manager_create(data: dict):
