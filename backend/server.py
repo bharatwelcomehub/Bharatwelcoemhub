@@ -1983,6 +1983,151 @@ async def get_center_info():
     return {"centers": CENTER_INFO}
 
 # =======================================
+# GUEST BOOKING RESPONSE CONVERTER
+# Converts raw booking data to WhatsApp-friendly message
+# =======================================
+
+class GuestBookingRequest(BaseModel):
+    token: str
+    center: str
+    raw_booking_text: str  # Raw booking data to convert
+
+GUEST_BOOKING_SYSTEM_PROMPT = """You are a warm, hospitable guest communication assistant for Purnabramha - The Largest Maharashtrian Restaurant Chain, a women-led business rooted in authentic Maharashtrian culture.
+
+Your task is to convert raw booking data into a warm, formatted WhatsApp confirmation message that reflects:
+- Traditional Maharashtrian hospitality
+- Women-led, family-oriented brand values
+- Warm, homely welcome tone
+
+FORMAT RULES:
+1. Start with "🙏 *Namaskar!*" or similar warm greeting
+2. Use appropriate emojis for different elements:
+   - 📅 for Date
+   - ⏰ for Time  
+   - 👥 for Number of Guests/Pax
+   - 🍽️ for Meal/Thali type
+   - 📍 for Location/Center
+   - 📞 for Contact
+   - ✅ for Confirmation
+   - 🎉 for Special occasions
+3. Use *bold* for important info (WhatsApp formatting)
+4. Include a warm closing message
+5. Add center contact for any changes
+6. Keep message concise but warm
+
+FEATURE ICONS TO USE:
+- Dine-In: 🍽️
+- Takeaway: 📦
+- Delivery: 🛵
+- Bestseller: ⭐
+- Veg: 🥬
+- Jain: 🌿
+- Kids Special: 👶
+- Party/Group: 🎊
+- Birthday: 🎂
+- Anniversary: 💕
+- Festival: 🪔
+- Corporate: 💼
+
+TONE:
+- Use phrases like "Warm welcome awaits!", "Like home, but better!"
+- Reference Maharashtrian hospitality: "अतिथि देवो भव" (Guest is God)
+- Be genuine, not overly formal
+- Show excitement about their visit
+
+SAMPLE OUTPUT STRUCTURE:
+```
+🙏 *Namaskar [Guest Name] ji!*
+
+Your table at *Purnabramha [Center]* is confirmed! ✅
+
+📅 *Date:* [Date]
+⏰ *Time:* [Time]
+👥 *Guests:* [Number] pax
+🍽️ *Meal:* [Thali type]
+
+📍 *Address:* [Full address]
+📞 *Contact:* [Phone]
+
+A warm, homely welcome awaits you! 🏠✨
+
+_"जेवायला या, घरी आल्यासारखे वाटेल!"_
+(Come dine with us, it'll feel just like home!)
+
+For any changes, please call us at [Phone].
+
+See you soon! 🙏
+*Team Purnabramha*
+```
+
+Parse the raw booking text and create a beautiful, emoji-rich confirmation message.
+If any information is missing, still create a warm message with available details."""
+
+@api_router.post("/guest/booking-response")
+async def generate_booking_response(req: GuestBookingRequest):
+    """Convert raw booking data to WhatsApp-friendly message"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(500, "AI service not configured")
+        
+        # Get center context
+        center_info = CENTER_INFO.get(req.center.upper(), {})
+        center_context = f"\n\nCenter: {req.center}\n"
+        if center_info:
+            center_context += f"Center Name: {center_info.get('name', 'Purnabramha')}\n"
+            center_context += f"Address: {center_info.get('address', '')}\n"
+            center_context += f"Phone: {center_info.get('phone', '')}\n"
+            center_context += f"Timings: {center_info.get('timings', '12:00 PM - 10:30 PM')}\n"
+            center_context += f"Country: {center_info.get('country', 'India')}\n"
+        
+        # Currency context
+        is_perth = req.center.upper() in ["PB-PT", "PB-PERTH", "PERTH"]
+        currency_context = f"\nCurrency: {'AUD ($)' if is_perth else 'INR (₹)'}\n"
+        
+        # Initialize chat
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"booking_{req.center}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            system_message=GUEST_BOOKING_SYSTEM_PROMPT + center_context + currency_context
+        ).with_model("openai", "gpt-5.2")
+        
+        # Create prompt
+        prompt = f"""Convert this raw booking information into a beautiful WhatsApp confirmation message:
+
+RAW BOOKING DATA:
+{req.raw_booking_text}
+
+Generate a warm, emoji-rich WhatsApp message following the format guidelines. Make it personal and hospitable!"""
+        
+        # Send message
+        user_message = UserMessage(text=prompt)
+        response = await chat.send_message(user_message)
+        
+        # Log the generation
+        logger.info(f"Booking response generated for {req.center} by {session.get('managerName', 'Unknown')}")
+        
+        return {
+            "success": True,
+            "formatted_message": response,
+            "center": req.center,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
+        raise HTTPException(500, "AI library not available. Please install emergentintegrations.")
+    except Exception as e:
+        logger.error(f"Booking response error: {e}")
+        raise HTTPException(500, f"AI service error: {str(e)}")
+
+# =======================================
 # HR LETTERS AI ENDPOINTS (MGT ONLY)
 # =======================================
 
