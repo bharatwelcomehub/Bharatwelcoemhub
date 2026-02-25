@@ -271,6 +271,12 @@ User had existing HTML/Python files for an attendance and salary management syst
   - GST Payable displayed on daily/monthly reports
   - Backend helper functions: `is_perth_center()`, `get_currency_symbol()`, `calculate_gst()`
 
+- ✅ **Perth Sales Data Imported**
+  - 165 records imported from Perth Excel file (Oct 2025 - Mar 2026)
+  - Data imported exactly as-is without modification
+  - Currency: AUD ($), GST: 10% inclusive
+  - DoorDash and UberEats excluded from GST calculation (like Swiggy/Zomato)
+
 - ✅ **Guest & Bill Count Tracking**
   - New fields in Sales Entry form: Number of Guests (Pax), Number of Bills (excl. Swiggy/Zomato)
   - Auto-calculated: Avg Per Pax (Total Sale / Guests), Avg Per Bill (Total Sale / Bills)
