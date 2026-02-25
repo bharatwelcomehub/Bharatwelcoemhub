@@ -2869,19 +2869,15 @@ async def mgt_manager_delete(data: dict):
 
 @api_router.post("/mgt/manager_roles")
 async def mgt_manager_roles(data: dict):
-    """Update a manager's role permissions (Super Admin / MGT only)"""
+    """Update a manager's role permissions (PB-MGT only)"""
     token = data.get("token")
     session = verify_token(token)
     
-    # Check if user has permission to manage roles
-    is_super_admin = session.get("is_super_admin", False) if session else False
+    # Only PB-MGT can manage roles (simplified - no complex checks)
     is_mgt = session.get("center") == "PB-MGT" if session else False
-    current_email = session.get("email", "").lower() if session else ""
-    jayanti_email = "jayanti.kathale@purnabramha.com"
-    is_jayanti = current_email == jayanti_email
     
-    if not session or (not is_super_admin and not is_mgt):
-        raise HTTPException(403, "Only Super Admin or PB-MGT can manage roles")
+    if not session or not is_mgt:
+        raise HTTPException(403, "Only PB-MGT can manage roles")
     
     email = data.get("email", "").strip()
     roles = data.get("roles", {})
@@ -2896,16 +2892,6 @@ async def mgt_manager_roles(data: dict):
     manager = await db.managers.find_one({"email": {"$regex": f"^{escaped_email}$", "$options": "i"}})
     if not manager:
         raise HTTPException(404, f"Manager with email '{email}' not found")
-    
-    target_email = manager.get("email", "").lower()
-    
-    # Only Jayanti can modify Super Admins (including herself)
-    if manager.get("is_super_admin") and not is_jayanti:
-        raise HTTPException(403, "Only Jayanti Kathale can modify Super Admin accounts")
-    
-    # Only Jayanti can grant/revoke Super Admin status
-    if set_is_super_admin != manager.get("is_super_admin", False) and not is_jayanti:
-        raise HTTPException(403, "Only Jayanti Kathale can grant or revoke Super Admin status")
     
     # Update roles using the actual email from the database
     await db.managers.update_one(
