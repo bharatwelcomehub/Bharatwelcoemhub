@@ -164,6 +164,50 @@ def has_sales_access(session):
     return roles.get("sales_cash", False)
 
 # =======================================
+# GST & CURRENCY HELPERS
+# =======================================
+
+def is_perth_center(center: str) -> bool:
+    """Check if center is Perth (Australia)"""
+    return center and center.upper() in ["PB-PT", "PB-PERTH", "PERTH"]
+
+def get_currency_symbol(center: str) -> str:
+    """Get currency symbol based on center"""
+    return "$" if is_perth_center(center) else "₹"
+
+def calculate_gst(total_sale: float, swiggy: float, zomato: float, center: str) -> dict:
+    """
+    Calculate GST based on center location.
+    - Perth (Australia): 10% GST INCLUSIVE (extract from total)
+    - India: 5% GST EXCLUSIVE (added on top, excl. Swiggy/Zomato)
+    """
+    # Exclude Swiggy and Zomato from GST calculation
+    gst_applicable_sale = max(0, total_sale - swiggy - zomato)
+    
+    if is_perth_center(center):
+        # Australia (Perth): 10% GST is INCLUDED in price
+        # Formula: GST = Total / 11
+        gst_rate = 10
+        gst_amount = gst_applicable_sale / 11
+        net_sale = gst_applicable_sale - gst_amount
+        is_inclusive = True
+    else:
+        # India: 5% GST is ADDED to subtotal
+        # Formula: GST = Subtotal * 0.05
+        gst_rate = 5
+        gst_amount = gst_applicable_sale * 0.05
+        net_sale = gst_applicable_sale
+        is_inclusive = False
+    
+    return {
+        "gst_rate": gst_rate,
+        "gst_amount": round(gst_amount, 2),
+        "net_sale": round(net_sale, 2),
+        "is_inclusive": is_inclusive,
+        "currency": get_currency_symbol(center)
+    }
+
+# =======================================
 # HELPER FUNCTIONS
 # =======================================
 
