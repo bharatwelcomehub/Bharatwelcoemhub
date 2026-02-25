@@ -812,6 +812,65 @@ export default function SalesExpenses() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Unlock Request Modal */}
+      {showUnlockModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-amber-500" />
+              Request Unlock for Frozen Date
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm text-muted-foreground">Date</Label>
+                <p className="font-medium">{selectedDateForUnlock?.date ? formatDateDisplay(selectedDateForUnlock.date) : ''}</p>
+              </div>
+              
+              <div>
+                <Label className="text-sm text-muted-foreground">Center</Label>
+                <p className="font-medium">{selectedDateForUnlock?.center}</p>
+              </div>
+              
+              <div>
+                <Label htmlFor="unlock-reason">Reason for Unlock Request *</Label>
+                <textarea
+                  id="unlock-reason"
+                  className="w-full mt-1 p-3 border rounded-md bg-background text-foreground min-h-[100px]"
+                  placeholder="Please explain why you need to edit this frozen date's data..."
+                  value={unlockReason}
+                  onChange={(e) => setUnlockReason(e.target.value)}
+                />
+              </div>
+              
+              <div className="bg-amber-500/10 p-3 rounded text-sm text-amber-700 dark:text-amber-300">
+                <strong>Note:</strong> Your request will be sent to Super Admin for approval. 
+                Once approved, you will have 24 hours to make edits.
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowUnlockModal(false);
+                  setUnlockReason("");
+                  setSelectedDateForUnlock(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={submitUnlockRequest}
+                disabled={!unlockReason.trim()}
+              >
+                Submit Request
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
