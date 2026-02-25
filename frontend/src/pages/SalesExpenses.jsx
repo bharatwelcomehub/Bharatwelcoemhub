@@ -165,31 +165,59 @@ export default function SalesExpenses() {
   const summaryCards = [
     {
       title: "Total Sales",
-      value: formatCurrency(monthlySummary?.total_sale),
+      value: formatCurrency(monthlySummary?.total_sale, selectedCenter),
       icon: IndianRupee,
       color: "text-green-500",
       bg: "bg-green-500/10"
     },
     {
       title: "Cash Sales",
-      value: formatCurrency(monthlySummary?.total_cash_sale),
+      value: formatCurrency(monthlySummary?.total_cash_sale, selectedCenter),
       icon: Wallet,
       color: "text-blue-500",
       bg: "bg-blue-500/10"
     },
     {
       title: "Online Sales",
-      value: formatCurrency(monthlySummary?.total_online_sale),
+      value: formatCurrency(monthlySummary?.total_online_sale, selectedCenter),
       icon: CreditCard,
       color: "text-purple-500",
       bg: "bg-purple-500/10"
     },
     {
       title: "Total Expenses",
-      value: formatCurrency(monthlySummary?.total_expenses),
+      value: formatCurrency(monthlySummary?.total_expenses, selectedCenter),
       icon: Receipt,
       color: "text-red-500",
       bg: "bg-red-500/10"
+    }
+  ];
+
+  // GST & Guest Stats cards
+  const statsCards = [
+    {
+      title: `GST Payable (${monthlySummary?.gst_rate || 5}%)`,
+      value: formatCurrency(monthlySummary?.gst_amount || monthlySummary?.total_gst, selectedCenter),
+      subtitle: monthlySummary?.gst_inclusive ? "Inclusive in price" : "Added on subtotal",
+      icon: FileText,
+      color: "text-amber-600",
+      bg: "bg-amber-500/10"
+    },
+    {
+      title: "Total Guests",
+      value: (monthlySummary?.total_guests || 0).toLocaleString(),
+      subtitle: `Avg ${formatCurrency(monthlySummary?.avg_per_pax, selectedCenter)}/pax`,
+      icon: Users,
+      color: "text-indigo-500",
+      bg: "bg-indigo-500/10"
+    },
+    {
+      title: "Total Bills",
+      value: (monthlySummary?.total_bills || 0).toLocaleString(),
+      subtitle: `Avg ${formatCurrency(monthlySummary?.avg_per_bill, selectedCenter)}/bill`,
+      icon: Receipt,
+      color: "text-teal-500",
+      bg: "bg-teal-500/10"
     }
   ];
 
