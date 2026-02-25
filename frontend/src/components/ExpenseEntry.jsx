@@ -8,9 +8,26 @@ import { toast } from "sonner";
 import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 
-// Format currency
-const formatCurrency = (amount) => {
-  if (amount === null || amount === undefined) return "₹0";
+// Check if center is Perth (Australia) - standardized to PB-PERTH
+const isPerth = (center) => {
+  if (!center) return false;
+  const c = center.toUpperCase();
+  return c === "PB-PERTH" || c === "PERTH";
+};
+
+// Format currency based on center
+const formatCurrency = (amount, center) => {
+  if (amount === null || amount === undefined) return isPerth(center) ? "$0" : "₹0";
+  
+  if (isPerth(center)) {
+    return new Intl.NumberFormat('en-AU', {
+      style: 'currency',
+      currency: 'AUD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  }
+  
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
