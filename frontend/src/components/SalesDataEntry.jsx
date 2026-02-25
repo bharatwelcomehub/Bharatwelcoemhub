@@ -645,7 +645,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               <textarea
                 value={formData.notes}
                 onChange={(e) => handleChange('notes', e.target.value)}
-                className="w-full mt-1 p-3 border rounded-md resize-none h-20 text-sm"
+                disabled={!isFormEditable}
+                className={`w-full mt-1 p-3 border rounded-md resize-none h-20 text-sm ${
+                  !isFormEditable ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''
+                }`}
                 placeholder="Any additional notes..."
               />
             </div>
