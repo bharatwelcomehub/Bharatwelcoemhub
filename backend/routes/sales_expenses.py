@@ -734,31 +734,63 @@ async def get_monthly_summary(req: SalesQueryRequest):
         }
     
     # Single center summary
+    center_code = req.center or session.get("center")
+    total_sale = sum(s.get("total_sale", 0) for s in sales)
+    total_swiggy = sum(s.get("swiggy", 0) for s in sales)
+    total_zomato = sum(s.get("zomato", 0) for s in sales)
+    total_guests = sum(s.get("num_guests", 0) for s in sales)
+    total_bills = sum(s.get("num_bills", 0) for s in sales)
+    
+    # Calculate total GST for the month
+    gst_info = calculate_gst(total_sale, total_swiggy, total_zomato, center_code)
+    
     summary = {
         "month": req.month,
-        "center": req.center or session.get("center"),
-        "total_sale": sum(s.get("total_sale", 0) for s in sales),
+        "center": center_code,
+        "currency": get_currency_symbol(center_code),
+        "total_sale": total_sale,
         "total_cash_sale": sum(s.get("total_cash_sale", 0) for s in sales),
         "total_online_sale": sum(s.get("total_online_sale", 0) for s in sales),
         "total_card_idfc": sum(s.get("card_idfc", 0) for s in sales),
         "total_bharat_pay": sum(s.get("bharat_pay", 0) for s in sales),
-        "total_swiggy": sum(s.get("swiggy", 0) for s in sales),
-        "total_zomato": sum(s.get("zomato", 0) for s in sales),
+        "total_swiggy": total_swiggy,
+        "total_zomato": total_zomato,
         "total_expenses": sum(e.get("amount", 0) for e in expenses),
-        "days_count": len(sales)
+        "days_count": len(sales),
+        # GST information
+        "gst_rate": gst_info["gst_rate"],
+        "gst_amount": gst_info["gst_amount"],
+        "gst_inclusive": gst_info["is_inclusive"],
+        "net_sale": gst_info["net_sale"],
+        # Guest & Bill stats
+        "total_guests": total_guests,
+        "total_bills": total_bills,
+        "avg_per_pax": round(total_sale / total_guests, 2) if total_guests > 0 else 0,
+        "avg_per_bill": round(total_sale / total_bills, 2) if total_bills > 0 else 0
     }
     
     # Day-wise breakdown
     daily_data = []
     for sale in sales:
         day_expenses = sum(e.get("amount", 0) for e in expenses if e.get("date") == sale.get("date"))
+        day_gst = calculate_gst(
+            sale.get("total_sale", 0),
+            sale.get("swiggy", 0),
+            sale.get("zomato", 0),
+            center_code
+        )
         daily_data.append({
             "date": sale.get("date"),
             "total_sale": sale.get("total_sale", 0),
             "cash_sale": sale.get("total_cash_sale", 0),
             "online_sale": sale.get("total_online_sale", 0),
             "expenses": day_expenses,
-            "net": sale.get("total_sale", 0) - day_expenses
+            "net": sale.get("total_sale", 0) - day_expenses,
+            "gst_amount": day_gst["gst_amount"],
+            "num_guests": sale.get("num_guests", 0),
+            "num_bills": sale.get("num_bills", 0),
+            "avg_per_pax": sale.get("avg_per_pax", 0),
+            "avg_per_bill": sale.get("avg_per_bill", 0)
         })
     
     # Expense breakdown
