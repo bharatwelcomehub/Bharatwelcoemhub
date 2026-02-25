@@ -68,23 +68,27 @@
             const resultDiv = document.getElementById('status-result');
             resultDiv.innerHTML = 'Checking...';
             try {
-                const res = await fetch(API_BASE + '/sales/debug-data');
+                // Try main endpoint first, then backup
+                let res = await fetch(API_BASE + '/sales/debug-data');
+                if (!res.ok) {
+                    res = await fetch(API_BASE + '/check-sales-db');
+                }
                 const data = await res.json();
                 
                 if (data.sales_count === 0) {
                     resultDiv.innerHTML = '<span class="warning">⚠️ DATABASE IS EMPTY</span>\n\n' +
                         'Sales Records: 0\n' +
-                        'Expense Records: ' + data.expenses_count + '\n\n' +
+                        'Expense Records: ' + (data.expenses_count || 0) + '\n\n' +
                         '<strong>You need to run Step 2 to load data!</strong>';
                 } else {
                     resultDiv.innerHTML = '<span class="success">✅ DATABASE HAS DATA</span>\n\n' +
                         'Sales Records: ' + data.sales_count + '\n' +
-                        'Expense Records: ' + data.expenses_count + '\n' +
+                        'Expense Records: ' + (data.expenses_count || 0) + '\n' +
                         'Centers: ' + (data.centers || []).join(', ') + '\n' +
                         'Date Range: ' + (data.date_range?.oldest || 'N/A') + ' to ' + (data.date_range?.latest || 'N/A');
                 }
             } catch (e) {
-                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message;
+                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message + '\n\nMake sure deployment is complete and try again.';
             }
         }
         
@@ -98,17 +102,30 @@
             resultDiv.innerHTML = '⏳ Seeding data... Please wait (this may take 30 seconds)...';
             
             try {
-                const res = await fetch(API_BASE + '/sales/seed-production-data', {
+                // Try main endpoint first, then backup
+                let res = await fetch(API_BASE + '/sales/seed-production-data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ secret: 'PURNABRAMHA2024SEED' })
                 });
+                
+                if (!res.ok) {
+                    // Try backup endpoint
+                    res = await fetch(API_BASE + '/seed-sales-data', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ secret: 'PURNABRAMHA2024SEED' })
+                    });
+                }
+                
                 const data = await res.json();
                 
                 if (data.status === 'success') {
                     resultDiv.innerHTML = '<span class="success">✅ SUCCESS!</span>\n\n' +
-                        JSON.stringify(data.results, null, 2) + '\n\n' +
+                        JSON.stringify(data.inserted || data.results, null, 2) + '\n\n' +
                         '<strong>Database seeded! You can now use Sales & Cash features.</strong>';
+                    // Recheck status
+                    setTimeout(checkStatus, 1000);
                 } else if (data.status === 'skipped') {
                     resultDiv.innerHTML = '<span class="warning">⚠️ SKIPPED</span>\n\n' + data.message;
                 } else {
