@@ -172,32 +172,35 @@ export default function SalesExpenses() {
     }
   }, [selectedMonth, selectedCenter, session?.token]);
 
+  // Get currency from API response or fallback to center-based logic
+  const currentCurrency = monthlySummary?.currency || getCurrencySymbol(selectedCenter);
+
   // Summary cards data
   const summaryCards = [
     {
       title: "Total Sales",
-      value: formatCurrency(monthlySummary?.total_sale, selectedCenter),
+      value: formatCurrency(monthlySummary?.total_sale, currentCurrency),
       icon: IndianRupee,
       color: "text-green-500",
       bg: "bg-green-500/10"
     },
     {
       title: "Cash Sales",
-      value: formatCurrency(monthlySummary?.total_cash_sale, selectedCenter),
+      value: formatCurrency(monthlySummary?.total_cash_sale, currentCurrency),
       icon: Wallet,
       color: "text-blue-500",
       bg: "bg-blue-500/10"
     },
     {
       title: "Online Sales",
-      value: formatCurrency(monthlySummary?.total_online_sale, selectedCenter),
+      value: formatCurrency(monthlySummary?.total_online_sale, currentCurrency),
       icon: CreditCard,
       color: "text-purple-500",
       bg: "bg-purple-500/10"
     },
     {
       title: "Total Expenses",
-      value: formatCurrency(monthlySummary?.total_expenses, selectedCenter),
+      value: formatCurrency(monthlySummary?.total_expenses, currentCurrency),
       icon: Receipt,
       color: "text-red-500",
       bg: "bg-red-500/10"
@@ -208,7 +211,7 @@ export default function SalesExpenses() {
   const statsCards = [
     {
       title: `GST Payable (${monthlySummary?.gst_rate || 5}%)`,
-      value: formatCurrency(monthlySummary?.gst_amount || monthlySummary?.total_gst, selectedCenter),
+      value: formatCurrency(monthlySummary?.gst_amount || monthlySummary?.total_gst, currentCurrency),
       subtitle: monthlySummary?.gst_inclusive ? "Inclusive in price" : "Added on subtotal",
       icon: FileText,
       color: "text-amber-600",
