@@ -760,22 +760,25 @@ async def debug_sales_data():
         return {"status": "error", "message": str(e)}
 
 @router.post("/seed-production-data")
-async def seed_production_data(data: dict):
+async def seed_production_data(data: dict = {}):
     """
     ONE-TIME USE: Seed production database with sales data.
-    Only Super Admin can run this.
+    Uses a secret key for security.
     """
     import json
     import os
     
-    if not verify_token:
-        raise HTTPException(500, "Server configuration error")
-    
-    token = data.get("token")
-    session = verify_token(token)
-    
-    if not session or not session.get("is_super_admin"):
-        raise HTTPException(403, "Only Super Admin can seed data")
+    # Simple secret key check (so only you can run this)
+    secret = data.get("secret", "")
+    if secret != "PURNABRAMHA2024SEED":
+        # Also allow Super Admin token
+        token = data.get("token")
+        if token:
+            session = verify_token(token) if verify_token else None
+            if not session or not session.get("is_super_admin"):
+                raise HTTPException(403, "Invalid secret or not Super Admin")
+        else:
+            raise HTTPException(403, "Secret key required")
     
     try:
         # Check if data already exists
