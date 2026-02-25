@@ -146,18 +146,83 @@ export default function GuestResponse() {
     ...info
   }));
 
+  // Generate booking response
+  const generateBookingResponse = async () => {
+    if (!rawBookingText.trim()) {
+      toast.error("Please enter booking details");
+      return;
+    }
+    
+    if (!selectedCenter) {
+      toast.error("Please select a center first");
+      return;
+    }
+    
+    setBookingLoading(true);
+    setCopied(false);
+    try {
+      const res = await api.post("/guest/booking-response", {
+        token: session.token,
+        center: selectedCenter,
+        raw_booking_text: rawBookingText
+      });
+      
+      if (res.data.formatted_message) {
+        setFormattedResponse(res.data.formatted_message);
+        toast.success("Booking response generated!");
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to generate response");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  // Copy to clipboard
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(formattedResponse);
+      setCopied(true);
+      toast.success("Copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      toast.error("Failed to copy");
+    }
+  };
+
+  // Clear booking response
+  const clearBookingResponse = () => {
+    setRawBookingText("");
+    setFormattedResponse("");
+    setCopied(false);
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-primary" data-testid="guest-response-title">Guest Response AI</h1>
+        <h1 className="text-3xl font-bold text-primary" data-testid="guest-response-title">Guest Communication</h1>
         <p className="text-muted-foreground mt-1">
-          AI-powered assistant to help answer guest queries
+          AI-powered tools for guest queries and booking confirmations
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Chat Panel */}
-        <div className="lg:col-span-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="bg-muted">
+          <TabsTrigger value="ai-chat" className="gap-2" data-testid="tab-ai-chat">
+            <Bot className="w-4 h-4" />
+            Guest AI Chat
+          </TabsTrigger>
+          <TabsTrigger value="booking-response" className="gap-2" data-testid="tab-booking-response">
+            <CalendarCheck className="w-4 h-4" />
+            Booking Response
+          </TabsTrigger>
+        </TabsList>
+
+        {/* AI Chat Tab */}
+        <TabsContent value="ai-chat">
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Chat Panel */}
+            <div className="lg:col-span-2">
           <Card className="h-[600px] flex flex-col">
             <CardHeader className="border-b flex-shrink-0">
               <div className="flex items-center justify-between gap-4">
