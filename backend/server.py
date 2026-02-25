@@ -2733,28 +2733,20 @@ async def mgt_center_delete(data: dict):
 
 @api_router.post("/mgt/managers")
 async def mgt_get_managers(data: dict):
-    """Get all managers (Admin/MGT only)"""
+    """Get all managers (Super Admin only)"""
     token = data.get("token")
     session = verify_token(token)
     
-    # Check access: Super Admin, Admin, or PB-MGT
-    is_mgt = session.get("center") == "PB-MGT" if session else False
-    is_super_admin = session.get("is_super_admin", False) if session else False
-    is_admin = session.get("is_admin", False) if session else False
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
     
-    if not session or (not is_super_admin and not is_admin and not is_mgt):
-        raise HTTPException(403, "Only Admin or PB-MGT can manage managers")
+    # Only Super Admins can see manager list
+    is_super_admin = session.get("is_super_admin", False)
+    if not is_super_admin:
+        raise HTTPException(403, "Only Super Admin can manage managers")
     
     managers = await db.managers.find({}, {"_id": 0}).to_list(100)
-    
-    # PB-MGT users see ALL managers (no filtering)
-    # This ensures Jayanti can see herself and everyone else
-    if is_mgt:
-        return {"managers": managers}
-    
-    # Non-MGT admins: filter out PB-MGT managers for security
-    filtered = [m for m in managers if m.get("center") != "PB-MGT"]
-    return {"managers": filtered}
+    return {"managers": managers}
 
 @api_router.post("/mgt/manager_create")
 async def mgt_manager_create(data: dict):
