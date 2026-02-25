@@ -332,6 +332,7 @@ async def verify_otp(req: OTPVerify):
     is_super_admin = req.mobile in SUPER_ADMIN_MOBILES
     
     # Fetch manager's profile and roles from database
+    logger.info(f"Looking for manager: center={stored['center']}, mobile={req.mobile}")
     manager = await db.managers.find_one({
         "center": stored["center"],
         "$or": [
@@ -340,9 +341,13 @@ async def verify_otp(req: OTPVerify):
         ]
     }, {"_id": 0, "roles": 1, "is_admin": 1, "email": 1})
     
+    logger.info(f"Found manager: {manager}")
+    
     # Get roles from DB - these are assigned by super admin
     db_roles = manager.get("roles", {}) if manager else {}
     is_admin = manager.get("is_admin", False) if manager else False
+    
+    logger.info(f"Roles: {db_roles}, is_admin: {is_admin}")
     
     # Super admins get all access automatically
     if is_super_admin:
