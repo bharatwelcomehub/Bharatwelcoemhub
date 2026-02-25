@@ -21,21 +21,29 @@ import {
   Filter,
   Download,
   RefreshCw,
-  PieChart
+  PieChart,
+  Users,
+  FileText,
+  DollarSign
 } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 
-// Format currency
-const formatCurrency = (amount) => {
+// Check if center is Perth (Australia)
+const isPerth = (center) => center && center.toUpperCase() === "PB-PT";
+
+// Get currency symbol based on center
+const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
+
+// Format currency with dynamic symbol
+const formatCurrency = (amount, center = null) => {
   if (amount === null || amount === undefined) return "₹0";
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
+  const symbol = center ? getCurrencySymbol(center) : "₹";
+  return `${symbol}${new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(amount);
+  }).format(amount)}`;
 };
 
 // Format date for display
