@@ -30,8 +30,12 @@ import { api, API_URL } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 
-// Check if center is Perth (Australia)
-const isPerth = (center) => center && center.toUpperCase() === "PB-PT";
+// Check if center is Perth (Australia) - handles multiple formats
+const isPerth = (center) => {
+  if (!center) return false;
+  const c = center.toUpperCase();
+  return c === "PB-PT" || c === "PB-PERTH" || c === "PERTH";
+};
 
 // Get currency symbol based on center
 const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
