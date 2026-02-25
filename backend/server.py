@@ -3537,6 +3537,76 @@ async def generate_brochure():
         headers={"Content-Disposition": "attachment; filename=Purnabramha_Recipe_Brochure.pdf"}
     )
 
+# =======================================
+# DIRECT SALES DATA SEED ENDPOINT (BACKUP)
+# =======================================
+
+@api_router.get("/check-sales-db")
+async def check_sales_db():
+    """Quick check if sales data exists"""
+    try:
+        sales_count = await db.daily_sales.count_documents({})
+        expenses_count = await db.expenses.count_documents({})
+        return {
+            "status": "ok",
+            "sales_count": sales_count,
+            "expenses_count": expenses_count
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@api_router.post("/seed-sales-data")
+async def seed_sales_data_direct(data: dict = {}):
+    """Seed sales data - backup endpoint"""
+    import json as json_module
+    import os
+    
+    secret = data.get("secret", "")
+    if secret != "PURNABRAMHA2024SEED":
+        raise HTTPException(403, "Invalid secret key")
+    
+    try:
+        existing = await db.daily_sales.count_documents({})
+        if existing > 100:
+            return {"status": "skipped", "message": f"Already has {existing} records"}
+        
+        static_path = os.path.join(os.path.dirname(__file__), "static")
+        results = {}
+        
+        # Import daily_sales
+        sales_file = os.path.join(static_path, "daily_sales.json")
+        if os.path.exists(sales_file):
+            with open(sales_file, 'r') as f:
+                data = json_module.load(f)
+            if data:
+                await db.daily_sales.delete_many({})
+                result = await db.daily_sales.insert_many(data)
+                results["daily_sales"] = len(result.inserted_ids)
+        
+        # Import expenses
+        expenses_file = os.path.join(static_path, "expenses.json")
+        if os.path.exists(expenses_file):
+            with open(expenses_file, 'r') as f:
+                data = json_module.load(f)
+            if data:
+                await db.expenses.delete_many({})
+                result = await db.expenses.insert_many(data)
+                results["expenses"] = len(result.inserted_ids)
+        
+        # Import expense_heads
+        heads_file = os.path.join(static_path, "expense_heads.json")
+        if os.path.exists(heads_file):
+            with open(heads_file, 'r') as f:
+                data = json_module.load(f)
+            if data:
+                await db.expense_heads.delete_many({})
+                result = await db.expense_heads.insert_many(data)
+                results["expense_heads"] = len(result.inserted_ids)
+        
+        return {"status": "success", "inserted": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 # Include router
 app.include_router(api_router)
 
