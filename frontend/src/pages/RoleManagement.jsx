@@ -221,15 +221,15 @@ export default function RoleManagement() {
     return badges;
   };
 
-  // Check access - Super Admin or PB-MGT can manage roles
-  const canManageRoles = session?.is_super_admin === true || session?.center === "PB-MGT";
+  // Check access - Only Super Admin can manage roles
+  const canManageRoles = session?.is_super_admin === true;
   
   if (!canManageRoles) {
     return (
       <div className="text-center py-20">
         <Lock className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
         <h2 className="text-2xl font-bold text-muted-foreground">Access Denied</h2>
-        <p className="text-muted-foreground mt-2">Only Super Admin or PB-MGT can manage roles</p>
+        <p className="text-muted-foreground mt-2">Only Super Admin can manage roles</p>
       </div>
     );
   }
