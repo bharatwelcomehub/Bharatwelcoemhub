@@ -36,6 +36,16 @@ const getTodayStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
+// Check if a date is frozen (previous day or older)
+const isDateFrozen = (dateStr) => {
+  if (!dateStr) return true;
+  const recordDate = new Date(dateStr);
+  recordDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return recordDate < today;
+};
+
 // GST Calculation
 // India: 5% GST ADDED to subtotal (excluding Swiggy/Zomato)
 // Perth: 10% GST INCLUDED in total (extract from total)
