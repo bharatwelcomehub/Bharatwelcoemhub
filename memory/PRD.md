@@ -263,7 +263,25 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## Latest Updates (Feb 25, 2026)
 
-### Session 8 - Sales Data Entry Enhancements & Guest Response Generator
+### Session 9 - Critical P0 Bug Fixes
+
+- ✅ **P0 Fix: Managers Missing "Sales & Cash" Feature (RESOLVED)**
+  - **Root Cause**: `verify_otp` was only looking up managers by mobile number, but most managers in DB have empty mobile fields
+  - **Fix**: Added fallback to lookup manager by center code if mobile lookup fails
+  - **Result**: All managers now correctly receive their assigned roles (including `sales_cash: true`) upon login
+  - **Files Modified**: `/app/backend/server.py` (lines 334-346)
+
+- ✅ **P0 Fix: Perth Center Code Standardization (RESOLVED)**
+  - **Issue**: Inconsistent use of "PB-PT" and "PB-PERTH" causing login and data visibility issues
+  - **Fix**: Standardized ALL references to use only "PB-PERTH"
+  - **Files Modified**:
+    - `/app/frontend/src/pages/SalesExpenses.jsx` - `isPerth()` function
+    - `/app/backend/routes/sales_expenses.py` - `is_perth_center()` helper and Perth Excel upload
+    - `/app/backend/server.py` - Perth center detection
+    - `/app/backend/scripts/import_sales_data.py` - Center code mapping
+  - **Database**: Already uses "PB-PERTH" (no migration needed)
+
+### Previous Session - Session 8 - Sales Data Entry Enhancements & Guest Response Generator
 - ✅ **Multi-Currency & GST Logic (CRITICAL)**
   - Perth Center (PB-PT): Australian Dollars (`$`), 10% GST **inclusive** (extracted from total)
   - Indian Centers: Indian Rupees (`₹`), 5% GST **exclusive** (added on subtotal)
