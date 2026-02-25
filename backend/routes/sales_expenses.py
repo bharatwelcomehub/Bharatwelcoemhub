@@ -415,6 +415,11 @@ async def update_daily_sale(center: str, date: str, req: DailySaleUpdate, token:
     if session.get("center") != "PB-MGT" and session.get("center") != center.upper():
         raise HTTPException(403, "Cannot update sales record for another center")
     
+    # Check if date is frozen
+    can_edit, reason = await can_edit_date(session, center, date)
+    if not can_edit:
+        raise HTTPException(403, f"Cannot update frozen date. {reason}")
+    
     # Find existing record
     existing = await db.daily_sales.find_one({
         "center": center.upper(),
