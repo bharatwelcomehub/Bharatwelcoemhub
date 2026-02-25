@@ -365,7 +365,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     setSelectedDate(d.toISOString().split('T')[0]);
   };
 
-  // Input field component - Editable (white)
+  // Check if form should be editable
+  const isFormEditable = frozenStatus.can_edit;
+
+  // Input field component - Editable (white) or Read-only for frozen dates
   const EditableField = ({ label, field, prefix, type = "number" }) => (
     <div className="space-y-1">
       <Label className="text-xs font-medium text-foreground">{label}</Label>
@@ -377,7 +380,12 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           type={type}
           value={formData[field] || ""}
           onChange={(e) => handleChange(field, e.target.value)}
-          className={`${prefix ? 'pl-8' : 'pl-3'} text-right bg-white border-primary/30 focus:border-primary`}
+          disabled={!isFormEditable}
+          className={`${prefix ? 'pl-8' : 'pl-3'} text-right ${
+            isFormEditable 
+              ? 'bg-white border-primary/30 focus:border-primary' 
+              : 'bg-gray-100 text-gray-600 cursor-not-allowed'
+          }`}
           placeholder="0"
         />
       </div>
