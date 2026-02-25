@@ -737,7 +737,8 @@ async def get_monthly_summary(req: SalesQueryRequest):
         }
     
     # Single center summary
-    center_code = req.center or session.get("center")
+    # For non-admin users or when req.center is "all", use their session center
+    center_code = req.center if req.center and req.center.lower() != "all" else session.get("center")
     total_sale = sum(s.get("total_sale", 0) for s in sales)
     total_swiggy = sum(s.get("swiggy", 0) for s in sales)
     total_zomato = sum(s.get("zomato", 0) for s in sales)
