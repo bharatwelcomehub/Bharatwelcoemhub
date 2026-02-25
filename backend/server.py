@@ -2044,60 +2044,6 @@ Extract: Date, Time, Guest Name, Number of Guests, Contact (if any), Occasion
 Then format into the warm WhatsApp message above.
 
 IMPORTANT: Always capitalize the guest name properly and add "ji" respectfully!"""
-   - ✅ for Confirmation
-   - 🎉 for Special occasions
-3. Use *bold* for important info (WhatsApp formatting)
-4. Include a warm closing message
-5. Add center contact for any changes
-6. Keep message concise but warm
-
-FEATURE ICONS TO USE:
-- Dine-In: 🍽️
-- Takeaway: 📦
-- Delivery: 🛵
-- Bestseller: ⭐
-- Veg: 🥬
-- Jain: 🌿
-- Kids Special: 👶
-- Party/Group: 🎊
-- Birthday: 🎂
-- Anniversary: 💕
-- Festival: 🪔
-- Corporate: 💼
-
-TONE:
-- Use phrases like "Warm welcome awaits!", "Like home, but better!"
-- Reference Maharashtrian hospitality: "अतिथि देवो भव" (Guest is God)
-- Be genuine, not overly formal
-- Show excitement about their visit
-
-SAMPLE OUTPUT STRUCTURE:
-```
-🙏 *Namaskar [Guest Name] ji!*
-
-Your table at *Purnabramha [Center]* is confirmed! ✅
-
-📅 *Date:* [Date]
-⏰ *Time:* [Time]
-👥 *Guests:* [Number] pax
-🍽️ *Meal:* [Thali type]
-
-📍 *Address:* [Full address]
-📞 *Contact:* [Phone]
-
-A warm, homely welcome awaits you! 🏠✨
-
-_"जेवायला या, घरी आल्यासारखे वाटेल!"_
-(Come dine with us, it'll feel just like home!)
-
-For any changes, please call us at [Phone].
-
-See you soon! 🙏
-*Team Purnabramha*
-```
-
-Parse the raw booking text and create a beautiful, emoji-rich confirmation message.
-If any information is missing, still create a warm message with available details."""
 
 @api_router.post("/guest/booking-response")
 async def generate_booking_response(req: GuestBookingRequest):
