@@ -478,6 +478,179 @@ async def delete_daily_sale(center: str, date: str, token: str):
     return {"success": True, "message": "Daily sales record deleted"}
 
 # =======================================
+# UNLOCK REQUEST ENDPOINTS
+# =======================================
+
+@router.post("/unlock-request")
+async def create_unlock_request(req: UnlockRequest, token: str):
+    """Create an unlock request for a frozen date"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Check if date is actually frozen
+    if not is_date_frozen(req.date):
+        raise HTTPException(400, "This date is not frozen. You can edit it directly.")
+    
+    # Check if request already exists for this center/date
+    existing = await db.unlock_requests.find_one({
+        "center": req.center.upper(),
+        "date": req.date,
+        "status": "pending"
+    })
+    
+    if existing:
+        raise HTTPException(400, "An unlock request for this date is already pending")
+    
+    # Create request
+    request_doc = {
+        "center": req.center.upper(),
+        "date": req.date,
+        "reason": req.reason,
+        "requested_by": session.get("managerName", "Unknown"),
+        "requested_by_email": session.get("email", ""),
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    result = await db.unlock_requests.insert_one(request_doc)
+    request_doc["id"] = str(result.inserted_id)
+    request_doc.pop("_id", None)
+    
+    logger.info(f"Unlock request created: {req.center} - {req.date} by {session.get('managerName')}")
+    
+    return {"success": True, "message": "Unlock request submitted successfully", "request": request_doc}
+
+@router.get("/unlock-requests")
+async def get_unlock_requests(token: str, status: str = "all"):
+    """Get all unlock requests (Super Admin only) or own requests"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    query = {}
+    
+    # Super Admin can see all, others see only their center's requests
+    if not session.get("is_super_admin"):
+        query["center"] = session.get("center")
+    
+    if status != "all":
+        query["status"] = status
+    
+    requests = await db.unlock_requests.find(query).sort("created_at", -1).to_list(100)
+    
+    # Convert ObjectId to string
+    for req in requests:
+        req["id"] = str(req.pop("_id"))
+    
+    return {"requests": requests, "count": len(requests)}
+
+@router.post("/unlock-request/{request_id}/action")
+async def process_unlock_request(request_id: str, req: UnlockRequestAction, token: str):
+    """Approve or reject an unlock request (Super Admin only)"""
+    from bson import ObjectId
+    
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Only Super Admin can process requests
+    if not session.get("is_super_admin"):
+        raise HTTPException(403, "Only Super Admin can approve/reject unlock requests")
+    
+    if req.action not in ["approve", "reject"]:
+        raise HTTPException(400, "Action must be 'approve' or 'reject'")
+    
+    # Find the request
+    try:
+        unlock_request = await db.unlock_requests.find_one({"_id": ObjectId(request_id)})
+    except:
+        raise HTTPException(400, "Invalid request ID")
+    
+    if not unlock_request:
+        raise HTTPException(404, "Unlock request not found")
+    
+    if unlock_request.get("status") != "pending":
+        raise HTTPException(400, f"Request is already {unlock_request.get('status')}")
+    
+    # Update request status
+    update_data = {
+        "status": "approved" if req.action == "approve" else "rejected",
+        "processed_by": session.get("managerName", "Unknown"),
+        "processed_at": datetime.now(timezone.utc).isoformat(),
+        "admin_notes": req.admin_notes or ""
+    }
+    
+    await db.unlock_requests.update_one(
+        {"_id": ObjectId(request_id)},
+        {"$set": update_data}
+    )
+    
+    # If approved, create an unlock grant (valid for 24 hours)
+    if req.action == "approve":
+        from datetime import timedelta
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        
+        await db.unlock_grants.insert_one({
+            "center": unlock_request["center"],
+            "date": unlock_request["date"],
+            "status": "active",
+            "granted_by": session.get("managerName", "Unknown"),
+            "granted_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": expires_at,
+            "request_id": request_id
+        })
+        
+        logger.info(f"Unlock granted: {unlock_request['center']} - {unlock_request['date']} by {session.get('managerName')} (expires: {expires_at})")
+    
+    return {
+        "success": True, 
+        "message": f"Request {req.action}d successfully",
+        "status": update_data["status"]
+    }
+
+@router.get("/check-frozen/{center}/{date}")
+async def check_frozen_status(center: str, date: str, token: str):
+    """Check if a specific date is frozen and its unlock status"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    is_frozen = is_date_frozen(date)
+    is_unlocked = await is_date_unlocked(center, date) if is_frozen else False
+    can_edit, reason = await can_edit_date(session, center, date)
+    
+    # Check for pending unlock request
+    pending_request = await db.unlock_requests.find_one({
+        "center": center.upper(),
+        "date": date,
+        "status": "pending"
+    })
+    
+    return {
+        "date": date,
+        "center": center,
+        "is_frozen": is_frozen,
+        "is_unlocked": is_unlocked,
+        "can_edit": can_edit,
+        "reason": reason,
+        "has_pending_request": pending_request is not None,
+        "is_super_admin": session.get("is_super_admin", False)
+    }
+
+# =======================================
 # EXPENSES ENDPOINTS
 # =======================================
 
