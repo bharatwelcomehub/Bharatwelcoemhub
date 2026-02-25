@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Seed Production Database</title>
+    <title>Seed Production Database - Purnabramha</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
             padding: 40px; 
-            max-width: 600px; 
+            max-width: 700px; 
             margin: 0 auto;
             background: #f5f5f5;
         }
@@ -15,8 +15,10 @@
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         h1 { color: #333; margin-bottom: 10px; }
+        h3 { color: #555; margin-top: 25px; }
         p { color: #666; }
         .result { 
             background: #f0f0f0; 
@@ -25,11 +27,13 @@
             white-space: pre-wrap; 
             border-radius: 5px;
             font-family: monospace;
-            font-size: 14px;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
         }
         button { 
             padding: 15px 30px; 
-            font-size: 18px;
+            font-size: 16px;
             cursor: pointer;
             border: none;
             border-radius: 5px;
@@ -38,27 +42,71 @@
         .btn-primary { background: #007bff; color: white; }
         .btn-danger { background: #dc3545; color: white; }
         .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: #333; }
         .error { color: #dc3545; }
         .success { color: #28a745; }
         .warning { color: #ffc107; }
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 5px 5px 0;
+        }
+        .center-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .center-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>🗄️ Production Database Setup</h1>
-        <p>This will load all Sales & Cash data into your production database.</p>
+        <p>Comprehensive data loader for Purnabramha IntraPB System</p>
         
+        <div class="info-box">
+            <strong>📊 Data Package Contents:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li><strong>2,238 Daily Sales Records</strong> (Apr 2025 - Mar 2026)</li>
+                <li><strong>2,819 Expense Records</strong></li>
+                <li><strong>35 Expense Head Categories</strong></li>
+                <li><strong>10 Centers</strong> (including Perth with $ currency)</li>
+            </ul>
+        </div>
+        
+        <div class="center-list">
+            <div class="center-item">🇦🇺 <strong>PB-PERTH</strong> - Perth ($)</div>
+            <div class="center-item">🇮🇳 <strong>PB-HSR</strong> - HSR Layout</div>
+            <div class="center-item">🇮🇳 <strong>PB-TH</strong> - Thane</div>
+            <div class="center-item">🇮🇳 <strong>PB-KN</strong> - Kharadi</div>
+            <div class="center-item">🇮🇳 <strong>PB-HW</strong> - Hinjawadi</div>
+            <div class="center-item">🇮🇳 <strong>PB-KAL</strong> - Kalyan</div>
+            <div class="center-item">🇮🇳 <strong>PB-DV</strong> - Dombivali</div>
+            <div class="center-item">🇮🇳 <strong>PB-SN</strong> - Sambhajinagar</div>
+        </div>
+    </div>
+
+    <div class="card">
         <h3>Step 1: Check Current Status</h3>
-        <button class="btn-primary" onclick="checkStatus()">Check Database</button>
+        <button class="btn-primary" onclick="checkStatus()">🔍 Check Database</button>
         <div id="status-result" class="result">Click to check current database status...</div>
         
-        <h3>Step 2: Seed Data (One-Time Only)</h3>
-        <p><strong>⚠️ Only run this if Step 1 shows 0 records!</strong></p>
-        <button class="btn-danger" onclick="seedData()">🚀 SEED PRODUCTION DATABASE</button>
-        <div id="seed-result" class="result">Click to seed database with sales data...</div>
+        <h3>Step 2: Load Data</h3>
+        <p><strong>⚠️ This will REPLACE existing sales data with the complete dataset!</strong></p>
+        <button class="btn-danger" onclick="seedData(false)">🚀 LOAD DATA (if empty)</button>
+        <button class="btn-warning" onclick="seedData(true)">⚡ FORCE RELOAD (overwrites)</button>
+        <div id="seed-result" class="result">Click to load data into production database...</div>
         
         <h3>Step 3: Verify</h3>
-        <button class="btn-success" onclick="checkStatus()">Verify Data Loaded</button>
+        <button class="btn-success" onclick="checkStatus()">✅ Verify Data Loaded</button>
     </div>
 
     <script>
@@ -66,55 +114,57 @@
         
         async function checkStatus() {
             const resultDiv = document.getElementById('status-result');
-            resultDiv.innerHTML = 'Checking...';
+            resultDiv.innerHTML = '⏳ Checking...';
             try {
-                // Try main endpoint first, then backup
                 let res = await fetch(API_BASE + '/sales/debug-data');
                 if (!res.ok) {
                     res = await fetch(API_BASE + '/check-sales-db');
                 }
                 const data = await res.json();
                 
-                if (data.sales_count === 0) {
+                if (data.sales_count === 0 || !data.sales_count) {
                     resultDiv.innerHTML = '<span class="warning">⚠️ DATABASE IS EMPTY</span>\n\n' +
                         'Sales Records: 0\n' +
                         'Expense Records: ' + (data.expenses_count || 0) + '\n\n' +
-                        '<strong>You need to run Step 2 to load data!</strong>';
+                        '<strong>➡️ Run Step 2 to load all center data!</strong>';
                 } else {
                     resultDiv.innerHTML = '<span class="success">✅ DATABASE HAS DATA</span>\n\n' +
-                        'Sales Records: ' + data.sales_count + '\n' +
-                        'Expense Records: ' + (data.expenses_count || 0) + '\n' +
-                        'Centers: ' + (data.centers || []).join(', ') + '\n' +
-                        'Date Range: ' + (data.date_range?.oldest || 'N/A') + ' to ' + (data.date_range?.latest || 'N/A');
+                        '📊 Sales Records: ' + data.sales_count + '\n' +
+                        '💰 Expense Records: ' + (data.expenses_count || 0) + '\n' +
+                        '🏢 Centers: ' + (data.centers || []).join(', ') + '\n' +
+                        '📅 Date Range: ' + (data.date_range?.oldest || 'N/A') + ' to ' + (data.date_range?.latest || 'N/A');
                 }
             } catch (e) {
-                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message + '\n\nMake sure deployment is complete and try again.';
+                resultDiv.innerHTML = '<span class="error">❌ ERROR:</span> ' + e.message + '\n\nMake sure deployment is complete and try again.';
             }
         }
         
-        async function seedData() {
+        async function seedData(force) {
             const resultDiv = document.getElementById('seed-result');
             
-            if (!confirm('This will load 2050 sales records and 2819 expense records. Continue?')) {
+            const msg = force 
+                ? 'This will OVERWRITE all existing sales data. Are you sure?' 
+                : 'This will load 2,238 sales records and 2,819 expense records. Continue?';
+            
+            if (!confirm(msg)) {
                 return;
             }
             
-            resultDiv.innerHTML = '⏳ Seeding data... Please wait (this may take 30 seconds)...';
+            resultDiv.innerHTML = '⏳ Loading data... Please wait (this may take 30-60 seconds)...';
             
             try {
                 // Try main endpoint first, then backup
                 let res = await fetch(API_BASE + '/sales/seed-production-data', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ secret: 'PURNABRAMHA2024SEED' })
+                    body: JSON.stringify({ secret: 'PURNABRAMHA2024SEED', force: force })
                 });
                 
                 if (!res.ok) {
-                    // Try backup endpoint
                     res = await fetch(API_BASE + '/seed-sales-data', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ secret: 'PURNABRAMHA2024SEED' })
+                        body: JSON.stringify({ secret: 'PURNABRAMHA2024SEED', force: force })
                     });
                 }
                 
@@ -122,21 +172,21 @@
                 
                 if (data.status === 'success') {
                     resultDiv.innerHTML = '<span class="success">✅ SUCCESS!</span>\n\n' +
+                        'Imported:\n' +
                         JSON.stringify(data.inserted || data.results, null, 2) + '\n\n' +
-                        '<strong>Database seeded! You can now use Sales & Cash features.</strong>';
-                    // Recheck status
+                        '<strong>🎉 Database loaded! All centers ready to use.</strong>';
                     setTimeout(checkStatus, 1000);
                 } else if (data.status === 'skipped') {
-                    resultDiv.innerHTML = '<span class="warning">⚠️ SKIPPED</span>\n\n' + data.message;
+                    resultDiv.innerHTML = '<span class="warning">⚠️ SKIPPED</span>\n\n' + data.message + 
+                        '\n\nUse "FORCE RELOAD" button to overwrite existing data.';
                 } else {
-                    resultDiv.innerHTML = '<span class="error">ERROR:</span>\n' + JSON.stringify(data, null, 2);
+                    resultDiv.innerHTML = '<span class="error">❌ ERROR:</span>\n' + JSON.stringify(data, null, 2);
                 }
             } catch (e) {
-                resultDiv.innerHTML = '<span class="error">ERROR:</span> ' + e.message;
+                resultDiv.innerHTML = '<span class="error">❌ ERROR:</span> ' + e.message;
             }
         }
         
-        // Auto-check on load
         window.onload = checkStatus;
     </script>
 </body>
