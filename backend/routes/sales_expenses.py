@@ -126,20 +126,26 @@ def has_all_centers_access(session):
     """Check if user has access to view all centers data"""
     if not session:
         return False
-    # PB-MGT center always has access
-    if session.get("center") == "PB-MGT":
-        return True
-    # Super Admin has access
+    # Super Admin always has access
     if session.get("is_super_admin"):
         return True
     # Admin has access
     if session.get("is_admin"):
         return True
-    # Check view_all_centers role
+    # Check view_all_centers role specifically assigned
     roles = session.get("roles", {})
     if roles.get("view_all_centers"):
         return True
     return False
+
+def has_sales_access(session):
+    """Check if user has access to sales & cash features"""
+    if not session:
+        return False
+    if session.get("is_super_admin"):
+        return True
+    roles = session.get("roles", {})
+    return roles.get("sales_cash", False)
 
 # =======================================
 # HELPER FUNCTIONS
