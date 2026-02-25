@@ -460,7 +460,191 @@ export default function GuestResponse() {
             </CardContent>
           </Card>
         </div>
-      </div>
+          </div>
+        </TabsContent>
+
+        {/* Booking Response Tab */}
+        <TabsContent value="booking-response">
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Input Panel */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  Raw Booking Data
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Center Selector */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Select Center</label>
+                  <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+                    <SelectTrigger data-testid="booking-center-selector">
+                      <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                      <SelectValue placeholder="Select center" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {centersList.map((center) => (
+                        <SelectItem key={center.code} value={center.code}>
+                          <div className="flex items-center gap-2">
+                            {center.country === "Australia" ? "🇦🇺" : "🇮🇳"}
+                            <span>{center.code} - {center.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Raw Booking Input */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Paste Booking Details</label>
+                  <textarea
+                    value={rawBookingText}
+                    onChange={(e) => setRawBookingText(e.target.value)}
+                    placeholder={`Paste raw booking data here...
+
+Example:
+Name: Sharma Family
+Date: 25 Dec 2025
+Time: 7:30 PM
+Guests: 8 pax
+Occasion: Birthday celebration
+Contact: 9876543210
+Special: 2 kids, 1 Jain thali`}
+                    className="w-full h-64 p-3 border rounded-lg text-sm font-mono resize-none focus:ring-2 focus:ring-primary/50"
+                    data-testid="raw-booking-input"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={generateBookingResponse}
+                    disabled={bookingLoading || !rawBookingText.trim() || !selectedCenter}
+                    className="flex-1 gap-2"
+                    data-testid="generate-booking-response-btn"
+                  >
+                    {bookingLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Generate WhatsApp Message
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={clearBookingResponse}
+                    data-testid="clear-booking-btn"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {/* Feature Icons Guide */}
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">Feature Icons Reference</h4>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <span>🍽️ Dine-In</span>
+                    <span>📦 Takeaway</span>
+                    <span>🛵 Delivery</span>
+                    <span>⭐ Bestseller</span>
+                    <span>🥬 Veg</span>
+                    <span>🌿 Jain</span>
+                    <span>👶 Kids</span>
+                    <span>🎂 Birthday</span>
+                    <span>💕 Anniversary</span>
+                    <span>🎊 Party</span>
+                    <span>🪔 Festival</span>
+                    <span>💼 Corporate</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Output Panel */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 text-green-600" />
+                    WhatsApp Message
+                  </CardTitle>
+                  {formattedResponse && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={copyToClipboard}
+                      className="gap-2"
+                      data-testid="copy-response-btn"
+                    >
+                      {copied ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {formattedResponse ? (
+                  <div 
+                    className="p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800 min-h-[300px]"
+                    data-testid="formatted-response-output"
+                  >
+                    <pre className="whitespace-pre-wrap text-sm font-sans">
+                      {formattedResponse}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
+                    <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
+                    <p className="text-lg font-semibold">Ready to Generate</p>
+                    <p className="text-sm mt-2">
+                      Paste booking details and click "Generate" to create a warm, emoji-rich WhatsApp message.
+                    </p>
+                  </div>
+                )}
+
+                {/* Sample booking formats */}
+                {!formattedResponse && (
+                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Quick Templates</h4>
+                    <div className="space-y-2">
+                      {[
+                        "Name: Test Guest\nDate: Tomorrow\nTime: 8 PM\nGuests: 4",
+                        "Family of 6, Saturday lunch, Birthday celebration for Mom",
+                        "Corporate booking: 15 pax, 7:30 PM, Dec 28, Contact: 9876543210"
+                      ].map((template, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setRawBookingText(template)}
+                          className="w-full text-left p-2 text-xs bg-background rounded border hover:border-primary transition-colors"
+                          data-testid={`template-${idx}`}
+                        >
+                          {template}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
