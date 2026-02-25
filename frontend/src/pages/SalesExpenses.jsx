@@ -179,6 +179,17 @@ export default function SalesExpenses() {
   // Get currency from API response or fallback to center-based logic
   // For non-admin users, use their session center to determine currency
   const effectiveCenter = selectedCenter !== "all" ? selectedCenter : session?.center;
+  
+  // Debug log for currency detection
+  console.log("Currency Debug:", {
+    selectedCenter,
+    sessionCenter: session?.center,
+    effectiveCenter,
+    monthlySummaryCurrency: monthlySummary?.currency,
+    monthlySummaryGstRate: monthlySummary?.gst_rate,
+    isPerthCheck: isPerth(effectiveCenter)
+  });
+  
   const currentCurrency = monthlySummary?.currency || getCurrencySymbol(effectiveCenter);
 
   // Summary cards data
