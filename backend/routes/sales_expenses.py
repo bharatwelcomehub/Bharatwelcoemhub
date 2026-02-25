@@ -1229,7 +1229,7 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
                 
                 # Create daily sale record - PRESERVE ALL VALUES EXACTLY AS IS
                 sale_record = {
-                    "center": "PB-PT",  # Perth center code
+                    "center": "PB-PERTH",  # Perth center code (standardized)
                     "date": date_str,
                     "opening_balance": safe_float(row[1]),  # B
                     "deposited_in_bank": safe_float(row[2]),  # C
@@ -1274,7 +1274,7 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
                 
                 # Upsert - update if exists, insert if new
                 await db.daily_sales.update_one(
-                    {"center": "PB-PT", "date": date_str},
+                    {"center": "PB-PERTH", "date": date_str},
                     {"$set": sale_record},
                     upsert=True
                 )
@@ -1292,7 +1292,7 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
             "imported_count": imported_count,
             "skipped_count": skipped_count,
             "errors": errors[:10] if errors else [],  # Return first 10 errors
-            "center": "PB-PT",
+            "center": "PB-PERTH",
             "currency": "AUD ($)",
             "gst_rate": "10% inclusive"
         }
