@@ -186,6 +186,24 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     
     setLoading(true);
     try {
+      // Check frozen status first
+      try {
+        const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${selectedDate}?token=${session?.token}`);
+        setFrozenStatus({
+          is_frozen: frozenRes.data.is_frozen,
+          can_edit: frozenRes.data.can_edit,
+          reason: frozenRes.data.reason || ""
+        });
+      } catch (err) {
+        // If endpoint doesn't exist, fall back to local check
+        const frozen = isDateFrozen(selectedDate);
+        setFrozenStatus({
+          is_frozen: frozen,
+          can_edit: !frozen || session?.is_super_admin,
+          reason: frozen ? "Date is frozen" : ""
+        });
+      }
+      
       // Get previous day's data for opening balance
       const prevDate = new Date(selectedDate);
       prevDate.setDate(prevDate.getDate() - 1);
