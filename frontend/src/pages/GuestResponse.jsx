@@ -40,6 +40,13 @@ export default function GuestResponse() {
   const [centerInfo, setCenterInfo] = useState({});
   const [selectedCenter, setSelectedCenter] = useState(session?.center || "");
   const messagesEndRef = useRef(null);
+  const [activeTab, setActiveTab] = useState("ai-chat");
+  
+  // Booking Response Converter state
+  const [rawBookingText, setRawBookingText] = useState("");
+  const [formattedResponse, setFormattedResponse] = useState("");
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Load center info
   useEffect(() => {
