@@ -2899,7 +2899,7 @@ async def mgt_manager_roles(data: dict):
         }}
     )
     
-    logger.info(f"Manager roles updated: {email} (admin={set_is_admin}, super={set_is_super_admin}) by {session.get('managerName')}")
+    logger.info(f"Manager roles updated: {email} (admin={set_is_admin}) by {session.get('managerName')}")
     return {"success": True, "message": "Manager roles updated successfully"}
 
 # =======================================
