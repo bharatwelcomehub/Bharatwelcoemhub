@@ -177,7 +177,9 @@ export default function SalesExpenses() {
   }, [selectedMonth, selectedCenter, session?.token]);
 
   // Get currency from API response or fallback to center-based logic
-  const currentCurrency = monthlySummary?.currency || getCurrencySymbol(selectedCenter);
+  // For non-admin users, use their session center to determine currency
+  const effectiveCenter = selectedCenter !== "all" ? selectedCenter : session?.center;
+  const currentCurrency = monthlySummary?.currency || getCurrencySymbol(effectiveCenter);
 
   // Summary cards data
   const summaryCards = [
