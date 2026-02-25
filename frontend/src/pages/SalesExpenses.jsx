@@ -197,10 +197,65 @@ export default function SalesExpenses() {
     }
   };
 
+  // Fetch unlock requests (for Super Admin or center manager)
+  const fetchUnlockRequests = async () => {
+    try {
+      const res = await api.get(`/sales/unlock-requests?token=${session?.token}&status=all`);
+      if (res.data.requests) {
+        setUnlockRequests(res.data.requests);
+      }
+    } catch (err) {
+      console.error("Failed to fetch unlock requests:", err);
+    }
+  };
+
+  // Submit unlock request
+  const submitUnlockRequest = async () => {
+    if (!selectedDateForUnlock || !unlockReason.trim()) {
+      toast.error("Please provide a reason for the unlock request");
+      return;
+    }
+    
+    try {
+      const res = await api.post(`/sales/unlock-request?token=${session?.token}`, {
+        center: selectedDateForUnlock.center || session?.center,
+        date: selectedDateForUnlock.date,
+        reason: unlockReason
+      });
+      
+      if (res.data.success) {
+        toast.success("Unlock request submitted successfully");
+        setShowUnlockModal(false);
+        setUnlockReason("");
+        setSelectedDateForUnlock(null);
+        fetchUnlockRequests();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to submit unlock request");
+    }
+  };
+
+  // Process unlock request (Super Admin)
+  const processUnlockRequest = async (requestId, action) => {
+    try {
+      const res = await api.post(`/sales/unlock-request/${requestId}/action?token=${session?.token}`, {
+        action: action
+      });
+      
+      if (res.data.success) {
+        toast.success(`Request ${action}d successfully`);
+        fetchUnlockRequests();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || `Failed to ${action} request`);
+    }
+  };
+
   useEffect(() => {
     if (session?.token) {
       fetchMonthlySummary();
       fetchExpenses();
+      fetchUnlockRequests();
     }
   }, [selectedMonth, selectedCenter, session?.token]);
 
