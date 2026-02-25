@@ -887,7 +887,6 @@ async def seed_production_data(data: dict = {}):
     Uses a secret key for security.
     """
     import json
-    import os
     
     # Simple secret key check (so only you can run this)
     secret = data.get("secret", "")
