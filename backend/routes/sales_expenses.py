@@ -887,13 +887,20 @@ async def debug_sales_data():
 @router.post("/seed-production-data")
 async def seed_production_data(data: dict = {}):
     """
-    ONE-TIME USE: Seed production database with sales data.
-    Uses a secret key for security.
+    ONE-TIME USE: Seed production database with ALL data.
+    Loads from production_seed_data.json which contains:
+    - 2,238 daily sales records (all 8 centers)
+    - 2,819 expense records
+    - 12 managers with roles
+    - 10 centers
+    - 35 expense head categories
     """
     import json
     
     # Simple secret key check (so only you can run this)
     secret = data.get("secret", "")
+    force = data.get("force", False)
+    
     if secret != "PURNABRAMHA2024SEED":
         # Also allow Super Admin token
         token = data.get("token")
@@ -905,58 +912,78 @@ async def seed_production_data(data: dict = {}):
             raise HTTPException(403, "Secret key required")
     
     try:
-        # Check if data already exists
+        # Check if data already exists (unless force=True)
         existing_sales = await db.daily_sales.count_documents({})
-        if existing_sales > 100:
+        if existing_sales > 100 and not force:
             return {
                 "status": "skipped",
-                "message": f"Database already has {existing_sales} sales records. Skipping to prevent duplicates.",
+                "message": f"Database already has {existing_sales} sales records. Use force=True to overwrite.",
                 "sales_count": existing_sales
             }
         
-        # Load JSON files from static folder
-        static_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+        # Load comprehensive seed file
+        seed_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "production_seed_data.json")
+        
+        if not os.path.exists(seed_file):
+            return {"status": "error", "message": "Seed file not found. Please contact support."}
+        
+        with open(seed_file, 'r') as f:
+            seed_data = json.load(f)
         
         results = {"inserted": {}, "errors": []}
         
         # Import daily_sales
-        sales_file = os.path.join(static_path, "daily_sales.json")
-        if os.path.exists(sales_file):
-            with open(sales_file, 'r') as f:
-                sales_data = json.load(f)
-            if sales_data:
-                # Clear existing and insert new
-                await db.daily_sales.delete_many({})
-                result = await db.daily_sales.insert_many(sales_data)
-                results["inserted"]["daily_sales"] = len(result.inserted_ids)
-                logger.info(f"Inserted {len(result.inserted_ids)} daily_sales records")
+        if seed_data.get("daily_sales"):
+            await db.daily_sales.delete_many({})
+            result = await db.daily_sales.insert_many(seed_data["daily_sales"])
+            results["inserted"]["daily_sales"] = len(result.inserted_ids)
+            logger.info(f"Inserted {len(result.inserted_ids)} daily_sales records")
         
         # Import expenses
-        expenses_file = os.path.join(static_path, "expenses.json")
-        if os.path.exists(expenses_file):
-            with open(expenses_file, 'r') as f:
-                expenses_data = json.load(f)
-            if expenses_data:
-                await db.expenses.delete_many({})
-                result = await db.expenses.insert_many(expenses_data)
-                results["inserted"]["expenses"] = len(result.inserted_ids)
-                logger.info(f"Inserted {len(result.inserted_ids)} expense records")
+        if seed_data.get("expenses"):
+            await db.expenses.delete_many({})
+            result = await db.expenses.insert_many(seed_data["expenses"])
+            results["inserted"]["expenses"] = len(result.inserted_ids)
+            logger.info(f"Inserted {len(result.inserted_ids)} expense records")
         
-        # Import expense_heads
-        heads_file = os.path.join(static_path, "expense_heads.json")
-        if os.path.exists(heads_file):
-            with open(heads_file, 'r') as f:
-                heads_data = json.load(f)
-            if heads_data:
-                await db.expense_heads.delete_many({})
-                result = await db.expense_heads.insert_many(heads_data)
-                results["inserted"]["expense_heads"] = len(result.inserted_ids)
-                logger.info(f"Inserted {len(result.inserted_ids)} expense_heads records")
+        # Import managers (upsert by center+email to preserve existing data)
+        if seed_data.get("managers"):
+            for mgr in seed_data["managers"]:
+                await db.managers.update_one(
+                    {"center": mgr.get("center"), "email": mgr.get("email")},
+                    {"$set": mgr},
+                    upsert=True
+                )
+            results["inserted"]["managers"] = len(seed_data["managers"])
+            logger.info(f"Upserted {len(seed_data['managers'])} manager records")
+        
+        # Import centers (upsert by code)
+        if seed_data.get("centers"):
+            for center in seed_data["centers"]:
+                await db.centers.update_one(
+                    {"code": center.get("code")},
+                    {"$set": center},
+                    upsert=True
+                )
+            results["inserted"]["centers"] = len(seed_data["centers"])
+            logger.info(f"Upserted {len(seed_data['centers'])} center records")
+        
+        # Import expense_heads (upsert by name)
+        if seed_data.get("expense_heads"):
+            for head in seed_data["expense_heads"]:
+                await db.expense_heads.update_one(
+                    {"name": head.get("name")},
+                    {"$set": head},
+                    upsert=True
+                )
+            results["inserted"]["expense_heads"] = len(seed_data["expense_heads"])
+            logger.info(f"Upserted {len(seed_data['expense_heads'])} expense_heads records")
         
         return {
             "status": "success",
-            "message": "Production database seeded successfully!",
-            "results": results
+            "message": "Production database seeded successfully with ALL data!",
+            "inserted": results["inserted"],
+            "source": seed_data.get("exported_at", "unknown")
         }
         
     except Exception as e:
