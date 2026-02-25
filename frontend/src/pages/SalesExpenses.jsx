@@ -79,6 +79,22 @@ const getCurrentMonthStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+// Get today's date in YYYY-MM-DD format
+const getTodayStr = () => {
+  const now = new Date();
+  return now.toISOString().split('T')[0];
+};
+
+// Check if a date is frozen (previous day or older)
+const isDateFrozen = (dateStr) => {
+  if (!dateStr) return true;
+  const recordDate = new Date(dateStr);
+  recordDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return recordDate < today;
+};
+
 export default function SalesExpenses() {
   const { session } = useAuth();
   const [loading, setLoading] = useState(false);
