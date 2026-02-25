@@ -205,7 +205,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
           
           <p className="text-sm text-muted-foreground">
             Center: <span className="font-medium text-foreground">{centerCode}</span>
-            <span className="ml-4">Total: <span className="font-bold text-red-500">{formatCurrency(totalExpenses)}</span></span>
+            <span className="ml-4">Total: <span className="font-bold text-red-500">{formatCurrency(totalExpenses, centerCode)}</span></span>
           </p>
         </CardHeader>
       </Card>
