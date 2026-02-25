@@ -105,6 +105,48 @@ export default function SalesExpenses() {
     fetchCenters();
   }, []);
 
+  // Perth Excel Upload handler
+  const handlePerthExcelUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      toast.error("Please select an Excel file (.xlsx or .xls)");
+      return;
+    }
+    
+    setUploadingExcel(true);
+    setUploadResult(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await api.post(`/sales/perth/upload-excel?token=${session.token}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      if (res.data.success) {
+        setUploadResult(res.data);
+        toast.success(`Perth Excel imported: ${res.data.imported_count} records`);
+        // Refresh data
+        fetchMonthlySummary();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to upload Excel");
+      setUploadResult({ error: err.response?.data?.detail || "Upload failed" });
+    } finally {
+      setUploadingExcel(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   // Fetch monthly summary
   const fetchMonthlySummary = async () => {
     if (!selectedMonth || !session?.token) {
