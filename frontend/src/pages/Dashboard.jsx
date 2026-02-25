@@ -281,8 +281,13 @@ export default function Dashboard() {
                 <Clock className="w-4 h-4" />
                 <span>{new Date().toLocaleDateString()}</span>
               </div>
-              {isMGT && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-secondary/20 text-secondary border border-secondary/30">
+              {isSuperAdmin && (
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-500 border border-red-500/30">
+                  Super Admin
+                </span>
+              )}
+              {!isSuperAdmin && isAdmin && (
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/20 text-purple-500 border border-purple-500/30">
                   Admin
                 </span>
               )}
