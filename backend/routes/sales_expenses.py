@@ -561,14 +561,18 @@ async def get_monthly_summary(req: SalesQueryRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
+    # Check if user has sales_cash role
+    if not has_sales_access(session):
+        raise HTTPException(403, "You don't have access to Sales & Cash features")
+    
     if not req.month:
         raise HTTPException(400, "Month is required (YYYY-MM format)")
     
-    # Check if user has access to all centers - PB-MGT ALWAYS has access
+    # Check if user can view all centers
     user_center = session.get("center", "")
-    can_view_all = user_center == "PB-MGT" or has_all_centers_access(session)
+    can_view_all = has_all_centers_access(session)
     
-    logger.info(f"Monthly summary request: center={user_center}, can_view_all={can_view_all}, req.center={req.center}, month={req.month}")
+    logger.info(f"Monthly summary: user={user_center}, can_view_all={can_view_all}, req.center={req.center}")
     
     # Build query
     query = {"date": {"$regex": f"^{req.month}"}}
