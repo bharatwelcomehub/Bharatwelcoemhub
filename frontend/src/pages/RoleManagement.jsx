@@ -61,11 +61,10 @@ const ROLE_MODULES = [
   }
 ];
 
-// Admin level options
+// Admin level options (Super Admin is hardcoded - only Jayanti & Sandeep)
 const ADMIN_LEVELS = [
   { id: "none", label: "Regular User", description: "Access based on assigned roles only" },
-  { id: "admin", label: "Admin", description: "Full access to all features, can view all centers" },
-  { id: "super_admin", label: "Super Admin", description: "Full access + can manage other admins" }
+  { id: "admin", label: "Admin", description: "Has all assigned roles + can view all centers" }
 ];
 
 export default function RoleManagement() {
