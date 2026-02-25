@@ -79,6 +79,11 @@ export default function SalesExpenses() {
   const [expenseByType, setExpenseByType] = useState({});
   const [expenses, setExpenses] = useState([]);
   
+  // Perth Excel Upload state
+  const [uploadingExcel, setUploadingExcel] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const fileInputRef = useRef(null);
+  
   // Check if user has admin access - recalculate on every render
   const hasAllCentersAccess = session?.center === "PB-MGT" || 
                               session?.is_super_admin === true || 
