@@ -616,12 +616,12 @@ export default function SalesExpenses() {
                         <div className={`w-3 h-3 rounded-full ${item.color}`} />
                         <span>{item.name}</span>
                       </div>
-                      <span className="font-medium">{formatCurrency(item.value)}</span>
+                      <span className="font-medium">{formatCurrency(item.value, currentCurrency)}</span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between pt-2 font-bold">
                     <span>Total Online</span>
-                    <span className="text-purple-500">{formatCurrency(monthlySummary?.total_online_sale)}</span>
+                    <span className="text-purple-500">{formatCurrency(monthlySummary?.total_online_sale, currentCurrency)}</span>
                   </div>
                 </div>
               </CardContent>
