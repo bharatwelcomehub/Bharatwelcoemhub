@@ -435,6 +435,32 @@ export default function SalesDataEntry({ session, selectedCenter }) {
       </CardHeader>
       
       <CardContent className="space-y-6">
+        {/* Frozen Date Warning */}
+        {frozenStatus.is_frozen && (
+          <div className={`p-4 rounded-lg border flex items-start gap-3 ${
+            frozenStatus.can_edit 
+              ? 'bg-green-50 border-green-200' 
+              : 'bg-amber-50 border-amber-200'
+          }`}>
+            {frozenStatus.can_edit ? (
+              <Unlock className="w-5 h-5 text-green-600 mt-0.5" />
+            ) : (
+              <Lock className="w-5 h-5 text-amber-600 mt-0.5" />
+            )}
+            <div>
+              <h4 className={`font-semibold ${frozenStatus.can_edit ? 'text-green-800' : 'text-amber-800'}`}>
+                {frozenStatus.can_edit ? 'Unlocked by Super Admin' : 'This date is frozen'}
+              </h4>
+              <p className={`text-sm ${frozenStatus.can_edit ? 'text-green-600' : 'text-amber-600'}`}>
+                {frozenStatus.can_edit 
+                  ? 'You have temporary access to edit this date. Changes allowed for 24 hours.'
+                  : 'Previous day data is automatically locked at midnight. Request unlock from Super Admin to make changes.'
+                }
+              </p>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : (
