@@ -340,6 +340,14 @@ async def verify_otp(req: OTPVerify):
         ]
     }, {"_id": 0, "roles": 1, "is_admin": 1, "email": 1})
     
+    # Fallback: If no manager found by mobile, try to find by center alone
+    # This handles cases where managers don't have mobile numbers registered
+    if not manager:
+        manager = await db.managers.find_one(
+            {"center": stored["center"]},
+            {"_id": 0, "roles": 1, "is_admin": 1, "email": 1}
+        )
+    
     # Get roles from DB - these are assigned by super admin
     db_roles = manager.get("roles", {}) if manager else {}
     is_admin = manager.get("is_admin", False) if manager else False
