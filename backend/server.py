@@ -3684,7 +3684,7 @@ async def check_sales_db():
 
 @api_router.post("/seed-sales-data")
 async def seed_sales_data_direct(data: dict = {}):
-    """Seed sales data - backup endpoint"""
+    """Seed all sales data from production_seed_data.json - COMPREHENSIVE"""
     import json as json_module
     import os
     
@@ -3692,46 +3692,71 @@ async def seed_sales_data_direct(data: dict = {}):
     if secret != "PURNABRAMHA2024SEED":
         raise HTTPException(403, "Invalid secret key")
     
+    force = data.get("force", False)  # Allow force overwrite
+    
     try:
+        # Check existing data
         existing = await db.daily_sales.count_documents({})
-        if existing > 100:
-            return {"status": "skipped", "message": f"Already has {existing} records"}
+        if existing > 100 and not force:
+            return {"status": "skipped", "message": f"Already has {existing} records. Use force=true to overwrite."}
         
-        static_path = os.path.join(os.path.dirname(__file__), "static")
+        # Load comprehensive seed file
+        seed_file = os.path.join(os.path.dirname(__file__), "production_seed_data.json")
+        if not os.path.exists(seed_file):
+            return {"status": "error", "message": "Seed file not found"}
+        
+        with open(seed_file, 'r') as f:
+            seed_data = json_module.load(f)
+        
         results = {}
         
-        # Import daily_sales
-        sales_file = os.path.join(static_path, "daily_sales.json")
-        if os.path.exists(sales_file):
-            with open(sales_file, 'r') as f:
-                data = json_module.load(f)
-            if data:
-                await db.daily_sales.delete_many({})
-                result = await db.daily_sales.insert_many(data)
-                results["daily_sales"] = len(result.inserted_ids)
+        # 1. Import daily_sales (REPLACE ALL)
+        if seed_data.get("daily_sales"):
+            await db.daily_sales.delete_many({})
+            result = await db.daily_sales.insert_many(seed_data["daily_sales"])
+            results["daily_sales"] = len(result.inserted_ids)
         
-        # Import expenses
-        expenses_file = os.path.join(static_path, "expenses.json")
-        if os.path.exists(expenses_file):
-            with open(expenses_file, 'r') as f:
-                data = json_module.load(f)
-            if data:
-                await db.expenses.delete_many({})
-                result = await db.expenses.insert_many(data)
-                results["expenses"] = len(result.inserted_ids)
+        # 2. Import expenses (REPLACE ALL)
+        if seed_data.get("expenses"):
+            await db.expenses.delete_many({})
+            result = await db.expenses.insert_many(seed_data["expenses"])
+            results["expenses"] = len(result.inserted_ids)
         
-        # Import expense_heads
-        heads_file = os.path.join(static_path, "expense_heads.json")
-        if os.path.exists(heads_file):
-            with open(heads_file, 'r') as f:
-                data = json_module.load(f)
-            if data:
-                await db.expense_heads.delete_many({})
-                result = await db.expense_heads.insert_many(data)
-                results["expense_heads"] = len(result.inserted_ids)
+        # 3. Import expense_heads (REPLACE ALL)
+        if seed_data.get("expense_heads"):
+            await db.expense_heads.delete_many({})
+            result = await db.expense_heads.insert_many(seed_data["expense_heads"])
+            results["expense_heads"] = len(result.inserted_ids)
         
-        return {"status": "success", "inserted": results}
+        # 4. Update centers (UPSERT - preserve existing, add new)
+        if seed_data.get("centers"):
+            for center in seed_data["centers"]:
+                await db.centers.update_one(
+                    {"code": center.get("code")},
+                    {"$set": center},
+                    upsert=True
+                )
+            results["centers"] = len(seed_data["centers"])
+        
+        # 5. Update managers (UPSERT - preserve existing roles, add new)
+        if seed_data.get("managers"):
+            for manager in seed_data["managers"]:
+                # Only update if manager doesn't exist
+                existing_mgr = await db.managers.find_one({
+                    "center": manager.get("center"),
+                    "mobile": manager.get("mobile")
+                })
+                if not existing_mgr:
+                    await db.managers.insert_one(manager)
+            results["managers_added"] = "preserved existing, added new"
+        
+        return {
+            "status": "success", 
+            "inserted": results,
+            "metadata": seed_data.get("metadata", {})
+        }
     except Exception as e:
+        logger.error(f"Seed error: {e}")
         return {"status": "error", "message": str(e)}
 
 # Include router
