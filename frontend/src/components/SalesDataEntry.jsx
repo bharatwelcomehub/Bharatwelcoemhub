@@ -4,10 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Save, Calculator, Calendar, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Save, Calculator, Calendar, RefreshCw, ChevronLeft, ChevronRight, Users, Receipt } from "lucide-react";
 import { api } from "@/lib/api";
 
+// Check if center is Perth (Australia)
+const isPerth = (center) => center === "PB-PT";
+
+// Get currency symbol based on center
+const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
+
 // Format currency for display
+const formatCurrency = (num, center) => {
+  if (num === null || num === undefined || isNaN(num)) return "0.00";
+  const symbol = getCurrencySymbol(center);
+  return `${symbol}${Math.abs(num).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+// Format number without currency
 const formatNum = (num) => {
   if (num === null || num === undefined || isNaN(num)) return "0.00";
   return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,6 +30,37 @@ const formatNum = (num) => {
 const getTodayStr = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+// GST Calculation
+// India: 5% GST ADDED to subtotal (excluding Swiggy/Zomato)
+// Perth: 10% GST INCLUDED in total (extract from total)
+const calculateGST = (totalSale, swiggy, zomato, center) => {
+  // Exclude Swiggy and Zomato from GST calculation
+  const gstApplicableSale = (parseFloat(totalSale) || 0) - (parseFloat(swiggy) || 0) - (parseFloat(zomato) || 0);
+  
+  if (isPerth(center)) {
+    // Australia (Perth): 10% GST is INCLUDED in price
+    // Formula: GST = Total / 11
+    const gstAmount = gstApplicableSale / 11;
+    const netSale = gstApplicableSale - gstAmount;
+    return {
+      gstRate: 10,
+      gstAmount: gstAmount,
+      netSale: netSale,
+      isInclusive: true
+    };
+  } else {
+    // India: 5% GST is ADDED to subtotal
+    // Formula: GST = Subtotal * 0.05
+    const gstAmount = gstApplicableSale * 0.05;
+    return {
+      gstRate: 5,
+      gstAmount: gstAmount,
+      netSale: gstApplicableSale,
+      isInclusive: false
+    };
+  }
 };
 
 export default function SalesDataEntry({ session, selectedCenter }) {
@@ -40,6 +84,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     zomato: 0,               // Zomato
     online_other: 0,         // Other online
     
+    // Guest & Bill tracking
+    num_guests: 0,           // Number of guests (pax)
+    num_bills: 0,            // Number of bills (excluding Swiggy/Zomato)
+    
     // Other fields
     deposited_in_bank: 0,
     cash_receipts: 0,
@@ -49,6 +97,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
   // Get center code
   const centerCode = selectedCenter || session?.center;
+  const currencySymbol = getCurrencySymbol(centerCode);
+  const isPerthCenter = isPerth(centerCode);
 
   // CALCULATED fields (gray background - auto-computed)
   const calculated = useMemo(() => {
@@ -61,8 +111,19 @@ export default function SalesDataEntry({ session, selectedCenter }) {
       (parseFloat(formData.online_other) || 0)
     );
     
+    const total_sale = parseFloat(formData.total_sale) || 0;
+    
     // Cash Sale = Total Sale - Total Online Sale
-    const total_cash_sale = Math.max(0, (parseFloat(formData.total_sale) || 0) - total_online_sale);
+    const total_cash_sale = Math.max(0, total_sale - total_online_sale);
+    
+    // GST Calculation
+    const gst = calculateGST(total_sale, formData.swiggy, formData.zomato, centerCode);
+    
+    // Average calculations
+    const num_guests = parseInt(formData.num_guests) || 0;
+    const num_bills = parseInt(formData.num_bills) || 0;
+    const avg_per_pax = num_guests > 0 ? total_sale / num_guests : 0;
+    const avg_per_bill = num_bills > 0 ? total_sale / num_bills : 0;
     
     // Cash expense would come from expenses entered separately
     const cash_expense = existingRecord?.cash_expense || 0;
@@ -86,15 +147,23 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     const to_deposit_in_bank = closing_balance - petty_cash_closing;
     
     return {
-      total_sale: parseFloat(formData.total_sale) || 0,
+      total_sale,
       total_online_sale,
       total_cash_sale,
       cash_expense,
       closing_balance,
       petty_cash_closing,
-      to_deposit_in_bank
+      to_deposit_in_bank,
+      // GST
+      gst_rate: gst.gstRate,
+      gst_amount: gst.gstAmount,
+      net_sale: gst.netSale,
+      gst_inclusive: gst.isInclusive,
+      // Averages
+      avg_per_pax,
+      avg_per_bill
     };
-  }, [formData, existingRecord]);
+  }, [formData, existingRecord, centerCode]);
 
   // Fetch existing record for selected date
   const fetchRecord = async () => {
@@ -141,6 +210,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           swiggy: record.swiggy || 0,
           zomato: record.zomato || 0,
           online_other: record.online_other || 0,
+          num_guests: record.num_guests || 0,
+          num_bills: record.num_bills || 0,
           deposited_in_bank: record.deposited_in_bank || 0,
           cash_receipts: record.cash_receipts || 0,
           due_amount: record.due_amount || 0,
@@ -158,6 +229,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           swiggy: 0,
           zomato: 0,
           online_other: 0,
+          num_guests: 0,
+          num_bills: 0,
           deposited_in_bank: 0,
           cash_receipts: 0,
           due_amount: 0,
@@ -214,6 +287,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         swiggy: parseFloat(formData.swiggy) || 0,
         zomato: parseFloat(formData.zomato) || 0,
         online_other: parseFloat(formData.online_other) || 0,
+        num_guests: parseInt(formData.num_guests) || 0,
+        num_bills: parseInt(formData.num_bills) || 0,
         due_amount: parseFloat(formData.due_amount) || 0,
         notes: formData.notes || "",
         // Calculated fields
@@ -221,7 +296,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         total_online_sale: calculated.total_online_sale,
         total_cash_sale: calculated.total_cash_sale,
         closing_balance: calculated.closing_balance,
-        petty_cash_closing: calculated.petty_cash_closing
+        petty_cash_closing: calculated.petty_cash_closing,
+        gst_amount: calculated.gst_amount,
+        avg_per_pax: calculated.avg_per_pax,
+        avg_per_bill: calculated.avg_per_bill
       };
       
       if (existingRecord) {
@@ -255,24 +333,26 @@ export default function SalesDataEntry({ session, selectedCenter }) {
   };
 
   // Input field component - Editable (white)
-  const EditableField = ({ label, field, prefix = "₹" }) => (
+  const EditableField = ({ label, field, prefix, type = "number" }) => (
     <div className="space-y-1">
       <Label className="text-xs font-medium text-foreground">{label}</Label>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{prefix}</span>
+        {prefix && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{prefix}</span>
+        )}
         <Input
-          type="number"
+          type={type}
           value={formData[field] || ""}
           onChange={(e) => handleChange(field, e.target.value)}
-          className="pl-8 text-right bg-white border-primary/30 focus:border-primary"
-          placeholder="0.00"
+          className={`${prefix ? 'pl-8' : 'pl-3'} text-right bg-white border-primary/30 focus:border-primary`}
+          placeholder="0"
         />
       </div>
     </div>
   );
 
   // Read-only field component (gray background)
-  const ReadOnlyField = ({ label, value, prefix = "₹", highlight = false }) => (
+  const ReadOnlyField = ({ label, value, prefix, highlight = false, info = "" }) => (
     <div className="space-y-1">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
       <div className={`px-3 py-2 rounded-md text-right font-mono ${
@@ -280,16 +360,18 @@ export default function SalesDataEntry({ session, selectedCenter }) {
       }`}>
         {prefix}{formatNum(value)}
       </div>
+      {info && <p className="text-xs text-muted-foreground">{info}</p>}
     </div>
   );
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg flex items-center gap-2">
             <Calculator className="w-5 h-5" />
             Daily Sales Entry - {centerCode}
+            {isPerthCenter && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">AUD $</span>}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={goToPrevDay}>
@@ -330,11 +412,13 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               <div className="grid grid-cols-2 gap-4">
                 <ReadOnlyField 
                   label="Opening Balance" 
-                  value={formData.opening_balance} 
+                  value={formData.opening_balance}
+                  prefix={currencySymbol}
                 />
                 <ReadOnlyField 
                   label="Petty Cash Opening" 
-                  value={formData.petty_cash_opening} 
+                  value={formData.petty_cash_opening}
+                  prefix={currencySymbol}
                 />
               </div>
               {previousDayData && (
@@ -344,7 +428,31 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               )}
             </div>
 
-            {/* SECTION 2: Sales Entry */}
+            {/* SECTION 2: Guest & Bill Count */}
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <h3 className="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Guest & Bill Count
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <EditableField label="Number of Guests (Pax)" field="num_guests" type="number" />
+                <EditableField label="Number of Bills (excl. Swiggy/Zomato)" field="num_bills" type="number" />
+                <ReadOnlyField 
+                  label="Avg Per Pax" 
+                  value={calculated.avg_per_pax}
+                  prefix={currencySymbol}
+                  highlight={true}
+                />
+                <ReadOnlyField 
+                  label="Avg Per Bill" 
+                  value={calculated.avg_per_bill}
+                  prefix={currencySymbol}
+                  highlight={true}
+                />
+              </div>
+            </div>
+
+            {/* SECTION 3: Sales Entry */}
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
               <h3 className="text-sm font-semibold text-blue-700 mb-3">Sales Entry</h3>
               
@@ -352,7 +460,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               <div className="mb-4">
                 <Label className="text-sm font-bold text-blue-800">Total Sale of the Day *</Label>
                 <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
                   <Input
                     type="number"
                     value={formData.total_sale || ""}
@@ -367,13 +475,13 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               <div className="mt-4">
                 <Label className="text-sm font-medium text-blue-700 mb-2 block">Online Sales Bifurcation</Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <EditableField label="Card (Credit/Debit)" field="card_idfc" />
-                  <EditableField label="Bharat Pay" field="bharat_pay" />
-                  <EditableField label="Swiggy" field="swiggy" />
-                  <EditableField label="Zomato" field="zomato" />
+                  <EditableField label="Card (Credit/Debit)" field="card_idfc" prefix={currencySymbol} />
+                  <EditableField label="Bharat Pay" field="bharat_pay" prefix={currencySymbol} />
+                  <EditableField label="Swiggy" field="swiggy" prefix={currencySymbol} />
+                  <EditableField label="Zomato" field="zomato" prefix={currencySymbol} />
                 </div>
                 <div className="mt-3">
-                  <EditableField label="Other Online" field="online_other" />
+                  <EditableField label="Other Online" field="online_other" prefix={currencySymbol} />
                 </div>
               </div>
               
@@ -382,41 +490,76 @@ export default function SalesDataEntry({ session, selectedCenter }) {
                 <ReadOnlyField 
                   label="Total Online Sale (Auto)" 
                   value={calculated.total_online_sale}
+                  prefix={currencySymbol}
                 />
                 <ReadOnlyField 
                   label="Cash Sale (Auto: Total - Online)" 
                   value={calculated.total_cash_sale}
+                  prefix={currencySymbol}
                   highlight={true}
                 />
               </div>
             </div>
 
-            {/* SECTION 3: Cash Flow */}
+            {/* SECTION 4: GST Calculation */}
+            <div className={`p-4 rounded-lg border ${isPerthCenter ? 'bg-yellow-50 border-yellow-200' : 'bg-amber-50 border-amber-200'}`}>
+              <h3 className={`text-sm font-semibold mb-3 ${isPerthCenter ? 'text-yellow-700' : 'text-amber-700'}`}>
+                GST Calculation ({isPerthCenter ? 'Australia - 10% Inclusive' : 'India - 5% Added'})
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <ReadOnlyField 
+                  label={isPerthCenter ? "Net Sale (excl. GST)" : "Sale (before GST)"}
+                  value={calculated.net_sale}
+                  prefix={currencySymbol}
+                />
+                <ReadOnlyField 
+                  label={`GST Payable (${calculated.gst_rate}%)`}
+                  value={calculated.gst_amount}
+                  prefix={currencySymbol}
+                  highlight={true}
+                  info={isPerthCenter ? "Extracted from total (GST inclusive)" : "Added on subtotal (excl. Swiggy/Zomato)"}
+                />
+                <ReadOnlyField 
+                  label="Total (with GST)"
+                  value={isPerthCenter ? calculated.total_sale : (calculated.net_sale + calculated.gst_amount)}
+                  prefix={currencySymbol}
+                  highlight={true}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                * GST not applicable on Swiggy & Zomato orders
+              </p>
+            </div>
+
+            {/* SECTION 5: Cash Flow */}
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <h3 className="text-sm font-semibold text-green-700 mb-3">Cash Flow</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <EditableField label="Deposited in Bank" field="deposited_in_bank" />
-                <EditableField label="Cash Receipts" field="cash_receipts" />
-                <EditableField label="Due Amount" field="due_amount" />
+                <EditableField label="Deposited in Bank" field="deposited_in_bank" prefix={currencySymbol} />
+                <EditableField label="Cash Receipts" field="cash_receipts" prefix={currencySymbol} />
+                <EditableField label="Due Amount" field="due_amount" prefix={currencySymbol} />
               </div>
             </div>
 
-            {/* SECTION 4: Closing Summary (Auto-calculated) */}
+            {/* SECTION 6: Closing Summary (Auto-calculated) */}
             <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
               <h3 className="text-sm font-semibold text-orange-700 mb-3">Closing Summary (Auto-calculated)</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <ReadOnlyField 
                   label="Cash Expense" 
                   value={calculated.cash_expense}
+                  prefix={currencySymbol}
                 />
                 <ReadOnlyField 
                   label="Closing Balance" 
                   value={calculated.closing_balance}
+                  prefix={currencySymbol}
                   highlight={true}
                 />
                 <ReadOnlyField 
                   label="Petty Cash Closing" 
                   value={calculated.petty_cash_closing}
+                  prefix={currencySymbol}
                   highlight={true}
                 />
               </div>
@@ -424,6 +567,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
                 <ReadOnlyField 
                   label="To Deposit in Bank" 
                   value={calculated.to_deposit_in_bank}
+                  prefix={currencySymbol}
                 />
               </div>
             </div>
