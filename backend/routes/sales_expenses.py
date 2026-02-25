@@ -660,21 +660,43 @@ async def get_monthly_summary(req: SalesQueryRequest):
     if can_view_all and (not req.center or req.center.lower() == "all"):
         # Group by center
         centers_data = {}
+        total_gst = 0
+        total_guests = 0
+        total_bills = 0
+        
         for sale in sales:
             c = sale.get("center")
             if c not in centers_data:
                 centers_data[c] = {
                     "center": c,
+                    "currency": get_currency_symbol(c),
                     "total_sale": 0,
                     "total_cash_sale": 0,
                     "total_online_sale": 0,
                     "total_expenses": 0,
+                    "total_gst": 0,
+                    "total_guests": 0,
+                    "total_bills": 0,
                     "days_count": 0
                 }
             centers_data[c]["total_sale"] += sale.get("total_sale", 0)
             centers_data[c]["total_cash_sale"] += sale.get("total_cash_sale", 0)
             centers_data[c]["total_online_sale"] += sale.get("total_online_sale", 0)
+            centers_data[c]["total_guests"] += sale.get("num_guests", 0)
+            centers_data[c]["total_bills"] += sale.get("num_bills", 0)
             centers_data[c]["days_count"] += 1
+            
+            # Calculate GST for this sale
+            gst_info = calculate_gst(
+                sale.get("total_sale", 0),
+                sale.get("swiggy", 0),
+                sale.get("zomato", 0),
+                c
+            )
+            centers_data[c]["total_gst"] += gst_info["gst_amount"]
+            total_gst += gst_info["gst_amount"]
+            total_guests += sale.get("num_guests", 0)
+            total_bills += sale.get("num_bills", 0)
         
         # Add expenses
         for exp in expenses:
@@ -688,18 +710,25 @@ async def get_monthly_summary(req: SalesQueryRequest):
             exp_type = exp.get("expense_type", "OTHER")
             expense_by_type[exp_type] = expense_by_type.get(exp_type, 0) + exp.get("amount", 0)
         
+        total_sale = sum(s.get("total_sale", 0) for s in sales)
+        
         return {
             "month": req.month,
             "centers": list(centers_data.values()),
             "grand_total": {
-                "total_sale": sum(s.get("total_sale", 0) for s in sales),
+                "total_sale": total_sale,
                 "total_cash_sale": sum(s.get("total_cash_sale", 0) for s in sales),
                 "total_online_sale": sum(s.get("total_online_sale", 0) for s in sales),
                 "total_card_idfc": sum(s.get("card_idfc", 0) for s in sales),
                 "total_bharat_pay": sum(s.get("bharat_pay", 0) for s in sales),
                 "total_swiggy": sum(s.get("swiggy", 0) for s in sales),
                 "total_zomato": sum(s.get("zomato", 0) for s in sales),
-                "total_expenses": sum(e.get("amount", 0) for e in expenses)
+                "total_expenses": sum(e.get("amount", 0) for e in expenses),
+                "total_gst": round(total_gst, 2),
+                "total_guests": total_guests,
+                "total_bills": total_bills,
+                "avg_per_pax": round(total_sale / total_guests, 2) if total_guests > 0 else 0,
+                "avg_per_bill": round(total_sale / total_bills, 2) if total_bills > 0 else 0
             },
             "expense_by_type": expense_by_type
         }
