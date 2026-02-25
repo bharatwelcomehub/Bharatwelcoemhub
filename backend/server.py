@@ -327,21 +327,25 @@ async def verify_otp(req: OTPVerify):
     token = generate_token()
     stored["token"] = token
     
-    # Fetch manager's full profile from database
+    # SUPER ADMIN - Only these two people (by mobile number)
+    SUPER_ADMIN_MOBILES = ["9741399190", "9960886185"]  # Jayanti and Sandeep
+    is_super_admin = req.mobile in SUPER_ADMIN_MOBILES
+    
+    # Fetch manager's profile and roles from database
     manager = await db.managers.find_one({
         "center": stored["center"],
         "$or": [
             {"mobile": req.mobile},
             {"mobile": req.mobile.lstrip("0")},
         ]
-    }, {"_id": 0, "roles": 1, "is_super_admin": 1, "is_admin": 1, "email": 1})
+    }, {"_id": 0, "roles": 1, "is_admin": 1, "email": 1})
     
-    # PB-MGT users automatically get full admin access
-    is_mgt_center = stored["center"] == "PB-MGT"
+    # Get roles from DB - these are assigned by super admin
+    db_roles = manager.get("roles", {}) if manager else {}
+    is_admin = manager.get("is_admin", False) if manager else False
     
-    # Get roles from DB or set defaults for MGT users
-    if is_mgt_center:
-        # MGT users get full access by default
+    # Super admins get all access automatically
+    if is_super_admin:
         roles = {
             "attendance": True,
             "sales_cash": True,
@@ -350,12 +354,10 @@ async def verify_otp(req: OTPVerify):
             "operations": True,
             "view_all_centers": True
         }
-        is_super_admin = True
         is_admin = True
     else:
-        roles = manager.get("roles", {}) if manager else {}
-        is_super_admin = manager.get("is_super_admin", False) if manager else False
-        is_admin = manager.get("is_admin", False) if manager else False
+        # Regular users get their assigned roles from database
+        roles = db_roles
     
     stored["roles"] = roles
     stored["is_super_admin"] = is_super_admin
