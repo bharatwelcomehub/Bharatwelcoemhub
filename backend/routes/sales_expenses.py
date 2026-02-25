@@ -759,6 +759,83 @@ async def debug_sales_data():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@router.post("/seed-production-data")
+async def seed_production_data(data: dict):
+    """
+    ONE-TIME USE: Seed production database with sales data.
+    Only Super Admin can run this.
+    """
+    import json
+    import os
+    
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    token = data.get("token")
+    session = verify_token(token)
+    
+    if not session or not session.get("is_super_admin"):
+        raise HTTPException(403, "Only Super Admin can seed data")
+    
+    try:
+        # Check if data already exists
+        existing_sales = await db.daily_sales.count_documents({})
+        if existing_sales > 100:
+            return {
+                "status": "skipped",
+                "message": f"Database already has {existing_sales} sales records. Skipping to prevent duplicates.",
+                "sales_count": existing_sales
+            }
+        
+        # Load JSON files from static folder
+        static_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+        
+        results = {"inserted": {}, "errors": []}
+        
+        # Import daily_sales
+        sales_file = os.path.join(static_path, "daily_sales.json")
+        if os.path.exists(sales_file):
+            with open(sales_file, 'r') as f:
+                sales_data = json.load(f)
+            if sales_data:
+                # Clear existing and insert new
+                await db.daily_sales.delete_many({})
+                result = await db.daily_sales.insert_many(sales_data)
+                results["inserted"]["daily_sales"] = len(result.inserted_ids)
+                logger.info(f"Inserted {len(result.inserted_ids)} daily_sales records")
+        
+        # Import expenses
+        expenses_file = os.path.join(static_path, "expenses.json")
+        if os.path.exists(expenses_file):
+            with open(expenses_file, 'r') as f:
+                expenses_data = json.load(f)
+            if expenses_data:
+                await db.expenses.delete_many({})
+                result = await db.expenses.insert_many(expenses_data)
+                results["inserted"]["expenses"] = len(result.inserted_ids)
+                logger.info(f"Inserted {len(result.inserted_ids)} expense records")
+        
+        # Import expense_heads
+        heads_file = os.path.join(static_path, "expense_heads.json")
+        if os.path.exists(heads_file):
+            with open(heads_file, 'r') as f:
+                heads_data = json.load(f)
+            if heads_data:
+                await db.expense_heads.delete_many({})
+                result = await db.expense_heads.insert_many(heads_data)
+                results["inserted"]["expense_heads"] = len(result.inserted_ids)
+                logger.info(f"Inserted {len(result.inserted_ids)} expense_heads records")
+        
+        return {
+            "status": "success",
+            "message": "Production database seeded successfully!",
+            "results": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Seed error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 # =======================================
 # EXPENSE HEADS MASTER CRUD
 # =======================================
