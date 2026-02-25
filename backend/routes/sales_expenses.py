@@ -1097,3 +1097,205 @@ async def delete_expense_head(head_name: str, token: str):
     
     return {"success": True, "message": "Expense head deleted"}
 
+
+# =======================================
+# PERTH EXCEL UPLOAD
+# Import Perth Sales Data from Excel without modification
+# =======================================
+
+from fastapi import UploadFile, File
+import io
+
+class PerthExcelUploadRequest(BaseModel):
+    token: str
+
+# Perth Excel column mapping (based on actual Perth Excel structure)
+PERTH_COLUMN_MAP = {
+    'A': 'date',
+    'B': 'opening_balance',
+    'C': 'deposited_in_bank',
+    'D': 'petty_cash_opening',
+    'E': 'cash_receipts',
+    'F': 'sale_of_day',  # Header column
+    'G': 'sale_pbm',
+    'H': 'sale_other',
+    'I': 'total_sale',
+    'J': 'card_anz',  # Card ANZ/COMP BANK (equivalent to card_idfc)
+    'K': 'takeaway',  # Takeaway (Pickups) - Card/Cash
+    'L': 'doordash',  # DoorDash
+    'M': 'ubereats',  # UberEats
+    'N': 'bharat_pay',
+    'O': 'due_amount',
+    'P': 'total_online_sale',
+    'Q': 'total_cash_sale',
+    'R': 'cash_expense',
+    'S': 'closing_balance',
+    'T': 'cash_in_hand',
+    'U': 'to_deposit_in_bank',
+    'V': 'difference_for_day',
+    'W': 'petty_cash_closing',
+}
+
+@router.post("/perth/upload-excel")
+async def upload_perth_excel(token: str, file: UploadFile = File(...)):
+    """
+    Upload Perth Sales Excel file and import data WITHOUT modification.
+    Preserves original structure, spelling, and currency ($AUD).
+    """
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Only Super Admin or Admin can upload Excel
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only admins can upload Perth Excel data")
+    
+    # Validate file type
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(400, "Only Excel files (.xlsx, .xls) are allowed")
+    
+    try:
+        import openpyxl
+        from datetime import datetime as dt
+        
+        # Read the uploaded file
+        contents = await file.read()
+        workbook = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+        
+        # Look for the daily sales sheet
+        target_sheet = None
+        for sheet_name in workbook.sheetnames:
+            if 'DAILY SALE' in sheet_name.upper():
+                target_sheet = workbook[sheet_name]
+                break
+        
+        if not target_sheet:
+            # If no specific sheet found, try the active sheet
+            target_sheet = workbook.active
+        
+        logger.info(f"Processing Perth Excel: {file.filename}, Sheet: {target_sheet.title}")
+        
+        # Parse rows - skip first 2 header rows
+        imported_count = 0
+        skipped_count = 0
+        errors = []
+        
+        for row_idx, row in enumerate(target_sheet.iter_rows(min_row=4, values_only=True), start=4):
+            # Skip if no date
+            if not row[0]:
+                skipped_count += 1
+                continue
+            
+            try:
+                # Parse date (column A)
+                date_val = row[0]
+                if isinstance(date_val, dt):
+                    date_str = date_val.strftime('%Y-%m-%d')
+                elif isinstance(date_val, str):
+                    # Try to parse common date formats
+                    for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S']:
+                        try:
+                            date_str = dt.strptime(date_val.split()[0], fmt).strftime('%Y-%m-%d')
+                            break
+                        except:
+                            continue
+                    else:
+                        date_str = str(date_val).split()[0]
+                else:
+                    skipped_count += 1
+                    continue
+                
+                # Helper to safely get numeric values
+                def safe_float(val):
+                    if val is None:
+                        return 0.0
+                    try:
+                        return float(val)
+                    except (ValueError, TypeError):
+                        return 0.0
+                
+                # Check if row has any actual data (not just a date)
+                has_data = any(row[i] for i in range(1, min(len(row), 20)) if row[i])
+                if not has_data:
+                    skipped_count += 1
+                    continue
+                
+                # Create daily sale record - PRESERVE ALL VALUES EXACTLY AS IS
+                sale_record = {
+                    "center": "PB-PT",  # Perth center code
+                    "date": date_str,
+                    "opening_balance": safe_float(row[1]),  # B
+                    "deposited_in_bank": safe_float(row[2]),  # C
+                    "petty_cash_opening": safe_float(row[3]),  # D
+                    "cash_receipts": safe_float(row[4]),  # E
+                    "sale_pbm": safe_float(row[6]),  # G - PBM
+                    "sale_other": safe_float(row[7]),  # H - Other Products
+                    "total_sale": safe_float(row[8]),  # I - Total Sale of the Day
+                    
+                    # Perth-specific online payment columns
+                    "card_idfc": safe_float(row[9]),  # J - Card ANZ (mapped to card_idfc)
+                    "takeaway": safe_float(row[10]),  # K - Takeaway (Perth-specific)
+                    "doordash": safe_float(row[11]),  # L - DoorDash (Perth-specific)
+                    "ubereats": safe_float(row[12]),  # M - UberEats (Perth-specific)
+                    "bharat_pay": safe_float(row[13]),  # N - BharatPay
+                    "due_amount": safe_float(row[14]),  # O
+                    "total_online_sale": safe_float(row[15]),  # P
+                    "total_cash_sale": safe_float(row[16]),  # Q
+                    
+                    # Expenses and closing
+                    "cash_expense": safe_float(row[17]),  # R
+                    "closing_balance": safe_float(row[18]),  # S
+                    "cash_in_hand": safe_float(row[19]),  # T - Perth-specific
+                    "to_deposit_in_bank": safe_float(row[20]) if len(row) > 20 else 0,  # U
+                    "difference_for_day": safe_float(row[21]) if len(row) > 21 else 0,  # V
+                    "petty_cash_closing": safe_float(row[22]) if len(row) > 22 else 0,  # W
+                    
+                    # Metadata
+                    "source": "excel_upload",
+                    "source_file": file.filename,
+                    "currency": "AUD",  # Australian Dollars
+                    "gst_rate": 10,  # Perth uses 10% inclusive GST
+                    "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                    "uploaded_by": session.get("managerName", "Unknown"),
+                }
+                
+                # Calculate GST (10% inclusive for Perth)
+                total_sale = sale_record["total_sale"]
+                # Exclude DoorDash and UberEats from GST (like Swiggy/Zomato)
+                gst_applicable = max(0, total_sale - sale_record.get("doordash", 0) - sale_record.get("ubereats", 0))
+                sale_record["gst_amount"] = round(gst_applicable / 11, 2)  # 10% inclusive
+                
+                # Upsert - update if exists, insert if new
+                await db.daily_sales.update_one(
+                    {"center": "PB-PT", "date": date_str},
+                    {"$set": sale_record},
+                    upsert=True
+                )
+                imported_count += 1
+                
+            except Exception as row_error:
+                errors.append(f"Row {row_idx}: {str(row_error)}")
+                logger.error(f"Perth Excel row {row_idx} error: {row_error}")
+        
+        logger.info(f"Perth Excel import complete: {imported_count} records imported, {skipped_count} skipped")
+        
+        return {
+            "success": True,
+            "message": f"Perth Excel imported successfully",
+            "imported_count": imported_count,
+            "skipped_count": skipped_count,
+            "errors": errors[:10] if errors else [],  # Return first 10 errors
+            "center": "PB-PT",
+            "currency": "AUD ($)",
+            "gst_rate": "10% inclusive"
+        }
+        
+    except ImportError:
+        raise HTTPException(500, "openpyxl library not installed. Please install it.")
+    except Exception as e:
+        logger.error(f"Perth Excel upload error: {e}")
+        raise HTTPException(500, f"Excel processing error: {str(e)}")
+
