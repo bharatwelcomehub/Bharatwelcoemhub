@@ -168,8 +168,11 @@ def has_sales_access(session):
 # =======================================
 
 def is_perth_center(center: str) -> bool:
-    """Check if center is Perth (Australia)"""
-    return center and center.upper() in ["PB-PT", "PB-PERTH", "PERTH"]
+    """Check if center is Perth (Australia) - handles multiple formats"""
+    if not center:
+        return False
+    c = center.upper()
+    return c in ["PB-PT", "PB-PERTH", "PERTH"]
 
 def get_currency_symbol(center: str) -> str:
     """Get currency symbol based on center"""
