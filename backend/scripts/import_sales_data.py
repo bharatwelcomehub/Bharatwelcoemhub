@@ -37,7 +37,7 @@ CENTER_MAP = {
     "KHARADI": "PB-KN",
     "SN": "PB-SN",
     "THANE": "PB-TH",
-    "PERTH": "PB-PT"
+    "PERTH": "PB-PERTH"
 }
 
 # Excel file URLs
