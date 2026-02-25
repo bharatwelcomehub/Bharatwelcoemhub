@@ -586,7 +586,7 @@ export default function SalesExpenses() {
                   <div>
                     <div className="flex justify-between mb-2">
                       <span className="text-muted-foreground">Online Sales</span>
-                      <span className="font-bold text-purple-500">{formatCurrency(monthlySummary?.total_online_sale)}</span>
+                      <span className="font-bold text-purple-500">{formatCurrency(monthlySummary?.total_online_sale, currentCurrency)}</span>
                     </div>
                     <div className="h-4 bg-muted rounded-full overflow-hidden">
                       <div 
