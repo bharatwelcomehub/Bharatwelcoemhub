@@ -107,27 +107,19 @@ export default function Dashboard() {
   const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "operations"]);
   
   // Check user access levels
-  const isMGT = session?.center === "PB-MGT";
   const isSuperAdmin = session?.is_super_admin === true;
   const isAdmin = session?.is_admin === true;
-  const hasFullAccess = isMGT || isSuperAdmin || isAdmin;
   
-  // Get user's role permissions
-  const userRoles = hasFullAccess ? {
+  // Get user's role permissions from session (assigned by Super Admin)
+  // Super Admin gets all access, others get their assigned roles
+  const userRoles = isSuperAdmin ? {
     attendance: true,
     sales_cash: true,
     hr: true,
     mgt: true,
     operations: true,
     view_all_centers: true
-  } : (session?.roles || {
-    attendance: true,
-    sales_cash: true,
-    hr: false,
-    mgt: false,
-    operations: true,
-    view_all_centers: false
-  });
+  } : (session?.roles || {});
 
   // Toggle category expansion
   const toggleCategory = (categoryId) => {
