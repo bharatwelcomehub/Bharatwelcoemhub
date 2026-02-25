@@ -248,6 +248,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `/app/test_reports/iteration_6.json` - Centers & Managers tests
 - `/app/test_reports/iteration_7.json` - Recipe Admin tests (100% pass)
 - `/app/test_reports/iteration_8.json` - Sales & Expenses tests (100% pass - 11/11 backend, full frontend)
+- `/app/test_reports/iteration_9.json` - Sales Enhancements (GST, Guest/Bill counts, Booking Response) - 100% pass
 
 ## Backlog/Future
 - **Payslip Data Overlap (P1)**: Verify and fix any remaining overlap issues in PDF payslip generation
@@ -257,8 +258,38 @@ User had existing HTML/Python files for an attendance and salary management syst
 - Add image upload for recipes (currently URL only)
 - Add company CIN number to HR letter templates
 - Email generated letters directly to employees
+- Perth Excel Upload Rule (import without modification)
+- Feature Icons display in UI (auto-generated based on booking features)
 
-## Latest Updates (Feb 24, 2026)
+## Latest Updates (Feb 25, 2026)
+
+### Session 8 - Sales Data Entry Enhancements & Guest Response Generator
+- ✅ **Multi-Currency & GST Logic (CRITICAL)**
+  - Perth Center (PB-PT): Australian Dollars (`$`), 10% GST **inclusive** (extracted from total)
+  - Indian Centers: Indian Rupees (`₹`), 5% GST **exclusive** (added on subtotal)
+  - GST excludes Swiggy & Zomato orders
+  - GST Payable displayed on daily/monthly reports
+  - Backend helper functions: `is_perth_center()`, `get_currency_symbol()`, `calculate_gst()`
+
+- ✅ **Guest & Bill Count Tracking**
+  - New fields in Sales Entry form: Number of Guests (Pax), Number of Bills (excl. Swiggy/Zomato)
+  - Auto-calculated: Avg Per Pax (Total Sale / Guests), Avg Per Bill (Total Sale / Bills)
+  - Dashboard shows Total Guests and Total Bills cards with averages
+  - Data stored in `daily_sales` collection: `num_guests`, `num_bills`, `avg_per_pax`, `avg_per_bill`
+
+- ✅ **Guest Booking Response Generator (NEW FEATURE)**
+  - New tab in Guest Response page: "Booking Response"
+  - Converts raw booking data to warm, emoji-rich WhatsApp message
+  - Uses GPT-5.2 via Emergent LLM Key
+  - Feature icons reference: 🍽️ Dine-In, 📦 Takeaway, 🛵 Delivery, ⭐ Bestseller, 🥬 Veg, 🌿 Jain, 👶 Kids, 🎂 Birthday, 💕 Anniversary, 🎊 Party, 🪔 Festival, 💼 Corporate
+  - Brand tone: Maharashtrian hospitality, women-led values, warm & homely
+  - API endpoint: `POST /api/guest/booking-response`
+
+- ✅ **API Enhancements**
+  - `/api/sales/reports/monthly-summary` - now returns: `gst_rate`, `gst_amount`, `gst_inclusive`, `net_sale`, `total_guests`, `total_bills`, `avg_per_pax`, `avg_per_bill`, `currency`
+  - `/api/guest/booking-response` - new endpoint for WhatsApp message generation
+
+## Previous Updates (Feb 24, 2026)
 
 ### Session 7 - Admin Role System & Data Access Fix
 - ✅ **Super Admin & Admin Role System**
