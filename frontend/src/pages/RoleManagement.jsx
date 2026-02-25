@@ -153,8 +153,7 @@ export default function RoleManagement() {
         token: session?.token,
         email: editingManager.email,
         roles: selectedRoles,
-        is_super_admin: selectedAdminLevel === "super_admin",
-        is_admin: selectedAdminLevel === "admin" || selectedAdminLevel === "super_admin"
+        is_admin: selectedAdminLevel === "admin"
       });
       
       toast.success(`Roles updated for ${editingManager.managerName || editingManager.email}`);
