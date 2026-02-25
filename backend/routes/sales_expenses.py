@@ -97,6 +97,19 @@ class DailySaleUpdate(BaseModel):
     petty_cash_closing: Optional[float] = None
     notes: Optional[str] = None
 
+# =======================================
+# UNLOCK REQUEST MODELS
+# =======================================
+
+class UnlockRequest(BaseModel):
+    center: str
+    date: str  # YYYY-MM-DD
+    reason: str
+
+class UnlockRequestAction(BaseModel):
+    action: str  # "approve" or "reject"
+    admin_notes: Optional[str] = None
+
 class ExpenseCreate(BaseModel):
     center: str
     date: str  # YYYY-MM-DD
