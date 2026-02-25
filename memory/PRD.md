@@ -251,9 +251,9 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `/app/test_reports/iteration_9.json` - Sales Enhancements (GST, Guest/Bill counts, Booking Response) - 100% pass
 
 ## Backlog/Future
-- **Payslip Data Overlap (P1)**: Verify and fix any remaining overlap issues in PDF payslip generation
-- **HR Letter PDF Download Verification (P2)**: User verification pending for the fix applied earlier
-- **Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large, ~3500 lines)
+- **P2: Payslip Data Overlap**: Verify and fix any remaining overlap issues in PDF payslip generation
+- **P2: HR Letter PDF Download Verification**: User verification pending for the fix applied earlier
+- **P1: Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large, ~3500 lines)
 - Add custom roles (Accounts, Trainer, Marketing)
 - Add image upload for recipes (currently URL only)
 - Add company CIN number to HR letter templates
