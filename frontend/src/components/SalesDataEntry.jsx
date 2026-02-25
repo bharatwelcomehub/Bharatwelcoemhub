@@ -83,6 +83,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
   const [existingRecord, setExistingRecord] = useState(null);
   const [previousDayData, setPreviousDayData] = useState(null);
+  const [frozenStatus, setFrozenStatus] = useState({ is_frozen: false, can_edit: true, reason: "" });
   
   // Form state - User editable fields
   const [formData, setFormData] = useState({
