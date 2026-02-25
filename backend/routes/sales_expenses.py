@@ -49,6 +49,15 @@ class DailySaleCreate(BaseModel):
     total_online_sale: float = 0
     total_cash_sale: float = 0
     
+    # Guest & Bill tracking (NEW)
+    num_guests: int = 0  # Number of guests (pax)
+    num_bills: int = 0   # Number of bills (excluding Swiggy/Zomato)
+    avg_per_pax: float = 0  # Average per guest
+    avg_per_bill: float = 0  # Average per bill
+    
+    # GST Calculation (NEW)
+    gst_amount: float = 0  # Calculated GST amount
+    
     # Expenses and closing
     cash_expense: float = 0
     closing_balance: float = 0
@@ -74,6 +83,13 @@ class DailySaleUpdate(BaseModel):
     due_amount: Optional[float] = None
     total_online_sale: Optional[float] = None
     total_cash_sale: Optional[float] = None
+    # Guest & Bill tracking (NEW)
+    num_guests: Optional[int] = None
+    num_bills: Optional[int] = None
+    avg_per_pax: Optional[float] = None
+    avg_per_bill: Optional[float] = None
+    # GST (NEW)
+    gst_amount: Optional[float] = None
     cash_expense: Optional[float] = None
     closing_balance: Optional[float] = None
     to_deposit_in_bank: Optional[float] = None
