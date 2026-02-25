@@ -644,9 +644,22 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
             {/* Save Button */}
             <div className="flex justify-end pt-4 border-t">
-              <Button onClick={handleSave} disabled={saving} className="gap-2">
-                <Save className="w-4 h-4" />
-                {saving ? "Saving..." : existingRecord ? "Update Record" : "Save Record"}
+              <Button 
+                onClick={handleSave} 
+                disabled={saving || (frozenStatus.is_frozen && !frozenStatus.can_edit)} 
+                className="gap-2"
+              >
+                {frozenStatus.is_frozen && !frozenStatus.can_edit ? (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    Date Frozen
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    {saving ? "Saving..." : existingRecord ? "Update Record" : "Save Record"}
+                  </>
+                )}
               </Button>
             </div>
           </>
