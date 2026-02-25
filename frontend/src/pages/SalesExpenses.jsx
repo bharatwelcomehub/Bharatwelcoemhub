@@ -220,7 +220,7 @@ export default function SalesExpenses() {
     {
       title: "Total Guests",
       value: (monthlySummary?.total_guests || 0).toLocaleString(),
-      subtitle: `Avg ${formatCurrency(monthlySummary?.avg_per_pax, selectedCenter)}/pax`,
+      subtitle: `Avg ${formatCurrency(monthlySummary?.avg_per_pax, currentCurrency)}/pax`,
       icon: Users,
       color: "text-indigo-500",
       bg: "bg-indigo-500/10"
@@ -228,7 +228,7 @@ export default function SalesExpenses() {
     {
       title: "Total Bills",
       value: (monthlySummary?.total_bills || 0).toLocaleString(),
-      subtitle: `Avg ${formatCurrency(monthlySummary?.avg_per_bill, selectedCenter)}/bill`,
+      subtitle: `Avg ${formatCurrency(monthlySummary?.avg_per_bill, currentCurrency)}/bill`,
       icon: Receipt,
       color: "text-teal-500",
       bg: "bg-teal-500/10"
