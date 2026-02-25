@@ -380,7 +380,117 @@ export default function SalesExpenses() {
           <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
           <TabsTrigger value="expenses" data-testid="tab-expenses">Expense List</TabsTrigger>
           <TabsTrigger value="breakdown" data-testid="tab-breakdown">Payment Breakdown</TabsTrigger>
+          {/* Perth Excel Upload - Only for admins */}
+          {(session?.is_super_admin || session?.is_admin) && (
+            <TabsTrigger value="perth-upload" data-testid="tab-perth-upload" className="gap-2">
+              <FileSpreadsheet className="w-4 h-4" />
+              Perth Excel
+            </TabsTrigger>
+          )}
         </TabsList>
+
+        {/* Perth Excel Upload Tab */}
+        {(session?.is_super_admin || session?.is_admin) && (
+          <TabsContent value="perth-upload">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-green-600" />
+                  Perth Sales Excel Upload
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Upload Perth center's Excel file. Data will be imported exactly as-is without modification.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Upload Area */}
+                <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handlePerthExcelUpload}
+                    ref={fileInputRef}
+                    className="hidden"
+                    id="perth-excel-upload"
+                    disabled={uploadingExcel}
+                  />
+                  <label 
+                    htmlFor="perth-excel-upload"
+                    className="cursor-pointer flex flex-col items-center gap-4"
+                  >
+                    {uploadingExcel ? (
+                      <>
+                        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                        <span className="text-lg">Uploading & Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-12 h-12 text-muted-foreground" />
+                        <div>
+                          <p className="text-lg font-medium">Click to upload Perth Excel</p>
+                          <p className="text-sm text-muted-foreground">
+                            Supports .xlsx and .xls files
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </label>
+                </div>
+
+                {/* Upload Result */}
+                {uploadResult && (
+                  <div className={`p-4 rounded-lg ${uploadResult.error ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                    {uploadResult.error ? (
+                      <p className="text-red-600">{uploadResult.error}</p>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-green-700">
+                          <CheckCircle className="w-5 h-5" />
+                          <span className="font-medium">Import Successful!</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 mt-3">
+                          <div className="text-center p-3 bg-white rounded">
+                            <p className="text-2xl font-bold text-green-600">{uploadResult.imported_count}</p>
+                            <p className="text-xs text-muted-foreground">Records Imported</p>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded">
+                            <p className="text-2xl font-bold text-amber-600">{uploadResult.skipped_count}</p>
+                            <p className="text-xs text-muted-foreground">Rows Skipped</p>
+                          </div>
+                          <div className="text-center p-3 bg-white rounded">
+                            <p className="text-2xl font-bold text-blue-600">{uploadResult.gst_rate}</p>
+                            <p className="text-xs text-muted-foreground">GST Rate</p>
+                          </div>
+                        </div>
+                        {uploadResult.errors?.length > 0 && (
+                          <div className="mt-3 p-2 bg-amber-50 rounded text-xs">
+                            <p className="font-medium text-amber-800">Warnings:</p>
+                            {uploadResult.errors.map((err, i) => (
+                              <p key={i} className="text-amber-700">{err}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Info Box */}
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h4 className="font-medium text-blue-800 mb-2">Perth Excel Import Rules</h4>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>• Center: <strong>PB-PT (Perth)</strong></li>
+                    <li>• Currency: <strong>Australian Dollars ($AUD)</strong></li>
+                    <li>• GST: <strong>10% Inclusive</strong> (GST amount extracted from total)</li>
+                    <li>• DoorDash and UberEats excluded from GST calculation</li>
+                    <li>• Data imported exactly as-is without modification</li>
+                    <li>• Existing records for same date will be updated</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {/* Sales Data Entry Tab */}
         <TabsContent value="sales-entry">
