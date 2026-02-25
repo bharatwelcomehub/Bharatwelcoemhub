@@ -296,6 +296,30 @@ export default function SalesExpenses() {
         ))}
       </div>
 
+      {/* GST & Guest Stats Cards */}
+      {monthlySummary && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {statsCards.map((card, idx) => (
+            <Card key={idx} className="bg-card border-border" data-testid={`stats-card-${idx}`}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">{card.title}</p>
+                    <p className="text-xl font-bold mt-1">{card.value}</p>
+                    {card.subtitle && (
+                      <p className="text-xs text-muted-foreground mt-1">{card.subtitle}</p>
+                    )}
+                  </div>
+                  <div className={`p-3 rounded-full ${card.bg}`}>
+                    <card.icon className={`w-5 h-5 ${card.color}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-muted flex-wrap">
