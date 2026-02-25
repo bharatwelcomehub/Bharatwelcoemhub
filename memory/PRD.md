@@ -356,3 +356,30 @@ User had existing HTML/Python files for an attendance and salary management syst
   - `/api/sales/expenses` - respects admin roles
   - `/api/mgt/managers` - filters based on user permissions
   - Employee management endpoints updated for admin access
+
+
+## Database Collections
+
+- `managers` - Manager login credentials and roles
+- `employees` - Employee data
+- `centers` - Center details
+- `attendance` - Daily attendance records
+- `advances` - Employee advances
+- `payroll_locks` - Payroll lock status
+- `daily_sales` - Daily sales and cash summary records (2,238 records)
+- `expenses` - Individual expense records (2,819 records)
+- `expense_heads` - Expense categories (35 categories)
+- `unlock_requests` - **NEW** - Unlock requests for frozen dates
+- `unlock_grants` - **NEW** - Approved unlocks with 24-hour expiry
+
+## Testing Credentials
+- Super Admin: Center `PB-MGT`, Mobile `9741399190`, OTP `123456`
+- Perth Manager: Center `PB-PERTH`, Mobile `0401832922`, OTP `123456`
+- HSR Manager: Center `PB-HSR`, any mobile, OTP `123456`
+
+## Backlog/Future
+- **P2: Payslip Data Overlap** - Verify and fix any remaining overlap issues in PDF payslip generation
+- **P2: HR Letter PDF Download Verification** - User verification pending
+- **P1: Refactor server.py** - Split into modular FastAPI routers (currently ~3500 lines)
+- Add custom roles (Accounts, Trainer, Marketing)
+- Add image upload for recipes (currently URL only)
