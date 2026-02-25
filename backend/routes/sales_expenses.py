@@ -371,6 +371,11 @@ async def create_daily_sale(req: DailySaleCreate, token: str):
     if not can_view_all and session.get("center") != req.center.upper():
         raise HTTPException(403, "Cannot create sales record for another center")
     
+    # Check if date is frozen
+    can_edit, reason = await can_edit_date(session, req.center, req.date)
+    if not can_edit:
+        raise HTTPException(403, f"Cannot create record for frozen date. {reason}")
+    
     # Check if record already exists
     existing = await db.daily_sales.find_one({
         "center": req.center.upper(),
