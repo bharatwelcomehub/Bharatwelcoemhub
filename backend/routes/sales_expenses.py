@@ -172,7 +172,7 @@ def is_perth_center(center: str) -> bool:
     if not center:
         return False
     c = center.upper()
-    return c in ["PB-PT", "PB-PERTH", "PERTH"]
+    return c in ["PB-PERTH", "PERTH"]
 
 def get_currency_symbol(center: str) -> str:
     """Get currency symbol based on center"""

@@ -2070,7 +2070,7 @@ async def generate_booking_response(req: GuestBookingRequest):
             center_context += f"Country: {center_info.get('country', 'India')}\n"
         
         # Currency context
-        is_perth = req.center.upper() in ["PB-PT", "PB-PERTH", "PERTH"]
+        is_perth = req.center.upper() in ["PB-PERTH", "PERTH"]
         currency_context = f"\nCurrency: {'AUD ($)' if is_perth else 'INR (₹)'}\n"
         
         # Initialize chat
