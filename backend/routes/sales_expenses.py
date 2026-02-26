@@ -707,6 +707,11 @@ async def create_expense(req: ExpenseCreate, token: str):
     if session.get("center") != "PB-MGT" and session.get("center") != req.center.upper():
         raise HTTPException(403, "Cannot create expense for another center")
     
+    # Check if date is frozen (only Super Admin can add expenses for frozen dates)
+    can_edit, reason = await can_edit_date(session, req.center, req.date)
+    if not can_edit:
+        raise HTTPException(403, f"Cannot add expense for frozen date. {reason}")
+    
     record = req.dict()
     record["center"] = req.center.upper()
     record["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -715,6 +720,10 @@ async def create_expense(req: ExpenseCreate, token: str):
     result = await db.expenses.insert_one(record)
     record["expense_id"] = str(result.inserted_id)
     record.pop("_id", None)
+    
+    # Update daily_sales petty_cash_closing if expense is CASH
+    if req.payment_mode == "CASH":
+        await update_petty_cash_for_expense(req.center.upper(), req.date, req.amount)
     
     logger.info(f"Expense created: {req.center} - {req.date} - {req.description} by {session.get('managerName')}")
     
