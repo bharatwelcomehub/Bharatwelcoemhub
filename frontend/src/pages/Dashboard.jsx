@@ -95,7 +95,7 @@ const menuCategories = [
     items: [
       { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", roleKey: "operations" },
       { path: "/guest-response", icon: MessageCircle, label: "Guest Response", roleKey: "operations" },
-      { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", forMGT: true },
+      { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", roleKey: "operations" },
     ]
   },
 ];
