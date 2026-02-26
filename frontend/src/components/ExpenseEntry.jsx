@@ -64,6 +64,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
   useEffect(() => {
     const fetchMasters = async () => {
       try {
+        console.log("ExpenseEntry: Fetching expense types and payment modes...");
         const [typesRes, modesRes] = await Promise.all([
           api.get("/sales/expense-types"),
           api.get("/sales/payment-modes")
@@ -71,12 +72,15 @@ export default function ExpenseEntry({ session, selectedCenter }) {
         
         if (typesRes.data.expense_types) {
           setExpenseTypes(typesRes.data.expense_types);
+          console.log("ExpenseEntry: Loaded expense types:", typesRes.data.expense_types.length);
         }
         if (modesRes.data.payment_modes) {
           setPaymentModes(modesRes.data.payment_modes);
+          console.log("ExpenseEntry: Loaded payment modes:", modesRes.data.payment_modes.length);
         }
       } catch (err) {
-        console.error("Failed to fetch masters:", err);
+        console.error("ExpenseEntry: Failed to fetch masters:", err);
+        toast.error("Failed to load expense types. Please refresh.");
       }
     };
     fetchMasters();
