@@ -288,8 +288,22 @@ export default function SalesDataEntry({ session, selectedCenter }) {
   };
 
   useEffect(() => {
-    fetchRecord();
+    if (session?.token) {
+      console.log("SalesDataEntry: Session ready, fetching record...");
+      fetchRecord();
+    } else {
+      console.log("SalesDataEntry: Waiting for session token...");
+    }
   }, [selectedDate, centerCode, session?.token]);
+
+  // Retry fetch if data is empty
+  useEffect(() => {
+    if (session?.token && !loading && !existingRecord && formData.opening_balance === 0 && selectedDate) {
+      console.log("SalesDataEntry: Empty data, retrying...");
+      const timer = setTimeout(fetchRecord, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [session?.token, loading, existingRecord, formData.opening_balance, selectedDate]);
 
   // Handle input change
   const handleChange = (field, value) => {
