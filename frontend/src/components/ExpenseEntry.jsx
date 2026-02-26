@@ -357,8 +357,21 @@ export default function ExpenseEntry({ session, selectedCenter }) {
           </div>
           
           <div className="flex justify-end mt-4">
-            <Button onClick={handleAddExpense} disabled={saving} className="gap-2" data-testid="add-expense-btn">
-              <Save className="w-4 h-4" /> {saving ? "Saving..." : "Add Expense"}
+            <Button 
+              onClick={handleAddExpense} 
+              disabled={saving || (frozenStatus.is_frozen && !frozenStatus.can_edit)} 
+              className="gap-2" 
+              data-testid="add-expense-btn"
+            >
+              {frozenStatus.is_frozen && !frozenStatus.can_edit ? (
+                <>
+                  <Lock className="w-4 h-4" /> Date Frozen
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" /> {saving ? "Saving..." : "Add Expense"}
+                </>
+              )}
             </Button>
           </div>
         </CardContent>
