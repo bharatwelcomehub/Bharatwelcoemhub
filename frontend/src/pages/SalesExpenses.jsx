@@ -278,11 +278,26 @@ export default function SalesExpenses() {
 
   useEffect(() => {
     if (session?.token) {
+      console.log("SalesExpenses: Session token available, fetching data...");
       fetchMonthlySummary();
       fetchExpenses();
       fetchUnlockRequests();
+    } else {
+      console.log("SalesExpenses: Waiting for session token...");
     }
   }, [selectedMonth, selectedCenter, session?.token]);
+
+  // Retry fetch if data is empty after initial load
+  useEffect(() => {
+    if (session?.token && !loading && !monthlySummary && dailyData.length === 0) {
+      console.log("SalesExpenses: Data empty, retrying fetch...");
+      const timer = setTimeout(() => {
+        fetchMonthlySummary();
+        fetchExpenses();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [session?.token, loading, monthlySummary, dailyData.length]);
 
   // Get currency from API response or fallback to center-based logic
   // For non-admin users, use their session center to determine currency
