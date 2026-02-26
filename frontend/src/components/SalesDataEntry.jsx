@@ -306,6 +306,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
   // Save record
   const handleSave = async () => {
+    if (!session?.token) {
+      toast.error("Session expired. Please refresh and login again.");
+      return;
+    }
     if (!centerCode || !selectedDate) {
       toast.error("Please select center and date");
       return;
@@ -314,7 +318,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     setSaving(true);
     try {
       const payload = {
-        token: session?.token,
+        token: session.token,
         center: centerCode,
         date: selectedDate,
         opening_balance: parseFloat(formData.opening_balance) || 0,
@@ -344,18 +348,26 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         avg_per_bill: calculated.avg_per_bill
       };
       
+      console.log("SalesDataEntry: Saving record", { centerCode, selectedDate, existingRecord: !!existingRecord });
+      
       if (existingRecord) {
-        await api.put(`/sales/daily/${centerCode}/${selectedDate}?token=${session?.token}`, payload);
+        await api.put(`/sales/daily/${centerCode}/${selectedDate}?token=${session.token}`, payload);
         toast.success("Record updated successfully!");
       } else {
-        await api.post(`/sales/daily/create?token=${session?.token}`, payload);
+        await api.post(`/sales/daily/create?token=${session.token}`, payload);
         toast.success("Record created successfully!");
       }
       
       fetchRecord();
     } catch (err) {
-      console.error("Save error:", err);
-      toast.error(err.response?.data?.detail || "Failed to save record");
+      console.error("SalesDataEntry: Save error:", err);
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please refresh and login again.");
+      } else if (err.response?.status === 403) {
+        toast.error(err.response?.data?.detail || "You don't have permission to save this record.");
+      } else {
+        toast.error(err.response?.data?.detail || "Failed to save record");
+      }
     } finally {
       setSaving(false);
     }
