@@ -42,6 +42,16 @@ const getTodayStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
+// Check if a date is frozen (previous day or older)
+const isDateFrozen = (dateStr) => {
+  if (!dateStr) return true;
+  const recordDate = new Date(dateStr);
+  recordDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return recordDate < today;
+};
+
 export default function ExpenseEntry({ session, selectedCenter }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -49,6 +59,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
   const [expenses, setExpenses] = useState([]);
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
+  const [frozenStatus, setFrozenStatus] = useState({ is_frozen: false, can_edit: true });
   
   // New expense form
   const [newExpense, setNewExpense] = useState({
