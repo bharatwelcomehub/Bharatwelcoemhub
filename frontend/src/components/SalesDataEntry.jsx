@@ -298,10 +298,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
   // Retry fetch if data is empty
   useEffect(() => {
     if (session?.token && !loading && !existingRecord && formData.opening_balance === 0 && selectedDate) {
-      console.log("SalesDataEntry: Empty data, retrying...");
       const timer = setTimeout(fetchRecord, 1000);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.token, loading, existingRecord, formData.opening_balance, selectedDate]);
 
   // Handle input change
