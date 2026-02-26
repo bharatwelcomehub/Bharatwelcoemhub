@@ -291,9 +291,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     if (session?.token) {
       console.log("SalesDataEntry: Session ready, fetching record...");
       fetchRecord();
-    } else {
-      console.log("SalesDataEntry: Waiting for session token...");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, centerCode, session?.token]);
 
   // Retry fetch if data is empty
