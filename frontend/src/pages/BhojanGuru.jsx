@@ -75,6 +75,11 @@ export default function BhojanGuru() {
   const [activeTab, setActiveTab] = useState("region");
   const [currentDay, setCurrentDay] = useState(DAYS[new Date().getDay()]);
   
+  // Debug: Log when selectedRecipe changes
+  useEffect(() => {
+    console.log("BhojanGuru: selectedRecipe changed to:", selectedRecipe?.key || "null");
+  }, [selectedRecipe]);
+  
   // Body Need form state
   const [bodyForm, setBodyForm] = useState({
     energy: "normal",
