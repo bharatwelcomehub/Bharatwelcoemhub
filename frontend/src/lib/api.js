@@ -14,7 +14,7 @@ export const api = axios.create({
 // Request interceptor - add token from localStorage if available
 api.interceptors.request.use(
   (config) => {
-    const session = localStorage.getItem("session");
+    const session = localStorage.getItem("pb_session_v2");
     if (session) {
       try {
         const parsed = JSON.parse(session);
