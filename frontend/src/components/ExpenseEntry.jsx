@@ -84,12 +84,16 @@ export default function ExpenseEntry({ session, selectedCenter }) {
 
   // Fetch expenses for selected date
   const fetchExpenses = async () => {
-    if (!selectedDate || !centerCode) return;
+    if (!selectedDate || !centerCode || !session?.token) {
+      console.log("ExpenseEntry: Skipping fetch - missing data", { selectedDate, centerCode, hasToken: !!session?.token });
+      return;
+    }
     
     setLoading(true);
     try {
+      console.log("ExpenseEntry: Fetching expenses for", { centerCode, selectedDate });
       const res = await api.post("/sales/expenses", {
-        token: session?.token,
+        token: session.token,
         center: centerCode,
         start_date: selectedDate,
         end_date: selectedDate
@@ -97,17 +101,24 @@ export default function ExpenseEntry({ session, selectedCenter }) {
       
       if (res.data.expenses) {
         setExpenses(res.data.expenses);
+        console.log("ExpenseEntry: Loaded", res.data.expenses.length, "expenses");
       }
     } catch (err) {
-      console.error("Failed to fetch expenses:", err);
-      toast.error("Failed to load expenses");
+      console.error("ExpenseEntry: Failed to fetch expenses:", err);
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please refresh the page and login again.");
+      } else {
+        toast.error("Failed to load expenses");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchExpenses();
+    if (session?.token) {
+      fetchExpenses();
+    }
   }, [selectedDate, centerCode, session?.token]);
 
   // Add new expense
