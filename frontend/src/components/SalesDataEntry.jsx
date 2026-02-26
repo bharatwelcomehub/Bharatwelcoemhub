@@ -276,8 +276,12 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         });
       }
     } catch (err) {
-      console.error("Failed to fetch record:", err);
-      toast.error("Failed to load data");
+      console.error("SalesDataEntry: Failed to fetch record:", err);
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please refresh and login again.");
+      } else {
+        toast.error("Failed to load data");
+      }
     } finally {
       setLoading(false);
     }
