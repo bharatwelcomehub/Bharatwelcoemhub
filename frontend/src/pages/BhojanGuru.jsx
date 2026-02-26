@@ -576,10 +576,13 @@ Today's Highlights: ${recommendation.highlights || ""}`;
                   <div className="space-y-2">
                     {filteredRecipes.length > 0 ? (
                       filteredRecipes.map((recipe) => (
-                        <button
+                        <div
                           key={recipe.key}
-                          onClick={() => setSelectedRecipe(recipe)}
-                          className={`w-full text-left p-4 rounded-lg border transition-all hover:shadow-md ${
+                          onClick={() => {
+                            console.log("Recipe clicked:", recipe.key);
+                            setSelectedRecipe(recipe);
+                          }}
+                          className={`w-full text-left p-4 rounded-lg border transition-all hover:shadow-md cursor-pointer ${
                             selectedRecipe?.key === recipe.key 
                               ? "bg-primary/10 border-primary" 
                               : "bg-card hover:bg-muted/50 border-border"
@@ -595,7 +598,7 @@ Today's Highlights: ${recommendation.highlights || ""}`;
                               {recipe.ingredients.slice(0, 3).join(", ")}...
                             </p>
                           )}
-                        </button>
+                        </div>
                       ))
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
