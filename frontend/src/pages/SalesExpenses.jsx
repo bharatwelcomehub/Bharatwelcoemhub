@@ -205,8 +205,10 @@ export default function SalesExpenses() {
 
   // Fetch unlock requests (for Super Admin or center manager)
   const fetchUnlockRequests = async () => {
+    if (!session?.token) return;
+    
     try {
-      const res = await api.get(`/sales/unlock-requests?token=${session?.token}&status=all`);
+      const res = await api.get(`/sales/unlock-requests?token=${session.token}&status=all`);
       if (res.data.requests) {
         setUnlockRequests(res.data.requests);
       }
@@ -217,13 +219,17 @@ export default function SalesExpenses() {
 
   // Submit unlock request
   const submitUnlockRequest = async () => {
+    if (!session?.token) {
+      toast.error("Session expired. Please refresh and login again.");
+      return;
+    }
     if (!selectedDateForUnlock || !unlockReason.trim()) {
       toast.error("Please provide a reason for the unlock request");
       return;
     }
     
     try {
-      const res = await api.post(`/sales/unlock-request?token=${session?.token}`, {
+      const res = await api.post(`/sales/unlock-request?token=${session.token}`, {
         center: selectedDateForUnlock.center || session?.center,
         date: selectedDateForUnlock.date,
         reason: unlockReason
@@ -237,14 +243,23 @@ export default function SalesExpenses() {
         fetchUnlockRequests();
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to submit unlock request");
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please refresh and login again.");
+      } else {
+        toast.error(err.response?.data?.detail || "Failed to submit unlock request");
+      }
     }
   };
 
   // Process unlock request (Super Admin)
   const processUnlockRequest = async (requestId, action) => {
+    if (!session?.token) {
+      toast.error("Session expired. Please refresh and login again.");
+      return;
+    }
+    
     try {
-      const res = await api.post(`/sales/unlock-request/${requestId}/action?token=${session?.token}`, {
+      const res = await api.post(`/sales/unlock-request/${requestId}/action?token=${session.token}`, {
         action: action
       });
       
@@ -253,7 +268,11 @@ export default function SalesExpenses() {
         fetchUnlockRequests();
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || `Failed to ${action} request`);
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please refresh and login again.");
+      } else {
+        toast.error(err.response?.data?.detail || `Failed to ${action} request`);
+      }
     }
   };
 
