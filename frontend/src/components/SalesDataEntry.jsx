@@ -182,13 +182,16 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
   // Fetch existing record for selected date
   const fetchRecord = async () => {
-    if (!selectedDate || !centerCode) return;
+    if (!selectedDate || !centerCode || !session?.token) {
+      console.log("SalesDataEntry: Skipping fetch - missing data", { selectedDate, centerCode, hasToken: !!session?.token });
+      return;
+    }
     
     setLoading(true);
     try {
       // Check frozen status first
       try {
-        const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${selectedDate}?token=${session?.token}`);
+        const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${selectedDate}?token=${session.token}`);
         setFrozenStatus({
           is_frozen: frozenRes.data.is_frozen,
           can_edit: frozenRes.data.can_edit,
@@ -209,8 +212,9 @@ export default function SalesDataEntry({ session, selectedCenter }) {
       prevDate.setDate(prevDate.getDate() - 1);
       const prevDateStr = prevDate.toISOString().split('T')[0];
       
+      console.log("SalesDataEntry: Fetching previous day data", { prevDateStr, centerCode });
       const prevRes = await api.post("/sales/daily", {
-        token: session?.token,
+        token: session.token,
         center: centerCode,
         start_date: prevDateStr,
         end_date: prevDateStr
@@ -218,6 +222,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
       
       const prevData = prevRes.data.sales?.[0] || null;
       setPreviousDayData(prevData);
+      console.log("SalesDataEntry: Previous day data", prevData ? { closing: prevData.closing_balance, pettyCash: prevData.petty_cash_closing } : "none");
       
       // Get today's record
       const res = await api.post("/sales/daily", {
