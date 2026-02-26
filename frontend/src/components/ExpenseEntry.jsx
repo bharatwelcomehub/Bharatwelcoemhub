@@ -119,18 +119,17 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     if (session?.token) {
       console.log("ExpenseEntry: Session ready, fetching expenses...");
       fetchExpenses();
-    } else {
-      console.log("ExpenseEntry: Waiting for session token...");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, centerCode, session?.token]);
 
   // Retry fetch if expenses are empty
   useEffect(() => {
     if (session?.token && !loading && expenses.length === 0 && selectedDate) {
-      console.log("ExpenseEntry: Empty expenses, retrying...");
       const timer = setTimeout(fetchExpenses, 1000);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.token, loading, expenses.length, selectedDate]);
 
   // Add new expense
