@@ -8,7 +8,43 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 30000, // 30 second timeout
 });
+
+// Request interceptor - add token from localStorage if available
+api.interceptors.request.use(
+  (config) => {
+    const session = localStorage.getItem("session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        if (parsed.token) {
+          // Add token to query params if not already present
+          if (config.method === 'get' && !config.params?.token) {
+            config.params = { ...config.params, token: parsed.token };
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse session:", e);
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor - handle 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.error("API 401 Error - Token invalid or expired");
+      // Don't automatically logout - just log the error
+      // The component will show appropriate message
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Centers list
 export const CENTERS = [
