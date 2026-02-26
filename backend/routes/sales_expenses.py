@@ -784,6 +784,12 @@ async def update_expense(expense_id: str, req: ExpenseUpdate, token: str):
     if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
         raise HTTPException(403, "Cannot update expense for another center")
     
+    # Check if date is frozen
+    expense_date = existing.get("date", "")
+    can_edit, reason = await can_edit_date(session, existing.get("center", ""), expense_date)
+    if not can_edit:
+        raise HTTPException(403, f"Cannot update expense for frozen date. {reason}")
+    
     update_data = {k: v for k, v in req.dict().items() if v is not None}
     
     if update_data:
