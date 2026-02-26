@@ -237,8 +237,10 @@ export default function RecipeAdmin() {
     }
   };
 
-  // Check if user is MGT
-  if (session?.center !== "PB-MGT") {
+  // Check if user has operations role
+  const hasAccess = session?.center === "PB-MGT" || session?.roles?.operations === true;
+  
+  if (!hasAccess) {
     return (
       <div className="flex items-center justify-center h-96">
         <Card className="max-w-md">
@@ -246,7 +248,7 @@ export default function RecipeAdmin() {
             <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-yellow-500" />
             <h2 className="text-xl font-bold mb-2">Access Restricted</h2>
             <p className="text-muted-foreground">
-              Only PB-MGT managers can access the Recipe Admin panel.
+              You don't have permission to access the Recipe Admin panel.
             </p>
           </CardContent>
         </Card>
