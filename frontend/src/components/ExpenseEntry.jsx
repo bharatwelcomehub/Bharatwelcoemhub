@@ -106,7 +106,12 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     
     setLoading(true);
     try {
-      console.log("ExpenseEntry: Fetching expenses for", { centerCode, selectedDate });
+      // Check frozen status
+      const frozen = isDateFrozen(selectedDate);
+      const canEdit = !frozen || session?.is_super_admin;
+      setFrozenStatus({ is_frozen: frozen, can_edit: canEdit });
+      
+      console.log("ExpenseEntry: Fetching expenses for", { centerCode, selectedDate, frozen, canEdit });
       const res = await api.post("/sales/expenses", {
         token: session.token,
         center: centerCode,
