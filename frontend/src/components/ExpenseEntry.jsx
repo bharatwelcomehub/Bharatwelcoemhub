@@ -245,6 +245,12 @@ export default function ExpenseEntry({ session, selectedCenter }) {
             <CardTitle className="text-lg flex items-center gap-2">
               <Receipt className="w-5 h-5 text-primary" />
               Daily Expense Entry
+              {frozenStatus.is_frozen && (
+                <span className={`ml-2 flex items-center gap-1 text-sm font-normal ${frozenStatus.can_edit ? 'text-green-600' : 'text-amber-600'}`}>
+                  {frozenStatus.can_edit ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  {frozenStatus.can_edit ? '(Unlocked)' : '(Frozen)'}
+                </span>
+              )}
             </CardTitle>
             
             <div className="flex items-center gap-2">
@@ -269,8 +275,21 @@ export default function ExpenseEntry({ session, selectedCenter }) {
         </CardHeader>
       </Card>
 
+      {/* Frozen Warning */}
+      {frozenStatus.is_frozen && !frozenStatus.can_edit && (
+        <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-3">
+          <Lock className="w-5 h-5 text-amber-600 mt-0.5" />
+          <div>
+            <h4 className="font-semibold text-amber-800">Expenses Frozen for {selectedDate}</h4>
+            <p className="text-sm text-amber-600">
+              Previous day's expenses are automatically locked. Contact Super Admin to unlock for corrections.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Add New Expense Form */}
-      <Card className="bg-card border-border border-2 border-dashed">
+      <Card className={`bg-card border-border border-2 border-dashed ${frozenStatus.is_frozen && !frozenStatus.can_edit ? 'opacity-60' : ''}`}>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Plus className="w-4 h-4" /> Add New Expense
