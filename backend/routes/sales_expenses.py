@@ -315,6 +315,35 @@ async def can_edit_date(session: dict, center: str, date_str: str) -> tuple:
     
     return (False, "Date is frozen. Request unlock from Super Admin.")
 
+async def update_petty_cash_for_expense(center: str, date: str, amount: float, is_add: bool = True):
+    """
+    Update the petty_cash_closing in daily_sales when a CASH expense is added/removed.
+    CASH expenses reduce petty cash (petty cash is the fund for handling cash expenses).
+    """
+    daily_record = await db.daily_sales.find_one({"center": center, "date": date})
+    
+    if daily_record:
+        current_petty = daily_record.get("petty_cash_closing", daily_record.get("petty_cash_opening", 0))
+        current_cash_expense = daily_record.get("cash_expense", 0)
+        
+        if is_add:
+            # Adding expense - increase cash_expense, decrease petty cash
+            new_cash_expense = current_cash_expense + amount
+            new_petty_closing = daily_record.get("petty_cash_opening", 0) - new_cash_expense
+        else:
+            # Removing expense - decrease cash_expense, increase petty cash
+            new_cash_expense = max(0, current_cash_expense - amount)
+            new_petty_closing = daily_record.get("petty_cash_opening", 0) - new_cash_expense
+        
+        await db.daily_sales.update_one(
+            {"center": center, "date": date},
+            {"$set": {
+                "cash_expense": new_cash_expense,
+                "petty_cash_closing": new_petty_closing
+            }}
+        )
+        logger.info(f"Updated petty cash for {center} on {date}: cash_expense={new_cash_expense}, petty_cash_closing={new_petty_closing}")
+
 # =======================================
 # DAILY SALES ENDPOINTS
 # =======================================
