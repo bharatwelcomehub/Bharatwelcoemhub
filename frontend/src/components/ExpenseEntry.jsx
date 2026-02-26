@@ -123,6 +123,10 @@ export default function ExpenseEntry({ session, selectedCenter }) {
 
   // Add new expense
   const handleAddExpense = async () => {
+    if (!session?.token) {
+      toast.error("Session expired. Please refresh and login again.");
+      return;
+    }
     if (!newExpense.description.trim()) {
       toast.error("Description is required");
       return;
@@ -138,7 +142,8 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     
     setSaving(true);
     try {
-      await api.post(`/sales/expenses/create?token=${session?.token}`, {
+      console.log("ExpenseEntry: Adding expense", { centerCode, selectedDate, ...newExpense });
+      const res = await api.post(`/sales/expenses/create?token=${session.token}`, {
         center: centerCode,
         date: selectedDate,
         description: newExpense.description,
@@ -147,6 +152,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
         payment_mode: newExpense.payment_mode || "CASH"
       });
       
+      console.log("ExpenseEntry: Expense added", res.data);
       toast.success("Expense added successfully");
       setNewExpense({
         description: "",
@@ -156,7 +162,14 @@ export default function ExpenseEntry({ session, selectedCenter }) {
       });
       fetchExpenses();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to add expense");
+      console.error("ExpenseEntry: Failed to add expense:", err);
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please refresh the page and login again.");
+      } else if (err.response?.status === 403) {
+        toast.error("You don't have permission to add expenses for this center.");
+      } else {
+        toast.error(err.response?.data?.detail || "Failed to add expense");
+      }
     } finally {
       setSaving(false);
     }
