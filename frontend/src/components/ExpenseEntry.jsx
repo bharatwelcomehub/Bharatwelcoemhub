@@ -138,6 +138,10 @@ export default function ExpenseEntry({ session, selectedCenter }) {
       toast.error("Session expired. Please refresh and login again.");
       return;
     }
+    if (!centerCode) {
+      toast.error("Center not identified. Please refresh and try again.");
+      return;
+    }
     if (!newExpense.description.trim()) {
       toast.error("Description is required");
       return;
@@ -153,7 +157,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     
     setSaving(true);
     try {
-      console.log("ExpenseEntry: Adding expense", { centerCode, selectedDate, ...newExpense });
+      console.log("ExpenseEntry: Adding expense", { centerCode, selectedDate, ...newExpense, token: session.token?.substring(0, 10) + "..." });
       const res = await api.post(`/sales/expenses/create?token=${session.token}`, {
         center: centerCode,
         date: selectedDate,
@@ -163,7 +167,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
         payment_mode: newExpense.payment_mode || "CASH"
       });
       
-      console.log("ExpenseEntry: Expense added", res.data);
+      console.log("ExpenseEntry: Expense added successfully", res.data);
       toast.success("Expense added successfully");
       setNewExpense({
         description: "",
@@ -173,13 +177,13 @@ export default function ExpenseEntry({ session, selectedCenter }) {
       });
       fetchExpenses();
     } catch (err) {
-      console.error("ExpenseEntry: Failed to add expense:", err);
+      console.error("ExpenseEntry: Failed to add expense:", err.response?.data || err.message);
       if (err.response?.status === 401) {
         toast.error("Session expired. Please refresh the page and login again.");
       } else if (err.response?.status === 403) {
-        toast.error("You don't have permission to add expenses for this center.");
+        toast.error(err.response?.data?.detail || "You don't have permission to add expenses for this center.");
       } else {
-        toast.error(err.response?.data?.detail || "Failed to add expense");
+        toast.error(err.response?.data?.detail || "Failed to add expense. Please try again.");
       }
     } finally {
       setSaving(false);
