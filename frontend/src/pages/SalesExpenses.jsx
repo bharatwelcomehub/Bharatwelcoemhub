@@ -178,10 +178,12 @@ export default function SalesExpenses() {
 
   // Fetch expenses
   const fetchExpenses = async () => {
+    if (!session?.token) return;
+    
     setLoading(true);
     try {
       const res = await api.post("/sales/expenses", {
-        token: session?.token,
+        token: session.token,
         month: selectedMonth,
         center: selectedCenter || "all"
       });
@@ -191,7 +193,11 @@ export default function SalesExpenses() {
       }
     } catch (err) {
       console.error("Failed to fetch expenses:", err);
-      toast.error("Failed to load expenses");
+      if (err.response?.status === 401) {
+        toast.error("Session expired. Please refresh and login again.");
+      } else {
+        toast.error("Failed to load expenses");
+      }
     } finally {
       setLoading(false);
     }
