@@ -323,17 +323,18 @@ async def update_petty_cash_for_expense(center: str, date: str, amount: float, i
     daily_record = await db.daily_sales.find_one({"center": center, "date": date})
     
     if daily_record:
-        current_petty = daily_record.get("petty_cash_closing", daily_record.get("petty_cash_opening", 0))
         current_cash_expense = daily_record.get("cash_expense", 0)
+        petty_opening = daily_record.get("petty_cash_opening", 0)
         
         if is_add:
             # Adding expense - increase cash_expense, decrease petty cash
             new_cash_expense = current_cash_expense + amount
-            new_petty_closing = daily_record.get("petty_cash_opening", 0) - new_cash_expense
         else:
             # Removing expense - decrease cash_expense, increase petty cash
             new_cash_expense = max(0, current_cash_expense - amount)
-            new_petty_closing = daily_record.get("petty_cash_opening", 0) - new_cash_expense
+        
+        # Petty cash closing = opening - total cash expenses
+        new_petty_closing = petty_opening - new_cash_expense
         
         await db.daily_sales.update_one(
             {"center": center, "date": date},
