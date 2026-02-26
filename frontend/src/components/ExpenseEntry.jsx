@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw } from "lucide-react";
+import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock } from "lucide-react";
 import { api } from "@/lib/api";
 
 // Check if center is Perth (Australia) - standardized to PB-PERTH
