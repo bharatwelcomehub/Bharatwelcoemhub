@@ -468,7 +468,9 @@ export default function SalesExpenses() {
           <TabsTrigger value="sales-entry" data-testid="tab-sales-entry">Sales Entry</TabsTrigger>
           <TabsTrigger value="expense-entry" data-testid="tab-expense-entry">Expense Entry</TabsTrigger>
           <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
-          <TabsTrigger value="expenses" data-testid="tab-expenses">Expense List</TabsTrigger>
+          {session?.is_super_admin && (
+            <TabsTrigger value="expenses" data-testid="tab-expenses">Expense List (Admin)</TabsTrigger>
+          )}
           <TabsTrigger value="breakdown" data-testid="tab-breakdown">Payment Breakdown</TabsTrigger>
         </TabsList>
 
