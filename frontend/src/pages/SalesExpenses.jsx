@@ -726,13 +726,33 @@ export default function SalesExpenses() {
         </TabsContent>
 
         {/* Expenses Tab */}
+        {/* Expense List Tab - Admin Only */}
+        {session?.is_super_admin && (
         <TabsContent value="expenses">
           <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Expense Records - {selectedMonth}</CardTitle>
-              <Button size="sm" className="gap-2" data-testid="add-expense-btn">
-                <Plus className="w-4 h-4" /> Add Expense
-              </Button>
+              <div className="flex items-center gap-3">
+                <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="All Centers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Centers</SelectItem>
+                    {centers.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={fetchExpenses}
+                  disabled={loading}
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -740,7 +760,7 @@ export default function SalesExpenses() {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
-                      {hasAllCentersAccess && <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>}
+                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Description</th>
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Category</th>
                       <th className="text-left py-3 px-2 font-medium text-muted-foreground">Mode</th>
@@ -752,7 +772,7 @@ export default function SalesExpenses() {
                       expenses.slice(0, 50).map((exp, idx) => (
                         <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
                           <td className="py-3 px-2">{formatDateDisplay(exp.date)}</td>
-                          {hasAllCentersAccess && <td className="py-3 px-2 text-xs">{exp.center}</td>}
+                          <td className="py-3 px-2 text-xs">{exp.center}</td>
                           <td className="py-3 px-2 max-w-[200px] truncate">{exp.description}</td>
                           <td className="py-3 px-2 text-xs">
                             <span className="px-2 py-1 rounded-full bg-muted">{exp.expense_type}</span>
@@ -763,7 +783,7 @@ export default function SalesExpenses() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={hasAllCentersAccess ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                        <td colSpan={6} className="text-center py-8 text-muted-foreground">
                           No expenses recorded for selected period
                         </td>
                       </tr>
@@ -779,6 +799,7 @@ export default function SalesExpenses() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
         {/* Payment Breakdown Tab */}
         <TabsContent value="breakdown">
