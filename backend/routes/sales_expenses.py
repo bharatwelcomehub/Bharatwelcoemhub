@@ -831,6 +831,16 @@ async def delete_expense(expense_id: str, token: str):
     if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
         raise HTTPException(403, "Cannot delete expense for another center")
     
+    # Check if date is frozen
+    expense_date = existing.get("date", "")
+    can_edit, reason = await can_edit_date(session, existing.get("center", ""), expense_date)
+    if not can_edit:
+        raise HTTPException(403, f"Cannot delete expense for frozen date. {reason}")
+    
+    # If CASH expense, update petty cash (reverse the expense)
+    if existing.get("payment_mode") == "CASH":
+        await update_petty_cash_for_expense(existing.get("center"), expense_date, existing.get("amount", 0), is_add=False)
+    
     await db.expenses.delete_one({"_id": obj_id})
     
     logger.info(f"Expense deleted: {expense_id} by {session.get('managerName')}")
