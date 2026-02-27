@@ -119,10 +119,12 @@ export default function SalesExpenses() {
   const [showUnlockRequestsPanel, setShowUnlockRequestsPanel] = useState(false);
   
   // Check if user has admin access - recalculate on every render
+  // NEW: Accounting role also has access to ALL centers for Sales & Cash
   const hasAllCentersAccess = session?.center === "PB-MGT" || 
                               session?.is_super_admin === true || 
                               session?.is_admin === true ||
-                              session?.roles?.view_all_centers === true;
+                              session?.roles?.view_all_centers === true ||
+                              session?.roles?.accounting === true;  // Accounting role can view all centers
 
   // Fetch centers list
   useEffect(() => {
