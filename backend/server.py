@@ -34,7 +34,7 @@ def load_config() -> dict:
     if not path.exists():
         return {
             "otp": {"length": 6, "ttl_seconds": 300},
-            "security": {"session_ttl_seconds": 43200},
+            "security": {"session_ttl_seconds": 7200},  # 2 hours minimum as requested
             "email": {
                 "enabled": False,
                 "smtp_host": "smtp.gmail.com",
