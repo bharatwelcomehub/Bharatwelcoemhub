@@ -188,8 +188,30 @@ def generate_token():
     return secrets.token_urlsafe(32)
 
 def verify_token(token: str) -> Optional[Dict]:
+    """
+    Verify token and check session expiry.
+    Session expires after 2 hours of inactivity (configurable via config.json).
+    """
+    session_ttl = int((CFG.get("security") or {}).get("session_ttl_seconds", 7200))  # Default 2 hours
+    
     for key, data in otp_store.items():
         if data.get("token") == token:
+            # Check if session has expired
+            token_created = data.get("token_created_at")
+            if token_created:
+                try:
+                    created_time = datetime.fromisoformat(token_created.replace('Z', '+00:00'))
+                    now = datetime.now(timezone.utc)
+                    elapsed = (now - created_time).total_seconds()
+                    
+                    if elapsed > session_ttl:
+                        logger.info(f"Token expired for {data.get('center')} - elapsed {elapsed}s > TTL {session_ttl}s")
+                        # Token expired - remove it
+                        del otp_store[key]
+                        return None
+                except Exception as e:
+                    logger.warning(f"Error checking token expiry: {e}")
+            
             return data
     return None
 
