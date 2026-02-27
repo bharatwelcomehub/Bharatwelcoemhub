@@ -153,7 +153,13 @@ export default function Dashboard() {
   const hasCategoryAccess = (category) => {
     if (isSuperAdmin) return true;
     if (category.forMGT) return isSuperAdmin;
-    if (category.roleKey) return userRoles[category.roleKey] === true;
+    if (category.roleKey) {
+      // Special case: Accounting role gets sales_cash category access
+      if (category.roleKey === "sales_cash" && userRoles.accounting) {
+        return true;
+      }
+      return userRoles[category.roleKey] === true;
+    }
     return true;
   };
 
