@@ -139,7 +139,13 @@ export default function Dashboard() {
   const hasAccess = (item) => {
     if (isSuperAdmin) return true; // Super Admin has full access
     if (item.forMGT) return isSuperAdmin; // MGT-only items require Super Admin
-    if (item.roleKey) return userRoles[item.roleKey] === true;
+    if (item.roleKey) {
+      // Special case: Accounting role gets sales_cash access
+      if (item.roleKey === "sales_cash" && userRoles.accounting) {
+        return true;
+      }
+      return userRoles[item.roleKey] === true;
+    }
     return true; // Items without roleKey are accessible by default
   };
 
