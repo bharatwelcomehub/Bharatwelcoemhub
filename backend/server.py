@@ -348,6 +348,7 @@ async def verify_otp(req: OTPVerify):
     
     token = generate_token()
     stored["token"] = token
+    stored["token_created_at"] = datetime.now(timezone.utc).isoformat()  # Track when token was created for expiry
     
     # SUPER ADMIN - Only these two people (by mobile number)
     SUPER_ADMIN_MOBILES = ["9741399190", "9960886185"]  # Jayanti and Sandeep
@@ -395,6 +396,10 @@ async def verify_otp(req: OTPVerify):
     stored["email"] = manager.get("email", "") if manager else ""
     otp_store[key] = stored
     
+    # Log session creation with expiry info
+    session_ttl = int((CFG.get("security") or {}).get("session_ttl_seconds", 7200))
+    logger.info(f"Session created for {req.center}/{req.mobile} - valid for {session_ttl}s ({session_ttl//3600}h {(session_ttl%3600)//60}m)")
+    
     return {
         "success": True,
         "token": token,
@@ -403,7 +408,8 @@ async def verify_otp(req: OTPVerify):
         "mobile": req.mobile,
         "roles": roles,
         "is_super_admin": is_super_admin,
-        "is_admin": is_admin
+        "is_admin": is_admin,
+        "session_expires_in_seconds": session_ttl  # Let frontend know session duration
     }
 
 # =======================================
