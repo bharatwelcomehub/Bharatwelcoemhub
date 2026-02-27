@@ -3,6 +3,10 @@ import axios from "axios";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API_URL = `${BACKEND_URL}/api`;
 
+// Session key constant
+const SESSION_KEY = "pb_session_v2";
+
+// Create axios instance with retry config
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -11,10 +15,22 @@ export const api = axios.create({
   timeout: 30000, // 30 second timeout
 });
 
+// Helper to clear session and redirect to login
+const clearSessionAndRedirect = () => {
+  console.warn("Session invalid - clearing and redirecting to login");
+  localStorage.removeItem(SESSION_KEY);
+  // Dispatch custom event to notify App.js to update state
+  window.dispatchEvent(new CustomEvent('session-expired'));
+  // Redirect to login if not already there
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+};
+
 // Request interceptor - add token from localStorage if available
 api.interceptors.request.use(
   (config) => {
-    const session = localStorage.getItem("pb_session_v2");
+    const session = localStorage.getItem(SESSION_KEY);
     if (session) {
       try {
         const parsed = JSON.parse(session);
@@ -33,18 +49,73 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - handle 401 errors
+// Response interceptor - handle 401 errors with retry logic
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+    
     if (error.response?.status === 401) {
       console.error("API 401 Error - Token invalid or expired");
-      // Don't automatically logout - just log the error
-      // The component will show appropriate message
+      
+      // Check if we've already retried this request
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
+        
+        // Check if session still exists in localStorage
+        const session = localStorage.getItem(SESSION_KEY);
+        if (session) {
+          try {
+            const parsed = JSON.parse(session);
+            if (parsed.token) {
+              // Wait a short moment and retry once (handles timing issues)
+              await new Promise(resolve => setTimeout(resolve, 500));
+              return api(originalRequest);
+            }
+          } catch (e) {
+            console.error("Session parse error during retry:", e);
+          }
+        }
+      }
+      
+      // If retry failed or no session, clear and redirect
+      clearSessionAndRedirect();
     }
+    
+    // Handle network errors with retry
+    if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+      if (!originalRequest._networkRetry) {
+        originalRequest._networkRetry = true;
+        console.warn("Network error - retrying request...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return api(originalRequest);
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
+
+// Utility function to make API calls with automatic retry
+export const apiWithRetry = async (requestFn, maxRetries = 2) => {
+  let lastError;
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      lastError = error;
+      if (error.response?.status === 401) {
+        // Don't retry 401s - they're handled by interceptor
+        throw error;
+      }
+      if (i < maxRetries) {
+        console.warn(`Request failed, retrying (${i + 1}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
+};
 
 // Centers list
 export const CENTERS = [
