@@ -243,7 +243,20 @@ def calculate_gst(total_sale: float, swiggy: float, zomato: float, center: str) 
 # =======================================
 
 def calculate_totals(sale: dict) -> dict:
-    """Calculate derived fields for a sale record"""
+    """
+    Calculate derived fields for a sale record.
+    
+    PETTY CASH LOGIC:
+    - Opening Balance = Previous Day's Closing Balance (set by user or carried over)
+    - Petty Cash Available = Opening Balance + Cash Added Today (cash_receipts)
+    - Closing Balance = Petty Cash Available - Today's CASH Expenses Only
+    
+    This means:
+    - petty_cash_opening: The petty cash at start of day
+    - cash_receipts: Cash added/withdrawn from bank for petty cash TODAY
+    - cash_expense: Total CASH expenses for the day (reduces petty cash)
+    - petty_cash_closing: petty_cash_opening + cash_receipts - cash_expense
+    """
     # Total sale = PBM + Other
     sale["total_sale"] = sale.get("sale_pbm", 0) + sale.get("sale_other", 0)
     
@@ -259,7 +272,7 @@ def calculate_totals(sale: dict) -> dict:
     # Total cash sale = Total sale - Online sale
     sale["total_cash_sale"] = sale["total_sale"] - sale["total_online_sale"]
     
-    # Closing balance calculation
+    # Main register closing balance calculation (separate from petty cash)
     sale["closing_balance"] = (
         sale.get("opening_balance", 0) + 
         sale.get("total_cash_sale", 0) + 
@@ -268,12 +281,15 @@ def calculate_totals(sale: dict) -> dict:
         sale.get("cash_expense", 0)
     )
     
-    # Petty cash closing
-    sale["petty_cash_closing"] = (
-        sale.get("petty_cash_opening", 0) + 
-        sale.get("cash_receipts", 0) - 
-        sale.get("cash_expense", 0)
-    )
+    # PETTY CASH CALCULATION (FIXED):
+    # Petty Cash Available = Opening + Cash Added Today
+    # Closing = Available - Today's CASH Expenses
+    petty_opening = sale.get("petty_cash_opening", 0)
+    cash_added_today = sale.get("cash_receipts", 0)  # Cash withdrawn from bank for petty cash
+    cash_expenses_today = sale.get("cash_expense", 0)  # Only CASH mode expenses
+    
+    # Petty cash closing = opening + cash added - cash expenses
+    sale["petty_cash_closing"] = petty_opening + cash_added_today - cash_expenses_today
     
     # To deposit in bank
     sale["to_deposit_in_bank"] = sale["closing_balance"] - sale["petty_cash_closing"]
