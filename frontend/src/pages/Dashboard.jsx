@@ -112,14 +112,19 @@ export default function Dashboard() {
   
   // Get user's role permissions from session (assigned by Super Admin)
   // Super Admin gets all access, others get their assigned roles
+  // NEW: Accounting role gets sales_cash access to ALL centers
   const userRoles = isSuperAdmin ? {
     attendance: true,
     sales_cash: true,
     hr: true,
     mgt: true,
     operations: true,
-    view_all_centers: true
+    view_all_centers: true,
+    accounting: true
   } : (session?.roles || {});
+  
+  // Check if user has accounting role (can view all centers in Sales & Cash)
+  const hasAccountingRole = userRoles.accounting === true;
 
   // Toggle category expansion
   const toggleCategory = (categoryId) => {
