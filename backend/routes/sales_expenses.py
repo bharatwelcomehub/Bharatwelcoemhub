@@ -165,6 +165,9 @@ def has_all_centers_access(session):
     roles = session.get("roles", {})
     if roles.get("view_all_centers"):
         return True
+    # NEW: Accounting role has access to ALL centers
+    if roles.get("accounting"):
+        return True
     return False
 
 def has_sales_access(session):
@@ -173,8 +176,20 @@ def has_sales_access(session):
         return False
     if session.get("is_super_admin"):
         return True
+    # NEW: Accounting role has full sales_cash access
     roles = session.get("roles", {})
+    if roles.get("accounting"):
+        return True
     return roles.get("sales_cash", False)
+
+def has_accounting_role(session):
+    """Check if user has the accounting role (can view ALL centers)"""
+    if not session:
+        return False
+    if session.get("is_super_admin"):
+        return True
+    roles = session.get("roles", {})
+    return roles.get("accounting", False)
 
 # =======================================
 # GST & CURRENCY HELPERS
@@ -625,14 +640,16 @@ async def process_unlock_request(request_id: str, req: UnlockRequestAction, toke
         {"$set": update_data}
     )
     
-    # If approved, create an unlock grant (valid for 24 hours)
+    # If approved, create unlock grants for BOTH sales and expenses (valid for 24 hours)
     if req.action == "approve":
         from datetime import timedelta
         expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
         
+        # Create unlock grant for SALES
         await db.unlock_grants.insert_one({
             "center": unlock_request["center"],
             "date": unlock_request["date"],
+            "type": "sales",  # Explicit type
             "status": "active",
             "granted_by": session.get("managerName", "Unknown"),
             "granted_at": datetime.now(timezone.utc).isoformat(),
@@ -640,7 +657,20 @@ async def process_unlock_request(request_id: str, req: UnlockRequestAction, toke
             "request_id": request_id
         })
         
-        logger.info(f"Unlock granted: {unlock_request['center']} - {unlock_request['date']} by {session.get('managerName')} (expires: {expires_at})")
+        # SYNCHRONIZED UNLOCK: Also create unlock grant for EXPENSES on the same date
+        await db.unlock_grants.insert_one({
+            "center": unlock_request["center"],
+            "date": unlock_request["date"],
+            "type": "expenses",  # Explicit type for expenses
+            "status": "active",
+            "granted_by": session.get("managerName", "Unknown"),
+            "granted_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": expires_at,
+            "request_id": request_id,
+            "synced_with_sales": True  # Flag to indicate this was auto-created
+        })
+        
+        logger.info(f"Unlock granted (SALES + EXPENSES): {unlock_request['center']} - {unlock_request['date']} by {session.get('managerName')} (expires: {expires_at})")
     
     return {
         "success": True, 
