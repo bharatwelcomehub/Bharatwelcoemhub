@@ -36,6 +36,12 @@ const ROLE_MODULES = [
     description: "Sales dashboard, expense entry, expense heads"
   },
   {
+    id: "accounting",
+    label: "Accounting (Full Access)",
+    icon: IndianRupee,
+    description: "Full Sales & Cash access for ALL centers"
+  },
+  {
     id: "hr",
     label: "HR Management",
     icon: Briefcase,
