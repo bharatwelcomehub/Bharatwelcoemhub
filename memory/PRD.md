@@ -8,7 +8,44 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Feb 24, 2026 - Session 7)
+### Latest Update (Feb 27, 2026 - Session 8)
+
+- ✅ **P0: 5 Critical Features Implemented**
+
+1. **Synchronized Unlock (Sales + Expenses)**
+   - When Super Admin approves an unlock request for a frozen date, BOTH sales AND expenses records are now unlocked simultaneously
+   - Backend creates two unlock_grants records (type: "sales" and type: "expenses")
+   - Allows managers to update petty cash and expenses when needed
+   - Implementation: `/app/backend/routes/sales_expenses.py` lines 629-660
+
+2. **Petty Cash Logic Fix**
+   - Formula: `Opening Balance = Previous Day's Closing Balance`
+   - `Petty Cash Available = Opening + Cash Added Today (cash_receipts)`
+   - `Closing Balance = Petty Cash Available - Today's CASH Expenses Only`
+   - Only CASH payment mode expenses reduce petty cash (not Card/UPI/Online)
+   - Implementation: `/app/backend/routes/sales_expenses.py` lines 245-297
+
+3. **Session Timeout (2+ Hours)**
+   - Session TTL configured to 12 hours (43200 seconds) - exceeds minimum 2 hours
+   - Token now tracks creation time (`token_created_at`)
+   - `verify_token()` function checks expiry before validating
+   - Login response includes `session_expires_in_seconds` field
+
+4. **Invalid Token / Data Loading Fix**
+   - Global Axios interceptor with 401 error handling
+   - Automatic retry mechanism (one retry before clearing session)
+   - Network error retry for connection issues
+   - Dispatches `session-expired` event to clear React state
+   - Implementation: `/app/frontend/src/lib/api.js` lines 36-96
+
+5. **New Accounting Role**
+   - Users with `accounting` role get full "Sales & Cash" access for ALL centers
+   - Can view all centers' sales data (like Super Admin, but limited to finance features)
+   - Added to Role Management page as "Accounting (Full Access)"
+   - Backend checks: `has_accounting_role()`, updated `has_all_centers_access()`, `has_sales_access()`
+   - Frontend checks in Dashboard.jsx and SalesExpenses.jsx
+
+### Previous Update (Feb 24, 2026 - Session 7)
 
 - ✅ **P0 Bug Fixes (Critical)**
   - **Role Assignment Error (Fixed)**: Consecutive role updates were failing due to regex email matching without proper escaping. Added `re.escape()` for case-insensitive email search with special character support.
