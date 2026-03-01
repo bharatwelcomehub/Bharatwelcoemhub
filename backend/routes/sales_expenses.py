@@ -327,16 +327,51 @@ async def is_date_unlocked(center: str, date_str: str) -> bool:
     })
     return unlock is not None
 
+async def is_admin_frozen(center: str, date_str: str) -> bool:
+    """
+    Check if a date has been manually frozen by Super Admin.
+    Admin freezes apply to EVERYONE including Super Admins until explicitly unfrozen.
+    """
+    # Check for center-specific admin freeze
+    center_freeze = await db.admin_freezes.find_one({
+        "center": center.upper(),
+        "date": date_str,
+        "type": "admin_freeze"
+    })
+    if center_freeze:
+        return True
+    
+    # Check for "ALL" centers admin freeze
+    all_freeze = await db.admin_freezes.find_one({
+        "center": "ALL",
+        "date": date_str,
+        "type": "admin_freeze"
+    })
+    return all_freeze is not None
+
 async def can_edit_date(session: dict, center: str, date_str: str) -> tuple:
     """
     Check if user can edit a specific date's data.
     Returns (can_edit: bool, reason: str)
+    
+    Priority:
+    1. Admin freeze (highest priority - blocks everyone including Super Admin)
+    2. Super Admin bypass (if no admin freeze)
+    3. Unlock grants
+    4. Default freeze for past dates
     """
-    # Super Admin can always edit
+    # FIRST: Check for admin freeze - this blocks EVERYONE including Super Admin
+    if await is_admin_frozen(center, date_str):
+        # Even admin freeze can be bypassed if there's an active unlock grant
+        if await is_date_unlocked(center, date_str):
+            return (True, "Admin frozen but temporarily unlocked")
+        return (False, "Date is ADMIN FROZEN. Use Freeze Control to unfreeze first.")
+    
+    # Super Admin can edit if no admin freeze
     if session.get("is_super_admin"):
         return (True, "Super Admin access")
     
-    # Check if date is frozen
+    # Check if date is frozen (past dates are automatically frozen)
     if not is_date_frozen(date_str):
         return (True, "Date is not frozen (today)")
     
