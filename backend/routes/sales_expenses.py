@@ -539,6 +539,207 @@ async def delete_daily_sale(center: str, date: str, token: str):
     return {"success": True, "message": "Daily sales record deleted"}
 
 # =======================================
+# SUPER ADMIN FREEZE CONTROL
+# =======================================
+
+class AdminFreezeRequest(BaseModel):
+    token: str
+    action: str  # "freeze" or "unfreeze"
+    scope: str   # "day" or "month"
+    date: Optional[str] = None  # YYYY-MM-DD for day, YYYY-MM for month
+    center: Optional[str] = None  # specific center or "all"
+
+@router.post("/admin/freeze-control")
+async def admin_freeze_control(req: AdminFreezeRequest):
+    """
+    Super Admin only: Manually freeze or unfreeze sales & expense data.
+    - action: "freeze" or "unfreeze"
+    - scope: "day" (single date) or "month" (entire month)
+    - date: YYYY-MM-DD for day, YYYY-MM for month
+    - center: specific center code or "all" for all centers
+    """
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # SUPER ADMIN ONLY - check by email
+    SUPER_ADMIN_EMAILS = ["jayanti.devashree@gmail.com", "sandeep.gadhwal@purnabramha.com"]
+    user_email = session.get("email", "").lower()
+    is_super_admin = session.get("is_super_admin", False) or user_email in [e.lower() for e in SUPER_ADMIN_EMAILS]
+    
+    if not is_super_admin:
+        raise HTTPException(403, "Only Super Admins can use freeze control")
+    
+    if req.action not in ["freeze", "unfreeze"]:
+        raise HTTPException(400, "Action must be 'freeze' or 'unfreeze'")
+    
+    if req.scope not in ["day", "month"]:
+        raise HTTPException(400, "Scope must be 'day' or 'month'")
+    
+    if not req.date:
+        raise HTTPException(400, "Date is required")
+    
+    # Build the query for dates to affect
+    if req.scope == "day":
+        # Single day
+        dates_to_affect = [req.date]
+    else:
+        # Entire month - get all dates in that month
+        year, month = req.date.split("-")[:2]
+        import calendar
+        num_days = calendar.monthrange(int(year), int(month))[1]
+        dates_to_affect = [f"{year}-{month}-{str(d).zfill(2)}" for d in range(1, num_days + 1)]
+    
+    # Build center query
+    center_query = {}
+    if req.center and req.center.lower() != "all":
+        center_query["center"] = req.center.upper()
+    
+    affected_records = {"sales": 0, "expenses": 0}
+    
+    if req.action == "freeze":
+        # Create freeze records in admin_freezes collection
+        for date in dates_to_affect:
+            freeze_record = {
+                "date": date,
+                "center": req.center.upper() if req.center and req.center.lower() != "all" else "ALL",
+                "frozen_by": session.get("managerName", user_email),
+                "frozen_at": datetime.now(timezone.utc).isoformat(),
+                "type": "admin_freeze"
+            }
+            
+            # Upsert to avoid duplicates
+            await db.admin_freezes.update_one(
+                {"date": date, "center": freeze_record["center"]},
+                {"$set": freeze_record},
+                upsert=True
+            )
+        
+        # Also remove any active unlock grants for these dates
+        for date in dates_to_affect:
+            delete_query = {"date": date, "status": "active"}
+            if req.center and req.center.lower() != "all":
+                delete_query["center"] = req.center.upper()
+            result = await db.unlock_grants.delete_many(delete_query)
+            affected_records["sales"] += result.deleted_count
+        
+        logger.info(f"Admin freeze: {req.scope} {req.date} for {req.center or 'ALL'} by {session.get('managerName')}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully frozen {req.scope} {req.date} for {req.center or 'all centers'}",
+            "dates_affected": len(dates_to_affect),
+            "center": req.center or "ALL"
+        }
+    
+    else:  # unfreeze
+        # Remove admin freeze records
+        for date in dates_to_affect:
+            delete_query = {"date": date, "type": "admin_freeze"}
+            if req.center and req.center.lower() != "all":
+                delete_query["center"] = req.center.upper()
+            else:
+                delete_query["center"] = "ALL"
+            await db.admin_freezes.delete_many(delete_query)
+        
+        # Create unlock grants for these dates (valid for 30 days for admin unlocks)
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+        
+        # Get list of centers to unlock
+        if req.center and req.center.lower() != "all":
+            centers_to_unlock = [req.center.upper()]
+        else:
+            # Get all centers from database
+            all_centers = await db.centers.distinct("code")
+            centers_to_unlock = all_centers if all_centers else ["PB-DV", "PB-HW", "PB-HSR", "PB-KAL", "PB-KN", "PB-PERTH", "PB-SN", "PB-TH"]
+        
+        for date in dates_to_affect:
+            for center in centers_to_unlock:
+                # Create unlock grant for SALES
+                await db.unlock_grants.update_one(
+                    {"date": date, "center": center, "type": "sales"},
+                    {"$set": {
+                        "date": date,
+                        "center": center,
+                        "type": "sales",
+                        "status": "active",
+                        "granted_by": f"Admin: {session.get('managerName', user_email)}",
+                        "granted_at": datetime.now(timezone.utc).isoformat(),
+                        "expires_at": expires_at,
+                        "admin_unlock": True
+                    }},
+                    upsert=True
+                )
+                
+                # Create unlock grant for EXPENSES
+                await db.unlock_grants.update_one(
+                    {"date": date, "center": center, "type": "expenses"},
+                    {"$set": {
+                        "date": date,
+                        "center": center,
+                        "type": "expenses",
+                        "status": "active",
+                        "granted_by": f"Admin: {session.get('managerName', user_email)}",
+                        "granted_at": datetime.now(timezone.utc).isoformat(),
+                        "expires_at": expires_at,
+                        "admin_unlock": True
+                    }},
+                    upsert=True
+                )
+                affected_records["sales"] += 1
+                affected_records["expenses"] += 1
+        
+        logger.info(f"Admin unfreeze: {req.scope} {req.date} for {req.center or 'ALL'} by {session.get('managerName')}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully unfrozen {req.scope} {req.date} for {req.center or 'all centers'}",
+            "dates_affected": len(dates_to_affect),
+            "centers_affected": len(centers_to_unlock),
+            "unlock_grants_created": affected_records
+        }
+
+@router.get("/admin/freeze-status")
+async def get_freeze_status(token: str, month: str, center: Optional[str] = None):
+    """Get freeze status for a month - shows which dates are frozen by admin"""
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Build query
+    query = {"date": {"$regex": f"^{month}"}}
+    if center and center.lower() != "all":
+        query["$or"] = [{"center": center.upper()}, {"center": "ALL"}]
+    
+    # Get admin freezes
+    admin_freezes = await db.admin_freezes.find(query, {"_id": 0}).to_list(100)
+    
+    # Get active unlock grants
+    unlock_query = {"date": {"$regex": f"^{month}"}, "status": "active"}
+    if center and center.lower() != "all":
+        unlock_query["center"] = center.upper()
+    unlocks = await db.unlock_grants.find(unlock_query, {"_id": 0}).to_list(500)
+    
+    # Build status map
+    frozen_dates = set()
+    unlocked_dates = set()
+    
+    for freeze in admin_freezes:
+        frozen_dates.add(freeze["date"])
+    
+    for unlock in unlocks:
+        unlocked_dates.add(unlock["date"])
+    
+    return {
+        "month": month,
+        "center": center or "all",
+        "admin_frozen_dates": list(frozen_dates),
+        "unlocked_dates": list(unlocked_dates),
+        "freeze_records": admin_freezes
+    }
+
+
+# =======================================
 # UNLOCK REQUEST ENDPOINTS
 # =======================================
 
