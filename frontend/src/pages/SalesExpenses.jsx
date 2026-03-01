@@ -476,6 +476,12 @@ export default function SalesExpenses() {
             <TabsTrigger value="expenses" data-testid="tab-expenses">Expense List (Admin)</TabsTrigger>
           )}
           <TabsTrigger value="breakdown" data-testid="tab-breakdown">Payment Breakdown</TabsTrigger>
+          {session?.is_super_admin && (
+            <TabsTrigger value="freeze-control" data-testid="tab-freeze-control" className="text-red-500">
+              <Shield className="w-4 h-4 mr-1" />
+              Freeze Control
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Sales Data Entry Tab */}
@@ -487,6 +493,13 @@ export default function SalesExpenses() {
         <TabsContent value="expense-entry">
           <ExpenseEntry session={session} selectedCenter={selectedCenter} />
         </TabsContent>
+
+        {/* Freeze Control Tab - Super Admin Only */}
+        {session?.is_super_admin && (
+          <TabsContent value="freeze-control">
+            <FreezeControl session={session} />
+          </TabsContent>
+        )}
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
