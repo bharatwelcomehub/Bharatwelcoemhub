@@ -29,11 +29,13 @@ import {
   Unlock,
   Clock,
   CheckCircle,
-  XCircle
+  XCircle,
+  Shield
 } from "lucide-react";
 import { api, API_URL } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
+import FreezeControl from "@/components/FreezeControl";
 
 // Check if center is Perth (Australia) - standardized to PB-PERTH
 const isPerth = (center) => {
