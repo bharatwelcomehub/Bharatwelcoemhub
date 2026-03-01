@@ -194,6 +194,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${selectedDate}?token=${session.token}`);
         setFrozenStatus({
           is_frozen: frozenRes.data.is_frozen,
+          is_admin_frozen: frozenRes.data.is_admin_frozen || false,
           can_edit: frozenRes.data.can_edit,
           reason: frozenRes.data.reason || ""
         });
@@ -202,6 +203,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         const frozen = isDateFrozen(selectedDate);
         setFrozenStatus({
           is_frozen: frozen,
+          is_admin_frozen: false,
           can_edit: !frozen || session?.is_super_admin,
           reason: frozen ? "Date is frozen" : ""
         });
