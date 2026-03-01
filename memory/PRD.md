@@ -423,6 +423,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `expense_heads` - Expense categories (35 categories)
 - `unlock_requests` - Unlock requests for frozen dates
 - `unlock_grants` - Approved unlocks with 24-hour expiry (UPDATED: now creates both SALES and EXPENSES grants)
+- `admin_freezes` - **NEW** - Super Admin manual freeze records (date, center, frozen_by, type)
 
 ## Testing Credentials
 - Super Admin: Center `PB-MGT`, Mobile `9741399190`, OTP `123456`
