@@ -942,6 +942,7 @@ async def check_frozen_status(center: str, date: str, token: str):
     
     is_frozen = is_date_frozen(date)
     is_unlocked = await is_date_unlocked(center, date) if is_frozen else False
+    admin_frozen = await is_admin_frozen(center, date)
     can_edit, reason = await can_edit_date(session, center, date)
     
     # Check for pending unlock request
@@ -955,6 +956,7 @@ async def check_frozen_status(center: str, date: str, token: str):
         "date": date,
         "center": center,
         "is_frozen": is_frozen,
+        "is_admin_frozen": admin_frozen,  # NEW: explicit admin freeze status
         "is_unlocked": is_unlocked,
         "can_edit": can_edit,
         "reason": reason,
