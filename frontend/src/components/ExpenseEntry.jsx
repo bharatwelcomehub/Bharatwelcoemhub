@@ -288,12 +288,22 @@ export default function ExpenseEntry({ session, selectedCenter }) {
 
       {/* Frozen Warning */}
       {frozenStatus.is_frozen && !frozenStatus.can_edit && (
-        <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-3">
-          <Lock className="w-5 h-5 text-amber-600 mt-0.5" />
+        <div className={`p-4 rounded-lg border flex items-start gap-3 ${
+          frozenStatus.is_admin_frozen 
+            ? 'border-red-200 bg-red-50' 
+            : 'border-amber-200 bg-amber-50'
+        }`}>
+          <Lock className={`w-5 h-5 mt-0.5 ${frozenStatus.is_admin_frozen ? 'text-red-600' : 'text-amber-600'}`} />
           <div>
-            <h4 className="font-semibold text-amber-800">Expenses Frozen for {selectedDate}</h4>
-            <p className="text-sm text-amber-600">
-              Previous day's expenses are automatically locked. Contact Super Admin to unlock for corrections.
+            <h4 className={`font-semibold ${frozenStatus.is_admin_frozen ? 'text-red-800' : 'text-amber-800'}`}>
+              {frozenStatus.is_admin_frozen 
+                ? 'ADMIN FROZEN - Expenses Locked by Super Admin'
+                : `Expenses Frozen for ${selectedDate}`}
+            </h4>
+            <p className={`text-sm ${frozenStatus.is_admin_frozen ? 'text-red-600' : 'text-amber-600'}`}>
+              {frozenStatus.is_admin_frozen
+                ? 'This date has been manually frozen by Super Admin. Use Freeze Control to unfreeze.'
+                : "Previous day's expenses are automatically locked. Contact Super Admin to unlock for corrections."}
             </p>
           </div>
         </div>
