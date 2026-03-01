@@ -106,12 +106,23 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     
     setLoading(true);
     try {
-      // Check frozen status
-      const frozen = isDateFrozen(selectedDate);
-      const canEdit = !frozen || session?.is_super_admin;
-      setFrozenStatus({ is_frozen: frozen, can_edit: canEdit });
+      // Check frozen status via API
+      try {
+        const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${selectedDate}?token=${session.token}`);
+        setFrozenStatus({ 
+          is_frozen: frozenRes.data.is_frozen, 
+          is_admin_frozen: frozenRes.data.is_admin_frozen || false,
+          can_edit: frozenRes.data.can_edit,
+          reason: frozenRes.data.reason || ""
+        });
+      } catch (err) {
+        // Fallback to local check
+        const frozen = isDateFrozen(selectedDate);
+        const canEdit = !frozen || session?.is_super_admin;
+        setFrozenStatus({ is_frozen: frozen, is_admin_frozen: false, can_edit: canEdit, reason: "" });
+      }
       
-      console.log("ExpenseEntry: Fetching expenses for", { centerCode, selectedDate, frozen, canEdit });
+      console.log("ExpenseEntry: Fetching expenses for", { centerCode, selectedDate });
       const res = await api.post("/sales/expenses", {
         token: session.token,
         center: centerCode,
