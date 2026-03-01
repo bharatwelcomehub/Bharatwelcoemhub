@@ -484,21 +484,41 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           <div className={`p-4 rounded-lg border flex items-start gap-3 ${
             frozenStatus.can_edit 
               ? 'bg-green-50 border-green-200' 
-              : 'bg-amber-50 border-amber-200'
+              : frozenStatus.is_admin_frozen
+                ? 'bg-red-50 border-red-200'
+                : 'bg-amber-50 border-amber-200'
           }`}>
             {frozenStatus.can_edit ? (
               <Unlock className="w-5 h-5 text-green-600 mt-0.5" />
             ) : (
-              <Lock className="w-5 h-5 text-amber-600 mt-0.5" />
+              <Lock className={`w-5 h-5 mt-0.5 ${frozenStatus.is_admin_frozen ? 'text-red-600' : 'text-amber-600'}`} />
             )}
             <div>
-              <h4 className={`font-semibold ${frozenStatus.can_edit ? 'text-green-800' : 'text-amber-800'}`}>
-                {frozenStatus.can_edit ? 'Unlocked by Super Admin' : 'This date is frozen'}
+              <h4 className={`font-semibold ${
+                frozenStatus.can_edit 
+                  ? 'text-green-800' 
+                  : frozenStatus.is_admin_frozen 
+                    ? 'text-red-800' 
+                    : 'text-amber-800'
+              }`}>
+                {frozenStatus.can_edit 
+                  ? 'Unlocked by Super Admin' 
+                  : frozenStatus.is_admin_frozen 
+                    ? 'ADMIN FROZEN - Locked by Super Admin'
+                    : 'This date is frozen'}
               </h4>
-              <p className={`text-sm ${frozenStatus.can_edit ? 'text-green-600' : 'text-amber-600'}`}>
+              <p className={`text-sm ${
+                frozenStatus.can_edit 
+                  ? 'text-green-600' 
+                  : frozenStatus.is_admin_frozen 
+                    ? 'text-red-600' 
+                    : 'text-amber-600'
+              }`}>
                 {frozenStatus.can_edit 
                   ? 'You have temporary access to edit this date. Changes allowed for 24 hours.'
-                  : 'Previous day data is automatically locked at midnight. Request unlock from Super Admin to make changes.'
+                  : frozenStatus.is_admin_frozen
+                    ? 'This date has been manually frozen by Super Admin. Use Freeze Control to unfreeze.'
+                    : 'Previous day data is automatically locked at midnight. Request unlock from Super Admin to make changes.'
                 }
               </p>
             </div>
