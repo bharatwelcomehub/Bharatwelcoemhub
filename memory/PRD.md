@@ -45,6 +45,21 @@ User had existing HTML/Python files for an attendance and salary management syst
    - Backend checks: `has_accounting_role()`, updated `has_all_centers_access()`, `has_sales_access()`
    - Frontend checks in Dashboard.jsx and SalesExpenses.jsx
 
+- ✅ **P0: Super Admin Freeze Control (NEW)**
+   - New "Freeze Control" tab in Sales & Cash (visible to Super Admin only)
+   - Allows manual freeze/unfreeze of sales & expense data
+   - Options:
+     - **Scope**: Single Day or Full Month
+     - **Center**: Specific center or All Centers
+     - **Action**: Freeze (prevents all editing) or Unfreeze (allows editing for 30 days)
+   - Shows current freeze status with Admin Frozen Dates and Unlocked Dates counts
+   - API endpoints: `/api/sales/admin/freeze-control`, `/api/sales/admin/freeze-status`
+   - Implementation: 
+     - Backend: `/app/backend/routes/sales_expenses.py` (AdminFreezeRequest model, freeze-control endpoint)
+     - Frontend: `/app/frontend/src/components/FreezeControl.jsx`
+   - Creates records in `admin_freezes` collection
+   - Super Admin access verified by email: jayanti.devashree@gmail.com, sandeep.gadhwal@purnabramha.com
+
 ### Previous Update (Feb 24, 2026 - Session 7)
 
 - ✅ **P0 Bug Fixes (Critical)**
