@@ -154,14 +154,8 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, centerCode, session?.token]);
 
-  // Retry fetch if expenses are empty
-  useEffect(() => {
-    if (session?.token && !loading && expenses.length === 0 && selectedDate) {
-      const timer = setTimeout(fetchExpenses, 1000);
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.token, loading, expenses.length, selectedDate]);
+  // Note: Removed retry useEffect that was causing flickering
+  // Empty expenses for new dates is expected
 
   // Add new expense
   const handleAddExpense = async () => {
