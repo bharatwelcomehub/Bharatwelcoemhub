@@ -297,14 +297,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, centerCode, session?.token]);
 
-  // Retry fetch if data is empty
-  useEffect(() => {
-    if (session?.token && !loading && !existingRecord && formData.opening_balance === 0 && selectedDate) {
-      const timer = setTimeout(fetchRecord, 1000);
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.token, loading, existingRecord, formData.opening_balance, selectedDate]);
+  // Note: Removed retry useEffect that was causing flickering
+  // Empty data for new dates/months is expected and shouldn't trigger retries
 
   // Handle input change
   const handleChange = (field, value) => {
