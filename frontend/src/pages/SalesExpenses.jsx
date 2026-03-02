@@ -289,17 +289,8 @@ export default function SalesExpenses() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedCenter, session?.token]);
 
-  // Retry fetch if data is empty after initial load
-  useEffect(() => {
-    if (session?.token && !loading && !monthlySummary && dailyData.length === 0) {
-      const timer = setTimeout(() => {
-        fetchMonthlySummary();
-        fetchExpenses();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.token, loading, monthlySummary, dailyData.length]);
+  // Note: Removed the retry useEffect that was causing flickering
+  // The API interceptor already handles retries for failed requests
 
   // Get currency from API response or fallback to center-based logic
   // For non-admin users, use their session center to determine currency
