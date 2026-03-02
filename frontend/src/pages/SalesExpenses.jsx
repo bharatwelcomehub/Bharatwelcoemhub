@@ -49,8 +49,6 @@ const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
 
 // Format currency with dynamic symbol - can accept center code OR currency symbol directly
 const formatCurrency = (amount, centerOrCurrency = null) => {
-  if (amount === null || amount === undefined) return "₹0";
-  
   let symbol = "₹";
   if (centerOrCurrency) {
     // If it's already a symbol ($ or ₹), use it directly
@@ -61,6 +59,8 @@ const formatCurrency = (amount, centerOrCurrency = null) => {
       symbol = getCurrencySymbol(centerOrCurrency);
     }
   }
+  
+  if (amount === null || amount === undefined || isNaN(amount)) return `${symbol}0`;
   
   return `${symbol}${new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: 0,
