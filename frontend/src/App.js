@@ -1,7 +1,7 @@
 import "@/index.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
-import { useState, useEffect, createContext, useContext, useCallback } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 
@@ -15,13 +15,6 @@ const SESSION_KEY = "pb_session_v2";
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Logout function - memoized to avoid recreating
-  const logout = useCallback(() => {
-    console.log("Logout called");
-    setSession(null);
-    localStorage.removeItem(SESSION_KEY);
-  }, []);
 
   useEffect(() => {
     try {
@@ -46,17 +39,6 @@ function App() {
     setLoading(false);
   }, []);
 
-  // Listen for session-expired events from API interceptor
-  useEffect(() => {
-    const handleSessionExpired = () => {
-      console.log("Session expired event received");
-      logout();
-    };
-    
-    window.addEventListener('session-expired', handleSessionExpired);
-    return () => window.removeEventListener('session-expired', handleSessionExpired);
-  }, [logout]);
-
   const login = (data) => {
     console.log("Login called with:", { 
       center: data.center, 
@@ -66,6 +48,12 @@ function App() {
     });
     setSession(data);
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  };
+
+  const logout = () => {
+    console.log("Logout called");
+    setSession(null);
+    localStorage.removeItem(SESSION_KEY);
   };
 
   if (loading) {

@@ -3,9 +3,6 @@ import axios from "axios";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API_URL = `${BACKEND_URL}/api`;
 
-// Session key constant
-const SESSION_KEY = "pb_session_v2";
-
 // Create axios instance with retry config
 export const api = axios.create({
   baseURL: API_URL,
@@ -15,17 +12,8 @@ export const api = axios.create({
   timeout: 30000, // 30 second timeout
 });
 
-// Helper to clear session and redirect to login
-const clearSessionAndRedirect = () => {
-  console.warn("Session invalid - clearing and redirecting to login");
-  localStorage.removeItem(SESSION_KEY);
-  // Dispatch custom event to notify App.js to update state
-  window.dispatchEvent(new CustomEvent('session-expired'));
-  // Redirect to login if not already there
-  if (window.location.pathname !== '/login') {
-    window.location.href = '/login';
-  }
-};
+// Session key constant
+const SESSION_KEY = "pb_session_v2";
 
 // Request interceptor - add token from localStorage if available
 api.interceptors.request.use(
@@ -56,7 +44,7 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     
     if (error.response?.status === 401) {
-      console.error("API 401 Error - Token invalid or expired");
+      console.error("API 401 Error - Token invalid or expired", originalRequest?.url);
       
       // Check if we've already retried this request
       if (!originalRequest._retry) {
@@ -78,8 +66,9 @@ api.interceptors.response.use(
         }
       }
       
-      // If retry failed or no session, clear and redirect
-      clearSessionAndRedirect();
+      // DON'T auto-logout - just log the error and let the component handle it
+      // This prevents unexpected logouts
+      console.warn("401 error after retry - NOT auto-logging out");
     }
     
     // Handle network errors with retry
