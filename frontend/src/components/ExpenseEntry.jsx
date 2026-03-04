@@ -434,7 +434,9 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">Type</th>
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">Mode</th>
                   <th className="text-right py-3 px-2 font-medium text-muted-foreground">Amount</th>
-                  <th className="text-right py-3 px-2 font-medium text-muted-foreground">Action</th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground">
+                    {frozenStatus.can_edit ? 'Delete' : ''}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -448,15 +450,20 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                     <td className="py-3 px-2 text-xs">{exp.payment_mode}</td>
                     <td className="text-right py-3 px-2 font-medium">{formatCurrency(exp.amount, centerCode)}</td>
                     <td className="text-right py-3 px-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteExpense(exp.expense_id)}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                        data-testid={`delete-expense-${idx}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {frozenStatus.can_edit ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteExpense(exp.expense_id)}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          data-testid={`delete-expense-${idx}`}
+                          disabled={saving}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <Lock className="w-4 h-4 text-muted-foreground mx-auto" title="Frozen - Cannot delete" />
+                      )}
                     </td>
                   </tr>
                 ))}
