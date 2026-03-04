@@ -36,6 +36,7 @@ import { api, API_URL, fetchCentersFromDB, CENTERS } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 import FreezeControl from "@/components/FreezeControl";
+import * as XLSX from "xlsx";
 
 // Check if center is Perth (Australia) - standardized to PB-PERTH
 const isPerth = (center) => {
@@ -292,6 +293,179 @@ export default function SalesExpenses() {
   // Note: Removed the retry useEffect that was causing flickering
   // The API interceptor already handles retries for failed requests
 
+  // Download Monthly Excel Report
+  const downloadMonthlyExcel = async () => {
+    if (!session?.token) {
+      toast.error("Please login to download");
+      return;
+    }
+
+    setLoading(true);
+    toast.info("Preparing Excel download...");
+
+    try {
+      // Fetch daily sales data
+      const salesRes = await api.post("/sales/daily", {
+        token: session.token,
+        month: selectedMonth,
+        center: selectedCenter
+      });
+
+      // Fetch expenses data
+      const [year, month] = selectedMonth.split("-");
+      const startDate = `${selectedMonth}-01`;
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      const endDate = `${selectedMonth}-${lastDay}`;
+      
+      const expenseRes = await api.post("/sales/expenses", {
+        token: session.token,
+        center: selectedCenter,
+        start_date: startDate,
+        end_date: endDate
+      });
+
+      const salesData = salesRes.data.sales || [];
+      const expensesData = expenseRes.data.expenses || [];
+
+      if (salesData.length === 0 && expensesData.length === 0) {
+        toast.error("No data found for selected period");
+        setLoading(false);
+        return;
+      }
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Get center name for filename
+      const centerName = selectedCenter === "all" ? "All_Centers" : selectedCenter;
+      const monthName = new Date(`${selectedMonth}-01`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      // Sheet 1: Day-wise Sales Data
+      const salesSheetData = salesData.map(s => ({
+        "Date": s.date,
+        "Center": s.center,
+        "Sale PBM": s.sale_pbm || 0,
+        "Sale Other": s.sale_other || 0,
+        "Total Sale": s.total_sale || 0,
+        "Card/IDFC": s.card_idfc || 0,
+        "Bharat Pay": s.bharat_pay || 0,
+        "Swiggy": s.swiggy || 0,
+        "Zomato": s.zomato || 0,
+        "Online Other": s.online_other || 0,
+        "Total Online": s.total_online_sale || 0,
+        "Total Cash Sale": s.total_cash_sale || 0,
+        "Opening Balance": s.opening_balance || 0,
+        "Cash Receipts": s.cash_receipts || 0,
+        "Deposited in Bank": s.deposited_in_bank || 0,
+        "Cash Expense": s.cash_expense || 0,
+        "Closing Balance": s.closing_balance || 0,
+        "Petty Cash Opening": s.petty_cash_opening || 0,
+        "Petty Cash Closing": s.petty_cash_closing || 0,
+        "No. of Guests": s.num_guests || 0,
+        "No. of Bills": s.num_bills || 0
+      }));
+
+      const salesWs = XLSX.utils.json_to_sheet(salesSheetData);
+      
+      // Set column widths for sales sheet
+      salesWs['!cols'] = [
+        { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+        { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+        { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 15 },
+        { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, salesWs, "Daily Sales");
+
+      // Sheet 2: Day-wise Expense Details
+      const expenseSheetData = expensesData.map(e => ({
+        "Date": e.date,
+        "Center": e.center,
+        "Description": e.description || "",
+        "Expense Type": e.expense_type || "",
+        "Payment Mode": e.payment_mode || "",
+        "Amount": e.amount || 0
+      }));
+
+      const expenseWs = XLSX.utils.json_to_sheet(expenseSheetData);
+      expenseWs['!cols'] = [
+        { wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 12 }
+      ];
+      XLSX.utils.book_append_sheet(wb, expenseWs, "Expense Details");
+
+      // Sheet 3: Expense Summary by Type
+      const expenseSummary = {};
+      expensesData.forEach(e => {
+        const type = e.expense_type || "Unknown";
+        expenseSummary[type] = (expenseSummary[type] || 0) + (e.amount || 0);
+      });
+
+      const summarySheetData = Object.entries(expenseSummary).map(([type, amount]) => ({
+        "Expense Type": type,
+        "Total Amount": amount
+      })).sort((a, b) => b["Total Amount"] - a["Total Amount"]);
+
+      // Add total row
+      const totalExpense = Object.values(expenseSummary).reduce((sum, v) => sum + v, 0);
+      summarySheetData.push({
+        "Expense Type": "TOTAL",
+        "Total Amount": totalExpense
+      });
+
+      const summaryWs = XLSX.utils.json_to_sheet(summarySheetData);
+      summaryWs['!cols'] = [{ wch: 25 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Expense Summary");
+
+      // Sheet 4: Monthly Totals (if All Centers)
+      if (selectedCenter === "all") {
+        const centerTotals = {};
+        salesData.forEach(s => {
+          const center = s.center;
+          if (!centerTotals[center]) {
+            centerTotals[center] = {
+              total_sale: 0,
+              cash_sale: 0,
+              online_sale: 0,
+              cash_expense: 0,
+              days: 0
+            };
+          }
+          centerTotals[center].total_sale += s.total_sale || 0;
+          centerTotals[center].cash_sale += s.total_cash_sale || 0;
+          centerTotals[center].online_sale += s.total_online_sale || 0;
+          centerTotals[center].cash_expense += s.cash_expense || 0;
+          centerTotals[center].days += 1;
+        });
+
+        const centerSummaryData = Object.entries(centerTotals).map(([center, data]) => ({
+          "Center": center,
+          "Total Sales": data.total_sale,
+          "Cash Sales": data.cash_sale,
+          "Online Sales": data.online_sale,
+          "Cash Expenses": data.cash_expense,
+          "Days with Data": data.days
+        }));
+
+        const centerWs = XLSX.utils.json_to_sheet(centerSummaryData);
+        centerWs['!cols'] = [
+          { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }
+        ];
+        XLSX.utils.book_append_sheet(wb, centerWs, "Center Summary");
+      }
+
+      // Download the file
+      const filename = `PB_${centerName}_${selectedMonth}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      
+      toast.success(`Downloaded: ${filename}`);
+    } catch (err) {
+      console.error("Excel download error:", err);
+      toast.error("Failed to download Excel. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Get currency from API response or fallback to center-based logic
   // For non-admin users, use their session center to determine currency
   const effectiveCenter = selectedCenter !== "all" ? selectedCenter : session?.center;
@@ -402,6 +576,17 @@ export default function SalesExpenses() {
               </SelectContent>
             </Select>
           )}
+          
+          <Button
+            variant="outline"
+            onClick={downloadMonthlyExcel}
+            disabled={loading}
+            className="text-green-600 border-green-600 hover:bg-green-50"
+            data-testid="download-excel-btn"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download Excel
+          </Button>
           
           <Button
             variant="outline"
