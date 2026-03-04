@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/App";
 import { api, CENTERS } from "@/lib/api";
 import { toast } from "sonner";
@@ -18,8 +18,14 @@ import {
   Users,
   X,
   RefreshCw,
-  Edit
+  Edit,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 export default function Employees() {
   const { session } = useAuth();
@@ -31,6 +37,13 @@ export default function Employees() {
   // Selected employee for editing
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [editMode, setEditMode] = useState(false); // true = edit existing, false = add new
+  
+  // Bulk upload state
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [uploadData, setUploadData] = useState([]);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const fileInputRef = useRef(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -219,6 +232,143 @@ export default function Employees() {
     }
   };
 
+  // Download Excel template
+  const downloadTemplate = () => {
+    const templateData = [
+      {
+        "Center Code": "PB-HSR",
+        "Employee Name": "JOHN DOE",
+        "Gender": "Male",
+        "Designation": "Chef",
+        "Base Salary": 15000,
+        "Current Salary": 18000,
+        "Date of Joining": "2024-01-15",
+        "Bank Name": "HDFC Bank",
+        "Account Number": "1234567890",
+        "IFSC Code": "HDFC0001234",
+        "Mobile": "9876543210",
+        "Email": "john@email.com",
+        "Remarks": "Full time"
+      },
+      {
+        "Center Code": "PB-DV",
+        "Employee Name": "JANE SMITH",
+        "Gender": "Female",
+        "Designation": "Manager",
+        "Base Salary": 25000,
+        "Current Salary": 30000,
+        "Date of Joining": "2023-06-01",
+        "Bank Name": "ICICI Bank",
+        "Account Number": "0987654321",
+        "IFSC Code": "ICIC0005678",
+        "Mobile": "9123456789",
+        "Email": "jane@email.com",
+        "Remarks": ""
+      }
+    ];
+    
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Employees");
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 15 },
+      { wch: 12 }, { wch: 14 }, { wch: 15 }, { wch: 15 },
+      { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
+    ];
+    
+    XLSX.writeFile(wb, "Employee_Upload_Template.xlsx");
+    toast.success("Template downloaded!");
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        // Map Excel columns to API fields
+        const mappedData = jsonData.map(row => ({
+          center: row["Center Code"] || row["center"] || "",
+          name: row["Employee Name"] || row["name"] || "",
+          gender: row["Gender"] || row["gender"] || "",
+          designation: row["Designation"] || row["designation"] || "",
+          salaryBase: row["Base Salary"] || row["salaryBase"] || 0,
+          currentSalary: row["Current Salary"] || row["currentSalary"] || 0,
+          dateOfJoining: row["Date of Joining"] || row["dateOfJoining"] || "",
+          bankName: row["Bank Name"] || row["bankName"] || "",
+          beneAccNo: String(row["Account Number"] || row["beneAccNo"] || ""),
+          ifsc: row["IFSC Code"] || row["ifsc"] || "",
+          mobile: String(row["Mobile"] || row["mobile"] || ""),
+          email: row["Email"] || row["email"] || "",
+          remark: row["Remarks"] || row["remark"] || ""
+        }));
+        
+        setUploadData(mappedData);
+        setUploadResult(null);
+        toast.success(`Loaded ${mappedData.length} employees from file`);
+      } catch (err) {
+        console.error("File parse error:", err);
+        toast.error("Failed to parse Excel file. Please use the correct template.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Submit bulk upload
+  const submitBulkUpload = async () => {
+    if (uploadData.length === 0) {
+      toast.error("No data to upload. Please select a file first.");
+      return;
+    }
+    
+    if (!window.confirm(`Upload ${uploadData.length} employees? Existing employees with same name and center will be updated.`)) {
+      return;
+    }
+    
+    setUploadLoading(true);
+    try {
+      const res = await api.post("/mgt_employee_bulk_upload", {
+        token: session.token,
+        employees: uploadData
+      });
+      
+      setUploadResult(res.data);
+      toast.success(res.data.message);
+      
+      // Refresh employee list
+      loadEmployees();
+    } catch (err) {
+      console.error("Bulk upload error:", err);
+      toast.error(err.response?.data?.detail || "Bulk upload failed");
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  // Clear bulk upload
+  const clearBulkUpload = () => {
+    setUploadData([]);
+    setUploadResult(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   // Update form field
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -243,11 +393,170 @@ export default function Employees() {
             {employees.length} employees • Click checkbox to edit
           </p>
         </div>
-        <Button onClick={loadEmployees} disabled={loading} variant="outline">
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setShowBulkUpload(!showBulkUpload)} 
+            variant={showBulkUpload ? "default" : "outline"}
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Bulk Upload
+          </Button>
+          <Button onClick={loadEmployees} disabled={loading} variant="outline">
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
+
+      {/* Bulk Upload Section */}
+      {showBulkUpload && (
+        <Card className="border-2 border-blue-500">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-blue-500" />
+                  Bulk Employee Upload
+                </CardTitle>
+                <CardDescription>
+                  Upload multiple employees at once using Excel file
+                </CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowBulkUpload(false)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Instructions */}
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm">
+              <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">Instructions:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-blue-700 dark:text-blue-400">
+                <li>Download the Excel template using the button below</li>
+                <li>Fill in employee data (Center Code and Name are required)</li>
+                <li>Upload the filled Excel file</li>
+                <li>Review the preview and click "Upload All"</li>
+              </ol>
+              <p className="mt-2 text-blue-600 dark:text-blue-400">
+                <strong>Note:</strong> Existing employees (same name + center) will be updated. New employees will be created.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={downloadTemplate} variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
+                <Download className="w-4 h-4 mr-2" />
+                Download Template
+              </Button>
+              
+              <div className="relative">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <Button variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Select Excel File
+                </Button>
+              </div>
+              
+              {uploadData.length > 0 && (
+                <>
+                  <Button 
+                    onClick={submitBulkUpload} 
+                    disabled={uploadLoading}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {uploadLoading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                    )}
+                    Upload {uploadData.length} Employees
+                  </Button>
+                  <Button onClick={clearBulkUpload} variant="ghost" className="text-red-500">
+                    <X className="w-4 h-4 mr-2" />
+                    Clear
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Upload Result */}
+            {uploadResult && (
+              <div className={`p-4 rounded-lg ${uploadResult.errors?.length > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {uploadResult.errors?.length > 0 ? (
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                  ) : (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  )}
+                  <span className="font-semibold">{uploadResult.message}</span>
+                </div>
+                <div className="flex gap-4 text-sm">
+                  <span className="text-green-600">Created: {uploadResult.created}</span>
+                  <span className="text-blue-600">Updated: {uploadResult.updated}</span>
+                  {uploadResult.errors?.length > 0 && (
+                    <span className="text-red-600">Errors: {uploadResult.errors.length}</span>
+                  )}
+                </div>
+                {uploadResult.errors?.length > 0 && (
+                  <div className="mt-2 text-sm text-red-600">
+                    {uploadResult.errors.map((err, i) => (
+                      <div key={i}>• {err}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Preview Table */}
+            {uploadData.length > 0 && !uploadResult && (
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-muted px-4 py-2 font-semibold">
+                  Preview: {uploadData.length} employees to upload
+                </div>
+                <div className="max-h-64 overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left">#</th>
+                        <th className="px-3 py-2 text-left">Center</th>
+                        <th className="px-3 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Designation</th>
+                        <th className="px-3 py-2 text-right">Salary</th>
+                        <th className="px-3 py-2 text-left">Mobile</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadData.slice(0, 50).map((emp, idx) => (
+                        <tr key={idx} className="border-t hover:bg-muted/30">
+                          <td className="px-3 py-2">{idx + 1}</td>
+                          <td className="px-3 py-2">
+                            <Badge variant="outline">{emp.center}</Badge>
+                          </td>
+                          <td className="px-3 py-2 font-medium">{emp.name}</td>
+                          <td className="px-3 py-2">{emp.designation}</td>
+                          <td className="px-3 py-2 text-right">₹{emp.currentSalary || emp.salaryBase || 0}</td>
+                          <td className="px-3 py-2">{emp.mobile}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {uploadData.length > 50 && (
+                    <div className="p-2 text-center text-sm text-muted-foreground bg-muted/30">
+                      ... and {uploadData.length - 50} more employees
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit/Add Card - Shows when employee selected or adding new */}
       <Card className={`border-2 ${editMode ? 'border-primary' : 'border-secondary'}`}>
