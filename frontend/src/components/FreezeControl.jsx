@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Lock, Unlock, Calendar, Building2, AlertTriangle, CheckCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, CENTERS } from "@/lib/api";
 
 // Get current month in YYYY-MM format
 const getCurrentMonth = () => {
@@ -20,17 +20,10 @@ const getTodayStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
-// All center codes
+// Use CENTERS from api.js and add "All Centers" option
 const ALL_CENTERS = [
   { code: "all", name: "All Centers" },
-  { code: "PB-DV", name: "PB-DV (Dadar-Vile Parle)" },
-  { code: "PB-HW", name: "PB-HW (Hadapsar-Wakad)" },
-  { code: "PB-HSR", name: "PB-HSR (HSR Layout)" },
-  { code: "PB-KAL", name: "PB-KAL (Kalyan)" },
-  { code: "PB-KN", name: "PB-KN (Koramangala-Nagawara)" },
-  { code: "PB-PERTH", name: "PB-PERTH (Perth, Australia)" },
-  { code: "PB-SN", name: "PB-SN (Sanpada-Nerul)" },
-  { code: "PB-TH", name: "PB-TH (Thane)" }
+  ...CENTERS.filter(c => c.code !== "PB-MGT") // Exclude MGT from freeze options
 ];
 
 export default function FreezeControl({ session }) {
@@ -236,7 +229,7 @@ export default function FreezeControl({ session }) {
                     <SelectItem key={c.code} value={c.code}>
                       <div className="flex items-center gap-2">
                         <Building2 className="w-4 h-4" />
-                        {c.name}
+                        {c.code === "all" ? c.name : `${c.code} - ${c.name.split(" - ")[0]}`}
                       </div>
                     </SelectItem>
                   ))}

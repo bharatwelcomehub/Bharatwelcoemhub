@@ -440,6 +440,9 @@ export default function Employees() {
               <p className="mt-2 text-blue-600 dark:text-blue-400">
                 <strong>Note:</strong> Existing employees (same name + center) will be updated. New employees will be created.
               </p>
+              <p className="mt-2 text-blue-600 dark:text-blue-400">
+                <strong>Valid Center Codes:</strong> PB-HSR, PB-TH, PB-SN, PB-DV, PB-HW, PB-KN, PB-KAL, PB-PERTH
+              </p>
             </div>
 
             {/* Actions */}
