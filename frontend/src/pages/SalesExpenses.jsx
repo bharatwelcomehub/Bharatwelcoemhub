@@ -32,7 +32,7 @@ import {
   XCircle,
   Shield
 } from "lucide-react";
-import { api, API_URL } from "@/lib/api";
+import { api, API_URL, fetchCentersFromDB, CENTERS } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 import FreezeControl from "@/components/FreezeControl";
@@ -389,13 +389,15 @@ export default function SalesExpenses() {
           
           {hasAllCentersAccess && (
             <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-              <SelectTrigger className="w-40" data-testid="center-filter">
+              <SelectTrigger className="w-52" data-testid="center-filter">
                 <SelectValue placeholder="All Centers" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Centers</SelectItem>
                 {centers.map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={typeof c === 'string' ? c : c.code} value={typeof c === 'string' ? c : c.code}>
+                    {typeof c === 'string' ? c : `${c.code} - ${c.name}`}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

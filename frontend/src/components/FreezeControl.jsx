@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Lock, Unlock, Calendar, Building2, AlertTriangle, CheckCircle } from "lucide-react";
-import { api, CENTERS } from "@/lib/api";
+import { api, fetchCentersFromDB, CENTERS } from "@/lib/api";
 
 // Get current month in YYYY-MM format
 const getCurrentMonth = () => {
@@ -20,12 +20,6 @@ const getTodayStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
-// Use CENTERS from api.js and add "All Centers" option
-const ALL_CENTERS = [
-  { code: "all", name: "All Centers" },
-  ...CENTERS.filter(c => c.code !== "PB-MGT") // Exclude MGT from freeze options
-];
-
 export default function FreezeControl({ session }) {
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState("freeze"); // freeze or unfreeze
@@ -34,6 +28,23 @@ export default function FreezeControl({ session }) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [selectedCenter, setSelectedCenter] = useState("all");
   const [freezeStatus, setFreezeStatus] = useState(null);
+  const [centers, setCenters] = useState([{ code: "all", name: "All Centers" }]);
+  
+  // Fetch centers from database on mount
+  useEffect(() => {
+    const loadCenters = async () => {
+      if (session?.token) {
+        const dbCenters = await fetchCentersFromDB(session.token);
+        // Add "All Centers" option and exclude MGT
+        const centerList = [
+          { code: "all", name: "All Centers" },
+          ...dbCenters.filter(c => c.code !== "PB-MGT")
+        ];
+        setCenters(centerList);
+      }
+    };
+    loadCenters();
+  }, [session?.token]);
   
   // Fetch current freeze status
   const fetchFreezeStatus = async () => {
@@ -225,11 +236,11 @@ export default function FreezeControl({ session }) {
                   <SelectValue placeholder="Select center" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ALL_CENTERS.map((c) => (
+                  {centers.map((c) => (
                     <SelectItem key={c.code} value={c.code}>
                       <div className="flex items-center gap-2">
                         <Building2 className="w-4 h-4" />
-                        {c.code === "all" ? c.name : `${c.code} - ${c.name.split(" - ")[0]}`}
+                        {c.code === "all" ? c.name : `${c.code} - ${c.name}`}
                       </div>
                     </SelectItem>
                   ))}

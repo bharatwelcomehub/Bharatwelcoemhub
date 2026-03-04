@@ -106,7 +106,7 @@ export const apiWithRetry = async (requestFn, maxRetries = 2) => {
   throw lastError;
 };
 
-// Centers list
+// Centers list - fallback only, should be fetched from database
 export const CENTERS = [
   { code: "PB-HSR", name: "Purnabramha HSR - Bangalore" },
   { code: "PB-TH", name: "Purnabramha Thane - Mumbai" },
@@ -118,6 +118,23 @@ export const CENTERS = [
   { code: "PB-PERTH", name: "Purnabramha Perth - Australia" },
   { code: "PB-MGT", name: "Purnabramha Management (HQ)" },
 ];
+
+// Fetch centers from database - use this for dynamic center list
+export const fetchCentersFromDB = async (token) => {
+  try {
+    const res = await api.get(`/centers?token=${token}`);
+    if (res.data?.centers && res.data.centers.length > 0) {
+      return res.data.centers.map(c => ({
+        code: c.code,
+        name: c.name
+      }));
+    }
+    return CENTERS;
+  } catch (err) {
+    console.error("Failed to fetch centers from DB:", err);
+    return CENTERS;
+  }
+};
 
 // Status options
 export const STATUS_OPTIONS = [
