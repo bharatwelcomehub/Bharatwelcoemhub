@@ -1037,7 +1037,15 @@ async def get_expenses(req: ExpenseQueryRequest):
     if req.expense_type:
         query["expense_type"] = req.expense_type
     
-    expenses = await db.expenses.find(query, {"_id": 0}).sort("date", -1).to_list(5000)
+    # Fetch expenses - include _id for delete functionality
+    expenses_cursor = db.expenses.find(query).sort("date", -1)
+    expenses = []
+    async for exp in expenses_cursor:
+        exp_dict = {k: v for k, v in exp.items() if k != "_id"}
+        exp_dict["expense_id"] = str(exp["_id"])  # Convert ObjectId to string
+        expenses.append(exp_dict)
+        if len(expenses) >= 5000:
+            break
     
     return {"expenses": expenses, "count": len(expenses)}
 
