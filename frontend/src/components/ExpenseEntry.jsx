@@ -69,7 +69,9 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     payment_mode: "CASH"
   });
   
-  const centerCode = selectedCenter || session?.center;
+  // For freeze checks, use the user's actual center (not "all")
+  const centerCode = selectedCenter === "all" ? session?.center : (selectedCenter || session?.center);
+  const displayCenter = selectedCenter || session?.center;
 
   // Fetch expense types and payment modes
   useEffect(() => {
