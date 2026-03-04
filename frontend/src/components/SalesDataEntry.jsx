@@ -195,8 +195,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         setFrozenStatus({
           is_frozen: frozenRes.data.is_frozen,
           is_admin_frozen: frozenRes.data.is_admin_frozen || false,
-          can_edit: frozenRes.data.can_edit,
-          reason: frozenRes.data.reason || ""
+          can_edit: frozenRes.data.can_edit_sales,  // Use sales-specific field
+          reason: frozenRes.data.reason_sales || frozenRes.data.reason || ""
         });
       } catch (err) {
         // If endpoint doesn't exist, fall back to local check

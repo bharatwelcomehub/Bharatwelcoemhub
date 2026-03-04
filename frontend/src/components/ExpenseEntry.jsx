@@ -112,8 +112,8 @@ export default function ExpenseEntry({ session, selectedCenter }) {
         setFrozenStatus({ 
           is_frozen: frozenRes.data.is_frozen, 
           is_admin_frozen: frozenRes.data.is_admin_frozen || false,
-          can_edit: frozenRes.data.can_edit,
-          reason: frozenRes.data.reason || ""
+          can_edit: frozenRes.data.can_edit_expenses,  // Use expense-specific field
+          reason: frozenRes.data.reason_expenses || frozenRes.data.reason || ""
         });
       } catch (err) {
         // Fallback to local check

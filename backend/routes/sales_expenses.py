@@ -314,18 +314,34 @@ def is_date_frozen(date_str: str) -> bool:
     except:
         return True  # If date is invalid, consider it frozen
 
-async def is_date_unlocked(center: str, date_str: str) -> bool:
+async def is_date_unlocked(center: str, date_str: str, record_type: str = None) -> bool:
     """
     Check if a frozen date has been temporarily unlocked by Super Admin.
     Returns True if unlocked, False if still frozen.
+    
+    record_type: "sales", "expenses", or None (any type)
     """
-    unlock = await db.unlock_grants.find_one({
+    query = {
         "center": center.upper(),
         "date": date_str,
         "status": "active",
         "expires_at": {"$gt": datetime.now(timezone.utc).isoformat()}
-    })
+    }
+    
+    # If type specified, check for that specific type
+    if record_type:
+        query["type"] = record_type
+    
+    unlock = await db.unlock_grants.find_one(query)
     return unlock is not None
+
+async def is_date_unlocked_for_expenses(center: str, date_str: str) -> bool:
+    """Check if date is unlocked specifically for expenses"""
+    return await is_date_unlocked(center, date_str, "expenses")
+
+async def is_date_unlocked_for_sales(center: str, date_str: str) -> bool:
+    """Check if date is unlocked specifically for sales"""
+    return await is_date_unlocked(center, date_str, "sales")
 
 async def is_admin_frozen(center: str, date_str: str) -> bool:
     """
@@ -349,21 +365,23 @@ async def is_admin_frozen(center: str, date_str: str) -> bool:
     })
     return all_freeze is not None
 
-async def can_edit_date(session: dict, center: str, date_str: str) -> tuple:
+async def can_edit_date(session: dict, center: str, date_str: str, record_type: str = None) -> tuple:
     """
     Check if user can edit a specific date's data.
     Returns (can_edit: bool, reason: str)
     
+    record_type: "sales", "expenses", or None (checks any type)
+    
     Priority:
     1. Admin freeze (highest priority - blocks everyone including Super Admin)
     2. Super Admin bypass (if no admin freeze)
-    3. Unlock grants
+    3. Unlock grants (type-specific if record_type provided)
     4. Default freeze for past dates
     """
     # FIRST: Check for admin freeze - this blocks EVERYONE including Super Admin
     if await is_admin_frozen(center, date_str):
         # Even admin freeze can be bypassed if there's an active unlock grant
-        if await is_date_unlocked(center, date_str):
+        if await is_date_unlocked(center, date_str, record_type):
             return (True, "Admin frozen but temporarily unlocked")
         return (False, "Date is ADMIN FROZEN. Use Freeze Control to unfreeze first.")
     
@@ -375,8 +393,8 @@ async def can_edit_date(session: dict, center: str, date_str: str) -> tuple:
     if not is_date_frozen(date_str):
         return (True, "Date is not frozen (today)")
     
-    # Date is frozen - check if unlocked for this center
-    if await is_date_unlocked(center, date_str):
+    # Date is frozen - check if unlocked for this center (and type if specified)
+    if await is_date_unlocked(center, date_str, record_type):
         return (True, "Date temporarily unlocked by Super Admin")
     
     return (False, "Date is frozen. Request unlock from Super Admin.")
@@ -467,8 +485,8 @@ async def create_daily_sale(req: DailySaleCreate, token: str):
     if not can_view_all and session.get("center") != req.center.upper():
         raise HTTPException(403, "Cannot create sales record for another center")
     
-    # Check if date is frozen
-    can_edit, reason = await can_edit_date(session, req.center, req.date)
+    # Check if date is frozen for SALES specifically
+    can_edit, reason = await can_edit_date(session, req.center, req.date, "sales")
     if not can_edit:
         raise HTTPException(403, f"Cannot create record for frozen date. {reason}")
     
@@ -511,8 +529,8 @@ async def update_daily_sale(center: str, date: str, req: DailySaleUpdate, token:
     if session.get("center") != "PB-MGT" and session.get("center") != center.upper():
         raise HTTPException(403, "Cannot update sales record for another center")
     
-    # Check if date is frozen
-    can_edit, reason = await can_edit_date(session, center, date)
+    # Check if date is frozen for SALES specifically
+    can_edit, reason = await can_edit_date(session, center, date, "sales")
     if not can_edit:
         raise HTTPException(403, f"Cannot update frozen date. {reason}")
     
@@ -932,7 +950,7 @@ async def process_unlock_request(request_id: str, req: UnlockRequestAction, toke
 
 @router.get("/check-frozen/{center}/{date}")
 async def check_frozen_status(center: str, date: str, token: str):
-    """Check if a specific date is frozen and its unlock status"""
+    """Check if a specific date is frozen and its unlock status for both sales and expenses"""
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
@@ -941,9 +959,15 @@ async def check_frozen_status(center: str, date: str, token: str):
         raise HTTPException(401, "Invalid or expired token")
     
     is_frozen = is_date_frozen(date)
-    is_unlocked = await is_date_unlocked(center, date) if is_frozen else False
     admin_frozen = await is_admin_frozen(center, date)
-    can_edit, reason = await can_edit_date(session, center, date)
+    
+    # Check unlock status separately for sales and expenses
+    is_sales_unlocked = await is_date_unlocked(center, date, "sales") if is_frozen or admin_frozen else False
+    is_expenses_unlocked = await is_date_unlocked(center, date, "expenses") if is_frozen or admin_frozen else False
+    
+    # Check can_edit separately for sales and expenses
+    can_edit_sales, reason_sales = await can_edit_date(session, center, date, "sales")
+    can_edit_expenses, reason_expenses = await can_edit_date(session, center, date, "expenses")
     
     # Check for pending unlock request
     pending_request = await db.unlock_requests.find_one({
@@ -956,10 +980,20 @@ async def check_frozen_status(center: str, date: str, token: str):
         "date": date,
         "center": center,
         "is_frozen": is_frozen,
-        "is_admin_frozen": admin_frozen,  # NEW: explicit admin freeze status
-        "is_unlocked": is_unlocked,
-        "can_edit": can_edit,
-        "reason": reason,
+        "is_admin_frozen": admin_frozen,
+        # Sales status
+        "is_sales_unlocked": is_sales_unlocked,
+        "can_edit_sales": can_edit_sales,
+        "reason_sales": reason_sales,
+        # Expenses status
+        "is_expenses_unlocked": is_expenses_unlocked,
+        "can_edit_expenses": can_edit_expenses,
+        "reason_expenses": reason_expenses,
+        # Legacy fields for backwards compatibility
+        "is_unlocked": is_sales_unlocked or is_expenses_unlocked,
+        "can_edit": can_edit_sales and can_edit_expenses,
+        "reason": reason_sales if not can_edit_sales else reason_expenses,
+        # Other info
         "has_pending_request": pending_request is not None,
         "is_super_admin": session.get("is_super_admin", False)
     }
@@ -1021,8 +1055,8 @@ async def create_expense(req: ExpenseCreate, token: str):
     if session.get("center") != "PB-MGT" and session.get("center") != req.center.upper():
         raise HTTPException(403, "Cannot create expense for another center")
     
-    # Check if date is frozen (only Super Admin can add expenses for frozen dates)
-    can_edit, reason = await can_edit_date(session, req.center, req.date)
+    # Check if date is frozen for EXPENSES specifically
+    can_edit, reason = await can_edit_date(session, req.center, req.date, "expenses")
     if not can_edit:
         raise HTTPException(403, f"Cannot add expense for frozen date. {reason}")
     
@@ -1069,9 +1103,9 @@ async def update_expense(expense_id: str, req: ExpenseUpdate, token: str):
     if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
         raise HTTPException(403, "Cannot update expense for another center")
     
-    # Check if date is frozen
+    # Check if date is frozen for EXPENSES specifically
     expense_date = existing.get("date", "")
-    can_edit, reason = await can_edit_date(session, existing.get("center", ""), expense_date)
+    can_edit, reason = await can_edit_date(session, existing.get("center", ""), expense_date, "expenses")
     if not can_edit:
         raise HTTPException(403, f"Cannot update expense for frozen date. {reason}")
     
@@ -1116,9 +1150,9 @@ async def delete_expense(expense_id: str, token: str):
     if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
         raise HTTPException(403, "Cannot delete expense for another center")
     
-    # Check if date is frozen
+    # Check if date is frozen for EXPENSES specifically
     expense_date = existing.get("date", "")
-    can_edit, reason = await can_edit_date(session, existing.get("center", ""), expense_date)
+    can_edit, reason = await can_edit_date(session, existing.get("center", ""), expense_date, "expenses")
     if not can_edit:
         raise HTTPException(403, f"Cannot delete expense for frozen date. {reason}")
     
