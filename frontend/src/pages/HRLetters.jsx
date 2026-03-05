@@ -71,6 +71,7 @@ export default function HRLetters() {
   const [exitReason, setExitReason] = useState("");
   
   // Visa fields
+  const [visaSubject, setVisaSubject] = useState("");  // NEW: Subject for visa letter
   const [destinationCountry, setDestinationCountry] = useState("");
   const [visaNumber, setVisaNumber] = useState("");
   const [travelPurpose, setTravelPurpose] = useState("");
@@ -194,6 +195,7 @@ export default function HRLetters() {
         salary,
         lastWorkingDate,
         exitReason,
+        visaSubject,  // NEW: Subject for visa letter
         destinationCountry,
         visaNumber,
         travelPurpose,
@@ -331,6 +333,7 @@ export default function HRLetters() {
     setSalary("");
     setLastWorkingDate("");
     setExitReason("");
+    setVisaSubject("");  // NEW
     setDestinationCountry("");
     setVisaNumber("");
     setTravelPurpose("");
@@ -678,6 +681,18 @@ export default function HRLetters() {
             {letterType === "visa" && (
               <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
                 <h4 className="font-semibold text-sm">Visa Letter Details</h4>
+                
+                {/* Subject Field - NEW */}
+                <div>
+                  <Label className="text-xs font-medium text-blue-700">Subject / Topic *</Label>
+                  <Input 
+                    value={visaSubject} 
+                    onChange={(e) => setVisaSubject(e.target.value)} 
+                    placeholder="e.g., Employment Verification for Australian Visa Application" 
+                    className="border-blue-300"
+                  />
+                </div>
+                
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Destination Country *</Label>

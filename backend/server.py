@@ -2267,6 +2267,7 @@ class HRLetterRequest(BaseModel):
     lastWorkingDate: Optional[str] = None  # For exit letter
     exitReason: Optional[str] = None  # For exit letter
     # Visa letter specific fields
+    visaSubject: Optional[str] = None  # NEW: Subject/Topic for visa letter
     destinationCountry: Optional[str] = None
     visaNumber: Optional[str] = None
     travelPurpose: Optional[str] = None  # business visit, training, project work
@@ -2377,7 +2378,10 @@ The experience letter should include:
 5. Best wishes for future"""
 
     elif req.letterType == "visa":
+        subject_line = req.visaSubject or f"Employment Verification for {req.destinationCountry or 'Visa'} Application"
         prompt = f"""Generate a professional VISA SUPPORT/INVITATION LETTER for immigration purposes:
+
+Subject/Topic: {subject_line}
 
 Employee Name: {emp.get('name')}
 Designation: {emp.get('designation', 'N/A')}
@@ -2397,6 +2401,8 @@ Travel Details:
 - Project/Business Details: {req.projectDetails or 'Business meetings and coordination'}
 
 Today's Date: {today}
+
+The letter must have a Subject line: "{subject_line}"
 
 The visa support letter should include:
 1. Company introduction and legitimacy
@@ -2550,14 +2556,21 @@ Do NOT include signature block - that will be added separately."""
             raise HTTPException(500, "LLM API key not configured")
         
         session_id = f"custom_letter_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        chat = LlmChat(api_key, model="gpt-5.2")
         
-        response = await chat.send_message(
+        # Initialize chat with correct method chain
+        chat = LlmChat(
+            api_key=api_key,
             session_id=session_id,
-            messages=[UserMessage(content=prompt)]
-        )
+            system_message="You are an expert HR manager creating professional business letters."
+        ).with_model("openai", "gpt-5.2")
         
-        content = response.message.content if hasattr(response, 'message') else str(response)
+        # Create user message
+        user_message = UserMessage(text=prompt)
+        
+        # Send message and get response
+        response = await chat.send_message(user_message)
+        
+        content = str(response)
         
         # Save to database
         await db.hr_letters.insert_one({
