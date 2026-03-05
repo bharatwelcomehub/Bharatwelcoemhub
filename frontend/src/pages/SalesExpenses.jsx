@@ -30,12 +30,14 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Shield
+  Shield,
+  Table2
 } from "lucide-react";
 import { api, API_URL, fetchCentersFromDB, CENTERS } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 import FreezeControl from "@/components/FreezeControl";
+import SalesGridEditor from "@/components/SalesGridEditor";
 import * as XLSX from "xlsx";
 
 // Check if center is Perth (Australia) - standardized to PB-PERTH
@@ -648,6 +650,10 @@ export default function SalesExpenses() {
         <TabsList className="bg-muted flex-wrap">
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
           <TabsTrigger value="sales-entry" data-testid="tab-sales-entry">Sales Entry</TabsTrigger>
+          <TabsTrigger value="grid-update" data-testid="tab-grid-update" className="text-blue-600">
+            <Table2 className="w-4 h-4 mr-1" />
+            Grid Update
+          </TabsTrigger>
           <TabsTrigger value="expense-entry" data-testid="tab-expense-entry">Expense Entry</TabsTrigger>
           <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
           {session?.is_super_admin && (
@@ -665,6 +671,15 @@ export default function SalesExpenses() {
         {/* Sales Data Entry Tab */}
         <TabsContent value="sales-entry">
           <SalesDataEntry session={session} selectedCenter={selectedCenter} />
+        </TabsContent>
+
+        {/* Grid Update Tab */}
+        <TabsContent value="grid-update">
+          <SalesGridEditor 
+            session={session} 
+            selectedCenter={selectedCenter} 
+            selectedMonth={selectedMonth}
+          />
         </TabsContent>
 
         {/* Expense Entry Tab */}
