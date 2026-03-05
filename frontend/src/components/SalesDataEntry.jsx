@@ -97,6 +97,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     bharat_pay: 0,           // Bharat Pay
     swiggy: 0,               // Swiggy
     zomato: 0,               // Zomato
+    amazon: 0,               // Amazon (NEW)
+    ecwid: 0,                // ECWID (NEW)
+    paytm: 0,                // Paytm (NEW)
+    pbm_online: 0,           // PBM Online (NEW)
     online_other: 0,         // Other online
     
     // Guest & Bill tracking
@@ -105,7 +109,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     
     // Other fields
     deposited_in_bank: 0,
-    cash_receipts: 0,
+    cash_receipts: 0,        // Withdrawal from bank
     due_amount: 0,
     notes: ""
   });
@@ -116,19 +120,25 @@ export default function SalesDataEntry({ session, selectedCenter }) {
   const isPerthCenter = isPerth(centerCode);
 
   // CALCULATED fields (gray background - auto-computed)
+  // Using CORRECT FORMULAS provided by user
   const calculated = useMemo(() => {
-    // Total Online Sale = Card + Bharat Pay + Swiggy + Zomato + Other
+    // Total Online Sale = sum of ALL non-cash channels
+    // Swiggy + Zomato + Amazon + ECWID + Card + Bharatpay + Paytm + PBM + Other
     const total_online_sale = (
-      (parseFloat(formData.card_idfc) || 0) +
-      (parseFloat(formData.bharat_pay) || 0) +
       (parseFloat(formData.swiggy) || 0) +
       (parseFloat(formData.zomato) || 0) +
+      (parseFloat(formData.amazon) || 0) +
+      (parseFloat(formData.ecwid) || 0) +
+      (parseFloat(formData.card_idfc) || 0) +
+      (parseFloat(formData.bharat_pay) || 0) +
+      (parseFloat(formData.paytm) || 0) +
+      (parseFloat(formData.pbm_online) || 0) +
       (parseFloat(formData.online_other) || 0)
     );
     
     const total_sale = parseFloat(formData.total_sale) || 0;
     
-    // Cash Sale = Total Sale - Total Online Sale
+    // CASH SALE = Total Sale - Total Online Sale
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
     // GST Calculation
@@ -143,28 +153,30 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     // Cash expense would come from expenses entered separately
     const cash_expense = existingRecord?.cash_expense || 0;
     
-    // Closing Balance calculation
-    const closing_balance = (
-      (parseFloat(formData.opening_balance) || 0) +
-      total_cash_sale +
-      (parseFloat(formData.cash_receipts) || 0) -
-      (parseFloat(formData.deposited_in_bank) || 0) -
-      cash_expense
-    );
+    // Opening & Withdrawal
+    const opening_balance = parseFloat(formData.opening_balance) || 0;
+    const withdrawal = parseFloat(formData.cash_receipts) || 0;  // Withdrawal from bank
+    const deposited_in_bank = parseFloat(formData.deposited_in_bank) || 0;
+    const petty_cash_opening = parseFloat(formData.petty_cash_opening) || 0;
     
-    // Petty Cash Closing
-    const petty_cash_closing = (
-      (parseFloat(formData.petty_cash_opening) || 0) +
-      (parseFloat(formData.cash_receipts) || 0) -
-      cash_expense
-    );
+    // CASH IN HAND = Opening Balance + Withdrawal + Total Sale - (All Online + Expenses)
+    // = Opening Balance + Withdrawal + Cash Sale - Expenses
+    const cash_in_hand = opening_balance + withdrawal + total_cash_sale - cash_expense;
     
+    // PETTY CASH = Last Day Petty Cash + Withdrawal - Expenses in Cash
+    const petty_cash_closing = petty_cash_opening + withdrawal - cash_expense;
+    
+    // Closing Balance = Opening + Cash Sale + Withdrawal - Deposited - Cash Expenses
+    const closing_balance = opening_balance + total_cash_sale + withdrawal - deposited_in_bank - cash_expense;
+    
+    // To Deposit = Closing Balance - Petty Cash Closing
     const to_deposit_in_bank = closing_balance - petty_cash_closing;
     
     return {
       total_sale,
       total_online_sale,
       total_cash_sale,
+      cash_in_hand,       // NEW
       cash_expense,
       closing_balance,
       petty_cash_closing,
@@ -249,6 +261,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           bharat_pay: record.bharat_pay || 0,
           swiggy: record.swiggy || 0,
           zomato: record.zomato || 0,
+          amazon: record.amazon || 0,
+          ecwid: record.ecwid || 0,
+          paytm: record.paytm || 0,
+          pbm_online: record.pbm_online || 0,
           online_other: record.online_other || 0,
           num_guests: record.num_guests || 0,
           num_bills: record.num_bills || 0,
@@ -268,6 +284,10 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           bharat_pay: 0,
           swiggy: 0,
           zomato: 0,
+          amazon: 0,
+          ecwid: 0,
+          paytm: 0,
+          pbm_online: 0,
           online_other: 0,
           num_guests: 0,
           num_bills: 0,
@@ -337,10 +357,15 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         // Store total_sale as sale_pbm for compatibility
         sale_pbm: parseFloat(formData.total_sale) || 0,
         sale_other: 0,
+        // ALL non-cash payment channels
         card_idfc: parseFloat(formData.card_idfc) || 0,
         bharat_pay: parseFloat(formData.bharat_pay) || 0,
         swiggy: parseFloat(formData.swiggy) || 0,
         zomato: parseFloat(formData.zomato) || 0,
+        amazon: parseFloat(formData.amazon) || 0,
+        ecwid: parseFloat(formData.ecwid) || 0,
+        paytm: parseFloat(formData.paytm) || 0,
+        pbm_online: parseFloat(formData.pbm_online) || 0,
         online_other: parseFloat(formData.online_other) || 0,
         num_guests: parseInt(formData.num_guests) || 0,
         num_bills: parseInt(formData.num_bills) || 0,
@@ -350,6 +375,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         total_sale: calculated.total_sale,
         total_online_sale: calculated.total_online_sale,
         total_cash_sale: calculated.total_cash_sale,
+        cash_in_hand: calculated.cash_in_hand,
         closing_balance: calculated.closing_balance,
         petty_cash_closing: calculated.petty_cash_closing,
         gst_amount: calculated.gst_amount,
@@ -590,12 +616,18 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               
               {/* Online Sales Bifurcation */}
               <div className="mt-4">
-                <Label className="text-sm font-medium text-blue-700 mb-2 block">Online Sales Bifurcation</Label>
+                <Label className="text-sm font-medium text-blue-700 mb-2 block">Online/Non-Cash Sales Breakdown</Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <EditableField label="Card (Credit/Debit)" field="card_idfc" prefix={currencySymbol} />
-                  <EditableField label="Bharat Pay" field="bharat_pay" prefix={currencySymbol} />
                   <EditableField label="Swiggy" field="swiggy" prefix={currencySymbol} />
                   <EditableField label="Zomato" field="zomato" prefix={currencySymbol} />
+                  <EditableField label="Amazon" field="amazon" prefix={currencySymbol} />
+                  <EditableField label="ECWID" field="ecwid" prefix={currencySymbol} />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                  <EditableField label="Card (Credit/Debit)" field="card_idfc" prefix={currencySymbol} />
+                  <EditableField label="Bharat Pay" field="bharat_pay" prefix={currencySymbol} />
+                  <EditableField label="Paytm" field="paytm" prefix={currencySymbol} />
+                  <EditableField label="PBM Online" field="pbm_online" prefix={currencySymbol} />
                 </div>
                 <div className="mt-3">
                   <EditableField label="Other Online" field="online_other" prefix={currencySymbol} />
@@ -603,17 +635,24 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               </div>
               
               {/* Auto-calculated fields */}
-              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-blue-200">
+              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-blue-200">
                 <ReadOnlyField 
                   label="Total Online Sale (Auto)" 
                   value={calculated.total_online_sale}
                   prefix={currencySymbol}
                 />
                 <ReadOnlyField 
-                  label="Cash Sale (Auto: Total - Online)" 
+                  label="Cash Sale (Total - Online)" 
                   value={calculated.total_cash_sale}
                   prefix={currencySymbol}
                   highlight={true}
+                />
+                <ReadOnlyField 
+                  label="Cash in Hand" 
+                  value={calculated.cash_in_hand}
+                  prefix={currencySymbol}
+                  highlight={true}
+                  info="Opening + Withdrawal + Cash Sale - Expenses"
                 />
               </div>
             </div>

@@ -10,25 +10,25 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ### Latest Update (Mar 05, 2026 - Session 11)
 
-- ✅ **P0: Grid Bulk Update Feature (NEW)**
+- ✅ **P0: CORRECTED Financial Calculation Formulas (NEW)**
+  - **Cash Sale** = Total Sale - (Swiggy + Zomato + Amazon + ECWID + Card + Bharatpay + Paytm + PBM)
+  - **Cash in Hand** = Opening Balance + Withdrawal + Total Sale - (All Online Channels) - Expenses
+  - **Petty Cash** = Last Day Petty Cash + Withdrawal - Expenses in Cash
+  
+- ✅ **P0: Added New Payment Channels (NEW)**
+  - **Amazon** - Online marketplace sales
+  - **ECWID** - E-commerce channel
+  - **Paytm** - Payment gateway
+  - **PBM Online** - PBM online sales channel
+  - All 9 channels now included: Swiggy, Zomato, Amazon, ECWID, Card/IDFC, Bharat Pay, Paytm, PBM Online, Other
+
+- ✅ **P0: Grid Bulk Update Feature**
   - New "Grid Update" tab in Sales & Cash page with table icon
-  - **Features:**
-    - Displays all days of selected month in an editable grid
-    - **Editable fields:** Total Sale, Card/IDFC, Bharat Pay, Swiggy, Zomato, Other Online, Guests, Bills
-    - **Auto-calculated fields:** Total Online, Cash Sale, Avg/Pax, Avg/Bill
-    - Click any cell to edit inline with number input
-    - Tab key navigates to next cell, Shift+Tab goes backward
-    - Escape exits edit mode
-    - **Paste from Excel:** Ctrl+V or "Paste from Excel" button pastes tab-separated data
-    - **Save All:** Batch saves all modified rows in one operation
-    - Modified rows highlighted in yellow with asterisk
-  - **Freeze/Lock Integration:**
-    - Shows lock icon (amber) for frozen dates
-    - Shows unlock icon (green) for editable dates
-    - Super Admin can edit all dates
-    - Regular managers can only edit unlocked dates
-  - **Legend:** Clear explanation of color coding at bottom
-  - **Performance Optimization:** Batch frozen status check instead of 31 individual API calls
+  - **12 Editable columns:** Total Sale, Swiggy, Zomato, Amazon, ECWID, Card/IDFC, Bharat Pay, Paytm, PBM Online, Other, Guests, Bills
+  - **5 Auto-calculated columns:** Online Sale, Cash Sale, Cash in Hand, Avg/Pax, Avg/Bill
+  - Click any cell to edit inline, Tab to navigate
+  - Paste from Excel support (Ctrl+V)
+  - Save All button for batch updates
   - Implementation: `/app/frontend/src/components/SalesGridEditor.jsx`
 
 ### Previous Update (Feb 27, 2026 - Session 8)

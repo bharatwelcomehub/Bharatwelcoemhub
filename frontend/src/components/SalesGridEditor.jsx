@@ -53,19 +53,24 @@ const isDateFrozen = (dateStr) => {
 // Editable fields configuration
 const EDITABLE_FIELDS = [
   { key: 'total_sale', label: 'Total Sale', type: 'number' },
-  { key: 'card_idfc', label: 'Card/IDFC', type: 'number' },
-  { key: 'bharat_pay', label: 'Bharat Pay', type: 'number' },
   { key: 'swiggy', label: 'Swiggy', type: 'number' },
   { key: 'zomato', label: 'Zomato', type: 'number' },
-  { key: 'online_other', label: 'Other Online', type: 'number' },
+  { key: 'amazon', label: 'Amazon', type: 'number' },
+  { key: 'ecwid', label: 'ECWID', type: 'number' },
+  { key: 'card_idfc', label: 'Card/IDFC', type: 'number' },
+  { key: 'bharat_pay', label: 'Bharat Pay', type: 'number' },
+  { key: 'paytm', label: 'Paytm', type: 'number' },
+  { key: 'pbm_online', label: 'PBM Online', type: 'number' },
+  { key: 'online_other', label: 'Other', type: 'number' },
   { key: 'num_guests', label: 'Guests', type: 'integer' },
   { key: 'num_bills', label: 'Bills', type: 'integer' },
 ];
 
 // Calculated fields (auto-computed, shown in grid)
 const CALCULATED_FIELDS = [
-  { key: 'total_online_sale', label: 'Total Online', computed: true },
+  { key: 'total_online_sale', label: 'Online Sale', computed: true },
   { key: 'total_cash_sale', label: 'Cash Sale', computed: true },
+  { key: 'cash_in_hand', label: 'Cash in Hand', computed: true },
   { key: 'avg_per_pax', label: 'Avg/Pax', computed: true },
   { key: 'avg_per_bill', label: 'Avg/Bill', computed: true },
 ];
@@ -183,32 +188,52 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
   // Get default row values
   const getDefaultRow = () => ({
     total_sale: 0,
-    card_idfc: 0,
-    bharat_pay: 0,
     swiggy: 0,
     zomato: 0,
+    amazon: 0,
+    ecwid: 0,
+    card_idfc: 0,
+    bharat_pay: 0,
+    paytm: 0,
+    pbm_online: 0,
     online_other: 0,
     num_guests: 0,
     num_bills: 0,
     opening_balance: 0,
     petty_cash_opening: 0,
     deposited_in_bank: 0,
-    cash_receipts: 0
+    cash_receipts: 0,
+    cash_expense: 0
   });
 
-  // Calculate derived fields for a row
+  // Calculate derived fields for a row using CORRECT FORMULAS
   const calculateRow = (row) => {
     const total_sale = parseFloat(row.total_sale) || 0;
-    const card_idfc = parseFloat(row.card_idfc) || 0;
-    const bharat_pay = parseFloat(row.bharat_pay) || 0;
     const swiggy = parseFloat(row.swiggy) || 0;
     const zomato = parseFloat(row.zomato) || 0;
+    const amazon = parseFloat(row.amazon) || 0;
+    const ecwid = parseFloat(row.ecwid) || 0;
+    const card_idfc = parseFloat(row.card_idfc) || 0;
+    const bharat_pay = parseFloat(row.bharat_pay) || 0;
+    const paytm = parseFloat(row.paytm) || 0;
+    const pbm_online = parseFloat(row.pbm_online) || 0;
     const online_other = parseFloat(row.online_other) || 0;
     const num_guests = parseInt(row.num_guests) || 0;
     const num_bills = parseInt(row.num_bills) || 0;
+    const opening_balance = parseFloat(row.opening_balance) || 0;
+    const withdrawal = parseFloat(row.cash_receipts) || 0;
+    const cash_expense = parseFloat(row.cash_expense) || 0;
 
-    const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + online_other;
+    // Total Online = sum of ALL non-cash channels
+    const total_online_sale = swiggy + zomato + amazon + ecwid + card_idfc + bharat_pay + paytm + pbm_online + online_other;
+    
+    // Cash Sale = Total Sale - Total Online
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
+    
+    // Cash in Hand = Opening + Withdrawal + Cash Sale - Expenses
+    const cash_in_hand = opening_balance + withdrawal + total_cash_sale - cash_expense;
+    
+    // Averages
     const avg_per_pax = num_guests > 0 ? total_sale / num_guests : 0;
     const avg_per_bill = num_bills > 0 ? total_sale / num_bills : 0;
 
@@ -216,6 +241,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
       ...row,
       total_online_sale,
       total_cash_sale,
+      cash_in_hand,
       avg_per_pax,
       avg_per_bill
     };
@@ -464,15 +490,21 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
             sale_pbm: parseFloat(row.total_sale) || 0,
             sale_other: 0,
             total_sale: parseFloat(row.total_sale) || 0,
-            card_idfc: parseFloat(row.card_idfc) || 0,
-            bharat_pay: parseFloat(row.bharat_pay) || 0,
+            // ALL non-cash payment channels
             swiggy: parseFloat(row.swiggy) || 0,
             zomato: parseFloat(row.zomato) || 0,
+            amazon: parseFloat(row.amazon) || 0,
+            ecwid: parseFloat(row.ecwid) || 0,
+            card_idfc: parseFloat(row.card_idfc) || 0,
+            bharat_pay: parseFloat(row.bharat_pay) || 0,
+            paytm: parseFloat(row.paytm) || 0,
+            pbm_online: parseFloat(row.pbm_online) || 0,
             online_other: parseFloat(row.online_other) || 0,
             num_guests: parseInt(row.num_guests) || 0,
             num_bills: parseInt(row.num_bills) || 0,
             total_online_sale: row.total_online_sale || 0,
             total_cash_sale: row.total_cash_sale || 0,
+            cash_in_hand: row.cash_in_hand || 0,
             avg_per_pax: row.avg_per_pax || 0,
             avg_per_bill: row.avg_per_bill || 0
           };
