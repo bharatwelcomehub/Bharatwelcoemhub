@@ -120,25 +120,42 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         salesMap[sale.date] = sale;
       });
 
-      // Check frozen status for each date
+      // Optimize: Check frozen status locally first, only API call for Super Admin unlock status
+      // This reduces 31 API calls to just checking unlock_grants
       const frozenMap = {};
-      for (const date of allDates) {
+      const isSuperAdmin = session?.is_super_admin;
+      
+      // Build frozen status based on date comparison (fast local check)
+      allDates.forEach(date => {
+        const frozen = isDateFrozen(date);
+        frozenMap[date] = {
+          is_frozen: frozen,
+          can_edit: !frozen || isSuperAdmin,  // Super Admin can always edit
+          is_admin_frozen: false
+        };
+      });
+      
+      // For non-super admin users, check if any frozen dates have unlock grants
+      if (!isSuperAdmin) {
         try {
-          const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${date}?token=${session.token}`);
-          frozenMap[date] = {
-            is_frozen: frozenRes.data.is_frozen,
-            can_edit: frozenRes.data.can_edit_sales,
-            is_admin_frozen: frozenRes.data.is_admin_frozen
-          };
-        } catch {
-          const frozen = isDateFrozen(date);
-          frozenMap[date] = {
-            is_frozen: frozen,
-            can_edit: !frozen || session?.is_super_admin,
-            is_admin_frozen: false
-          };
+          // Single API call to check frozen status for the month
+          const frozenRes = await api.get(`/sales/admin/freeze-status?token=${session.token}&month=${selectedMonth}&center=${centerCode}`);
+          const adminFrozenDates = new Set(frozenRes.data.admin_frozen_dates || []);
+          const unlockedDates = new Set(frozenRes.data.unlocked_dates || []);
+          
+          allDates.forEach(date => {
+            const frozen = isDateFrozen(date);
+            frozenMap[date] = {
+              is_frozen: frozen || adminFrozenDates.has(date),
+              can_edit: !frozen || unlockedDates.has(date),
+              is_admin_frozen: adminFrozenDates.has(date)
+            };
+          });
+        } catch (err) {
+          console.log("Could not fetch admin freeze status, using local check");
         }
       }
+      
       setFrozenStatus(frozenMap);
 
       // Build grid data with all dates
@@ -208,6 +225,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     if (session?.token && centerCode && selectedMonth) {
       fetchGridData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, centerCode, session?.token]);
 
   // Handle cell click to start editing
@@ -497,12 +515,17 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
 
     // Calculated field (read-only)
     if (field.computed) {
+      // Show "--" for avg fields when there's no data (clearer than showing 0)
+      const displayValue = field.key.includes('avg') && (!value || value === 0) 
+        ? '--' 
+        : (typeof value === 'number' ? value.toFixed(field.key.includes('avg') ? 2 : 0) : value || 0);
+      
       return (
         <td 
           key={field.key} 
           className="px-2 py-1 text-right bg-gray-50 text-gray-600 font-mono text-xs"
         >
-          {typeof value === 'number' ? value.toFixed(field.key.includes('avg') ? 2 : 0) : value || 0}
+          {displayValue}
         </td>
       );
     }
