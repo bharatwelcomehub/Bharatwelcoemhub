@@ -117,24 +117,22 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
   // CALCULATED fields (gray background - auto-computed)
   // CORRECT FORMULAS:
-  // Cash Sale = Total Sale - (Swiggy + Zomato + Other Online/Pickups)
-  // Cash in Hand = Opening + Withdrawal + Total Sale - (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
+  // Cash Sale = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
+  // Cash in Hand = Opening + Withdrawal + Total Sale - (All Non-Cash + Expenses)
   const calculated = useMemo(() => {
-    // Online payments for CASH SALE calculation (Swiggy + Zomato + Other/Pickups)
+    // All non-cash payment channels
     const swiggy = parseFloat(formData.swiggy) || 0;
     const zomato = parseFloat(formData.zomato) || 0;
-    const online_other = parseFloat(formData.online_other) || 0;
-    
-    // All non-cash channels for CASH IN HAND calculation
-    const card_idfc = parseFloat(formData.card_idfc) || 0;
-    const bharat_pay = parseFloat(formData.bharat_pay) || 0;
+    const online_other = parseFloat(formData.online_other) || 0;  // Other/Due
+    const card_idfc = parseFloat(formData.card_idfc) || 0;        // Card
+    const bharat_pay = parseFloat(formData.bharat_pay) || 0;      // UPI
     
     const total_sale = parseFloat(formData.total_sale) || 0;
     
-    // Total Online = Swiggy + Zomato + Other/Pickups (for display)
-    const total_online_sale = swiggy + zomato + online_other;
+    // Total Online/Non-Cash = Card + UPI + Swiggy + Zomato + Other/Due
+    const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + online_other;
     
-    // CASH SALE = Total Sale - (Swiggy + Zomato + Other/Pickups)
+    // CASH SALE = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
     // GST Calculation
@@ -155,11 +153,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     const deposited_in_bank = parseFloat(formData.deposited_in_bank) || 0;
     const petty_cash_opening = parseFloat(formData.petty_cash_opening) || 0;
     
-    // All deductions for Cash in Hand (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
-    const all_deductions = swiggy + zomato + online_other + card_idfc + bharat_pay + cash_expense;
-    
-    // CASH IN HAND = Opening + Withdrawal + Total Sale - (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
-    const cash_in_hand = opening_balance + withdrawal + total_sale - all_deductions;
+    // CASH IN HAND = Opening + Withdrawal + Total Sale - (All Non-Cash + Expenses)
+    const cash_in_hand = opening_balance + withdrawal + total_sale - total_online_sale - cash_expense;
     
     // PETTY CASH = Last Day Petty Cash + Withdrawal - Expenses in Cash
     const petty_cash_closing = petty_cash_opening + withdrawal - cash_expense;
@@ -617,24 +612,24 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               {/* Auto-calculated fields */}
               <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-blue-200">
                 <ReadOnlyField 
-                  label="Total Online Sale" 
+                  label="Total Non-Cash Sale" 
                   value={calculated.total_online_sale}
                   prefix={currencySymbol}
-                  info="Swiggy + Zomato + Other/Pickups"
+                  info="Card + UPI + Swiggy + Zomato + Other/Due"
                 />
                 <ReadOnlyField 
                   label="Cash Sale" 
                   value={calculated.total_cash_sale}
                   prefix={currencySymbol}
                   highlight={true}
-                  info="Total Sale - (Swiggy + Zomato + Other)"
+                  info="Total Sale - (Card + UPI + Swiggy + Zomato + Other)"
                 />
                 <ReadOnlyField 
                   label="Cash in Hand" 
                   value={calculated.cash_in_hand}
                   prefix={currencySymbol}
                   highlight={true}
-                  info="Opening + Withdrawal + Total Sale - All Deductions"
+                  info="Opening + Withdrawal + Cash Sale - Expenses"
                 />
               </div>
             </div>

@@ -251,11 +251,10 @@ def calculate_totals(sale: dict) -> dict:
     Calculate derived fields for a sale record using CORRECT FORMULAS.
     
     CASH SALE FORMULA:
-    Cash Sale = Total Sale - (Swiggy + Zomato + Other/Pickups)
+    Cash Sale = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
     
     CASH IN HAND FORMULA:
-    Cash in Hand = Opening Balance + Withdrawal + Total Sale 
-                   - (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
+    Cash in Hand = Opening Balance + Withdrawal + Cash Sale - Expenses
     
     PETTY CASH FORMULA:
     Petty Cash = Last Day Petty Cash + Withdrawal - Expenses in Cash
@@ -277,17 +276,14 @@ def calculate_totals(sale: dict) -> dict:
     petty_opening = sale.get("petty_cash_opening", 0)
     deposited_in_bank = sale.get("deposited_in_bank", 0)
     
-    # Total Online = Swiggy + Zomato + Other/Pickups (for display)
-    sale["total_online_sale"] = swiggy + zomato + online_other
+    # Total Non-Cash = Card + UPI + Swiggy + Zomato + Other/Due
+    sale["total_online_sale"] = card_idfc + bharat_pay + swiggy + zomato + online_other
     
-    # CASH SALE = Total Sale - (Swiggy + Zomato + Other/Pickups)
+    # CASH SALE = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
     sale["total_cash_sale"] = max(0, total_sale - sale["total_online_sale"])
     
-    # All deductions for Cash in Hand
-    all_deductions = swiggy + zomato + online_other + card_idfc + bharat_pay + cash_expense
-    
-    # CASH IN HAND = Opening + Withdrawal + Total Sale - All Deductions
-    sale["cash_in_hand"] = opening_balance + withdrawal + total_sale - all_deductions
+    # CASH IN HAND = Opening + Withdrawal + Cash Sale - Expenses
+    sale["cash_in_hand"] = opening_balance + withdrawal + sale["total_cash_sale"] - cash_expense
     
     # PETTY CASH = Last Day Petty Cash + Withdrawal - Expenses in Cash
     sale["petty_cash_closing"] = petty_opening + withdrawal - cash_expense

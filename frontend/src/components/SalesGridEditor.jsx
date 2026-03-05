@@ -64,7 +64,7 @@ const EDITABLE_FIELDS = [
 
 // Calculated fields (auto-computed, shown in grid)
 const CALCULATED_FIELDS = [
-  { key: 'total_online_sale', label: 'Online Sale', computed: true },
+  { key: 'total_online_sale', label: 'Non-Cash', computed: true },
   { key: 'total_cash_sale', label: 'Cash Sale', computed: true },
   { key: 'cash_in_hand', label: 'Cash in Hand', computed: true },
 ];
@@ -198,6 +198,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
   });
 
   // Calculate derived fields for a row using CORRECT FORMULAS
+  // Cash Sale = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
   const calculateRow = (row) => {
     const total_sale = parseFloat(row.total_sale) || 0;
     const swiggy = parseFloat(row.swiggy) || 0;
@@ -209,17 +210,14 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     const withdrawal = parseFloat(row.cash_receipts) || 0;
     const cash_expense = parseFloat(row.cash_expense) || 0;
 
-    // Total Online = Swiggy + Zomato + Other/Pickups (for Cash Sale calculation)
-    const total_online_sale = swiggy + zomato + online_other;
+    // Total Non-Cash = Card + UPI + Swiggy + Zomato + Other/Due
+    const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + online_other;
     
-    // Cash Sale = Total Sale - (Swiggy + Zomato + Other/Pickups)
+    // Cash Sale = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
-    // All deductions for Cash in Hand
-    const all_deductions = swiggy + zomato + online_other + card_idfc + bharat_pay + cash_expense;
-    
-    // Cash in Hand = Opening + Withdrawal + Total Sale - All Deductions
-    const cash_in_hand = opening_balance + withdrawal + total_sale - all_deductions;
+    // Cash in Hand = Opening + Withdrawal + Cash Sale - Expenses
+    const cash_in_hand = opening_balance + withdrawal + total_cash_sale - cash_expense;
 
     return {
       ...row,
