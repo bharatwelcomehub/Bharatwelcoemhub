@@ -410,29 +410,31 @@ export default function SalesDataEntry({ session, selectedCenter }) {
   // Check if form should be editable
   const isFormEditable = frozenStatus.can_edit;
 
-  // Input field component - Editable (white) or Read-only for frozen dates
-  const EditableField = ({ label, field, prefix, type = "number" }) => (
-    <div className="space-y-1">
-      <Label className="text-xs font-medium text-foreground">{label}</Label>
-      <div className="relative">
-        {prefix && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{prefix}</span>
-        )}
-        <Input
-          type={type}
-          value={formData[field] || ""}
-          onChange={(e) => handleChange(field, e.target.value)}
-          disabled={!isFormEditable}
-          className={`${prefix ? 'pl-8' : 'pl-3'} text-right ${
-            isFormEditable 
-              ? 'bg-white border-primary/30 focus:border-primary' 
-              : 'bg-gray-100 text-gray-600 cursor-not-allowed'
-          }`}
-          placeholder="0"
-        />
+  // Render editable input field - using inline JSX to prevent focus loss
+  const renderEditableField = (label, field, prefix, type = "number") => {
+    return (
+      <div className="space-y-1" key={field}>
+        <Label className="text-xs font-medium text-foreground">{label}</Label>
+        <div className="relative">
+          {prefix && (
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{prefix}</span>
+          )}
+          <input
+            type={type}
+            value={formData[field] || ""}
+            onChange={(e) => handleChange(field, e.target.value)}
+            disabled={!isFormEditable}
+            className={`w-full h-10 rounded-md border text-sm ${prefix ? 'pl-8' : 'pl-3'} pr-3 text-right ${
+              isFormEditable 
+                ? 'bg-white border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none' 
+                : 'bg-gray-100 text-gray-600 cursor-not-allowed'
+            }`}
+            placeholder="0"
+          />
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Read-only field component (gray background)
   const ReadOnlyField = ({ label, value, prefix, highlight = false, info = "" }) => (
@@ -564,8 +566,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
                 Guest & Bill Count
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <EditableField label="Number of Guests (Pax)" field="num_guests" type="number" />
-                <EditableField label="Number of Bills (excl. Swiggy/Zomato)" field="num_bills" type="number" />
+                {renderEditableField("Number of Guests (Pax)", "num_guests", null, "number")}
+                {renderEditableField("Number of Bills (excl. Swiggy/Zomato)", "num_bills", null, "number")}
                 <ReadOnlyField 
                   label="Avg Per Pax" 
                   value={calculated.avg_per_pax}
@@ -590,11 +592,11 @@ export default function SalesDataEntry({ session, selectedCenter }) {
                 <Label className="text-sm font-bold text-blue-800">Total Sale of the Day *</Label>
                 <div className="relative mt-1">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
-                  <Input
+                  <input
                     type="number"
                     value={formData.total_sale || ""}
                     onChange={(e) => handleChange('total_sale', e.target.value)}
-                    className="pl-8 text-right text-lg font-bold bg-white border-2 border-blue-300 focus:border-blue-500"
+                    className="w-full h-12 pl-8 pr-3 text-right text-lg font-bold bg-white border-2 border-blue-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                     placeholder="Enter total sale"
                   />
                 </div>
@@ -604,11 +606,11 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               <div className="mt-4">
                 <Label className="text-sm font-medium text-blue-700 mb-2 block">Online/Non-Cash Sales Breakdown</Label>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <EditableField label="Swiggy" field="swiggy" prefix={currencySymbol} />
-                  <EditableField label="Zomato" field="zomato" prefix={currencySymbol} />
-                  <EditableField label="Card (Credit/Debit)" field="card_idfc" prefix={currencySymbol} />
-                  <EditableField label="Bharat Pay" field="bharat_pay" prefix={currencySymbol} />
-                  <EditableField label="Other/Pickup" field="online_other" prefix={currencySymbol} />
+                  {renderEditableField("Swiggy", "swiggy", currencySymbol)}
+                  {renderEditableField("Zomato", "zomato", currencySymbol)}
+                  {renderEditableField("Card (Credit/Debit)", "card_idfc", currencySymbol)}
+                  {renderEditableField("Bharat Pay", "bharat_pay", currencySymbol)}
+                  {renderEditableField("Other/Pickup", "online_other", currencySymbol)}
                 </div>
               </div>
               
@@ -671,9 +673,9 @@ export default function SalesDataEntry({ session, selectedCenter }) {
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <h3 className="text-sm font-semibold text-green-700 mb-3">Cash Flow</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <EditableField label="Deposited in Bank" field="deposited_in_bank" prefix={currencySymbol} />
-                <EditableField label="Cash Receipts" field="cash_receipts" prefix={currencySymbol} />
-                <EditableField label="Due Amount" field="due_amount" prefix={currencySymbol} />
+                {renderEditableField("Deposited in Bank", "deposited_in_bank", currencySymbol)}
+                {renderEditableField("Withdrawal (Cash Receipts)", "cash_receipts", currencySymbol)}
+                {renderEditableField("Due Amount", "due_amount", currencySymbol)}
               </div>
             </div>
 
