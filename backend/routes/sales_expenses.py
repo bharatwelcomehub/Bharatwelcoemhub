@@ -39,21 +39,17 @@ class DailySaleCreate(BaseModel):
     sale_other: float = 0  # Other products
     total_sale: float = 0
     
-    # Online/Card payments - ALL non-cash channels
+    # Online/Card payments - Non-cash channels
     card_idfc: float = 0       # Credit/Debit Card (IDFC)
     bharat_pay: float = 0      # Bharat Pay
     swiggy: float = 0          # Swiggy
     zomato: float = 0          # Zomato
-    amazon: float = 0          # Amazon (NEW)
-    ecwid: float = 0           # ECWID (NEW)
-    paytm: float = 0           # Paytm (NEW)
-    pbm_online: float = 0      # PBM Online Channel (NEW)
-    online_other: float = 0    # Other online
+    online_other: float = 0    # Other online/Pickups
     due_amount: float = 0
     total_online_sale: float = 0
     total_cash_sale: float = 0
     
-    # Cash in Hand = Opening + Withdrawal + Total Sale - (all online channels) - Expenses
+    # Cash in Hand = Opening + Withdrawal + Total Sale - (all deductions)
     cash_in_hand: float = 0
     
     # Guest & Bill tracking
@@ -86,15 +82,11 @@ class DailySaleUpdate(BaseModel):
     bharat_pay: Optional[float] = None
     swiggy: Optional[float] = None
     zomato: Optional[float] = None
-    amazon: Optional[float] = None          # NEW
-    ecwid: Optional[float] = None           # NEW
-    paytm: Optional[float] = None           # NEW
-    pbm_online: Optional[float] = None      # NEW
     online_other: Optional[float] = None
     due_amount: Optional[float] = None
     total_online_sale: Optional[float] = None
     total_cash_sale: Optional[float] = None
-    cash_in_hand: Optional[float] = None    # NEW
+    cash_in_hand: Optional[float] = None
     # Guest & Bill tracking
     num_guests: Optional[int] = None
     num_bills: Optional[int] = None
@@ -258,71 +250,58 @@ def calculate_totals(sale: dict) -> dict:
     """
     Calculate derived fields for a sale record using CORRECT FORMULAS.
     
-    CASH SALE FORMULA (from user):
-    Cash Sale = Total Sale - sum(Swiggy, Zomato, Amazon, ECWID, Card, Bharatpay, Paytm, PBM)
+    CASH SALE FORMULA:
+    Cash Sale = Total Sale - (Swiggy + Zomato + Other/Pickups)
     
-    CASH IN HAND FORMULA (from user):
+    CASH IN HAND FORMULA:
     Cash in Hand = Opening Balance + Withdrawal + Total Sale 
-                   - sum(Swiggy, Zomato, Amazon, ECWID, Card, Bharatpay, Paytm, PBM, Expenses)
+                   - (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
     
-    PETTY CASH FORMULA (from user):
+    PETTY CASH FORMULA:
     Petty Cash = Last Day Petty Cash + Withdrawal - Expenses in Cash
     """
     # Total sale = PBM + Other (or use direct total_sale if provided)
     if sale.get("total_sale", 0) == 0:
         sale["total_sale"] = sale.get("sale_pbm", 0) + sale.get("sale_other", 0)
     
-    # Total Online Sale = sum of ALL non-cash payment channels
-    # Includes: Swiggy, Zomato, Amazon, ECWID, Card, Bharatpay, Paytm, PBM Online, Other
-    sale["total_online_sale"] = (
-        sale.get("swiggy", 0) + 
-        sale.get("zomato", 0) + 
-        sale.get("amazon", 0) +         # NEW
-        sale.get("ecwid", 0) +           # NEW
-        sale.get("card_idfc", 0) + 
-        sale.get("bharat_pay", 0) + 
-        sale.get("paytm", 0) +           # NEW
-        sale.get("pbm_online", 0) +      # NEW
-        sale.get("online_other", 0)
-    )
-    
-    # CASH SALE = Total Sale - Total Online Sale
-    # This is the portion of sales received in actual cash
-    sale["total_cash_sale"] = max(0, sale.get("total_sale", 0) - sale["total_online_sale"])
-    
-    # CASH IN HAND = Opening Balance + Withdrawal + Total Sale - (All Online + Expenses)
-    # = Opening Balance + Withdrawal + Cash Sale - Expenses
-    opening_balance = sale.get("opening_balance", 0)
-    withdrawal = sale.get("cash_receipts", 0)  # cash_receipts = Withdrawal from bank
+    # Get values
     total_sale = sale.get("total_sale", 0)
+    swiggy = sale.get("swiggy", 0)
+    zomato = sale.get("zomato", 0)
+    online_other = sale.get("online_other", 0)
+    card_idfc = sale.get("card_idfc", 0)
+    bharat_pay = sale.get("bharat_pay", 0)
+    opening_balance = sale.get("opening_balance", 0)
+    withdrawal = sale.get("cash_receipts", 0)
     cash_expense = sale.get("cash_expense", 0)
+    petty_opening = sale.get("petty_cash_opening", 0)
+    deposited_in_bank = sale.get("deposited_in_bank", 0)
     
-    sale["cash_in_hand"] = (
-        opening_balance + 
-        withdrawal + 
-        total_sale - 
-        sale["total_online_sale"] - 
-        cash_expense
-    )
+    # Total Online = Swiggy + Zomato + Other/Pickups (for display)
+    sale["total_online_sale"] = swiggy + zomato + online_other
     
-    # Alternative calculation: Opening + Withdrawal + Cash Sale - Expenses
-    # cash_in_hand = opening_balance + withdrawal + sale["total_cash_sale"] - cash_expense
+    # CASH SALE = Total Sale - (Swiggy + Zomato + Other/Pickups)
+    sale["total_cash_sale"] = max(0, total_sale - sale["total_online_sale"])
+    
+    # All deductions for Cash in Hand
+    all_deductions = swiggy + zomato + online_other + card_idfc + bharat_pay + cash_expense
+    
+    # CASH IN HAND = Opening + Withdrawal + Total Sale - All Deductions
+    sale["cash_in_hand"] = opening_balance + withdrawal + total_sale - all_deductions
     
     # PETTY CASH = Last Day Petty Cash + Withdrawal - Expenses in Cash
-    petty_opening = sale.get("petty_cash_opening", 0)  # Last day's petty cash closing
     sale["petty_cash_closing"] = petty_opening + withdrawal - cash_expense
     
-    # CLOSING BALANCE (main register/cash drawer)
-    # = Opening + Cash Sale + Withdrawal - Deposited in Bank - Cash Expenses
+    # CLOSING BALANCE = Opening + Cash Sale + Withdrawal - Deposited - Cash Expenses
     sale["closing_balance"] = (
         opening_balance + 
         sale["total_cash_sale"] + 
         withdrawal - 
-        sale.get("deposited_in_bank", 0) - 
+        deposited_in_bank - 
         cash_expense
     )
     
-    # To Deposit in Bank = Closing Balance - Petty Cash Closing
+    # To Deposit = Closing Balance - Petty Cash Closing
     sale["to_deposit_in_bank"] = sale["closing_balance"] - sale["petty_cash_closing"]
     
     return sale

@@ -97,11 +97,7 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     bharat_pay: 0,           // Bharat Pay
     swiggy: 0,               // Swiggy
     zomato: 0,               // Zomato
-    amazon: 0,               // Amazon (NEW)
-    ecwid: 0,                // ECWID (NEW)
-    paytm: 0,                // Paytm (NEW)
-    pbm_online: 0,           // PBM Online (NEW)
-    online_other: 0,         // Other online
+    online_other: 0,         // Other online/Pickups
     
     // Guest & Bill tracking
     num_guests: 0,           // Number of guests (pax)
@@ -120,25 +116,25 @@ export default function SalesDataEntry({ session, selectedCenter }) {
   const isPerthCenter = isPerth(centerCode);
 
   // CALCULATED fields (gray background - auto-computed)
-  // Using CORRECT FORMULAS provided by user
+  // CORRECT FORMULAS:
+  // Cash Sale = Total Sale - (Swiggy + Zomato + Other Online/Pickups)
+  // Cash in Hand = Opening + Withdrawal + Total Sale - (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
   const calculated = useMemo(() => {
-    // Total Online Sale = sum of ALL non-cash channels
-    // Swiggy + Zomato + Amazon + ECWID + Card + Bharatpay + Paytm + PBM + Other
-    const total_online_sale = (
-      (parseFloat(formData.swiggy) || 0) +
-      (parseFloat(formData.zomato) || 0) +
-      (parseFloat(formData.amazon) || 0) +
-      (parseFloat(formData.ecwid) || 0) +
-      (parseFloat(formData.card_idfc) || 0) +
-      (parseFloat(formData.bharat_pay) || 0) +
-      (parseFloat(formData.paytm) || 0) +
-      (parseFloat(formData.pbm_online) || 0) +
-      (parseFloat(formData.online_other) || 0)
-    );
+    // Online payments for CASH SALE calculation (Swiggy + Zomato + Other/Pickups)
+    const swiggy = parseFloat(formData.swiggy) || 0;
+    const zomato = parseFloat(formData.zomato) || 0;
+    const online_other = parseFloat(formData.online_other) || 0;
+    
+    // All non-cash channels for CASH IN HAND calculation
+    const card_idfc = parseFloat(formData.card_idfc) || 0;
+    const bharat_pay = parseFloat(formData.bharat_pay) || 0;
     
     const total_sale = parseFloat(formData.total_sale) || 0;
     
-    // CASH SALE = Total Sale - Total Online Sale
+    // Total Online = Swiggy + Zomato + Other/Pickups (for display)
+    const total_online_sale = swiggy + zomato + online_other;
+    
+    // CASH SALE = Total Sale - (Swiggy + Zomato + Other/Pickups)
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
     // GST Calculation
@@ -159,9 +155,11 @@ export default function SalesDataEntry({ session, selectedCenter }) {
     const deposited_in_bank = parseFloat(formData.deposited_in_bank) || 0;
     const petty_cash_opening = parseFloat(formData.petty_cash_opening) || 0;
     
-    // CASH IN HAND = Opening Balance + Withdrawal + Total Sale - (All Online + Expenses)
-    // = Opening Balance + Withdrawal + Cash Sale - Expenses
-    const cash_in_hand = opening_balance + withdrawal + total_cash_sale - cash_expense;
+    // All deductions for Cash in Hand (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
+    const all_deductions = swiggy + zomato + online_other + card_idfc + bharat_pay + cash_expense;
+    
+    // CASH IN HAND = Opening + Withdrawal + Total Sale - (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
+    const cash_in_hand = opening_balance + withdrawal + total_sale - all_deductions;
     
     // PETTY CASH = Last Day Petty Cash + Withdrawal - Expenses in Cash
     const petty_cash_closing = petty_cash_opening + withdrawal - cash_expense;
@@ -261,10 +259,6 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           bharat_pay: record.bharat_pay || 0,
           swiggy: record.swiggy || 0,
           zomato: record.zomato || 0,
-          amazon: record.amazon || 0,
-          ecwid: record.ecwid || 0,
-          paytm: record.paytm || 0,
-          pbm_online: record.pbm_online || 0,
           online_other: record.online_other || 0,
           num_guests: record.num_guests || 0,
           num_bills: record.num_bills || 0,
@@ -284,10 +278,6 @@ export default function SalesDataEntry({ session, selectedCenter }) {
           bharat_pay: 0,
           swiggy: 0,
           zomato: 0,
-          amazon: 0,
-          ecwid: 0,
-          paytm: 0,
-          pbm_online: 0,
           online_other: 0,
           num_guests: 0,
           num_bills: 0,
@@ -357,15 +347,11 @@ export default function SalesDataEntry({ session, selectedCenter }) {
         // Store total_sale as sale_pbm for compatibility
         sale_pbm: parseFloat(formData.total_sale) || 0,
         sale_other: 0,
-        // ALL non-cash payment channels
+        // Non-cash payment channels
         card_idfc: parseFloat(formData.card_idfc) || 0,
         bharat_pay: parseFloat(formData.bharat_pay) || 0,
         swiggy: parseFloat(formData.swiggy) || 0,
         zomato: parseFloat(formData.zomato) || 0,
-        amazon: parseFloat(formData.amazon) || 0,
-        ecwid: parseFloat(formData.ecwid) || 0,
-        paytm: parseFloat(formData.paytm) || 0,
-        pbm_online: parseFloat(formData.pbm_online) || 0,
         online_other: parseFloat(formData.online_other) || 0,
         num_guests: parseInt(formData.num_guests) || 0,
         num_bills: parseInt(formData.num_bills) || 0,
@@ -617,42 +603,36 @@ export default function SalesDataEntry({ session, selectedCenter }) {
               {/* Online Sales Bifurcation */}
               <div className="mt-4">
                 <Label className="text-sm font-medium text-blue-700 mb-2 block">Online/Non-Cash Sales Breakdown</Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <EditableField label="Swiggy" field="swiggy" prefix={currencySymbol} />
                   <EditableField label="Zomato" field="zomato" prefix={currencySymbol} />
-                  <EditableField label="Amazon" field="amazon" prefix={currencySymbol} />
-                  <EditableField label="ECWID" field="ecwid" prefix={currencySymbol} />
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                   <EditableField label="Card (Credit/Debit)" field="card_idfc" prefix={currencySymbol} />
                   <EditableField label="Bharat Pay" field="bharat_pay" prefix={currencySymbol} />
-                  <EditableField label="Paytm" field="paytm" prefix={currencySymbol} />
-                  <EditableField label="PBM Online" field="pbm_online" prefix={currencySymbol} />
-                </div>
-                <div className="mt-3">
-                  <EditableField label="Other Online" field="online_other" prefix={currencySymbol} />
+                  <EditableField label="Other/Pickup" field="online_other" prefix={currencySymbol} />
                 </div>
               </div>
               
               {/* Auto-calculated fields */}
               <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-blue-200">
                 <ReadOnlyField 
-                  label="Total Online Sale (Auto)" 
+                  label="Total Online Sale" 
                   value={calculated.total_online_sale}
                   prefix={currencySymbol}
+                  info="Swiggy + Zomato + Other/Pickups"
                 />
                 <ReadOnlyField 
-                  label="Cash Sale (Total - Online)" 
+                  label="Cash Sale" 
                   value={calculated.total_cash_sale}
                   prefix={currencySymbol}
                   highlight={true}
+                  info="Total Sale - (Swiggy + Zomato + Other)"
                 />
                 <ReadOnlyField 
                   label="Cash in Hand" 
                   value={calculated.cash_in_hand}
                   prefix={currencySymbol}
                   highlight={true}
-                  info="Opening + Withdrawal + Cash Sale - Expenses"
+                  info="Opening + Withdrawal + Total Sale - All Deductions"
                 />
               </div>
             </div>

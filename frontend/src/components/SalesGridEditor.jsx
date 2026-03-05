@@ -50,18 +50,14 @@ const isDateFrozen = (dateStr) => {
   return recordDate < today;
 };
 
-// Editable fields configuration
+// Editable fields configuration - SIMPLIFIED
 const EDITABLE_FIELDS = [
   { key: 'total_sale', label: 'Total Sale', type: 'number' },
   { key: 'swiggy', label: 'Swiggy', type: 'number' },
   { key: 'zomato', label: 'Zomato', type: 'number' },
-  { key: 'amazon', label: 'Amazon', type: 'number' },
-  { key: 'ecwid', label: 'ECWID', type: 'number' },
   { key: 'card_idfc', label: 'Card/IDFC', type: 'number' },
   { key: 'bharat_pay', label: 'Bharat Pay', type: 'number' },
-  { key: 'paytm', label: 'Paytm', type: 'number' },
-  { key: 'pbm_online', label: 'PBM Online', type: 'number' },
-  { key: 'online_other', label: 'Other', type: 'number' },
+  { key: 'online_other', label: 'Other/Pickup', type: 'number' },
   { key: 'num_guests', label: 'Guests', type: 'integer' },
   { key: 'num_bills', label: 'Bills', type: 'integer' },
 ];
@@ -71,8 +67,6 @@ const CALCULATED_FIELDS = [
   { key: 'total_online_sale', label: 'Online Sale', computed: true },
   { key: 'total_cash_sale', label: 'Cash Sale', computed: true },
   { key: 'cash_in_hand', label: 'Cash in Hand', computed: true },
-  { key: 'avg_per_pax', label: 'Avg/Pax', computed: true },
-  { key: 'avg_per_bill', label: 'Avg/Bill', computed: true },
 ];
 
 export default function SalesGridEditor({ session, selectedCenter, selectedMonth }) {
@@ -82,6 +76,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
   const [modifiedRows, setModifiedRows] = useState(new Set());
   const [editingCell, setEditingCell] = useState(null); // { row: index, field: key }
   const [frozenStatus, setFrozenStatus] = useState({});
+  const [editValue, setEditValue] = useState(''); // Local edit value to prevent re-renders
   const inputRef = useRef(null);
 
   // Get center code - use session center if selectedCenter is "all" or not set
@@ -190,12 +185,8 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     total_sale: 0,
     swiggy: 0,
     zomato: 0,
-    amazon: 0,
-    ecwid: 0,
     card_idfc: 0,
     bharat_pay: 0,
-    paytm: 0,
-    pbm_online: 0,
     online_other: 0,
     num_guests: 0,
     num_bills: 0,
@@ -211,39 +202,30 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     const total_sale = parseFloat(row.total_sale) || 0;
     const swiggy = parseFloat(row.swiggy) || 0;
     const zomato = parseFloat(row.zomato) || 0;
-    const amazon = parseFloat(row.amazon) || 0;
-    const ecwid = parseFloat(row.ecwid) || 0;
     const card_idfc = parseFloat(row.card_idfc) || 0;
     const bharat_pay = parseFloat(row.bharat_pay) || 0;
-    const paytm = parseFloat(row.paytm) || 0;
-    const pbm_online = parseFloat(row.pbm_online) || 0;
     const online_other = parseFloat(row.online_other) || 0;
-    const num_guests = parseInt(row.num_guests) || 0;
-    const num_bills = parseInt(row.num_bills) || 0;
     const opening_balance = parseFloat(row.opening_balance) || 0;
     const withdrawal = parseFloat(row.cash_receipts) || 0;
     const cash_expense = parseFloat(row.cash_expense) || 0;
 
-    // Total Online = sum of ALL non-cash channels
-    const total_online_sale = swiggy + zomato + amazon + ecwid + card_idfc + bharat_pay + paytm + pbm_online + online_other;
+    // Total Online = Swiggy + Zomato + Other/Pickups (for Cash Sale calculation)
+    const total_online_sale = swiggy + zomato + online_other;
     
-    // Cash Sale = Total Sale - Total Online
+    // Cash Sale = Total Sale - (Swiggy + Zomato + Other/Pickups)
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
-    // Cash in Hand = Opening + Withdrawal + Cash Sale - Expenses
-    const cash_in_hand = opening_balance + withdrawal + total_cash_sale - cash_expense;
+    // All deductions for Cash in Hand
+    const all_deductions = swiggy + zomato + online_other + card_idfc + bharat_pay + cash_expense;
     
-    // Averages
-    const avg_per_pax = num_guests > 0 ? total_sale / num_guests : 0;
-    const avg_per_bill = num_bills > 0 ? total_sale / num_bills : 0;
+    // Cash in Hand = Opening + Withdrawal + Total Sale - All Deductions
+    const cash_in_hand = opening_balance + withdrawal + total_sale - all_deductions;
 
     return {
       ...row,
       total_online_sale,
       total_cash_sale,
-      cash_in_hand,
-      avg_per_pax,
-      avg_per_bill
+      cash_in_hand
     };
   };
 
@@ -254,7 +236,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, centerCode, session?.token]);
 
-  // Handle cell click to start editing
+  // Handle cell click to start editing - set local edit value
   const handleCellClick = (rowIndex, field) => {
     const row = gridData[rowIndex];
     const status = frozenStatus[row.date];
@@ -264,50 +246,81 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
       return;
     }
 
+    // Set the local edit value to current cell value
+    setEditValue(row[field] || '');
     setEditingCell({ row: rowIndex, field });
   };
 
-  // Handle cell value change
-  const handleCellChange = (rowIndex, field, value) => {
-    setGridData(prev => {
-      const newData = [...prev];
+  // Handle LOCAL input change - doesn't update grid until blur
+  const handleInputChange = (value) => {
+    setEditValue(value);
+  };
+
+  // Handle cell blur (finish editing) - NOW update the grid
+  const handleCellBlur = () => {
+    if (editingCell) {
+      const { row: rowIndex, field } = editingCell;
       const fieldConfig = EDITABLE_FIELDS.find(f => f.key === field);
       
       // Parse value based on type
-      let parsedValue = value;
+      let parsedValue = editValue;
       if (fieldConfig?.type === 'integer') {
-        parsedValue = parseInt(value) || 0;
+        parsedValue = parseInt(editValue) || 0;
       } else if (fieldConfig?.type === 'number') {
-        parsedValue = parseFloat(value) || 0;
+        parsedValue = parseFloat(editValue) || 0;
       }
 
-      newData[rowIndex] = calculateRow({
-        ...newData[rowIndex],
-        [field]: parsedValue
+      // Update grid data
+      setGridData(prev => {
+        const newData = [...prev];
+        newData[rowIndex] = calculateRow({
+          ...newData[rowIndex],
+          [field]: parsedValue
+        });
+        return newData;
       });
 
-      return newData;
-    });
-
-    // Mark row as modified
-    setModifiedRows(prev => new Set([...prev, rowIndex]));
-  };
-
-  // Handle cell blur (finish editing)
-  const handleCellBlur = () => {
+      // Mark row as modified
+      setModifiedRows(prev => new Set([...prev, rowIndex]));
+    }
+    
     setEditingCell(null);
+    setEditValue('');
   };
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation - save current cell before moving
   const handleKeyDown = (e, rowIndex, fieldIndex) => {
     if (e.key === 'Tab' || e.key === 'Enter') {
       e.preventDefault();
+      
+      // First, save current cell value
+      const fieldConfig = EDITABLE_FIELDS.find(f => f.key === editingCell?.field);
+      let parsedValue = editValue;
+      if (fieldConfig?.type === 'integer') {
+        parsedValue = parseInt(editValue) || 0;
+      } else if (fieldConfig?.type === 'number') {
+        parsedValue = parseFloat(editValue) || 0;
+      }
+
+      // Update grid data for current cell
+      setGridData(prev => {
+        const newData = [...prev];
+        newData[rowIndex] = calculateRow({
+          ...newData[rowIndex],
+          [editingCell.field]: parsedValue
+        });
+        return newData;
+      });
+      setModifiedRows(prev => new Set([...prev, rowIndex]));
       
       // Move to next cell
       const nextFieldIndex = e.shiftKey ? fieldIndex - 1 : fieldIndex + 1;
       
       if (nextFieldIndex >= 0 && nextFieldIndex < EDITABLE_FIELDS.length) {
-        setEditingCell({ row: rowIndex, field: EDITABLE_FIELDS[nextFieldIndex].key });
+        const nextField = EDITABLE_FIELDS[nextFieldIndex].key;
+        const nextValue = gridData[rowIndex][nextField] || '';
+        setEditValue(nextValue);
+        setEditingCell({ row: rowIndex, field: nextField });
       } else if (nextFieldIndex >= EDITABLE_FIELDS.length) {
         // Move to next row
         const nextRowIndex = rowIndex + 1;
@@ -315,12 +328,24 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
           const nextRow = gridData[nextRowIndex];
           const status = frozenStatus[nextRow.date];
           if (status?.can_edit) {
-            setEditingCell({ row: nextRowIndex, field: EDITABLE_FIELDS[0].key });
+            const nextField = EDITABLE_FIELDS[0].key;
+            setEditValue(nextRow[nextField] || '');
+            setEditingCell({ row: nextRowIndex, field: nextField });
+          } else {
+            setEditingCell(null);
+            setEditValue('');
           }
+        } else {
+          setEditingCell(null);
+          setEditValue('');
         }
+      } else {
+        setEditingCell(null);
+        setEditValue('');
       }
     } else if (e.key === 'Escape') {
       setEditingCell(null);
+      setEditValue('');
     }
   };
 
@@ -490,23 +515,17 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
             sale_pbm: parseFloat(row.total_sale) || 0,
             sale_other: 0,
             total_sale: parseFloat(row.total_sale) || 0,
-            // ALL non-cash payment channels
+            // Non-cash payment channels
             swiggy: parseFloat(row.swiggy) || 0,
             zomato: parseFloat(row.zomato) || 0,
-            amazon: parseFloat(row.amazon) || 0,
-            ecwid: parseFloat(row.ecwid) || 0,
             card_idfc: parseFloat(row.card_idfc) || 0,
             bharat_pay: parseFloat(row.bharat_pay) || 0,
-            paytm: parseFloat(row.paytm) || 0,
-            pbm_online: parseFloat(row.pbm_online) || 0,
             online_other: parseFloat(row.online_other) || 0,
             num_guests: parseInt(row.num_guests) || 0,
             num_bills: parseInt(row.num_bills) || 0,
             total_online_sale: row.total_online_sale || 0,
             total_cash_sale: row.total_cash_sale || 0,
-            cash_in_hand: row.cash_in_hand || 0,
-            avg_per_pax: row.avg_per_pax || 0,
-            avg_per_bill: row.avg_per_bill || 0
+            cash_in_hand: row.cash_in_hand || 0
           };
 
           if (row._isNew) {
@@ -547,10 +566,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
 
     // Calculated field (read-only)
     if (field.computed) {
-      // Show "--" for avg fields when there's no data (clearer than showing 0)
-      const displayValue = field.key.includes('avg') && (!value || value === 0) 
-        ? '--' 
-        : (typeof value === 'number' ? value.toFixed(field.key.includes('avg') ? 2 : 0) : value || 0);
+      const displayValue = typeof value === 'number' ? Math.round(value).toLocaleString() : value || 0;
       
       return (
         <td 
@@ -562,19 +578,21 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
       );
     }
 
-    // Editable cell
+    // Editable cell - WHEN EDITING, use local editValue to prevent focus loss
     if (isEditing) {
       return (
         <td key={field.key} className="px-0 py-0">
-          <Input
+          <input
             ref={inputRef}
             type="number"
-            value={value || ''}
-            onChange={(e) => handleCellChange(rowIndex, field.key, e.target.value)}
+            value={editValue}
+            onChange={(e) => handleInputChange(e.target.value)}
             onBlur={handleCellBlur}
             onKeyDown={(e) => handleKeyDown(e, rowIndex, fieldIndex)}
             autoFocus
-            className="h-7 text-xs text-right border-2 border-primary rounded-none focus:ring-0"
+            className="w-full h-7 px-2 text-xs text-right border-2 border-blue-500 outline-none"
+            style={{ minWidth: '60px' }}
+          />
           />
         </td>
       );

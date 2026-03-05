@@ -10,28 +10,25 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ### Latest Update (Mar 05, 2026 - Session 11)
 
-- ✅ **P0: CORRECTED Financial Calculation Formulas (NEW)**
-  - **Cash Sale** = Total Sale - (Swiggy + Zomato + Amazon + ECWID + Card + Bharatpay + Paytm + PBM)
-  - **Cash in Hand** = Opening Balance + Withdrawal + Total Sale - (All Online Channels) - Expenses
+- ✅ **P0: CORRECTED & SIMPLIFIED Financial Calculations**
+  - **Cash Sale** = Total Sale - (Swiggy + Zomato + Other/Pickups)
+  - **Cash in Hand** = Opening + Withdrawal + Total Sale - (Swiggy + Zomato + Other + Card + BharatPay + Expenses)
   - **Petty Cash** = Last Day Petty Cash + Withdrawal - Expenses in Cash
+  - **Removed unnecessary fields:** Amazon, ECWID, Paytm, PBM Online (not needed)
   
-- ✅ **P0: Added New Payment Channels (NEW)**
-  - **Amazon** - Online marketplace sales
-  - **ECWID** - E-commerce channel
-  - **Paytm** - Payment gateway
-  - **PBM Online** - PBM online sales channel
-  - All 9 channels now included: Swiggy, Zomato, Amazon, ECWID, Card/IDFC, Bharat Pay, Paytm, PBM Online, Other
-
 - ✅ **P0: Grid Bulk Update Feature**
-  - New "Grid Update" tab in Sales & Cash page with table icon
-  - **12 Editable columns:** Total Sale, Swiggy, Zomato, Amazon, ECWID, Card/IDFC, Bharat Pay, Paytm, PBM Online, Other, Guests, Bills
-  - **5 Auto-calculated columns:** Online Sale, Cash Sale, Cash in Hand, Avg/Pax, Avg/Bill
-  - Click any cell to edit inline, Tab to navigate
-  - Paste from Excel support (Ctrl+V)
-  - Save All button for batch updates
-  - Implementation: `/app/frontend/src/components/SalesGridEditor.jsx`
+  - **8 Editable columns:** Total Sale, Swiggy, Zomato, Card/IDFC, Bharat Pay, Other/Pickup, Guests, Bills
+  - **3 Auto-calculated columns:** Online Sale, Cash Sale, Cash in Hand
+  - Click cell to edit, Tab to navigate, Ctrl+V to paste from Excel
+  - **Focus fix:** Using local state for input values to prevent focus jumping
 
-### Previous Update (Feb 27, 2026 - Session 8)
+- ✅ **P0: Fixed Focus Jumping Issue**
+  - Changed grid input handling to use local state (`editValue`)
+  - Grid data only updates on blur (when leaving cell)
+  - Using plain HTML input for better focus control
+
+### Previous Sessions
+(see CHANGELOG.md for full history)
 
 - ✅ **P0: 5 Critical Features Implemented**
 
