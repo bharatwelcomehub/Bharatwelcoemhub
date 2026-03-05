@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -27,7 +28,10 @@ import {
   Building2,
   User,
   Search,
-  MapPin
+  MapPin,
+  Sparkles,
+  PenTool,
+  Download
 } from "lucide-react";
 
 const LETTER_TYPES = [
@@ -43,6 +47,7 @@ export default function HRLetters() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState("standard");
   
   // Form state
   const [selectedCenter, setSelectedCenter] = useState("");
@@ -50,6 +55,14 @@ export default function HRLetters() {
   const [searchQuery, setSearchQuery] = useState("");
   const [letterType, setLetterType] = useState("");
   const [generatedLetter, setGeneratedLetter] = useState(null);
+  
+  // Signatory selection
+  const [signatory, setSignatory] = useState("sandeep");
+  
+  // AI Custom Letter fields
+  const [customLetterDescription, setCustomLetterDescription] = useState("");
+  const [customAdditionalDetails, setCustomAdditionalDetails] = useState("");
+  const [customEmployeeName, setCustomEmployeeName] = useState("");
   
   // Additional fields
   const [joiningDate, setJoiningDate] = useState("");
@@ -211,6 +224,50 @@ export default function HRLetters() {
     }
   };
 
+  // Generate custom AI letter
+  const handleGenerateCustom = async () => {
+    if (!customLetterDescription.trim()) {
+      toast.error("Please describe what letter you need");
+      return;
+    }
+
+    setGenerating(true);
+    setGeneratedLetter(null);
+
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error("Session expired");
+        setGenerating(false);
+        return;
+      }
+      
+      const payload = {
+        token,
+        letterDescription: customLetterDescription,
+        employeeName: customEmployeeName === "__general__" ? null : (customEmployeeName || null),
+        additionalDetails: customAdditionalDetails || null
+      };
+
+      const res = await api.post("/hr_letter/generate-custom", payload);
+      
+      setGeneratedLetter({
+        type: "custom",
+        employeeName: customEmployeeName || "General",
+        content: res.data.content,
+        date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        empDetails: null
+      });
+      
+      toast.success("Custom letter generated!");
+    } catch (e) {
+      console.error("Failed to generate custom letter:", e);
+      toast.error(e.response?.data?.detail || "Failed to generate letter");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // Download letter
   const downloadLetter = async (format) => {
     if (!generatedLetter) {
@@ -230,7 +287,8 @@ export default function HRLetters() {
         content: generatedLetter.content,
         letterType: generatedLetter.type,
         employeeName: generatedLetter.employeeName,
-        format
+        format,
+        signatory  // Include selected signatory
       }, { responseType: 'blob' });
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -388,14 +446,23 @@ export default function HRLetters() {
           <p className="mb-2">Yours sincerely,</p>
           <p className="font-semibold">For MANASWINI FOODS PVT. LTD.</p>
           <div className="mt-4">
-            <img 
-              src="https://customer-assets.emergentagent.com/job_642d5081-fe67-412f-9b66-6148b69260ec/artifacts/rnk77act_sign.png" 
-              alt="Signature" 
-              className="h-16"
-              onError={(e) => e.target.style.display = 'none'}
-            />
+            {signatory === "jayanti" ? (
+              <img 
+                src="https://customer-assets.emergentagent.com/job_35379d55-e9f3-4ed1-8f4c-d9e9beae742f/artifacts/qm42nxtd_JAYANTI%20-%20SIGNATURE.png" 
+                alt="Signature" 
+                className="h-20 bg-white"
+                onError={(e) => e.target.style.display = 'none'}
+              />
+            ) : (
+              <img 
+                src="https://customer-assets.emergentagent.com/job_642d5081-fe67-412f-9b66-6148b69260ec/artifacts/rnk77act_sign.png" 
+                alt="Signature" 
+                className="h-16"
+                onError={(e) => e.target.style.display = 'none'}
+              />
+            )}
           </div>
-          <p className="font-bold mt-2">Mr. Sandeep Gadhwal</p>
+          <p className="font-bold mt-2">{signatory === "jayanti" ? "Ms. Jayanti Kathale" : "Mr. Sandeep Gadhwal"}</p>
           <p>Director</p>
         </div>
       </div>
@@ -432,23 +499,70 @@ export default function HRLetters() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Step 1: Select Center */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                1. Select Center
+            {/* Signatory Selection */}
+            <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <Label className="flex items-center gap-2 text-amber-800 font-medium mb-3">
+                <PenTool className="w-4 h-4" />
+                Select Signatory
               </Label>
-              <Select value={selectedCenter} onValueChange={(v) => { setSelectedCenter(v); setSelectedEmployee(""); }}>
-                <SelectTrigger data-testid="center-select">
-                  <SelectValue placeholder="Choose center first" />
-                </SelectTrigger>
-                <SelectContent>
-                  {centers.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-4">
+                <label className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${signatory === 'sandeep' ? 'border-amber-500 bg-amber-100' : 'border-gray-200 hover:border-amber-300'}`}>
+                  <input 
+                    type="radio" 
+                    name="signatory" 
+                    value="sandeep" 
+                    checked={signatory === 'sandeep'} 
+                    onChange={() => setSignatory('sandeep')}
+                    className="text-amber-600"
+                  />
+                  <span className="font-medium">Sandeep Gadhwal</span>
+                </label>
+                <label className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${signatory === 'jayanti' ? 'border-amber-500 bg-amber-100' : 'border-gray-200 hover:border-amber-300'}`}>
+                  <input 
+                    type="radio" 
+                    name="signatory" 
+                    value="jayanti" 
+                    checked={signatory === 'jayanti'} 
+                    onChange={() => setSignatory('jayanti')}
+                    className="text-amber-600"
+                  />
+                  <span className="font-medium">Jayanti Kathale</span>
+                </label>
+              </div>
             </div>
+
+            {/* Tabs for Standard vs AI Custom */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="standard" className="gap-2">
+                  <FileText className="w-4 h-4" />
+                  Standard Letters
+                </TabsTrigger>
+                <TabsTrigger value="custom" className="gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  AI Custom Letter
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Standard Letters Tab */}
+              <TabsContent value="standard" className="space-y-4 mt-4">
+                {/* Step 1: Select Center */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    1. Select Center
+                  </Label>
+                  <Select value={selectedCenter} onValueChange={(v) => { setSelectedCenter(v); setSelectedEmployee(""); }}>
+                    <SelectTrigger data-testid="center-select">
+                      <SelectValue placeholder="Choose center first" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {centers.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
             {/* Step 2: Search & Select Employee */}
             {selectedCenter && (
@@ -619,6 +733,78 @@ export default function HRLetters() {
               </Button>
               <Button variant="outline" onClick={resetForm}>Reset</Button>
             </div>
+              </TabsContent>
+
+              {/* AI Custom Letter Tab */}
+              <TabsContent value="custom" className="space-y-4 mt-4">
+                <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                  <div className="flex items-center gap-2 text-purple-700 mb-3">
+                    <Sparkles className="w-5 h-5" />
+                    <span className="font-semibold">AI-Powered Custom Letter Generator</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Describe what kind of letter you need, and AI will generate a professional letter for you.
+                  </p>
+                </div>
+
+                {/* Letter Description */}
+                <div className="space-y-2">
+                  <Label className="font-medium">What letter do you need? *</Label>
+                  <Textarea
+                    value={customLetterDescription}
+                    onChange={(e) => setCustomLetterDescription(e.target.value)}
+                    placeholder="Example: A salary increment letter for an employee who has completed 2 years..."
+                    className="min-h-[100px]"
+                  />
+                </div>
+
+                {/* Optional Employee Selection */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    For Employee (Optional)
+                  </Label>
+                  <Select value={customEmployeeName} onValueChange={setCustomEmployeeName}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employee (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__general__">General Letter (No specific employee)</SelectItem>
+                      {allEmployees.map((emp) => (
+                        <SelectItem key={emp.name} value={emp.name}>
+                          {emp.name} - {emp.designation || 'N/A'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Additional Details */}
+                <div className="space-y-2">
+                  <Label>Additional Details (Optional)</Label>
+                  <Textarea
+                    value={customAdditionalDetails}
+                    onChange={(e) => setCustomAdditionalDetails(e.target.value)}
+                    placeholder="Any specific details to include in the letter..."
+                    className="min-h-[80px]"
+                  />
+                </div>
+
+                {/* Generate Button */}
+                <Button
+                  onClick={handleGenerateCustom}
+                  disabled={!customLetterDescription.trim() || generating}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  data-testid="generate-custom-letter-btn"
+                >
+                  {generating ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 mr-2" />Generate Custom Letter</>
+                  )}
+                </Button>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 

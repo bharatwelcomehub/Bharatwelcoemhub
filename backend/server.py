@@ -2480,6 +2480,100 @@ class HRLetterDownloadRequest(BaseModel):
     letterType: str
     employeeName: str
     format: str  # pdf or docx
+    signatory: str = "sandeep"  # "sandeep" or "jayanti"
+
+class CustomLetterRequest(BaseModel):
+    token: str
+    letterDescription: str  # What kind of letter user wants
+    employeeName: Optional[str] = None  # Optional - can be for anyone
+    additionalDetails: Optional[str] = None
+
+@api_router.post("/hr_letter/generate-custom")
+async def generate_custom_letter(req: CustomLetterRequest):
+    """Generate a custom letter using AI based on user description"""
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can generate HR letters")
+    
+    today = datetime.now().strftime("%d %B %Y")
+    
+    # Get employee details if provided
+    emp_details = ""
+    if req.employeeName:
+        emp = await db.employees.find_one({"name": req.employeeName}, {"_id": 0})
+        if emp:
+            emp_details = f"""
+Employee Information:
+- Name: {emp.get('name')}
+- Designation: {emp.get('designation', 'N/A')}
+- Department/Center: {emp.get('center', 'N/A')}
+- Date of Joining: {emp.get('dateOfJoining', 'N/A')}
+- Current Salary: Rs. {emp.get('currentSalary', 'N/A')} per month
+- Gender: {emp.get('gender', 'N/A')}
+"""
+    
+    prompt = f"""You are the HR manager of MANASWINI FOODS PVT. LTD. (Brand: Purnabramha - Pure Vegetarian South Indian Restaurant Chain).
+    
+Generate a professional {req.letterDescription}
+
+{emp_details}
+
+Additional Context/Requirements:
+{req.additionalDetails or 'None specified'}
+
+Today's Date: {today}
+
+Company Details:
+- Company Name: MANASWINI FOODS PVT. LTD.
+- Brand: Purnabramha (Pure Vegetarian South Indian Restaurant)
+- Registered Address: No. 3, First Floor, Above South Indian Bank, 60 Feet Road, MICO Layout, BTM 2nd Stage, Bangalore - 560076
+- CIN: U55101KA2017PTC103726
+- GSTIN: 29AAHCM4627M1ZE
+
+Please generate a formal, professional letter that:
+1. Has proper letterhead format
+2. Includes date and reference number
+3. Is addressed appropriately
+4. Has clear and professional language
+5. Ends with appropriate closing
+
+Do NOT include signature block - that will be added separately."""
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        api_key = os.environ.get("EMERGENT_LLM_KEY")
+        if not api_key:
+            raise HTTPException(500, "LLM API key not configured")
+        
+        session_id = f"custom_letter_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        chat = LlmChat(api_key, model="gpt-5.2")
+        
+        response = await chat.send_message(
+            session_id=session_id,
+            messages=[UserMessage(content=prompt)]
+        )
+        
+        content = response.message.content if hasattr(response, 'message') else str(response)
+        
+        # Save to database
+        await db.hr_letters.insert_one({
+            "letter_type": "custom",
+            "letter_description": req.letterDescription,
+            "employee_name": req.employeeName,
+            "content": content,
+            "generated_at": datetime.now(timezone.utc),
+            "generated_by": session.get("name", "Unknown")
+        })
+        
+        return {"content": content, "letterType": "custom"}
+        
+    except Exception as e:
+        logger.error(f"Custom letter generation failed: {e}")
+        raise HTTPException(500, f"Letter generation failed: {str(e)}")
 
 @api_router.post("/hr_letter/download")
 async def download_hr_letter(req: HRLetterDownloadRequest):
@@ -2615,17 +2709,26 @@ async def download_hr_letter(req: HRLetterDownloadRequest):
         story.append(Paragraph("For <b>MANASWINI FOODS PVT. LTD.</b>", signature_style))
         story.append(Spacer(1, 0.1*inch))
         
+        # Determine signatory and signature path
+        if req.signatory == "jayanti":
+            sign_path = ROOT_DIR / "assets" / "signatures" / "jayanti_sign.png"
+            signatory_name = "Ms. Jayanti Kathale"
+            signatory_title = "Director"
+        else:
+            sign_path = ROOT_DIR / "sign.png"
+            signatory_name = "Mr. Sandeep Gadhwal"
+            signatory_title = "Director"
+        
         # Try to add signature image
-        sign_path = ROOT_DIR / "sign.png"
         if sign_path.exists():
             try:
-                sign_img = Image(str(sign_path), width=1.2*inch, height=0.7*inch)
+                sign_img = Image(str(sign_path), width=1.5*inch, height=0.8*inch)
                 story.append(sign_img)
             except:
                 pass
         
-        story.append(Paragraph("<b>Mr. Sandeep Gadhwal</b>", signature_style))
-        story.append(Paragraph("Director", signature_style))
+        story.append(Paragraph(f"<b>{signatory_name}</b>", signature_style))
+        story.append(Paragraph(signatory_title, signature_style))
         
         doc.build(story)
         pdf_buffer.seek(0)
@@ -2733,23 +2836,32 @@ async def download_hr_letter(req: HRLetterDownloadRequest):
         sig.runs[0].bold = True
         sig.runs[0].font.size = Pt(10)
         
+        # Determine signatory and signature path
+        if req.signatory == "jayanti":
+            sign_path = ROOT_DIR / "assets" / "signatures" / "jayanti_sign.png"
+            signatory_name = "Ms. Jayanti Kathale"
+            signatory_title = "Director"
+        else:
+            sign_path = ROOT_DIR / "sign.png"
+            signatory_name = "Mr. Sandeep Gadhwal"
+            signatory_title = "Director"
+        
         # Add signature image if exists
-        sign_path = ROOT_DIR / "sign.png"
         if sign_path.exists():
             try:
                 sig_para = doc.add_paragraph()
                 run = sig_para.add_run()
-                run.add_picture(str(sign_path), width=Inches(1.2))
+                run.add_picture(str(sign_path), width=Inches(1.5))
             except:
                 doc.add_paragraph()
         else:
             doc.add_paragraph()
         
-        director = doc.add_paragraph("Mr. Sandeep Gadhwal")
+        director = doc.add_paragraph(signatory_name)
         director.runs[0].bold = True
         director.runs[0].font.size = Pt(10)
         
-        title_para = doc.add_paragraph("Director")
+        title_para = doc.add_paragraph(signatory_title)
         title_para.runs[0].font.size = Pt(10)
         
         # Save to buffer
