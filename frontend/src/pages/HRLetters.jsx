@@ -463,7 +463,7 @@ export default function HRLetters() {
             )}
           </div>
           <p className="font-bold mt-2">{signatory === "jayanti" ? "Ms. Jayanti Kathale" : "Mr. Sandeep Gadhwal"}</p>
-          <p>Director</p>
+          <p>{signatory === "jayanti" ? "Founder, Director" : "Director"}</p>
         </div>
       </div>
     );

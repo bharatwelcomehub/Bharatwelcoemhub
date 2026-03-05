@@ -2713,7 +2713,7 @@ async def download_hr_letter(req: HRLetterDownloadRequest):
         if req.signatory == "jayanti":
             sign_path = ROOT_DIR / "assets" / "signatures" / "jayanti_sign.png"
             signatory_name = "Ms. Jayanti Kathale"
-            signatory_title = "Director"
+            signatory_title = "Founder, Director"
         else:
             sign_path = ROOT_DIR / "sign.png"
             signatory_name = "Mr. Sandeep Gadhwal"
@@ -2840,7 +2840,7 @@ async def download_hr_letter(req: HRLetterDownloadRequest):
         if req.signatory == "jayanti":
             sign_path = ROOT_DIR / "assets" / "signatures" / "jayanti_sign.png"
             signatory_name = "Ms. Jayanti Kathale"
-            signatory_title = "Director"
+            signatory_title = "Founder, Director"
         else:
             sign_path = ROOT_DIR / "sign.png"
             signatory_name = "Mr. Sandeep Gadhwal"
