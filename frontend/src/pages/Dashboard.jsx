@@ -24,7 +24,8 @@ import {
   ChevronDown,
   ChevronRight,
   UserCog,
-  Shield
+  Shield,
+  Store
 } from "lucide-react";
 
 // Import pages
@@ -40,6 +41,7 @@ import ManagersManagement from "@/pages/ManagersManagement";
 import SalesExpenses from "@/pages/SalesExpenses";
 import ExpenseHeads from "@/pages/ExpenseHeads";
 import RoleManagement from "@/pages/RoleManagement";
+import FranchiseManagement from "@/pages/FranchiseManagement";
 
 // Menu categories structure
 const menuCategories = [
@@ -85,6 +87,7 @@ const menuCategories = [
       { path: "/centers", icon: Building2, label: "Centers", forMGT: true },
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
+      { path: "/franchises", icon: Store, label: "Franchises", forAccounts: true },
     ]
   },
   {
@@ -139,6 +142,10 @@ export default function Dashboard() {
   const hasAccess = (item) => {
     if (isSuperAdmin) return true; // Super Admin has full access
     if (item.forMGT) return isSuperAdmin; // MGT-only items require Super Admin
+    if (item.forAccounts) {
+      // Accounts items accessible to Admin or Accounting role
+      return isAdmin || userRoles.accounting === true;
+    }
     if (item.roleKey) {
       // Special case: Accounting role gets sales_cash access
       if (item.roleKey === "sales_cash" && userRoles.accounting) {
@@ -326,6 +333,7 @@ export default function Dashboard() {
             <Route path="/centers" element={<CentersManagement />} />
             <Route path="/managers" element={<ManagersManagement />} />
             <Route path="/role-management" element={<RoleManagement />} />
+            <Route path="/franchises" element={<FranchiseManagement />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
           </Routes>

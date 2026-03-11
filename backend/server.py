@@ -4037,6 +4037,12 @@ set_sales_db(db)
 set_sales_verify_token(verify_token)
 app.include_router(sales_router)
 
+# Include Franchise Management router
+from routes.franchises import router as franchise_router, set_db as set_franchise_db, set_verify_token as set_franchise_verify_token
+set_franchise_db(db)
+set_franchise_verify_token(verify_token)
+app.include_router(franchise_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

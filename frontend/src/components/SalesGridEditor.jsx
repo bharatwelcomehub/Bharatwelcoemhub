@@ -55,18 +55,20 @@ const EDITABLE_FIELDS = [
   { key: 'total_sale', label: 'Total Sale', type: 'number' },
   { key: 'swiggy', label: 'Swiggy', type: 'number' },
   { key: 'zomato', label: 'Zomato', type: 'number' },
-  { key: 'card_idfc', label: 'Card/IDFC', type: 'number' },
-  { key: 'bharat_pay', label: 'Bharat Pay', type: 'number' },
-  { key: 'online_other', label: 'Other/Pickup', type: 'number' },
+  { key: 'doordash', label: 'Doordash', type: 'number' },
+  { key: 'card_idfc', label: 'Card', type: 'number' },
+  { key: 'bharat_pay', label: 'UPI', type: 'number' },
+  { key: 'online_other', label: 'Takeaway', type: 'number' },
+  { key: 'due_amount', label: 'Due', type: 'number' },
   { key: 'num_guests', label: 'Guests', type: 'integer' },
   { key: 'num_bills', label: 'Bills', type: 'integer' },
 ];
 
 // Calculated fields (auto-computed, shown in grid)
 const CALCULATED_FIELDS = [
-  { key: 'total_online_sale', label: 'Non-Cash', computed: true },
+  { key: 'total_online_sale', label: 'Online', computed: true },
   { key: 'total_cash_sale', label: 'Cash Sale', computed: true },
-  { key: 'cash_in_hand', label: 'Cash in Hand', computed: true },
+  { key: 'closing_balance', label: 'Closing Bal', computed: true },
 ];
 
 export default function SalesGridEditor({ session, selectedCenter, selectedMonth }) {
@@ -185,9 +187,11 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     total_sale: 0,
     swiggy: 0,
     zomato: 0,
+    doordash: 0,
     card_idfc: 0,
     bharat_pay: 0,
     online_other: 0,
+    due_amount: 0,
     num_guests: 0,
     num_bills: 0,
     opening_balance: 0,
@@ -198,32 +202,36 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
   });
 
   // Calculate derived fields for a row using CORRECT FORMULAS
-  // Cash Sale = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
+  // 1. Total Online = Card + UPI + Swiggy + Zomato + Doordash + Takeaway
+  // 2. Cash Sale = Total Sale - Total Online
+  // 3. Closing Balance = (Total Sale + Opening + Cash Receipts) - (Deposited + Online + Cash Expense)
   const calculateRow = (row) => {
     const total_sale = parseFloat(row.total_sale) || 0;
     const swiggy = parseFloat(row.swiggy) || 0;
     const zomato = parseFloat(row.zomato) || 0;
+    const doordash = parseFloat(row.doordash) || 0;
     const card_idfc = parseFloat(row.card_idfc) || 0;
     const bharat_pay = parseFloat(row.bharat_pay) || 0;
     const online_other = parseFloat(row.online_other) || 0;
     const opening_balance = parseFloat(row.opening_balance) || 0;
-    const withdrawal = parseFloat(row.cash_receipts) || 0;
+    const cash_receipts = parseFloat(row.cash_receipts) || 0;
+    const deposited_in_bank = parseFloat(row.deposited_in_bank) || 0;
     const cash_expense = parseFloat(row.cash_expense) || 0;
 
-    // Total Non-Cash = Card + UPI + Swiggy + Zomato + Other/Due
-    const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + online_other;
+    // Total Online = Card + UPI + Swiggy + Zomato + Doordash + Takeaway
+    const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + doordash + online_other;
     
-    // Cash Sale = Total Sale - (Card + UPI + Swiggy + Zomato + Other/Due)
+    // Cash Sale = Total Sale - Total Online
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
-    // Cash in Hand = Opening + Withdrawal + Cash Sale - Expenses
-    const cash_in_hand = opening_balance + withdrawal + total_cash_sale - cash_expense;
+    // Closing Balance = (Total Sale + Opening + Cash Receipts) - (Deposited + Online + Cash Expense)
+    const closing_balance = (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense);
 
     return {
       ...row,
       total_online_sale,
       total_cash_sale,
-      cash_in_hand
+      closing_balance
     };
   };
 
@@ -516,14 +524,16 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
             // Non-cash payment channels
             swiggy: parseFloat(row.swiggy) || 0,
             zomato: parseFloat(row.zomato) || 0,
+            doordash: parseFloat(row.doordash) || 0,
             card_idfc: parseFloat(row.card_idfc) || 0,
             bharat_pay: parseFloat(row.bharat_pay) || 0,
             online_other: parseFloat(row.online_other) || 0,
+            due_amount: parseFloat(row.due_amount) || 0,
             num_guests: parseInt(row.num_guests) || 0,
             num_bills: parseInt(row.num_bills) || 0,
             total_online_sale: row.total_online_sale || 0,
             total_cash_sale: row.total_cash_sale || 0,
-            cash_in_hand: row.cash_in_hand || 0
+            closing_balance: row.closing_balance || 0
           };
 
           if (row._isNew) {
