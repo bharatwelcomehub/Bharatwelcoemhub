@@ -8,7 +8,30 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 05, 2026 - Session 11)
+### Latest Update (Mar 11, 2026 - Session 12)
+
+- ✅ **P0: FRANCHISE MANAGEMENT MODULE (NEW)**
+  - **Full CRUD for Franchises:** Create, Read, Update, Delete franchise records
+  - **Comprehensive Data Model:** Franchise code, name, legal entity, country, state, city, address, pincode
+  - **Primary Contact:** Name, email, phone for main contact person
+  - **Multiple Directors:** Support for multiple directors with name, email, phone, designation
+  - **Agreement Details:** Start date, end date, franchise fee, royalty percentage
+  - **Status Tracking:** Active, Inactive, Pending, Terminated states
+  - **Document Management:**
+    - Upload documents (Agreement, Legal, Compliance, Exit, Other)
+    - File types supported: PDF, DOC, DOCX, JPG, PNG, XLS, XLSX
+    - Download, preview, and delete documents
+    - Audit logging for all document operations
+  - **Agreement PDF Generation:** Automatic franchise agreement PDF with terms and conditions
+  - **Audit History:** Full tracking of all changes (CREATE, UPDATE, DELETE, DOCUMENT_UPLOAD, AGREEMENT_GENERATED)
+  - **Access Control:** Only Admin and Accounts roles can access
+  - **Search & Filter:** Search by code/name/city, filter by country and status
+  - **Statistics Dashboard:** Cards showing Total, Active, Pending, Terminated counts
+  - **Backend:** `/app/backend/routes/franchises.py` (600+ lines)
+  - **Frontend:** `/app/frontend/src/pages/FranchiseManagement.jsx` (1140 lines)
+  - **Testing:** 22 backend tests + frontend verification (100% pass rate)
+
+### Previous Update (Mar 05, 2026 - Session 11)
 
 - ✅ **P0: CORRECTED & SIMPLIFIED Financial Calculations**
   - **Cash Sale** = Total Sale - (Swiggy + Zomato + Other/Pickups)
@@ -285,15 +308,30 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `POST /api/hr/download-letter-pdf` - Download letter as PDF
 - `POST /api/hr/download-letter-word` - Download letter as DOCX
 
+### Franchise Management (NEW)
+- `POST /api/franchises/list` - List franchises with filters (search, country, status)
+- `POST /api/franchises/create` - Create new franchise
+- `POST /api/franchises/get/{code}` - Get franchise details with audit history
+- `POST /api/franchises/update/{code}` - Update franchise
+- `POST /api/franchises/delete/{code}` - Delete franchise (Super Admin only)
+- `POST /api/franchises/documents/upload` - Upload document (multipart form)
+- `GET /api/franchises/documents/download/{code}/{docId}` - Download document
+- `POST /api/franchises/documents/delete/{code}/{docId}` - Delete document
+- `POST /api/franchises/generate-agreement/{code}` - Generate agreement PDF
+- `POST /api/franchises/stats` - Get franchise statistics
+- `GET /api/franchises/countries` - Get available countries list
+
 ## Key Files
 - `/app/backend/server.py` - Main API server (includes PDF generation endpoints)
 - `/app/backend/routes/sales_expenses.py` - Sales & Expenses API routes (includes Expense Heads CRUD)
+- `/app/backend/routes/franchises.py` - Franchise Management API routes (NEW)
 - `/app/backend/scripts/import_sales_data.py` - Excel data import script
 - `/app/backend/recipes_db.json` - 164 recipes from user's PDF (expanded from 79)
 - `/app/frontend/src/pages/SalesExpenses.jsx` - Sales & Cash Summary dashboard
-- `/app/frontend/src/pages/ExpenseHeads.jsx` - Expense Heads Master CRUD page (NEW)
+- `/app/frontend/src/pages/ExpenseHeads.jsx` - Expense Heads Master CRUD page
+- `/app/frontend/src/pages/FranchiseManagement.jsx` - Franchise Management page (NEW)
 - `/app/frontend/src/components/SalesDataEntry.jsx` - Sales data entry form
-- `/app/frontend/src/components/ExpenseEntry.jsx` - Expense entry form (NEW)
+- `/app/frontend/src/components/ExpenseEntry.jsx` - Expense entry form
 - `/app/frontend/src/pages/Dashboard.jsx` - Categorized navigation sidebar (UPDATED)
 - `/app/frontend/src/pages/RecipeAdmin.jsx` - Recipe management UI with category tabs
 - `/app/frontend/src/pages/CentersManagement.jsx` - Centers management UI
@@ -308,8 +346,10 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `attendance` - Daily attendance records
 - `advances` - Employee advances
 - `payroll_locks` - Payroll lock status
-- `daily_sales` - Daily sales and cash summary records (NEW)
-- `expenses` - Individual expense records with categories (NEW)
+- `daily_sales` - Daily sales and cash summary records
+- `expenses` - Individual expense records with categories
+- `franchises` - Franchise records with documents array (NEW)
+- `franchise_audit` - Audit log for all franchise changes (NEW)
 
 ## Testing Credentials
 - Center: PB-MGT
@@ -321,12 +361,15 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `/app/test_reports/iteration_7.json` - Recipe Admin tests (100% pass)
 - `/app/test_reports/iteration_8.json` - Sales & Expenses tests (100% pass - 11/11 backend, full frontend)
 - `/app/test_reports/iteration_9.json` - Sales Enhancements (GST, Guest/Bill counts, Booking Response) - 100% pass
+- `/app/test_reports/iteration_12.json` - Franchise Management tests (100% pass - 22 backend tests) (NEW)
 
 ## Backlog/Future
 - **P2: Payslip Data Overlap**: Verify and fix any remaining overlap issues in PDF payslip generation
 - **P2: HR Letter PDF Download Verification**: User verification pending for the fix applied earlier
-- **P1: Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large, ~3500 lines)
-- Add custom roles (Accounts, Trainer, Marketing)
+- **P1: Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large, ~4000 lines)
+- **P1: Verify Doordash field and financial calculations**: Recently added but not fully tested
+- **P1: Invalid Token issue**: Root cause investigation - in-memory token store
+- Add custom roles (Trainer, Marketing)
 - Add image upload for recipes (currently URL only)
 - Add company CIN number to HR letter templates
 - Email generated letters directly to employees
