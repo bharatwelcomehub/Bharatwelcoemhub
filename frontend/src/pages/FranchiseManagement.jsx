@@ -72,6 +72,25 @@ const COUNTRIES = ["India", "Australia", "United States", "United Kingdom", "Can
 const STATUS_OPTIONS = ["Active", "Inactive", "Pending", "Terminated"];
 const DOCUMENT_TYPES = ["Agreement", "Legal", "Compliance", "Exit", "Other"];
 
+// FOCO Model Constants
+const FRANCHISE_TYPES = {
+  "Sanskriti": { fee: 1100000, description: "2500+ Sq. Ft., 20-25 staff, 25-30 tables, 100-120 seating" },
+  "Maaza": { fee: 900000, description: "1500-2000 Sq. Ft., 8-9 staff, 6-15 tables, 40-45 seating" },
+  "Potoba": { fee: 700000, description: "Express format, smaller footprint" },
+  "Peshwayee": { fee: 2500000, description: "Premium fine dining concept" }
+};
+
+const DEFAULT_WORKING_CAPITAL = 900000; // 9 Lakhs
+const MONTHLY_SERVICE_CONTRACT = 10000;
+const REVENUE_SHARE_PERCENTAGE = 15;
+
+const formatCurrency = (amount, country = "India") => {
+  if (country === "India") {
+    return `₹${(amount || 0).toLocaleString('en-IN')}`;
+  }
+  return `$${(amount || 0).toLocaleString('en-US')}`;
+};
+
 const statusColors = {
   Active: "bg-green-500/20 text-green-400 border-green-500/30",
   Inactive: "bg-gray-500/20 text-gray-400 border-gray-500/30",
@@ -120,15 +139,55 @@ export default function FranchiseManagement() {
       primary_contact_name: "",
       primary_contact_email: "",
       primary_contact_phone: "",
-      directors: [{ name: "", email: "", phone: "", designation: "Director", address: "" }],
+      directors: [{ name: "", email: "", phone: "", designation: "Director", address: "", pan: "" }],
+      // FOCO Model fields
+      franchise_type: "Sanskriti",
+      franchise_fee: FRANCHISE_TYPES["Sanskriti"].fee,
+      working_capital: DEFAULT_WORKING_CAPITAL,
+      setup_costs: {
+        shop_security_deposit: 0,
+        first_month_rent: 0,
+        initial_salary_fund: 0,
+        initial_grocery_cost: 0
+      },
+      operations_start_date: "",
       agreement_start_date: "",
       agreement_end_date: "",
-      franchise_fee: "",
-      royalty_percentage: "",
+      revenue_share_percentage: REVENUE_SHARE_PERCENTAGE,
+      service_contract_fee: MONTHLY_SERVICE_CONTRACT,
+      nominees: [],
       status: "Active",
       notes: ""
     };
   }
+
+  // Auto-calculate agreement end date (7 years from start)
+  const calculateEndDate = (startDate) => {
+    if (!startDate) return "";
+    const start = new Date(startDate);
+    const end = new Date(start);
+    end.setFullYear(end.getFullYear() + 7);
+    return end.toISOString().split('T')[0];
+  };
+
+  // Update franchise fee when type changes
+  const handleFranchiseTypeChange = (type) => {
+    setFormData(prev => ({
+      ...prev,
+      franchise_type: type,
+      franchise_fee: FRANCHISE_TYPES[type]?.fee || 0
+    }));
+  };
+
+  // Update end date when start date changes
+  const handleStartDateChange = (date) => {
+    setFormData(prev => ({
+      ...prev,
+      operations_start_date: date,
+      agreement_start_date: date,
+      agreement_end_date: calculateEndDate(date)
+    }));
+  };
 
   const loadFranchises = useCallback(async () => {
     setLoading(true);
@@ -206,7 +265,14 @@ export default function FranchiseManagement() {
     setEditingFranchise(franchise);
     setFormData({
       ...franchise,
-      directors: franchise.directors?.length > 0 ? franchise.directors : [{ name: "", email: "", phone: "", designation: "Director", address: "" }]
+      directors: franchise.directors?.length > 0 ? franchise.directors : [{ name: "", email: "", phone: "", designation: "Director", address: "", pan: "" }],
+      franchise_type: franchise.franchise_type || "Sanskriti",
+      franchise_fee: franchise.franchise_fee || FRANCHISE_TYPES[franchise.franchise_type || "Sanskriti"]?.fee || 0,
+      working_capital: franchise.working_capital || DEFAULT_WORKING_CAPITAL,
+      setup_costs: franchise.setup_costs || { shop_security_deposit: 0, first_month_rent: 0, initial_salary_fund: 0, initial_grocery_cost: 0 },
+      revenue_share_percentage: franchise.revenue_share_percentage || REVENUE_SHARE_PERCENTAGE,
+      service_contract_fee: franchise.service_contract_fee || MONTHLY_SERVICE_CONTRACT,
+      nominees: franchise.nominees || []
     });
     setShowForm(true);
   };
@@ -319,10 +385,11 @@ export default function FranchiseManagement() {
 
   const generateAgreement = async () => {
     try {
+      toast.loading("Generating FOCO Agreement...", { id: "gen-agreement" });
       const res = await fetch(`${API}/api/franchises/generate-agreement/${selectedFranchise.franchise_code}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: session?.token })
+        body: JSON.stringify({ token: session?.token, format: "pdf" })
       });
       
       if (!res.ok) throw new Error("Failed to generate agreement");
@@ -331,20 +398,20 @@ export default function FranchiseManagement() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Franchise_Agreement_${selectedFranchise.franchise_code}.pdf`;
+      a.download = `FOCO_Agreement_${selectedFranchise.franchise_code}.pdf`;
       a.click();
       window.URL.revokeObjectURL(url);
       
-      toast.success("Agreement generated");
+      toast.success("Agreement generated", { id: "gen-agreement" });
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message, { id: "gen-agreement" });
     }
   };
 
   const addDirector = () => {
     setFormData(prev => ({
       ...prev,
-      directors: [...prev.directors, { name: "", email: "", phone: "", designation: "Director", address: "" }]
+      directors: [...prev.directors, { name: "", email: "", phone: "", designation: "Director", address: "", pan: "" }]
     }));
   };
 
@@ -500,9 +567,9 @@ export default function FranchiseManagement() {
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead>Code</TableHead>
                     <TableHead>Franchise Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Country</TableHead>
-                    <TableHead>City</TableHead>
-                    <TableHead>Contact</TableHead>
+                    <TableHead>Fee</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -534,8 +601,13 @@ export default function FranchiseManagement() {
                         <TableCell>
                           <div>
                             <p className="font-medium text-white">{f.franchise_name}</p>
-                            <p className="text-xs text-muted-foreground">{f.legal_entity_name}</p>
+                            <p className="text-xs text-muted-foreground">{f.city}, {f.country}</p>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {f.franchise_type || "Sanskriti"}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -543,12 +615,8 @@ export default function FranchiseManagement() {
                             {f.country}
                           </div>
                         </TableCell>
-                        <TableCell>{f.city || "-"}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <p>{f.primary_contact_name || "-"}</p>
-                            <p className="text-xs text-muted-foreground">{f.primary_contact_phone}</p>
-                          </div>
+                        <TableCell className="text-sm">
+                          {formatCurrency(f.franchise_fee, f.country)}
                         </TableCell>
                         <TableCell>
                           <Badge className={statusColors[f.status] || statusColors.Inactive}>
@@ -656,21 +724,32 @@ export default function FranchiseManagement() {
                     <div className="space-y-3">
                       <h3 className="font-semibold text-white flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-secondary" />
-                        Agreement Details
+                        FOCO Agreement
                       </h3>
                       <div className="space-y-1 text-sm">
-                        <p><span className="text-muted-foreground">Start:</span> {selectedFranchise.agreement_start_date || "-"}</p>
-                        <p><span className="text-muted-foreground">End:</span> {selectedFranchise.agreement_end_date || "-"}</p>
+                        <p><span className="text-muted-foreground">Type:</span> <span className="text-secondary font-medium">{selectedFranchise.franchise_type || "Sanskriti"}</span></p>
+                        <p><span className="text-muted-foreground">Start:</span> {selectedFranchise.operations_start_date || selectedFranchise.agreement_start_date || "-"}</p>
+                        <p><span className="text-muted-foreground">End:</span> {selectedFranchise.agreement_end_date || "-"} <span className="text-xs text-muted-foreground">(7 years)</span></p>
                         <p className="flex items-center gap-1">
                           <DollarSign className="w-3 h-3 text-muted-foreground" />
-                          Fee: {selectedFranchise.franchise_fee?.toLocaleString() || "0"}
+                          Fee: {formatCurrency(selectedFranchise.franchise_fee, selectedFranchise.country)}
                         </p>
                         <p className="flex items-center gap-1">
                           <Percent className="w-3 h-3 text-muted-foreground" />
-                          Royalty: {selectedFranchise.royalty_percentage || 0}%
+                          Revenue Share: {selectedFranchise.revenue_share_percentage || 15}%
                         </p>
+                        <p><span className="text-muted-foreground">Working Capital:</span> {formatCurrency(selectedFranchise.working_capital, selectedFranchise.country)}</p>
+                        <p><span className="text-muted-foreground">Service Fee:</span> {formatCurrency(selectedFranchise.service_contract_fee || 10000, selectedFranchise.country)}/month</p>
                       </div>
                     </div>
+                  </div>
+
+                  {/* FOCO Model Info Banner */}
+                  <div className="mt-4 p-3 rounded-lg bg-secondary/10 border border-secondary/30">
+                    <p className="text-sm text-secondary font-medium">FOCO Model: Franchise Owned - Company Operated</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Franchise Owner invests capital. Purnabramha manages all operations including menu, staff, procurement, and accounting.
+                    </p>
                   </div>
 
                   {/* Directors */}
@@ -1004,46 +1083,156 @@ export default function FranchiseManagement() {
               ))}
             </div>
 
-            {/* Agreement Details */}
+            {/* FOCO Model - Franchise Type */}
             <div className="space-y-4">
-              <h3 className="font-semibold text-white border-b border-border pb-2">Agreement Details</h3>
+              <h3 className="font-semibold text-white border-b border-border pb-2">FOCO Model - Franchise Type</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Start Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.agreement_start_date}
-                    onChange={(e) => setFormData(p => ({ ...p, agreement_start_date: e.target.value }))}
-                    className="bg-background"
-                  />
+                  <Label>Franchise Type *</Label>
+                  <Select value={formData.franchise_type} onValueChange={handleFranchiseTypeChange}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(FRANCHISE_TYPES).map(([type, info]) => (
+                        <SelectItem key={type} value={type}>
+                          {type} - {formatCurrency(info.fee, formData.country)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {FRANCHISE_TYPES[formData.franchise_type]?.description}
+                  </p>
                 </div>
                 <div>
-                  <Label>End Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.agreement_end_date}
-                    onChange={(e) => setFormData(p => ({ ...p, agreement_end_date: e.target.value }))}
-                    className="bg-background"
-                  />
-                </div>
-                <div>
-                  <Label>Franchise Fee</Label>
+                  <Label>Franchise Fee (Non-Refundable)</Label>
                   <Input
                     type="number"
                     value={formData.franchise_fee}
-                    onChange={(e) => setFormData(p => ({ ...p, franchise_fee: e.target.value }))}
+                    onChange={(e) => setFormData(p => ({ ...p, franchise_fee: parseFloat(e.target.value) || 0 }))}
+                    className="bg-background"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatCurrency(formData.franchise_fee, formData.country)}
+                  </p>
+                </div>
+                <div>
+                  <Label>Working Capital</Label>
+                  <Input
+                    type="number"
+                    value={formData.working_capital}
+                    onChange={(e) => setFormData(p => ({ ...p, working_capital: parseFloat(e.target.value) || 0 }))}
+                    className="bg-background"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Default: {formatCurrency(DEFAULT_WORKING_CAPITAL, formData.country)}
+                  </p>
+                </div>
+                <div>
+                  <Label>Revenue Share % (to Franchise Owner)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={formData.revenue_share_percentage}
+                    onChange={(e) => setFormData(p => ({ ...p, revenue_share_percentage: parseFloat(e.target.value) || 15 }))}
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Setup Costs */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-white border-b border-border pb-2">Setup Costs (Before Operations)</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Shop Security Deposit</Label>
+                  <Input
+                    type="number"
+                    value={formData.setup_costs?.shop_security_deposit || 0}
+                    onChange={(e) => setFormData(p => ({ 
+                      ...p, 
+                      setup_costs: { ...p.setup_costs, shop_security_deposit: parseFloat(e.target.value) || 0 }
+                    }))}
                     className="bg-background"
                   />
                 </div>
                 <div>
-                  <Label>Royalty %</Label>
+                  <Label>First Month Rent</Label>
                   <Input
                     type="number"
-                    step="0.1"
-                    value={formData.royalty_percentage}
-                    onChange={(e) => setFormData(p => ({ ...p, royalty_percentage: e.target.value }))}
+                    value={formData.setup_costs?.first_month_rent || 0}
+                    onChange={(e) => setFormData(p => ({ 
+                      ...p, 
+                      setup_costs: { ...p.setup_costs, first_month_rent: parseFloat(e.target.value) || 0 }
+                    }))}
                     className="bg-background"
                   />
+                </div>
+                <div>
+                  <Label>Initial Salary Fund</Label>
+                  <Input
+                    type="number"
+                    value={formData.setup_costs?.initial_salary_fund || 0}
+                    onChange={(e) => setFormData(p => ({ 
+                      ...p, 
+                      setup_costs: { ...p.setup_costs, initial_salary_fund: parseFloat(e.target.value) || 0 }
+                    }))}
+                    className="bg-background"
+                  />
+                </div>
+                <div>
+                  <Label>Initial Grocery Cost</Label>
+                  <Input
+                    type="number"
+                    value={formData.setup_costs?.initial_grocery_cost || 0}
+                    onChange={(e) => setFormData(p => ({ 
+                      ...p, 
+                      setup_costs: { ...p.setup_costs, initial_grocery_cost: parseFloat(e.target.value) || 0 }
+                    }))}
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Agreement Dates */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-white border-b border-border pb-2">Agreement Dates (Tenure: 7 Years Fixed)</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Operations Start Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.operations_start_date}
+                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    className="bg-background"
+                  />
+                </div>
+                <div>
+                  <Label>Agreement End Date (Auto-calculated)</Label>
+                  <Input
+                    type="date"
+                    value={formData.agreement_end_date}
+                    disabled
+                    className="bg-background opacity-70"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    7 years from start date (fixed tenure)
+                  </p>
+                </div>
+                <div>
+                  <Label>Monthly Service Contract Fee</Label>
+                  <Input
+                    type="number"
+                    value={formData.service_contract_fee}
+                    onChange={(e) => setFormData(p => ({ ...p, service_contract_fee: parseFloat(e.target.value) || 10000 }))}
+                    className="bg-background"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Default: {formatCurrency(MONTHLY_SERVICE_CONTRACT, formData.country)}/month
+                  </p>
                 </div>
               </div>
             </div>

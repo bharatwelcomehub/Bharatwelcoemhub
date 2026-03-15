@@ -1,12 +1,14 @@
 # =======================================
 # Franchise Management Routes
 # CRUD for Franchise records, Documents, Agreements
+# FOCO Model - Franchise Owned, Company Operated
 # =======================================
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from dateutil.relativedelta import relativedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import os
@@ -31,6 +33,40 @@ def set_db(database):
     db = database
 
 # =======================================
+# FRANCHISE CONSTANTS
+# =======================================
+
+# Franchise Types and Fees (Non-refundable)
+FRANCHISE_TYPES = {
+    "Sanskriti": {
+        "fee": 1100000,  # 11 Lakhs
+        "description": "2500+ Sq. Ft., 20-25 staff, 25-30 tables, 100-120 seating",
+        "min_investment": 5000000  # 50 Lakhs
+    },
+    "Maaza": {
+        "fee": 900000,   # 9 Lakhs
+        "description": "1500-2000 Sq. Ft., 8-9 staff, 6-15 tables, 40-45 seating",
+        "min_investment": 3500000  # 35 Lakhs
+    },
+    "Potoba": {
+        "fee": 700000,   # 7 Lakhs
+        "description": "Express format, smaller footprint",
+        "min_investment": 2500000  # 25 Lakhs
+    },
+    "Peshwayee": {
+        "fee": 2500000,  # 25 Lakhs
+        "description": "Premium fine dining concept",
+        "min_investment": 10000000  # 1 Crore
+    }
+}
+
+DEFAULT_WORKING_CAPITAL = 900000  # 9 Lakhs
+MONTHLY_SERVICE_CONTRACT = 10000  # Rs 10,000/month
+FRANCHISE_TENURE_YEARS = 7  # Fixed 7 years
+REVENUE_SHARE_PERCENTAGE = 15  # 15% to franchise owner
+WORKING_CAPITAL_THRESHOLD = 50  # 50% threshold for revenue share
+
+# =======================================
 # PYDANTIC MODELS
 # =======================================
 
@@ -40,9 +76,16 @@ class DirectorInfo(BaseModel):
     phone: Optional[str] = ""
     designation: Optional[str] = "Director"
     address: Optional[str] = ""
+    pan: Optional[str] = ""  # PAN number for India
+
+class SetupCosts(BaseModel):
+    shop_security_deposit: float = 0
+    first_month_rent: float = 0
+    initial_salary_fund: float = 0
+    initial_grocery_cost: float = 0
 
 class FranchiseCreate(BaseModel):
-    franchise_code: str  # Unique code like "FR-001"
+    franchise_code: str  # Unique code like "PB-HSR"
     franchise_name: str
     legal_entity_name: str
     country: str  # India, Australia, etc.
@@ -56,17 +99,31 @@ class FranchiseCreate(BaseModel):
     primary_contact_email: Optional[str] = ""
     primary_contact_phone: Optional[str] = ""
     
-    # Directors
+    # Directors/Partners
     directors: List[DirectorInfo] = []
     
+    # FOCO Model - Franchise Type
+    franchise_type: str = "Sanskriti"  # Sanskriti, Maaza, Potoba, Peshwayee
+    
+    # Financial Details
+    franchise_fee: Optional[float] = 0  # Auto-calculated from type if not provided
+    working_capital: float = 900000  # Default 9 Lakhs
+    setup_costs: Optional[SetupCosts] = None
+    
     # Agreement details
-    agreement_start_date: Optional[str] = ""  # YYYY-MM-DD
-    agreement_end_date: Optional[str] = ""    # YYYY-MM-DD
-    franchise_fee: Optional[float] = 0
-    royalty_percentage: Optional[float] = 0
+    operations_start_date: Optional[str] = ""  # YYYY-MM-DD
+    agreement_start_date: Optional[str] = ""  # YYYY-MM-DD (same as operations_start_date)
+    agreement_end_date: Optional[str] = ""    # Auto-calculated: start + 7 years
+    
+    # Revenue Model
+    revenue_share_percentage: float = 15  # 15% to franchise owner
+    service_contract_fee: float = 10000   # Rs 10,000/month
     
     # Status
     status: str = "Active"  # Active, Inactive, Terminated, Pending
+    
+    # Nominee Details (for succession)
+    nominees: List[Dict] = []
     
     notes: Optional[str] = ""
 
@@ -82,11 +139,17 @@ class FranchiseUpdate(BaseModel):
     primary_contact_email: Optional[str] = None
     primary_contact_phone: Optional[str] = None
     directors: Optional[List[DirectorInfo]] = None
+    franchise_type: Optional[str] = None
+    franchise_fee: Optional[float] = None
+    working_capital: Optional[float] = None
+    setup_costs: Optional[SetupCosts] = None
+    operations_start_date: Optional[str] = None
     agreement_start_date: Optional[str] = None
     agreement_end_date: Optional[str] = None
-    franchise_fee: Optional[float] = None
-    royalty_percentage: Optional[float] = None
+    revenue_share_percentage: Optional[float] = None
+    service_contract_fee: Optional[float] = None
     status: Optional[str] = None
+    nominees: Optional[List[Dict]] = None
     notes: Optional[str] = None
 
 class TokenRequest(BaseModel):
@@ -210,11 +273,43 @@ async def create_franchise(data: dict):
         raise HTTPException(400, f"Franchise with code '{franchise_code}' already exists")
     
     # Build franchise document
+    franchise_type = data.get("franchise_type", "Sanskriti")
+    country = data.get("country", "India")
+    
+    # Get franchise fee from type if not provided
+    franchise_fee = data.get("franchise_fee")
+    if not franchise_fee and franchise_type in FRANCHISE_TYPES:
+        franchise_fee = FRANCHISE_TYPES[franchise_type]["fee"]
+    franchise_fee = float(franchise_fee or 0)
+    
+    # Calculate agreement end date (7 years from start)
+    operations_start_date = data.get("operations_start_date", "")
+    agreement_start_date = data.get("agreement_start_date", "") or operations_start_date
+    agreement_end_date = data.get("agreement_end_date", "")
+    
+    if agreement_start_date and not agreement_end_date:
+        try:
+            start_dt = datetime.strptime(agreement_start_date, "%Y-%m-%d")
+            end_dt = start_dt + relativedelta(years=FRANCHISE_TENURE_YEARS)
+            agreement_end_date = end_dt.strftime("%Y-%m-%d")
+        except:
+            pass
+    
+    # Setup costs
+    setup_costs = data.get("setup_costs", {})
+    if isinstance(setup_costs, dict):
+        setup_costs = {
+            "shop_security_deposit": float(setup_costs.get("shop_security_deposit", 0) or 0),
+            "first_month_rent": float(setup_costs.get("first_month_rent", 0) or 0),
+            "initial_salary_fund": float(setup_costs.get("initial_salary_fund", 0) or 0),
+            "initial_grocery_cost": float(setup_costs.get("initial_grocery_cost", 0) or 0)
+        }
+    
     franchise = {
         "franchise_code": franchise_code,
         "franchise_name": data.get("franchise_name", "").strip(),
         "legal_entity_name": data.get("legal_entity_name", "").strip(),
-        "country": data.get("country", "India"),
+        "country": country,
         "state": data.get("state", "").strip(),
         "city": data.get("city", "").strip(),
         "address": data.get("address", "").strip(),
@@ -223,10 +318,25 @@ async def create_franchise(data: dict):
         "primary_contact_email": data.get("primary_contact_email", "").strip().lower(),
         "primary_contact_phone": data.get("primary_contact_phone", "").strip(),
         "directors": data.get("directors", []),
-        "agreement_start_date": data.get("agreement_start_date", ""),
-        "agreement_end_date": data.get("agreement_end_date", ""),
-        "franchise_fee": float(data.get("franchise_fee", 0) or 0),
-        "royalty_percentage": float(data.get("royalty_percentage", 0) or 0),
+        
+        # FOCO Model fields
+        "franchise_type": franchise_type,
+        "franchise_fee": franchise_fee,
+        "working_capital": float(data.get("working_capital", DEFAULT_WORKING_CAPITAL) or DEFAULT_WORKING_CAPITAL),
+        "setup_costs": setup_costs,
+        
+        # Agreement dates
+        "operations_start_date": operations_start_date,
+        "agreement_start_date": agreement_start_date,
+        "agreement_end_date": agreement_end_date,
+        
+        # Revenue model
+        "revenue_share_percentage": float(data.get("revenue_share_percentage", REVENUE_SHARE_PERCENTAGE) or REVENUE_SHARE_PERCENTAGE),
+        "service_contract_fee": float(data.get("service_contract_fee", MONTHLY_SERVICE_CONTRACT) or MONTHLY_SERVICE_CONTRACT),
+        
+        # Nominees
+        "nominees": data.get("nominees", []),
+        
         "status": data.get("status", "Active"),
         "notes": data.get("notes", ""),
         "documents": [],  # Will hold document references
@@ -286,7 +396,10 @@ async def update_franchise(franchise_code: str, data: dict):
         "franchise_name", "legal_entity_name", "country", "state", "city",
         "address", "pincode", "primary_contact_name", "primary_contact_email",
         "primary_contact_phone", "directors", "agreement_start_date",
-        "agreement_end_date", "franchise_fee", "royalty_percentage", "status", "notes"
+        "agreement_end_date", "franchise_fee", "status", "notes",
+        # FOCO fields
+        "franchise_type", "working_capital", "setup_costs", "operations_start_date",
+        "revenue_share_percentage", "service_contract_fee", "nominees"
     ]
     
     changes = {}
@@ -296,7 +409,7 @@ async def update_franchise(franchise_code: str, data: dict):
             old_value = existing.get(field)
             
             # Handle special types
-            if field in ["franchise_fee", "royalty_percentage"]:
+            if field in ["franchise_fee", "working_capital", "revenue_share_percentage", "service_contract_fee"]:
                 new_value = float(new_value or 0)
             elif field == "primary_contact_email" and isinstance(new_value, str):
                 new_value = new_value.strip().lower()
@@ -306,6 +419,16 @@ async def update_franchise(franchise_code: str, data: dict):
             if new_value != old_value:
                 update_fields[field] = new_value
                 changes[field] = {"old": old_value, "new": new_value}
+    
+    # Auto-calculate agreement_end_date if operations_start_date is provided
+    if "operations_start_date" in update_fields and update_fields["operations_start_date"]:
+        try:
+            start_dt = datetime.strptime(update_fields["operations_start_date"], "%Y-%m-%d")
+            end_dt = start_dt + relativedelta(years=FRANCHISE_TENURE_YEARS)
+            update_fields["agreement_end_date"] = end_dt.strftime("%Y-%m-%d")
+            update_fields["agreement_start_date"] = update_fields["operations_start_date"]
+        except:
+            pass
     
     if not update_fields:
         return {"success": True, "message": "No changes to update"}
@@ -526,13 +649,49 @@ async def delete_document(franchise_code: str, document_id: str, req: TokenReque
     return {"success": True, "message": "Document deleted"}
 
 # =======================================
-# AGREEMENT GENERATION
+# AGREEMENT GENERATION - FOCO MODEL
 # =======================================
 
+def format_currency(amount, country="India"):
+    """Format currency based on country"""
+    if country == "India":
+        return f"₹{amount:,.0f}"
+    else:
+        return f"${amount:,.2f}"
+
+def format_currency_words(amount, country="India"):
+    """Convert amount to words"""
+    def num_to_words(num):
+        ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+                "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen",
+                "Eighteen", "Nineteen"]
+        tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+        
+        if num < 20:
+            return ones[num]
+        elif num < 100:
+            return tens[num // 10] + (" " + ones[num % 10] if num % 10 else "")
+        elif num < 1000:
+            return ones[num // 100] + " Hundred" + (" and " + num_to_words(num % 100) if num % 100 else "")
+        elif num < 100000:
+            return num_to_words(num // 1000) + " Thousand" + (" " + num_to_words(num % 1000) if num % 1000 else "")
+        elif num < 10000000:
+            return num_to_words(num // 100000) + " Lakh" + (" " + num_to_words(num % 100000) if num % 100000 else "")
+        else:
+            return num_to_words(num // 10000000) + " Crore" + (" " + num_to_words(num % 10000000) if num % 10000000 else "")
+    
+    if country == "India":
+        return f"{num_to_words(int(amount))} Rupees Only"
+    else:
+        return f"{num_to_words(int(amount))} Dollars Only"
+
 @router.post("/generate-agreement/{franchise_code}")
-async def generate_agreement(franchise_code: str, req: TokenRequest):
-    """Generate a Franchise Agreement PDF"""
-    session = await check_access(req.token)
+async def generate_agreement(franchise_code: str, data: dict):
+    """Generate a FOCO Franchise Agreement PDF"""
+    token = data.get("token")
+    output_format = data.get("format", "pdf")  # pdf or docx
+    
+    session = await check_access(token)
     
     franchise = await db.franchises.find_one(
         {"franchise_code": franchise_code.upper()},
@@ -542,116 +701,475 @@ async def generate_agreement(franchise_code: str, req: TokenRequest):
     if not franchise:
         raise HTTPException(404, "Franchise not found")
     
+    # Extract all data
+    country = franchise.get("country", "India")
+    is_india = country == "India"
+    
+    franchise_type = franchise.get("franchise_type", "Sanskriti")
+    franchise_fee = franchise.get("franchise_fee", FRANCHISE_TYPES.get(franchise_type, {}).get("fee", 0))
+    working_capital = franchise.get("working_capital", DEFAULT_WORKING_CAPITAL)
+    revenue_share = franchise.get("revenue_share_percentage", REVENUE_SHARE_PERCENTAGE)
+    service_fee = franchise.get("service_contract_fee", MONTHLY_SERVICE_CONTRACT)
+    
+    setup_costs = franchise.get("setup_costs", {})
+    total_setup = (
+        setup_costs.get("shop_security_deposit", 0) +
+        setup_costs.get("first_month_rent", 0) +
+        setup_costs.get("initial_salary_fund", 0) +
+        setup_costs.get("initial_grocery_cost", 0)
+    )
+    
+    # Date formatting
+    today = datetime.now()
+    agreement_date = today.strftime("%d %B %Y")
+    ops_start = franchise.get("operations_start_date", "")
+    agreement_start = franchise.get("agreement_start_date", ops_start)
+    agreement_end = franchise.get("agreement_end_date", "")
+    
+    # Directors
+    directors = franchise.get("directors", [])
+    directors_names = ", ".join([d.get("name", "") for d in directors if d.get("name")])
+    
+    # Franchisor entity based on country
+    if is_india:
+        franchisor_name = "MANASWINI FOODS PRIVATE LIMITED"
+        franchisor_address = "17/N, Bhagyalakshmi Square, 18th Cross Rd, Sector 3, HSR Layout, Bengaluru, Karnataka 560102"
+        franchisor_cin = "CIN No. [To be filled]"
+        jurisdiction = franchise.get("city", "Bengaluru")
+    else:
+        franchisor_name = "PURNABRAMHA LLC"
+        franchisor_address = "International Operations Office"
+        franchisor_cin = ""
+        jurisdiction = franchise.get("city", country)
+    
     try:
         from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas
         from reportlab.lib.units import inch, cm
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, PageBreak
+        from reportlab.lib import colors
         from io import BytesIO
         
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=A4, 
-                               leftMargin=1*inch, rightMargin=1*inch,
-                               topMargin=1*inch, bottomMargin=1*inch)
+                               leftMargin=0.75*inch, rightMargin=0.75*inch,
+                               topMargin=0.75*inch, bottomMargin=0.75*inch)
         
         styles = getSampleStyleSheet()
+        
+        # Custom styles
         title_style = ParagraphStyle('Title', parent=styles['Heading1'], 
-                                     fontSize=18, alignment=1, spaceAfter=20)
+                                     fontSize=16, alignment=TA_CENTER, spaceAfter=20,
+                                     fontName='Helvetica-Bold')
         heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], 
-                                       fontSize=14, spaceAfter=10, spaceBefore=15)
+                                       fontSize=12, spaceAfter=8, spaceBefore=12,
+                                       fontName='Helvetica-Bold')
+        subheading_style = ParagraphStyle('SubHeading', parent=styles['Normal'], 
+                                          fontSize=11, spaceAfter=6, spaceBefore=8,
+                                          fontName='Helvetica-Bold')
         normal_style = ParagraphStyle('Normal', parent=styles['Normal'], 
-                                      fontSize=11, spaceAfter=8, alignment=4)
+                                      fontSize=10, spaceAfter=6, alignment=TA_JUSTIFY,
+                                      leading=14)
+        small_style = ParagraphStyle('Small', parent=styles['Normal'], 
+                                     fontSize=9, spaceAfter=4, alignment=TA_JUSTIFY,
+                                     leading=12)
         
         story = []
         
-        # Title
+        # =======================================
+        # AGREEMENT TITLE
+        # =======================================
         story.append(Paragraph("FRANCHISE AGREEMENT", title_style))
-        story.append(Spacer(1, 0.3*inch))
+        story.append(Paragraph("(FOCO Model - Franchise Owned, Company Operated)", 
+                              ParagraphStyle('Subtitle', parent=normal_style, alignment=TA_CENTER, fontSize=10)))
+        story.append(Spacer(1, 0.2*inch))
         
-        # Parties
-        story.append(Paragraph("PARTIES TO THIS AGREEMENT", heading_style))
+        # =======================================
+        # PARTIES TO THE AGREEMENT
+        # =======================================
+        story.append(Paragraph(f"THIS AGREEMENT (the \"Agreement\") is made this {agreement_date}, by and between:", normal_style))
+        story.append(Spacer(1, 0.1*inch))
         
-        franchisor_text = """
-        <b>FRANCHISOR:</b><br/>
-        Manaswini Foods Pvt. Ltd. (Trading as "Purnabramha")<br/>
-        17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout<br/>
-        Bangalore, Karnataka - 560102, India<br/>
+        # Franchisor
+        franchisor_text = f"""
+        <b>M/s. {franchisor_name}</b>, a company incorporated under the provisions of the Companies Act, 1956 
+        {f'({franchisor_cin})' if franchisor_cin else ''} (which expression shall, unless repugnant to the meaning and context thereof, 
+        be deemed to mean and include its successors & assignees), having its registered office at {franchisor_address} 
+        through its Directors Mrs. Jayanti Pranav Kathale and Mr. Sandeep Gadhwal (the "<b>FRANCHISOR</b>" or "<b>PURNABRAMHA</b>") 
+        of the <b>ONE PART</b>;
         """
         story.append(Paragraph(franchisor_text, normal_style))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph("<b>AND</b>", ParagraphStyle('And', parent=normal_style, alignment=TA_CENTER)))
+        story.append(Spacer(1, 0.1*inch))
         
-        # Franchisee details
-        directors_text = ""
-        for d in franchise.get("directors", []):
-            directors_text += f"{d.get('name', 'N/A')} ({d.get('designation', 'Director')})<br/>"
-        if not directors_text:
-            directors_text = "N/A"
-        
+        # Franchisee
         franchisee_text = f"""
-        <b>FRANCHISEE:</b><br/>
-        {franchise.get('legal_entity_name', 'N/A')}<br/>
-        {franchise.get('address', 'N/A')}<br/>
-        {franchise.get('city', '')}, {franchise.get('state', '')} - {franchise.get('pincode', '')}<br/>
-        {franchise.get('country', 'India')}<br/>
-        <br/>
-        <b>Directors:</b><br/>
-        {directors_text}
+        <b>M/s. {franchise.get('legal_entity_name', '[FRANCHISEE NAME]')}</b>, 
+        {'a company incorporated under the provisions of the Companies Act' if is_india else 'a legal entity'}, 
+        having its registered office at {franchise.get('address', '[ADDRESS]')}, {franchise.get('city', '')}, 
+        {franchise.get('state', '')} - {franchise.get('pincode', '')}, {country}, 
+        hereinafter referred to as the "<b>FRANCHISEE</b>" through its Directors/Partners {directors_names or '[DIRECTOR NAMES]'} 
+        (which expression shall, unless repugnant to the subject or context thereof, include its successors and assigns) 
+        of the <b>OTHER PART</b>.
         """
         story.append(Paragraph(franchisee_text, normal_style))
+        story.append(Spacer(1, 0.15*inch))
+        
+        story.append(Paragraph("The Franchisor and Franchisee herein shall be collectively referred to as \"<b>Parties</b>\" and individually referred to as \"<b>Party</b>\".", normal_style))
         story.append(Spacer(1, 0.2*inch))
         
-        # Agreement Details
-        story.append(Paragraph("AGREEMENT DETAILS", heading_style))
+        # =======================================
+        # WHEREAS
+        # =======================================
+        story.append(Paragraph("<b>WHEREAS:</b>", heading_style))
         
-        details_text = f"""
-        <b>Franchise Code:</b> {franchise.get('franchise_code', 'N/A')}<br/>
-        <b>Agreement Start Date:</b> {franchise.get('agreement_start_date', 'N/A')}<br/>
-        <b>Agreement End Date:</b> {franchise.get('agreement_end_date', 'N/A')}<br/>
-        <b>Franchise Fee:</b> {franchise.get('franchise_fee', 0):,.2f}<br/>
-        <b>Royalty Percentage:</b> {franchise.get('royalty_percentage', 0)}%<br/>
-        """
-        story.append(Paragraph(details_text, normal_style))
-        story.append(Spacer(1, 0.2*inch))
-        
-        # Terms and Conditions
-        story.append(Paragraph("TERMS AND CONDITIONS", heading_style))
-        
-        terms = [
-            "The Franchisee agrees to operate the franchise in accordance with the operational standards set by Purnabramha.",
-            "The Franchisee shall maintain the quality standards as specified in the Operations Manual.",
-            "The Franchisee agrees to pay the franchise fee and ongoing royalty as specified above.",
-            "The Franchisor shall provide training, support, and brand guidelines to the Franchisee.",
-            "This agreement is valid for the term specified above and may be renewed upon mutual consent.",
-            "Either party may terminate this agreement with 90 days written notice.",
-            "All intellectual property including the Purnabramha brand, recipes, and processes remain the property of the Franchisor.",
-            "The Franchisee shall not operate any competing business during the term of this agreement."
+        whereas_points = [
+            f"Trade Mark No. 2675785 - \"Purnabramha - The Largest Authentic Maharashtrian Restaurant\" is the trademark registered under Manaswini Foods Pvt Ltd.",
+            "The Franchisor Company has developed and owns the Purnabramha brand concept, recipes, operational systems, and intellectual property.",
+            f"Purnabramha operates under the FOCO (Franchise Owned - Company Operated) model, offering {franchise_type} format restaurants.",
+            f"The Franchisee through its authorized officer approached M/s. {franchisor_name} and requested for a Franchise of 'Purnabramha' brand.",
+            f"M/s. {franchisor_name} is permitting the Franchisee to invest in and own a franchise unit while the Franchisor operates and manages the business."
         ]
         
-        for i, term in enumerate(terms, 1):
-            story.append(Paragraph(f"{i}. {term}", normal_style))
+        for point in whereas_points:
+            story.append(Paragraph(f"• {point}", small_style))
         
-        story.append(Spacer(1, 0.5*inch))
+        story.append(Spacer(1, 0.2*inch))
         
-        # Signature Section
-        story.append(Paragraph("SIGNATURES", heading_style))
+        # =======================================
+        # DEFINITIONS
+        # =======================================
+        story.append(Paragraph("<b>1. DEFINITIONS</b>", heading_style))
         
-        sig_text = """
-        <br/><br/>
-        _______________________________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_______________________________<br/>
-        For Franchisor (Purnabramha)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;For Franchisee<br/>
-        <br/>
-        Date: _____________________&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Date: _____________________<br/>
+        definitions = [
+            ("\"Agreement\"", "means this Agreement, and any amendment/addendum as the same may be supplemented, amended, restated or replaced from time to time."),
+            ("\"Effective Date\"", f"shall mean the date of execution of this Agreement, deemed to be {agreement_start or '[DATE]'}."),
+            ("\"Franchise Address\"", f"means the only address of the premise to run the awarded Franchise business: {franchise.get('address', '[ADDRESS]')}, {franchise.get('city', '')}."),
+            ("\"FOCO Model\"", "means Franchise Owned - Company Operated, wherein the Franchisee invests capital and owns the franchise unit while the Franchisor manages all operations."),
+            ("\"Working Capital\"", f"means the operational fund of {format_currency(working_capital, country)} maintained for running the franchise."),
+            ("\"Revenue Share\"", f"means {revenue_share}% of Net Revenue payable to the Franchisee."),
+            ("\"Term\"", f"means a period of {FRANCHISE_TENURE_YEARS} Years from the Effective Date."),
+            ("\"Intellectual Property\"", "means the Trade Marks, Logos, Recipes, Processes, and all proprietary systems of the Franchisor."),
+        ]
+        
+        for term, definition in definitions:
+            story.append(Paragraph(f"<b>{term}</b> {definition}", small_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # TERM AND TENURE
+        # =======================================
+        story.append(Paragraph("<b>2. TERM AND TERMINATION</b>", heading_style))
+        
+        term_text = f"""
+        2.1 The term of the Agreement shall be for a fixed period of <b>{FRANCHISE_TENURE_YEARS} (Seven) years</b> 
+        starting from {agreement_start or '[OPERATIONS START DATE]'}. The Agreement shall be valid in accordance 
+        with the terms and conditions mentioned herein. The tenure is fixed and cannot be automatically extended.
+        Any renewal shall require a fresh agreement between the Parties.
         """
-        story.append(Paragraph(sig_text, normal_style))
+        story.append(Paragraph(term_text, normal_style))
         
+        story.append(Paragraph("2.2 This Agreement shall be considered terminated immediately on happening of any one of the following:", normal_style))
+        
+        termination_events = [
+            "Either Party enters into liquidation, becomes insolvent, or any statutory licenses are revoked/cancelled/suspended.",
+            "Any license or permit required for business is cancelled, revoked, or not renewed.",
+            "The Lease/Tenancy Agreement of the Franchise Premises is terminated and business fails to relocate with Franchisor's consent.",
+            "Either party fails to procure required government permissions.",
+            "Any act that damages the goodwill of the Franchisor.",
+            "Franchisee enters into any competitive business in the same vicinity."
+        ]
+        
+        for event in termination_events:
+            story.append(Paragraph(f"• {event}", small_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # FOCO BUSINESS MODEL
+        # =======================================
+        story.append(Paragraph("<b>3. FOCO BUSINESS MODEL</b>", heading_style))
+        
+        foco_text = """
+        3.1 Under the FOCO (Franchise Owned - Company Operated) model, the arrangement between the Parties shall be:
+        """
+        story.append(Paragraph(foco_text, normal_style))
+        
+        foco_points = [
+            "The Franchisee shall invest the capital and own the franchise unit including all physical assets.",
+            "The Franchisor shall fully operate and manage the restaurant including all day-to-day operations.",
+            "The Franchisor retains full operational authority including menu planning, staff hiring, vendor management, quality control, and brand compliance.",
+            "The Franchisee shall not interfere in operational management decisions.",
+            "All revenue shall be collected in official company accounts operated by the Franchisor.",
+            "Operational expenses (rent, staff salaries, grocery, utilities, marketing, taxes) shall be paid from these accounts.",
+        ]
+        
+        for point in foco_points:
+            story.append(Paragraph(f"• {point}", small_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # FRANCHISE FEE AND CAPITAL
+        # =======================================
+        story.append(Paragraph("<b>4. FRANCHISE FEE AND CAPITAL CONTRIBUTION</b>", heading_style))
+        
+        story.append(Paragraph(f"<b>4.1 Franchise Type:</b> {franchise_type}", normal_style))
+        if franchise_type in FRANCHISE_TYPES:
+            story.append(Paragraph(f"<i>{FRANCHISE_TYPES[franchise_type]['description']}</i>", small_style))
+        
+        fee_text = f"""
+        <b>4.2 Franchise Fee:</b> The Franchisee shall pay a non-refundable Franchise Fee of 
+        <b>{format_currency(franchise_fee, country)}</b> ({format_currency_words(franchise_fee, country)}).
+        """
+        story.append(Paragraph(fee_text, normal_style))
+        
+        story.append(Paragraph("The Franchise Fee grants the Franchisee:", normal_style))
+        fee_includes = [
+            "Brand usage rights for the agreed territory",
+            "Access to proprietary recipes and kitchen SOP systems",
+            "Training programs for launch",
+            "Vendor network access",
+            "Launch assistance and operational systems",
+        ]
+        for item in fee_includes:
+            story.append(Paragraph(f"• {item}", small_style))
+        
+        story.append(Paragraph("<b>The Franchise Fee does NOT include:</b> Interiors, Equipment, Licenses, Rent Deposits, Staff Salary Reserves, or Raw Materials.", small_style))
+        
+        wc_text = f"""
+        <b>4.3 Working Capital:</b> The Franchisee shall maintain Working Capital of 
+        <b>{format_currency(working_capital, country)}</b> ({format_currency_words(working_capital, country)}) 
+        for operational efficiency during the franchise operations.
+        """
+        story.append(Paragraph(wc_text, normal_style))
+        
+        if total_setup > 0:
+            story.append(Paragraph("<b>4.4 Setup Costs (to be borne by Franchisee before operations):</b>", normal_style))
+            setup_items = [
+                ("Shop Security Deposit", setup_costs.get("shop_security_deposit", 0)),
+                ("First Month Rent", setup_costs.get("first_month_rent", 0)),
+                ("Initial Salary Fund", setup_costs.get("initial_salary_fund", 0)),
+                ("Initial Grocery & Raw Materials", setup_costs.get("initial_grocery_cost", 0)),
+            ]
+            for item, amount in setup_items:
+                if amount > 0:
+                    story.append(Paragraph(f"• {item}: {format_currency(amount, country)}", small_style))
+            story.append(Paragraph(f"<b>Total Setup Costs: {format_currency(total_setup, country)}</b>", small_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # REVENUE MODEL (INDIA SPECIFIC)
+        # =======================================
+        story.append(Paragraph("<b>5. REVENUE MODEL AND FINANCIAL STRUCTURE</b>", heading_style))
+        
+        if is_india:
+            revenue_text = f"""
+            5.1 All revenue from the restaurant shall be collected in official company accounts operated by 
+            Manaswini Foods Pvt Ltd. After deduction of all operational expenses, the Franchisee shall receive 
+            a Revenue Share of <b>{revenue_share}% of Net Revenue</b>.
+            """
+            story.append(Paragraph(revenue_text, normal_style))
+            
+            story.append(Paragraph("5.2 Operational expenses paid from revenue include:", normal_style))
+            expense_items = ["Rent", "Staff Salaries", "Grocery & Supplies", "Utilities", "Maintenance", "Marketing", "Taxes", "Operations Cost"]
+            story.append(Paragraph(f"• {', '.join(expense_items)}", small_style))
+            
+            story.append(Paragraph(f"""
+            5.3 After operational expenses, the remaining balance becomes the profit share of {franchisor_name}.
+            """, normal_style))
+        else:
+            story.append(Paragraph(f"""
+            5.1 The revenue model for international franchises shall be determined based on local market conditions 
+            and agreed upon separately in the Annexure to this Agreement.
+            """, normal_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # WORKING CAPITAL PROTECTION
+        # =======================================
+        story.append(Paragraph("<b>6. WORKING CAPITAL PROTECTION CLAUSE</b>", heading_style))
+        
+        wc_protection = f"""
+        6.1 If the Working Capital of the restaurant falls below <b>50% (Fifty Percent)</b> of the originally 
+        committed Working Capital amount of {format_currency(working_capital, country)}, the following shall apply:
+        """
+        story.append(Paragraph(wc_protection, normal_style))
+        
+        story.append(Paragraph("• Franchisee Revenue Share becomes <b>0% (Zero Percent)</b>", small_style))
+        story.append(Paragraph("• Profit Distribution becomes <b>0% (Zero Percent)</b>", small_style))
+        story.append(Paragraph(f"""
+        6.2 This condition shall remain active until the Working Capital is restored to its original committed 
+        level of {format_currency(working_capital, country)}. Once restored, the normal revenue sharing structure shall resume.
+        """, normal_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # SERVICE CONTRACT FEE
+        # =======================================
+        story.append(Paragraph("<b>7. SERVICE CONTRACT FEE</b>", heading_style))
+        
+        service_text = f"""
+        7.1 Every franchise center shall pay a monthly Service Contract Fee of 
+        <b>{format_currency(service_fee, country)} per month</b>.
+        """
+        story.append(Paragraph(service_text, normal_style))
+        
+        story.append(Paragraph("7.2 This fee covers:", normal_style))
+        service_covers = [
+            "Brand management and quality monitoring",
+            "Menu updates and kitchen SOP systems",
+            "Vendor coordination and operations guidance",
+            "Marketing support and technology systems"
+        ]
+        for item in service_covers:
+            story.append(Paragraph(f"• {item}", small_style))
+        
+        story.append(Paragraph("""
+        7.3 The central management salary pool of the Purnabramha leadership team shall be distributed 
+        proportionately across all operating franchise centers. Each center contributes a proportional operational share.
+        """, normal_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # OPERATIONAL CONTROL
+        # =======================================
+        story.append(Paragraph("<b>8. OPERATIONAL CONTROL AND RESPONSIBILITIES</b>", heading_style))
+        
+        story.append(Paragraph("8.1 Under the FOCO model, the Franchisor retains full operational authority including:", normal_style))
+        
+        ops_authority = [
+            "Menu and food quality standards",
+            "Hiring, training, and staff structure",
+            "Vendor approvals and procurement",
+            "Accounting systems and financial management",
+            "Marketing strategy and brand compliance",
+            "Technology and POS systems"
+        ]
+        for item in ops_authority:
+            story.append(Paragraph(f"• {item}", small_style))
+        
+        story.append(Paragraph("""
+        8.2 The Franchisor shall provide daily updates to the Franchisee ensuring transparency and 
+        collaborative relationship throughout the tenure of the agreement.
+        """, normal_style))
+        
+        # Page break for remaining sections
+        story.append(PageBreak())
+        
+        # =======================================
+        # INTELLECTUAL PROPERTY
+        # =======================================
+        story.append(Paragraph("<b>9. INTELLECTUAL PROPERTY RIGHTS</b>", heading_style))
+        
+        ip_text = """
+        9.1 The brand name Purnabramha is registered in the name of Manaswini Foods Private Limited and is 
+        not transferred to any Party by virtue of this or any other Agreement. None of the Parties hereto 
+        shall acquire or claim any right, title or interest in the intellectual property owned by the Franchisor.
+        
+        9.2 The Franchisee shall not use any intellectual property except as approved by the Franchisor in writing 
+        for performance of obligations under this Agreement. The provisions of this Clause shall survive termination.
+        """
+        story.append(Paragraph(ip_text, normal_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # CONFIDENTIALITY
+        # =======================================
+        story.append(Paragraph("<b>10. CONFIDENTIALITY</b>", heading_style))
+        
+        conf_text = """
+        10.1 The Parties agree to maintain strict confidence and secrecy in respect of the terms and conditions 
+        of this Agreement and all information of a secret, proprietary and confidential nature received pursuant 
+        to this Agreement. This Confidentiality provision shall survive for a period of two (2) years from 
+        the expiry or termination of this Agreement.
+        """
+        story.append(Paragraph(conf_text, normal_style))
+        
+        story.append(Spacer(1, 0.15*inch))
+        
+        # =======================================
+        # GOVERNING LAW
+        # =======================================
+        story.append(Paragraph("<b>11. GOVERNING LAW AND JURISDICTION</b>", heading_style))
+        
+        if is_india:
+            law_text = f"""
+            11.1 This Agreement shall be governed by and subject to the laws of India. This Agreement shall be 
+            subject to the exclusive jurisdiction of the courts of {jurisdiction}.
+            
+            11.2 In case of disputes or differences arising between the Parties, unless settled amicably, 
+            shall be referred to arbitration under the Arbitration and Conciliation Act 1996 by a sole arbitrator 
+            appointed by mutual consent. The venue of arbitration shall be {jurisdiction}, India.
+            """
+        else:
+            law_text = f"""
+            11.1 This Agreement shall be governed by the applicable laws of {country}. Disputes shall be 
+            subject to the jurisdiction of competent courts in {jurisdiction}.
+            """
+        story.append(Paragraph(law_text, normal_style))
+        
+        story.append(Spacer(1, 0.3*inch))
+        
+        # =======================================
+        # SIGNATURE SECTION
+        # =======================================
+        story.append(Paragraph("<b>12. SIGNATURES</b>", heading_style))
+        
+        story.append(Paragraph("""
+        IN WITNESS WHEREOF, the parties hereto have executed this Franchise Agreement as of the date first above written.
+        """, normal_style))
+        
+        story.append(Spacer(1, 0.4*inch))
+        
+        # Signature table
+        sig_data = [
+            ["<b>FOR FRANCHISOR</b>", "<b>FOR FRANCHISEE</b>"],
+            [f"{franchisor_name}", f"{franchise.get('legal_entity_name', '[FRANCHISEE NAME]')}"],
+            ["", ""],
+            ["_______________________________", "_______________________________"],
+            ["Mrs. Jayanti Kathale", directors_names.split(',')[0] if directors_names else "[DIRECTOR NAME]"],
+            ["Director", "Director/Partner"],
+            ["", ""],
+            ["_______________________________", ""],
+            ["Mr. Sandeep Gadhwal", ""],
+            ["Director", ""],
+            ["", ""],
+            ["Date: _______________________", "Date: _______________________"],
+        ]
+        
+        sig_table = Table(sig_data, colWidths=[3*inch, 3*inch])
+        sig_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        
+        story.append(sig_table)
+        
+        # Build PDF
         doc.build(story)
         
         buffer.seek(0)
-        filename = f"Franchise_Agreement_{franchise_code.upper()}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        filename = f"FOCO_Agreement_{franchise_code.upper()}_{datetime.now().strftime('%Y%m%d')}.pdf"
         
         # Log audit
         await log_audit(franchise_code.upper(), "AGREEMENT_GENERATED", session, {
-            "generated_at": datetime.now(timezone.utc).isoformat()
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "format": output_format,
+            "franchise_type": franchise_type,
+            "franchise_fee": franchise_fee
         })
         
         return Response(
@@ -662,7 +1180,22 @@ async def generate_agreement(franchise_code: str, req: TokenRequest):
         
     except Exception as e:
         logger.error(f"Error generating agreement: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(500, f"Error generating agreement: {str(e)}")
+
+@router.get("/franchise-types")
+async def get_franchise_types():
+    """Get available franchise types and their fees"""
+    return {
+        "types": FRANCHISE_TYPES,
+        "defaults": {
+            "working_capital": DEFAULT_WORKING_CAPITAL,
+            "service_contract_fee": MONTHLY_SERVICE_CONTRACT,
+            "tenure_years": FRANCHISE_TENURE_YEARS,
+            "revenue_share_percentage": REVENUE_SHARE_PERCENTAGE
+        }
+    }
 
 # =======================================
 # AUDIT LOGGING

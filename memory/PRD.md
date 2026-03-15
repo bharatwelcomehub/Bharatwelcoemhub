@@ -8,9 +8,36 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 11, 2026 - Session 12)
+### Latest Update (Mar 15, 2026 - Session 13)
 
-- ✅ **P0: FRANCHISE MANAGEMENT MODULE (NEW)**
+- ✅ **P0: FOCO MODEL UPGRADE FOR FRANCHISE AGREEMENTS**
+  - **Business Model:** FOCO (Franchise Owned - Company Operated)
+    - Franchise Owner invests capital and owns the franchise unit
+    - Purnabramha (brand owner) manages all operations: menu, staff, procurement, accounting
+  - **4 Franchise Types with Auto-Fee:**
+    - Sanskriti: ₹11,00,000 (2500+ Sq.Ft, 20-25 staff)
+    - Maaza: ₹9,00,000 (1500-2000 Sq.Ft, 8-9 staff)
+    - Potoba: ₹7,00,000 (Express format)
+    - Peshwayee: ₹25,00,000 (Premium fine dining)
+  - **Fixed 7-Year Tenure:** Auto-calculated end date from start date
+  - **Revenue Model (India):**
+    - 15% Revenue Share to franchise owner
+    - Remaining profit to Manaswini Foods Pvt Ltd
+  - **Working Capital Protection:**
+    - If WC falls below 50%, revenue share becomes 0%
+    - Resumes when WC restored to original level
+  - **Monthly Service Fee:** ₹10,000/center for brand management
+  - **Setup Costs Tracking:** Shop deposit, first month rent, salary fund, grocery cost
+  - **Country-Specific Logic:**
+    - India: Manaswini Foods Pvt Ltd, INR currency
+    - International: Purnabramha LLC, USD/local currency
+  - **Full Legal Agreement PDF Generator:** 12 sections including FOCO model explanation
+  - **Backend:** `/app/backend/routes/franchises.py` (1200+ lines with FOCO model)
+  - **Frontend:** `/app/frontend/src/pages/FranchiseManagement.jsx` (1300+ lines)
+
+### Previous Update (Mar 11, 2026 - Session 12)
+
+- ✅ **P0: FRANCHISE MANAGEMENT MODULE**
   - **Full CRUD for Franchises:** Create, Read, Update, Delete franchise records
   - **Comprehensive Data Model:** Franchise code, name, legal entity, country, state, city, address, pincode
   - **Primary Contact:** Name, email, phone for main contact person
