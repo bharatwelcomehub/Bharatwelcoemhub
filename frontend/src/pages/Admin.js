@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -39,6 +39,10 @@ const Admin = () => {
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [menuSearch, setMenuSearch] = useState('');
+  const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -222,6 +226,44 @@ const Admin = () => {
       setLoading(false);
     }
   };
+
+  // Get unique categories for filter
+  const menuCategories = useMemo(() => {
+    const cats = [...new Set(menuItems.map(item => item.category))].filter(Boolean);
+    return cats.sort();
+  }, [menuItems]);
+
+  // Filter and paginate menu items
+  const filteredMenuItems = useMemo(() => {
+    let filtered = menuItems;
+    
+    if (menuSearch) {
+      const search = menuSearch.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.name?.toLowerCase().includes(search) ||
+        item.category?.toLowerCase().includes(search)
+      );
+    }
+    
+    if (menuCategoryFilter !== 'all') {
+      filtered = filtered.filter(item => item.category === menuCategoryFilter);
+    }
+    
+    return filtered;
+  }, [menuItems, menuSearch, menuCategoryFilter]);
+
+  // Paginated items
+  const paginatedMenuItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredMenuItems.slice(start, start + itemsPerPage);
+  }, [filteredMenuItems, currentPage]);
+
+  const totalPages = Math.ceil(filteredMenuItems.length / itemsPerPage);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [menuSearch, menuCategoryFilter]);
 
   const fetchLocations = async () => {
     const currentToken = getToken();
@@ -628,6 +670,34 @@ const Admin = () => {
               </Button>
             </div>
 
+            {/* Search and Filter */}
+            <div className="flex flex-wrap gap-4 mb-4">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by name or category..."
+                  value={menuSearch}
+                  onChange={(e) => setMenuSearch(e.target.value)}
+                  className="pl-10"
+                  data-testid="menu-search"
+                />
+              </div>
+              <Select value={menuCategoryFilter} onValueChange={setMenuCategoryFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {menuCategories.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="text-sm text-gray-500 flex items-center">
+                {filteredMenuItems.length} of {menuItems.length} items
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl border border-[hsl(30,30%,88%)] overflow-hidden">
               <div className="overflow-x-auto">
                 <Table>
@@ -647,19 +717,21 @@ const Admin = () => {
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8">Loading...</TableCell>
                       </TableRow>
-                    ) : menuItems.length === 0 ? (
+                    ) : paginatedMenuItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">No menu items</TableCell>
+                        <TableCell colSpan={7} className="text-center py-8">
+                          {menuSearch || menuCategoryFilter !== 'all' ? 'No items match your search' : 'No menu items'}
+                        </TableCell>
                       </TableRow>
                     ) : (
-                      menuItems.slice(0, 50).map((item) => (
-                        <TableRow key={item.id}>
+                      paginatedMenuItems.map((item) => (
+                        <TableRow key={item.id} className={!item.image_url ? 'bg-amber-50' : ''}>
                           <TableCell>
                             {item.image_url ? (
                               <img src={item.image_url} alt={item.name} className="w-10 h-10 object-cover rounded" />
                             ) : (
-                              <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center">
-                                <ImageIcon className="h-5 w-5 text-gray-400" />
+                              <div className="w-10 h-10 bg-red-100 rounded flex items-center justify-center" title="No image">
+                                <ImageIcon className="h-5 w-5 text-red-400" />
                               </div>
                             )}
                           </TableCell>
@@ -688,9 +760,33 @@ const Admin = () => {
                   </TableBody>
                 </Table>
               </div>
-              {menuItems.length > 50 && (
-                <div className="p-4 text-center text-sm text-foreground/60">
-                  Showing 50 of {menuItems.length} items
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="p-4 flex items-center justify-between border-t">
+                  <div className="text-sm text-gray-500">
+                    Page {currentPage} of {totalPages} • Showing {paginatedMenuItems.length} items
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
