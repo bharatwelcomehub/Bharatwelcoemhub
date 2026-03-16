@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Menu, X, ShoppingCart, User, MapPin, Phone } from 'lucide-react';
+import { Menu, X, User, MapPin, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCart } from '@/contexts/CartContext';
 import AuthDialog from '@/components/AuthDialog';
 import InstallPrompt from '@/components/InstallPrompt';
 
@@ -12,7 +11,6 @@ const Layout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const { user, logout } = useAuth();
-  const { getTotalItems } = useCart();
   const navigate = useNavigate();
 
   const navLinks = [
@@ -56,19 +54,6 @@ const Layout = ({ children }) => {
             </div>
 
             <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative"
-                onClick={() => navigate('/pickup')}
-                data-testid="cart-button"
-              >
-                <ShoppingCart className="h-5 w-5" />
-                {getTotalItems() > 0 && (
-                  <span className="cart-badge" data-testid="cart-count">{getTotalItems()}</span>
-                )}
-              </Button>
-
               {user ? (
                 <div className="hidden lg:flex items-center space-x-2">
                   <Button

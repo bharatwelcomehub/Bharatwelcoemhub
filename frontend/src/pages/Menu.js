@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Globe } from 'lucide-react';
-import { useCart } from '@/contexts/CartContext';
+import { Globe, ShoppingBag, Leaf } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -17,7 +17,6 @@ const Menu = () => {
   const [selectedCountry, setSelectedCountry] = useState(() => {
     return localStorage.getItem('purnabramha_country') || 'India';
   });
-  const { addToCart } = useCart();
 
   const categories = [
     { value: 'all', label: 'All Items' },
@@ -67,20 +66,6 @@ const Menu = () => {
 
   const getCurrencySymbol = () => {
     return selectedCountry === 'Australia' ? '$' : '₹';
-  };
-
-  const handleAddToCart = (item) => {
-    const price = getPrice(item);
-    if (!price) {
-      toast.error('This item is not available in your selected region');
-      return;
-    }
-    addToCart({
-      ...item,
-      price: price,
-      currency: selectedCountry === 'Australia' ? 'AUD' : 'INR'
-    });
-    toast.success(`${item.name} added to cart`);
   };
 
   const filteredItems = (selectedCategory === 'all'
@@ -208,15 +193,17 @@ const Menu = () => {
                 <p className="text-foreground/60 font-manrope text-sm mb-4 leading-relaxed line-clamp-2">
                   {item.description}
                 </p>
-                <Button
-                  onClick={() => handleAddToCart(item)}
-                  className="w-full rounded-full bg-primary hover:bg-primary/90"
-                  disabled={!item.is_available}
-                  data-testid={`add-to-cart-${index}`}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {item.is_available ? 'Add to Cart' : 'Not Available'}
-                </Button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-green-600">
+                    <Leaf className="h-4 w-4" />
+                    <span className="text-xs">Pure Veg</span>
+                  </div>
+                  {!item.is_available && (
+                    <Badge variant="outline" className="text-red-500 border-red-200">
+                      Currently Unavailable
+                    </Badge>
+                  )}
+                </div>
               </div>
             </motion.div>
           ))}
@@ -232,6 +219,22 @@ const Menu = () => {
             </p>
           </div>
         )}
+
+        {/* Order CTA */}
+        <div className="text-center mt-12 p-8 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl">
+          <h3 className="text-2xl font-bold text-[#5c1e1e] mb-3">
+            Ready to Order?
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Place your order via WhatsApp and pick up fresh from your nearest center
+          </p>
+          <Link to="/pickup">
+            <Button className="bg-[#5c1e1e] hover:bg-[#8b2c2c] rounded-full px-8 py-6 text-lg">
+              <ShoppingBag className="mr-2 h-5 w-5" />
+              Order for Pickup
+            </Button>
+          </Link>
+        </div>
 
         {/* Menu item count */}
         <div className="text-center mt-8 text-sm text-foreground/50 font-manrope">
