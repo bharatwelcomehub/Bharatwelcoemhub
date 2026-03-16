@@ -119,16 +119,34 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
 
   // Download template
   const handleDownloadTemplate = async () => {
+    if (!session?.token) {
+      toast.error("Please login again to download template");
+      return;
+    }
+    
     try {
+      toast.loading("Downloading template...", { id: "download-template" });
+      
+      const res = await fetch(`${API_URL}/sales/upload-template?token=${session.token}`);
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Download failed");
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = `${API_URL}/api/sales/upload-template?token=${session?.token}`;
+      link.href = url;
       link.download = 'Sales_Upload_Template.xlsx';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success("Template downloaded");
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Template downloaded", { id: "download-template" });
     } catch (err) {
-      toast.error("Failed to download template");
+      toast.error(err.message || "Failed to download template", { id: "download-template" });
     }
   };
 
@@ -168,7 +186,7 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
       formData.append('center', targetCenter);
       formData.append('file', selectedFile);
       
-      const res = await fetch(`${API_URL}/api/sales/upload-data`, {
+      const res = await fetch(`${API_URL}/sales/upload-data`, {
         method: 'POST',
         body: formData
       });
