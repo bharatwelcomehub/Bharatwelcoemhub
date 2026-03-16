@@ -29,6 +29,13 @@ const Catering = () => {
   const [selectedPackage, setSelectedPackage] = useState('');
   const [menuSelections, setMenuSelections] = useState({});
   const [showReview, setShowReview] = useState(false);
+  
+  // Addon services state
+  const [needsCrockery, setNeedsCrockery] = useState(false);
+  const [crockeryHours, setCrockeryHours] = useState(1);
+  const [needsStaff, setNeedsStaff] = useState(false);
+  const [staffCount, setStaffCount] = useState(2);
+  const [staffHours, setStaffHours] = useState(2);
 
   const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
 
@@ -46,6 +53,18 @@ const Catering = () => {
   const packages = isAustralia ? cateringPackages.packages.australia : cateringPackages.packages.india;
   const menuOptions = cateringPackages.menuOptions;
 
+  // Addon pricing
+  const addonPricing = {
+    crockery: {
+      india: 3000, // per hour
+      australia: 200 // per hour
+    },
+    staff: {
+      india: 300, // per person per hour
+      australia: 50 // per person per hour ($100 for 2 hours = $50/hr/person)
+    }
+  };
+
   const currentPackage = packages.find(p => p.id === selectedPackage);
 
   const getMinDate = () => {
@@ -62,10 +81,27 @@ const Catering = () => {
 
   const formatPrice = (price) => `${currencySymbol}${price.toFixed(2)}`;
 
-  const estimatedTotal = useMemo(() => {
+  // Calculate addon costs
+  const crockeryTotal = useMemo(() => {
+    if (!needsCrockery) return 0;
+    const rate = isAustralia ? addonPricing.crockery.australia : addonPricing.crockery.india;
+    return rate * crockeryHours;
+  }, [needsCrockery, crockeryHours, isAustralia]);
+
+  const staffTotal = useMemo(() => {
+    if (!needsStaff) return 0;
+    const rate = isAustralia ? addonPricing.staff.australia : addonPricing.staff.india;
+    return rate * staffCount * staffHours;
+  }, [needsStaff, staffCount, staffHours, isAustralia]);
+
+  const foodTotal = useMemo(() => {
     if (!currentPackage || !guestCount) return 0;
     return currentPackage.pricePerPerson * parseInt(guestCount);
   }, [currentPackage, guestCount]);
+
+  const estimatedTotal = useMemo(() => {
+    return foodTotal + crockeryTotal + staffTotal;
+  }, [foodTotal, crockeryTotal, staffTotal]);
 
   const toggleSelection = (category, itemId) => {
     setMenuSelections(prev => {
@@ -155,9 +191,24 @@ const Catering = () => {
       }
     });
 
+    // Add addon services to message
+    if (needsCrockery || needsStaff) {
+      message += `\n*🛎️ ADDON SERVICES:*\n`;
+      if (needsCrockery) {
+        message += `🍽️ Crockery & Cutlery: ${crockeryHours} hour(s) @ ${formatPrice(isAustralia ? addonPricing.crockery.australia : addonPricing.crockery.india)}/hr = ${formatPrice(crockeryTotal)}\n`;
+        message += `   _(Plates, Bowls, Spoons, Serving Dishes - Return by 9 AM next day)_\n`;
+      }
+      if (needsStaff) {
+        message += `👨‍🍳 Service Staff: ${staffCount} person(s) × ${staffHours} hour(s) = ${formatPrice(staffTotal)}\n`;
+      }
+    }
+
     message += `\n━━━━━━━━━━━━━━━\n`;
-    message += `*💰 ESTIMATED TOTAL: ${formatPrice(estimatedTotal)}*\n`;
-    message += `_(${guestCount} guests × ${formatPrice(currentPackage?.pricePerPerson || 0)})_\n`;
+    message += `*💰 COST BREAKDOWN:*\n`;
+    message += `Food (${guestCount} × ${formatPrice(currentPackage?.pricePerPerson || 0)}): ${formatPrice(foodTotal)}\n`;
+    if (needsCrockery) message += `Crockery Rental: ${formatPrice(crockeryTotal)}\n`;
+    if (needsStaff) message += `Service Staff: ${formatPrice(staffTotal)}\n`;
+    message += `\n*ESTIMATED TOTAL: ${formatPrice(estimatedTotal)}*\n`;
     message += `\n⚠️ _Final quote will be confirmed after discussion. Prices may vary based on customization._`;
 
     return encodeURIComponent(message);
@@ -558,6 +609,154 @@ const Catering = () => {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Step 4: Addon Services */}
+              {currentPackage && (
+                <Card className="border-amber-200 shadow-lg">
+                  <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                    <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                      🛎️ Step 4: Addon Services (Optional)
+                    </CardTitle>
+                    <CardDescription>
+                      Need crockery, cutlery, or service staff? We've got you covered!
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-6">
+                    {/* Crockery Rental */}
+                    <div className="p-4 border border-amber-200 rounded-lg">
+                      <div className="flex items-start gap-3 mb-4">
+                        <Checkbox
+                          id="crockery"
+                          checked={needsCrockery}
+                          onCheckedChange={setNeedsCrockery}
+                          data-testid="crockery-checkbox"
+                        />
+                        <div className="flex-1">
+                          <label htmlFor="crockery" className="font-semibold cursor-pointer text-[#5c1e1e]">
+                            🍽️ Crockery & Cutlery Rental
+                          </label>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Plates, Bowls, Spoons, Serving Dishes for all guests
+                          </p>
+                          <p className="text-sm font-medium text-amber-700 mt-1">
+                            {isAustralia ? '$200' : '₹3,000'} per hour
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            📦 Return by 9 AM next morning • No cleaning needed • (Closed Tuesdays)
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {needsCrockery && (
+                        <div className="ml-7 p-3 bg-amber-50 rounded-lg">
+                          <Label className="text-sm">Number of Hours</Label>
+                          <div className="flex items-center gap-3 mt-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setCrockeryHours(Math.max(1, crockeryHours - 1))}
+                              className="h-8 w-8"
+                            >
+                              <span className="text-lg">-</span>
+                            </Button>
+                            <span className="text-xl font-bold w-12 text-center">{crockeryHours}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setCrockeryHours(crockeryHours + 1)}
+                              className="h-8 w-8"
+                            >
+                              <span className="text-lg">+</span>
+                            </Button>
+                            <span className="text-sm text-gray-600 ml-2">
+                              = <strong>{formatPrice(crockeryTotal)}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Service Staff */}
+                    <div className="p-4 border border-amber-200 rounded-lg">
+                      <div className="flex items-start gap-3 mb-4">
+                        <Checkbox
+                          id="staff"
+                          checked={needsStaff}
+                          onCheckedChange={setNeedsStaff}
+                          data-testid="staff-checkbox"
+                        />
+                        <div className="flex-1">
+                          <label htmlFor="staff" className="font-semibold cursor-pointer text-[#5c1e1e]">
+                            👨‍🍳 Service Staff
+                          </label>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Professional servers to help with your event
+                          </p>
+                          <p className="text-sm font-medium text-amber-700 mt-1">
+                            {isAustralia ? '$50 per person/hour' : '₹300 per person/hour'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {needsStaff && (
+                        <div className="ml-7 p-3 bg-amber-50 rounded-lg space-y-3">
+                          <div>
+                            <Label className="text-sm">Number of Staff</Label>
+                            <div className="flex items-center gap-3 mt-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setStaffCount(Math.max(1, staffCount - 1))}
+                                className="h-8 w-8"
+                              >
+                                <span className="text-lg">-</span>
+                              </Button>
+                              <span className="text-xl font-bold w-12 text-center">{staffCount}</span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setStaffCount(staffCount + 1)}
+                                className="h-8 w-8"
+                              >
+                                <span className="text-lg">+</span>
+                              </Button>
+                              <span className="text-sm text-gray-600">person(s)</span>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm">Number of Hours</Label>
+                            <div className="flex items-center gap-3 mt-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setStaffHours(Math.max(1, staffHours - 1))}
+                                className="h-8 w-8"
+                              >
+                                <span className="text-lg">-</span>
+                              </Button>
+                              <span className="text-xl font-bold w-12 text-center">{staffHours}</span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setStaffHours(staffHours + 1)}
+                                className="h-8 w-8"
+                              >
+                                <span className="text-lg">+</span>
+                              </Button>
+                              <span className="text-sm text-gray-600">hour(s)</span>
+                            </div>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <span className="text-sm">
+                              Staff Cost: <strong>{formatPrice(staffTotal)}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Sidebar - Summary */}
@@ -579,18 +778,27 @@ const Catering = () => {
                     </div>
 
                     {currentPackage && (
-                      <div className="border-t pt-3">
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>Rate per person:</span>
-                          <span>{formatPrice(currentPackage.pricePerPerson)}</span>
+                      <div className="border-t pt-3 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Food ({guestCount} guests):</span>
+                          <span>{formatPrice(foodTotal)}</span>
                         </div>
+                        {needsCrockery && (
+                          <div className="flex justify-between text-sm text-amber-700">
+                            <span>Crockery ({crockeryHours}hr):</span>
+                            <span>{formatPrice(crockeryTotal)}</span>
+                          </div>
+                        )}
+                        {needsStaff && (
+                          <div className="flex justify-between text-sm text-amber-700">
+                            <span>Staff ({staffCount}×{staffHours}hr):</span>
+                            <span>{formatPrice(staffTotal)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between font-bold text-lg pt-2 border-t">
                           <span>Estimated Total:</span>
                           <span className="text-[#5c1e1e]">{formatPrice(estimatedTotal)}</span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          ({guestCount} guests × {formatPrice(currentPackage.pricePerPerson)})
-                        </p>
                       </div>
                     )}
                   </CardContent>

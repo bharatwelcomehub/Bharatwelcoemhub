@@ -1,89 +1,72 @@
 # Purnabramha Restaurant App - Product Requirements Document
 
 ## Original Problem Statement
-The owner of "Purnabramha" restaurant chain wants a full-fledged, production-ready web application for `app.purnabramha.com` with:
-- Pickup ordering functionality
-- Table booking system
-- Tiffin/lunch box subscriptions
-- Catering inquiry system
-- Admin dashboard with full control
-- Menu management with location-based pricing (India ₹ and Australia $)
+Full-fledged, production-ready web application for `app.purnabramha.com` with pickup ordering, table booking, tiffin subscriptions, catering services, and admin dashboard.
 
 ## Tech Stack
 - **Frontend**: React, Tailwind CSS, Shadcn UI, Framer Motion
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
-- **Architecture**: SPA with RESTful API + Database-driven Menu
 
 ## ✅ Completed Features
 
-### Phase 1-6 - Core App (Previous Sessions)
-- [x] Full-stack app scaffolding
-- [x] Dual currency menu system (INR/AUD)
+### Core Features
+- [x] Full-stack app with React + FastAPI + MongoDB
+- [x] Dual currency menu (₹ INR / $ AUD)
 - [x] Customer authentication (Email/Password + Google OAuth)
-- [x] PWA support
+- [x] PWA support for mobile install
 
-### Phase 7 - Production Feature Rebuild (March 2026)
-- [x] **Data-Driven Architecture** - JSON config files for centers, booking rules, catering packages, tiffin config
-- [x] **Table Booking** (`/table-booking`) - Full multi-step form with WhatsApp
-- [x] **Tiffin Booking** (`/tiffin`) - Weekly lunch boxes + Unlimited Breakfast (₹299/person)
-- [x] **Pickup Orders** (`/pickup`) - E-commerce style with cart
-- [x] **Catering Booking** (`/catering`) - 4 packages with menu selection
+### Admin Panel (`/admin`)
+- [x] Menu CRUD (name, description, category, prices, images, availability)
+- [x] Home banner management
+- [x] Location management
+- [x] Video management
+- **Login**: admin@purnabramha.com / admin123
 
-### Phase 8 - Admin & Homepage Enhancement (March 2026)
-- [x] **Admin Panel Menu Management**
-  - Full CRUD for menu items (name, description, category, prices INR/AUD, image, availability)
-  - 173+ menu items in database
-  - Changes reflect instantly across all features (Pickup, Table Booking, etc.)
-  - Banner/Hero image management
-  - Location management
-  - Video management
+### Modern Luxe Homepage
+- [x] Full-screen hero with authentic Purnabramha food photos
+- [x] Stats: 8+ Locations, 50K+ Customers, 150+ Items
+- [x] 4 Service cards (Dine In, Pickup, Tiffin, Catering)
+- [x] Featured dishes carousel with your photos
+- [x] Unlimited Breakfast offer banner
+- [x] Testimonials slider
+- [x] Locations grid
+- [x] Multiple CTAs
 
-- [x] **Modern Luxe Homepage Redesign**
-  - Full-screen hero with parallax background
-  - "Book a Table" and "Order Pickup" prominent CTAs
-  - Stats: 8+ Locations, 50K+ Happy Customers, 150+ Menu Items, 4.8 Rating
-  - Services section with animated cards (Dine In, Pickup, Tiffin, Catering)
-  - Featured Dishes carousel with pricing
-  - Unlimited Breakfast Buffet offer banner
-  - Auto-rotating testimonials with star ratings
-  - Locations grid with phone numbers
-  - Final CTA section with multiple options
+### Table Booking (`/table-booking`)
+- [x] Region/Center selection (India/Australia)
+- [x] Date picker (min 2hr advance, max 30 days)
+- [x] Time slots (12PM-10PM)
+- [x] Guest details + celebration type
+- [x] Menu pre-ordering for Perth
+- [x] WhatsApp confirmation
 
-- [x] **Database-Frontend Integration**
-  - Pickup page fetches menu from `/api/menu` endpoint
-  - Fallback to JSON config if database empty
-  - Regional pricing: India → ₹, Australia → $
+### Tiffin Booking (`/tiffin`)
+- [x] Weekly lunch box subscriptions
+- [x] Heavy brunch with drink addons
+- [x] **Unlimited Breakfast**: ₹299 (India) / $35 (Perth)
+- [x] Perth blackout dates (Dec 15 - Jan 10)
+- [x] GST calculation for India (5%)
 
-## 📋 Backlog Tasks
+### Pickup Orders (`/pickup`)
+- [x] **Pickup Date field** (today onwards, max 30 days)
+- [x] Pickup Time selection
+- [x] Menu from database with fallback to JSON
+- [x] Category tabs + search
+- [x] Cart management
+- [x] Minimum order validation (₹200 / $20)
 
-### P1 - High Priority
-- [ ] Payment Integration (Razorpay for India, Stripe for Perth) - *User deferred*
-- [ ] Make Table Booking and Catering also fetch from database
-
-### P2 - Medium Priority
-- [ ] Location-based automatic pricing (geo-detection)
-- [ ] Video/Reels page functionality
-- [ ] Push notifications (Firebase)
-
-### P3 - Future
-- [ ] Customer order history
-- [ ] Loyalty/rewards program
-
-## API Endpoints
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| /api/menu | GET | Get available menu items |
-| /api/locations | GET | Get active locations |
-| /api/hero-image | GET | Get active homepage banner |
-| /api/admin/menu | GET/POST/PUT/DELETE | Admin menu management |
-| /api/admin/locations | GET/POST/PUT | Admin location management |
-| /api/admin/hero-images | GET/POST/PUT/DELETE | Admin banner management |
-| /api/admin/videos | POST/DELETE | Admin video management |
-
-## Admin Credentials
-- **Email**: admin@purnabramha.com
-- **Password**: admin123
+### Catering Booking (`/catering`)
+- [x] 4 Packages: Classic (₹450), Premium (₹600), Special (₹750), Royal Feast (₹950)
+- [x] Menu selection per package requirements
+- [x] Google Maps link generation
+- [x] **NEW: Addon Services**
+  - 🍽️ **Crockery & Cutlery Rental**: ₹3,000/hr (India) / $200/hr (Perth)
+    - Plates, Bowls, Spoons, Serving Dishes
+    - Return by 9 AM next morning
+    - No cleaning needed
+    - Closed Tuesdays
+  - 👨‍🍳 **Service Staff**: ₹300/person/hr (India) / $50/person/hr (Perth)
 
 ## Center WhatsApp Numbers
 | Center | WhatsApp |
@@ -97,14 +80,17 @@ The owner of "Purnabramha" restaurant chain wants a full-fledged, production-rea
 | Kalyan Mumbai | 8792887442 |
 | Perth Australia | +61 401 832 922 |
 
-## Key Files
-- `/app/frontend/src/pages/Home.js` - New Modern Luxe homepage
-- `/app/frontend/src/pages/Admin.js` - Admin dashboard with menu CRUD
-- `/app/frontend/src/pages/Pickup.js` - Pickup orders with DB integration
-- `/app/frontend/src/pages/TableBooking.js` - Table booking
-- `/app/frontend/src/pages/Tiffin.js` - Tiffin & breakfast
-- `/app/frontend/src/pages/Catering.js` - Catering inquiry
-- `/app/frontend/src/config/*.json` - Business configuration
+## Your Google Drive Images (Used)
+- Hero: `1IiJw4VxwbygR2WXSymVgd9S7FoIfrdil`
+- Kaju Curry: `1rYkehXEPrE9I4jf1QnaICJscFd3Vso2v`
+- Bharit: `1RwL7pG0gZa6VlRY_hdPJAUfXNKCezU2V`
+- Maswadi: `168pHmUxU4vyqA4DrplT0_9R_DDK9eK0c`
+- Patodi: `1VYDK8vRc_hVR4jn1CsabdBL0fFF4EWaH`
 
-## Test Reports
-- `/app/test_reports/iteration_3.json` - Latest (100% pass, 17/17 backend tests)
+URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
+
+## 📋 Backlog
+- [ ] Payment Integration (Razorpay/Stripe)
+- [ ] More Google Drive photos integration
+- [ ] Push notifications
+- [ ] Order history

@@ -24,6 +24,7 @@ const Pickup = () => {
   const [selectedCenter, setSelectedCenter] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('');
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [cart, setCart] = useState({});
@@ -157,6 +158,18 @@ const Pickup = () => {
 
   const formatPrice = (price) => `${currencySymbol}${price.toFixed(2)}`;
 
+  // Get today's date for min date validation
+  const getMinDate = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
+  // Get max date (30 days from now)
+  const getMaxDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split('T')[0];
+  };
+
   const pickupTimeSlots = [
     '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM',
     '2:00 PM', '2:30 PM', '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM',
@@ -167,6 +180,9 @@ const Pickup = () => {
     let message = `🛒 *PURNABRAMHA PICKUP ORDER*\n\n`;
     message += `📍 *Center:* ${currentCenter?.displayName}\n`;
     message += `👤 *Name:* ${name}\n`;
+    message += `📞 *Phone:* ${phone}\n`;
+    message += `📅 *Pickup Date:* ${pickupDate}\n`;
+    message += `⏰ *Pickup Time:* ${pickupTime}\n\n`;
     message += `📞 *Phone:* ${phone}\n`;
     message += `⏰ *Pickup Time:* ${pickupTime}\n\n`;
     
@@ -188,7 +204,7 @@ const Pickup = () => {
   };
 
   const handleSubmit = () => {
-    if (!selectedCenter || !name || !phone || !pickupTime) {
+    if (!selectedCenter || !name || !phone || !pickupDate || !pickupTime) {
       toast.error('Please fill all required fields');
       return;
     }
@@ -303,6 +319,19 @@ const Pickup = () => {
                       placeholder="Phone number"
                       className="border-amber-200"
                       data-testid="pickup-phone"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Pickup Date *</Label>
+                    <Input
+                      type="date"
+                      value={pickupDate}
+                      onChange={(e) => setPickupDate(e.target.value)}
+                      min={getMinDate()}
+                      max={getMaxDate()}
+                      className="border-amber-200"
+                      data-testid="pickup-date"
                     />
                   </div>
 
@@ -530,7 +559,7 @@ const Pickup = () => {
                 <Button
                   onClick={handleSubmit}
                   className="w-full bg-[#5c1e1e] hover:bg-[#8b2c2c] text-white py-6 text-lg"
-                  disabled={!selectedCenter || !name || !phone || !pickupTime || cartItemCount === 0 || cartTotal < minOrder}
+                  disabled={!selectedCenter || !name || !phone || !pickupDate || !pickupTime || cartItemCount === 0 || cartTotal < minOrder}
                   data-testid="pickup-submit-btn"
                 >
                   <MessageCircle className="h-5 w-5 mr-2" />
@@ -559,8 +588,8 @@ const Pickup = () => {
                     <p className="font-semibold">{currentCenter?.displayName}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Pickup Time</p>
-                    <p className="font-semibold">{pickupTime}</p>
+                    <p className="text-gray-500">Pickup Date & Time</p>
+                    <p className="font-semibold">{pickupDate} at {pickupTime}</p>
                   </div>
                   <div>
                     <p className="text-gray-500">Name</p>
