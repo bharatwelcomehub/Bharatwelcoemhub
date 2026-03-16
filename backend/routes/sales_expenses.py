@@ -3,7 +3,8 @@
 # Daily Sales and Cash Summary Management
 # =======================================
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -1970,4 +1971,439 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Perth Excel upload error: {e}")
         raise HTTPException(500, f"Excel processing error: {str(e)}")
+
+
+# =======================================
+# SALES UPLOAD FEATURE FOR CENTER MANAGERS
+# =======================================
+
+@router.get("/upload-template")
+async def download_upload_template(token: str):
+    """Download Excel template for bulk sales data upload"""
+    from fastapi.responses import Response
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from io import BytesIO
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Sales Data"
+        
+        # Header styling
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True, size=11)
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Define columns with descriptions
+        columns = [
+            ("Date", "YYYY-MM-DD format (e.g., 2025-01-15)"),
+            ("Opening Balance", "Cash opening balance for the day"),
+            ("Withdrawal", "Cash receipts / Withdrawal from bank"),
+            ("Total Sale", "Total sale amount for the day"),
+            ("Card/IDFC", "Card/IDFC payments"),
+            ("Bharat Pay/UPI", "Bharat Pay / UPI payments"),
+            ("Swiggy", "Swiggy order amounts"),
+            ("Zomato", "Zomato order amounts"),
+            ("DoorDash", "DoorDash order amounts (if applicable)"),
+            ("Other Online/Pickup", "Other online orders / Takeaway / Pickups"),
+            ("Number of Guests", "Total guests (pax) for the day"),
+            ("Number of Bills", "Total bills (excluding Swiggy/Zomato)"),
+            ("Petty Cash Opening", "Petty cash opening balance"),
+            ("Notes", "Any notes for the day (optional)")
+        ]
+        
+        # Write headers
+        for col_idx, (col_name, _) in enumerate(columns, 1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = thin_border
+            ws.column_dimensions[cell.column_letter].width = 18
+        
+        # Add instruction row
+        ws.insert_rows(1)
+        ws.merge_cells('A1:N1')
+        instruction_cell = ws['A1']
+        instruction_cell.value = "SALES DATA UPLOAD TEMPLATE - Fill data starting from row 3. Date column is required. Leave cells empty if no value."
+        instruction_cell.font = Font(bold=True, color="FF0000", size=12)
+        instruction_cell.alignment = Alignment(horizontal='center')
+        
+        # Add column descriptions in row 3
+        for col_idx, (_, description) in enumerate(columns, 1):
+            cell = ws.cell(row=3, column=col_idx, value=description)
+            cell.font = Font(italic=True, size=9, color="666666")
+            cell.alignment = Alignment(wrap_text=True)
+        
+        # Add sample data row
+        sample_data = [
+            "2025-01-15", 5000, 10000, 50000, 8000, 5000, 
+            12000, 10000, 0, 3000, 85, 45, 2000, "Sample day"
+        ]
+        for col_idx, value in enumerate(sample_data, 1):
+            cell = ws.cell(row=4, column=col_idx, value=value)
+            cell.border = thin_border
+        
+        # Create Expenses sheet
+        ws_exp = wb.create_sheet("Expenses")
+        exp_columns = [
+            ("Date", "YYYY-MM-DD format"),
+            ("Description", "Expense description"),
+            ("Amount", "Expense amount"),
+            ("Category", "GROCERY, SALARY, MAINTENANCE, UTILITY, MARKETING, MISC, OTHER"),
+            ("Payment Mode", "CASH, ONLINE UPI, ONLINE NEFT/IMPS"),
+            ("Notes", "Additional notes (optional)")
+        ]
+        
+        for col_idx, (col_name, _) in enumerate(exp_columns, 1):
+            cell = ws_exp.cell(row=1, column=col_idx, value=col_name)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center')
+            cell.border = thin_border
+            ws_exp.column_dimensions[cell.column_letter].width = 20
+        
+        # Add expense descriptions
+        for col_idx, (_, description) in enumerate(exp_columns, 1):
+            cell = ws_exp.cell(row=2, column=col_idx, value=description)
+            cell.font = Font(italic=True, size=9, color="666666")
+        
+        # Sample expense
+        exp_sample = ["2025-01-15", "Vegetables purchase", 5000, "GROCERY", "CASH", "Weekly vegetables"]
+        for col_idx, value in enumerate(exp_sample, 1):
+            cell = ws_exp.cell(row=3, column=col_idx, value=value)
+            cell.border = thin_border
+        
+        # Save to buffer
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="Sales_Upload_Template.xlsx"'}
+        )
+        
+    except Exception as e:
+        logger.error(f"Template generation error: {e}")
+        raise HTTPException(500, f"Error generating template: {str(e)}")
+
+
+@router.post("/upload-data")
+async def upload_sales_data(
+    token: str = Form(...),
+    center: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """
+    Upload sales data from Excel file.
+    This will DELETE existing data for the dates in the file and INSERT new data.
+    """
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Check if user has access to this center
+    user_center = session.get("center", "")
+    is_super_admin = session.get("is_super_admin", False)
+    is_admin = session.get("is_admin", False)
+    
+    # Center managers can only upload for their own center
+    if not is_super_admin and not is_admin and user_center != center:
+        raise HTTPException(403, f"You can only upload data for your center: {user_center}")
+    
+    # Check if upload is enabled for this center
+    center_doc = await db.centers.find_one({"code": center}, {"_id": 0})
+    if not center_doc:
+        raise HTTPException(404, f"Center '{center}' not found")
+    
+    # Check upload permission (default to False if not set)
+    upload_enabled = center_doc.get("sales_upload_enabled", False)
+    if not upload_enabled and not is_super_admin:
+        raise HTTPException(403, "Sales upload is not enabled for this center. Contact MGT to enable.")
+    
+    try:
+        from openpyxl import load_workbook
+        from io import BytesIO
+        
+        # Read file content
+        content = await file.read()
+        wb = load_workbook(BytesIO(content))
+        
+        results = {
+            "sales": {"imported": 0, "deleted": 0, "errors": []},
+            "expenses": {"imported": 0, "deleted": 0, "errors": []}
+        }
+        
+        # Process Sales Data sheet
+        if "Sales Data" in wb.sheetnames:
+            ws = wb["Sales Data"]
+            dates_to_delete = set()
+            sales_records = []
+            
+            # Find header row (row 2 after instruction row)
+            header_row = 2
+            headers = [cell.value for cell in ws[header_row]]
+            
+            # Map column indices
+            col_map = {}
+            for idx, header in enumerate(headers):
+                if header:
+                    col_map[header.lower().strip()] = idx
+            
+            # Process data rows (starting from row 4 - after headers and descriptions)
+            for row_idx, row in enumerate(ws.iter_rows(min_row=4, values_only=True), start=4):
+                if not row[0]:  # Skip empty rows
+                    continue
+                
+                try:
+                    # Parse date
+                    date_val = row[0]
+                    if isinstance(date_val, datetime):
+                        date_str = date_val.strftime("%Y-%m-%d")
+                    else:
+                        date_str = str(date_val).strip()
+                        # Validate date format
+                        datetime.strptime(date_str, "%Y-%m-%d")
+                    
+                    dates_to_delete.add(date_str)
+                    
+                    # Extract values with defaults
+                    def get_float(idx, default=0):
+                        try:
+                            val = row[idx] if idx < len(row) else None
+                            return float(val) if val is not None else default
+                        except:
+                            return default
+                    
+                    def get_int(idx, default=0):
+                        try:
+                            val = row[idx] if idx < len(row) else None
+                            return int(val) if val is not None else default
+                        except:
+                            return default
+                    
+                    # Build sales record
+                    record = {
+                        "center": center,
+                        "date": date_str,
+                        "opening_balance": get_float(1),
+                        "cash_receipts": get_float(2),  # Withdrawal
+                        "total_sale": get_float(3),
+                        "card_idfc": get_float(4),
+                        "bharat_pay": get_float(5),
+                        "swiggy": get_float(6),
+                        "zomato": get_float(7),
+                        "doordash": get_float(8),
+                        "online_other": get_float(9),
+                        "num_guests": get_int(10),
+                        "num_bills": get_int(11),
+                        "petty_cash_opening": get_float(12),
+                        "notes": str(row[13]) if len(row) > 13 and row[13] else "",
+                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        "uploaded_by": session.get("managerName", "")
+                    }
+                    
+                    # Calculate derived fields
+                    total_online = (record["card_idfc"] + record["bharat_pay"] + 
+                                  record["swiggy"] + record["zomato"] + 
+                                  record["doordash"] + record["online_other"])
+                    record["total_online_sale"] = total_online
+                    record["total_cash_sale"] = record["total_sale"] - total_online
+                    
+                    # GST calculation (5% of total sale)
+                    record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                    
+                    # Averages
+                    if record["num_guests"] > 0:
+                        record["avg_per_pax"] = round(record["total_sale"] / record["num_guests"], 2)
+                    if record["num_bills"] > 0:
+                        record["avg_per_bill"] = round(record["total_sale"] / record["num_bills"], 2)
+                    
+                    sales_records.append(record)
+                    
+                except Exception as e:
+                    results["sales"]["errors"].append(f"Row {row_idx}: {str(e)}")
+            
+            # Delete existing records for those dates
+            if dates_to_delete:
+                delete_result = await db.daily_sales.delete_many({
+                    "center": center,
+                    "date": {"$in": list(dates_to_delete)}
+                })
+                results["sales"]["deleted"] = delete_result.deleted_count
+            
+            # Insert new records
+            if sales_records:
+                await db.daily_sales.insert_many(sales_records)
+                results["sales"]["imported"] = len(sales_records)
+        
+        # Process Expenses sheet
+        if "Expenses" in wb.sheetnames:
+            ws_exp = wb["Expenses"]
+            expense_dates = set()
+            expense_records = []
+            
+            for row_idx, row in enumerate(ws_exp.iter_rows(min_row=3, values_only=True), start=3):
+                if not row[0]:
+                    continue
+                
+                try:
+                    # Parse date
+                    date_val = row[0]
+                    if isinstance(date_val, datetime):
+                        date_str = date_val.strftime("%Y-%m-%d")
+                    else:
+                        date_str = str(date_val).strip()
+                        datetime.strptime(date_str, "%Y-%m-%d")
+                    
+                    expense_dates.add(date_str)
+                    
+                    expense_record = {
+                        "center": center,
+                        "date": date_str,
+                        "description": str(row[1]) if row[1] else "",
+                        "amount": float(row[2]) if row[2] else 0,
+                        "expense_type": str(row[3]).upper() if row[3] else "OTHER",
+                        "payment_mode": str(row[4]).upper() if row[4] else "CASH",
+                        "notes": str(row[5]) if len(row) > 5 and row[5] else "",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_by": session.get("managerName", "")
+                    }
+                    expense_records.append(expense_record)
+                    
+                except Exception as e:
+                    results["expenses"]["errors"].append(f"Row {row_idx}: {str(e)}")
+            
+            # Delete existing expenses for those dates
+            if expense_dates:
+                delete_result = await db.expenses.delete_many({
+                    "center": center,
+                    "date": {"$in": list(expense_dates)}
+                })
+                results["expenses"]["deleted"] = delete_result.deleted_count
+            
+            # Insert new expenses
+            if expense_records:
+                await db.expenses.insert_many(expense_records)
+                results["expenses"]["imported"] = len(expense_records)
+        
+        # Log the upload
+        await db.upload_logs.insert_one({
+            "center": center,
+            "uploaded_by": session.get("managerName", ""),
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "file_name": file.filename,
+            "results": results
+        })
+        
+        return {
+            "success": True,
+            "message": f"Upload completed for center {center}",
+            "results": results,
+            "warning": "Existing data for uploaded dates has been replaced with new data."
+        }
+        
+    except Exception as e:
+        logger.error(f"Sales upload error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Upload error: {str(e)}")
+
+
+@router.post("/toggle-upload-permission")
+async def toggle_upload_permission(data: dict):
+    """
+    Toggle sales upload permission for a center.
+    Only Super Admin can change this setting.
+    """
+    token = data.get("token")
+    center_code = data.get("center")
+    enabled = data.get("enabled", False)
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Only Super Admin can toggle
+    if not session.get("is_super_admin"):
+        raise HTTPException(403, "Only Super Admin can change upload permissions")
+    
+    # Update center document
+    result = await db.centers.update_one(
+        {"code": center_code},
+        {"$set": {"sales_upload_enabled": enabled}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(404, f"Center '{center_code}' not found")
+    
+    logger.info(f"Upload permission for {center_code} set to {enabled} by {session.get('managerName')}")
+    
+    return {
+        "success": True,
+        "message": f"Upload {'enabled' if enabled else 'disabled'} for center {center_code}"
+    }
+
+
+@router.post("/get-upload-permissions")
+async def get_upload_permissions(data: dict):
+    """Get upload permission status for all centers"""
+    token = data.get("token")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Only Super Admin can view all permissions
+    if not session.get("is_super_admin"):
+        raise HTTPException(403, "Only Super Admin can view upload permissions")
+    
+    centers = await db.centers.find(
+        {},
+        {"_id": 0, "code": 1, "name": 1, "sales_upload_enabled": 1}
+    ).to_list(100)
+    
+    return {
+        "centers": centers
+    }
+
+
+@router.post("/upload-logs")
+async def get_upload_logs(data: dict):
+    """Get upload history logs"""
+    token = data.get("token")
+    center = data.get("center")
+    
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    query = {}
+    if center:
+        query["center"] = center
+    
+    # Non-super admin can only see their center's logs
+    if not session.get("is_super_admin") and not session.get("is_admin"):
+        query["center"] = session.get("center")
+    
+    logs = await db.upload_logs.find(
+        query,
+        {"_id": 0}
+    ).sort("uploaded_at", -1).limit(50).to_list(50)
+    
+    return {"logs": logs}
+
 

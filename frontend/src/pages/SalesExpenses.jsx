@@ -31,7 +31,10 @@ import {
   CheckCircle,
   XCircle,
   Shield,
-  Table2
+  Table2,
+  Upload,
+  Settings,
+  AlertTriangle
 } from "lucide-react";
 import { api, API_URL, fetchCentersFromDB, CENTERS } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
@@ -99,6 +102,352 @@ const isDateFrozen = (dateStr) => {
   today.setHours(0, 0, 0, 0);
   return recordDate < today;
 };
+
+// =======================================
+// SALES UPLOAD TAB COMPONENT
+// =======================================
+function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadCenter, setUploadCenter] = useState(selectedCenter !== "all" ? selectedCenter : "");
+  const [uploadResult, setUploadResult] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const userCenter = session?.center || "";
+  const isSuperAdmin = session?.is_super_admin;
+  const canSelectCenter = isSuperAdmin || session?.is_admin;
+
+  // Download template
+  const handleDownloadTemplate = async () => {
+    try {
+      const link = document.createElement('a');
+      link.href = `${API_URL}/api/sales/upload-template?token=${session?.token}`;
+      link.download = 'Sales_Upload_Template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Template downloaded");
+    } catch (err) {
+      toast.error("Failed to download template");
+    }
+  };
+
+  // Handle file selection
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+        toast.error("Please select an Excel file (.xlsx or .xls)");
+        return;
+      }
+      setSelectedFile(file);
+      setUploadResult(null);
+    }
+  };
+
+  // Confirm and upload
+  const handleUpload = async () => {
+    const targetCenter = canSelectCenter ? uploadCenter : userCenter;
+    
+    if (!targetCenter) {
+      toast.error("Please select a center");
+      return;
+    }
+    
+    if (!selectedFile) {
+      toast.error("Please select a file");
+      return;
+    }
+
+    setShowConfirm(false);
+    setUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('token', session?.token);
+      formData.append('center', targetCenter);
+      formData.append('file', selectedFile);
+      
+      const res = await fetch(`${API_URL}/api/sales/upload-data`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || "Upload failed");
+      }
+      
+      setUploadResult(data);
+      toast.success(data.message);
+      setSelectedFile(null);
+      
+      // Refresh data
+      if (onUploadComplete) onUploadComplete();
+      
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Upload className="w-5 h-5 text-green-500" />
+          Upload Sales & Expenses Data
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Instructions */}
+        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+          <h3 className="font-semibold text-blue-400 mb-2">How to Upload:</h3>
+          <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+            <li>Download the Excel template using the button below</li>
+            <li>Fill in your sales and expense data (Sheet 1: Sales, Sheet 2: Expenses)</li>
+            <li>Select your center and upload the file</li>
+            <li className="text-amber-400 font-medium">Warning: Existing data for uploaded dates will be REPLACED</li>
+          </ol>
+        </div>
+
+        {/* Download Template */}
+        <div>
+          <Button onClick={handleDownloadTemplate} variant="outline" className="gap-2">
+            <Download className="w-4 h-4" />
+            Download Template
+          </Button>
+        </div>
+
+        {/* Center Selection */}
+        <div className="space-y-2">
+          <Label>Center *</Label>
+          {canSelectCenter ? (
+            <Input
+              value={uploadCenter}
+              onChange={(e) => setUploadCenter(e.target.value.toUpperCase())}
+              placeholder="Enter center code (e.g., PB-HSR)"
+              className="max-w-xs"
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-muted-foreground" />
+              <span className="font-medium">{userCenter}</span>
+              <span className="text-xs text-muted-foreground">(Your center)</span>
+            </div>
+          )}
+        </div>
+
+        {/* File Upload */}
+        <div className="space-y-2">
+          <Label>Excel File *</Label>
+          <Input
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleFileSelect}
+            className="max-w-md"
+          />
+          {selectedFile && (
+            <p className="text-sm text-green-500">Selected: {selectedFile.name}</p>
+          )}
+        </div>
+
+        {/* Upload Button */}
+        <div className="flex gap-3">
+          <Button 
+            onClick={() => setShowConfirm(true)} 
+            disabled={!selectedFile || uploading || (!canSelectCenter && !userCenter)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {uploading ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Data
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Confirmation Dialog */}
+        {showConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg p-6 max-w-md m-4">
+              <div className="flex items-start gap-3 mb-4">
+                <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-lg">Confirm Data Upload</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    This will <strong className="text-red-500">DELETE</strong> existing sales and expense data 
+                    for the dates in your Excel file and replace them with new data.
+                  </p>
+                </div>
+              </div>
+              <div className="bg-amber-500/10 p-3 rounded mb-4 text-sm">
+                <p><strong>Center:</strong> {canSelectCenter ? uploadCenter : userCenter}</p>
+                <p><strong>File:</strong> {selectedFile?.name}</p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setShowConfirm(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpload} className="bg-red-600 hover:bg-red-700">
+                  Yes, Replace Data
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload Result */}
+        {uploadResult && (
+          <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2">
+            <h3 className="font-semibold text-green-400 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5" />
+              Upload Complete
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="font-medium">Sales Data:</p>
+                <p>Imported: {uploadResult.results?.sales?.imported || 0} records</p>
+                <p>Deleted: {uploadResult.results?.sales?.deleted || 0} records</p>
+              </div>
+              <div>
+                <p className="font-medium">Expenses:</p>
+                <p>Imported: {uploadResult.results?.expenses?.imported || 0} records</p>
+                <p>Deleted: {uploadResult.results?.expenses?.deleted || 0} records</p>
+              </div>
+            </div>
+            {(uploadResult.results?.sales?.errors?.length > 0 || uploadResult.results?.expenses?.errors?.length > 0) && (
+              <div className="mt-2 p-2 bg-red-500/10 rounded text-xs text-red-400">
+                <p className="font-medium">Errors:</p>
+                {uploadResult.results?.sales?.errors?.map((e, i) => <p key={i}>{e}</p>)}
+                {uploadResult.results?.expenses?.errors?.map((e, i) => <p key={`e${i}`}>{e}</p>)}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// =======================================
+// UPLOAD SETTINGS TAB (SUPER ADMIN ONLY)
+// =======================================
+function UploadSettingsTab({ session, centers }) {
+  const [permissions, setPermissions] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch current permissions
+  const fetchPermissions = async () => {
+    setLoading(true);
+    try {
+      const res = await api.post("/sales/get-upload-permissions", {
+        token: session?.token
+      });
+      setPermissions(res.data.centers || []);
+    } catch (err) {
+      toast.error("Failed to load permissions");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.token) {
+      fetchPermissions();
+    }
+  }, [session?.token]);
+
+  // Toggle permission
+  const togglePermission = async (centerCode, currentEnabled) => {
+    try {
+      await api.post("/sales/toggle-upload-permission", {
+        token: session?.token,
+        center: centerCode,
+        enabled: !currentEnabled
+      });
+      
+      toast.success(`Upload ${!currentEnabled ? 'enabled' : 'disabled'} for ${centerCode}`);
+      fetchPermissions();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to update permission");
+    }
+  };
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-amber-500" />
+          Upload Permissions (MGT Control)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground mb-4">
+          Control which centers can upload sales data via Excel. When disabled, center managers will not see the upload option.
+        </p>
+        
+        <div className="space-y-2">
+          {loading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Loading...
+            </div>
+          ) : permissions.length === 0 ? (
+            <p className="text-muted-foreground">No centers found</p>
+          ) : (
+            <div className="grid gap-2">
+              {permissions.map((center) => (
+                <div 
+                  key={center.code} 
+                  className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-border"
+                >
+                  <div>
+                    <span className="font-medium">{center.code}</span>
+                    <span className="text-sm text-muted-foreground ml-2">{center.name}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={center.sales_upload_enabled ? "default" : "outline"}
+                    className={center.sales_upload_enabled ? "bg-green-600 hover:bg-green-700" : ""}
+                    onClick={() => togglePermission(center.code, center.sales_upload_enabled)}
+                  >
+                    {center.sales_upload_enabled ? (
+                      <>
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        Enabled
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Disabled
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border">
+          <Button variant="outline" onClick={fetchPermissions} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function SalesExpenses() {
   const { session } = useAuth();
@@ -654,6 +1003,10 @@ export default function SalesExpenses() {
             <Table2 className="w-4 h-4 mr-1" />
             Grid Update
           </TabsTrigger>
+          <TabsTrigger value="upload" data-testid="tab-upload" className="text-green-600">
+            <Upload className="w-4 h-4 mr-1" />
+            Upload Excel
+          </TabsTrigger>
           <TabsTrigger value="expense-entry" data-testid="tab-expense-entry">Expense Entry</TabsTrigger>
           <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
           {session?.is_super_admin && (
@@ -664,6 +1017,12 @@ export default function SalesExpenses() {
             <TabsTrigger value="freeze-control" data-testid="tab-freeze-control" className="text-red-500">
               <Shield className="w-4 h-4 mr-1" />
               Freeze Control
+            </TabsTrigger>
+          )}
+          {session?.is_super_admin && (
+            <TabsTrigger value="upload-settings" data-testid="tab-upload-settings" className="text-amber-600">
+              <Settings className="w-4 h-4 mr-1" />
+              Upload Settings
             </TabsTrigger>
           )}
         </TabsList>
@@ -681,6 +1040,22 @@ export default function SalesExpenses() {
             selectedMonth={selectedMonth}
           />
         </TabsContent>
+
+        {/* Upload Excel Tab */}
+        <TabsContent value="upload">
+          <SalesUploadTab 
+            session={session} 
+            selectedCenter={selectedCenter}
+            onUploadComplete={fetchMonthlySummary}
+          />
+        </TabsContent>
+
+        {/* Upload Settings Tab - Super Admin Only */}
+        {session?.is_super_admin && (
+          <TabsContent value="upload-settings">
+            <UploadSettingsTab session={session} centers={centers} />
+          </TabsContent>
+        )}
 
         {/* Expense Entry Tab */}
         <TabsContent value="expense-entry">
