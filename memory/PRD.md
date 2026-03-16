@@ -29,7 +29,12 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
   - Marathi greetings
   - One-click activate/deactivate
 - [x] **Menu CRUD** (173+ items) - name, description, category, prices, images
-- [x] **Tiffin Management** - Lunch boxes, brunch items, drink add-ons
+- [x] **Tiffin Management** - Full CRUD with:
+  - Unlimited Breakfast Settings (price, description, timings, days)
+  - Lunch Box Options management
+  - Heavy Brunch Items management
+  - Drink Add-ons management
+  - Add/Edit/Delete tiffin items with dialog
 - [x] **Locations** (8 centers) - Full CRUD
 - [x] **Videos** - Video/reels management
 

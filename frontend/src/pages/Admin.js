@@ -1886,6 +1886,112 @@ const Admin = () => {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Tiffin Item Dialog */}
+        <Dialog open={tiffinDialogOpen} onOpenChange={setTiffinDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-playfair">
+                {editingTiffinItem ? 'Edit Tiffin Item' : 'Add Tiffin Item'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleTiffinSubmit} className="space-y-4">
+              <div>
+                <Label>Name *</Label>
+                <Input
+                  value={tiffinForm.name}
+                  onChange={(e) => setTiffinForm({ ...tiffinForm, name: e.target.value })}
+                  placeholder="e.g., Roti + Bhaji + Rice + Dal"
+                  required
+                  data-testid="tiffin-name-input"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={tiffinForm.description}
+                  onChange={(e) => setTiffinForm({ ...tiffinForm, description: e.target.value })}
+                  placeholder="Brief description of the item"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label>Category *</Label>
+                <Select
+                  value={tiffinForm.category}
+                  onValueChange={(value) => setTiffinForm({ ...tiffinForm, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tiffinCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Price India (₹)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={tiffinForm.price_inr}
+                    onChange={(e) => setTiffinForm({ ...tiffinForm, price_inr: e.target.value })}
+                    placeholder="e.g., 150"
+                  />
+                </div>
+                <div>
+                  <Label>Price Australia ($)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={tiffinForm.price_aud}
+                    onChange={(e) => setTiffinForm({ ...tiffinForm, price_aud: e.target.value })}
+                    placeholder="e.g., 12"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Image URL (optional)</Label>
+                <Input
+                  type="url"
+                  value={tiffinForm.image_url}
+                  onChange={(e) => setTiffinForm({ ...tiffinForm, image_url: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+              {tiffinForm.image_url && (
+                <div className="rounded-lg overflow-hidden border">
+                  <img 
+                    src={tiffinForm.image_url} 
+                    alt="Preview" 
+                    className="w-full h-24 object-cover"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/200x100?text=Invalid+URL'; }}
+                  />
+                </div>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tiffinForm.is_available}
+                  onChange={(e) => setTiffinForm({ ...tiffinForm, is_available: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-sm">Available for ordering</span>
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setTiffinDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-amber-600 hover:bg-amber-700" data-testid="save-tiffin-btn">
+                  {editingTiffinItem ? 'Update' : 'Add Item'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

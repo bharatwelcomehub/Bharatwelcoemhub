@@ -691,7 +691,7 @@ async def create_tiffin_item(item: TiffinItem, credentials: HTTPAuthorizationCre
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
     item_dict = item.model_dump()
-    await db.tiffin_items.insert_one(item_dict)
+    await db.tiffin_items.insert_one({**item_dict})  # Insert a copy to avoid _id mutation
     return {"message": "Tiffin item created", "item": item_dict}
 
 @api_router.put("/admin/tiffin-items/{item_id}")
