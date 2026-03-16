@@ -673,11 +673,25 @@ const MenuItemCard = ({ item, cart, updateCart, formatPrice }) => {
       className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-100 hover:border-amber-300 hover:shadow-md transition-all"
     >
       <div className="flex items-center gap-3 flex-1">
-        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+        {item.image_url ? (
+          <img 
+            src={item.image_url} 
+            alt={item.name}
+            className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+            onError={(e) => { 
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <div className={`w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 ${item.image_url ? 'hidden' : ''}`}>
           <Leaf className="h-4 w-4 text-green-600" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-900 truncate">{item.name}</p>
+          {item.description && (
+            <p className="text-xs text-gray-500 truncate">{item.description}</p>
+          )}
           <p className="text-sm font-semibold text-[#5c1e1e]">{formatPrice(item.price)}</p>
         </div>
       </div>

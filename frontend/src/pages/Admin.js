@@ -1489,7 +1489,21 @@ const Admin = () => {
                   onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
                   placeholder="https://..."
                 />
+                <p className="text-xs text-foreground/50 mt-1">
+                  For Google Drive: Use https://lh3.googleusercontent.com/d/YOUR_FILE_ID
+                </p>
               </div>
+              {formData.image_url && (
+                <div className="rounded-lg overflow-hidden border">
+                  <img 
+                    src={formData.image_url} 
+                    alt="Preview" 
+                    className="w-full h-24 object-cover"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/200x100?text=Invalid+URL'; }}
+                  />
+                  <p className="text-xs text-center py-1 bg-muted">Image Preview</p>
+                </div>
+              )}
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
