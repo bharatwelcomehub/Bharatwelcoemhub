@@ -43,6 +43,12 @@ const Admin = () => {
   const [menuCategoryFilter, setMenuCategoryFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
+  
+  // Bulk Image Upload state
+  const [bulkImageMode, setBulkImageMode] = useState(false);
+  const [bulkImageData, setBulkImageData] = useState({});
+  const [bulkSaving, setBulkSaving] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -422,6 +428,80 @@ const Admin = () => {
       price_inr: '', price_aud: '', image_url: '',
       is_veg: true, is_available: true
     });
+  };
+
+  // Bulk Image Upload Functions
+  const itemsWithoutImages = useMemo(() => {
+    return menuItems.filter(item => !item.image_url);
+  }, [menuItems]);
+
+  const initBulkImageMode = () => {
+    const initialData = {};
+    itemsWithoutImages.forEach(item => {
+      initialData[item.id] = '';
+    });
+    setBulkImageData(initialData);
+    setBulkImageMode(true);
+  };
+
+  const handleBulkImageChange = (itemId, imageUrl) => {
+    setBulkImageData(prev => ({
+      ...prev,
+      [itemId]: imageUrl
+    }));
+  };
+
+  const handleBulkImageSave = async () => {
+    const currentToken = getToken();
+    const itemsToUpdate = Object.entries(bulkImageData).filter(([_, url]) => url.trim() !== '');
+    
+    if (itemsToUpdate.length === 0) {
+      toast.error('No images to save. Please paste at least one image URL.');
+      return;
+    }
+
+    setBulkSaving(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const [itemId, imageUrl] of itemsToUpdate) {
+      const item = menuItems.find(m => m.id === itemId);
+      if (!item) continue;
+
+      try {
+        await axios.put(
+          `${API}/admin/menu/${itemId}`,
+          {
+            name: item.name,
+            description: item.description,
+            category: item.category,
+            price_inr: item.price_inr,
+            price_aud: item.price_aud,
+            image_url: imageUrl.trim(),
+            is_veg: item.is_veg,
+            is_available: item.is_available
+          },
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to update ${item.name}:`, error);
+        errorCount++;
+      }
+    }
+
+    setBulkSaving(false);
+    
+    if (successCount > 0) {
+      toast.success(`✅ Updated ${successCount} items with images!`);
+      fetchMenuItems();
+      setBulkImageMode(false);
+      setBulkImageData({});
+    }
+    
+    if (errorCount > 0) {
+      toast.error(`❌ Failed to update ${errorCount} items`);
+    }
   };
 
   // Location CRUD
@@ -1091,7 +1171,81 @@ const Admin = () => {
               <div className="text-sm text-gray-500 flex items-center">
                 {filteredMenuItems.length} of {menuItems.length} items
               </div>
+              {itemsWithoutImages.length > 0 && !bulkImageMode && (
+                <Button
+                  onClick={initBulkImageMode}
+                  variant="outline"
+                  className="border-amber-500 text-amber-700 hover:bg-amber-50"
+                >
+                  <ImageIcon className="mr-2 h-4 w-4" />
+                  Bulk Add Images ({itemsWithoutImages.length})
+                </Button>
+              )}
             </div>
+
+            {/* Bulk Image Upload Panel */}
+            {bulkImageMode && (
+              <Card className="mb-6 border-2 border-amber-400 bg-amber-50">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <ImageIcon className="h-5 w-5 text-amber-600" />
+                      Bulk Image Upload - {itemsWithoutImages.length} items need images
+                    </CardTitle>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setBulkImageMode(false); setBulkImageData({}); }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleBulkImageSave}
+                        disabled={bulkSaving}
+                        className="bg-amber-600 hover:bg-amber-700"
+                      >
+                        {bulkSaving ? 'Saving...' : 'Save All Images'}
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Paste Google Drive URLs below. Format: <code className="bg-amber-100 px-1 rounded">https://lh3.googleusercontent.com/d/FILE_ID</code>
+                  </p>
+                </CardHeader>
+                <CardContent className="max-h-[500px] overflow-y-auto">
+                  <div className="space-y-2">
+                    {itemsWithoutImages.map(item => (
+                      <div key={item.id} className="flex items-center gap-3 p-2 bg-white rounded-lg border">
+                        <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          {bulkImageData[item.id] ? (
+                            <img 
+                              src={bulkImageData[item.id]} 
+                              alt="" 
+                              className="w-10 h-10 object-cover rounded"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <ImageIcon className="h-4 w-4 text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item.name}</p>
+                          <p className="text-xs text-gray-500">{item.category}</p>
+                        </div>
+                        <Input
+                          placeholder="Paste image URL..."
+                          value={bulkImageData[item.id] || ''}
+                          onChange={(e) => handleBulkImageChange(item.id, e.target.value)}
+                          className="flex-1 max-w-md text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="bg-white rounded-xl border border-[hsl(30,30%,88%)] overflow-hidden">
               <div className="overflow-x-auto">
