@@ -1,0 +1,133 @@
+{
+  "india": [
+    {
+      "id": "pb-hsr",
+      "name": "PB-HSR",
+      "displayName": "HSR Layout, Bangalore",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "whatsapp": "+918550078515",
+      "phone": "+91 85500 78515",
+      "address": "HSR Layout, Bangalore, Karnataka",
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"]
+    },
+    {
+      "id": "pb-sambhajinagar",
+      "name": "PB-SambhajiNagar",
+      "displayName": "Chhatrapati Sambhajinagar",
+      "city": "Chhatrapati Sambhajinagar",
+      "state": "Maharashtra",
+      "country": "India",
+      "whatsapp": "+918971049084",
+      "phone": "+91 89710 49084",
+      "address": "Chhatrapati Sambhajinagar, Maharashtra",
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"]
+    },
+    {
+      "id": "pb-thane",
+      "name": "PB-Thane",
+      "displayName": "Thane, Mumbai",
+      "city": "Thane",
+      "state": "Maharashtra",
+      "country": "India",
+      "whatsapp": "+918904749084",
+      "phone": "+91 89047 49084",
+      "address": "Thane, Mumbai, Maharashtra",
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"]
+    },
+    {
+      "id": "pb-dombivli",
+      "name": "PB-Dombivli",
+      "displayName": "Dombivli, Mumbai",
+      "city": "Dombivli",
+      "state": "Maharashtra",
+      "country": "India",
+      "whatsapp": "+919606455433",
+      "phone": "+91 96064 55433",
+      "address": "Dombivli, Mumbai, Maharashtra",
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"]
+    },
+    {
+      "id": "pb-kharadi",
+      "name": "PB-Kharadi",
+      "displayName": "Kharadi, Pune",
+      "city": "Pune",
+      "state": "Maharashtra",
+      "country": "India",
+      "whatsapp": "+919900089803",
+      "phone": "9900089803",
+      "address": "Kharadi, Pune, Maharashtra",
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"]
+    },
+    {
+      "id": "pb-hinjawadi",
+      "name": "PB-Hinjawadi",
+      "displayName": "Hinjawadi, Pune",
+      "city": "Pune",
+      "state": "Maharashtra",
+      "country": "India",
+      "whatsapp": "+919606455434",
+      "phone": "9606455434",
+      "address": "Hinjawadi, Pune, Maharashtra",
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"]
+    },
+    {
+      "id": "pb-kalyan",
+      "name": "PB-Kalyan",
+      "displayName": "Kalyan, Mumbai",
+      "city": "Kalyan",
+      "state": "Maharashtra",
+      "country": "India",
+      "whatsapp": "+918792887442",
+      "phone": "8792887442",
+      "address": "Kalyan, Mumbai, Maharashtra",
+      "currency": "INR",
+      "currencySymbol": "₹",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"]
+    }
+  ],
+  "australia": [
+    {
+      "id": "pb-perth",
+      "name": "PB-Perth",
+      "displayName": "Perth, Australia",
+      "city": "Perth",
+      "state": "Western Australia",
+      "country": "Australia",
+      "whatsapp": "+61401832922",
+      "phone": "+61 401 832 922",
+      "address": "Perth, Western Australia",
+      "currency": "AUD",
+      "currencySymbol": "$",
+      "isActive": true,
+      "services": ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"],
+      "blackoutDates": {
+        "tiffin": {
+          "start": "2025-12-15",
+          "end": "2026-01-10",
+          "message": "Tiffin service for PB-Perth is paused from 15 December to 10 January. Please select another center or check back after the holidays."
+        }
+      }
+    }
+  ]
+}

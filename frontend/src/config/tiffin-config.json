@@ -1,0 +1,88 @@
+{
+  "pricing": {
+    "india": {
+      "lunchBox": {
+        "perDay": 180,
+        "weeklyPack": 850,
+        "gstPercent": 5
+      },
+      "unlimitedBreakfast": {
+        "perPerson": 299,
+        "gstPercent": 5
+      }
+    },
+    "australia": {
+      "lunchBox": {
+        "perDay": 18.99,
+        "gstIncluded": true
+      },
+      "unlimitedBreakfast": {
+        "perPerson": 35,
+        "gstIncluded": true
+      }
+    }
+  },
+  "heavyBrunchItems": {
+    "india": [
+      { "id": "hb-1", "name": "Thalipith", "price": 199, "isVeg": true },
+      { "id": "hb-2", "name": "Misal Pav", "price": 199, "isVeg": true },
+      { "id": "hb-3", "name": "Shrikhanda Puri Bhaji", "price": 249, "isVeg": true },
+      { "id": "hb-4", "name": "Aloo Paratha", "price": 149, "isVeg": true },
+      { "id": "hb-5", "name": "Sabudana Khichadi", "price": 169, "isVeg": true }
+    ],
+    "australia": [
+      { "id": "hb-1", "name": "Thalipith", "price": 14.99, "isVeg": true },
+      { "id": "hb-2", "name": "Misal Pav", "price": 14.99, "isVeg": true },
+      { "id": "hb-3", "name": "Shrikhanda Puri Bhaji", "price": 17.99, "isVeg": true },
+      { "id": "hb-4", "name": "Aloo Paratha", "price": 9.99, "isVeg": true },
+      { "id": "hb-5", "name": "Sabudana Khichadi", "price": 12.99, "isVeg": true }
+    ]
+  },
+  "drinkAddons": {
+    "india": [
+      { "id": "da-1", "name": "Buttermilk", "price": 149, "isVeg": true },
+      { "id": "da-2", "name": "Kokum", "price": 149, "isVeg": true }
+    ],
+    "australia": [
+      { "id": "da-1", "name": "Buttermilk", "price": 7.99, "isVeg": true },
+      { "id": "da-2", "name": "Kokum", "price": 8.99, "isVeg": true }
+    ]
+  },
+  "lunchBoxOptions": {
+    "india": [
+      { "id": "lb-1", "name": "Roti Combo", "description": "2 Rotis + Bhaji + Rice + Dal", "price": 180 },
+      { "id": "lb-2", "name": "Bhakari Combo", "description": "2 Bhakaris + Bhaji + Rice", "price": 200 },
+      { "id": "lb-3", "name": "Special Thali Box", "description": "Full Thali in tiffin format", "price": 280 }
+    ],
+    "australia": [
+      { "id": "lb-1", "name": "Roti Combo", "description": "2 Rotis + Bhaji + Rice + Dal", "price": 18.99 },
+      { "id": "lb-2", "name": "Bhakari Combo", "description": "2 Bhakaris + Bhaji + Rice", "price": 21.99 },
+      { "id": "lb-3", "name": "Special Thali Box", "description": "Full Thali in tiffin format", "price": 28.99 }
+    ]
+  },
+  "blackoutDates": {
+    "australia": {
+      "start": "2025-12-15",
+      "end": "2026-01-10",
+      "message": "Tiffin service for PB-Perth is paused from 15 December to 10 January due to Christmas & New Year holidays."
+    }
+  },
+  "unlimitedBreakfast": {
+    "description": "Unlimited traditional Maharashtrian breakfast buffet",
+    "timings": "8:00 AM - 11:00 AM",
+    "availableDays": ["Saturday", "Sunday"],
+    "includes": [
+      "Pohe (Kanda/Tarri/Dadpe)",
+      "Upma",
+      "Thalipith",
+      "Sabudana Khichadi",
+      "Misal Pav",
+      "Sheera",
+      "Tea/Coffee"
+    ],
+    "pricing": {
+      "india": { "perPerson": 299, "currency": "INR", "symbol": "₹" },
+      "australia": { "perPerson": 35, "currency": "AUD", "symbol": "$" }
+    }
+  }
+}

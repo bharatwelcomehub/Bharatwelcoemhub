@@ -1,0 +1,222 @@
+{
+  "packages": {
+    "india": [
+      {
+        "id": "option-1",
+        "name": "Classic",
+        "description": "Perfect for intimate gatherings",
+        "pricePerPerson": 450,
+        "requirements": {
+          "starters": 1,
+          "mains": 2,
+          "special": 0,
+          "roti": 1,
+          "rice": 1,
+          "side": 1,
+          "dessert": 1,
+          "drink": 0,
+          "chutney": 2
+        }
+      },
+      {
+        "id": "option-2",
+        "name": "Premium",
+        "description": "Great for medium events",
+        "pricePerPerson": 600,
+        "requirements": {
+          "starters": 2,
+          "mains": 2,
+          "special": 0,
+          "roti": 1,
+          "rice": 1,
+          "side": 1,
+          "dessert": 0,
+          "drink": 1,
+          "chutney": 1
+        }
+      },
+      {
+        "id": "option-3",
+        "name": "Special Feast",
+        "description": "Elevated dining experience",
+        "pricePerPerson": 750,
+        "requirements": {
+          "starters": 2,
+          "mains": 2,
+          "special": 1,
+          "roti": 1,
+          "rice": 2,
+          "side": 1,
+          "dessert": 2,
+          "drink": 1,
+          "chutney": 0
+        }
+      },
+      {
+        "id": "option-4",
+        "name": "Royal Feast",
+        "description": "The ultimate Maharashtrian experience",
+        "pricePerPerson": 950,
+        "isPopular": true,
+        "requirements": {
+          "starters": 3,
+          "mains": 2,
+          "special": 1,
+          "roti": 1,
+          "rice": 2,
+          "side": 1,
+          "dessert": 2,
+          "drink": 2,
+          "chutney": 0
+        }
+      }
+    ],
+    "australia": [
+      {
+        "id": "option-1",
+        "name": "Classic",
+        "description": "Perfect for intimate gatherings",
+        "pricePerPerson": 35,
+        "requirements": {
+          "starters": 1,
+          "mains": 2,
+          "special": 0,
+          "roti": 1,
+          "rice": 1,
+          "side": 1,
+          "dessert": 1,
+          "drink": 0,
+          "chutney": 2
+        }
+      },
+      {
+        "id": "option-2",
+        "name": "Premium",
+        "description": "Great for medium events",
+        "pricePerPerson": 45,
+        "requirements": {
+          "starters": 2,
+          "mains": 2,
+          "special": 0,
+          "roti": 1,
+          "rice": 1,
+          "side": 1,
+          "dessert": 0,
+          "drink": 1,
+          "chutney": 1
+        }
+      },
+      {
+        "id": "option-3",
+        "name": "Special Feast",
+        "description": "Elevated dining experience",
+        "pricePerPerson": 55,
+        "requirements": {
+          "starters": 2,
+          "mains": 2,
+          "special": 1,
+          "roti": 1,
+          "rice": 2,
+          "side": 1,
+          "dessert": 2,
+          "drink": 1,
+          "chutney": 0
+        }
+      },
+      {
+        "id": "option-4",
+        "name": "Royal Feast",
+        "description": "The ultimate Maharashtrian experience",
+        "pricePerPerson": 70,
+        "isPopular": true,
+        "requirements": {
+          "starters": 3,
+          "mains": 2,
+          "special": 1,
+          "roti": 1,
+          "rice": 2,
+          "side": 1,
+          "dessert": 2,
+          "drink": 2,
+          "chutney": 0
+        }
+      }
+    ]
+  },
+  "menuOptions": {
+    "starters": [
+      { "id": "st-1", "name": "Kothimbir Vadi", "isVeg": true },
+      { "id": "st-2", "name": "Batatvada", "isVeg": true },
+      { "id": "st-3", "name": "Sabudana Vada", "isVeg": true },
+      { "id": "st-4", "name": "Mutter Kachori", "isVeg": true },
+      { "id": "st-5", "name": "Palak Bhaji", "isVeg": true }
+    ],
+    "specialBhaji": [
+      { "id": "sb-1", "name": "Kaju Curry", "isVeg": true },
+      { "id": "sb-2", "name": "Maswadi", "isVeg": true },
+      { "id": "sb-3", "name": "Bharit", "isVeg": true },
+      { "id": "sb-4", "name": "Palat / Patal Bhaji", "isVeg": true },
+      { "id": "sb-5", "name": "Bhedichi Bhaji", "isVeg": true }
+    ],
+    "simpleBhaji": [
+      { "id": "mb-1", "name": "Zhunka", "isVeg": true },
+      { "id": "mb-2", "name": "Pithala", "isVeg": true },
+      { "id": "mb-3", "name": "Ravan Pithala", "isVeg": true },
+      { "id": "mb-4", "name": "Bharali Vangi", "isVeg": true },
+      { "id": "mb-5", "name": "Matki Usal", "isVeg": true },
+      { "id": "mb-6", "name": "Dry Aloo", "isVeg": true },
+      { "id": "mb-7", "name": "Jeera Aloo", "isVeg": true },
+      { "id": "mb-8", "name": "Shev Bhaji", "isVeg": true },
+      { "id": "mb-9", "name": "Patwadi Rassa", "isVeg": true },
+      { "id": "mb-10", "name": "Akkha Masur", "isVeg": true },
+      { "id": "mb-11", "name": "Dubak Vadi", "isVeg": true },
+      { "id": "mb-12", "name": "Barbati Usal", "isVeg": true },
+      { "id": "mb-13", "name": "Aloo Gobi Mutter", "isVeg": true }
+    ],
+    "desserts": [
+      { "id": "ds-1", "name": "Basundi", "isVeg": true },
+      { "id": "ds-2", "name": "Ukadicha Modak", "isVeg": true },
+      { "id": "ds-3", "name": "Shirwale", "isVeg": true },
+      { "id": "ds-4", "name": "Khawa Poli", "isVeg": true },
+      { "id": "ds-5", "name": "Tilgul Poli", "isVeg": true },
+      { "id": "ds-6", "name": "Shrikhanda", "isVeg": true },
+      { "id": "ds-7", "name": "Rava Sheera", "isVeg": true },
+      { "id": "ds-8", "name": "Shewaya Kheer", "isVeg": true },
+      { "id": "ds-9", "name": "Puranpoli", "isVeg": true },
+      { "id": "ds-10", "name": "Chirote", "isVeg": true },
+      { "id": "ds-11", "name": "Gulshela", "isVeg": true }
+    ],
+    "roti": [
+      { "id": "ro-1", "name": "Chapati (1 pc)", "isVeg": true },
+      { "id": "ro-2", "name": "Puri Set (3 pcs)", "isVeg": true },
+      { "id": "ro-3", "name": "Jowar Bhakari (1 pc)", "isVeg": true }
+    ],
+    "rice": [
+      { "id": "ri-1", "name": "Masala Bhat", "isVeg": true },
+      { "id": "ri-2", "name": "Ravan Bhat", "isVeg": true },
+      { "id": "ri-3", "name": "Bhaji Bhat", "isVeg": true },
+      { "id": "ri-4", "name": "Tup Bhat", "isVeg": true },
+      { "id": "ri-5", "name": "Dahi Bhat", "isVeg": true },
+      { "id": "ri-6", "name": "Steam Rice", "isVeg": true }
+    ],
+    "drinks": [
+      { "id": "dk-1", "name": "Buttermilk (200ml)", "isVeg": true },
+      { "id": "dk-2", "name": "Masala Lime (200ml)", "isVeg": true },
+      { "id": "dk-3", "name": "Masala Kokum (200ml)", "isVeg": true },
+      { "id": "dk-4", "name": "Piyush (200ml)", "isVeg": true },
+      { "id": "dk-5", "name": "Solkadhi (200ml)", "isVeg": true }
+    ],
+    "sides": [
+      { "id": "si-1", "name": "Papad", "isVeg": true },
+      { "id": "si-2", "name": "Koshimbir", "isVeg": true },
+      { "id": "si-3", "name": "Salad", "isVeg": true }
+    ],
+    "chutney": [
+      { "id": "ch-1", "name": "Peanut Chutney", "isVeg": true },
+      { "id": "ch-2", "name": "Til (Sesame) Chutney", "isVeg": true },
+      { "id": "ch-3", "name": "Lasun Chutney", "isVeg": true },
+      { "id": "ch-4", "name": "Metkut", "isVeg": true },
+      { "id": "ch-5", "name": "Thecha", "isVeg": true }
+    ]
+  }
+}

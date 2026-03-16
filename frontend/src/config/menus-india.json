@@ -1,0 +1,271 @@
+{
+  "currency": "INR",
+  "currencySymbol": "₹",
+  "categories": [
+    {
+      "id": "balgopal",
+      "name": "Balgopal (Kids Menu)",
+      "description": "Special menu for kids",
+      "items": [
+        { "id": "bg-1", "name": "BG Shrikhanda Puri Bhaji", "price": 219, "isVeg": true },
+        { "id": "bg-2", "name": "BG Misal Pav", "price": 189, "isVeg": true },
+        { "id": "bg-3", "name": "BG MungDal Khichadi", "price": 199, "isVeg": true },
+        { "id": "bg-4", "name": "BG Sabudana Khichadi", "price": 189, "isVeg": true },
+        { "id": "bg-5", "name": "BG Aloocha Paratha", "price": 189, "isVeg": true },
+        { "id": "bg-6", "name": "BG Vada Pav", "price": 45, "isVeg": true },
+        { "id": "bg-7", "name": "BG Sabudana Vada (4 pcs)", "price": 199, "isVeg": true },
+        { "id": "bg-8", "name": "BG Kanda Pohe", "price": 129, "isVeg": true },
+        { "id": "bg-9", "name": "BG Tedamedha Aloo", "price": 129, "isVeg": true },
+        { "id": "bg-10", "name": "Balgopal Thali", "price": 399, "isVeg": true },
+        { "id": "bg-11", "name": "Balgopal Varan Fal", "price": 199, "isVeg": true },
+        { "id": "bg-12", "name": "Balgopal Tup Varan Bhat", "price": 149, "isVeg": true },
+        { "id": "bg-13", "name": "Balgopal Puranpoli", "price": 149, "isVeg": true },
+        { "id": "bg-14", "name": "Balgopal Shrikhanda", "price": 149, "isVeg": true },
+        { "id": "bg-15", "name": "Balgopal Khova Poli", "price": 149, "isVeg": true }
+      ]
+    },
+    {
+      "id": "tea-coffee",
+      "name": "Tea / Coffee",
+      "description": "Hot beverages",
+      "items": [
+        { "id": "tc-1", "name": "Simple Tea", "price": 55, "isVeg": true },
+        { "id": "tc-2", "name": "Masala Tea", "price": 65, "isVeg": true },
+        { "id": "tc-3", "name": "Ginger Tea", "price": 65, "isVeg": true },
+        { "id": "tc-4", "name": "Black Tea", "price": 65, "isVeg": true },
+        { "id": "tc-5", "name": "Simple Milk Coffee", "price": 75, "isVeg": true },
+        { "id": "tc-6", "name": "Black Coffee", "price": 50, "isVeg": true },
+        { "id": "tc-7", "name": "Masala Coffee", "price": 95, "isVeg": true }
+      ]
+    },
+    {
+      "id": "drinks",
+      "name": "Non Tea / Drinks",
+      "description": "Refreshing beverages",
+      "items": [
+        { "id": "dr-1", "name": "Solkadhi", "price": 199, "isVeg": true },
+        { "id": "dr-2", "name": "Piyush", "price": 199, "isVeg": true },
+        { "id": "dr-3", "name": "Mango Piyush", "price": 219, "isVeg": true },
+        { "id": "dr-4", "name": "Kokum", "price": 129, "isVeg": true },
+        { "id": "dr-5", "name": "Masala Kokum", "price": 149, "isVeg": true },
+        { "id": "dr-6", "name": "Butter Milk", "price": 129, "isVeg": true },
+        { "id": "dr-7", "name": "Masala Butter Milk", "price": 149, "isVeg": true },
+        { "id": "dr-8", "name": "Lime Juice", "price": 129, "isVeg": true },
+        { "id": "dr-9", "name": "Masala Lime", "price": 149, "isVeg": true }
+      ]
+    },
+    {
+      "id": "soups",
+      "name": "Saar / Soup",
+      "description": "Traditional Maharashtrian soups",
+      "items": [
+        { "id": "sp-1", "name": "Tomato Saar", "price": 229, "isVeg": true },
+        { "id": "sp-2", "name": "Vedik Soup", "price": 269, "isVeg": true },
+        { "id": "sp-3", "name": "Pandhara Rassa", "price": 249, "isVeg": true },
+        { "id": "sp-4", "name": "Pumpkin Soup (Only Sunday)", "price": 269, "isVeg": true, "availability": "sunday" },
+        { "id": "sp-5", "name": "Daal Soup", "price": 229, "isVeg": true }
+      ]
+    },
+    {
+      "id": "snacks",
+      "name": "Snacks",
+      "description": "Traditional Maharashtrian snacks",
+      "items": [
+        { "id": "sn-1", "name": "Kanda Bhaji (20 pcs)", "price": 179, "isVeg": true },
+        { "id": "sn-2", "name": "Maaswadi (4 pcs)", "price": 279, "isVeg": true },
+        { "id": "sn-3", "name": "Sabudana Vada (4 pcs)", "price": 199, "isVeg": true },
+        { "id": "sn-4", "name": "Snacks Platter (4 pcs)", "price": 599, "isVeg": true },
+        { "id": "sn-5", "name": "Snacks Platter (6 pcs)", "price": 699, "isVeg": true },
+        { "id": "sn-6", "name": "Snacks Platter (9 pcs)", "price": 1099, "isVeg": true },
+        { "id": "sn-7", "name": "Batate Vada (4 pcs)", "price": 219, "isVeg": true },
+        { "id": "sn-8", "name": "Kachori (6 pcs)", "price": 239, "isVeg": true },
+        { "id": "sn-9", "name": "Vada Pav", "price": 55, "isVeg": true },
+        { "id": "sn-10", "name": "Kanda Pohe", "price": 169, "isVeg": true },
+        { "id": "sn-11", "name": "Tarri Pohe", "price": 189, "isVeg": true },
+        { "id": "sn-12", "name": "Dadpe Pohe", "price": 169, "isVeg": true },
+        { "id": "sn-13", "name": "Alu Vadi (8 pcs)", "price": 239, "isVeg": true },
+        { "id": "sn-14", "name": "Pudachi Vadi (10 pcs)", "price": 239, "isVeg": true },
+        { "id": "sn-15", "name": "Kothimbir Vadi (10 pcs)", "price": 239, "isVeg": true },
+        { "id": "sn-16", "name": "Vada Sample", "price": 149, "isVeg": true },
+        { "id": "sn-17", "name": "Bread Pakoda", "price": 129, "isVeg": true },
+        { "id": "sn-18", "name": "Masala Bread Pakoda", "price": 149, "isVeg": true },
+        { "id": "sn-19", "name": "Ukad", "price": 199, "isVeg": true },
+        { "id": "sn-20", "name": "Kaccha Chiwada", "price": 119, "isVeg": true },
+        { "id": "sn-21", "name": "Papd Bowl", "price": 129, "isVeg": true },
+        { "id": "sn-22", "name": "Mataki Bhel", "price": 169, "isVeg": true }
+      ]
+    },
+    {
+      "id": "fasting",
+      "name": "Fasting / Upvas",
+      "description": "Fasting special items",
+      "items": [
+        { "id": "fs-1", "name": "Sabudana Vada", "price": 199, "isVeg": true },
+        { "id": "fs-2", "name": "Sabudana Khichadi", "price": 169, "isVeg": true },
+        { "id": "fs-3", "name": "Sabudana Thalipith", "price": 199, "isVeg": true },
+        { "id": "fs-4", "name": "Upvas Thalipith", "price": 199, "isVeg": true },
+        { "id": "fs-5", "name": "Rajgeera Thalipith", "price": 199, "isVeg": true },
+        { "id": "fs-6", "name": "Fasting Thali", "price": 499, "isVeg": true }
+      ]
+    },
+    {
+      "id": "heavy-brunch",
+      "name": "Heavy Brunch",
+      "description": "Filling breakfast items",
+      "items": [
+        { "id": "hb-1", "name": "Thalipith (2 pc)", "price": 199, "isVeg": true },
+        { "id": "hb-2", "name": "Ghavan (3 pc)", "price": 199, "isVeg": true },
+        { "id": "hb-3", "name": "Dhirde (3 pc)", "price": 199, "isVeg": true },
+        { "id": "hb-4", "name": "Misal Pav", "price": 199, "isVeg": true },
+        { "id": "hb-5", "name": "Ukarpendi", "price": 149, "isVeg": true },
+        { "id": "hb-6", "name": "Masala Varan Fal", "price": 349, "isVeg": true },
+        { "id": "hb-7", "name": "Shrikhanda Puri Bhaji", "price": 249, "isVeg": true },
+        { "id": "hb-8", "name": "Aloocha Paratha (1 pc)", "price": 149, "isVeg": true },
+        { "id": "hb-9", "name": "Varan Fal", "price": 299, "isVeg": true },
+        { "id": "hb-10", "name": "Puri Bhaji", "price": 199, "isVeg": true },
+        { "id": "hb-11", "name": "Shengole", "price": 299, "isVeg": true }
+      ]
+    },
+    {
+      "id": "combos",
+      "name": "Bhakar Combos",
+      "description": "Bhakari with bhaji combos",
+      "items": [
+        { "id": "cb-1", "name": "Shev Bhaji Combo", "price": 349, "isVeg": true },
+        { "id": "cb-2", "name": "Patodi Rassa Combo", "price": 349, "isVeg": true },
+        { "id": "cb-3", "name": "Maaswadi Rassa Combo", "price": 349, "isVeg": true },
+        { "id": "cb-4", "name": "Vangyacha Bharit Combo (Saturday)", "price": 349, "isVeg": true, "availability": "saturday" },
+        { "id": "cb-5", "name": "Ravan Pithala Combo", "price": 349, "isVeg": true },
+        { "id": "cb-6", "name": "Pithala (Yellow) Combo", "price": 319, "isVeg": true },
+        { "id": "cb-7", "name": "Pali Pithala Combo", "price": 319, "isVeg": true },
+        { "id": "cb-8", "name": "Zhunka Combo", "price": 319, "isVeg": true },
+        { "id": "cb-9", "name": "Kaju Curry Combo", "price": 349, "isVeg": true }
+      ]
+    },
+    {
+      "id": "bhaji",
+      "name": "Bhaji / Main Course",
+      "description": "Main course dishes",
+      "items": [
+        { "id": "bh-1", "name": "Ravan Pithala", "price": 379, "isVeg": true },
+        { "id": "bh-2", "name": "Pithala (Yellow)", "price": 379, "isVeg": true },
+        { "id": "bh-3", "name": "Bharit (Saturdays)", "price": 379, "isVeg": true, "availability": "saturday" },
+        { "id": "bh-4", "name": "Dal Vanga", "price": 389, "isVeg": true },
+        { "id": "bh-5", "name": "Mix Cauliflower Bhaji", "price": 389, "isVeg": true },
+        { "id": "bh-6", "name": "Chef Special", "price": 389, "isVeg": true },
+        { "id": "bh-7", "name": "Shev Bhaji", "price": 379, "isVeg": true },
+        { "id": "bh-8", "name": "Patodi Rassa", "price": 399, "isVeg": true },
+        { "id": "bh-9", "name": "Maaswadi Rassa", "price": 399, "isVeg": true },
+        { "id": "bh-10", "name": "Patal Bhaji (Sundays)", "price": 379, "isVeg": true, "availability": "sunday" },
+        { "id": "bh-11", "name": "Mungwadi Rassa", "price": 389, "isVeg": true },
+        { "id": "bh-12", "name": "Bharli Vangi", "price": 349, "isVeg": true },
+        { "id": "bh-13", "name": "Zhunka", "price": 289, "isVeg": true },
+        { "id": "bh-14", "name": "Kaju Curry", "price": 479, "isVeg": true },
+        { "id": "bh-15", "name": "Akkha Masur", "price": 379, "isVeg": true },
+        { "id": "bh-16", "name": "Kadhi Gole", "price": 349, "isVeg": true },
+        { "id": "bh-17", "name": "Dry / Jeera Aloo", "price": 249, "isVeg": true },
+        { "id": "bh-18", "name": "Matki Usal", "price": 299, "isVeg": true },
+        { "id": "bh-19", "name": "Barbati Usal", "price": 299, "isVeg": true }
+      ]
+    },
+    {
+      "id": "varan-dal",
+      "name": "Varan / Dal",
+      "description": "Traditional dals",
+      "items": [
+        { "id": "vd-1", "name": "Mataki Amti", "price": 249, "isVeg": true },
+        { "id": "vd-2", "name": "Lasun Varan", "price": 249, "isVeg": true },
+        { "id": "vd-3", "name": "Sadha Varan", "price": 199, "isVeg": true },
+        { "id": "vd-4", "name": "Takachi Kadhi", "price": 199, "isVeg": true },
+        { "id": "vd-5", "name": "Kataachi Amti", "price": 249, "isVeg": true },
+        { "id": "vd-6", "name": "Jeera Varan", "price": 249, "isVeg": true },
+        { "id": "vd-7", "name": "Chef Special Dal", "price": 289, "isVeg": true }
+      ]
+    },
+    {
+      "id": "rice",
+      "name": "Rice",
+      "description": "Rice varieties",
+      "items": [
+        { "id": "rc-1", "name": "Steam Rice", "price": 199, "isVeg": true },
+        { "id": "rc-2", "name": "Dahi Bhat", "price": 219, "isVeg": true },
+        { "id": "rc-3", "name": "Kanda Rice", "price": 219, "isVeg": true },
+        { "id": "rc-4", "name": "Tup Bhat", "price": 249, "isVeg": true },
+        { "id": "rc-5", "name": "Bhaji Bhat", "price": 249, "isVeg": true },
+        { "id": "rc-6", "name": "Gola Bhat", "price": 249, "isVeg": true },
+        { "id": "rc-7", "name": "Ravan Bhat", "price": 249, "isVeg": true },
+        { "id": "rc-8", "name": "Masale Bhat", "price": 299, "isVeg": true },
+        { "id": "rc-9", "name": "Tup Varan Bhat", "price": 249, "isVeg": true },
+        { "id": "rc-10", "name": "Khajur Bhat", "price": 299, "isVeg": true },
+        { "id": "rc-11", "name": "Rice Platter", "price": 399, "isVeg": true }
+      ]
+    },
+    {
+      "id": "roti",
+      "name": "Roti / Bhakari",
+      "description": "Breads",
+      "items": [
+        { "id": "rt-1", "name": "Fulka", "price": 29, "isVeg": true },
+        { "id": "rt-2", "name": "Dupodi Poli", "price": 32, "isVeg": true },
+        { "id": "rt-3", "name": "Jowar Bhakar", "price": 59, "isVeg": true },
+        { "id": "rt-4", "name": "Bajara Bhakar", "price": 59, "isVeg": true },
+        { "id": "rt-5", "name": "Wade (2 pcs)", "price": 79, "isVeg": true },
+        { "id": "rt-6", "name": "Rice Bhakar", "price": 59, "isVeg": true },
+        { "id": "rt-7", "name": "Puri Set (5 pcs)", "price": 99, "isVeg": true }
+      ]
+    },
+    {
+      "id": "sweets",
+      "name": "Sweets / Desserts",
+      "description": "Traditional sweets",
+      "items": [
+        { "id": "sw-1", "name": "Modak", "price": 249, "isVeg": true },
+        { "id": "sw-2", "name": "Shrikhanda", "price": 199, "isVeg": true },
+        { "id": "sw-3", "name": "Shirvale", "price": 389, "isVeg": true },
+        { "id": "sw-4", "name": "Puranpoli", "price": 119, "isVeg": true },
+        { "id": "sw-5", "name": "Khava Poli", "price": 119, "isVeg": true },
+        { "id": "sw-6", "name": "Tilgul Poli", "price": 119, "isVeg": true },
+        { "id": "sw-7", "name": "Kharvas", "price": 439, "isVeg": true },
+        { "id": "sw-8", "name": "Amrakhanda", "price": 219, "isVeg": true },
+        { "id": "sw-9", "name": "Sheera (Rava)", "price": 199, "isVeg": true },
+        { "id": "sw-10", "name": "Basundi", "price": 199, "isVeg": true },
+        { "id": "sw-11", "name": "Shewaya Kheer", "price": 199, "isVeg": true },
+        { "id": "sw-12", "name": "Aamras (Seasonal)", "price": 210, "isVeg": true, "availability": "seasonal" },
+        { "id": "sw-13", "name": "Chirote (6 pcs)", "price": 249, "isVeg": true },
+        { "id": "sw-14", "name": "Mungdal Halwa", "price": 249, "isVeg": true },
+        { "id": "sw-15", "name": "Gulshela", "price": 249, "isVeg": true },
+        { "id": "sw-16", "name": "Gajar Halwa (Seasonal)", "price": 218, "isVeg": true, "availability": "seasonal" },
+        { "id": "sw-17", "name": "Gulabjam (3 pcs)", "price": 199, "isVeg": true }
+      ]
+    },
+    {
+      "id": "thalis",
+      "name": "Maharashtrian Thalis",
+      "description": "Complete meal thalis",
+      "items": [
+        { "id": "th-1", "name": "Shree Shiv Thali (Monday)", "price": 499, "isVeg": true, "availability": "monday" },
+        { "id": "th-2", "name": "Shree Swami Samrath Thali (Tuesday)", "price": 499, "isVeg": true, "availability": "tuesday" },
+        { "id": "th-3", "name": "Shree Vithayee Thali (Wednesday)", "price": 499, "isVeg": true, "availability": "wednesday" },
+        { "id": "th-4", "name": "Shree Duttaguru Thali (Thursday)", "price": 499, "isVeg": true, "availability": "thursday" },
+        { "id": "th-5", "name": "Shree Balaji Thali (Friday)", "price": 549, "isVeg": true, "availability": "friday" },
+        { "id": "th-6", "name": "Shree Gajanan Maharaj Thali (Saturday)", "price": 549, "isVeg": true, "availability": "saturday" },
+        { "id": "th-7", "name": "Shree Mahalakshmi Thali (Sunday)", "price": 549, "isVeg": true, "availability": "sunday" }
+      ]
+    },
+    {
+      "id": "special-thalis",
+      "name": "Special Thalis",
+      "description": "Premium thalis",
+      "items": [
+        { "id": "sth-1", "name": "Varhadi Thali", "price": 549, "isVeg": true },
+        { "id": "sth-2", "name": "Misal Thali", "price": 449, "isVeg": true },
+        { "id": "sth-3", "name": "Shravan Maas Thali", "price": 549, "isVeg": true },
+        { "id": "sth-4", "name": "Purankut Thali", "price": 549, "isVeg": true },
+        { "id": "sth-5", "name": "Vidharbha Thali", "price": 549, "isVeg": true },
+        { "id": "sth-6", "name": "Meva Thali", "price": 749, "isVeg": true },
+        { "id": "sth-7", "name": "Rodaga Thali", "price": 549, "isVeg": true },
+        { "id": "sth-8", "name": "Puri Special Thali", "price": 549, "isVeg": true }
+      ]
+    }
+  ]
+}

@@ -110,7 +110,7 @@ videos: { id, title, video_url, thumbnail_url, description, category, is_active,
 ## Admin Credentials
 - **Email**: admin@purnabramha.com
 - **Password**: admin123
-- **Admin URL**: https://purnabramha-app.preview.emergentagent.com/admin
+- **Admin URL**: https://purnabramha-app-2.preview.emergentagent.com/admin
 
 ## Key Files
 - `/app/backend/server.py` - All API endpoints

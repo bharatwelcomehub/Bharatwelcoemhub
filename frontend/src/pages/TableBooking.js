@@ -1,379 +1,486 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { Calendar, Clock, Users, MapPin, Phone, MessageCircle, ChefHat, Leaf, Plus, Minus, ShoppingCart, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
-import { Calendar, MessageCircle, Users, Clock, MapPin, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
-const CENTERS = [
-  { value: 'PB-HSR', label: 'PB-HSR', whatsapp: '919741399190', country: 'India' },
-  { value: 'PB-Thane', label: 'PB-Thane', whatsapp: '919741399190', country: 'India' },
-  { value: 'PB-SambhajiNagar', label: 'PB-SambhajiNagar', whatsapp: '919741399190', country: 'India' },
-  { value: 'PB-Dombivli', label: 'PB-Dombivli', whatsapp: '919741399190', country: 'India' },
-  { value: 'PB-Hinjawadi', label: 'PB-Hinjawadi', whatsapp: '919741399190', country: 'India' },
-  { value: 'PB-Kalyan', label: 'PB-Kalyan', whatsapp: '919741399190', country: 'India' },
-  { value: 'PB-KharadiNyati', label: 'PB-Kharadi Nyati', whatsapp: '919741399190', country: 'India' },
-  { value: 'PB-Perth', label: 'PB-Perth', whatsapp: '61412345678', country: 'Australia' }
-];
-
-const TIME_SLOTS = [
-  { value: '12:00-13:00', label: '12:00 PM – 1:00 PM' },
-  { value: '13:00-14:00', label: '1:00 PM – 2:00 PM' },
-  { value: '14:00-15:00', label: '2:00 PM – 3:00 PM' },
-  { value: '19:00-20:00', label: '7:00 PM – 8:00 PM' },
-  { value: '20:00-21:00', label: '8:00 PM – 9:00 PM' },
-  { value: '21:00-22:00', label: '9:00 PM – 10:00 PM' }
-];
-
-const CELEBRATIONS = [
-  { value: '', label: 'None' },
-  { value: 'birthday', label: 'Birthday 🎂' },
-  { value: 'anniversary', label: 'Anniversary 💑' },
-  { value: 'family', label: 'Family Gathering 👨‍👩‍👧‍👦' },
-  { value: 'friends', label: 'Friends Get-together 🎉' },
-  { value: 'kitty', label: 'Kitty Party 👯‍♀️' },
-  { value: 'women', label: "Women's Meet 👩‍👩‍👧" },
-  { value: 'gudhipadwa', label: 'Gudi Padwa 🪔' },
-  { value: 'fasting', label: 'Fasting / Upvas 🙏' }
-];
-
-const GUEST_TYPES = [
-  { value: '', label: 'Select' },
-  { value: 'repeat', label: 'Repeat Guest' },
-  { value: 'new', label: 'New Entry' },
-  { value: 'party', label: 'Party Guest' },
-  { value: 'group', label: 'Group Guest' }
-];
-
-const SERVICE_TYPES = [
-  { value: '', label: 'Select' },
-  { value: 'dine-in', label: 'Dine In 🍽️' },
-  { value: 'pickup', label: 'Pickup 🥡' }
-];
+import centersData from '@/config/centers.json';
+import bookingRules from '@/config/booking-rules.json';
+import indiaMenus from '@/config/menus-india.json';
+import perthMenus from '@/config/menus-perth.json';
 
 const TableBooking = () => {
-  const [formData, setFormData] = useState({
-    center: '',
-    date: '',
-    time: '',
-    name: '',
-    phone: '',
-    email: '',
-    guests: 2,
-    celebration: '',
-    guestType: '',
-    serviceType: '',
-    specialRequest: ''
-  });
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedCenter, setSelectedCenter] = useState('');
+  const [bookingDate, setBookingDate] = useState('');
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
+  const [serviceType, setServiceType] = useState('');
+  const [guestCount, setGuestCount] = useState('2');
+  const [celebration, setCelebration] = useState('none');
+  const [guestType, setGuestType] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [specialRequests, setSpecialRequests] = useState('');
+  const [cart, setCart] = useState({});
+  const [showReview, setShowReview] = useState(false);
 
-  const selectedCenter = useMemo(() => 
-    CENTERS.find(c => c.value === formData.center), 
-    [formData.center]
-  );
+  const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
 
-  const minDate = useMemo(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  }, []);
+  const filteredCenters = useMemo(() => {
+    if (!selectedRegion) return [];
+    return selectedRegion === 'india' ? centersData.india : centersData.australia;
+  }, [selectedRegion]);
 
-  const validateForm = () => {
-    if (!formData.center) {
-      toast.error('Please select a center');
-      return false;
-    }
-    if (!formData.date) {
-      toast.error('Please select a date');
-      return false;
-    }
-    if (!formData.time) {
-      toast.error('Please select a time slot');
-      return false;
-    }
-    if (!formData.name.trim()) {
-      toast.error('Please enter your name');
-      return false;
-    }
-    if (!formData.phone.trim() || formData.phone.length < 10) {
-      toast.error('Please enter a valid phone number');
-      return false;
-    }
-    if (!formData.serviceType) {
-      toast.error('Please select Dine-In or Pickup');
-      return false;
-    }
-    return true;
+  const currentCenter = useMemo(() => {
+    return allCenters.find(c => c.id === selectedCenter);
+  }, [selectedCenter, allCenters]);
+
+  const menuData = useMemo(() => {
+    if (!currentCenter) return null;
+    return currentCenter.country === 'Australia' ? perthMenus : indiaMenus;
+  }, [currentCenter]);
+
+  const showMenuSection = serviceType === 'pickup' || currentCenter?.country === 'Australia';
+
+  const getMinDate = () => {
+    const now = new Date();
+    now.setHours(now.getHours() + bookingRules.tableBooking.minAdvanceHours);
+    return now.toISOString().split('T')[0];
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const getMaxDate = () => {
+    const now = new Date();
+    now.setDate(now.getDate() + bookingRules.tableBooking.maxAdvanceDays);
+    return now.toISOString().split('T')[0];
+  };
+
+  const updateCart = (itemId, itemName, price, delta) => {
+    setCart(prev => {
+      const current = prev[itemId] || { name: itemName, price, qty: 0 };
+      const newQty = Math.max(0, current.qty + delta);
+      if (newQty === 0) {
+        const { [itemId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [itemId]: { ...current, qty: newQty } };
+    });
+  };
+
+  const cartTotal = useMemo(() => {
+    return Object.values(cart).reduce((sum, item) => sum + (item.price * item.qty), 0);
+  }, [cart]);
+
+  const cartItemCount = useMemo(() => {
+    return Object.values(cart).reduce((sum, item) => sum + item.qty, 0);
+  }, [cart]);
+
+  const formatPrice = (price) => {
+    if (!menuData) return price;
+    return `${menuData.currencySymbol}${price.toFixed(2)}`;
+  };
+
+  const generateWhatsAppMessage = () => {
+    const timeSlotLabel = bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label || '';
+    const celebrationLabel = bookingRules.tableBooking.celebrationOptions.find(c => c.id === celebration)?.label || '';
     
-    if (!validateForm()) return;
-
-    const center = selectedCenter;
-    const celebrationLabel = CELEBRATIONS.find(c => c.value === formData.celebration)?.label || 'None';
-    const serviceLabel = SERVICE_TYPES.find(s => s.value === formData.serviceType)?.label || '';
-    const timeLabel = TIME_SLOTS.find(t => t.value === formData.time)?.label || formData.time;
-
-    let message = `🪔 *PURNABRAMHA BOOKING REQUEST*\n\n`;
-    message += `📍 *Center:* ${center.label}\n`;
-    message += `📅 *Date:* ${formData.date}\n`;
-    message += `🕐 *Time:* ${timeLabel}\n`;
-    message += `👤 *Name:* ${formData.name}\n`;
-    message += `📱 *Phone:* ${formData.phone}\n`;
-    if (formData.email) message += `📧 *Email:* ${formData.email}\n`;
-    message += `👥 *Guests:* ${formData.guests}\n`;
-    message += `🍽️ *Service:* ${serviceLabel}\n`;
-    if (formData.celebration) message += `🎉 *Celebration:* ${celebrationLabel}\n`;
-    if (formData.guestType) message += `👤 *Guest Type:* ${formData.guestType}\n`;
-    if (formData.specialRequest) message += `\n📝 *Special Request:*\n${formData.specialRequest}\n`;
-    message += `\n_Sent via Purnabramha App_`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${center.whatsapp}?text=${encodedMessage}`;
+    let message = `🪔 *PURNABRAMHA TABLE BOOKING*\n\n`;
+    message += `📍 *Center:* ${currentCenter?.displayName}\n`;
+    message += `📅 *Date:* ${bookingDate}\n`;
+    message += `⏰ *Time:* ${timeSlotLabel}\n`;
+    message += `🍽️ *Service:* ${serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}\n`;
+    message += `👥 *Guests:* ${guestCount}\n`;
+    message += `🎉 *Celebration:* ${celebrationLabel}\n\n`;
+    message += `👤 *Name:* ${name}\n`;
+    message += `📞 *Phone:* ${phone}\n`;
+    if (email) message += `📧 *Email:* ${email}\n`;
     
-    window.open(whatsappUrl, '_blank');
-    toast.success('Opening WhatsApp to confirm your booking');
+    if (cartItemCount > 0) {
+      message += `\n🛒 *Pre-Order Items:*\n`;
+      Object.entries(cart).forEach(([id, item]) => {
+        message += `• ${item.name} x${item.qty} = ${formatPrice(item.price * item.qty)}\n`;
+      });
+      message += `\n💰 *Order Total:* ${formatPrice(cartTotal)}\n`;
+    }
+    
+    if (specialRequests) {
+      message += `\n📝 *Special Requests:*\n${specialRequests}\n`;
+    }
+    
+    message += `\n⚠️ _Booking confirmation pending Center Manager's reply._`;
+    
+    return encodeURIComponent(message);
+  };
+
+  const handleSubmit = () => {
+    if (!selectedCenter || !bookingDate || !selectedTimeSlot || !serviceType || !name || !phone) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    setShowReview(true);
+  };
+
+  const confirmBooking = () => {
+    const message = generateWhatsAppMessage();
+    const whatsappNumber = currentCenter?.whatsapp.replace(/[^0-9]/g, '');
+    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
+    toast.success('Redirecting to WhatsApp...');
+  };
+
+  const resetForm = () => {
+    setSelectedRegion('');
+    setSelectedCenter('');
+    setBookingDate('');
+    setSelectedTimeSlot('');
+    setServiceType('');
+    setGuestCount('2');
+    setCelebration('none');
+    setGuestType('');
+    setName('');
+    setPhone('');
+    setEmail('');
+    setSpecialRequests('');
+    setCart({});
+    setShowReview(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[hsl(30,20%,97%)] to-white">
-      {/* Festival Banner */}
-      <div className="bg-[hsl(20,60%,15%)] text-[hsl(40,50%,85%)] py-3 px-4">
-        <div className="container mx-auto text-center">
-          <p className="text-sm font-medium">
-            <span className="mr-2">🪔</span>
-            Select your <strong>Center</strong> • Choose <strong>Date & Time</strong> • Dine-In or Pickup
-            <span className="ml-2 px-2 py-0.5 bg-[hsl(38,70%,45%)] text-white text-xs rounded-full">Pure Veg</span>
-          </p>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 lg:px-8 py-8 lg:py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-2xl mx-auto"
-        >
-          <div className="text-center mb-8">
-            <Calendar className="h-12 w-12 mx-auto text-primary mb-4" />
-            <h1 className="font-playfair text-3xl lg:text-5xl font-bold text-foreground mb-3" data-testid="table-booking-title">
-              Purnabramha Booking
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50">
+      {/* Hero Section */}
+      <section className="relative py-16 bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center max-w-3xl mx-auto"
+          >
+            <h1 className="text-4xl md:text-5xl font-bold mb-4" data-testid="table-booking-title">
+              🪔 Table Booking
             </h1>
-            <p className="text-foreground/70 font-manrope">
-              Reserve your table for a delightful dining experience
+            <p className="text-lg text-amber-200">
+              Reserve your table at any Purnabramha center across India & Australia
             </p>
-          </div>
+            <div className="mt-4 flex items-center justify-center gap-2 text-amber-300 text-sm">
+              <Clock className="h-4 w-4" />
+              <span>Minimum 2 hours advance booking required</span>
+            </div>
+          </motion.div>
+        </div>
+      </section>
 
-          {/* Notice */}
-          <Card className="mb-6 border-[hsl(38,70%,45%)]/30 bg-[hsl(45,80%,95%)]">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <Clock className="h-5 w-5 text-[hsl(38,70%,40%)] mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-[hsl(20,60%,25%)]">
-                  <strong>Booking requests</strong> are accepted minimum <strong>2 hours before</strong> your visit.
-                  This helps our team prepare better and serve you peacefully.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="container mx-auto px-4 py-8">
+        {!showReview ? (
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Main Form */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Step 1: Region & Center Selection */}
+              <Card className="border-amber-200 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                    <MapPin className="h-5 w-5" />
+                    Step 1: Select Region & Center
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Region *</Label>
+                      <Select value={selectedRegion} onValueChange={(v) => { setSelectedRegion(v); setSelectedCenter(''); }}>
+                        <SelectTrigger data-testid="region-select">
+                          <SelectValue placeholder="Select Region" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="india">🇮🇳 India</SelectItem>
+                          <SelectItem value="australia">🇦🇺 Australia</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Center *</Label>
+                      <Select value={selectedCenter} onValueChange={setSelectedCenter} disabled={!selectedRegion}>
+                        <SelectTrigger data-testid="center-select">
+                          <SelectValue placeholder="Select Center" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredCenters.map(center => (
+                            <SelectItem key={center.id} value={center.id}>
+                              {center.displayName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {currentCenter && (
+                    <div className="p-3 bg-amber-50 rounded-lg flex items-center gap-2 text-sm">
+                      <Phone className="h-4 w-4 text-[#5c1e1e]" />
+                      <span className="font-medium">{currentCenter.phone}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-          <Card className="border-[hsl(30,30%,88%)]">
-            <CardContent className="p-6 lg:p-8">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Center Selection */}
-                <div>
-                  <Label htmlFor="center" className="flex items-center gap-2 mb-2">
-                    <MapPin className="h-4 w-4" /> Select Center
-                  </Label>
-                  <Select
-                    value={formData.center}
-                    onValueChange={(value) => setFormData({ ...formData, center: value })}
-                  >
-                    <SelectTrigger id="center" data-testid="center-select">
-                      <SelectValue placeholder="Select Center" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CENTERS.map(center => (
-                        <SelectItem key={center.value} value={center.value}>
-                          {center.label} ({center.country})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Step 2: Date & Time */}
+              <Card className="border-amber-200 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                    <Calendar className="h-5 w-5" />
+                    Step 2: Date & Time
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Date *</Label>
+                      <Input
+                        type="date"
+                        value={bookingDate}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        min={getMinDate()}
+                        max={getMaxDate()}
+                        className="border-amber-200"
+                        data-testid="booking-date"
+                      />
+                    </div>
+                    <div>
+                      <Label>Time Slot *</Label>
+                      <Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}>
+                        <SelectTrigger data-testid="time-slot-select">
+                          <SelectValue placeholder="Select Time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bookingRules.tableBooking.timeSlots.map(slot => (
+                            <SelectItem key={slot.id} value={slot.id}>
+                              {slot.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Service Type *</Label>
+                      <Select value={serviceType} onValueChange={setServiceType}>
+                        <SelectTrigger data-testid="service-type-select">
+                          <SelectValue placeholder="Select Service" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dine-in">🍽️ Dine In</SelectItem>
+                          <SelectItem value="pickup">📦 Pickup</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Number of Guests *</Label>
+                      <Select value={guestCount} onValueChange={setGuestCount}>
+                        <SelectTrigger data-testid="guest-count-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1,2,3,4,5,6,7,8,9,10,15,20,25,30].map(n => (
+                            <SelectItem key={n} value={n.toString()}>{n} {n === 1 ? 'Guest' : 'Guests'}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                {/* Date & Time */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      min={minDate}
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      data-testid="booking-date-input"
-                    />
+              {/* Step 3: Guest Details */}
+              <Card className="border-amber-200 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                    <Users className="h-5 w-5" />
+                    Step 3: Guest Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Name *</Label>
+                      <Input
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Your full name"
+                        className="border-amber-200"
+                        data-testid="guest-name"
+                      />
+                    </div>
+                    <div>
+                      <Label>Phone *</Label>
+                      <Input
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="Your phone number"
+                        className="border-amber-200"
+                        data-testid="guest-phone"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Email (Optional)</Label>
+                      <Input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="your@email.com"
+                        className="border-amber-200"
+                        data-testid="guest-email"
+                      />
+                    </div>
+                    <div>
+                      <Label>Celebrating?</Label>
+                      <Select value={celebration} onValueChange={setCelebration}>
+                        <SelectTrigger data-testid="celebration-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bookingRules.tableBooking.celebrationOptions.map(opt => (
+                            <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div>
-                    <Label htmlFor="time">Time Slot</Label>
-                    <Select
-                      value={formData.time}
-                      onValueChange={(value) => setFormData({ ...formData, time: value })}
-                    >
-                      <SelectTrigger id="time" data-testid="time-select">
-                        <SelectValue placeholder="Select Time" />
+                    <Label>Guest Type</Label>
+                    <Select value={guestType} onValueChange={setGuestType}>
+                      <SelectTrigger data-testid="guest-type-select">
+                        <SelectValue placeholder="Select Type" />
                       </SelectTrigger>
                       <SelectContent>
-                        {TIME_SLOTS.map(slot => (
-                          <SelectItem key={slot.value} value={slot.value}>
-                            {slot.label}
-                          </SelectItem>
+                        {bookingRules.tableBooking.guestTypes.map(type => (
+                          <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
 
-                {/* Name & Phone */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Your name"
-                      data-testid="name-input"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="+91 / +61"
-                      data-testid="phone-input"
-                    />
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div>
-                  <Label htmlFor="email">Email (optional)</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="your@email.com"
-                  />
-                </div>
-
-                {/* Guests */}
-                <div>
-                  <Label htmlFor="guests" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" /> Number of Guests
-                  </Label>
-                  <Input
-                    id="guests"
-                    type="number"
-                    min="1"
-                    max="200"
-                    value={formData.guests}
-                    onChange={(e) => setFormData({ ...formData, guests: parseInt(e.target.value) || 2 })}
-                    data-testid="guests-input"
-                  />
-                </div>
-
-                {/* Service Type */}
-                <div>
-                  <Label htmlFor="serviceType">Select Dine-In / Pickup</Label>
-                  <Select
-                    value={formData.serviceType}
-                    onValueChange={(value) => setFormData({ ...formData, serviceType: value })}
-                  >
-                    <SelectTrigger id="serviceType" data-testid="service-type-select">
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SERVICE_TYPES.filter(s => s.value).map(service => (
-                        <SelectItem key={service.value} value={service.value}>
-                          {service.label}
-                        </SelectItem>
+              {/* Step 4: Menu Selection (for Pickup or Perth) */}
+              {showMenuSection && menuData && (
+                <Card className="border-amber-200 shadow-lg">
+                  <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                    <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                      <ChefHat className="h-5 w-5" />
+                      Step 4: Pre-Order Menu (Optional)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-gray-600 mb-4">
+                      Select items + quantity. Pre-ordering helps us serve you faster!
+                    </p>
+                    <div className="space-y-6">
+                      {menuData.categories.slice(0, 8).map(category => (
+                        <div key={category.id}>
+                          <h4 className="font-semibold text-[#5c1e1e] mb-3 pb-2 border-b border-amber-200">
+                            {category.name}
+                          </h4>
+                          <div className="grid gap-2">
+                            {category.items.slice(0, 6).map(item => (
+                              <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-amber-50 transition-colors">
+                                <div className="flex items-center gap-2">
+                                  <Leaf className="h-4 w-4 text-green-600" />
+                                  <span className="text-sm">{item.name}</span>
+                                  <span className="text-sm font-medium text-[#5c1e1e]">
+                                    {formatPrice(item.price)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => updateCart(item.id, item.name, item.price, -1)}
+                                    disabled={!cart[item.id]?.qty}
+                                  >
+                                    <Minus className="h-3 w-3" />
+                                  </Button>
+                                  <span className="w-6 text-center text-sm font-medium">
+                                    {cart[item.id]?.qty || 0}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => updateCart(item.id, item.name, item.price, 1)}
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                {/* Celebration */}
-                <div>
-                  <Label htmlFor="celebration">Are you celebrating anything?</Label>
-                  <Select
-                    value={formData.celebration}
-                    onValueChange={(value) => setFormData({ ...formData, celebration: value })}
-                  >
-                    <SelectTrigger id="celebration">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CELEBRATIONS.map(cel => (
-                        <SelectItem key={cel.value || 'none'} value={cel.value || 'none'}>
-                          {cel.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Guest Type */}
-                <div>
-                  <Label htmlFor="guestType">Guest Type</Label>
-                  <Select
-                    value={formData.guestType}
-                    onValueChange={(value) => setFormData({ ...formData, guestType: value })}
-                  >
-                    <SelectTrigger id="guestType">
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GUEST_TYPES.filter(g => g.value).map(guest => (
-                        <SelectItem key={guest.value} value={guest.value}>
-                          {guest.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Special Request */}
-                <div>
-                  <Label htmlFor="specialRequest">Special Requests / Notes</Label>
+              {/* Special Requests */}
+              <Card className="border-amber-200 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                  <CardTitle className="text-[#5c1e1e]">Special Requests / Notes</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
                   <Textarea
-                    id="specialRequest"
-                    value={formData.specialRequest}
-                    onChange={(e) => setFormData({ ...formData, specialRequest: e.target.value })}
-                    placeholder="Write any special requests..."
-                    rows={3}
-                    data-testid="special-request-input"
+                    value={specialRequests}
+                    onChange={(e) => setSpecialRequests(e.target.value)}
+                    placeholder="Any special requests, dietary requirements, or notes..."
+                    className="border-amber-200 min-h-[100px]"
+                    data-testid="special-requests"
                   />
-                </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                {/* Important Notice */}
-                <Card className="border-[hsl(45,80%,50%)]/50 bg-[hsl(45,80%,95%)]">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-[hsl(30,80%,40%)] mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-[hsl(30,50%,25%)]">
-                        <p className="font-semibold mb-1">⚠️ Important Booking Note:</p>
-                        <p>Sending a WhatsApp message does <strong>not</strong> confirm your booking.</p>
-                        <p>Booking is confirmed <strong>only after Center Manager replies on WhatsApp</strong>.</p>
+            {/* Sidebar - Cart & Summary */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-24 space-y-6">
+                {/* Cart Summary */}
+                {cartItemCount > 0 && (
+                  <Card className="border-amber-200 shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white rounded-t-lg">
+                      <CardTitle className="flex items-center gap-2">
+                        <ShoppingCart className="h-5 w-5" />
+                        Cart ({cartItemCount} items)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {Object.entries(cart).map(([id, item]) => (
+                          <div key={id} className="flex justify-between text-sm">
+                            <span>{item.name} x{item.qty}</span>
+                            <span className="font-medium">{formatPrice(item.price * item.qty)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t border-amber-200 mt-4 pt-4 flex justify-between font-bold text-lg">
+                        <span>Total:</span>
+                        <span className="text-[#5c1e1e]">{formatPrice(cartTotal)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Disclaimer */}
+                <Card className="border-amber-300 bg-amber-50">
+                  <CardContent className="pt-4">
+                    <div className="flex gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-amber-800">
+                        <p className="font-semibold mb-1">Important Note:</p>
+                        <p>{bookingRules.tableBooking.disclaimer}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -381,21 +488,109 @@ const TableBooking = () => {
 
                 {/* Submit Button */}
                 <Button
-                  type="submit"
-                  className="w-full rounded-full bg-[hsl(145,60%,40%)] hover:bg-[hsl(145,60%,35%)] text-white text-lg py-6"
-                  data-testid="send-whatsapp-btn"
+                  onClick={handleSubmit}
+                  className="w-full bg-[#5c1e1e] hover:bg-[#8b2c2c] text-white py-6 text-lg"
+                  disabled={!selectedCenter || !bookingDate || !selectedTimeSlot || !serviceType || !name || !phone}
+                  data-testid="review-booking-btn"
                 >
-                  <MessageCircle className="mr-2 h-5 w-5" />
-                  Send to WhatsApp
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  Review & Send to WhatsApp
                 </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Review Section */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-2xl mx-auto"
+          >
+            <Card className="border-amber-200 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white rounded-t-lg">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <CheckCircle className="h-6 w-6" />
+                  Review Your Booking
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Center</p>
+                    <p className="font-semibold">{currentCenter?.displayName}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Date & Time</p>
+                    <p className="font-semibold">
+                      {bookingDate} • {bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Service</p>
+                    <p className="font-semibold">{serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Guests</p>
+                    <p className="font-semibold">{guestCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Name</p>
+                    <p className="font-semibold">{name}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Phone</p>
+                    <p className="font-semibold">{phone}</p>
+                  </div>
+                </div>
 
-                <p className="text-center text-sm text-foreground/60">
-                  Booking will be confirmed by WhatsApp from the centre.
-                </p>
-              </form>
-            </CardContent>
-          </Card>
-        </motion.div>
+                {cartItemCount > 0 && (
+                  <div className="border-t border-amber-200 pt-4">
+                    <p className="font-semibold mb-2">Pre-Order Items:</p>
+                    <div className="space-y-1">
+                      {Object.entries(cart).map(([id, item]) => (
+                        <div key={id} className="flex justify-between text-sm">
+                          <span>{item.name} x{item.qty}</span>
+                          <span>{formatPrice(item.price * item.qty)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between font-bold pt-2 border-t">
+                        <span>Total:</span>
+                        <span>{formatPrice(cartTotal)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-4 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowReview(false)}
+                    className="flex-1"
+                    data-testid="edit-booking-btn"
+                  >
+                    Edit Order
+                  </Button>
+                  <Button
+                    onClick={confirmBooking}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    data-testid="confirm-booking-btn"
+                  >
+                    <MessageCircle className="h-5 w-5 mr-2" />
+                    Confirm & Send
+                  </Button>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  onClick={resetForm}
+                  className="w-full text-gray-500"
+                >
+                  Reset Form
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </div>
   );

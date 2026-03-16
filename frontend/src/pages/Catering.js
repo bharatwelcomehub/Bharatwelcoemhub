@@ -1,506 +1,727 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { Calendar, MapPin, Phone, MessageCircle, Users, Star, AlertCircle, CheckCircle, ChefHat, PartyPopper, Clock, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
-import { UtensilsCrossed, Check, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import centersData from '@/config/centers.json';
+import cateringPackages from '@/config/catering-packages.json';
+import bookingRules from '@/config/booking-rules.json';
 
 const Catering = () => {
-  const navigate = useNavigate();
-  const [locations, setLocations] = useState([]);
-  const [step, setStep] = useState(1);
-  
-  // Form data
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
-    eventDate: '',
-    eventTime: '',
-    guests: 20,
-    celebrationType: '',
-    locationId: '',
-    package: null,
-    deliveryRequired: 'yes'
-  });
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [selectedCenter, setSelectedCenter] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [needsDelivery, setNeedsDelivery] = useState(false);
+  const [eventDate, setEventDate] = useState('');
+  const [eventTime, setEventTime] = useState('');
+  const [guestCount, setGuestCount] = useState('20');
+  const [celebrationType, setCelebrationType] = useState('');
+  const [selectedPackage, setSelectedPackage] = useState('');
+  const [menuSelections, setMenuSelections] = useState({});
+  const [showReview, setShowReview] = useState(false);
 
-  // Menu selections
-  const [menuSelections, setMenuSelections] = useState({
-    starter: [],
-    main: [],
-    spMain: [],
-    dessert: [],
-    roti: [],
-    rice: [],
-    drink: [],
-    side: [],
-    chutney: []
-  });
+  const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
 
-  // Package rules
-  const packageRules = {
-    1: { starter: 1, main: 2, spMain: 0, roti: 1, rice: 1, side: 1, dessert: 1, chutney: 2, drink: 0 },
-    2: { starter: 2, main: 2, spMain: 0, roti: 1, rice: 1, side: 1, dessert: 0, chutney: 1, drink: 1 },
-    3: { starter: 2, main: 2, spMain: 1, roti: 1, rice: 2, side: 1, dessert: 2, chutney: 0, drink: 1 },
-    4: { starter: 3, main: 2, spMain: 1, roti: 1, rice: 2, side: 1, dessert: 2, chutney: 0, drink: 2 }
+  const filteredCenters = useMemo(() => {
+    if (!selectedRegion) return [];
+    return selectedRegion === 'india' ? centersData.india : centersData.australia;
+  }, [selectedRegion]);
+
+  const currentCenter = useMemo(() => {
+    return allCenters.find(c => c.id === selectedCenter);
+  }, [selectedCenter, allCenters]);
+
+  const isAustralia = currentCenter?.country === 'Australia';
+  const currencySymbol = isAustralia ? '$' : '₹';
+  const packages = isAustralia ? cateringPackages.packages.australia : cateringPackages.packages.india;
+  const menuOptions = cateringPackages.menuOptions;
+
+  const currentPackage = packages.find(p => p.id === selectedPackage);
+
+  const getMinDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + bookingRules.catering.minAdvanceDays);
+    return date.toISOString().split('T')[0];
   };
 
-  // Pricing
-  const pricing = {
-    india: { 1: 540, 2: 550, 3: 650, 4: 750 },
-    perth: { 1: 35, 2: 40, 3: 55, 4: 65 }
+  const getMaxDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + bookingRules.catering.maxAdvanceDays);
+    return date.toISOString().split('T')[0];
   };
 
-  // Menu items
-  const menuItems = {
-    starter: ['Kothimbir Vadi', 'Batata Vada', 'Sabudana Vada', 'Mutter Kachori', 'Palak Bhaji'],
-    spMain: ['Kaju Curry', 'Maswadi', 'Bharit', 'Palat Patal Bhaji', 'Bhedichi Bhaji'],
-    main: ['Zhunka', 'Pithala', 'Ravan Pithala', 'Bharali Vangi', 'Matki Usal', 'Dry Aloo', 'Jeera Aloo', 'Shev Bhaji', 'Patwadi Rassa', 'Akkha Masur', 'Dubak Vadi', 'Barbati Usal', 'Aloo Gobi Mutter'],
-    dessert: ['Basundi', 'Ukadiche Modak', 'Shirwale', 'Khawa Poli', 'Tilgul Poli', 'Shrikhanda', 'Rava Sheera', 'Shewaya Kheer', 'Puran Poli', 'Chirote', 'Gulshela'],
-    roti: ['Chapati (1 pc)', 'Puri Set (3 pc)', 'Jowar Bhakari (1 pc)'],
-    rice: ['Masala Bhat', 'Ravan Bhat', 'Bhaji Bhat', 'Tup Bhat', 'Dahi Bhat', 'Steam Rice'],
-    drink: ['Buttermilk', 'Masala Lime', 'Masala Kokum', 'Piyush', 'Solkadhi'],
-    side: ['Papad', 'Koshimbir', 'Salad'],
-    chutney: ['Peanut', 'Til', 'Lasun', 'Metkut', 'Thecha']
-  };
+  const formatPrice = (price) => `${currencySymbol}${price.toFixed(2)}`;
 
-  const packages = [
-    { id: 1, name: 'Classic', price: '₹540', desc: '1 starter • 2 mains • 1 roti • 1 rice • 1 side • 1 dessert • 2 chutneys' },
-    { id: 2, name: 'Premium', price: '₹550', desc: '2 starters • 2 mains • 1 roti • 1 rice • 1 side • 1 chutney • 1 drink' },
-    { id: 3, name: 'Special Feast', price: '₹650', desc: '2 starters • 2 mains • 1 special • 1 roti • 2 rice • 1 side • 2 desserts • 1 drink' },
-    { id: 4, name: 'Royal Feast', price: '₹750', desc: '3 starters • 2 mains • 1 special • 1 roti • 2 rice • 1 side • 2 desserts • 2 drinks', recommended: true }
-  ];
+  const estimatedTotal = useMemo(() => {
+    if (!currentPackage || !guestCount) return 0;
+    return currentPackage.pricePerPerson * parseInt(guestCount);
+  }, [currentPackage, guestCount]);
 
-  useEffect(() => {
-    fetchLocations();
-  }, []);
-
-  const fetchLocations = async () => {
-    try {
-      const response = await axios.get(`${API}/locations`);
-      setLocations(response.data);
-    } catch (error) {
-      console.error('Failed to fetch locations:', error);
-    }
-  };
-
-  const getSelectedLocation = () => {
-    return locations.find(loc => loc.id === formData.locationId);
-  };
-
-  const isPerth = () => {
-    const location = getSelectedLocation();
-    return location?.country === 'Australia';
-  };
-
-  const calculateTotal = () => {
-    if (!formData.package) return 0;
-    const pricePerGuest = isPerth() ? pricing.perth[formData.package] : pricing.india[formData.package];
-    return pricePerGuest * formData.guests;
-  };
-
-  const getCurrency = () => isPerth() ? '$' : '₹';
-
-  const handleMenuToggle = (category, item) => {
-    const current = menuSelections[category];
-    const rules = packageRules[formData.package];
-    const max = rules[category];
-
-    if (current.includes(item)) {
-      setMenuSelections({
-        ...menuSelections,
-        [category]: current.filter(i => i !== item)
-      });
-    } else {
-      if (current.length >= max) {
-        toast.error(`Maximum ${max} ${category} items allowed for this package`);
-        return;
+  const toggleSelection = (category, itemId) => {
+    setMenuSelections(prev => {
+      const current = prev[category] || [];
+      if (current.includes(itemId)) {
+        return { ...prev, [category]: current.filter(id => id !== itemId) };
       }
-      setMenuSelections({
-        ...menuSelections,
-        [category]: [...current, item]
-      });
-    }
+      const maxAllowed = currentPackage?.requirements[category] || 0;
+      if (current.length >= maxAllowed) {
+        toast.error(`Maximum ${maxAllowed} ${category} allowed for this package`);
+        return prev;
+      }
+      return { ...prev, [category]: [...current, itemId] };
+    });
   };
 
-  const getSelectionStatus = (category) => {
-    if (!formData.package) return null;
-    const rules = packageRules[formData.package];
-    const max = rules[category];
-    const current = menuSelections[category].length;
-
-    if (max === 0) return { type: 'disabled', message: 'Not included in this package' };
-    if (current === max) return { type: 'complete', message: '✓ Complete' };
-    if (current > max) return { type: 'error', message: `Remove ${current - max} items` };
-    return { type: 'pending', message: `Select ${max - current} more` };
+  const getSelectedCount = (category) => {
+    return (menuSelections[category] || []).length;
   };
 
-  const canProceed = () => {
-    if (step === 1) {
-      return formData.name && formData.phone && formData.address && 
-             formData.eventDate && formData.eventTime && 
-             formData.guests >= 20 && formData.locationId;
+  const generateGoogleMapsLink = () => {
+    if (!address) return '';
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  };
+
+  const validateSelections = () => {
+    if (!currentPackage) return { valid: false, message: 'Please select a package' };
+    
+    const requirements = currentPackage.requirements;
+    const errors = [];
+
+    Object.entries(requirements).forEach(([category, required]) => {
+      if (required > 0) {
+        const selected = getSelectedCount(category);
+        if (selected < required) {
+          errors.push(`${category}: ${selected}/${required}`);
+        }
+      }
+    });
+
+    if (errors.length > 0) {
+      return { valid: false, message: `Please complete menu selection: ${errors.join(', ')}` };
     }
-    if (step === 2) {
-      return formData.package !== null;
+
+    return { valid: true };
+  };
+
+  const generateWhatsAppMessage = () => {
+    let message = `🎊 *PURNABRAMHA CATERING INQUIRY*\n\n`;
+    message += `📍 *Center:* ${currentCenter?.displayName}\n`;
+    message += `👤 *Name:* ${name}\n`;
+    message += `📞 *Phone:* ${phone}\n`;
+    message += `🏠 *Address:* ${address}\n`;
+    if (needsDelivery) {
+      message += `🚚 *Delivery:* Required\n`;
+      message += `📍 *Maps:* ${generateGoogleMapsLink()}\n`;
     }
-    if (step === 3) {
-      // Check all menu selections meet requirements
-      const rules = packageRules[formData.package];
-      return Object.keys(rules).every(category => {
-        const required = rules[category];
-        const selected = menuSelections[category].length;
-        return selected === required;
-      });
-    }
-    return false;
+    message += `\n📅 *Event Date:* ${eventDate}\n`;
+    message += `⏰ *Event Time:* ${eventTime}\n`;
+    message += `👥 *Guests:* ${guestCount}\n`;
+    message += `🎉 *Celebration:* ${bookingRules.catering.celebrationTypes.find(c => c.id === celebrationType)?.label || 'Not specified'}\n`;
+    
+    message += `\n━━━━━━━━━━━━━━━\n`;
+    message += `*📋 PACKAGE: ${currentPackage?.name}*\n`;
+    message += `_${currentPackage?.description}_\n`;
+    message += `💰 Rate: ${formatPrice(currentPackage?.pricePerPerson || 0)}/person\n\n`;
+
+    message += `*🍽️ MENU SELECTIONS:*\n`;
+
+    const categoryLabels = {
+      starters: '🥟 Starters',
+      mains: '🍲 Main Course',
+      special: '⭐ Special Bhaji',
+      desserts: '🍮 Desserts',
+      roti: '🫓 Roti/Bhakari',
+      rice: '🍚 Rice',
+      drinks: '🥤 Drinks',
+      sides: '🥗 Sides',
+      chutney: '🌶️ Chutney'
+    };
+
+    Object.entries(menuSelections).forEach(([category, items]) => {
+      if (items.length > 0) {
+        const categoryOptions = menuOptions[category === 'mains' ? 'simpleBhaji' : category === 'special' ? 'specialBhaji' : category];
+        const itemNames = items.map(id => categoryOptions?.find(opt => opt.id === id)?.name || id);
+        message += `${categoryLabels[category] || category}: ${itemNames.join(', ')}\n`;
+      }
+    });
+
+    message += `\n━━━━━━━━━━━━━━━\n`;
+    message += `*💰 ESTIMATED TOTAL: ${formatPrice(estimatedTotal)}*\n`;
+    message += `_(${guestCount} guests × ${formatPrice(currentPackage?.pricePerPerson || 0)})_\n`;
+    message += `\n⚠️ _Final quote will be confirmed after discussion. Prices may vary based on customization._`;
+
+    return encodeURIComponent(message);
   };
 
   const handleSubmit = () => {
-    const location = getSelectedLocation();
-    const pkg = packages.find(p => p.id === formData.package);
-    
-    // Build WhatsApp message
-    const menuText = Object.keys(menuSelections).map(category => {
-      const items = menuSelections[category];
-      if (items.length === 0) return '';
-      const label = category.charAt(0).toUpperCase() + category.slice(1);
-      return `${label}: ${items.join(', ')}`;
-    }).filter(Boolean).join('\n');
+    if (!selectedCenter || !name || !phone || !address || !eventDate || !eventTime || !guestCount || !selectedPackage) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    if (parseInt(guestCount) < bookingRules.catering.minGuests) {
+      toast.error(`Minimum ${bookingRules.catering.minGuests} guests required for catering`);
+      return;
+    }
+    const validation = validateSelections();
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+    setShowReview(true);
+  };
 
-    const message = `CATERING ENQUIRY - Purnabramha
-
-Event Details:
-Name: ${formData.name}
-Phone: ${formData.phone}
-Email: ${formData.email}
-Address: ${formData.address}
-Event Date: ${formData.eventDate}
-Event Time: ${formData.eventTime}
-Guests: ${formData.guests}
-${formData.celebrationType ? `Celebration: ${formData.celebrationType}` : ''}
-Delivery Required: ${formData.deliveryRequired}
-
-Location: ${location?.name}, ${location?.city}
-
-Package Selected: ${pkg.name}
-Total Cost: ${getCurrency()}${calculateTotal()}
-
-Menu Selections:
-${menuText}
-
-Booking Date: ${new Date().toLocaleDateString()}
-    `.trim();
-
-    const whatsappUrl = `https://wa.me/${location?.whatsapp?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-    toast.success('Opening WhatsApp...');
+  const confirmBooking = () => {
+    const message = generateWhatsAppMessage();
+    const whatsappNumber = currentCenter?.whatsapp.replace(/[^0-9]/g, '');
+    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
+    toast.success('Redirecting to WhatsApp...');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cream to-white">
-      <div className="container mx-auto px-4 lg:px-8 py-12 lg:py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
-        >
-          <UtensilsCrossed className="h-16 w-16 mx-auto text-primary mb-4" />
-          <h1 className="font-playfair text-4xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight" data-testid="catering-title">
-            Catering Services
-          </h1>
-          <p className="text-lg text-foreground/70 font-manrope max-w-2xl mx-auto">
-            Make your special occasions memorable with authentic Maharashtrian catering
-          </p>
-        </motion.div>
-
-        {/* Progress Steps */}
-        <div className="flex items-center justify-center mb-12">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center">
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center font-semibold ${
-                step >= s ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {s}
-              </div>
-              {s < 3 && <div className={`h-1 w-16 mx-2 ${step > s ? 'bg-primary' : 'bg-gray-200'}`} />}
-            </div>
-          ))}
-        </div>
-
-        {/* Step 1: Event Details */}
-        {step === 1 && (
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50">
+      {/* Hero Section */}
+      <section className="relative py-16 bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white">
+        <div className="container mx-auto px-4">
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="max-w-2xl mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center max-w-3xl mx-auto"
           >
-            <Card>
-              <CardContent className="p-8">
-                <h2 className="font-playfair text-2xl font-semibold mb-6">Event Details</h2>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Select Location *</Label>
-                    <Select value={formData.locationId} onValueChange={(value) => setFormData({ ...formData, locationId: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose location" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locations.map(loc => (
-                          <SelectItem key={loc.id} value={loc.id}>{loc.name}, {loc.city}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4" data-testid="catering-title">
+              🎊 Catering Services
+            </h1>
+            <p className="text-lg text-amber-200">
+              Authentic Maharashtrian cuisine for your special occasions
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-4 text-amber-300 text-sm flex-wrap">
+              <span className="flex items-center gap-1">
+                <Users className="h-4 w-4" />
+                Min {bookingRules.catering.minGuests} guests
+              </span>
+              <span className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                Book {bookingRules.catering.minAdvanceDays}+ days ahead
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <div className="container mx-auto px-4 py-8">
+        {!showReview ? (
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Step 1: Event Details */}
+              <Card className="border-amber-200 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                    <PartyPopper className="h-5 w-5" />
+                    Step 1: Event & Contact Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Region *</Label>
+                      <Select value={selectedRegion} onValueChange={(v) => { setSelectedRegion(v); setSelectedCenter(''); setSelectedPackage(''); setMenuSelections({}); }}>
+                        <SelectTrigger data-testid="catering-region-select">
+                          <SelectValue placeholder="Select Region" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="india">🇮🇳 India</SelectItem>
+                          <SelectItem value="australia">🇦🇺 Australia</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Center *</Label>
+                      <Select value={selectedCenter} onValueChange={setSelectedCenter} disabled={!selectedRegion}>
+                        <SelectTrigger data-testid="catering-center-select">
+                          <SelectValue placeholder="Select Center" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredCenters.map(center => (
+                            <SelectItem key={center.id} value={center.id}>
+                              {center.displayName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <Label>Your Name *</Label>
                       <Input
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Enter your name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Full name"
+                        className="border-amber-200"
+                        data-testid="catering-name"
                       />
                     </div>
                     <div>
                       <Label>Phone *</Label>
                       <Input
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
-                        placeholder="10 digit number"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="Phone number"
+                        className="border-amber-200"
+                        data-testid="catering-phone"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="your@email.com"
-                    />
-                  </div>
-
-                  <div>
                     <Label>Event Address *</Label>
-                    <Textarea
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Enter complete address"
-                      rows={3}
+                    <Input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Full address of the venue"
+                      className="border-amber-200"
+                      data-testid="catering-address"
                     />
+                    {address && (
+                      <a
+                        href={generateGoogleMapsLink()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-blue-600 mt-1 hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Open in Google Maps
+                      </a>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="delivery"
+                      checked={needsDelivery}
+                      onCheckedChange={setNeedsDelivery}
+                    />
+                    <label htmlFor="delivery" className="text-sm cursor-pointer">
+                      Delivery Required (to the event venue)
+                    </label>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
                     <div>
                       <Label>Event Date *</Label>
                       <Input
                         type="date"
-                        value={formData.eventDate}
-                        onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
-                        min={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                        value={eventDate}
+                        onChange={(e) => setEventDate(e.target.value)}
+                        min={getMinDate()}
+                        max={getMaxDate()}
+                        className="border-amber-200"
+                        data-testid="catering-date"
                       />
                     </div>
                     <div>
                       <Label>Event Time *</Label>
                       <Input
                         type="time"
-                        value={formData.eventTime}
-                        onChange={(e) => setFormData({ ...formData, eventTime: e.target.value })}
+                        value={eventTime}
+                        onChange={(e) => setEventTime(e.target.value)}
+                        className="border-amber-200"
+                        data-testid="catering-time"
+                      />
+                    </div>
+                    <div>
+                      <Label>Number of Guests *</Label>
+                      <Input
+                        type="number"
+                        value={guestCount}
+                        onChange={(e) => setGuestCount(e.target.value)}
+                        min={bookingRules.catering.minGuests}
+                        className="border-amber-200"
+                        data-testid="catering-guests"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <Label>Number of Guests * (Min: 20)</Label>
-                    <Input
-                      type="number"
-                      min="20"
-                      value={formData.guests}
-                      onChange={(e) => setFormData({ ...formData, guests: parseInt(e.target.value) || 20 })}
-                    />
-                  </div>
-
-                  <div>
                     <Label>Celebration Type</Label>
-                    <Select value={formData.celebrationType} onValueChange={(value) => setFormData({ ...formData, celebrationType: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Optional" />
+                    <Select value={celebrationType} onValueChange={setCelebrationType}>
+                      <SelectTrigger data-testid="catering-celebration-select">
+                        <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Birthday">Birthday</SelectItem>
-                        <SelectItem value="Anniversary">Anniversary</SelectItem>
-                        <SelectItem value="Wedding">Wedding</SelectItem>
-                        <SelectItem value="Corporate">Corporate Event</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        {bookingRules.catering.celebrationTypes.map(type => (
+                          <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
+                  {parseInt(guestCount) >= 50 && (
+                    <div className="p-3 bg-amber-100 rounded-lg flex items-center gap-2">
+                      <Star className="h-5 w-5 text-amber-600" />
+                      <span className="text-sm text-amber-800">
+                        🎉 For larger gatherings we recommend: <strong>Royal Feast (Option 4)</strong>
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Step 2: Choose Package */}
+              <Card className="border-amber-200 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                    <ChefHat className="h-5 w-5" />
+                    Step 2: Choose Package
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <RadioGroup value={selectedPackage} onValueChange={(v) => { setSelectedPackage(v); setMenuSelections({}); }}>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {packages.map(pkg => (
+                        <div key={pkg.id}>
+                          <RadioGroupItem value={pkg.id} id={pkg.id} className="peer sr-only" />
+                          <label
+                            htmlFor={pkg.id}
+                            className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                              selectedPackage === pkg.id
+                                ? 'border-[#5c1e1e] bg-amber-50'
+                                : 'border-gray-200 hover:border-amber-300'
+                            }`}
+                            data-testid={`package-${pkg.id}`}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <h4 className="font-bold text-[#5c1e1e]">{pkg.name}</h4>
+                                {pkg.isPopular && (
+                                  <Badge className="bg-amber-500 text-xs">Most Popular</Badge>
+                                )}
+                              </div>
+                              <span className="font-bold text-lg text-[#5c1e1e]">
+                                {formatPrice(pkg.pricePerPerson)}/pp
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">{pkg.description}</p>
+                            <div className="mt-2 text-xs text-gray-500">
+                              {Object.entries(pkg.requirements)
+                                .filter(([_, v]) => v > 0)
+                                .map(([k, v]) => `${v} ${k}`)
+                                .join(' • ')}
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+
+              {/* Step 3: Menu Selection */}
+              {currentPackage && (
+                <Card className="border-amber-200 shadow-lg">
+                  <CardHeader className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-t-lg">
+                    <CardTitle className="flex items-center gap-2 text-[#5c1e1e]">
+                      <ChefHat className="h-5 w-5" />
+                      Step 3: Menu Selection
+                    </CardTitle>
+                    <CardDescription>
+                      Select items based on your package requirements
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-6">
+                    {/* Starters */}
+                    {currentPackage.requirements.starters > 0 && (
+                      <MenuSection
+                        title="🥟 Starters (2 pc each)"
+                        category="starters"
+                        options={menuOptions.starters}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.starters}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Special Bhaji */}
+                    {currentPackage.requirements.special > 0 && (
+                      <MenuSection
+                        title="⭐ Special Bhaji (80 gms)"
+                        category="special"
+                        options={menuOptions.specialBhaji}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.special}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Main Course */}
+                    {currentPackage.requirements.mains > 0 && (
+                      <MenuSection
+                        title="🍲 Simple Bhaji (80 gms)"
+                        category="mains"
+                        options={menuOptions.simpleBhaji}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.mains}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Desserts */}
+                    {currentPackage.requirements.dessert > 0 && (
+                      <MenuSection
+                        title="🍮 Desserts (80 gms)"
+                        category="desserts"
+                        options={menuOptions.desserts}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.dessert}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Roti */}
+                    {currentPackage.requirements.roti > 0 && (
+                      <MenuSection
+                        title="🫓 Roti / Bhakari"
+                        category="roti"
+                        options={menuOptions.roti}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.roti}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Rice */}
+                    {currentPackage.requirements.rice > 0 && (
+                      <MenuSection
+                        title="🍚 Rice (150 gms)"
+                        category="rice"
+                        options={menuOptions.rice}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.rice}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Drinks */}
+                    {currentPackage.requirements.drink > 0 && (
+                      <MenuSection
+                        title="🥤 Drinks (200ml)"
+                        category="drinks"
+                        options={menuOptions.drinks}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.drink}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Sides */}
+                    {currentPackage.requirements.side > 0 && (
+                      <MenuSection
+                        title="🥗 Sides"
+                        category="sides"
+                        options={menuOptions.sides}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.side}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+
+                    {/* Chutney */}
+                    {currentPackage.requirements.chutney > 0 && (
+                      <MenuSection
+                        title="🌶️ Chutney"
+                        category="chutney"
+                        options={menuOptions.chutney}
+                        selections={menuSelections}
+                        required={currentPackage.requirements.chutney}
+                        toggleSelection={toggleSelection}
+                        getSelectedCount={getSelectedCount}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Sidebar - Summary */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-24 space-y-6">
+                <Card className="border-amber-200 shadow-lg">
+                  <CardHeader className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white rounded-t-lg">
+                    <CardTitle>Booking Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-3">
+                    <div className="space-y-2 text-sm">
+                      <p><strong>Center:</strong> {currentCenter?.displayName || '—'}</p>
+                      <p><strong>Name:</strong> {name || '—'}</p>
+                      <p><strong>Phone:</strong> {phone || '—'}</p>
+                      <p><strong>Date:</strong> {eventDate || '—'}</p>
+                      <p><strong>Time:</strong> {eventTime || '—'}</p>
+                      <p><strong>Guests:</strong> {guestCount}</p>
+                      <p><strong>Package:</strong> {currentPackage?.name || '—'}</p>
+                    </div>
+
+                    {currentPackage && (
+                      <div className="border-t pt-3">
+                        <div className="flex justify-between text-sm mb-1">
+                          <span>Rate per person:</span>
+                          <span>{formatPrice(currentPackage.pricePerPerson)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-lg pt-2 border-t">
+                          <span>Estimated Total:</span>
+                          <span className="text-[#5c1e1e]">{formatPrice(estimatedTotal)}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          ({guestCount} guests × {formatPrice(currentPackage.pricePerPerson)})
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Disclaimer */}
+                <Card className="border-amber-300 bg-amber-50">
+                  <CardContent className="pt-4">
+                    <div className="flex gap-2 text-sm text-amber-800">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      <p>{bookingRules.catering.disclaimer}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Button
+                  onClick={handleSubmit}
+                  className="w-full bg-[#5c1e1e] hover:bg-[#8b2c2c] text-white py-6 text-lg"
+                  disabled={!selectedCenter || !name || !phone || !address || !eventDate || !eventTime || !selectedPackage}
+                  data-testid="catering-submit-btn"
+                >
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  Send Inquiry via WhatsApp
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Review Section */
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-2xl mx-auto"
+          >
+            <Card className="border-amber-200 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white rounded-t-lg">
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-6 w-6" />
+                  Review Your Inquiry
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Center</p>
+                    <p className="font-semibold">{currentCenter?.displayName}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Event Date</p>
+                    <p className="font-semibold">{eventDate} at {eventTime}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Name</p>
+                    <p className="font-semibold">{name}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Guests</p>
+                    <p className="font-semibold">{guestCount}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-gray-500">Address</p>
+                    <p className="font-semibold">{address}</p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <p className="font-semibold mb-2">Package: {currentPackage?.name}</p>
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Estimated Total:</span>
+                    <span className="text-[#5c1e1e]">{formatPrice(estimatedTotal)}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
                   <Button
-                    onClick={() => setStep(2)}
-                    disabled={!canProceed()}
-                    className="w-full rounded-full bg-primary text-lg py-6"
+                    variant="outline"
+                    onClick={() => setShowReview(false)}
+                    className="flex-1"
                   >
-                    Next: Select Package →
+                    Edit Inquiry
+                  </Button>
+                  <Button
+                    onClick={confirmBooking}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    data-testid="catering-confirm-btn"
+                  >
+                    <MessageCircle className="h-5 w-5 mr-2" />
+                    Confirm & Send
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
         )}
+      </div>
+    </div>
+  );
+};
 
-        {/* Step 2: Package Selection */}
-        {step === 2 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <h2 className="font-playfair text-3xl font-semibold text-center mb-8">Choose Your Package</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {packages.map((pkg) => (
-                <Card
-                  key={pkg.id}
-                  className={`cursor-pointer transition-all ${
-                    formData.package === pkg.id 
-                      ? 'border-primary border-2 shadow-lg' 
-                      : 'border-gray-200 hover:border-primary/50'
-                  } ${pkg.recommended ? 'ring-2 ring-primary/20' : ''}`}
-                  onClick={() => setFormData({ ...formData, package: pkg.id })}
-                >
-                  <CardContent className="p-6">
-                    {pkg.recommended && (
-                      <div className="bg-primary text-white text-xs font-bold px-2 py-1 rounded-full mb-2 inline-block">
-                        Most Popular
-                      </div>
-                    )}
-                    <h3 className="font-playfair text-xl font-semibold mb-2">{pkg.name}</h3>
-                    <p className="text-2xl font-bold text-primary mb-3">{pkg.price}<span className="text-sm text-foreground/60">/guest</span></p>
-                    <p className="text-sm text-foreground/70 font-manrope">{pkg.desc}</p>
-                  </CardContent>
-                </Card>
-              ))}
+const MenuSection = ({ title, category, options, selections, required, toggleSelection, getSelectedCount }) => {
+  const selected = getSelectedCount(category);
+  const isComplete = selected >= required;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-semibold text-[#5c1e1e]">{title}</h4>
+        <Badge variant={isComplete ? 'default' : 'outline'} className={isComplete ? 'bg-green-600' : ''}>
+          {selected}/{required}
+        </Badge>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {options.map(option => {
+          const isSelected = (selections[category] || []).includes(option.id);
+          return (
+            <div
+              key={option.id}
+              onClick={() => toggleSelection(category, option.id)}
+              className={`p-2 rounded-lg border cursor-pointer transition-all text-sm ${
+                isSelected
+                  ? 'border-[#5c1e1e] bg-amber-50 text-[#5c1e1e] font-medium'
+                  : 'border-gray-200 hover:border-amber-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Checkbox checked={isSelected} className="pointer-events-none" />
+                <span>{option.name}</span>
+              </div>
             </div>
-
-            {formData.package && (
-              <Card className="max-w-md mx-auto">
-                <CardContent className="p-6">
-                  <h3 className="font-playfair text-xl font-semibold mb-4">Estimate</h3>
-                  <div className="space-y-2 text-foreground/70 font-manrope">
-                    <div className="flex justify-between">
-                      <span>Package:</span>
-                      <span className="font-semibold">{packages.find(p => p.id === formData.package)?.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Guests:</span>
-                      <span className="font-semibold">{formData.guests}</span>
-                    </div>
-                    <div className="border-t pt-2 flex justify-between text-lg">
-                      <span className="font-semibold">Total:</span>
-                      <span className="font-bold text-primary">{getCurrency()}{calculateTotal()}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <div className="flex justify-center gap-4 mt-8">
-              <Button variant="outline" onClick={() => setStep(1)} className="rounded-full">
-                ← Back
-              </Button>
-              <Button
-                onClick={() => setStep(3)}
-                disabled={!canProceed()}
-                className="rounded-full bg-primary"
-              >
-                Next: Select Menu →
-              </Button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Step 3: Menu Selection */}
-        {step === 3 && formData.package && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <h2 className="font-playfair text-3xl font-semibold text-center mb-8">Customize Your Menu</h2>
-            
-            <div className="space-y-6">
-              {Object.keys(menuItems).map((category) => {
-                const status = getSelectionStatus(category);
-                const rules = packageRules[formData.package];
-                const max = rules[category];
-
-                if (max === 0) return null;
-
-                return (
-                  <Card key={category}>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-playfair text-xl font-semibold capitalize">{category}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-manrope ${
-                            status.type === 'complete' ? 'text-green-600' :
-                            status.type === 'error' ? 'text-red-600' :
-                            'text-foreground/60'
-                          }`}>
-                            {status.message}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {menuItems[category].map((item) => {
-                          const isSelected = menuSelections[category].includes(item);
-                          return (
-                            <label
-                              key={item}
-                              className={`flex items-center space-x-2 p-3 rounded-lg border cursor-pointer transition-all ${
-                                isSelected ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/50'
-                              }`}
-                            >
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => handleMenuToggle(category, item)}
-                              />
-                              <span className="text-sm font-manrope">{item}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-center gap-4 mt-8">
-              <Button variant="outline" onClick={() => setStep(2)} className="rounded-full">
-                ← Back
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!canProceed()}
-                className="rounded-full bg-primary px-8"
-              >
-                Submit Enquiry via WhatsApp
-              </Button>
-            </div>
-          </motion.div>
-        )}
+          );
+        })}
       </div>
     </div>
   );
