@@ -22,35 +22,35 @@ const Home = () => {
   const featuredDishes = [
     {
       id: 1,
-      name: "Maharashtrian Thali",
-      description: "A complete traditional meal with 12+ items",
-      price: "₹549",
-      image: "https://images.unsplash.com/photo-1601702538934-efffab67ab65?w=600&q=80",
+      name: "Kaju Curry",
+      description: "Rich cashew curry with aromatic spices",
+      price: "₹479",
+      image: "https://lh3.googleusercontent.com/d/1rYkehXEPrE9I4jf1QnaICJscFd3Vso2v",
       tag: "Bestseller"
     },
     {
       id: 2,
-      name: "Vada Pav",
-      description: "Mumbai's iconic street food, made authentic",
-      price: "₹55",
-      image: "https://images.unsplash.com/photo-1750767396956-da1796f33ad1?w=600&q=80",
+      name: "Vangyacha Bharit",
+      description: "Smoky roasted eggplant mash",
+      price: "₹379",
+      image: "https://lh3.googleusercontent.com/d/1RwL7pG0gZa6VlRY_hdPJAUfXNKCezU2V",
       tag: "Popular"
     },
     {
       id: 3,
-      name: "Misal Pav",
-      description: "Spicy sprouted curry with bread",
-      price: "₹199",
-      image: "https://images.unsplash.com/photo-1750767397012-3413ba4fdbc7?w=600&q=80",
+      name: "Maswadi Rassa",
+      description: "Traditional spicy curry with maswadi",
+      price: "₹399",
+      image: "https://lh3.googleusercontent.com/d/168pHmUxU4vyqA4DrplT0_9R_DDK9eK0c",
       tag: "Spicy"
     },
     {
       id: 4,
-      name: "Puran Poli",
-      description: "Sweet flatbread with jaggery filling",
-      price: "₹119",
-      image: "https://images.unsplash.com/photo-1725167260486-255a40ce00e3?w=600&q=80",
-      tag: "Sweet"
+      name: "Patodi Rassa",
+      description: "Gram flour dumplings in tangy curry",
+      price: "₹399",
+      image: "https://lh3.googleusercontent.com/d/1VYDK8vRc_hVR4jn1CsabdBL0fFF4EWaH",
+      tag: "Chef's Special"
     }
   ];
 
@@ -156,7 +156,7 @@ const Home = () => {
           <div 
             className="absolute inset-0 bg-cover bg-center bg-no-repeat"
             style={{
-              backgroundImage: `url(${heroData?.image_url || 'https://images.unsplash.com/photo-1765360773028-6affda725695?w=1920&q=80'})`
+              backgroundImage: `url(${heroData?.image_url || 'https://lh3.googleusercontent.com/d/1IiJw4VxwbygR2WXSymVgd9S7FoIfrdil'})`
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
