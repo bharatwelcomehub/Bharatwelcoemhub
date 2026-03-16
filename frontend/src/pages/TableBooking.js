@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, Users, MapPin, Phone, MessageCircle, ChefHat, Leaf, Plus, Minus, ShoppingCart, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,11 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import axios from 'axios';
 
 import centersData from '@/config/centers.json';
 import bookingRules from '@/config/booking-rules.json';
 import indiaMenus from '@/config/menus-india.json';
 import perthMenus from '@/config/menus-perth.json';
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 const TableBooking = () => {
   const [selectedRegion, setSelectedRegion] = useState('');
@@ -29,6 +32,20 @@ const TableBooking = () => {
   const [specialRequests, setSpecialRequests] = useState('');
   const [cart, setCart] = useState({});
   const [showReview, setShowReview] = useState(false);
+  const [dbMenuItems, setDbMenuItems] = useState([]);
+
+  // Fetch menu from database
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        const response = await axios.get(`${API}/api/menu`);
+        setDbMenuItems(response.data);
+      } catch (err) {
+        console.log('Using fallback JSON menu');
+      }
+    };
+    fetchMenu();
+  }, []);
 
   const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
 
@@ -41,10 +58,48 @@ const TableBooking = () => {
     return allCenters.find(c => c.id === selectedCenter);
   }, [selectedCenter, allCenters]);
 
+  // Use database menu if available, otherwise fallback to JSON
   const menuData = useMemo(() => {
     if (!currentCenter) return null;
-    return currentCenter.country === 'Australia' ? perthMenus : indiaMenus;
-  }, [currentCenter]);
+    const isAustralia = currentCenter.country === 'Australia';
+    const jsonFallback = isAustralia ? perthMenus : indiaMenus;
+
+    if (dbMenuItems.length > 0) {
+      const categoryMap = {};
+      dbMenuItems.forEach(item => {
+        if (!item.is_available) return;
+        const price = isAustralia ? (item.price_aud || 0) : (item.price_inr || item.price || 0);
+        if (price <= 0) return;
+
+        if (!categoryMap[item.category]) {
+          categoryMap[item.category] = {
+            id: item.category.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            name: item.category,
+            items: []
+          };
+        }
+        categoryMap[item.category].items.push({
+          id: item.id,
+          name: item.name,
+          price: price,
+          isVeg: item.is_veg ?? true,
+          description: item.description,
+          image_url: item.image_url
+        });
+      });
+
+      const categories = Object.values(categoryMap);
+      if (categories.length > 0) {
+        return {
+          currency: isAustralia ? 'AUD' : 'INR',
+          currencySymbol: isAustralia ? '$' : '₹',
+          categories
+        };
+      }
+    }
+
+    return jsonFallback;
+  }, [currentCenter, dbMenuItems]);
 
   const showMenuSection = serviceType === 'pickup' || currentCenter?.country === 'Australia';
 

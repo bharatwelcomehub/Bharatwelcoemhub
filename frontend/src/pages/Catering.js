@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, MapPin, Phone, MessageCircle, Users, Star, AlertCircle, CheckCircle, ChefHat, PartyPopper, Clock, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,10 +10,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
+import axios from 'axios';
 
 import centersData from '@/config/centers.json';
 import cateringPackages from '@/config/catering-packages.json';
 import bookingRules from '@/config/booking-rules.json';
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 const Catering = () => {
   const [selectedRegion, setSelectedRegion] = useState('');
@@ -29,6 +32,7 @@ const Catering = () => {
   const [selectedPackage, setSelectedPackage] = useState('');
   const [menuSelections, setMenuSelections] = useState({});
   const [showReview, setShowReview] = useState(false);
+  const [dbMenuItems, setDbMenuItems] = useState([]);
   
   // Addon services state
   const [needsCrockery, setNeedsCrockery] = useState(false);
@@ -36,6 +40,19 @@ const Catering = () => {
   const [needsStaff, setNeedsStaff] = useState(false);
   const [staffCount, setStaffCount] = useState(2);
   const [staffHours, setStaffHours] = useState(2);
+
+  // Fetch menu from database for dynamic options
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        const response = await axios.get(`${API}/api/menu`);
+        setDbMenuItems(response.data);
+      } catch (err) {
+        console.log('Using fallback JSON menu options');
+      }
+    };
+    fetchMenu();
+  }, []);
 
   const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
 
