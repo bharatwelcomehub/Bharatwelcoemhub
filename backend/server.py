@@ -655,6 +655,210 @@ async def get_catering_requests(current_user: dict = Depends(get_current_user)):
             req['created_at'] = datetime.fromisoformat(req['created_at'])
     return [CateringRequest(**req) for req in requests]
 
+# ===================== TIFFIN CONFIG API =====================
+
+class TiffinItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = ""
+    price_inr: float
+    price_aud: float
+    category: str  # lunch_box, heavy_brunch, drink_addon
+    is_available: bool = True
+    image_url: Optional[str] = ""
+
+class TiffinConfig(BaseModel):
+    unlimited_breakfast_price_inr: float = 299
+    unlimited_breakfast_price_aud: float = 35
+    unlimited_breakfast_description: str = "Unlimited traditional Maharashtrian breakfast buffet"
+    unlimited_breakfast_timings: str = "8:00 AM - 11:00 AM"
+    unlimited_breakfast_days: List[str] = ["Saturday", "Sunday"]
+
+@api_router.get("/tiffin-items")
+async def get_tiffin_items():
+    items = await db.tiffin_items.find({"is_available": True}, {"_id": 0}).to_list(500)
+    return items
+
+@api_router.get("/admin/tiffin-items")
+async def get_admin_tiffin_items(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    items = await db.tiffin_items.find({}, {"_id": 0}).to_list(500)
+    return items
+
+@api_router.post("/admin/tiffin-items")
+async def create_tiffin_item(item: TiffinItem, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    item_dict = item.model_dump()
+    await db.tiffin_items.insert_one(item_dict)
+    return {"message": "Tiffin item created", "item": item_dict}
+
+@api_router.put("/admin/tiffin-items/{item_id}")
+async def update_tiffin_item(item_id: str, item: TiffinItem, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    item_dict = item.model_dump()
+    item_dict['id'] = item_id
+    result = await db.tiffin_items.update_one({"id": item_id}, {"$set": item_dict})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Tiffin item updated"}
+
+@api_router.delete("/admin/tiffin-items/{item_id}")
+async def delete_tiffin_item(item_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = await db.tiffin_items.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Tiffin item deleted"}
+
+@api_router.get("/tiffin-config")
+async def get_tiffin_config():
+    config = await db.tiffin_config.find_one({}, {"_id": 0})
+    if not config:
+        # Return default config
+        return {
+            "unlimited_breakfast_price_inr": 299,
+            "unlimited_breakfast_price_aud": 35,
+            "unlimited_breakfast_description": "Unlimited traditional Maharashtrian breakfast buffet",
+            "unlimited_breakfast_timings": "8:00 AM - 11:00 AM",
+            "unlimited_breakfast_days": ["Saturday", "Sunday"]
+        }
+    return config
+
+@api_router.put("/admin/tiffin-config")
+async def update_tiffin_config(config: TiffinConfig, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    config_dict = config.model_dump()
+    await db.tiffin_config.update_one({}, {"$set": config_dict}, upsert=True)
+    return {"message": "Tiffin config updated"}
+
+# ===================== FESTIVAL THEME API =====================
+
+class FestivalTheme(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    month: int  # 1-12
+    name: str  # Festival name
+    description: Optional[str] = ""
+    primary_color: str = "#FF6B00"  # Orange (default)
+    secondary_color: str = "#FFA500"
+    accent_color: str = "#FFD700"
+    banner_image_url: Optional[str] = ""
+    greeting_text: str = ""
+    is_active: bool = False
+    start_date: Optional[str] = None  # e.g., "2025-03-21"
+    end_date: Optional[str] = None
+
+# Pre-defined Maharashtrian/Indian festivals
+FESTIVAL_PRESETS = {
+    1: {"name": "Makar Sankranti", "primary_color": "#FF6B00", "secondary_color": "#FFA500", "accent_color": "#FFEB3B", "greeting_text": "तिळगुळ घ्या गोड गोड बोला!"},
+    2: {"name": "Maha Shivaratri", "primary_color": "#3F51B5", "secondary_color": "#7986CB", "accent_color": "#C5CAE9", "greeting_text": "हर हर महादेव!"},
+    3: {"name": "Gudhi Padwa / Ugadi", "primary_color": "#FF9800", "secondary_color": "#FFB74D", "accent_color": "#FFF59D", "greeting_text": "गुढीपाडव्याच्या हार्दिक शुभेच्छा! नववर्षाच्या शुभेच्छा!"},
+    4: {"name": "Hanuman Jayanti", "primary_color": "#F44336", "secondary_color": "#FF8A80", "accent_color": "#FFCDD2", "greeting_text": "जय श्री राम! जय हनुमान!"},
+    5: {"name": "Buddha Purnima", "primary_color": "#9C27B0", "secondary_color": "#CE93D8", "accent_color": "#E1BEE7", "greeting_text": "बुद्धं शरणं गच्छामि"},
+    6: {"name": "Vat Purnima", "primary_color": "#4CAF50", "secondary_color": "#81C784", "accent_color": "#C8E6C9", "greeting_text": "वटपौर्णिमेच्या शुभेच्छा!"},
+    7: {"name": "Guru Purnima", "primary_color": "#FF5722", "secondary_color": "#FF8A65", "accent_color": "#FFCCBC", "greeting_text": "गुरुर्ब्रह्मा गुरुर्विष्णु"},
+    8: {"name": "Janmashtami / Gokulashtami", "primary_color": "#2196F3", "secondary_color": "#64B5F6", "accent_color": "#BBDEFB", "greeting_text": "गोविंदा आला रे!"},
+    9: {"name": "Ganesh Chaturthi", "primary_color": "#FF6B00", "secondary_color": "#FF9800", "accent_color": "#FFE082", "greeting_text": "गणपती बाप्पा मोरया!"},
+    10: {"name": "Navratri / Dasara", "primary_color": "#E91E63", "secondary_color": "#F48FB1", "accent_color": "#F8BBD9", "greeting_text": "नवरात्रीच्या शुभेच्छा!"},
+    11: {"name": "Diwali", "primary_color": "#FFC107", "secondary_color": "#FFEB3B", "accent_color": "#FFF9C4", "greeting_text": "दीपावलीच्या हार्दिक शुभेच्छा! 🪔"},
+    12: {"name": "Christmas / New Year", "primary_color": "#D32F2F", "secondary_color": "#4CAF50", "accent_color": "#FFEB3B", "greeting_text": "Merry Christmas & Happy New Year!"}
+}
+
+@api_router.get("/festival-theme")
+async def get_active_festival_theme():
+    """Get the currently active festival theme for the website"""
+    # Check for active theme
+    theme = await db.festival_themes.find_one({"is_active": True}, {"_id": 0})
+    if theme:
+        return theme
+    
+    # Check if any theme matches current month
+    from datetime import datetime
+    current_month = datetime.now().month
+    month_theme = await db.festival_themes.find_one({"month": current_month}, {"_id": 0})
+    if month_theme:
+        return month_theme
+    
+    # Return default (no festival)
+    return {
+        "id": "default",
+        "month": 0,
+        "name": "",
+        "is_active": False,
+        "primary_color": "#FF6B00",
+        "secondary_color": "#FFA500",
+        "accent_color": "#FFD700"
+    }
+
+@api_router.get("/admin/festival-themes")
+async def get_all_festival_themes(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get all festival themes for admin management"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    themes = await db.festival_themes.find({}, {"_id": 0}).to_list(20)
+    
+    # If no themes exist, initialize with presets
+    if not themes:
+        themes = []
+        for month, preset in FESTIVAL_PRESETS.items():
+            theme = {
+                "id": str(uuid.uuid4()),
+                "month": month,
+                "name": preset["name"],
+                "description": "",
+                "primary_color": preset["primary_color"],
+                "secondary_color": preset["secondary_color"],
+                "accent_color": preset["accent_color"],
+                "greeting_text": preset["greeting_text"],
+                "banner_image_url": "",
+                "is_active": False
+            }
+            await db.festival_themes.insert_one({**theme})  # Insert a copy to avoid _id mutation
+            themes.append(theme)
+    
+    return sorted(themes, key=lambda x: x.get("month", 0))
+
+@api_router.put("/admin/festival-themes/{theme_id}")
+async def update_festival_theme(theme_id: str, theme_data: dict, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Update a festival theme"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # If setting as active, deactivate others
+    if theme_data.get("is_active"):
+        await db.festival_themes.update_many({}, {"$set": {"is_active": False}})
+    
+    await db.festival_themes.update_one({"id": theme_id}, {"$set": theme_data})
+    updated = await db.festival_themes.find_one({"id": theme_id}, {"_id": 0})
+    return updated
+
+@api_router.post("/admin/festival-themes")
+async def create_festival_theme(theme_data: dict, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Create a new festival theme"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    theme_data["id"] = str(uuid.uuid4())
+    if theme_data.get("is_active"):
+        await db.festival_themes.update_many({}, {"$set": {"is_active": False}})
+    
+    await db.festival_themes.insert_one({**theme_data})  # Insert a copy
+    return theme_data
+
+@api_router.delete("/admin/festival-themes/{theme_id}")
+async def delete_festival_theme(theme_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Delete a festival theme"""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    await db.festival_themes.delete_one({"id": theme_id})
+    return {"message": "Festival theme deleted"}
+
 app.include_router(api_router)
 
 app.add_middleware(

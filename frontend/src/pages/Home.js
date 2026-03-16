@@ -18,6 +18,7 @@ const Home = () => {
   const [featuredItems, setFeaturedItems] = useState([]);
   const [locations, setLocations] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [festivalTheme, setFestivalTheme] = useState(null);
 
   const featuredDishes = [
     {
@@ -120,6 +121,7 @@ const Home = () => {
   useEffect(() => {
     fetchHeroData();
     fetchLocations();
+    fetchFestivalTheme();
   }, []);
 
   useEffect(() => {
@@ -147,8 +149,83 @@ const Home = () => {
     }
   };
 
+  const fetchFestivalTheme = async () => {
+    try {
+      const response = await axios.get(`${API}/api/festival-theme`);
+      if (response.data && response.data.is_active) {
+        setFestivalTheme(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch festival theme');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#faf8f5]">
+      {/* Festival Theme Banner */}
+      {festivalTheme && festivalTheme.is_active && (
+        <motion.div
+          initial={{ y: -100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, ${festivalTheme.primary_color}, ${festivalTheme.secondary_color}, ${festivalTheme.accent_color})`
+          }}
+        >
+          {/* Decorative patterns */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 left-0 w-full h-full" 
+              style={{
+                backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,0.1) 35px, rgba(255,255,255,0.1) 70px)`
+              }}
+            />
+          </div>
+          
+          {/* Floating decorations */}
+          <motion.div
+            className="absolute left-10 top-1/2 -translate-y-1/2 text-4xl"
+            animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
+            transition={{ duration: 3, repeat: Infinity }}
+          >
+            ✨
+          </motion.div>
+          <motion.div
+            className="absolute right-10 top-1/2 -translate-y-1/2 text-4xl"
+            animate={{ rotate: [0, -10, 10, 0], scale: [1, 1.1, 1] }}
+            transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
+          >
+            🎊
+          </motion.div>
+
+          <div className="container mx-auto px-4 py-4 text-center relative z-10">
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className="flex items-center justify-center gap-3 flex-wrap"
+            >
+              <span className="text-2xl md:text-3xl">🪔</span>
+              <div>
+                <h2 className="text-white font-bold text-lg md:text-xl tracking-wide drop-shadow-lg">
+                  {festivalTheme.name}
+                </h2>
+                {festivalTheme.greeting_text && (
+                  <p className="text-white/90 text-sm md:text-base font-medium">
+                    {festivalTheme.greeting_text}
+                  </p>
+                )}
+              </div>
+              <span className="text-2xl md:text-3xl">🪔</span>
+            </motion.div>
+          </div>
+
+          {/* Bottom wave decoration */}
+          <svg className="absolute bottom-0 left-0 w-full" height="6" viewBox="0 0 1200 6" preserveAspectRatio="none">
+            <path d="M0,6 C300,0 600,6 900,0 C1050,3 1200,6 1200,6 L0,6 Z" fill="rgba(250,248,245,0.3)" />
+          </svg>
+        </motion.div>
+      )}
+
       {/* Hero Section - Full Screen with Video/Image Background */}
       <section className="relative h-screen min-h-[700px] overflow-hidden">
         {/* Background */}

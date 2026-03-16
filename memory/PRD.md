@@ -8,30 +8,47 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
 
-## ✅ Completed Features
+## Admin Credentials
+- **Email**: PBadmin@purnabramha.com
+- **Password**: PB22052012
+
+## Completed Features
 
 ### Core Features
 - [x] Full-stack app with React + FastAPI + MongoDB
-- [x] Dual currency menu (₹ INR / $ AUD)
+- [x] Dual currency menu (INR / AUD)
 - [x] Customer authentication (Email/Password + Google OAuth)
 - [x] PWA support for mobile install
 
 ### Admin Panel (`/admin`)
-- [x] Menu CRUD (name, description, category, prices, images, availability)
-- [x] Home banner management
-- [x] Location management
-- [x] Video management
-- **Login**: admin@purnabramha.com / admin123
+- [x] **Home Banner** - Manage hero images
+- [x] **Festivals** - 12-month festival theme management with:
+  - Gudhi Padwa/Ugadi (March 21) - Maharashtra New Year
+  - Makar Sankranti, Maha Shivaratri, Hanuman Jayanti, etc.
+  - Custom colors (primary, secondary, accent)
+  - Marathi greetings
+  - One-click activate/deactivate
+- [x] **Menu CRUD** (173+ items) - name, description, category, prices, images
+- [x] **Tiffin Management** - Lunch boxes, brunch items, drink add-ons
+- [x] **Locations** (8 centers) - Full CRUD
+- [x] **Videos** - Video/reels management
+
+### Festival Theme Feature (NEW)
+- [x] Pre-configured 12 Maharashtrian/Indian festivals
+- [x] Automatic festival banner on homepage when active
+- [x] Customizable colors, greetings, and banner images
+- [x] Admin can activate any month's festival theme
+- [x] Festival greeting in Marathi (e.g., "गुढीपाडव्याच्या हार्दिक शुभेच्छा!")
 
 ### Modern Luxe Homepage
 - [x] Full-screen hero with authentic Purnabramha food photos
+- [x] **Festival Banner** - Shows active festival theme at top
 - [x] Stats: 8+ Locations, 50K+ Customers, 150+ Items
 - [x] 4 Service cards (Dine In, Pickup, Tiffin, Catering)
 - [x] Featured dishes carousel with your photos
 - [x] Unlimited Breakfast offer banner
 - [x] Testimonials slider
 - [x] Locations grid
-- [x] Multiple CTAs
 
 ### Table Booking (`/table-booking`)
 - [x] Region/Center selection (India/Australia)
@@ -43,8 +60,8 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 
 ### Tiffin Booking (`/tiffin`)
 - [x] Weekly lunch box subscriptions
-- [x] Heavy brunch with drink addons
-- [x] **Unlimited Breakfast**: ₹299 (India) / $35 (Perth)
+- [x] Heavy brunch with drink add-ons
+- [x] **Unlimited Breakfast**: 299 INR (India) / $35 (Perth)
 - [x] Perth blackout dates (Dec 15 - Jan 10)
 - [x] GST calculation for India (5%)
 
@@ -54,19 +71,15 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 - [x] Menu from database with fallback to JSON
 - [x] Category tabs + search
 - [x] Cart management
-- [x] Minimum order validation (₹200 / $20)
+- [x] Minimum order validation (200 INR / $20)
 
 ### Catering Booking (`/catering`)
-- [x] 4 Packages: Classic (₹450), Premium (₹600), Special (₹750), Royal Feast (₹950)
+- [x] 4 Packages: Classic (450), Premium (600), Special (750), Royal Feast (950)
 - [x] Menu selection per package requirements
 - [x] Google Maps link generation
-- [x] **NEW: Addon Services**
-  - 🍽️ **Crockery & Cutlery Rental**: ₹3,000/hr (India) / $200/hr (Perth)
-    - Plates, Bowls, Spoons, Serving Dishes
-    - Return by 9 AM next morning
-    - No cleaning needed
-    - Closed Tuesdays
-  - 👨‍🍳 **Service Staff**: ₹300/person/hr (India) / $50/person/hr (Perth)
+- [x] **Addon Services**
+  - Crockery & Cutlery Rental: 3,000/hr (India) / $200/hr (Perth)
+  - Service Staff: 300/person/hr (India) / $50/person/hr (Perth)
 
 ## Center WhatsApp Numbers
 | Center | WhatsApp |
@@ -80,7 +93,7 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 | Kalyan Mumbai | 8792887442 |
 | Perth Australia | +61 401 832 922 |
 
-## Your Google Drive Images (Used)
+## Your Google Drive Images (In Use)
 - Hero: `1IiJw4VxwbygR2WXSymVgd9S7FoIfrdil`
 - Kaju Curry: `1rYkehXEPrE9I4jf1QnaICJscFd3Vso2v`
 - Bharit: `1RwL7pG0gZa6VlRY_hdPJAUfXNKCezU2V`
@@ -89,8 +102,26 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 
 URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 
-## 📋 Backlog
+## API Endpoints
+
+### Public
+- `GET /api/festival-theme` - Get active festival theme
+- `GET /api/hero-image` - Get active homepage banner
+- `GET /api/menu` - Get menu items
+- `GET /api/locations` - Get all locations
+- `GET /api/tiffin-items` - Get tiffin menu items
+- `GET /api/tiffin-config` - Get unlimited breakfast config
+
+### Admin
+- `GET/POST/PUT/DELETE /api/admin/festival-themes` - Festival CRUD
+- `GET/POST/PUT/DELETE /api/admin/menu` - Menu CRUD
+- `GET/POST/PUT/DELETE /api/admin/tiffin-items` - Tiffin items CRUD
+- `PUT /api/admin/tiffin-config` - Update breakfast config
+- `GET/POST/PUT/DELETE /api/admin/hero-images` - Banner CRUD
+- `GET/POST/PUT /api/admin/locations` - Location CRUD
+
+## Backlog
 - [ ] Payment Integration (Razorpay/Stripe)
-- [ ] More Google Drive photos integration
 - [ ] Push notifications
-- [ ] Order history
+- [ ] Order history dashboard
+- [ ] Multi-language support

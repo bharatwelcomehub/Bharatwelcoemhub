@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -80,6 +80,54 @@ const Admin = () => {
     category: 'reels'
   });
 
+  // Tiffin state
+  const [tiffinItems, setTiffinItems] = useState([]);
+  const [tiffinConfig, setTiffinConfigState] = useState({
+    unlimited_breakfast_price_inr: 299,
+    unlimited_breakfast_price_aud: 35,
+    unlimited_breakfast_description: 'Unlimited traditional Maharashtrian breakfast buffet',
+    unlimited_breakfast_timings: '8:00 AM - 11:00 AM',
+    unlimited_breakfast_days: ['Saturday', 'Sunday']
+  });
+  const [tiffinDialogOpen, setTiffinDialogOpen] = useState(false);
+  const [editingTiffinItem, setEditingTiffinItem] = useState(null);
+  const [tiffinForm, setTiffinForm] = useState({
+    name: '',
+    description: '',
+    price_inr: '',
+    price_aud: '',
+    category: 'lunch_box',
+    is_available: true,
+    image_url: ''
+  });
+
+  const tiffinCategories = [
+    { id: 'lunch_box', label: 'Lunch Box Options' },
+    { id: 'heavy_brunch', label: 'Heavy Brunch Items' },
+    { id: 'drink_addon', label: 'Drink Add-ons' }
+  ];
+
+  // Festival themes state
+  const [festivalThemes, setFestivalThemes] = useState([]);
+  const [festivalDialogOpen, setFestivalDialogOpen] = useState(false);
+  const [editingFestival, setEditingFestival] = useState(null);
+  const [festivalForm, setFestivalForm] = useState({
+    month: 1,
+    name: '',
+    description: '',
+    primary_color: '#FF6B00',
+    secondary_color: '#FFA500',
+    accent_color: '#FFD700',
+    greeting_text: '',
+    banner_image_url: '',
+    is_active: false
+  });
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
   // Get fresh token
   const getToken = () => localStorage.getItem('token') || token;
 
@@ -96,6 +144,9 @@ const Admin = () => {
       fetchMenuItems();
       fetchLocations();
       fetchVideos();
+      fetchTiffinItems();
+      fetchTiffinConfig();
+      fetchFestivalThemes();
     }
   }, [token]);
 
@@ -110,6 +161,9 @@ const Admin = () => {
         fetchMenuItems();
         fetchLocations();
         fetchVideos();
+        fetchTiffinItems();
+        fetchTiffinConfig();
+        fetchFestivalThemes();
       }, 100);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
@@ -439,6 +493,219 @@ const Admin = () => {
     }
   };
 
+  // Tiffin CRUD functions
+  const fetchTiffinItems = async () => {
+    const currentToken = getToken();
+    if (!currentToken) return;
+    try {
+      const response = await axios.get(`${API}/admin/tiffin-items`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      setTiffinItems(response.data);
+    } catch (error) {
+      console.error('Failed to fetch tiffin items:', error);
+    }
+  };
+
+  const fetchTiffinConfig = async () => {
+    try {
+      const response = await axios.get(`${API}/tiffin-config`);
+      setTiffinConfigState(response.data);
+    } catch (error) {
+      console.error('Failed to fetch tiffin config:', error);
+    }
+  };
+
+  const handleTiffinSubmit = async (e) => {
+    e.preventDefault();
+    const currentToken = getToken();
+    const submitData = {
+      ...tiffinForm,
+      price_inr: parseFloat(tiffinForm.price_inr) || 0,
+      price_aud: parseFloat(tiffinForm.price_aud) || 0
+    };
+
+    try {
+      if (editingTiffinItem) {
+        await axios.put(
+          `${API}/admin/tiffin-items/${editingTiffinItem.id}`,
+          submitData,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Tiffin item updated!');
+      } else {
+        await axios.post(
+          `${API}/admin/tiffin-items`,
+          submitData,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Tiffin item added!');
+      }
+      setTiffinDialogOpen(false);
+      resetTiffinForm();
+      fetchTiffinItems();
+    } catch (error) {
+      toast.error('Operation failed');
+    }
+  };
+
+  const handleDeleteTiffinItem = async (id) => {
+    if (!window.confirm('Delete this tiffin item?')) return;
+    const currentToken = getToken();
+    try {
+      await axios.delete(`${API}/admin/tiffin-items/${id}`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Item deleted');
+      fetchTiffinItems();
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
+  };
+
+  const handleEditTiffinItem = (item) => {
+    setEditingTiffinItem(item);
+    setTiffinForm({
+      name: item.name,
+      description: item.description || '',
+      price_inr: item.price_inr || '',
+      price_aud: item.price_aud || '',
+      category: item.category,
+      is_available: item.is_available,
+      image_url: item.image_url || ''
+    });
+    setTiffinDialogOpen(true);
+  };
+
+  const resetTiffinForm = () => {
+    setEditingTiffinItem(null);
+    setTiffinForm({
+      name: '',
+      description: '',
+      price_inr: '',
+      price_aud: '',
+      category: 'lunch_box',
+      is_available: true,
+      image_url: ''
+    });
+  };
+
+  const handleTiffinConfigSave = async () => {
+    const currentToken = getToken();
+    try {
+      await axios.put(
+        `${API}/admin/tiffin-config`,
+        tiffinConfig,
+        { headers: { Authorization: `Bearer ${currentToken}` } }
+      );
+      toast.success('Tiffin config saved!');
+    } catch (error) {
+      toast.error('Failed to save config');
+    }
+  };
+
+  // Festival Theme CRUD functions
+  const fetchFestivalThemes = async () => {
+    const currentToken = getToken();
+    if (!currentToken) return;
+    try {
+      const response = await axios.get(`${API}/admin/festival-themes`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      setFestivalThemes(response.data);
+    } catch (error) {
+      console.error('Failed to fetch festival themes:', error);
+    }
+  };
+
+  const handleFestivalSubmit = async (e) => {
+    e.preventDefault();
+    const currentToken = getToken();
+    try {
+      if (editingFestival) {
+        await axios.put(
+          `${API}/admin/festival-themes/${editingFestival.id}`,
+          festivalForm,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Festival theme updated!');
+      } else {
+        await axios.post(
+          `${API}/admin/festival-themes`,
+          festivalForm,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Festival theme created!');
+      }
+      setFestivalDialogOpen(false);
+      resetFestivalForm();
+      fetchFestivalThemes();
+    } catch (error) {
+      toast.error('Operation failed');
+    }
+  };
+
+  const handleActivateFestival = async (themeId) => {
+    const currentToken = getToken();
+    try {
+      await axios.put(
+        `${API}/admin/festival-themes/${themeId}`,
+        { is_active: true },
+        { headers: { Authorization: `Bearer ${currentToken}` } }
+      );
+      toast.success('Festival theme activated! 🎉');
+      fetchFestivalThemes();
+    } catch (error) {
+      toast.error('Failed to activate');
+    }
+  };
+
+  const handleDeactivateFestival = async (themeId) => {
+    const currentToken = getToken();
+    try {
+      await axios.put(
+        `${API}/admin/festival-themes/${themeId}`,
+        { is_active: false },
+        { headers: { Authorization: `Bearer ${currentToken}` } }
+      );
+      toast.success('Festival theme deactivated');
+      fetchFestivalThemes();
+    } catch (error) {
+      toast.error('Failed to deactivate');
+    }
+  };
+
+  const handleEditFestival = (theme) => {
+    setEditingFestival(theme);
+    setFestivalForm({
+      month: theme.month,
+      name: theme.name,
+      description: theme.description || '',
+      primary_color: theme.primary_color || '#FF6B00',
+      secondary_color: theme.secondary_color || '#FFA500',
+      accent_color: theme.accent_color || '#FFD700',
+      greeting_text: theme.greeting_text || '',
+      banner_image_url: theme.banner_image_url || '',
+      is_active: theme.is_active || false
+    });
+    setFestivalDialogOpen(true);
+  };
+
+  const resetFestivalForm = () => {
+    setEditingFestival(null);
+    setFestivalForm({
+      month: 1,
+      name: '',
+      description: '',
+      primary_color: '#FF6B00',
+      secondary_color: '#FFA500',
+      accent_color: '#FFD700',
+      greeting_text: '',
+      banner_image_url: '',
+      is_active: false
+    });
+  };
+
   // Check if logged in
   const isLoggedIn = !!getToken();
 
@@ -500,8 +767,8 @@ const Admin = () => {
               <div className="mt-4 p-3 bg-[hsl(45,80%,95%)] rounded-lg">
                 <p className="text-xs text-foreground/60 font-manrope">
                   <strong>Admin Credentials:</strong><br />
-                  Email: admin@purnabramha.com<br />
-                  Password: admin123
+                  Email: PBadmin@purnabramha.com<br />
+                  Password: PB22052012
                 </p>
               </div>
             </CardContent>
@@ -534,14 +801,22 @@ const Admin = () => {
         </motion.div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 bg-white border border-[hsl(30,30%,88%)]">
+          <TabsList className="mb-6 bg-white border border-[hsl(30,30%,88%)] flex-wrap">
             <TabsTrigger value="banner" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Home Banner
             </TabsTrigger>
+            <TabsTrigger value="festival" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              Festivals
+            </TabsTrigger>
             <TabsTrigger value="menu" className="flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4" />
               Menu ({menuItems.length})
+            </TabsTrigger>
+            <TabsTrigger value="tiffin" className="flex items-center gap-2">
+              <UtensilsCrossed className="h-4 w-4" />
+              Tiffin ({tiffinItems.length})
             </TabsTrigger>
             <TabsTrigger value="locations" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
@@ -654,6 +929,126 @@ const Admin = () => {
                 </ol>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* FESTIVAL THEMES TAB */}
+          <TabsContent value="festival">
+            <div className="space-y-6">
+              {/* Info Banner */}
+              <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="h-6 w-6 text-orange-500 mt-0.5" />
+                    <div>
+                      <h3 className="font-semibold text-orange-800">Festival Theme Management</h3>
+                      <p className="text-sm text-orange-700 mt-1">
+                        Set up festival themes for each month. The active theme will be displayed across your website with special colors, 
+                        greetings, and decorations. <strong>Gudhi Padwa / Ugadi</strong> is set for March 21st - Maharashtra New Year!
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Festival Grid */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {festivalThemes.map((theme) => (
+                  <Card 
+                    key={theme.id} 
+                    className={`border-2 overflow-hidden transition-all ${theme.is_active ? 'ring-2 ring-offset-2 ring-green-500 border-green-300' : 'border-gray-200'}`}
+                  >
+                    <div 
+                      className="h-3"
+                      style={{ background: `linear-gradient(90deg, ${theme.primary_color}, ${theme.secondary_color}, ${theme.accent_color})` }}
+                    />
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-500" />
+                          {monthNames[theme.month - 1]}
+                        </CardTitle>
+                        {theme.is_active && (
+                          <Badge className="bg-green-500">Active</Badge>
+                        )}
+                      </div>
+                      <p className="font-semibold text-primary">{theme.name}</p>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      {theme.greeting_text && (
+                        <p className="text-sm text-gray-600 mb-3 italic">"{theme.greeting_text}"</p>
+                      )}
+                      <div className="flex gap-2 mb-3">
+                        <div 
+                          className="w-8 h-8 rounded-full border-2 border-white shadow"
+                          style={{ backgroundColor: theme.primary_color }}
+                          title="Primary Color"
+                        />
+                        <div 
+                          className="w-8 h-8 rounded-full border-2 border-white shadow"
+                          style={{ backgroundColor: theme.secondary_color }}
+                          title="Secondary Color"
+                        />
+                        <div 
+                          className="w-8 h-8 rounded-full border-2 border-white shadow"
+                          style={{ backgroundColor: theme.accent_color }}
+                          title="Accent Color"
+                        />
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {theme.is_active ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeactivateFestival(theme.id)}
+                            className="text-gray-600"
+                          >
+                            Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => handleActivateFestival(theme.id)}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <Check className="h-4 w-4 mr-1" /> Activate
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditFestival(theme)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {festivalThemes.length === 0 && (
+                <Card className="border-dashed">
+                  <CardContent className="p-8 text-center">
+                    <Sparkles className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-500 mb-4">Loading festival themes...</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Instructions */}
+              <Card className="bg-blue-50 border-blue-200">
+                <CardContent className="p-4">
+                  <h4 className="font-semibold text-sm mb-2 text-blue-800">How to use Festival Themes:</h4>
+                  <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                    <li>Each month has a pre-configured festival theme based on Maharashtrian calendar</li>
+                    <li>Click <strong>"Edit"</strong> to customize colors, greeting text, and banner image</li>
+                    <li>Click <strong>"Activate"</strong> to apply the theme to your website</li>
+                    <li>Only one theme can be active at a time - it will show on the homepage</li>
+                    <li>For Gudhi Padwa (March 21), activate the March theme!</li>
+                  </ol>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* MENU TAB */}
@@ -789,6 +1184,141 @@ const Admin = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </TabsContent>
+
+          {/* TIFFIN TAB */}
+          <TabsContent value="tiffin">
+            <div className="space-y-6">
+              {/* Unlimited Breakfast Config */}
+              <Card className="border-amber-200">
+                <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    ☀️ Unlimited Breakfast Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Price (₹ INR)</Label>
+                      <Input
+                        type="number"
+                        value={tiffinConfig.unlimited_breakfast_price_inr}
+                        onChange={(e) => setTiffinConfigState({...tiffinConfig, unlimited_breakfast_price_inr: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                    <div>
+                      <Label>Price ($ AUD)</Label>
+                      <Input
+                        type="number"
+                        value={tiffinConfig.unlimited_breakfast_price_aud}
+                        onChange={(e) => setTiffinConfigState({...tiffinConfig, unlimited_breakfast_price_aud: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Input
+                      value={tiffinConfig.unlimited_breakfast_description}
+                      onChange={(e) => setTiffinConfigState({...tiffinConfig, unlimited_breakfast_description: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Timings</Label>
+                      <Input
+                        value={tiffinConfig.unlimited_breakfast_timings}
+                        onChange={(e) => setTiffinConfigState({...tiffinConfig, unlimited_breakfast_timings: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label>Available Days</Label>
+                      <Input
+                        value={tiffinConfig.unlimited_breakfast_days?.join(', ')}
+                        onChange={(e) => setTiffinConfigState({...tiffinConfig, unlimited_breakfast_days: e.target.value.split(',').map(d => d.trim())})}
+                        placeholder="Saturday, Sunday"
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={handleTiffinConfigSave} className="bg-amber-600 hover:bg-amber-700">
+                    Save Breakfast Config
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Tiffin Items Management */}
+              <div className="flex justify-between items-center">
+                <h2 className="font-playfair text-xl font-semibold">Tiffin Menu Items</h2>
+                <Button
+                  onClick={() => { resetTiffinForm(); setTiffinDialogOpen(true); }}
+                  className="rounded-full bg-primary"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Tiffin Item
+                </Button>
+              </div>
+
+              {tiffinCategories.map(cat => {
+                const items = tiffinItems.filter(i => i.category === cat.id);
+                return (
+                  <Card key={cat.id} className="border-[hsl(30,30%,88%)]">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">{cat.label} ({items.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {items.length === 0 ? (
+                        <p className="text-sm text-gray-500">No items yet. Click "Add Tiffin Item" to add.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Image</TableHead>
+                              <TableHead>Name</TableHead>
+                              <TableHead>₹ INR</TableHead>
+                              <TableHead>$ AUD</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {items.map(item => (
+                              <TableRow key={item.id}>
+                                <TableCell>
+                                  {item.image_url ? (
+                                    <img src={item.image_url} alt={item.name} className="w-10 h-10 object-cover rounded" />
+                                  ) : (
+                                    <div className="w-10 h-10 bg-red-100 rounded flex items-center justify-center">
+                                      <ImageIcon className="h-5 w-5 text-red-400" />
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-medium">{item.name}</TableCell>
+                                <TableCell>₹{item.price_inr}</TableCell>
+                                <TableCell>${item.price_aud}</TableCell>
+                                <TableCell>
+                                  <Badge variant={item.is_available ? 'default' : 'secondary'}>
+                                    {item.is_available ? 'Active' : 'Inactive'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Button variant="ghost" size="icon" onClick={() => handleEditTiffinItem(item)}>
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteTiffinItem(item.id)} className="text-red-500">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </TabsContent>
 
@@ -1212,6 +1742,145 @@ const Admin = () => {
                 </Button>
                 <Button type="submit" className="bg-primary" data-testid="save-hero-btn">
                   {editingHero ? 'Update' : 'Add Banner'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Festival Theme Dialog */}
+        <Dialog open={festivalDialogOpen} onOpenChange={setFestivalDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-playfair flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-orange-500" />
+                {editingFestival ? 'Edit Festival Theme' : 'Add Festival Theme'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleFestivalSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Month *</Label>
+                  <Select
+                    value={String(festivalForm.month)}
+                    onValueChange={(value) => setFestivalForm({ ...festivalForm, month: parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {monthNames.map((month, idx) => (
+                        <SelectItem key={idx + 1} value={String(idx + 1)}>{month}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Festival Name *</Label>
+                  <Input
+                    value={festivalForm.name}
+                    onChange={(e) => setFestivalForm({ ...festivalForm, name: e.target.value })}
+                    placeholder="e.g., Gudhi Padwa"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Greeting Text (Marathi/English)</Label>
+                <Input
+                  value={festivalForm.greeting_text}
+                  onChange={(e) => setFestivalForm({ ...festivalForm, greeting_text: e.target.value })}
+                  placeholder="e.g., गुढीपाडव्याच्या हार्दिक शुभेच्छा!"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={festivalForm.description}
+                  onChange={(e) => setFestivalForm({ ...festivalForm, description: e.target.value })}
+                  rows={2}
+                  placeholder="Brief description of the festival..."
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Primary Color</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={festivalForm.primary_color}
+                      onChange={(e) => setFestivalForm({ ...festivalForm, primary_color: e.target.value })}
+                      className="w-10 h-10 rounded cursor-pointer"
+                    />
+                    <Input
+                      value={festivalForm.primary_color}
+                      onChange={(e) => setFestivalForm({ ...festivalForm, primary_color: e.target.value })}
+                      className="flex-1 text-xs"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Secondary Color</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={festivalForm.secondary_color}
+                      onChange={(e) => setFestivalForm({ ...festivalForm, secondary_color: e.target.value })}
+                      className="w-10 h-10 rounded cursor-pointer"
+                    />
+                    <Input
+                      value={festivalForm.secondary_color}
+                      onChange={(e) => setFestivalForm({ ...festivalForm, secondary_color: e.target.value })}
+                      className="flex-1 text-xs"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Accent Color</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={festivalForm.accent_color}
+                      onChange={(e) => setFestivalForm({ ...festivalForm, accent_color: e.target.value })}
+                      className="w-10 h-10 rounded cursor-pointer"
+                    />
+                    <Input
+                      value={festivalForm.accent_color}
+                      onChange={(e) => setFestivalForm({ ...festivalForm, accent_color: e.target.value })}
+                      className="flex-1 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div 
+                className="h-8 rounded-lg"
+                style={{ background: `linear-gradient(90deg, ${festivalForm.primary_color}, ${festivalForm.secondary_color}, ${festivalForm.accent_color})` }}
+              />
+              <div>
+                <Label>Banner Image URL (optional)</Label>
+                <Input
+                  type="url"
+                  value={festivalForm.banner_image_url}
+                  onChange={(e) => setFestivalForm({ ...festivalForm, banner_image_url: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+              {festivalForm.banner_image_url && (
+                <div className="rounded-lg overflow-hidden border">
+                  <img 
+                    src={festivalForm.banner_image_url} 
+                    alt="Preview" 
+                    className="w-full h-24 object-cover"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/400x100?text=Invalid+URL'; }}
+                  />
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setFestivalDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-orange-600 hover:bg-orange-700">
+                  {editingFestival ? 'Update Theme' : 'Create Theme'}
                 </Button>
               </div>
             </form>
