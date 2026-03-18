@@ -46,6 +46,7 @@ import RoleManagement from "@/pages/RoleManagement";
 import FranchiseManagement from "@/pages/FranchiseManagement";
 import MISDashboard from "@/pages/MISDashboard";
 import BookingIntelligence from "@/pages/BookingIntelligence";
+import AttendanceDashboard from "@/pages/AttendanceDashboard";
 
 // Menu categories structure
 const menuCategories = [
@@ -56,6 +57,7 @@ const menuCategories = [
     roleKey: "attendance",
     items: [
       { path: "/", icon: Calendar, label: "Daily Attendance", roleKey: "attendance" },
+      { path: "/attendance-dashboard", icon: BarChart3, label: "Attendance Dashboard", forAdmin: true },
     ]
   },
   {
@@ -156,6 +158,10 @@ export default function Dashboard() {
   const hasAccess = (item) => {
     if (isSuperAdmin) return true; // Super Admin has full access
     if (item.forMGT) return isSuperAdmin; // MGT-only items require Super Admin
+    if (item.forAdmin) {
+      // Admin items accessible to Admin or Super Admin
+      return isAdmin || isSuperAdmin;
+    }
     if (item.forAccounts) {
       // Accounts items accessible to Admin or Accounting role
       return isAdmin || userRoles.accounting === true;
@@ -337,6 +343,7 @@ export default function Dashboard() {
         <div className="p-4 lg:p-8 animate-fadeIn">
           <Routes>
             <Route path="/" element={<Attendance />} />
+            <Route path="/attendance-dashboard" element={<AttendanceDashboard />} />
             <Route path="/sales" element={<SalesExpenses />} />
             <Route path="/expense-heads" element={<ExpenseHeads />} />
             <Route path="/guest-response" element={<GuestResponse />} />

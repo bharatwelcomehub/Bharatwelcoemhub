@@ -4184,6 +4184,12 @@ set_booking_db(db)
 set_booking_verify_token(verify_token)
 app.include_router(booking_router)
 
+# Include Attendance Dashboard router
+from routes.attendance_dashboard import router as att_dash_router, set_db as set_att_dash_db, set_verify_token as set_att_dash_verify_token
+set_att_dash_db(db)
+set_att_dash_verify_token(verify_token)
+app.include_router(att_dash_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
