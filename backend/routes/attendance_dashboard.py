@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/attendance-dashboard", tags=["Attendance Dashboa
 # Get DB reference (will be set from main server)
 db = None
 verify_token = None
+verify_token_async_func = None
 
 def set_db(database):
     global db
@@ -26,6 +27,18 @@ def set_db(database):
 def set_verify_token(func):
     global verify_token
     verify_token = func
+
+def set_verify_token_async(func):
+    global verify_token_async_func
+    verify_token_async_func = func
+
+async def get_session(token: str):
+    """Get session using async verification (with MongoDB fallback)"""
+    if verify_token_async_func:
+        session = await verify_token_async_func(token)
+        if session:
+            return session
+    return verify_token(token)
 
 # =======================================
 # CONSTANTS
@@ -104,7 +117,7 @@ class AttendanceEditRequest(BaseModel):
 @router.post("/summary")
 async def get_dashboard_summary(req: DashboardRequest):
     """Get overall attendance summary for all centers"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -189,7 +202,7 @@ async def get_dashboard_summary(req: DashboardRequest):
 @router.post("/center-breakdown")
 async def get_center_breakdown(req: DashboardRequest):
     """Get attendance breakdown by center"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -296,7 +309,7 @@ async def get_center_breakdown(req: DashboardRequest):
 @router.post("/center-detail")
 async def get_center_detail(req: CenterDetailRequest):
     """Get detailed attendance for a specific center"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -383,7 +396,7 @@ async def get_center_detail(req: CenterDetailRequest):
 @router.post("/monthly-trend")
 async def get_monthly_trend(req: DashboardRequest):
     """Get attendance trend for a month"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -454,7 +467,7 @@ async def get_monthly_trend(req: DashboardRequest):
 @router.post("/center-comparison")
 async def get_center_comparison(req: DashboardRequest):
     """Get attendance comparison across centers for charts"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -537,7 +550,7 @@ async def get_center_comparison(req: DashboardRequest):
 @router.post("/export")
 async def export_attendance(req: ExportRequest):
     """Export attendance report"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -651,7 +664,7 @@ async def export_attendance(req: ExportRequest):
 @router.post("/export-monthly")
 async def export_monthly_attendance(req: ExportRequest):
     """Export monthly attendance report"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -804,7 +817,7 @@ async def export_monthly_attendance(req: ExportRequest):
 @router.post("/edit")
 async def edit_attendance(req: AttendanceEditRequest):
     """Edit attendance (Super Admin only)"""
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     

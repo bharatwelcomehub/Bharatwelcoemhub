@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/mis", tags=["MIS Dashboard"])
 # Get DB reference (will be set from main server)
 db = None
 verify_token = None
+verify_token_async_func = None
 
 def set_db(database):
     global db
@@ -26,13 +27,22 @@ def set_verify_token(func):
     global verify_token
     verify_token = func
 
+def set_verify_token_async(func):
+    global verify_token_async_func
+    verify_token_async_func = func
+
 # =======================================
 # ACCESS CHECK
 # =======================================
 
 async def check_mis_access(token: str) -> dict:
     """Check if user has MIS Dashboard access (Super Admin, Admin, or Accounts role)"""
-    session = verify_token(token)
+    # Try async verification first (checks MongoDB)
+    session = None
+    if verify_token_async_func:
+        session = await verify_token_async_func(token)
+    if not session:
+        session = verify_token(token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     

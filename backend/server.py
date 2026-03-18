@@ -4161,33 +4161,38 @@ async def seed_sales_data_direct(data: dict = {}):
 app.include_router(api_router)
 
 # Include Sales & Expenses router
-from routes.sales_expenses import router as sales_router, set_db as set_sales_db, set_verify_token as set_sales_verify_token
+from routes.sales_expenses import router as sales_router, set_db as set_sales_db, set_verify_token as set_sales_verify_token, set_verify_token_async as set_sales_verify_token_async
 set_sales_db(db)
 set_sales_verify_token(verify_token)
+set_sales_verify_token_async(verify_token_async)
 app.include_router(sales_router)
 
 # Include Franchise Management router
-from routes.franchises import router as franchise_router, set_db as set_franchise_db, set_verify_token as set_franchise_verify_token
+from routes.franchises import router as franchise_router, set_db as set_franchise_db, set_verify_token as set_franchise_verify_token, set_verify_token_async as set_franchise_verify_token_async
 set_franchise_db(db)
 set_franchise_verify_token(verify_token)
+set_franchise_verify_token_async(verify_token_async)
 app.include_router(franchise_router)
 
 # Include MIS Dashboard router
-from routes.mis_dashboard import router as mis_router, set_db as set_mis_db, set_verify_token as set_mis_verify_token
+from routes.mis_dashboard import router as mis_router, set_db as set_mis_db, set_verify_token as set_mis_verify_token, set_verify_token_async as set_mis_verify_token_async
 set_mis_db(db)
 set_mis_verify_token(verify_token)
+set_mis_verify_token_async(verify_token_async)
 app.include_router(mis_router)
 
 # Include Booking Intelligence router
-from routes.booking_intelligence import router as booking_router, set_db as set_booking_db, set_verify_token as set_booking_verify_token
+from routes.booking_intelligence import router as booking_router, set_db as set_booking_db, set_verify_token as set_booking_verify_token, set_verify_token_async as set_booking_verify_token_async
 set_booking_db(db)
 set_booking_verify_token(verify_token)
+set_booking_verify_token_async(verify_token_async)
 app.include_router(booking_router)
 
 # Include Attendance Dashboard router
-from routes.attendance_dashboard import router as att_dash_router, set_db as set_att_dash_db, set_verify_token as set_att_dash_verify_token
+from routes.attendance_dashboard import router as att_dash_router, set_db as set_att_dash_db, set_verify_token as set_att_dash_verify_token, set_verify_token_async as set_att_dash_verify_token_async
 set_att_dash_db(db)
 set_att_dash_verify_token(verify_token)
+set_att_dash_verify_token_async(verify_token_async)
 app.include_router(att_dash_router)
 
 # CORS

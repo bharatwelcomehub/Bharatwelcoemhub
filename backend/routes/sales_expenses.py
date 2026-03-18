@@ -149,10 +149,23 @@ class ExpenseQueryRequest(BaseModel):
 
 # Import verify_token from main server (will be set)
 verify_token = None
+verify_token_async_func = None
 
 def set_verify_token(func):
     global verify_token
     verify_token = func
+
+def set_verify_token_async(func):
+    global verify_token_async_func
+    verify_token_async_func = func
+
+async def get_session(token: str):
+    """Get session using async verification (with MongoDB fallback)"""
+    if verify_token_async_func:
+        session = await verify_token_async_func(token)
+        if session:
+            return session
+    return verify_token(token)
 
 def has_all_centers_access(session):
     """Check if user has access to view all centers data"""
@@ -435,7 +448,7 @@ async def get_daily_sales(req: SalesQueryRequest):
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -607,7 +620,7 @@ async def admin_freeze_control(req: AdminFreezeRequest):
     - date: YYYY-MM-DD for day, YYYY-MM for month
     - center: specific center code or "all" for all centers
     """
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -1004,7 +1017,7 @@ async def get_expenses(req: ExpenseQueryRequest):
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -1180,7 +1193,7 @@ async def get_daily_summary(req: SalesQueryRequest):
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
@@ -1243,7 +1256,7 @@ async def get_monthly_summary(req: SalesQueryRequest):
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
-    session = verify_token(req.token)
+    session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
