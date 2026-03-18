@@ -772,12 +772,25 @@ async def get_employee_template():
 # ATTENDANCE ENDPOINTS
 # =======================================
 
+async def is_attendance_locked(date: str) -> dict:
+    """Check if attendance is locked for a given date's month"""
+    month = date[:7]  # Extract YYYY-MM
+    lock = await db.attendance_locks.find_one({"month": month}, {"_id": 0})
+    if lock and lock.get("locked"):
+        return {"locked": True, "month": month, "locked_by": lock.get("locked_by", "Admin")}
+    return {"locked": False}
+
 @api_router.post("/bulk_attendance")
 async def bulk_attendance(req: BulkAttendance):
     """Save daily attendance for multiple employees"""
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
+    
+    # Check attendance lock FIRST
+    att_lock = await is_attendance_locked(req.date)
+    if att_lock["locked"]:
+        raise HTTPException(400, f"Attendance is locked for {att_lock['month']}. Contact Admin to unlock.")
     
     # Check payroll lock
     month = req.date[:7]
@@ -888,6 +901,11 @@ async def bulk_attendance_month(req: BulkMonthlyAttendance):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
+    
+    # Check attendance lock FIRST
+    att_lock = await db.attendance_locks.find_one({"month": req.month}, {"_id": 0})
+    if att_lock and att_lock.get("locked"):
+        raise HTTPException(400, f"Attendance is locked for {req.month}. Contact Admin to unlock.")
     
     # Check payroll lock
     lock = await db.payroll_locks.find_one({"month": req.month}, {"_id": 0})

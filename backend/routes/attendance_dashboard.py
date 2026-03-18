@@ -111,6 +111,25 @@ class AttendanceEditRequest(BaseModel):
     status: str
     notes: Optional[str] = ""
 
+class AttendanceLockRequest(BaseModel):
+    token: str
+    month: str  # YYYY-MM format
+    action: str  # "lock" or "unlock"
+
+# =======================================
+# ATTENDANCE LOCK HELPERS
+# =======================================
+
+async def is_month_locked(month: str) -> bool:
+    """Check if a month's attendance is locked"""
+    lock = await db.attendance_locks.find_one({"month": month}, {"_id": 0})
+    return lock is not None and lock.get("locked", False)
+
+async def is_date_locked(date: str) -> bool:
+    """Check if a specific date's attendance is locked (based on its month)"""
+    month = date[:7]  # Extract YYYY-MM from YYYY-MM-DD
+    return await is_month_locked(month)
+
 # =======================================
 # DASHBOARD ENDPOINTS
 # =======================================
@@ -1035,3 +1054,106 @@ async def get_status_options():
             for code, info in ATTENDANCE_STATUS.items()
         ]
     }
+
+
+# =======================================
+# ATTENDANCE LOCK ENDPOINTS
+# =======================================
+
+@router.post("/lock")
+async def lock_attendance_month(req: AttendanceLockRequest):
+    """Lock or unlock a month's attendance (Admin/Super Admin only)"""
+    session = await get_session(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    is_super_admin = check_super_admin(session)
+    is_admin = check_admin_access(session)
+    
+    if not is_admin:
+        raise HTTPException(403, "Only Admin or Super Admin can lock/unlock attendance")
+    
+    # Only Super Admin can unlock
+    if req.action == "unlock" and not is_super_admin:
+        raise HTTPException(403, "Only Super Admin can unlock attendance")
+    
+    # Validate month format
+    try:
+        datetime.strptime(req.month, "%Y-%m")
+    except ValueError:
+        raise HTTPException(400, "Invalid month format. Use YYYY-MM")
+    
+    if req.action == "lock":
+        await db.attendance_locks.update_one(
+            {"month": req.month},
+            {
+                "$set": {
+                    "month": req.month,
+                    "locked": True,
+                    "locked_by": session.get("managerName", "Admin"),
+                    "locked_at": datetime.now(timezone.utc).isoformat(),
+                    "locked_by_mobile": session.get("mobile", "")
+                }
+            },
+            upsert=True
+        )
+        
+        # Log the action
+        await db.attendance_audit.insert_one({
+            "action": "LOCK_MONTH",
+            "month": req.month,
+            "locked_by": session.get("managerName", ""),
+            "locked_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Attendance locked for {req.month} by {session.get('managerName')}")
+        return {"success": True, "message": f"Attendance for {req.month} has been locked"}
+    
+    elif req.action == "unlock":
+        await db.attendance_locks.update_one(
+            {"month": req.month},
+            {
+                "$set": {
+                    "locked": False,
+                    "unlocked_by": session.get("managerName", "Super Admin"),
+                    "unlocked_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        # Log the action
+        await db.attendance_audit.insert_one({
+            "action": "UNLOCK_MONTH",
+            "month": req.month,
+            "unlocked_by": session.get("managerName", ""),
+            "unlocked_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Attendance unlocked for {req.month} by {session.get('managerName')}")
+        return {"success": True, "message": f"Attendance for {req.month} has been unlocked"}
+    
+    else:
+        raise HTTPException(400, "Invalid action. Use 'lock' or 'unlock'")
+
+@router.post("/lock-status")
+async def get_lock_status(req: DashboardRequest):
+    """Get lock status for a month"""
+    session = await get_session(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    month = req.month or datetime.now().strftime("%Y-%m")
+    lock = await db.attendance_locks.find_one({"month": month}, {"_id": 0})
+    
+    return {
+        "month": month,
+        "locked": lock.get("locked", False) if lock else False,
+        "locked_by": lock.get("locked_by", "") if lock else "",
+        "locked_at": lock.get("locked_at", "") if lock else ""
+    }
+
+@router.get("/all-locks")
+async def get_all_locks():
+    """Get all locked months"""
+    locks = await db.attendance_locks.find({"locked": True}, {"_id": 0}).to_list(100)
+    return {"locks": locks}

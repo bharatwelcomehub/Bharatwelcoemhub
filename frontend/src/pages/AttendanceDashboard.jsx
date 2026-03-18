@@ -16,6 +16,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -33,7 +40,10 @@ import {
   TrendingUp,
   BarChart3,
   CalendarDays,
-  Eye
+  Eye,
+  Lock,
+  Unlock,
+  ShieldAlert
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -67,6 +77,11 @@ export default function AttendanceDashboard() {
   const [monthlyGrid, setMonthlyGrid] = useState(null);
   const [dailyGrid, setDailyGrid] = useState(null);
   const [centers, setCenters] = useState([]);
+  
+  // Lock state
+  const [lockStatus, setLockStatus] = useState({ locked: false });
+  const [showLockDialog, setShowLockDialog] = useState(false);
+  const [lockAction, setLockAction] = useState("lock");
 
   const hasAccess = isSuperAdmin || isAdmin;
 
@@ -79,6 +94,7 @@ export default function AttendanceDashboard() {
   useEffect(() => {
     if (token && hasAccess) {
       fetchSummary();
+      fetchLockStatus();
       if (viewMode === "monthly") {
         fetchMonthlyGrid();
       } else {
@@ -96,6 +112,48 @@ export default function AttendanceDashboard() {
       }
     } catch (err) {
       console.error("Error fetching centers:", err);
+    }
+  };
+
+  const fetchLockStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/attendance-dashboard/lock-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, month: selectedMonth })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLockStatus(data);
+      }
+    } catch (err) {
+      console.error("Error fetching lock status:", err);
+    }
+  }, [token, selectedMonth]);
+
+  const handleLockToggle = async () => {
+    try {
+      const res = await fetch(`${API}/api/attendance-dashboard/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          token, 
+          month: selectedMonth,
+          action: lockAction
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message);
+        setShowLockDialog(false);
+        fetchLockStatus();
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || "Failed to update lock status");
+      }
+    } catch (err) {
+      toast.error("Error updating lock status");
     }
   };
 
@@ -314,6 +372,7 @@ export default function AttendanceDashboard() {
             <div className="flex gap-2 ml-auto">
               <Button variant="outline" onClick={() => {
                 fetchSummary();
+                fetchLockStatus();
                 viewMode === "monthly" ? fetchMonthlyGrid() : fetchDailyGrid();
               }}>
                 <RefreshCw className="w-4 h-4 mr-1" />
@@ -325,6 +384,65 @@ export default function AttendanceDashboard() {
               </Button>
             </div>
           </div>
+          
+          {/* Lock Status & Controls */}
+          {viewMode === "monthly" && (isSuperAdmin || isAdmin) && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <div className="flex items-center gap-3">
+                {lockStatus.locked ? (
+                  <Badge className="bg-red-100 text-red-700 border-red-300 flex items-center gap-1 px-3 py-1">
+                    <Lock className="w-4 h-4" />
+                    LOCKED - {selectedMonth}
+                  </Badge>
+                ) : (
+                  <Badge className="bg-green-100 text-green-700 border-green-300 flex items-center gap-1 px-3 py-1">
+                    <Unlock className="w-4 h-4" />
+                    OPEN - {selectedMonth}
+                  </Badge>
+                )}
+                {lockStatus.locked && lockStatus.locked_by && (
+                  <span className="text-xs text-muted-foreground">
+                    Locked by {lockStatus.locked_by} on {new Date(lockStatus.locked_at).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {!lockStatus.locked ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => {
+                      setLockAction("lock");
+                      setShowLockDialog(true);
+                    }}
+                  >
+                    <Lock className="w-4 h-4 mr-1" />
+                    Lock Month
+                  </Button>
+                ) : isSuperAdmin ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-green-600 border-green-300 hover:bg-green-50"
+                    onClick={() => {
+                      setLockAction("unlock");
+                      setShowLockDialog(true);
+                    }}
+                  >
+                    <Unlock className="w-4 h-4 mr-1" />
+                    Unlock Month
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <ShieldAlert className="w-4 h-4" />
+                    Only Super Admin can unlock
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -635,6 +753,82 @@ export default function AttendanceDashboard() {
       <div className="text-center text-xs text-muted-foreground py-2">
         <p>This is a read-only dashboard. To modify attendance, please use the Daily Attendance page via Center Manager login.</p>
       </div>
+
+      {/* Lock Confirmation Dialog */}
+      <Dialog open={showLockDialog} onOpenChange={setShowLockDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {lockAction === "lock" ? (
+                <>
+                  <Lock className="w-5 h-5 text-red-600" />
+                  Lock Attendance for {selectedMonth}
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-5 h-5 text-green-600" />
+                  Unlock Attendance for {selectedMonth}
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            {lockAction === "lock" ? (
+              <div className="space-y-3">
+                <p className="text-sm">
+                  Are you sure you want to <strong className="text-red-600">lock</strong> attendance for <strong>{selectedMonth}</strong>?
+                </p>
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      Once locked, <strong>no one</strong> (including center managers) will be able to edit attendance for this month. 
+                      Only Super Admin can unlock.
+                    </span>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm">
+                  Are you sure you want to <strong className="text-green-600">unlock</strong> attendance for <strong>{selectedMonth}</strong>?
+                </p>
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      After unlocking, center managers will be able to edit attendance for this month again.
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLockDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleLockToggle}
+              className={lockAction === "lock" ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
+            >
+              {lockAction === "lock" ? (
+                <>
+                  <Lock className="w-4 h-4 mr-1" />
+                  Yes, Lock Month
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-4 h-4 mr-1" />
+                  Yes, Unlock Month
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
