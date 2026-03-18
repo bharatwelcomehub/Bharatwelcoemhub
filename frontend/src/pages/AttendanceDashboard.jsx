@@ -105,6 +105,7 @@ export default function AttendanceDashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedCenter, setSelectedCenter] = useState(null);
+  const [filterCenter, setFilterCenter] = useState("all"); // New: center filter for dashboard
   
   // Data
   const [summary, setSummary] = useState(null);
@@ -143,7 +144,7 @@ export default function AttendanceDashboard() {
         fetchCenterComparison();
       }
     }
-  }, [token, activeTab, selectedDate, selectedMonth, hasAccess]);
+  }, [token, activeTab, selectedDate, selectedMonth, filterCenter, hasAccess]);
 
   // Fetch when center selected
   useEffect(() => {
@@ -183,7 +184,11 @@ export default function AttendanceDashboard() {
       const res = await fetch(`${API}/api/attendance-dashboard/summary`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, date: selectedDate })
+        body: JSON.stringify({ 
+          token, 
+          date: selectedDate,
+          center: filterCenter !== "all" ? filterCenter : null
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -194,7 +199,7 @@ export default function AttendanceDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [token, selectedDate]);
+  }, [token, selectedDate, filterCenter]);
 
   const fetchCenterBreakdown = useCallback(async () => {
     if (!token) return;
@@ -202,7 +207,11 @@ export default function AttendanceDashboard() {
       const res = await fetch(`${API}/api/attendance-dashboard/center-breakdown`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, date: selectedDate })
+        body: JSON.stringify({ 
+          token, 
+          date: selectedDate,
+          center: filterCenter !== "all" ? filterCenter : null
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -211,7 +220,7 @@ export default function AttendanceDashboard() {
     } catch (err) {
       console.error("Error fetching breakdown:", err);
     }
-  }, [token, selectedDate]);
+  }, [token, selectedDate, filterCenter]);
 
   const fetchCenterDetail = useCallback(async () => {
     if (!token || !selectedCenter) return;
@@ -400,10 +409,26 @@ export default function AttendanceDashboard() {
         </div>
       </div>
 
-      {/* Date/Month Selector */}
+      {/* Date/Month/Center Selector */}
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <Label className="text-xs">Select Center</Label>
+              <Select value={filterCenter} onValueChange={(v) => setFilterCenter(v)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="All Centers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Centers</SelectItem>
+                  {centers.map(c => (
+                    <SelectItem key={c.code || c.center} value={c.code || c.center}>
+                      {c.name || c.code || c.center}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label className="text-xs">Select Date</Label>
               <Input

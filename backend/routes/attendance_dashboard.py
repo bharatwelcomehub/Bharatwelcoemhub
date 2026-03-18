@@ -88,6 +88,7 @@ class DashboardRequest(BaseModel):
     token: str
     date: Optional[str] = None  # YYYY-MM-DD, defaults to today
     month: Optional[str] = None  # YYYY-MM for monthly view
+    center: Optional[str] = None  # Optional center filter
 
 class CenterDetailRequest(BaseModel):
     token: str
@@ -116,7 +117,7 @@ class AttendanceEditRequest(BaseModel):
 
 @router.post("/summary")
 async def get_dashboard_summary(req: DashboardRequest):
-    """Get overall attendance summary for all centers"""
+    """Get overall attendance summary for all centers or a specific center"""
     session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
@@ -126,20 +127,19 @@ async def get_dashboard_summary(req: DashboardRequest):
     
     # Determine date
     target_date = req.date or datetime.now().strftime("%Y-%m-%d")
+    filter_center = req.center.upper() if req.center else None
     
-    # Get all centers
-    centers = await db.centers.find({}, {"_id": 0}).to_list(100)
-    center_codes = [c.get("code", c.get("center", "")) for c in centers]
-    
-    # Get all employees
-    all_employees = await db.employees.find({}, {"_id": 0}).to_list(5000)
+    # Get all employees (optionally filtered by center)
+    emp_query = {"center": filter_center} if filter_center else {}
+    all_employees = await db.employees.find(emp_query, {"_id": 0}).to_list(5000)
     total_employees = len(all_employees)
     
-    # Get attendance for the date
-    attendance_records = await db.attendance.find(
-        {"date": target_date},
-        {"_id": 0}
-    ).to_list(10000)
+    # Get attendance for the date (optionally filtered by center)
+    att_query = {"date": target_date}
+    if filter_center:
+        att_query["center"] = filter_center
+    
+    attendance_records = await db.attendance.find(att_query, {"_id": 0}).to_list(10000)
     
     # Build attendance map
     att_map = {}
@@ -184,6 +184,7 @@ async def get_dashboard_summary(req: DashboardRequest):
     
     return {
         "date": target_date,
+        "center": filter_center or "all",
         "summary": {
             "total_employees": total_employees,
             "present": present,
@@ -210,12 +211,15 @@ async def get_center_breakdown(req: DashboardRequest):
         raise HTTPException(403, "Access denied. Admin or Super Admin required.")
     
     target_date = req.date or datetime.now().strftime("%Y-%m-%d")
+    filter_center = req.center.upper() if req.center else None
     
-    # Get all centers
-    centers = await db.centers.find({}, {"_id": 0}).to_list(100)
+    # Get centers (optionally filtered)
+    center_query = {"$or": [{"code": filter_center}, {"center": filter_center}]} if filter_center else {}
+    centers = await db.centers.find(center_query, {"_id": 0}).to_list(100)
     
     # Get all employees grouped by center
-    all_employees = await db.employees.find({}, {"_id": 0}).to_list(5000)
+    emp_query = {"center": filter_center} if filter_center else {}
+    all_employees = await db.employees.find(emp_query, {"_id": 0}).to_list(5000)
     employees_by_center = {}
     for emp in all_employees:
         center = emp.get("center", "")
@@ -224,10 +228,10 @@ async def get_center_breakdown(req: DashboardRequest):
         employees_by_center[center].append(emp)
     
     # Get attendance for the date
-    attendance_records = await db.attendance.find(
-        {"date": target_date},
-        {"_id": 0}
-    ).to_list(10000)
+    att_query = {"date": target_date}
+    if filter_center:
+        att_query["center"] = filter_center
+    attendance_records = await db.attendance.find(att_query, {"_id": 0}).to_list(10000)
     
     # Build attendance map
     att_map = {}
