@@ -4043,6 +4043,12 @@ set_franchise_db(db)
 set_franchise_verify_token(verify_token)
 app.include_router(franchise_router)
 
+# Include MIS Dashboard router
+from routes.mis_dashboard import router as mis_router, set_db as set_mis_db, set_verify_token as set_mis_verify_token
+set_mis_db(db)
+set_mis_verify_token(verify_token)
+app.include_router(mis_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

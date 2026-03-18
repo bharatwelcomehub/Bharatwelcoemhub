@@ -25,7 +25,8 @@ import {
   ChevronRight,
   UserCog,
   Shield,
-  Store
+  Store,
+  BarChart3
 } from "lucide-react";
 
 // Import pages
@@ -42,6 +43,7 @@ import SalesExpenses from "@/pages/SalesExpenses";
 import ExpenseHeads from "@/pages/ExpenseHeads";
 import RoleManagement from "@/pages/RoleManagement";
 import FranchiseManagement from "@/pages/FranchiseManagement";
+import MISDashboard from "@/pages/MISDashboard";
 
 // Menu categories structure
 const menuCategories = [
@@ -62,6 +64,15 @@ const menuCategories = [
     items: [
       { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", roleKey: "sales_cash" },
       { path: "/expense-heads", icon: Tags, label: "Expense Heads", forMGT: true },
+    ]
+  },
+  {
+    id: "accounts",
+    label: "Accounts",
+    icon: BarChart3,
+    forAccounts: true,
+    items: [
+      { path: "/mis-dashboard", icon: BarChart3, label: "MIS Dashboard", forAccounts: true },
     ]
   },
   {
@@ -334,6 +345,7 @@ export default function Dashboard() {
             <Route path="/managers" element={<ManagersManagement />} />
             <Route path="/role-management" element={<RoleManagement />} />
             <Route path="/franchises" element={<FranchiseManagement />} />
+            <Route path="/mis-dashboard" element={<MISDashboard />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
           </Routes>
