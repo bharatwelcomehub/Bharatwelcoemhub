@@ -42,6 +42,38 @@ User had existing HTML/Python files for an attendance and salary management syst
   - **Frontend:** `/app/frontend/src/pages/BookingIntelligence.jsx` (1357 lines)
   - **Testing:** 20/20 backend tests passed, frontend fully verified
 
+- ✅ **P0: CENTRALIZED ATTENDANCE DASHBOARD (NEW)**
+  - **Admin Panel Feature:**
+    - Read-only access for Admin users
+    - Full edit access for Super Admin only
+    - Located under Attendance section in navigation
+  - **Summary Cards:**
+    - Total Employees, Present, Absent, Half Day, Week Off, Leave, Attendance %
+    - Color-coded with icons
+  - **Attendance Distribution:**
+    - Pie chart showing Present vs Not Marked breakdown
+  - **Center-wise Breakdown:**
+    - Table with all centers showing staff count, status counts, attendance %
+    - Alert icons: Red (< 70%), Yellow (70-85%), Green (> 85%)
+    - "View" button to drill down to employee level
+  - **Employee Detail View:**
+    - Shows all employees for selected center
+    - Status badges with color coding
+    - Notes column and edit action (Super Admin only)
+  - **Trends Tab:**
+    - Daily Attendance Trend line chart (day-by-day)
+    - Center-wise Attendance Comparison bar chart
+    - Low/High Attendance Alerts cards
+  - **Excel Export:**
+    - Daily attendance report (per date)
+    - Monthly attendance report (full month grid)
+  - **Edit Capability (Super Admin):**
+    - Edit dialog with status dropdown
+    - Audit trail in `attendance_audit` collection
+  - **Backend:** `/app/backend/routes/attendance_dashboard.py` (650 lines)
+  - **Frontend:** `/app/frontend/src/pages/AttendanceDashboard.jsx` (900 lines)
+  - **Testing:** 15/15 backend tests passed, frontend fully verified
+
 - ✅ **P1: INVALID TOKEN FIX (CRITICAL STABILITY FIX)**
   - **Root Cause:** In-memory `otp_store` dictionary was wiped on every server restart
   - **Solution:** Sessions now persist to MongoDB `sessions` collection
@@ -411,12 +443,24 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `POST /api/bookings/catering/list` - List catering leads
 - `POST /api/bookings/catering/update/{booking_id}` - Update catering lead
 
+### Attendance Dashboard (NEW - Session 14)
+- `POST /api/attendance-dashboard/summary` - Get overall attendance summary
+- `POST /api/attendance-dashboard/center-breakdown` - Get center-wise attendance breakdown
+- `POST /api/attendance-dashboard/center-detail` - Get employee-level detail for a center
+- `POST /api/attendance-dashboard/monthly-trend` - Get daily attendance trend for a month
+- `POST /api/attendance-dashboard/center-comparison` - Get monthly center comparison
+- `POST /api/attendance-dashboard/export` - Export daily attendance to Excel
+- `POST /api/attendance-dashboard/export-monthly` - Export monthly attendance to Excel
+- `POST /api/attendance-dashboard/edit` - Edit attendance (Super Admin only)
+- `GET /api/attendance-dashboard/status-options` - Get attendance status options
+
 ## Key Files
 - `/app/backend/server.py` - Main API server (includes session persistence, PDF generation)
 - `/app/backend/routes/sales_expenses.py` - Sales & Expenses API routes (includes Expense Heads CRUD)
 - `/app/backend/routes/franchises.py` - Franchise Management API routes
 - `/app/backend/routes/booking_intelligence.py` - Booking Intelligence API routes (NEW)
 - `/app/backend/routes/mis_dashboard.py` - MIS Dashboard API routes
+- `/app/backend/routes/attendance_dashboard.py` - Attendance Dashboard API routes (NEW)
 - `/app/backend/scripts/import_sales_data.py` - Excel data import script
 - `/app/backend/recipes_db.json` - 164 recipes from user's PDF (expanded from 79)
 - `/app/frontend/src/pages/SalesExpenses.jsx` - Sales & Cash Summary dashboard
@@ -424,6 +468,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `/app/frontend/src/pages/FranchiseManagement.jsx` - Franchise Management page
 - `/app/frontend/src/pages/BookingIntelligence.jsx` - Booking Intelligence page (NEW)
 - `/app/frontend/src/pages/MISDashboard.jsx` - MIS Dashboard page
+- `/app/frontend/src/pages/AttendanceDashboard.jsx` - Attendance Dashboard page (NEW)
 - `/app/frontend/src/components/SalesDataEntry.jsx` - Sales data entry form
 - `/app/frontend/src/components/ExpenseEntry.jsx` - Expense entry form
 - `/app/frontend/src/pages/Dashboard.jsx` - Categorized navigation sidebar (UPDATED)
@@ -449,6 +494,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `guests` - Guest CRM data (NEW)
 - `catering_leads` - Catering enquiries (NEW)
 - `whatsapp_logs` - WhatsApp message logs (NEW)
+- `attendance_audit` - Audit trail for attendance edits (NEW)
 
 ## Testing Credentials
 - Center: PB-MGT
@@ -461,7 +507,8 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `/app/test_reports/iteration_8.json` - Sales & Expenses tests (100% pass - 11/11 backend, full frontend)
 - `/app/test_reports/iteration_9.json` - Sales Enhancements (GST, Guest/Bill counts, Booking Response) - 100% pass
 - `/app/test_reports/iteration_12.json` - Franchise Management tests (100% pass - 22 backend tests)
-- `/app/test_reports/iteration_13.json` - Booking Intelligence & Session Persistence tests (100% pass - 20 backend tests) (NEW)
+- `/app/test_reports/iteration_13.json` - Booking Intelligence & Session Persistence tests (100% pass - 20 backend tests)
+- `/app/test_reports/iteration_14.json` - Attendance Dashboard tests (100% pass - 15 backend tests) (NEW)
 
 ## Backlog/Future
 - **P2: Payslip Data Overlap**: Verify and fix any remaining overlap issues in PDF payslip generation
