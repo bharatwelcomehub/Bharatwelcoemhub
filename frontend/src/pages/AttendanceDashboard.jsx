@@ -11,24 +11,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -43,36 +30,23 @@ import {
   Download,
   AlertTriangle,
   CheckCircle2,
-  Eye,
-  Edit,
   TrendingUp,
   BarChart3,
-  FileSpreadsheet,
-  Grid3X3,
-  CalendarDays
+  CalendarDays,
+  Eye
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
-// Status colors for grid cells
-const STATUS_COLORS = {
-  "P": "bg-green-500/30 text-green-300 border-green-500/50",
-  "A": "bg-red-500/30 text-red-300 border-red-500/50",
-  "HD": "bg-yellow-500/30 text-yellow-300 border-yellow-500/50",
-  "WO": "bg-blue-500/30 text-blue-300 border-blue-500/50",
-  "L": "bg-orange-500/30 text-orange-300 border-orange-500/50",
-  "LATE": "bg-purple-500/30 text-purple-300 border-purple-500/50",
-  "": "bg-gray-500/20 text-gray-400 border-gray-500/30"
-};
-
-const STATUS_LABELS = {
-  "P": "Present",
-  "A": "Absent", 
-  "HD": "Half Day",
-  "WO": "Week Off",
-  "L": "Leave",
-  "LATE": "Late",
-  "": "Not Marked"
+// Professional color scheme for status cells
+const STATUS_STYLES = {
+  "P": { bg: "#059669", text: "#fff", label: "Present" },
+  "A": { bg: "#dc2626", text: "#fff", label: "Absent" },
+  "HD": { bg: "#d97706", text: "#fff", label: "Half Day" },
+  "WO": { bg: "#2563eb", text: "#fff", label: "Week Off" },
+  "L": { bg: "#7c3aed", text: "#fff", label: "Leave" },
+  "LATE": { bg: "#be185d", text: "#fff", label: "Late" },
+  "": { bg: "#e5e7eb", text: "#6b7280", label: "-" }
 };
 
 export default function AttendanceDashboard() {
@@ -83,7 +57,7 @@ export default function AttendanceDashboard() {
 
   // State
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState("monthly"); // monthly or daily
+  const [viewMode, setViewMode] = useState("monthly");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [filterCenter, setFilterCenter] = useState("all");
@@ -93,26 +67,15 @@ export default function AttendanceDashboard() {
   const [monthlyGrid, setMonthlyGrid] = useState(null);
   const [dailyGrid, setDailyGrid] = useState(null);
   const [centers, setCenters] = useState([]);
-  const [statusOptions, setStatusOptions] = useState([]);
 
-  // Edit dialog (Super Admin only)
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingCell, setEditingCell] = useState(null);
-  const [editStatus, setEditStatus] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-
-  // Check access
   const hasAccess = isSuperAdmin || isAdmin;
 
-  // Load initial data
   useEffect(() => {
     if (token && hasAccess) {
-      fetchStatusOptions();
       fetchCenters();
     }
   }, [token, hasAccess]);
 
-  // Fetch data when filters change
   useEffect(() => {
     if (token && hasAccess) {
       fetchSummary();
@@ -123,18 +86,6 @@ export default function AttendanceDashboard() {
       }
     }
   }, [token, viewMode, selectedDate, selectedMonth, filterCenter, hasAccess]);
-
-  const fetchStatusOptions = async () => {
-    try {
-      const res = await fetch(`${API}/api/attendance-dashboard/status-options`);
-      if (res.ok) {
-        const data = await res.json();
-        setStatusOptions(data.statuses || []);
-      }
-    } catch (err) {
-      console.error("Error fetching status options:", err);
-    }
-  };
 
   const fetchCenters = async () => {
     try {
@@ -217,9 +168,9 @@ export default function AttendanceDashboard() {
     }
   }, [token, selectedDate, filterCenter]);
 
-  const handleExport = async (type) => {
+  const handleExport = async () => {
     try {
-      const endpoint = type === "monthly" 
+      const endpoint = viewMode === "monthly" 
         ? `${API}/api/attendance-dashboard/export-monthly`
         : `${API}/api/attendance-dashboard/export`;
       
@@ -238,58 +189,14 @@ export default function AttendanceDashboard() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = type === "monthly" 
-          ? `Monthly_Attendance_${filterCenter !== "all" ? filterCenter : "ALL"}_${selectedMonth}.xlsx`
-          : `Daily_Attendance_${filterCenter !== "all" ? filterCenter : "ALL"}_${selectedDate}.xlsx`;
+        a.download = viewMode === "monthly" 
+          ? `Attendance_${filterCenter !== "all" ? filterCenter : "ALL"}_${selectedMonth}.xlsx`
+          : `Attendance_${filterCenter !== "all" ? filterCenter : "ALL"}_${selectedDate}.xlsx`;
         a.click();
         toast.success("Report downloaded!");
       }
     } catch (err) {
       toast.error("Export failed");
-    }
-  };
-
-  const handleCellClick = (employee, date, currentStatus, center) => {
-    if (!isSuperAdmin) {
-      toast.error("Only Super Admin can edit attendance");
-      return;
-    }
-    setEditingCell({ employee, date, center });
-    setEditStatus(currentStatus || "");
-    setEditNotes("");
-    setShowEditDialog(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingCell) return;
-    try {
-      const res = await fetch(`${API}/api/attendance-dashboard/edit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          center: editingCell.center,
-          date: editingCell.date,
-          employee_name: editingCell.employee,
-          status: editStatus,
-          notes: editNotes
-        })
-      });
-      if (res.ok) {
-        toast.success("Attendance updated!");
-        setShowEditDialog(false);
-        if (viewMode === "monthly") {
-          fetchMonthlyGrid();
-        } else {
-          fetchDailyGrid();
-        }
-        fetchSummary();
-      } else {
-        const err = await res.json();
-        toast.error(err.detail || "Update failed");
-      }
-    } catch (err) {
-      toast.error("Error updating attendance");
     }
   };
 
@@ -307,36 +214,46 @@ export default function AttendanceDashboard() {
 
   const daysInMonth = monthlyGrid?.days_in_month || 31;
 
+  // Get month name for display
+  const monthNames = ["January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November", "December"];
+  const [year, month] = selectedMonth.split("-");
+  const monthName = monthNames[parseInt(month) - 1];
+
   return (
     <div className="space-y-4" data-testid="attendance-dashboard-page">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-            <BarChart3 className="w-7 h-7" />
-            Attendance Dashboard
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {isSuperAdmin ? "Full Access (Click cell to edit)" : "Read-only View"}
-          </p>
+      {/* Professional Header */}
+      <div className="bg-gradient-to-r from-[#8B0000] to-[#B22222] rounded-lg p-4 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <BarChart3 className="w-7 h-7" />
+              Attendance Dashboard
+            </h1>
+            <p className="text-white/80 text-sm mt-1 flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              View Only Mode • Changes via Center Manager Login
+            </p>
+          </div>
+          <Badge className="bg-white/20 text-white border-white/30 self-start">
+            {isSuperAdmin ? "Super Admin" : "Admin"} View
+          </Badge>
         </div>
-        <Badge variant={isSuperAdmin ? "default" : "secondary"}>
-          {isSuperAdmin ? "Super Admin" : "Admin (View Only)"}
-        </Badge>
       </div>
 
-      {/* Filters & Controls */}
-      <Card>
+      {/* Filters Card */}
+      <Card className="border-2">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-end gap-4">
-            {/* View Mode Toggle */}
+            {/* View Mode */}
             <div>
-              <Label className="text-xs">View Mode</Label>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">View</Label>
               <div className="flex gap-1 mt-1">
                 <Button
                   variant={viewMode === "monthly" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setViewMode("monthly")}
+                  className={viewMode === "monthly" ? "bg-[#8B0000] hover:bg-[#6B0000]" : ""}
                 >
                   <CalendarDays className="w-4 h-4 mr-1" />
                   Monthly
@@ -345,6 +262,7 @@ export default function AttendanceDashboard() {
                   variant={viewMode === "daily" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setViewMode("daily")}
+                  className={viewMode === "daily" ? "bg-[#8B0000] hover:bg-[#6B0000]" : ""}
                 >
                   <Calendar className="w-4 h-4 mr-1" />
                   Daily
@@ -352,59 +270,56 @@ export default function AttendanceDashboard() {
               </div>
             </div>
 
-            {/* Center Filter */}
+            {/* Center */}
             <div>
-              <Label className="text-xs">Select Center</Label>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Center</Label>
               <Select value={filterCenter} onValueChange={setFilterCenter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-56 mt-1">
                   <SelectValue placeholder="All Centers" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Centers</SelectItem>
                   {centers.map((c, idx) => (
                     <SelectItem key={`${c.code || c.center}-${idx}`} value={c.code || c.center}>
-                      {c.name || c.code || c.center}
+                      {c.code || c.center} - {c.name || ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Date/Month Selector */}
-            {viewMode === "monthly" ? (
-              <div>
-                <Label className="text-xs">Select Month</Label>
+            {/* Date/Month */}
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {viewMode === "monthly" ? "Month" : "Date"}
+              </Label>
+              {viewMode === "monthly" ? (
                 <Input
                   type="month"
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-40"
+                  className="w-40 mt-1"
                 />
-              </div>
-            ) : (
-              <div>
-                <Label className="text-xs">Select Date</Label>
+              ) : (
                 <Input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-40"
+                  className="w-40 mt-1"
                 />
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Refresh */}
-            <Button variant="outline" onClick={() => {
-              fetchSummary();
-              viewMode === "monthly" ? fetchMonthlyGrid() : fetchDailyGrid();
-            }}>
-              <RefreshCw className="w-4 h-4 mr-1" />
-              Refresh
-            </Button>
-
-            {/* Export */}
+            {/* Actions */}
             <div className="flex gap-2 ml-auto">
-              <Button variant="outline" onClick={() => handleExport(viewMode)}>
+              <Button variant="outline" onClick={() => {
+                fetchSummary();
+                viewMode === "monthly" ? fetchMonthlyGrid() : fetchDailyGrid();
+              }}>
+                <RefreshCw className="w-4 h-4 mr-1" />
+                Refresh
+              </Button>
+              <Button onClick={handleExport} className="bg-[#059669] hover:bg-[#047857]">
                 <Download className="w-4 h-4 mr-1" />
                 Export Excel
               </Button>
@@ -413,86 +328,125 @@ export default function AttendanceDashboard() {
         </CardContent>
       </Card>
 
-      {/* Summary Cards - Compact */}
+      {/* Summary Stats */}
       {summary && (
         <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-          <Card className="p-2">
-            <div className="text-xs text-muted-foreground">Total</div>
-            <div className="text-lg font-bold">{summary.summary.total_employees}</div>
+          <Card className="bg-slate-50 dark:bg-slate-900">
+            <CardContent className="p-3 text-center">
+              <Users className="w-5 h-5 mx-auto text-slate-600 mb-1" />
+              <div className="text-2xl font-bold">{summary.summary.total_employees}</div>
+              <div className="text-xs text-muted-foreground">Total Staff</div>
+            </CardContent>
           </Card>
-          <Card className="p-2">
-            <div className="text-xs text-green-400">Present</div>
-            <div className="text-lg font-bold text-green-400">{summary.summary.present}</div>
+          <Card className="bg-green-50 dark:bg-green-900/20">
+            <CardContent className="p-3 text-center">
+              <UserCheck className="w-5 h-5 mx-auto text-green-600 mb-1" />
+              <div className="text-2xl font-bold text-green-600">{summary.summary.present}</div>
+              <div className="text-xs text-green-600/70">Present</div>
+            </CardContent>
           </Card>
-          <Card className="p-2">
-            <div className="text-xs text-red-400">Absent</div>
-            <div className="text-lg font-bold text-red-400">{summary.summary.absent}</div>
+          <Card className="bg-red-50 dark:bg-red-900/20">
+            <CardContent className="p-3 text-center">
+              <UserX className="w-5 h-5 mx-auto text-red-600 mb-1" />
+              <div className="text-2xl font-bold text-red-600">{summary.summary.absent}</div>
+              <div className="text-xs text-red-600/70">Absent</div>
+            </CardContent>
           </Card>
-          <Card className="p-2">
-            <div className="text-xs text-yellow-400">Half Day</div>
-            <div className="text-lg font-bold text-yellow-400">{summary.summary.half_day}</div>
+          <Card className="bg-amber-50 dark:bg-amber-900/20">
+            <CardContent className="p-3 text-center">
+              <Clock className="w-5 h-5 mx-auto text-amber-600 mb-1" />
+              <div className="text-2xl font-bold text-amber-600">{summary.summary.half_day}</div>
+              <div className="text-xs text-amber-600/70">Half Day</div>
+            </CardContent>
           </Card>
-          <Card className="p-2">
-            <div className="text-xs text-blue-400">Week Off</div>
-            <div className="text-lg font-bold text-blue-400">{summary.summary.week_off}</div>
+          <Card className="bg-blue-50 dark:bg-blue-900/20">
+            <CardContent className="p-3 text-center">
+              <Calendar className="w-5 h-5 mx-auto text-blue-600 mb-1" />
+              <div className="text-2xl font-bold text-blue-600">{summary.summary.week_off}</div>
+              <div className="text-xs text-blue-600/70">Week Off</div>
+            </CardContent>
           </Card>
-          <Card className="p-2">
-            <div className="text-xs text-orange-400">Leave</div>
-            <div className="text-lg font-bold text-orange-400">{summary.summary.leave}</div>
+          <Card className="bg-purple-50 dark:bg-purple-900/20">
+            <CardContent className="p-3 text-center">
+              <Calendar className="w-5 h-5 mx-auto text-purple-600 mb-1" />
+              <div className="text-2xl font-bold text-purple-600">{summary.summary.leave}</div>
+              <div className="text-xs text-purple-600/70">Leave</div>
+            </CardContent>
           </Card>
-          <Card className="p-2">
-            <div className="text-xs text-gray-400">Not Marked</div>
-            <div className="text-lg font-bold text-gray-400">{summary.summary.not_marked}</div>
+          <Card className="bg-gray-50 dark:bg-gray-900/20">
+            <CardContent className="p-3 text-center">
+              <AlertTriangle className="w-5 h-5 mx-auto text-gray-500 mb-1" />
+              <div className="text-2xl font-bold text-gray-500">{summary.summary.not_marked}</div>
+              <div className="text-xs text-gray-500/70">Not Marked</div>
+            </CardContent>
           </Card>
-          <Card className="p-2 bg-primary/10">
-            <div className="text-xs text-primary">Attendance %</div>
-            <div className="text-lg font-bold text-primary">{summary.summary.attendance_percentage}%</div>
+          <Card className="bg-[#8B0000]/10 border-[#8B0000]/30">
+            <CardContent className="p-3 text-center">
+              <TrendingUp className="w-5 h-5 mx-auto text-[#8B0000] mb-1" />
+              <div className="text-2xl font-bold text-[#8B0000]">{summary.summary.attendance_percentage}%</div>
+              <div className="text-xs text-[#8B0000]/70">Attendance</div>
+            </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Status Legend */}
-      <div className="flex flex-wrap gap-2 text-xs">
-        {Object.entries(STATUS_LABELS).filter(([k]) => k).map(([code, label]) => (
-          <div key={code} className={`px-2 py-1 rounded border ${STATUS_COLORS[code]}`}>
-            {code} = {label}
+      {/* Legend */}
+      <div className="flex flex-wrap gap-2 px-1">
+        {Object.entries(STATUS_STYLES).filter(([k]) => k).map(([code, style]) => (
+          <div 
+            key={code} 
+            className="flex items-center gap-1.5 text-xs"
+          >
+            <span 
+              className="w-6 h-5 rounded text-center font-bold flex items-center justify-center"
+              style={{ backgroundColor: style.bg, color: style.text }}
+            >
+              {code}
+            </span>
+            <span className="text-muted-foreground">{style.label}</span>
           </div>
         ))}
       </div>
 
-      {/* Main Grid View */}
-      <Card>
-        <CardHeader className="py-3">
+      {/* Main Grid */}
+      <Card className="border-2 overflow-hidden">
+        <CardHeader className="py-3 bg-muted/30 border-b">
           <CardTitle className="text-sm flex items-center gap-2">
-            <Grid3X3 className="w-4 h-4" />
+            <Building2 className="w-4 h-4" />
             {viewMode === "monthly" 
-              ? `Monthly Attendance Grid - ${selectedMonth}` 
-              : `Daily Attendance - ${selectedDate}`}
-            {filterCenter !== "all" && <Badge variant="outline">{filterCenter}</Badge>}
+              ? `${monthName} ${year} Attendance Register` 
+              : `Attendance Register - ${selectedDate}`}
+            {filterCenter !== "all" && (
+              <Badge variant="outline" className="ml-2">{filterCenter}</Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin" />
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-[#8B0000]" />
             </div>
           ) : viewMode === "monthly" ? (
-            /* Monthly Grid View */
+            /* Monthly Grid */
             <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
+              <table className="w-full text-xs border-collapse min-w-max">
                 <thead>
-                  <tr className="bg-muted/50">
-                    <th className="border p-1 text-left sticky left-0 bg-muted/50 z-10 min-w-[120px]">Employee</th>
-                    <th className="border p-1 text-left min-w-[80px]">Center</th>
+                  <tr className="bg-[#8B0000] text-white">
+                    <th className="border border-[#6B0000] p-2 text-left font-semibold sticky left-0 bg-[#8B0000] z-20 min-w-[150px]">
+                      Employee Name
+                    </th>
+                    <th className="border border-[#6B0000] p-2 text-left font-semibold min-w-[70px]">Center</th>
                     {Array.from({ length: daysInMonth }, (_, i) => (
-                      <th key={i} className="border p-1 text-center w-8">{i + 1}</th>
+                      <th key={i} className="border border-[#6B0000] p-1 text-center font-semibold w-7">
+                        {i + 1}
+                      </th>
                     ))}
-                    <th className="border p-1 text-center bg-green-900/20">P</th>
-                    <th className="border p-1 text-center bg-red-900/20">A</th>
-                    <th className="border p-1 text-center bg-yellow-900/20">HD</th>
-                    <th className="border p-1 text-center bg-blue-900/20">WO</th>
-                    <th className="border p-1 text-center bg-orange-900/20">L</th>
-                    <th className="border p-1 text-center bg-primary/20">%</th>
+                    <th className="border border-[#6B0000] p-1 text-center font-semibold bg-green-700 w-8">P</th>
+                    <th className="border border-[#6B0000] p-1 text-center font-semibold bg-red-700 w-8">A</th>
+                    <th className="border border-[#6B0000] p-1 text-center font-semibold bg-amber-600 w-8">HD</th>
+                    <th className="border border-[#6B0000] p-1 text-center font-semibold bg-blue-700 w-8">WO</th>
+                    <th className="border border-[#6B0000] p-1 text-center font-semibold bg-purple-700 w-8">L</th>
+                    <th className="border border-[#6B0000] p-1 text-center font-semibold bg-slate-700 w-10">%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -504,34 +458,43 @@ export default function AttendanceDashboard() {
                     const present = counts.P + counts.LATE;
                     const working = daysInMonth - counts.WO - counts.L;
                     const pct = working > 0 ? Math.round((present + counts.HD * 0.5) / working * 100) : 0;
+                    const isEven = empIdx % 2 === 0;
 
                     return (
-                      <tr key={`${emp.center}-${emp.name}-${empIdx}`} className="hover:bg-muted/30">
-                        <td className="border p-1 font-medium sticky left-0 bg-background z-10 truncate max-w-[120px]" title={emp.name}>
-                          {emp.name}
+                      <tr key={`${emp.center}-${emp.name}-${empIdx}`} className={isEven ? "bg-white dark:bg-slate-950" : "bg-gray-50 dark:bg-slate-900"}>
+                        <td className={`border border-gray-200 dark:border-gray-700 p-1.5 font-medium sticky left-0 z-10 ${isEven ? "bg-white dark:bg-slate-950" : "bg-gray-50 dark:bg-slate-900"}`}>
+                          <span className="truncate block max-w-[140px]" title={emp.name}>{emp.name}</span>
                         </td>
-                        <td className="border p-1 text-muted-foreground">{emp.center}</td>
-                        {emp.attendance.map((status, dayIdx) => (
-                          <td 
-                            key={dayIdx}
-                            className={`border p-0 text-center cursor-pointer hover:opacity-80 ${STATUS_COLORS[status] || STATUS_COLORS[""]}`}
-                            onClick={() => handleCellClick(
-                              emp.name, 
-                              `${selectedMonth}-${String(dayIdx + 1).padStart(2, '0')}`,
-                              status,
-                              emp.center
-                            )}
-                            title={`${emp.name} - Day ${dayIdx + 1}: ${STATUS_LABELS[status] || "Not Marked"}`}
-                          >
-                            {status || "-"}
-                          </td>
-                        ))}
-                        <td className="border p-1 text-center font-medium text-green-400">{present}</td>
-                        <td className="border p-1 text-center font-medium text-red-400">{counts.A}</td>
-                        <td className="border p-1 text-center font-medium text-yellow-400">{counts.HD}</td>
-                        <td className="border p-1 text-center font-medium text-blue-400">{counts.WO}</td>
-                        <td className="border p-1 text-center font-medium text-orange-400">{counts.L}</td>
-                        <td className={`border p-1 text-center font-bold ${pct >= 85 ? 'text-green-400' : pct >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <td className="border border-gray-200 dark:border-gray-700 p-1.5 text-muted-foreground font-mono">
+                          {emp.center}
+                        </td>
+                        {emp.attendance.map((status, dayIdx) => {
+                          const style = STATUS_STYLES[status] || STATUS_STYLES[""];
+                          return (
+                            <td 
+                              key={dayIdx}
+                              className="border border-gray-200 dark:border-gray-700 p-0 text-center"
+                              title={`Day ${dayIdx + 1}: ${style.label}`}
+                            >
+                              <span 
+                                className="block w-full py-0.5 font-bold text-[10px]"
+                                style={{ backgroundColor: style.bg, color: style.text }}
+                              >
+                                {status || "-"}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="border border-gray-200 dark:border-gray-700 p-1 text-center font-bold text-green-600 bg-green-50 dark:bg-green-900/20">{present}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-1 text-center font-bold text-red-600 bg-red-50 dark:bg-red-900/20">{counts.A}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-1 text-center font-bold text-amber-600 bg-amber-50 dark:bg-amber-900/20">{counts.HD}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-1 text-center font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20">{counts.WO}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-1 text-center font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/20">{counts.L}</td>
+                        <td className={`border border-gray-200 dark:border-gray-700 p-1 text-center font-bold ${
+                          pct >= 85 ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 
+                          pct >= 70 ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' : 
+                          'text-red-600 bg-red-50 dark:bg-red-900/20'
+                        }`}>
                           {pct}%
                         </td>
                       </tr>
@@ -539,8 +502,9 @@ export default function AttendanceDashboard() {
                   })}
                   {(!monthlyGrid?.employees || monthlyGrid.employees.length === 0) && (
                     <tr>
-                      <td colSpan={daysInMonth + 8} className="text-center py-8 text-muted-foreground">
-                        No attendance data found
+                      <td colSpan={daysInMonth + 8} className="text-center py-12 text-muted-foreground">
+                        <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                        <p>No attendance data found for selected filters</p>
                       </td>
                     </tr>
                   )}
@@ -548,48 +512,44 @@ export default function AttendanceDashboard() {
               </table>
             </div>
           ) : (
-            /* Daily Grid View */
+            /* Daily Grid */
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-muted/50">
-                    <th className="border p-2 text-left">Employee</th>
-                    <th className="border p-2 text-left">Center</th>
-                    <th className="border p-2 text-left">Designation</th>
-                    <th className="border p-2 text-center">Status</th>
-                    <th className="border p-2 text-left">Notes</th>
-                    {isSuperAdmin && <th className="border p-2 text-center">Action</th>}
+                  <tr className="bg-[#8B0000] text-white">
+                    <th className="border border-[#6B0000] p-2 text-left font-semibold">Employee Name</th>
+                    <th className="border border-[#6B0000] p-2 text-left font-semibold">Center</th>
+                    <th className="border border-[#6B0000] p-2 text-left font-semibold">Designation</th>
+                    <th className="border border-[#6B0000] p-2 text-center font-semibold w-32">Status</th>
+                    <th className="border border-[#6B0000] p-2 text-left font-semibold">Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dailyGrid?.employees?.map((emp, idx) => (
-                    <tr key={`${emp.center}-${emp.name}-${idx}`} className="hover:bg-muted/30">
-                      <td className="border p-2 font-medium">{emp.name}</td>
-                      <td className="border p-2 text-muted-foreground">{emp.center}</td>
-                      <td className="border p-2">{emp.designation || "-"}</td>
-                      <td className="border p-2 text-center">
-                        <span className={`px-2 py-1 rounded text-xs ${STATUS_COLORS[emp.status] || STATUS_COLORS[""]}`}>
-                          {emp.status || "-"} {emp.status && `(${STATUS_LABELS[emp.status]})`}
-                        </span>
-                      </td>
-                      <td className="border p-2 text-sm text-muted-foreground">{emp.notes || "-"}</td>
-                      {isSuperAdmin && (
-                        <td className="border p-2 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCellClick(emp.name, selectedDate, emp.status, emp.center)}
+                  {dailyGrid?.employees?.map((emp, idx) => {
+                    const style = STATUS_STYLES[emp.status] || STATUS_STYLES[""];
+                    const isEven = idx % 2 === 0;
+                    return (
+                      <tr key={`${emp.center}-${emp.name}-${idx}`} className={isEven ? "bg-white dark:bg-slate-950" : "bg-gray-50 dark:bg-slate-900"}>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 font-medium">{emp.name}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-muted-foreground font-mono">{emp.center}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2">{emp.designation || "-"}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">
+                          <span 
+                            className="inline-block px-3 py-1 rounded font-bold text-xs"
+                            style={{ backgroundColor: style.bg, color: style.text }}
                           >
-                            <Edit className="w-4 h-4" />
-                          </Button>
+                            {emp.status || "-"} {emp.status && `(${style.label})`}
+                          </span>
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-muted-foreground">{emp.notes || "-"}</td>
+                      </tr>
+                    );
+                  })}
                   {(!dailyGrid?.employees || dailyGrid.employees.length === 0) && (
                     <tr>
-                      <td colSpan={isSuperAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
-                        No attendance data found for {selectedDate}
+                      <td colSpan={5} className="text-center py-12 text-muted-foreground">
+                        <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                        <p>No attendance data found for {selectedDate}</p>
                       </td>
                     </tr>
                   )}
@@ -600,57 +560,70 @@ export default function AttendanceDashboard() {
         </CardContent>
       </Card>
 
-      {/* Center-wise Summary (when viewing all centers) */}
-      {filterCenter === "all" && monthlyGrid?.center_summary && (
-        <Card>
-          <CardHeader className="py-3">
+      {/* Center-wise Summary */}
+      {filterCenter === "all" && monthlyGrid?.center_summary && monthlyGrid.center_summary.length > 0 && (
+        <Card className="border-2">
+          <CardHeader className="py-3 bg-muted/30 border-b">
             <CardTitle className="text-sm flex items-center gap-2">
               <Building2 className="w-4 h-4" />
-              Center-wise Summary
+              Center-wise Performance Summary
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-muted/50">
-                    <th className="border p-2 text-left">Center</th>
-                    <th className="border p-2 text-center">Staff</th>
-                    <th className="border p-2 text-center text-green-400">Present</th>
-                    <th className="border p-2 text-center text-red-400">Absent</th>
-                    <th className="border p-2 text-center text-yellow-400">HD</th>
-                    <th className="border p-2 text-center text-blue-400">WO</th>
-                    <th className="border p-2 text-center text-orange-400">Leave</th>
-                    <th className="border p-2 text-center">Attendance %</th>
-                    <th className="border p-2 text-center">Alert</th>
+                  <tr className="bg-slate-100 dark:bg-slate-800">
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-left font-semibold">Center</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold">Staff</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold text-green-600">Present</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold text-red-600">Absent</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold text-amber-600">Half Day</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold text-blue-600">Week Off</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold text-purple-600">Leave</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold">Attendance %</th>
+                    <th className="border border-gray-200 dark:border-gray-700 p-2 text-center font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {monthlyGrid.center_summary.map((center, idx) => (
-                    <tr key={`${center.center}-${idx}`} className="hover:bg-muted/30">
-                      <td className="border p-2 font-medium">{center.center}</td>
-                      <td className="border p-2 text-center">{center.total_staff}</td>
-                      <td className="border p-2 text-center text-green-400">{center.present}</td>
-                      <td className="border p-2 text-center text-red-400">{center.absent}</td>
-                      <td className="border p-2 text-center text-yellow-400">{center.half_day}</td>
-                      <td className="border p-2 text-center text-blue-400">{center.week_off}</td>
-                      <td className="border p-2 text-center text-orange-400">{center.leave}</td>
-                      <td className="border p-2 text-center">
-                        <span className={`font-bold ${center.attendance_pct >= 85 ? 'text-green-400' : center.attendance_pct >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
-                          {center.attendance_pct}%
-                        </span>
-                      </td>
-                      <td className="border p-2 text-center">
-                        {center.attendance_pct < 70 ? (
-                          <AlertTriangle className="w-4 h-4 text-red-500 mx-auto" />
-                        ) : center.attendance_pct < 85 ? (
-                          <AlertTriangle className="w-4 h-4 text-yellow-500 mx-auto" />
-                        ) : (
-                          <CheckCircle2 className="w-4 h-4 text-green-500 mx-auto" />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {monthlyGrid.center_summary.map((center, idx) => {
+                    const isEven = idx % 2 === 0;
+                    return (
+                      <tr key={`${center.center}-${idx}`} className={isEven ? "bg-white dark:bg-slate-950" : "bg-gray-50 dark:bg-slate-900"}>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 font-semibold">{center.center}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">{center.total_staff}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center text-green-600 font-medium">{center.present}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center text-red-600 font-medium">{center.absent}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center text-amber-600 font-medium">{center.half_day}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center text-blue-600 font-medium">{center.week_off}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center text-purple-600 font-medium">{center.leave}</td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">
+                          <span className={`font-bold ${
+                            center.attendance_pct >= 85 ? 'text-green-600' : 
+                            center.attendance_pct >= 70 ? 'text-amber-600' : 
+                            'text-red-600'
+                          }`}>
+                            {center.attendance_pct}%
+                          </span>
+                        </td>
+                        <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">
+                          {center.attendance_pct < 70 ? (
+                            <span className="inline-flex items-center gap-1 text-red-600 text-xs font-medium">
+                              <AlertTriangle className="w-4 h-4" /> Low
+                            </span>
+                          ) : center.attendance_pct < 85 ? (
+                            <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-medium">
+                              <AlertTriangle className="w-4 h-4" /> Medium
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+                              <CheckCircle2 className="w-4 h-4" /> Good
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -658,56 +631,10 @@ export default function AttendanceDashboard() {
         </Card>
       )}
 
-      {/* Edit Dialog (Super Admin Only) */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Attendance</DialogTitle>
-          </DialogHeader>
-          {editingCell && (
-            <div className="space-y-4">
-              <div>
-                <Label>Employee</Label>
-                <Input value={editingCell.employee} disabled />
-              </div>
-              <div>
-                <Label>Date</Label>
-                <Input value={editingCell.date} disabled />
-              </div>
-              <div>
-                <Label>Center</Label>
-                <Input value={editingCell.center} disabled />
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Select value={editStatus} onValueChange={setEditStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Not Marked</SelectItem>
-                    {statusOptions.map((s, idx) => (
-                      <SelectItem key={`${s.code}-${idx}`} value={s.code}>{s.code} - {s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <Input
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Optional notes..."
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveEdit}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Footer Note */}
+      <div className="text-center text-xs text-muted-foreground py-2">
+        <p>This is a read-only dashboard. To modify attendance, please use the Daily Attendance page via Center Manager login.</p>
+      </div>
     </div>
   );
 }
