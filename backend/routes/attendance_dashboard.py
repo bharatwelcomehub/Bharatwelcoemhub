@@ -397,6 +397,166 @@ async def get_center_detail(req: CenterDetailRequest):
         "can_edit": check_super_admin(session)
     }
 
+# =======================================
+# GRID VIEW ENDPOINTS (Excel-like display)
+# =======================================
+
+@router.post("/monthly-grid")
+async def get_monthly_grid(req: DashboardRequest):
+    """Get monthly attendance in Excel-like grid format"""
+    session = await get_session(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if not check_admin_access(session):
+        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    
+    # Determine month
+    month = req.month or datetime.now().strftime("%Y-%m")
+    filter_center = req.center.upper() if req.center else None
+    
+    year, mon = map(int, month.split("-"))
+    dim = days_in_month(year, mon)
+    
+    # Get employees (optionally filtered by center)
+    emp_query = {"center": filter_center} if filter_center else {}
+    employees = await db.employees.find(emp_query, {"_id": 0}).sort([("center", 1), ("name", 1)]).to_list(5000)
+    
+    # Get attendance for the month
+    start_date = f"{month}-01"
+    end_date = f"{month}-{dim:02d}"
+    
+    att_query = {"date": {"$gte": start_date, "$lte": end_date}}
+    if filter_center:
+        att_query["center"] = filter_center
+    
+    attendance_records = await db.attendance.find(att_query, {"_id": 0}).to_list(50000)
+    
+    # Build attendance map: {center_employee_date: status}
+    att_map = {}
+    for a in attendance_records:
+        key = f"{a.get('center')}_{a.get('employeeName')}_{a.get('date')}"
+        att_map[key] = a.get("status", "")
+    
+    # Build employee grid data
+    employee_grid = []
+    center_stats = {}
+    
+    for emp in employees:
+        emp_name = emp.get("name", "").upper()
+        emp_center = emp.get("center", "")
+        
+        # Initialize center stats
+        if emp_center not in center_stats:
+            center_stats[emp_center] = {
+                "total_staff": 0, "present": 0, "absent": 0, 
+                "half_day": 0, "week_off": 0, "leave": 0
+            }
+        center_stats[emp_center]["total_staff"] += 1
+        
+        # Get attendance for each day
+        attendance = []
+        for d in range(1, dim + 1):
+            date_str = f"{month}-{d:02d}"
+            key = f"{emp_center}_{emp_name}_{date_str}"
+            status = att_map.get(key, "")
+            attendance.append(status)
+            
+            # Update center stats
+            if status == "P" or status == "LATE":
+                center_stats[emp_center]["present"] += 1
+            elif status == "A":
+                center_stats[emp_center]["absent"] += 1
+            elif status == "HD":
+                center_stats[emp_center]["half_day"] += 1
+            elif status == "WO":
+                center_stats[emp_center]["week_off"] += 1
+            elif status == "L":
+                center_stats[emp_center]["leave"] += 1
+        
+        employee_grid.append({
+            "name": emp_name,
+            "center": emp_center,
+            "designation": emp.get("designation", ""),
+            "attendance": attendance
+        })
+    
+    # Build center summary
+    center_summary = []
+    for center_code, stats in center_stats.items():
+        working_days = stats["total_staff"] * dim - stats["week_off"] - stats["leave"]
+        att_pct = round((stats["present"] + stats["half_day"] * 0.5) / working_days * 100, 1) if working_days > 0 else 0
+        center_summary.append({
+            "center": center_code,
+            **stats,
+            "attendance_pct": att_pct
+        })
+    
+    center_summary.sort(key=lambda x: x["attendance_pct"])
+    
+    return {
+        "month": month,
+        "days_in_month": dim,
+        "employees": employee_grid,
+        "center_summary": center_summary,
+        "is_super_admin": check_super_admin(session)
+    }
+
+@router.post("/daily-grid")
+async def get_daily_grid(req: DashboardRequest):
+    """Get daily attendance in grid format"""
+    session = await get_session(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    if not check_admin_access(session):
+        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    
+    target_date = req.date or datetime.now().strftime("%Y-%m-%d")
+    filter_center = req.center.upper() if req.center else None
+    
+    # Get employees (optionally filtered by center)
+    emp_query = {"center": filter_center} if filter_center else {}
+    employees = await db.employees.find(emp_query, {"_id": 0}).sort([("center", 1), ("name", 1)]).to_list(5000)
+    
+    # Get attendance for the date
+    att_query = {"date": target_date}
+    if filter_center:
+        att_query["center"] = filter_center
+    
+    attendance_records = await db.attendance.find(att_query, {"_id": 0}).to_list(10000)
+    
+    # Build attendance map
+    att_map = {}
+    for a in attendance_records:
+        key = f"{a.get('center')}_{a.get('employeeName')}"
+        att_map[key] = {
+            "status": a.get("status", ""),
+            "notes": a.get("notes", "")
+        }
+    
+    # Build employee data
+    employee_data = []
+    for emp in employees:
+        emp_name = emp.get("name", "").upper()
+        emp_center = emp.get("center", "")
+        key = f"{emp_center}_{emp_name}"
+        att = att_map.get(key, {"status": "", "notes": ""})
+        
+        employee_data.append({
+            "name": emp_name,
+            "center": emp_center,
+            "designation": emp.get("designation", ""),
+            "status": att["status"],
+            "notes": att["notes"]
+        })
+    
+    return {
+        "date": target_date,
+        "employees": employee_data,
+        "is_super_admin": check_super_admin(session)
+    }
+
 @router.post("/monthly-trend")
 async def get_monthly_trend(req: DashboardRequest):
     """Get attendance trend for a month"""
