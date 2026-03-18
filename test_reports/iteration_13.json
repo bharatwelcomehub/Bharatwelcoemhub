@@ -1,0 +1,159 @@
+{
+  "summary": "Comprehensive testing of Booking Intelligence & Guest Conversion module and Session Persistence (Invalid Token fix). All 20 backend API tests passed. All frontend UI components verified working including booking list, new booking dialog, dashboard statistics, and reminders tab.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "Backend: Session Persistence - Login returns token with session TTL info",
+    "Backend: Session Persistence - Token persists across multiple requests",
+    "Backend: Booking Constants - Returns all required constants (time_slots, guest_types, celebration_types, etc.)",
+    "Backend: Booking CRUD - Create booking returns booking_id with BK- prefix",
+    "Backend: Booking CRUD - List bookings with date filters",
+    "Backend: Booking CRUD - Search bookings by phone number",
+    "Backend: Booking CRUD - Update booking status and fields",
+    "Backend: Guest Lookup - New guest returns found=false",
+    "Backend: Guest Lookup - Existing guest returns history and stats",
+    "Backend: Guest Lookup - Invalid phone handled gracefully",
+    "Backend: Dashboard Stats - Today period returns summary and conversion metrics",
+    "Backend: Dashboard Stats - Week period with date range",
+    "Backend: Dashboard Stats - Month period with conversion rates",
+    "Backend: WhatsApp Preview - Confirmation message generated with brand name",
+    "Backend: WhatsApp Preview - Reminder message generated",
+    "Backend: Reminders - Upcoming birthdays/anniversaries endpoint works",
+    "Backend: Reminders - Today's follow-ups endpoint works",
+    "Backend: Access Control - Invalid token returns 401",
+    "Backend: Access Control - Missing token returns 401",
+    "Backend: Cleanup - Test data cleanup successful",
+    "Frontend: Login flow works correctly",
+    "Frontend: Navigation to Booking Intelligence page via URL",
+    "Frontend: Page loads with data-testid attribute",
+    "Frontend: Three tabs present - Bookings, Dashboard, Reminders",
+    "Frontend: New Booking and Guest Lookup buttons present",
+    "Frontend: New Booking dialog opens with all form fields",
+    "Frontend: Dashboard tab shows stats cards (Total Bookings, Confirmed, Visited, Expected Guests)",
+    "Frontend: Dashboard shows Guest Breakdown and Booking Sources",
+    "Frontend: Reminders tab shows Follow-ups Today, Upcoming Birthdays, Upcoming Anniversaries"
+  ],
+  
+  "test_report_links": [
+    "/app/backend/tests/test_booking_intelligence.py",
+    "/app/test_reports/pytest/pytest_booking_intelligence.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [
+    "BookingIntelligence.jsx is 1357 lines - could benefit from component extraction (e.g., BookingForm, BookingTable, DashboardStats, RemindersPanel)",
+    "useEffect at line 211 has missing dependencies warning - should add fetchBookings, fetchStats, fetchReminders, fetchFollowups to dependency array or wrap in useCallback",
+    "WhatsApp API is MOCKED - messages are logged to database but not actually sent to WhatsApp"
+  ],
+  
+  "updated_files": [
+    "/app/backend/tests/test_booking_intelligence.py"
+  ],
+  
+  "success_rate": {
+    "backend": "100% (20/20 tests passed)",
+    "frontend": "100%"
+  },
+  
+  "test_credentials": {
+    "super_admin": {
+      "center": "PB-MGT",
+      "mobile": "9741399190",
+      "otp": "123456"
+    }
+  },
+  
+  "seed_data_creation": "Test bookings created during pytest with TEST_ prefix were cleaned up after tests. Existing test booking BK-PB-HSR-202603180433-59E3 with phone 9876543210 was used for verification.",
+  
+  "verified_features": {
+    "session_persistence": {
+      "status": "VERIFIED",
+      "details": [
+        "Sessions now persist to MongoDB 'sessions' collection",
+        "Token verified via verify_token_async function",
+        "Token includes session_expires_in_seconds in response",
+        "In-memory cache is backed by MongoDB for persistence across server restarts",
+        "Session TTL is 43200 seconds (12 hours)"
+      ]
+    },
+    "booking_crud": {
+      "status": "VERIFIED",
+      "details": [
+        "Create booking with all fields (date, time_slot, guest_name, phone, num_guests, etc.)",
+        "Booking ID generated with format BK-{CENTER}-{TIMESTAMP}-{UUID}",
+        "List bookings with filters (date_from, date_to, center, status, celebration_type, search)",
+        "Update booking fields (status, num_guests, remarks, etc.)",
+        "Phone number normalization works correctly"
+      ]
+    },
+    "guest_lookup": {
+      "status": "VERIFIED",
+      "details": [
+        "Lookup by phone number",
+        "Returns guest info for existing guests",
+        "Returns booking history and stats",
+        "Auto-fills form with guest data on lookup"
+      ]
+    },
+    "dashboard_stats": {
+      "status": "VERIFIED",
+      "details": [
+        "Period filters: today, week, month",
+        "Summary: total_bookings, enquiries, confirmed, visited, cancelled, catering_leads, new_guests, repeat_guests",
+        "Conversion metrics: enquiry_to_confirmed, booking_to_visit, repeat_rate",
+        "Celebration breakdown",
+        "Time slot distribution",
+        "Booking source distribution"
+      ]
+    },
+    "whatsapp_preview": {
+      "status": "VERIFIED (MOCKED)",
+      "details": [
+        "Preview confirmation, reminder, thankyou messages",
+        "Messages include guest name, date, time, center",
+        "Messages logged to whatsapp_logs collection",
+        "Actual WhatsApp API integration is MOCKED"
+      ]
+    },
+    "reminders": {
+      "status": "VERIFIED",
+      "details": [
+        "Upcoming birthdays (next 7 days)",
+        "Upcoming anniversaries (next 7 days)",
+        "Kids birthdays",
+        "Today's follow-ups based on follow_up_date"
+      ]
+    },
+    "frontend_ui": {
+      "status": "VERIFIED",
+      "details": [
+        "Three tabs: Bookings, Dashboard, Reminders",
+        "New Booking dialog with full form",
+        "Guest Lookup dialog with search",
+        "Bookings table with date/time, guest, contact, guests, occasion, status, actions",
+        "Dashboard cards with stats and breakdowns",
+        "Reminders cards for follow-ups, birthdays, anniversaries"
+      ]
+    }
+  },
+  
+  "mocked_apis": {
+    "whatsapp": "WhatsApp Business API is MOCKED - messages are logged to database 'whatsapp_logs' collection but not actually sent via WhatsApp API"
+  },
+  
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  
+  "context_for_next_testing_agent": "Booking Intelligence module fully tested. Key endpoints: /api/bookings/create, /api/bookings/list, /api/bookings/guest-lookup, /api/bookings/dashboard/stats, /api/bookings/preview-whatsapp/{id}, /api/bookings/reminders/upcoming, /api/bookings/followups/today. Session persistence is now via MongoDB 'sessions' collection. WhatsApp API is MOCKED. Test file: /app/backend/tests/test_booking_intelligence.py"
+}

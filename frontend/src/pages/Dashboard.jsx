@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { 
   Calendar, 
+  CalendarDays,
   Users, 
   Wallet, 
   FileSpreadsheet, 
@@ -44,6 +45,7 @@ import ExpenseHeads from "@/pages/ExpenseHeads";
 import RoleManagement from "@/pages/RoleManagement";
 import FranchiseManagement from "@/pages/FranchiseManagement";
 import MISDashboard from "@/pages/MISDashboard";
+import BookingIntelligence from "@/pages/BookingIntelligence";
 
 // Menu categories structure
 const menuCategories = [
@@ -107,6 +109,7 @@ const menuCategories = [
     icon: ChefHat,
     roleKey: "operations",
     items: [
+      { path: "/booking-intelligence", icon: CalendarDays, label: "Booking Intelligence", roleKey: "operations" },
       { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", roleKey: "operations" },
       { path: "/guest-response", icon: MessageCircle, label: "Guest Response", roleKey: "operations" },
       { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", roleKey: "operations" },
@@ -346,6 +349,7 @@ export default function Dashboard() {
             <Route path="/role-management" element={<RoleManagement />} />
             <Route path="/franchises" element={<FranchiseManagement />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
+            <Route path="/booking-intelligence" element={<BookingIntelligence />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
           </Routes>

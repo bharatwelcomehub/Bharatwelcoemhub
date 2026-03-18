@@ -14,7 +14,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://franchise-hub-38.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://event-booking-hub-30.preview.emergentagent.com')
 
 # Test credentials (READ-ONLY - do not modify production data)
 SUPER_ADMIN_CENTER = "PB-MGT"

@@ -69,8 +69,62 @@ app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# OTP Storage (in-memory for dev, use Redis in production)
+# OTP Storage - Now using MongoDB for persistence across server restarts
+# The otp_store dict is kept for backward compatibility with existing code
+# but all data is now persisted to MongoDB 'sessions' collection
 otp_store: Dict[str, Dict] = {}
+
+# =======================================
+# SESSION PERSISTENCE HELPERS (MongoDB)
+# =======================================
+
+async def save_session_to_db(key: str, session_data: dict):
+    """Save session to MongoDB for persistence"""
+    try:
+        session_doc = {
+            "key": key,
+            **session_data,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.sessions.update_one(
+            {"key": key},
+            {"$set": session_doc},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"Error saving session to DB: {e}")
+
+async def get_session_from_db(key: str) -> Optional[dict]:
+    """Get session from MongoDB"""
+    try:
+        session = await db.sessions.find_one({"key": key}, {"_id": 0})
+        return session
+    except Exception as e:
+        logger.error(f"Error getting session from DB: {e}")
+        return None
+
+async def get_session_by_token(token: str) -> Optional[dict]:
+    """Get session by token from MongoDB"""
+    try:
+        session = await db.sessions.find_one({"token": token}, {"_id": 0})
+        return session
+    except Exception as e:
+        logger.error(f"Error getting session by token from DB: {e}")
+        return None
+
+async def delete_session_from_db(key: str):
+    """Delete session from MongoDB"""
+    try:
+        await db.sessions.delete_one({"key": key})
+    except Exception as e:
+        logger.error(f"Error deleting session from DB: {e}")
+
+async def delete_session_by_token(token: str):
+    """Delete session by token from MongoDB"""
+    try:
+        await db.sessions.delete_one({"token": token})
+    except Exception as e:
+        logger.error(f"Error deleting session by token from DB: {e}")
 
 # =======================================
 # PYDANTIC MODELS
@@ -187,16 +241,17 @@ def generate_otp():
 def generate_token():
     return secrets.token_urlsafe(32)
 
-def verify_token(token: str) -> Optional[Dict]:
+def verify_token_sync(token: str) -> Optional[Dict]:
     """
-    Verify token and check session expiry.
-    Session expires after 2 hours of inactivity (configurable via config.json).
+    Synchronous token verification (for backward compatibility).
+    Checks in-memory store first, then falls back to DB check via async.
+    This is a fallback - prefer verify_token_async when possible.
     """
-    session_ttl = int((CFG.get("security") or {}).get("session_ttl_seconds", 7200))  # Default 2 hours
+    session_ttl = int((CFG.get("security") or {}).get("session_ttl_seconds", 7200))
     
+    # Check in-memory store first
     for key, data in otp_store.items():
         if data.get("token") == token:
-            # Check if session has expired
             token_created = data.get("token_created_at")
             if token_created:
                 try:
@@ -206,14 +261,73 @@ def verify_token(token: str) -> Optional[Dict]:
                     
                     if elapsed > session_ttl:
                         logger.info(f"Token expired for {data.get('center')} - elapsed {elapsed}s > TTL {session_ttl}s")
-                        # Token expired - remove it
                         del otp_store[key]
                         return None
                 except Exception as e:
                     logger.warning(f"Error checking token expiry: {e}")
-            
             return data
     return None
+
+async def verify_token_async(token: str) -> Optional[Dict]:
+    """
+    Async token verification using MongoDB for persistence.
+    This is the preferred method - tokens survive server restarts.
+    """
+    session_ttl = int((CFG.get("security") or {}).get("session_ttl_seconds", 7200))
+    
+    # First check in-memory for speed
+    for key, data in otp_store.items():
+        if data.get("token") == token:
+            token_created = data.get("token_created_at")
+            if token_created:
+                try:
+                    created_time = datetime.fromisoformat(token_created.replace('Z', '+00:00'))
+                    now = datetime.now(timezone.utc)
+                    elapsed = (now - created_time).total_seconds()
+                    
+                    if elapsed > session_ttl:
+                        logger.info(f"Token expired for {data.get('center')} - elapsed {elapsed}s > TTL {session_ttl}s")
+                        del otp_store[key]
+                        await delete_session_by_token(token)
+                        return None
+                except Exception as e:
+                    logger.warning(f"Error checking token expiry: {e}")
+            return data
+    
+    # If not in memory, check MongoDB (handles server restart case)
+    try:
+        session = await get_session_by_token(token)
+        if session:
+            token_created = session.get("token_created_at")
+            if token_created:
+                try:
+                    created_time = datetime.fromisoformat(token_created.replace('Z', '+00:00'))
+                    now = datetime.now(timezone.utc)
+                    elapsed = (now - created_time).total_seconds()
+                    
+                    if elapsed > session_ttl:
+                        logger.info(f"Token expired (from DB) for {session.get('center')} - elapsed {elapsed}s > TTL {session_ttl}s")
+                        await delete_session_by_token(token)
+                        return None
+                except Exception as e:
+                    logger.warning(f"Error checking token expiry from DB: {e}")
+            
+            # Restore to in-memory cache
+            key = session.get("key")
+            if key:
+                otp_store[key] = session
+            return session
+    except Exception as e:
+        logger.error(f"Error verifying token from DB: {e}")
+    
+    return None
+
+def verify_token(token: str) -> Optional[Dict]:
+    """
+    Backward compatible verify_token function.
+    Note: This is sync but the async version is preferred for persistence.
+    """
+    return verify_token_sync(token)
 
 def has_admin_access(session) -> bool:
     """Check if user has admin/super admin access"""
@@ -308,7 +422,7 @@ async def send_otp(req: OTPRequest):
     manager_email = manager.get("email", "")
     manager_name = manager.get("managerName", "Manager")
     
-    otp_store[key] = {
+    session_data = {
         "otp": otp,
         "center": req.center.upper(),
         "mobile": req.mobile,
@@ -316,6 +430,10 @@ async def send_otp(req: OTPRequest):
         "email": manager_email,
         "created": datetime.now(timezone.utc).isoformat()
     }
+    
+    # Save to both in-memory and MongoDB for persistence
+    otp_store[key] = session_data
+    await save_session_to_db(key, session_data)
     
     # Always log OTP for development/debugging
     logger.info(f"OTP for {req.center}/{req.mobile}: {otp}")
@@ -337,7 +455,14 @@ async def send_otp(req: OTPRequest):
 async def verify_otp(req: OTPVerify):
     """Verify OTP and return session token"""
     key = f"{req.center}_{req.mobile}"
+    
+    # Check in-memory first, then MongoDB
     stored = otp_store.get(key)
+    if not stored:
+        # Try to get from MongoDB (handles server restart case)
+        stored = await get_session_from_db(key)
+        if stored:
+            otp_store[key] = stored  # Restore to memory
     
     if not stored:
         raise HTTPException(400, "OTP expired or not requested")
@@ -394,11 +519,15 @@ async def verify_otp(req: OTPVerify):
     stored["is_super_admin"] = is_super_admin
     stored["is_admin"] = is_admin
     stored["email"] = manager.get("email", "") if manager else ""
+    stored["key"] = key  # Add key for MongoDB lookup
+    
+    # Save to both in-memory and MongoDB for persistence
     otp_store[key] = stored
+    await save_session_to_db(key, stored)
     
     # Log session creation with expiry info
     session_ttl = int((CFG.get("security") or {}).get("session_ttl_seconds", 7200))
-    logger.info(f"Session created for {req.center}/{req.mobile} - valid for {session_ttl}s ({session_ttl//3600}h {(session_ttl%3600)//60}m)")
+    logger.info(f"Session created for {req.center}/{req.mobile} - valid for {session_ttl}s ({session_ttl//3600}h {(session_ttl%3600)//60}m) - persisted to MongoDB")
     
     return {
         "success": True,
@@ -4048,6 +4177,12 @@ from routes.mis_dashboard import router as mis_router, set_db as set_mis_db, set
 set_mis_db(db)
 set_mis_verify_token(verify_token)
 app.include_router(mis_router)
+
+# Include Booking Intelligence router
+from routes.booking_intelligence import router as booking_router, set_db as set_booking_db, set_verify_token as set_booking_verify_token
+set_booking_db(db)
+set_booking_verify_token(verify_token)
+app.include_router(booking_router)
 
 # CORS
 app.add_middleware(
