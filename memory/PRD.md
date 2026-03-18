@@ -8,7 +8,51 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 15, 2026 - Session 13)
+### Latest Update (Mar 18, 2026 - Session 14)
+
+- ✅ **P0: BOOKING INTELLIGENCE & GUEST CONVERSION MODULE (COMPLETE)**
+  - **Booking Management:**
+    - Full CRUD for bookings (create, list, update, delete)
+    - Booking ID format: `BK-{CENTER}-{TIMESTAMP}-{UUID}`
+    - 18 fields: date, time_slot, guest_name, phone, num_guests, celebration_type, etc.
+    - Status tracking: Enquiry, Confirmed, Visited, Cancelled, No Show, Repeat Visit
+  - **Guest CRM:**
+    - Guest lookup by phone number
+    - Automatic guest tracking (new vs repeat)
+    - Store DOB, anniversary, kids birthday for reminders
+    - Guest history and preferences tracking
+  - **Dashboard Analytics:**
+    - Period filters: Today, Week, Month
+    - Summary: Total bookings, Enquiries, Confirmed, Visited, Cancelled
+    - Conversion metrics: Enquiry-to-Confirm, Booking-to-Visit, Repeat rate
+    - Celebration breakdown, Time slot distribution, Booking sources
+  - **WhatsApp Integration (MOCKED):**
+    - Confirmation, Reminder, Thank You message templates
+    - Message preview before sending
+    - Messages logged to `whatsapp_logs` collection (actual API pending)
+  - **Reminders System:**
+    - Upcoming birthdays (next 7 days)
+    - Upcoming anniversaries (next 7 days)
+    - Kids birthdays
+    - Today's follow-ups based on follow_up_date
+  - **Catering Leads:**
+    - Mark booking as catering enquiry
+    - Separate catering_leads collection
+  - **Backend:** `/app/backend/routes/booking_intelligence.py` (1066 lines)
+  - **Frontend:** `/app/frontend/src/pages/BookingIntelligence.jsx` (1357 lines)
+  - **Testing:** 20/20 backend tests passed, frontend fully verified
+
+- ✅ **P1: INVALID TOKEN FIX (CRITICAL STABILITY FIX)**
+  - **Root Cause:** In-memory `otp_store` dictionary was wiped on every server restart
+  - **Solution:** Sessions now persist to MongoDB `sessions` collection
+  - **Implementation:**
+    - New functions: `save_session_to_db()`, `get_session_from_db()`, `get_session_by_token()`
+    - `verify_token_async()` checks MongoDB if token not in memory
+    - Both `send_otp` and `verify_otp` save to MongoDB
+  - **Session TTL:** 12 hours (43200 seconds)
+  - **Result:** Tokens survive server restarts, no more "Invalid Token" errors
+
+### Previous Update (Mar 15, 2026 - Session 13)
 
 - ✅ **P0: FOCO MODEL UPGRADE FOR FRANCHISE AGREEMENTS**
   - **Business Model:** FOCO (Franchise Owned - Company Operated)
@@ -348,15 +392,38 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `POST /api/franchises/stats` - Get franchise statistics
 - `GET /api/franchises/countries` - Get available countries list
 
+### Booking Intelligence (NEW - Session 14)
+- `GET /api/bookings/constants` - Get all booking form constants
+- `POST /api/bookings/create` - Create new booking
+- `POST /api/bookings/list` - List bookings with filters
+- `POST /api/bookings/get/{booking_id}` - Get single booking details
+- `POST /api/bookings/update/{booking_id}` - Update booking
+- `POST /api/bookings/delete/{booking_id}` - Delete booking (Super Admin only)
+- `POST /api/bookings/guest-lookup` - Look up guest by phone number
+- `POST /api/bookings/dashboard/stats` - Get dashboard statistics
+- `POST /api/bookings/dashboard/center-comparison` - Get center-wise comparison (Admin only)
+- `POST /api/bookings/dashboard/trends` - Get booking trends over time
+- `POST /api/bookings/preview-whatsapp/{booking_id}` - Preview WhatsApp message
+- `POST /api/bookings/send-whatsapp/{booking_id}` - Send/log WhatsApp message
+- `POST /api/bookings/reminders/upcoming` - Get upcoming birthday/anniversary reminders
+- `POST /api/bookings/reminders/send-greeting` - Send greeting message
+- `POST /api/bookings/followups/today` - Get today's follow-ups
+- `POST /api/bookings/catering/list` - List catering leads
+- `POST /api/bookings/catering/update/{booking_id}` - Update catering lead
+
 ## Key Files
-- `/app/backend/server.py` - Main API server (includes PDF generation endpoints)
+- `/app/backend/server.py` - Main API server (includes session persistence, PDF generation)
 - `/app/backend/routes/sales_expenses.py` - Sales & Expenses API routes (includes Expense Heads CRUD)
-- `/app/backend/routes/franchises.py` - Franchise Management API routes (NEW)
+- `/app/backend/routes/franchises.py` - Franchise Management API routes
+- `/app/backend/routes/booking_intelligence.py` - Booking Intelligence API routes (NEW)
+- `/app/backend/routes/mis_dashboard.py` - MIS Dashboard API routes
 - `/app/backend/scripts/import_sales_data.py` - Excel data import script
 - `/app/backend/recipes_db.json` - 164 recipes from user's PDF (expanded from 79)
 - `/app/frontend/src/pages/SalesExpenses.jsx` - Sales & Cash Summary dashboard
 - `/app/frontend/src/pages/ExpenseHeads.jsx` - Expense Heads Master CRUD page
-- `/app/frontend/src/pages/FranchiseManagement.jsx` - Franchise Management page (NEW)
+- `/app/frontend/src/pages/FranchiseManagement.jsx` - Franchise Management page
+- `/app/frontend/src/pages/BookingIntelligence.jsx` - Booking Intelligence page (NEW)
+- `/app/frontend/src/pages/MISDashboard.jsx` - MIS Dashboard page
 - `/app/frontend/src/components/SalesDataEntry.jsx` - Sales data entry form
 - `/app/frontend/src/components/ExpenseEntry.jsx` - Expense entry form
 - `/app/frontend/src/pages/Dashboard.jsx` - Categorized navigation sidebar (UPDATED)
@@ -375,8 +442,13 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `payroll_locks` - Payroll lock status
 - `daily_sales` - Daily sales and cash summary records
 - `expenses` - Individual expense records with categories
-- `franchises` - Franchise records with documents array (NEW)
-- `franchise_audit` - Audit log for all franchise changes (NEW)
+- `franchises` - Franchise records with documents array
+- `franchise_audit` - Audit log for all franchise changes
+- `sessions` - User session tokens for persistence (NEW - fixes Invalid Token)
+- `bookings` - Guest bookings (NEW)
+- `guests` - Guest CRM data (NEW)
+- `catering_leads` - Catering enquiries (NEW)
+- `whatsapp_logs` - WhatsApp message logs (NEW)
 
 ## Testing Credentials
 - Center: PB-MGT
@@ -388,14 +460,17 @@ User had existing HTML/Python files for an attendance and salary management syst
 - `/app/test_reports/iteration_7.json` - Recipe Admin tests (100% pass)
 - `/app/test_reports/iteration_8.json` - Sales & Expenses tests (100% pass - 11/11 backend, full frontend)
 - `/app/test_reports/iteration_9.json` - Sales Enhancements (GST, Guest/Bill counts, Booking Response) - 100% pass
-- `/app/test_reports/iteration_12.json` - Franchise Management tests (100% pass - 22 backend tests) (NEW)
+- `/app/test_reports/iteration_12.json` - Franchise Management tests (100% pass - 22 backend tests)
+- `/app/test_reports/iteration_13.json` - Booking Intelligence & Session Persistence tests (100% pass - 20 backend tests) (NEW)
 
 ## Backlog/Future
 - **P2: Payslip Data Overlap**: Verify and fix any remaining overlap issues in PDF payslip generation
 - **P2: HR Letter PDF Download Verification**: User verification pending for the fix applied earlier
 - **P1: Refactor server.py into modular FastAPI routers** (HIGH PRIORITY - file is very large, ~4000 lines)
 - **P1: Verify Doordash field and financial calculations**: Recently added but not fully tested
-- **P1: Invalid Token issue**: Root cause investigation - in-memory token store
+- ~~**P1: Invalid Token issue**: Root cause investigation - in-memory token store~~ **FIXED in Session 14**
+- **P1: Enhance Franchise Agreement to 60+ pages** - BLOCKED waiting for user templates
+- **P2: Real WhatsApp Business API integration** - Currently MOCKED
 - Add custom roles (Trainer, Marketing)
 - Add image upload for recipes (currently URL only)
 - Add company CIN number to HR letter templates
