@@ -1,0 +1,219 @@
+<analysis>**original_problem_statement:**
+The user wants to build a comprehensive internal management system for Purnabramha, a restaurant franchise. The project includes modules for Sales, HR, Franchise Management, MIS, Booking Intelligence, and Attendance.
+
+**PRODUCT REQUIREMENTS:**
+The most recent and critical requirement is to build a robust and flexible franchise agreement generator. The user is frustrated with the current simple 5-page output and has provided several detailed PDF documents (Perth agreement, Kalyan agreement, ROI calculations) as a reference. The new generator must produce a comprehensive, 60+ page document that incorporates country-specific logic (India vs. Australia), complex financial rules (FOCO model, revenue sharing), and all necessary annexures, matching the professional quality of the provided examples. The user has emphasized that this should be the definitive and final implementation for this feature.
+
+Additionally, the user previously requested:
+1.  **Centralized Attendance Dashboard:** A new module for Admins to view real-time, read-only attendance data for all centers in an Excel-style grid.
+2.  **Attendance Freezing:** A feature for Admins/Super Admins to lock attendance for a given month, preventing any further edits by center managers.
+3.  **Booking Intelligence Module:** A guest relationship and booking management system for center managers.
+4.  **Fix Invalid Token Error:** Resolve a recurring critical bug causing session loss.
+
+**User's preferred language**: English
+
+**what currently exists?**
+A full-stack React/FastAPI/MongoDB application with a multi-tiered Role-Based Access Control (RBAC) system.
+- **Authentication:** The critical Invalid Token bug has been fixed by migrating the session store from an in-memory dictionary to a persistent MongoDB  collection. All API routes have been updated to use this robust async verification.
+- **Booking Intelligence Module:** A complete module with a detailed frontend page and backend APIs for managing bookings, guests, and reminders (WhatsApp is mocked).
+- **Attendance Dashboard Module:** A new, professional-looking view-only dashboard displaying attendance in an Excel-like grid. It includes filters, summary cards, and role-based access.
+- **Attendance Locking Feature:** Admins/Super Admins can now lock and unlock attendance for any given month, preventing modifications by center managers.
+- **Existing Modules:** Sales & Expenses, HR Management, Franchise Management (with a basic agreement generator), and an MIS Dashboard are also present.
+
+**Last working item**:
+- **Last item agent was working:** The user expressed significant frustration with the currently generated 5-page franchise agreement. They provided four detailed PDF documents to be used as templates for a complete overhaul. The agent acknowledged the issue, analyzed the provided documents, and was about to begin the complete rewrite of the agreement generation logic in .
+- **Status:** IN PROGRESS
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** backend testing agent. The agent should generate the agreement as a PDF and manually verify its structure, length, and content against the user-provided .
+- **User Testing Done:** N
+
+**All Pending/In progress Issue list**:
+*   **Issue 1: Rebuild Franchise Agreement Generator (P0)**
+*   **Issue 2: Verify  and Final Financial Calculations (P2)**
+*   **Issue 3: Frontend Build Fails with Babel Plugin (P2)**
+*   **Issue 4: Payslip Data Overlap (P2)**
+*   **Issue 5: Duplicate PB-PERTH Center in Database (P2)**
+
+**Issues Detail:**
+- **Issue 1: Rebuild Franchise Agreement Generator**
+    - **Attempted fixes:** The agent analyzed the user-provided PDF documents to understand the required structure and logic.
+    - **Next debug checklist:**
+        1.  Completely rewrite the  function in .
+        2.  Use the  library to construct a multi-page PDF document that mirrors the structure of the 60+ page Perth agreement.
+        3.  Implement conditional logic to handle differences between India (revenue share) and Australia (fixed fee) models based on the franchise's country.
+        4.  Incorporate the complex ROI calculation logic, including the MG less than 50% rule.
+        5.  Add all necessary sections, schedules, and annexures as detailed in the provided documents.
+        6.  Generate a test agreement and compare it against the user's PDFs to ensure quality and completeness.
+    - **Why fix this issue and what will be achieved with the fix?** This is the user's highest priority. The current generator is unacceptable. This will deliver a production-ready, legally comprehensive document and resolve major user frustration.
+    - **Status:** IN PROGRESS
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** Backend.
+    - **Blocked on other issue:** None.
+
+- **Issue 2: Verify  and Final Financial Calculations**
+    - **Attempted fixes:** None in this session.
+    - **Next debug checklist:** Manually test the full flow: enter a  value in the sales form, save it, and verify that  and  are calculated correctly on the frontend and in the database.
+    - **Why fix this issue and what will be achieved with the fix?** Ensures core financial logic is correct.
+    - **Status:** TESTING PENDING
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** Both.
+    - **Blocked on other issue:** None.
+
+- **Issue 3: Frontend Build Fails with Babel Plugin**
+    - **Attempted fixes:** The  was disabled in  as a workaround.
+    - **Next debug checklist:** Research compatibility issues and attempt to update the plugin or related dependencies.
+    - **Why fix this issue and what will be achieved with the fix?** Removes a technical debt workaround.
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** Frontend.
+    - **Blocked on other issue:** None.
+
+- **Issue 4: Payslip Data Overlap**
+    - **Attempted fixes:** None.
+    - **Next debug checklist:** Generate a PDF payslip and inspect for overlapping text. Adjust coordinates in the  logic in .
+    - **Why fix this issue and what will be achieved with the fix?** Fixes a cosmetic but unprofessional bug.
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** Backend.
+    - **Blocked on other issue:** None.
+
+- **Issue 5: Duplicate PB-PERTH Center in Database**
+    - **Attempted fixes:** None. This was identified by the testing agent.
+    - **Next debug checklist:**
+        1.  Connect to the MongoDB  collection.
+        2.  Identify the duplicate PB-PERTH entries.
+        3.  Merge any relevant data if necessary and delete the redundant entry.
+    - **Why fix this issue and what will be achieved with the fix?** Ensures data integrity and prevents potential issues in reporting and filters.
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** Backend.
+    - **Blocked on other issue:** None.
+
+**In progress Task List**:
+- **Task 1: Rebuild Franchise Agreement Generator**
+    - **Where to resume:** In , focusing on the  function. The agent needs to start coding the new, complex PDF generation logic based on the analyzed documents.
+    - **What will be achieved with this?** A production-ready, dynamic, 60+ page franchise agreement that meets user expectations.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** Backend.
+    - **Blocked on something:** None.
+
+**Upcoming and Future Tasks**
+*   **(P1) Refactor :** Break down the monolithic file into a modular structure (e.g., move auth logic to ).
+*   **(P2) Add Image Upload for Recipes:** Implement functionality to allow users to upload images for recipes.
+*   **(P2) Franchise Deal Simulator:** An enhancement suggested by the agent to simulate ROI for new franchise investors. The user has not yet approved this.
+
+**Completed work in this session**
+- **Critical Bug Fix: Invalid Token / Session Persistence (RESOLVED)**
+    - Replaced the in-memory  with a persistent MongoDB  collection in .
+    - Refactored all backend routers (, , , , ) to use async token verification, ensuring sessions survive server restarts.
+- **Booking Intelligence & Guest Conversion Module (NEW FEATURE)**
+    - Built a comprehensive frontend page () and backend router ().
+    - Features include a detailed booking form, guest lookup, dashboard statistics, and mocked WhatsApp message previews.
+- **Centralized Attendance Dashboard (NEW FEATURE)**
+    - Created a professional, view-only dashboard () for Admins to monitor attendance.
+    - Implemented an Excel-style grid view with filters for month, day, and center.
+- **Attendance Freezing/Locking Feature (NEW FEATURE)**
+    - Added backend logic and UI for Admins/Super Admins to lock/unlock monthly attendance records, preventing edits by managers.
+    - Modified manager-facing attendance submission endpoints in  to enforce the lock.
+
+**Earlier issues found/mentioned but not fixed**
+- **Payslip Data Overlap:** A known cosmetic bug in PDF generation that has not been prioritized.
+- **Frontend Build Workaround:** The fix for the babel error ( disabled in ) is temporary.
+- **Duplicate PB-PERTH Center:** A data integrity issue in the  collection identified by the testing agent.
+
+**Known issue recurrence from previous fork**
+- **Data Loading / Invalid Token:** This was the critical recurring issue from the previous fork. It recurred again in this session but has now been **RESOLVED** by implementing persistent MongoDB-based session storage.
+- **Recurrence count:** High (before fix).
+- **Status:** RESOLVED
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+*   **Persistent Session Management:** Migrated session storage from an in-memory Python dictionary to a MongoDB  collection to fix a critical stability bug.
+*   **Async/Await in FastAPI:** Refactored all backend routes to correctly use  token verification functions passed as dependencies, ensuring non-blocking I/O when checking the database for sessions.
+*   **Complex Data Grid UI (React):** Built an Excel-style data grid from scratch in the Attendance Dashboard for displaying monthly attendance, featuring dynamic columns, color-coded cells, and sticky headers.
+*   **Role-Based Feature Control:** Implemented business logic to lock features (attendance editing) based on both a user's role (Manager vs. Admin) and a separate data flag ( collection).
+
+**key DB schema**
+- **sessions:** 
+- **bookings:** 
+- **guests:** 
+- **attendance_locks:** 
+- **attendance_audit:** 
+
+**changes in tech stack**
+*   No new dependencies were added. The focus was on refactoring existing code.
+
+**All files of reference**
+*   : The primary file for the next task (rebuilding the agreement generator).
+*   : Contains the fixed session management logic and attendance lock enforcement.
+- **User-Provided Artifacts for Franchise Agreement:**
+    -  (Primary template)
+    -  (India-specific reference)
+    -  (Financial logic)
+    -  (Annexture reference)
+
+**Areas that need refactoring**:
+*    remains a large file. The core authentication logic (, , token generation) should be extracted into its own router ().
+
+**key api endpoints**
+*   **Attendance Dashboard:**
+    *   : Gets Excel-style grid data for a month.
+    *   : Locks attendance for a month (Admin/Super Admin).
+    *   : Unlocks attendance for a month (Super Admin only).
+*   **Booking Intelligence:**
+    *   : Creates a new booking.
+    *   : Lists existing bookings.
+    *   : Gets statistics for the booking dashboard.
+*   **Auth (Modified):**
+    *   : Now async and creates a session in MongoDB.
+
+**Critical Info for New Agent**
+*   **Top Priority:** The user is extremely frustrated with the current franchise agreement generator. Your immediate and sole focus must be on rebuilding it to produce a comprehensive, 60+ page professional document based on the provided PDFs. Do not move to other tasks until this is completed to the user's satisfaction. Pay close attention to the details in the Perth agreement PDF.
+*   **Stability is Good:** The critical Invalid Token bug that plagued previous sessions is now fixed. You should not encounter random session logouts.
+*   **User Sensitivity:** The user is very concerned about protecting their live data. Always reassure them that your changes are additive and that no existing data will be modified or deleted.
+*   **Completed Work:** Two major features (Booking Intelligence, Attendance Dashboard) and a critical bug fix were completed in this session. You can refer to  and  as examples of recent, high-quality frontend work.
+
+**documents and test reports created in this job**
+*    (Booking Intelligence tests)
+*    (Attendance Dashboard tests)
+*   
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User:** Asks for a center dropdown filter on the Attendance Dashboard. (COMPLETED)
+2.  **User:** Confirms deployment safety, asking for reassurance that no live data will be changed. (COMPLETED)
+3.  **User:** Requests a redesign of the Attendance Dashboard to be an Excel-like grid instead of charts. (COMPLETED)
+4.  **User:** Requests a more professional look for the grid and clarifies that all editing should be disabled from the dashboard. (COMPLETED)
+5.  **User:** Asks if they should deploy. (COMPLETED)
+6.  **User:** Confirms satisfaction. (COMPLETED)
+7.  **User:** Asks about an attendance freezing/locking feature for Admins. (COMPLETED)
+8.  **User:** Provides four PDF documents for a complete overhaul of the franchise agreement generator. (IN PROGRESS)
+9.  **User:** Uploads a sample of the *current* bad output and expresses frustration, asking for a definitive fix. (IN PROGRESS)
+10. **User:** Re-iterates frustration and the need for a comprehensive, multi-page agreement. (IN PROGRESS)
+
+**Project Health Check:**
+*   **Broken:** Nothing is critically broken. The main authentication flaw has been fixed.
+*   **Mocked:** WhatsApp integration for the Booking Intelligence module is still mocked and only logs to the console.
+
+**3rd Party Integrations**
+*   **OpenAI GPT-5.2:** Used for the AI-powered HR Letter generator (via Emergent LLM Key).
+*   **pandas / openpyxl:** Used in the backend for Excel processing.
+*   **python-docx / reportlab:** Used for document generation. The  part of  needs a complete rewrite.
+*   **WhatsApp Business API:** Required for the Booking Intelligence module, but not yet integrated.
+
+**Testing status**
+- **Testing agent used after significant changes:** YES, for the Booking Intelligence and Attendance Dashboard modules.
+- **Troubleshoot agent used after agent stuck in loop:** NO
+- **Test files created:** []
+- **Known regressions:** None from this session. The major recurring bug was fixed.
+
+**Credentials to test flow:**
+*   **Super Admin:** Center , mobile , OTP .
+*   **Perth Manager:** Center , mobile , OTP .
+
+**What agent forgot to execute**
+*   **Verify Doordash Calculations:** The task to test and verify the financial calculations involving the  field was not completed.
+*   **Fix Frontend Build Workaround:** The temporary disabling of  in  was not addressed.
+*   **Fix Payslip Data Overlap:** The cosmetic bug in the payslip PDF generation was not addressed.
+*   **Address Duplicate Center Data:** The data integrity issue with a duplicate PB-PERTH center was not fixed.</analysis>
