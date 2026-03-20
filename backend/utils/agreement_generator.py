@@ -83,11 +83,17 @@ def get_ordinal(n):
     return str(n) + suffix
 
 # =======================================
-# PAGE NUMBER HANDLER
+# PAGE NUMBER HANDLER WITH BRANDING
 # =======================================
 
+# Brand Colors
+SAFFRON_ORANGE = "#FF6B00"
+DEEP_MAROON = "#8B0000"
+WARM_GOLD = "#DAA520"
+DARK_BROWN = "#3E2723"
+
 class NumberedCanvas(canvas.Canvas):
-    """Canvas that adds page numbers and headers"""
+    """Canvas that adds page numbers, headers, footers with branding"""
     def __init__(self, *args, **kwargs):
         canvas.Canvas.__init__(self, *args, **kwargs)
         self._saved_page_states = []
@@ -102,33 +108,82 @@ class NumberedCanvas(canvas.Canvas):
         num_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
+            self.draw_header_decoration()
             self.draw_page_number(num_pages)
-            self.draw_header()
-            self.draw_footer()
+            self.draw_footer_decoration()
+            self.draw_confidential_watermark()
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
 
     def draw_page_number(self, page_count):
-        self.setFont("Helvetica", 9)
-        self.drawRightString(
-            A4[0] - 0.5*inch,
-            0.5*inch,
-            f"Page {self._pageNumber} of {page_count}"
-        )
-
-    def draw_header(self):
-        if self._pageNumber > 1:
-            self.setFont("Helvetica-Bold", 9)
-            self.setFillColor(colors.HexColor("#8B4513"))
-            self.drawString(0.75*inch, A4[1] - 0.4*inch, "PURNABRAMHA")
-            self.setFont("Helvetica", 8)
-            self.setFillColor(colors.gray)
-            self.drawRightString(A4[0] - 0.75*inch, A4[1] - 0.4*inch, "CONFIDENTIAL")
-
-    def draw_footer(self):
+        # Page number in gold circle
+        self.setFillColor(colors.HexColor(WARM_GOLD))
+        self.circle(A4[0] - 0.6*inch, 0.5*inch, 0.2*inch, fill=1)
+        self.setFillColor(colors.white)
+        self.setFont("Helvetica-Bold", 8)
+        self.drawCentredString(A4[0] - 0.6*inch, 0.47*inch, str(self._pageNumber))
+        
+        # Total pages
+        self.setFillColor(colors.HexColor(DARK_BROWN))
         self.setFont("Helvetica", 7)
-        self.setFillColor(colors.gray)
-        self.drawString(0.75*inch, 0.35*inch, "Purnabramha - Franchise Agreement | Confidential Document")
+        self.drawCentredString(A4[0] - 0.6*inch, 0.3*inch, f"of {page_count}")
+
+    def draw_header_decoration(self):
+        if self._pageNumber > 1:
+            # Top decorative border - saffron line
+            self.setStrokeColor(colors.HexColor(SAFFRON_ORANGE))
+            self.setLineWidth(3)
+            self.line(0.5*inch, A4[1] - 0.3*inch, A4[0] - 0.5*inch, A4[1] - 0.3*inch)
+            
+            # Gold accent line below
+            self.setStrokeColor(colors.HexColor(WARM_GOLD))
+            self.setLineWidth(1)
+            self.line(0.5*inch, A4[1] - 0.38*inch, A4[0] - 0.5*inch, A4[1] - 0.38*inch)
+            
+            # Brand name in header - Left side
+            self.setFillColor(colors.HexColor(DEEP_MAROON))
+            self.setFont("Helvetica-Bold", 11)
+            self.drawString(0.75*inch, A4[1] - 0.55*inch, "PURNABRAMHA")
+            
+            # Marathi tagline
+            self.setFillColor(colors.HexColor(SAFFRON_ORANGE))
+            self.setFont("Helvetica", 8)
+            self.drawString(0.75*inch, A4[1] - 0.7*inch, "पूर्णब्रम्ह - The Complete Meal Experience")
+            
+            # CONFIDENTIAL badge on right
+            self.setFillColor(colors.HexColor(DEEP_MAROON))
+            self.roundRect(A4[0] - 1.8*inch, A4[1] - 0.7*inch, 1.1*inch, 0.35*inch, 5, fill=1)
+            self.setFillColor(colors.white)
+            self.setFont("Helvetica-Bold", 8)
+            self.drawCentredString(A4[0] - 1.25*inch, A4[1] - 0.58*inch, "CONFIDENTIAL")
+
+    def draw_footer_decoration(self):
+        # Bottom decorative border
+        self.setStrokeColor(colors.HexColor(SAFFRON_ORANGE))
+        self.setLineWidth(2)
+        self.line(0.5*inch, 0.7*inch, A4[0] - 1.2*inch, 0.7*inch)
+        
+        # Gold accent
+        self.setStrokeColor(colors.HexColor(WARM_GOLD))
+        self.setLineWidth(1)
+        self.line(0.5*inch, 0.65*inch, A4[0] - 1.2*inch, 0.65*inch)
+        
+        # Footer text
+        self.setFillColor(colors.HexColor(DARK_BROWN))
+        self.setFont("Helvetica", 7)
+        self.drawString(0.75*inch, 0.45*inch, "Purnabramha Franchise Agreement | Manaswini Foods Pvt. Ltd.")
+        self.setFillColor(colors.HexColor(SAFFRON_ORANGE))
+        self.drawString(0.75*inch, 0.32*inch, "गोपनीय दस्तावेज - Confidential Document")
+
+    def draw_confidential_watermark(self):
+        # Light diagonal watermark on every page
+        self.saveState()
+        self.setFillColor(colors.Color(0.9, 0.9, 0.9, alpha=0.3))
+        self.setFont("Helvetica-Bold", 60)
+        self.translate(A4[0]/2, A4[1]/2)
+        self.rotate(45)
+        self.drawCentredString(0, 0, "CONFIDENTIAL")
+        self.restoreState()
 
 # =======================================
 # STYLE DEFINITIONS
@@ -147,7 +202,7 @@ def get_styles():
         spaceAfter=6,
         spaceBefore=12,
         fontName='Helvetica-Bold',
-        textColor=colors.HexColor("#1a1a1a")
+        textColor=colors.HexColor(DEEP_MAROON)
     ))
     
     styles.add(ParagraphStyle(
@@ -157,10 +212,10 @@ def get_styles():
         alignment=TA_CENTER,
         spaceAfter=20,
         fontName='Helvetica-Oblique',
-        textColor=colors.HexColor("#4a4a4a")
+        textColor=colors.HexColor(SAFFRON_ORANGE)
     ))
     
-    # Section headings
+    # Section headings - Colorful
     styles.add(ParagraphStyle(
         'AgrSectionHeading',
         parent=styles['Heading1'],
@@ -168,10 +223,10 @@ def get_styles():
         spaceBefore=20,
         spaceAfter=12,
         fontName='Helvetica-Bold',
-        textColor=colors.HexColor("#2c3e50"),
+        textColor=colors.HexColor(DEEP_MAROON),
         borderWidth=0,
         borderPadding=0,
-        borderColor=colors.HexColor("#3498db"),
+        borderColor=colors.HexColor(SAFFRON_ORANGE),
         borderRadius=0
     ))
     
@@ -182,7 +237,7 @@ def get_styles():
         spaceBefore=14,
         spaceAfter=8,
         fontName='Helvetica-Bold',
-        textColor=colors.HexColor("#34495e")
+        textColor=colors.HexColor(SAFFRON_ORANGE)
     ))
     
     styles.add(ParagraphStyle(
@@ -192,7 +247,7 @@ def get_styles():
         spaceBefore=10,
         spaceAfter=6,
         fontName='Helvetica-Bold',
-        textColor=colors.HexColor("#2c3e50")
+        textColor=colors.HexColor(DARK_BROWN)
     ))
     
     # Body text styles
@@ -402,11 +457,20 @@ class FranchiseAgreementGenerator:
         return buffer.getvalue()
     
     def _add_section_heading(self, text: str, number: str = ""):
-        """Add a section heading"""
+        """Add a section heading with decorative colored bar"""
         if number:
             full_text = f"{number}. {text}"
         else:
             full_text = text
+        
+        # Add decorative bar before section heading
+        bar_table = Table([[""]], colWidths=[6*inch], rowHeights=[0.08*inch])
+        bar_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(SAFFRON_ORANGE)),
+        ]))
+        self.story.append(bar_table)
+        self.story.append(Spacer(1, 0.05*inch))
+        
         self.story.append(Paragraph(full_text, self.styles['AgrSectionHeading']))
     
     def _add_subsection_heading(self, text: str, number: str = ""):
@@ -447,87 +511,206 @@ class FranchiseAgreementGenerator:
     # =======================================
     
     def _build_title_page(self):
-        """Build the title page"""
-        self._add_spacer(1.5)
+        """Build an impressive, colorful title page with branding"""
         
-        # Main title
-        self.story.append(Paragraph("FRANCHISE AGREEMENT", self.styles['AgrMainTitle']))
-        self._add_spacer(0.2)
+        # Top decorative border
+        border_table = Table([[""]], colWidths=[6.5*inch], rowHeights=[0.15*inch])
+        border_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(SAFFRON_ORANGE)),
+        ]))
+        self.story.append(border_table)
         
-        # Subtitle
-        self.story.append(Paragraph(
-            "(FOCO Model - Franchise Owned, Company Operated)",
-            self.styles['AgrSubTitle']
-        ))
-        self._add_spacer(0.5)
-        
-        # Agreement reference
-        self.story.append(Paragraph(
-            f"<b>Agreement Reference:</b> FA-{self.franchise_code}-{self.today.strftime('%Y%m%d')}",
-            self.styles['AgrCenterBold']
-        ))
         self._add_spacer(0.3)
         
-        # Parties box
-        parties_data = [
-            ["BETWEEN"],
-            [f"<b>{self.franchisor_name}</b>"],
-            ["(hereinafter referred to as the \"FRANCHISOR\")"],
-            [""],
-            ["AND"],
-            [""],
-            [f"<b>{self.legal_entity_name or '[FRANCHISEE ENTITY NAME]'}</b>"],
-            ["(hereinafter referred to as the \"FRANCHISEE\")"]
-        ]
+        # Brand Name - Large and Prominent
+        self.story.append(Paragraph(
+            "<font color='#8B0000' size='28'><b>PURNABRAMHA</b></font>",
+            ParagraphStyle('BrandName', parent=self.styles['AgrMainTitle'], fontSize=28, 
+                          textColor=colors.HexColor(DEEP_MAROON), spaceAfter=5)
+        ))
         
-        parties_table = Table(parties_data, colWidths=[5*inch])
-        parties_table.setStyle(TableStyle([
+        # Marathi Tagline - पूर्णब्रम्ह
+        self.story.append(Paragraph(
+            "<font color='#FF6B00' size='16'><b>पूर्णब्रम्ह</b></font>",
+            ParagraphStyle('MarathiName', parent=self.styles['AgrMainTitle'], fontSize=16,
+                          textColor=colors.HexColor(SAFFRON_ORANGE), spaceAfter=5)
+        ))
+        
+        # English tagline
+        self.story.append(Paragraph(
+            "<font color='#DAA520' size='10'><i>The Largest Authentic Maharashtrian Restaurant Chain</i></font>",
+            ParagraphStyle('Tagline', parent=self.styles['AgrSubTitle'], fontSize=10,
+                          textColor=colors.HexColor(WARM_GOLD), spaceAfter=15)
+        ))
+        
+        # Gold decorative line
+        gold_line = Table([[""]], colWidths=[4*inch], rowHeights=[0.05*inch])
+        gold_line.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(WARM_GOLD)),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ]))
+        self.story.append(gold_line)
+        
+        self._add_spacer(0.4)
+        
+        # CONFIDENTIAL Badge
+        conf_badge = Table([["गोपनीय | CONFIDENTIAL"]], colWidths=[2.5*inch], rowHeights=[0.35*inch])
+        conf_badge.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(DEEP_MAROON)),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor("#2c3e50")),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#f8f9fa")),
+        ]))
+        self.story.append(conf_badge)
+        
+        self._add_spacer(0.4)
+        
+        # Main Title - FRANCHISE AGREEMENT
+        title_table = Table([["FRANCHISE AGREEMENT"]], colWidths=[5.5*inch], rowHeights=[0.6*inch])
+        title_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#2c3e50")),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 20),
+            ('BOX', (0, 0), (-1, -1), 3, colors.HexColor(SAFFRON_ORANGE)),
+        ]))
+        self.story.append(title_table)
+        
+        self._add_spacer(0.15)
+        
+        # Subtitle
+        self.story.append(Paragraph(
+            "<font color='#FF6B00'><b>(FOCO Model - Franchise Owned, Company Operated)</b></font>",
+            ParagraphStyle('SubtitleColor', parent=self.styles['AgrSubTitle'], 
+                          textColor=colors.HexColor(SAFFRON_ORANGE), fontSize=11)
+        ))
+        
+        # Marathi subtitle
+        self.story.append(Paragraph(
+            "<font color='#8B0000' size='9'>(फ्रँचाइज मालकी - कंपनी संचालित मॉडेल)</font>",
+            ParagraphStyle('MarathiSubtitle', parent=self.styles['AgrSubTitle'],
+                          textColor=colors.HexColor(DEEP_MAROON), fontSize=9, spaceAfter=20)
+        ))
+        
+        self._add_spacer(0.2)
+        
+        # Agreement reference box
+        ref_data = [
+            [Paragraph(f"<b>Agreement Reference:</b>", self.styles['AgrSmallText']), 
+             Paragraph(f"FA-{self.franchise_code}-{self.today.strftime('%Y%m%d')}", self.styles['AgrSmallText'])]
+        ]
+        ref_table = Table(ref_data, colWidths=[1.8*inch, 2.5*inch])
+        ref_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#FFF8F0")),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor(WARM_GOLD)),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        self.story.append(ref_table)
+        
+        self._add_spacer(0.3)
+        
+        # Parties box with colors
+        parties_data = [
+            [Paragraph("<font color='#8B0000'><b>BETWEEN</b></font>", 
+                      ParagraphStyle('PartyHead', alignment=TA_CENTER, fontSize=11))],
+            [Paragraph(f"<font color='#2c3e50'><b>{self.franchisor_name}</b></font>",
+                      ParagraphStyle('PartyName', alignment=TA_CENTER, fontSize=12))],
+            [Paragraph("<font color='#666666'>(hereinafter referred to as the \"FRANCHISOR\")</font>",
+                      ParagraphStyle('PartyDesc', alignment=TA_CENTER, fontSize=9))],
+            [""],
+            [Paragraph("<font color='#DAA520'><b>AND</b></font>",
+                      ParagraphStyle('AndText', alignment=TA_CENTER, fontSize=11))],
+            [""],
+            [Paragraph(f"<font color='#2c3e50'><b>{self.legal_entity_name or '[FRANCHISEE ENTITY NAME]'}</b></font>",
+                      ParagraphStyle('PartyName2', alignment=TA_CENTER, fontSize=12))],
+            [Paragraph("<font color='#666666'>(hereinafter referred to as the \"FRANCHISEE\")</font>",
+                      ParagraphStyle('PartyDesc2', alignment=TA_CENTER, fontSize=9))]
+        ]
+        
+        parties_table = Table(parties_data, colWidths=[5.5*inch])
+        parties_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor(SAFFRON_ORANGE)),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#FFFDF5")),
+            ('LINEABOVE', (0, 4), (-1, 4), 1, colors.HexColor(WARM_GOLD)),
+            ('LINEBELOW', (0, 4), (-1, 4), 1, colors.HexColor(WARM_GOLD)),
         ]))
         self.story.append(parties_table)
         
-        self._add_spacer(0.5)
+        self._add_spacer(0.3)
         
-        # Franchise details
+        # Franchise details with colors
         details_data = [
-            ["Franchise Code:", self.franchise_code],
-            ["Franchise Type:", self.franchise_type],
-            ["Location:", f"{self.city}, {self.state}, {self.country}"],
-            ["Agreement Date:", self.agreement_date],
-            ["Term:", f"{FRANCHISE_TENURE_YEARS} Years"]
+            [Paragraph("<font color='#8B0000'><b>Franchise Code:</b></font>", self.styles['AgrSmallText']), 
+             Paragraph(f"<font color='#2c3e50'><b>{self.franchise_code}</b></font>", self.styles['AgrSmallText'])],
+            [Paragraph("<font color='#8B0000'><b>Franchise Type:</b></font>", self.styles['AgrSmallText']), 
+             Paragraph(f"<font color='#2c3e50'>{self.franchise_type}</font>", self.styles['AgrSmallText'])],
+            [Paragraph("<font color='#8B0000'><b>Location:</b></font>", self.styles['AgrSmallText']), 
+             Paragraph(f"<font color='#2c3e50'>{self.city}, {self.state}, {self.country}</font>", self.styles['AgrSmallText'])],
+            [Paragraph("<font color='#8B0000'><b>Agreement Date:</b></font>", self.styles['AgrSmallText']), 
+             Paragraph(f"<font color='#2c3e50'>{self.agreement_date}</font>", self.styles['AgrSmallText'])],
+            [Paragraph("<font color='#8B0000'><b>Term:</b></font>", self.styles['AgrSmallText']), 
+             Paragraph(f"<font color='#FF6B00'><b>{FRANCHISE_TENURE_YEARS} Years</b></font>", self.styles['AgrSmallText'])]
         ]
         
-        details_table = Table(details_data, colWidths=[2*inch, 3*inch])
+        details_table = Table(details_data, colWidths=[1.8*inch, 3*inch])
         details_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
             ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#FFF8F0")),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor(WARM_GOLD)),
         ]))
         self.story.append(details_table)
         
-        self._add_spacer(1)
+        self._add_spacer(0.5)
         
-        # Confidential notice
+        # Confidential notice with Marathi
+        conf_notice_data = [
+            [Paragraph("<font color='white' size='12'><b>गोपनीय दस्तावेज | CONFIDENTIAL DOCUMENT</b></font>",
+                      ParagraphStyle('ConfHead', alignment=TA_CENTER))]
+        ]
+        conf_notice = Table(conf_notice_data, colWidths=[5.5*inch], rowHeights=[0.4*inch])
+        conf_notice.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(DEEP_MAROON)),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        self.story.append(conf_notice)
+        
+        self._add_spacer(0.15)
+        
         self.story.append(Paragraph(
-            "<b>CONFIDENTIAL DOCUMENT</b>",
-            ParagraphStyle('ConfNotice', parent=self.styles['AgrCenterBold'], 
-                          textColor=colors.HexColor("#c0392b"), fontSize=12)
+            "<font color='#666666' size='8'>This document contains proprietary and confidential information of Purnabramha / Manaswini Foods Pvt. Ltd. "
+            "Unauthorized copying, distribution, or disclosure is strictly prohibited.</font>",
+            ParagraphStyle('ConfText', parent=self.styles['AgrSmallText'], alignment=TA_CENTER, fontSize=8)
         ))
+        
         self.story.append(Paragraph(
-            "This document contains proprietary and confidential information. "
-            "Unauthorized copying, distribution, or disclosure is strictly prohibited.",
-            ParagraphStyle('ConfText', parent=self.styles['AgrSmallText'], alignment=TA_CENTER)
+            "<font color='#8B0000' size='8'>या दस्तावेजात पूर्णब्रम्ह / मानस्विनी फूड्स प्रा. लि. ची गोपनीय माहिती आहे. "
+            "अनधिकृत प्रती, वितरण किंवा प्रकटीकरण करण्यास कठोर मनाई आहे.</font>",
+            ParagraphStyle('ConfTextMarathi', parent=self.styles['AgrSmallText'], alignment=TA_CENTER, fontSize=8,
+                          textColor=colors.HexColor(DEEP_MAROON))
         ))
+        
+        # Bottom decorative border
+        self._add_spacer(0.3)
+        bottom_border = Table([[""]], colWidths=[6.5*inch], rowHeights=[0.1*inch])
+        bottom_border.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(SAFFRON_ORANGE)),
+        ]))
+        self.story.append(bottom_border)
         
         self._add_page_break()
     
