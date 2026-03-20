@@ -12,7 +12,7 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 - ✅ **P0: COMPREHENSIVE FRANCHISE AGREEMENT GENERATOR (COMPLETE REBUILD)**
   - **Problem Solved:** Previous generator only created 5-page documents. User needed 60+ page comprehensive legal agreements.
-  - **Solution:** Complete rewrite of the agreement generator producing 52-53 page professional documents
+  - **Solution:** Complete rewrite of the agreement generator producing 54-55 page professional documents
   - **Features:**
     - **8 Main Sections:**
       1. Definitions (20+ legal definitions)
@@ -46,10 +46,15 @@ User had existing HTML/Python files for an attendance and salary management syst
       - K: Quality Assurance Checklist
     - **Country-Specific Logic:**
       - **Australia Model:** 80/20 profit share, Director Honorarium, Royalty to MFPL, AUD currency
-      - **India Model:** 15% Revenue Share, Service Contract Fee ₹10,000/month, INR currency
+      - **India Model (ENHANCED):**
+        - 15% Revenue Share, Service Contract Fee ₹10,000/month, INR currency
+        - **Detailed ROI Calculation:** Operational cost breakdown (80% expenses, 20% net profit margin)
+        - **Monthly MG Calculation:** Formula and example calculation
+        - **WHY SERVICE CONTRACT:** Comprehensive 8-part justification with consent acknowledgment
+        - **MG Below 50% Rule:** Both Revenue Share AND Profit Share become 0%, NO TENURE EXTENSION
     - **Dynamic Data Population:** Franchise fee, working capital, directors, setup costs, dates
     - **Professional Formatting:** Page numbers, headers, footers, table of contents, tables
-  - **Backend:** `/app/backend/utils/agreement_generator.py` (3200+ lines)
+  - **Backend:** `/app/backend/utils/agreement_generator.py` (3500+ lines)
   - **Testing:** 32/32 tests passed, 100% success rate
 
 ### Previous Update (Mar 18, 2026 - Session 14)

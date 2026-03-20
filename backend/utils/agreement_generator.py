@@ -1299,50 +1299,273 @@ class FranchiseAgreementGenerator:
             for expense in expenses:
                 self._add_bullet(expense)
             
-            # 4.2 Service Contract Fee
+            # 4.2 Service Contract Fee - COMPREHENSIVE JUSTIFICATION
             self._add_subsection_heading("SERVICE CONTRACT FEE", "4.2")
             
             self._add_clause("4.2.1 Monthly Fee")
             self._add_body(f"""
             Every franchise center shall pay a monthly Service Contract Fee of <b>{format_currency(self.service_fee, self.country)}</b> 
-            ({format_currency_words(self.service_fee, self.country)}) per month.
+            ({format_currency_words(self.service_fee, self.country)}) per month. This fee is <b>mandatory, 
+            non-negotiable</b>, and essential for maintaining chain-level standards and facilitating overall growth.
             """)
             
-            self._add_clause("4.2.2 Services Covered")
+            self._add_clause("4.2.2 WHY SERVICE CONTRACT - Detailed Justification")
             self._add_body("""
-            This fee covers:
+            The Monthly Service Contract Fee covers all brand-level systems, compliance, technology, auditing, 
+            operations, digital infrastructure, creative support, and conflict management that every centre 
+            benefits from on a daily basis. The Franchisee acknowledges understanding and consenting to 
+            this fee for the following comprehensive reasons:
             """)
             
-            services = [
-                "Brand management and quality monitoring",
-                "Menu updates and kitchen SOP systems",
-                "Vendor coordination and operations guidance",
-                "Marketing support and technology systems",
-                "Central management and administrative support"
+            self._add_clause("4.2.3 Digital Platforms, Systems & Yearly Subscriptions")
+            self._add_body("""
+            The fee supports essential digital infrastructure provided to every centre, including:
+            """)
+            digital_services = [
+                "Website hosting & maintenance",
+                "Ordering platforms",
+                "CRM tools",
+                "Digital menu updates",
+                "Software subscriptions",
+                "Automation & backend management"
+            ]
+            for svc in digital_services:
+                self._add_bullet(svc)
+            self._add_body("""
+            These platforms necessitate ongoing yearly and monthly payments, the aggregate costs of which 
+            are pooled and managed at the brand level.
+            """)
+            
+            self._add_clause("4.2.4 Brand-Level Issue Handling & Conflict Management")
+            self._add_body("""
+            The fee covers the brand team's daily management of critical issues, including:
+            """)
+            conflict_services = [
+                "Guest escalations",
+                "Vendor conflicts",
+                "Staff-related discrepancies",
+                "Operational emergencies",
+                "Inter-centre coordination",
+                "Reputation protection on social media"
+            ]
+            for svc in conflict_services:
+                self._add_bullet(svc)
+            
+            self._add_clause("4.2.5 Legal Documentation, Compliance & Timely Filings")
+            self._add_body("""
+            Purnabramha provides essential legal and compliance support through this fee:
+            """)
+            legal_services = [
+                "FSSAI, GST, and labour compliance support",
+                "Documentation required for malls, councils, and audits",
+                "Responses to legal replies, letters, contracts, and notices",
+                "Preparation of any urgent document requested by the franchise"
+            ]
+            for svc in legal_services:
+                self._add_bullet(svc)
+            
+            self._add_clause("4.2.6 Mandatory Restaurant Testing & Quality Audits")
+            self._add_body("""
+            To ensure compliance with industry standards and regulatory requirements:
+            """)
+            audit_services = [
+                "Water testing",
+                "Location hygiene checks",
+                "Food sampling compliance",
+                "Safety certifications",
+                "Timely reports for authorities, malls, events, or partners"
+            ]
+            for svc in audit_services:
+                self._add_bullet(svc)
+            
+            self._add_clause("4.2.7 Brand Management & Creative Support")
+            self._add_body("""
+            Strategic brand development and creative asset generation including:
+            """)
+            brand_services = [
+                "Social media branding",
+                "Menu designs",
+                "Festival creatives",
+                "Digital banners",
+                "Centre-wise announcements",
+                "Seasonal campaigns"
+            ]
+            for svc in brand_services:
+                self._add_bullet(svc)
+            
+            self._add_clause("4.2.8 Operational Support: Beyond Accounting")
+            self._add_body("""
+            The Purnabramha team provides operational support that extends far beyond basic accounting:
+            """)
+            ops_services = [
+                "Galla management guidance",
+                "Daily sales reconciliation formats",
+                "SOP creation & enforcement",
+                "Vendor coordination",
+                "Staff audits",
+                "Training support",
+                "Surprise operational checks"
+            ]
+            for svc in ops_services:
+                self._add_bullet(svc)
+            
+            self._add_clause("4.2.9 Professional Management of All Verticals")
+            self._add_body("""
+            Comprehensive support across all operational verticals:
+            """)
+            verticals = ["Dine-in", "Delivery", "Catering", "Events", "Festival Stalls", "Tiffins"]
+            for v in verticals:
+                self._add_bullet(v)
+            
+            self._add_clause("4.2.10 Continuous Availability of the Brand Team")
+            self._add_body("""
+            The Purnabramha head team is continuously available for:
+            """)
+            team_support = [
+                "Calls & Documentation",
+                "Branding & Crisis management",
+                "Menu development & Pricing reviews",
+                "Operations strategy",
+                "On-ground guidance"
+            ]
+            for svc in team_support:
+                self._add_bullet(svc)
+            
+            self._add_clause("4.2.11 Franchisee Consent & Acknowledgment")
+            self._add_body("""
+            <b>The Franchisee hereby acknowledges and consents that:</b>
+            <br/><br/>
+            <b>(a)</b> The Monthly Service Contract Fee has been communicated multiple times during the franchise discussion process.<br/>
+            <b>(b)</b> The fee is mandatory, non-negotiable, and essential for the professional operation of the franchise.<br/>
+            <b>(c)</b> The Franchisee understands the comprehensive services covered by this fee.<br/>
+            <b>(d)</b> The Franchisee agrees to pay this fee punctually every month as per this Agreement.
+            """)
+            
+            # 4.3 ROI Calculation Framework - INDIA SPECIFIC
+            self._add_subsection_heading("ROI CALCULATION FRAMEWORK (INDIA)", "4.3")
+            
+            self._add_clause("4.3.1 Investment Structure")
+            self._add_body(f"""
+            The total investment for this franchise is structured as follows:
+            <br/><br/>
+            <b>Franchise Fee:</b> {format_currency(self.franchise_fee, self.country)}<br/>
+            <b>Working Capital:</b> {format_currency(self.working_capital, self.country)}<br/>
+            <b>Setup Costs:</b> {format_currency(self.total_setup, self.country)}<br/>
+            <b>Total Investment:</b> {format_currency(self.franchise_fee + self.working_capital + self.total_setup, self.country)}
+            """)
+            
+            self._add_clause("4.3.2 Operational Cost Breakdown (% of Gross Revenue)")
+            self._add_body("""
+            The typical operational cost structure as a percentage of Gross Revenue is as follows:
+            """)
+            
+            cost_breakdown = [
+                ("Food Cost", "25%"),
+                ("Marketing", "5%"),
+                ("Packaging", "2%"),
+                ("Payment Gateway", "1%"),
+                ("Commission on Channel Partner", "5%"),
+                ("Domestic and Other Expenses", "4%"),
+                ("Salary", "15%"),
+                ("Rent, Electricity, and Business Tax (REBT)", "12%"),
+                ("Utility", "1%"),
+                ("Other Miscellaneous", "5%"),
+                ("Depreciation", "0.03%"),
+                ("Tax", "5%"),
+                ("<b>Total Operational Expenses</b>", "<b>80%</b>"),
+                ("<b>Net Profit Margin</b>", "<b>20%</b>")
             ]
             
-            for service in services:
-                self._add_bullet(service)
+            cost_table_data = [["Expense Category", "Percentage"]]
+            for item, pct in cost_breakdown:
+                cost_table_data.append([item, pct])
+            
+            cost_table = Table(cost_table_data, colWidths=[4*inch, 1.5*inch])
+            cost_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#27ae60")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#bdc3c7")),
+                ('BACKGROUND', (0, -2), (-1, -1), colors.HexColor("#ecf0f1")),
+            ]))
+            self.story.append(cost_table)
+            self._add_spacer(0.2)
+            
+            self._add_clause("4.3.3 ROI Projection")
+            self._add_body("""
+            Based on the operational cost structure and projected net profit margin of 20%:
+            <br/><br/>
+            <b>Projected ROI:</b> Up to 15% of invested capital<br/>
+            <b>Capital Recovery Period:</b> 5 Years<br/>
+            <b>Post-Recovery Yield:</b> 15% over 2 years<br/>
+            <b>Total Investment Horizon:</b> 7 Years
+            """)
+            
+            self._add_clause("4.3.4 Monthly Minimum Guarantee (MG) Calculation")
+            self._add_body(f"""
+            For an investment of approximately {format_currency(self.franchise_fee + self.working_capital, self.country)}, 
+            the monthly Minimum Guarantee (MG) is calculated as follows:
+            <br/><br/>
+            <b>Formula:</b> (Total Investment × 15% Annual Return) ÷ 12 months<br/>
+            <b>Monthly MG:</b> Approximately {format_currency((self.franchise_fee + self.working_capital) * 0.15 / 12, self.country)}<br/><br/>
+            <b>Alternative Return:</b> 15% on Revenue Generated (excluding GST, commission of delivery partners), 
+            whichever is higher.
+            """)
+            
+            self._add_clause("4.3.5 Important Disclaimer")
+            self._add_body("""
+            <b>IMPORTANT:</b> The ROI projections provided above are illustrative only and do not constitute 
+            a guarantee of returns. Actual results will depend on market conditions, location performance, 
+            operational efficiency, and various other factors beyond the control of either Party. The Franchisee 
+            acknowledges having conducted independent due diligence before making this investment decision.
+            """)
         
-        # 4.4 Working Capital Protection (Common)
-        self._add_subsection_heading("WORKING CAPITAL PROTECTION CLAUSE", "4.4")
+        # 4.4 Working Capital Protection (Common) - ENHANCED WITH MG CLAUSE
+        self._add_subsection_heading("WORKING CAPITAL / MINIMUM GUARANTEE (MG) PROTECTION CLAUSE", "4.4")
         
-        self._add_clause("4.4.1 Threshold Condition")
+        self._add_clause("4.4.1 Threshold Condition - MG Falls Below 50%")
         self._add_body(f"""
-        If the Working Capital of the Franchise Premises falls below <b>{WORKING_CAPITAL_THRESHOLD}% (Fifty Percent)</b> 
-        of the originally committed Working Capital amount of {format_currency(self.working_capital, self.country)}, 
-        the following protective measures shall apply:
+        <b>CRITICAL CLAUSE:</b> If the Working Capital / Minimum Guarantee (MG) of the Franchise Premises 
+        falls below <b>{WORKING_CAPITAL_THRESHOLD}% (Fifty Percent)</b> of the originally committed Working 
+        Capital amount of {format_currency(self.working_capital, self.country)}, the following protective 
+        measures shall <b>IMMEDIATELY</b> apply:
         """)
         
-        self._add_bullet(f"Franchisee Revenue/Profit Share becomes <b>0% (Zero Percent)</b>")
-        self._add_bullet("No profit distribution shall be made to the Franchisee")
+        self._add_bullet("<b>Franchisee Revenue Share becomes 0% (ZERO Percent)</b>")
+        self._add_bullet("<b>Franchisee Profit Share becomes 0% (ZERO Percent)</b>")
+        self._add_bullet("No profit distribution of any kind shall be made to the Franchisee")
         self._add_bullet("All available funds shall be directed towards restoring Working Capital")
         
-        self._add_clause("4.4.2 Restoration")
+        self._add_clause("4.4.2 NO TENURE EXTENSION")
         self._add_body(f"""
-        This condition shall remain active until the Working Capital is restored to its original committed 
-        level of {format_currency(self.working_capital, self.country)}. Once restored, the normal revenue/profit 
-        sharing structure shall resume from the following month.
+        <b>IMPORTANT:</b> The Franchisee expressly acknowledges and agrees that:
+        <br/><br/>
+        <b>(a)</b> If the MG falls below 50%, the franchise tenure shall <b>NOT BE EXTENDED</b> under any circumstances.<br/>
+        <b>(b)</b> The period during which the MG remains below 50% shall <b>NOT</b> be added to the tenure.<br/>
+        <b>(c)</b> The original tenure of {FRANCHISE_TENURE_YEARS} years remains fixed and unchanged.<br/>
+        <b>(d)</b> Both revenue share AND profit share remain suspended until MG is fully restored.
+        """)
+        
+        self._add_clause("4.4.3 Restoration")
+        self._add_body(f"""
+        This condition shall remain active until the Working Capital / MG is restored to its original 
+        committed level of {format_currency(self.working_capital, self.country)}. Only after full restoration 
+        shall the normal revenue/profit sharing structure resume from the following month.
+        """)
+        
+        self._add_clause("4.4.4 Franchisee Acknowledgment")
+        self._add_body("""
+        <b>The Franchisee hereby acknowledges and consents that:</b>
+        <br/><br/>
+        <b>(a)</b> This clause has been explained in detail during the franchise discussion process.<br/>
+        <b>(b)</b> The MG below 50% rule applies equally to both revenue share and profit share.<br/>
+        <b>(c)</b> No tenure extension will be granted during the MG deficit period.<br/>
+        <b>(d)</b> This clause is essential for protecting the operational viability of the franchise.
         """)
         
         # 4.5 Loss Conditions & Exit
