@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -20,7 +21,49 @@ import Inspiration from '@/pages/Inspiration';
 import About from '@/pages/About';
 import '@/App.css';
 
+// Remove Emergent badge
+const removeEmergentBadge = () => {
+  const selectors = [
+    '#emergent-badge',
+    '[id*="emergent"]',
+    'a[href*="emergent"]',
+    '[class*="emergent"]'
+  ];
+  
+  selectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(el => {
+      if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    });
+  });
+};
+
 function App() {
+  // Remove Emergent badge on mount and periodically
+  useEffect(() => {
+    // Remove immediately
+    removeEmergentBadge();
+    
+    // Remove after short delay (in case it's injected after load)
+    const timeouts = [100, 500, 1000, 2000, 5000].map(delay => 
+      setTimeout(removeEmergentBadge, delay)
+    );
+    
+    // Also observe DOM changes to remove if added later
+    const observer = new MutationObserver(() => {
+      removeEmergentBadge();
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    return () => {
+      timeouts.forEach(clearTimeout);
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>
