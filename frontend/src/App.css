@@ -29,6 +29,28 @@
   z-index: 2;
 }
 
+/* Hide Emergent Badge */
+#emergent-badge,
+[id*="emergent"],
+a[href*="emergent.sh"],
+a[href*="emergentagent.com"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Fix navigation click issues */
+nav a, 
+nav button,
+header a,
+header button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative;
+  z-index: 100;
+}
+
 .menu-card {
   transition: all 0.3s ease-in-out;
   border: 1px solid hsl(var(--border));
@@ -63,4 +85,23 @@
 .location-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 30px -8px rgba(128, 0, 0, 0.2);
+}
+
+/* Menu item image modal */
+.menu-image-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.menu-image-modal img {
+  max-width: 90%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 12px;
 }

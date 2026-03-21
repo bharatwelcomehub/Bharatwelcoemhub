@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Globe, ShoppingBag, Leaf } from 'lucide-react';
+import { Globe, ShoppingBag, Leaf, X, ZoomIn } from 'lucide-react';
 import { toast } from 'sonner';
 import SEOHead from '@/components/SEOHead';
 
@@ -15,6 +15,7 @@ const Menu = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedItem, setSelectedItem] = useState(null); // For modal
   const [selectedCountry, setSelectedCountry] = useState(() => {
     return localStorage.getItem('purnabramha_country') || 'India';
   });
@@ -157,18 +158,37 @@ const Menu = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03 }}
-              className="bg-white rounded-xl overflow-hidden border border-orange-900/10 shadow-sm hover:shadow-md transition-shadow"
+              className="bg-white rounded-xl overflow-hidden border border-orange-900/10 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
               data-testid={`menu-item-${index}`}
+              onClick={() => setSelectedItem(item)}
             >
-              {item.image_url && (
-                <div className="h-48 overflow-hidden">
-                  <img
-                    src={item.image_url}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
+              <div className="h-48 overflow-hidden relative bg-gradient-to-br from-amber-50 to-orange-50">
+                {item.image_url ? (
+                  <>
+                    <img
+                      src={item.image_url}
+                      alt={`${item.name} - Maharashtrian dish at Purnabramha`}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                    <div className="hidden w-full h-full items-center justify-center flex-col">
+                      <Leaf className="h-12 w-12 text-green-300 mb-2" />
+                      <span className="text-green-600 text-sm">Pure Veg</span>
+                    </div>
+                    <div className="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full opacity-0 hover:opacity-100 transition-opacity">
+                      <ZoomIn className="h-4 w-4" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center flex-col">
+                    <Leaf className="h-12 w-12 text-green-300 mb-2" />
+                    <span className="text-green-600 text-sm font-medium">Pure Veg</span>
+                  </div>
+                )}
+              </div>
               <div className="p-5">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
@@ -210,6 +230,101 @@ const Menu = () => {
             </motion.div>
           ))}
         </div>
+
+        {/* Menu Item Detail Modal */}
+        <AnimatePresence>
+          {selectedItem && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+              onClick={() => setSelectedItem(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Close button */}
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+
+                {/* Image */}
+                <div className="h-64 md:h-80 bg-gradient-to-br from-amber-100 to-orange-100 relative">
+                  {selectedItem.image_url ? (
+                    <img
+                      src={selectedItem.image_url}
+                      alt={`${selectedItem.name} - Authentic Maharashtrian dish`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center flex-col">
+                      <Leaf className="h-20 w-20 text-green-300 mb-3" />
+                      <span className="text-green-600 text-lg font-medium">Pure Vegetarian</span>
+                    </div>
+                  )}
+                  {/* Veg badge overlay */}
+                  <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                    <Leaf className="h-4 w-4" />
+                    Pure Veg
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h2 className="font-playfair text-2xl md:text-3xl font-bold text-[#5c1e1e] mb-2">
+                        {selectedItem.name}
+                      </h2>
+                      <Badge variant="outline" className="text-sm">
+                        {selectedItem.category}
+                      </Badge>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-[#5c1e1e]">
+                        {getCurrencySymbol()}{getPrice(selectedItem)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {selectedCountry === 'Australia' ? 'AUD' : 'INR'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-gray-600 text-base leading-relaxed mb-6">
+                    {selectedItem.description || 'Authentic Maharashtrian delicacy prepared with traditional recipes and fresh ingredients.'}
+                  </p>
+
+                  <div className="flex gap-3">
+                    <Link to="/pickup" className="flex-1">
+                      <Button className="w-full bg-[#5c1e1e] hover:bg-[#8b2c2c] rounded-full py-6">
+                        <ShoppingBag className="mr-2 h-5 w-5" />
+                        Order for Pickup
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      className="rounded-full py-6 px-6"
+                      onClick={() => setSelectedItem(null)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {filteredItems.length === 0 && (
           <div className="text-center py-20">
