@@ -4,7 +4,7 @@ import { useSEO } from '@/contexts/SEOContext';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// "Near Me" Location Banner
+// "Near Me" Location Banner - positioned below header, not blocking it
 const LocationBanner = () => {
   const { 
     showLocationBanner, 
@@ -33,6 +33,7 @@ const LocationBanner = () => {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: -100, opacity: 0 }}
         className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white py-3 px-4 relative"
+        style={{ pointerEvents: 'auto', zIndex: 40 }}
       >
         <div className="container mx-auto flex items-center justify-center gap-3 flex-wrap text-center">
           <MapPin className="h-5 w-5 flex-shrink-0" />
@@ -59,8 +60,9 @@ const LocationBanner = () => {
           </Button>
           <button
             onClick={dismissLocationBanner}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-2"
             aria-label="Dismiss"
+            style={{ pointerEvents: 'auto' }}
           >
             <X className="h-5 w-5" />
           </button>
@@ -84,6 +86,7 @@ const NearestCenterBanner = () => {
       initial={{ y: -50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       className="bg-gradient-to-r from-green-600 to-green-700 text-white py-2 px-4 relative"
+      style={{ pointerEvents: 'auto', zIndex: 40 }}
     >
       <div className="container mx-auto flex items-center justify-center gap-2 text-center">
         <MapPin className="h-4 w-4 flex-shrink-0" />
@@ -96,13 +99,15 @@ const NearestCenterBanner = () => {
         <a 
           href={`tel:${nearestCenter.phone}`}
           className="ml-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-xs"
+          style={{ pointerEvents: 'auto' }}
         >
           Call Now
         </a>
         <button
           onClick={() => setDismissed(true)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-2"
           aria-label="Dismiss"
+          style={{ pointerEvents: 'auto' }}
         >
           <X className="h-4 w-4" />
         </button>

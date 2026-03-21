@@ -62,18 +62,18 @@ const Layout = ({ children }) => {
 
             <div className="hidden lg:flex items-center gap-1 xl:gap-2">
               {navLinks.map(link => (
-                <Link
+                <a
                   key={link.path}
-                  to={link.path}
+                  href={link.path}
                   className="text-xs xl:text-sm font-manrope font-medium text-foreground hover:text-primary transition-colors px-2 py-1 rounded-md hover:bg-primary/5 whitespace-nowrap cursor-pointer"
                   data-testid={`nav-${link.name.toLowerCase().replace(' ', '-')}`}
                   onClick={(e) => {
-                    e.stopPropagation();
+                    e.preventDefault();
                     navigate(link.path);
                   }}
                 >
                   {link.name}
-                </Link>
+                </a>
               ))}
             </div>
 
@@ -127,18 +127,18 @@ const Layout = ({ children }) => {
               data-testid="mobile-menu"
             >
               {navLinks.map(link => (
-                <Link
+                <a
                   key={link.path}
-                  to={link.path}
+                  href={link.path}
                   className="block py-3 text-sm font-manrope font-medium text-foreground hover:text-primary cursor-pointer"
                   onClick={(e) => {
-                    e.stopPropagation();
+                    e.preventDefault();
                     setMobileMenuOpen(false);
                     navigate(link.path);
                   }}
                 >
                   {link.name}
-                </Link>
+                </a>
               ))}
               {user ? (
                 <>

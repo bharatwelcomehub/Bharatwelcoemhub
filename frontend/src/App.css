@@ -33,22 +33,46 @@
 #emergent-badge,
 [id*="emergent"],
 a[href*="emergent.sh"],
-a[href*="emergentagent.com"] {
+a[href*="emergentagent.com"]:not(header a) {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
-/* Fix navigation click issues */
-nav a, 
-nav button,
+/* Fix navigation click issues - CRITICAL */
+header {
+  position: relative;
+  z-index: 1000;
+}
+
+header nav {
+  position: relative;
+  z-index: 1001;
+}
+
+header nav a,
+header nav button,
 header a,
-header button {
+header button,
+nav a,
+nav button {
   pointer-events: auto !important;
   cursor: pointer !important;
   position: relative;
-  z-index: 100;
+  z-index: 1002;
+  display: inline-block;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure no invisible overlays block clicks */
+header::before,
+header::after,
+nav::before,
+nav::after {
+  pointer-events: none !important;
 }
 
 .menu-card {
