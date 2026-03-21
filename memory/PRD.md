@@ -20,6 +20,19 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 - [x] Customer authentication (Email/Password + Google OAuth)
 - [x] PWA support for mobile install
 
+### SEO Optimization (NEW)
+- [x] **Dynamic Meta Tags** - Title, description, keywords with city name
+- [x] **OpenGraph Tags** - For social sharing (Facebook, Twitter)
+- [x] **Location Detection** - Ask permission popup, find nearest center
+- [x] **Dynamic H1/H2** - "Authentic Maharashtrian Food in {City}"
+- [x] **JSON-LD Schema** - Organization, Restaurant, FAQ structured data
+- [x] **FAQ Section** - SEO-optimized footer with 3 Q&As
+- [x] **Internal City Links** - Perth, Pune, Thane, Kalyan, Bangalore, Dombivli
+- [x] **"Near Me" Banner** - Top banner with location permission button
+- [x] **sitemap.xml** - All pages indexed
+- [x] **robots.txt** - Search engine crawl rules
+- [x] **Canonical URLs** - Prevent duplicate content
+
 ### Admin Panel (`/admin`)
 - [x] **Home Banner** - Manage hero images
 - [x] **Festivals** - 12-month festival theme management with:

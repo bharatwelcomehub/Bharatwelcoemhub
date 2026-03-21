@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthDialog from '@/components/AuthDialog';
 import InstallPrompt from '@/components/InstallPrompt';
+import { LocationBanner, NearestCenterBanner } from '@/components/LocationBanner';
+import { SEOFAQ, SEOInternalLinks } from '@/components/SEOFAQ';
+import SEOSchema from '@/components/SEOSchema';
 
 const Layout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -27,8 +30,25 @@ const Layout = ({ children }) => {
     { name: 'About', path: '/about' },
   ];
 
+  // City links for SEO internal linking
+  const cityLinks = [
+    { name: 'Perth', path: '/locations' },
+    { name: 'Pune', path: '/locations' },
+    { name: 'Thane', path: '/locations' },
+    { name: 'Kalyan', path: '/locations' },
+    { name: 'Bangalore', path: '/locations' },
+    { name: 'Dombivli', path: '/locations' },
+  ];
+
   return (
     <div className="min-h-screen flex flex-col">
+      {/* SEO Schema JSON-LD */}
+      <SEOSchema />
+      
+      {/* Location Permission Banner */}
+      <LocationBanner />
+      <NearestCenterBanner />
+      
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-orange-900/10">
         <nav className="container mx-auto px-4 lg:px-8">
           <div className="flex items-center justify-between h-20">
@@ -151,7 +171,29 @@ const Layout = ({ children }) => {
 
       <main className="flex-1">{children}</main>
 
-      <footer className="bg-[hsl(20,60%,15%)] text-[hsl(40,50%,85%)] mt-20">
+      {/* SEO FAQ Section */}
+      <SEOFAQ />
+
+      <footer className="bg-[hsl(20,60%,15%)] text-[hsl(40,50%,85%)]">
+        {/* SEO Internal Links */}
+        <div className="bg-[hsl(20,50%,12%)] py-4">
+          <div className="container mx-auto px-4 lg:px-8">
+            <p className="text-xs text-[hsl(40,30%,50%)] mb-2">Find Maharashtrian Food Near You:</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {cityLinks.map((city) => (
+                <Link
+                  key={city.name}
+                  to={city.path}
+                  className="text-xs text-[hsl(38,70%,55%)] hover:text-[hsl(38,80%,65%)] transition-colors"
+                  title={`Maharashtrian Food in ${city.name}`}
+                >
+                  Maharashtrian Food in {city.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+        
         <div className="container mx-auto px-4 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>

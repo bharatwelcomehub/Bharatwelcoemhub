@@ -10,6 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import SEOHead from '@/components/SEOHead';
+import { useSEO } from '@/contexts/SEOContext';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -19,6 +21,7 @@ const Home = () => {
   const [locations, setLocations] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [festivalTheme, setFestivalTheme] = useState(null);
+  const { currentCity } = useSEO();
 
   const featuredDishes = [
     {
@@ -162,6 +165,9 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-[#faf8f5]">
+      {/* SEO Head - Dynamic Meta Tags */}
+      <SEOHead page="home" />
+      
       {/* Festival Theme Banner */}
       {festivalTheme && festivalTheme.is_active && (
         <motion.div
@@ -274,14 +280,23 @@ const Home = () => {
                 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight"
                 data-testid="hero-title"
               >
-                {heroData?.title || "Authentic Maharashtrian Flavors"}
+                Authentic Maharashtrian Food in {currentCity}
               </motion.h1>
+
+              <motion.h2
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+                className="text-xl md:text-2xl text-amber-300 mb-4 font-semibold"
+              >
+                Best Vada Pav, Misal Pav & Thali in {currentCity}
+              </motion.h2>
 
               <motion.p
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.4 }}
-                className="text-xl md:text-2xl text-white/80 mb-8 leading-relaxed"
+                className="text-lg md:text-xl text-white/80 mb-8 leading-relaxed"
               >
                 {heroData?.description || "Experience the richness of traditional recipes passed down through generations. Pure vegetarian, pure love."}
               </motion.p>

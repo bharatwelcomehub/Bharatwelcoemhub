@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Globe, ShoppingBag, Leaf } from 'lucide-react';
 import { toast } from 'sonner';
+import SEOHead from '@/components/SEOHead';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -89,6 +90,7 @@ const Menu = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cream to-white">
+      <SEOHead page="menu" />
       <div className="container mx-auto px-4 lg:px-8 py-12 lg:py-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
