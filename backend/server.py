@@ -4217,6 +4217,13 @@ app.include_router(att_dash_router)
 from routes.franchise_exit import router as exit_router
 app.include_router(exit_router)
 
+# Include Center Accounts router
+from routes.center_accounts import router as accounts_router, set_db as set_accounts_db, set_verify_token as set_accounts_verify_token, set_verify_token_async as set_accounts_verify_token_async
+set_accounts_db(db)
+set_accounts_verify_token(verify_token)
+set_accounts_verify_token_async(verify_token_async)
+app.include_router(accounts_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
