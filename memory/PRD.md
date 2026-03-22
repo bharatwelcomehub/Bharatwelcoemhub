@@ -8,7 +8,44 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 22, 2026 - Session 16)
+### Latest Update (Mar 22, 2026 - Session 17)
+
+- ✅ **P0: CENTER ACCOUNTS FEATURE (COMPLETE)**
+  - **Purpose:** Comprehensive financial management for each center with commission tracking, tax calculations, and PIB generation
+  - **Location:** Under "Accounts" section in sidebar
+  - **Key Features:**
+    - **Center-wise Account View:** Auto-pulls all data from backend (no Excel upload for expenses)
+      - Total Sales, Direct Sales, Aggregator Sales, Card Sales
+      - Total Expenses by category
+      - Card Commission, Aggregator Commission
+      - Net Revenue, Working Capital Remaining
+    - **Commission Statement Uploads:**
+      - India: Swiggy, Zomato, Card Settlement
+      - Australia: DoorDash, Card Settlement
+      - Records: Gross order amount, Commission charged, Net payout, Settlement period
+    - **Tax Logic (Auto-detected by country):**
+      - **India:** 5% GST on sales, 18% GST on revenue share (9% CGST + 9% SGST)
+      - **Australia:** 10% GST inclusive in sales, 10% GST on profit share
+    - **Franchise Linkage:**
+      - Auto-links centers to franchises (PB-PERTH → FR-PERTH)
+      - Pulls revenue share %, profit share %, working capital from franchise profile
+    - **PDF Reports:**
+      - PIB Report (Profit & Income Balance) - Complete financial summary
+      - GST Summary Report - Tax calculation breakdown
+      - Commission Summary Report - Aggregator/card commission details
+    - **Validation Rules:**
+      - PIB generation requires franchise linkage
+      - Platform validation based on country
+      - Duplicate settlement period detection
+  - **Backend:** `/app/backend/routes/center_accounts.py` (800+ lines)
+  - **Frontend:** `/app/frontend/src/pages/CenterAccounts.jsx` (800+ lines)
+  - **Testing:** 22/22 backend tests passed, 100% UI verification
+
+- ✅ **FRANCHISE SECTION SEPARATION (COMPLETE)**
+  - Separated "Franchise" from "Management" section in sidebar
+  - New "Franchise" role added to Role Management
+  - Contains: Franchise Management, Exit & Closure
+  - Access control: Users with "franchise" role can access independently
 
 - ✅ **P0: FRANCHISE EXIT & CLOSURE MODULE (COMPLETE)**
   - **Purpose:** Manages the process when a franchisee exits or a center closes, generating structured legal and financial documents
