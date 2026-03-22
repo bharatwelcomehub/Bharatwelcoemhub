@@ -570,6 +570,68 @@ const Home = () => {
         </div>
       </section>
 
+      {/* Video Reels Section */}
+      <section className="py-20 bg-gradient-to-b from-[#5c1e1e] to-[#3d1414]">
+        <div className="container mx-auto px-4 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <Badge className="mb-4 bg-amber-500/20 text-amber-300 border-amber-500/30">Watch & Enjoy</Badge>
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              Taste the <span className="text-amber-400">Experience</span>
+            </h2>
+            <p className="text-xl text-white/70 max-w-2xl mx-auto">
+              Watch our journey, recipes, and happy customers
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { title: "Ghar Jaisa Khana", desc: "Authentic Maharashtrian taste", icon: "🏠", color: "from-orange-500 to-red-500" },
+              { title: "Unlimited Breakfast", desc: "₹299 - All you can eat!", icon: "☀️", color: "from-yellow-500 to-orange-500" },
+              { title: "Office Pickup", desc: "Ready in 10 minutes", icon: "💼", color: "from-blue-500 to-purple-500" },
+              { title: "Catering Services", desc: "Weddings & Events", icon: "🎉", color: "from-pink-500 to-red-500" }
+            ].map((reel, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className="group cursor-pointer"
+              >
+                <div className={`relative h-64 rounded-2xl bg-gradient-to-br ${reel.color} p-6 flex flex-col justify-between overflow-hidden`}>
+                  {/* Play button overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform scale-75 group-hover:scale-100">
+                      <Play className="h-8 w-8 text-gray-800 ml-1" />
+                    </div>
+                  </div>
+                  
+                  <div className="text-5xl">{reel.icon}</div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1">{reel.title}</h3>
+                    <p className="text-white/80 text-sm">{reel.desc}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="text-center mt-10">
+            <Link to="/videos">
+              <Button variant="outline" className="border-white/30 text-white hover:bg-white/10 rounded-full px-8 py-6">
+                View All Videos
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Locations */}
       <section className="py-20 bg-gradient-to-b from-white to-amber-50">
         <div className="container mx-auto px-4 lg:px-8">
