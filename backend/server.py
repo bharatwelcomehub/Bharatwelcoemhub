@@ -4213,6 +4213,10 @@ set_att_dash_verify_token(verify_token)
 set_att_dash_verify_token_async(verify_token_async)
 app.include_router(att_dash_router)
 
+# Include Franchise Exit & Closure router
+from routes.franchise_exit import router as exit_router
+app.include_router(exit_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

@@ -44,6 +44,7 @@ import SalesExpenses from "@/pages/SalesExpenses";
 import ExpenseHeads from "@/pages/ExpenseHeads";
 import RoleManagement from "@/pages/RoleManagement";
 import FranchiseManagement from "@/pages/FranchiseManagement";
+import FranchiseExit from "@/pages/FranchiseExit";
 import MISDashboard from "@/pages/MISDashboard";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
@@ -103,6 +104,7 @@ const menuCategories = [
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
       { path: "/franchises", icon: Store, label: "Franchises", forAccounts: true },
+      { path: "/franchise-exit", icon: Store, label: "Franchise Exit", forAccounts: true },
     ]
   },
   {
@@ -355,6 +357,7 @@ export default function Dashboard() {
             <Route path="/managers" element={<ManagersManagement />} />
             <Route path="/role-management" element={<RoleManagement />} />
             <Route path="/franchises" element={<FranchiseManagement />} />
+            <Route path="/franchise-exit" element={<FranchiseExit />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
