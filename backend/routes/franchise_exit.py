@@ -91,7 +91,17 @@ async def initiate_exit(data: dict):
     token = data.get("token")
     session = await check_access(token)
     
-    exit_data = ExitInitiation(**data)
+    # Validate required fields
+    required_fields = ["franchise_code", "exit_reason", "effective_date"]
+    missing_fields = [f for f in required_fields if not data.get(f)]
+    if missing_fields:
+        raise HTTPException(422, f"Missing required fields: {', '.join(missing_fields)}")
+    
+    try:
+        exit_data = ExitInitiation(**data)
+    except Exception as e:
+        raise HTTPException(422, f"Invalid data: {str(e)}")
+    
     franchise = await get_franchise(exit_data.franchise_code)
     
     # Check if exit already in progress

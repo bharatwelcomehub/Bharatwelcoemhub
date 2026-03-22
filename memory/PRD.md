@@ -8,7 +8,31 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 20, 2026 - Session 15)
+### Latest Update (Mar 22, 2026 - Session 16)
+
+- ✅ **P0: FRANCHISE EXIT & CLOSURE MODULE (COMPLETE)**
+  - **Purpose:** Manages the process when a franchisee exits or a center closes, generating structured legal and financial documents
+  - **Features:**
+    - **Exit Initiation:** Create exit record with reason, effective date, initiated by (franchisor/franchisee)
+    - **Exit Reasons:** Continuous losses, Voluntary closure, Mutual decision, Breach, Other
+    - **5-Step Workflow:**
+      1. **Exit Agreement:** Record signatures from both parties (franchisor & franchisee)
+      2. **Asset Handover:** Record physical assets in 6 categories (Kitchen Equipment, Furniture & Fixtures, Utensils & Machinery, Food Inventory, Packaging Materials, Other Assets)
+      3. **Financial Settlement:** Calculate net settlement (Working Capital - Deductions for Salaries, Rent, Vendors, Utilities, Other)
+      4. **Compliance Confirmation:** 4-point checklist (No pending payments, Brand assets transferred, Financial report signed, Handover report signed)
+      5. **Exit Certificate:** Final certificate confirming clean closure
+    - **PDF Document Generation:**
+      - Exit Agreement PDF - Formal document with signatures
+      - Asset Handover Report PDF - Complete asset inventory
+      - Financial Settlement Sheet PDF - Settlement calculation breakdown
+      - Exit Certificate PDF - Final closure confirmation
+    - **Status Tracking:** Initiated → In Progress → Pending Signatures → Completed / Cancelled
+    - **Progress Visualization:** 5-step progress bar in UI
+  - **Backend:** `/app/backend/routes/franchise_exit.py` (590+ lines), `/app/backend/utils/exit_documents_generator.py` (730+ lines)
+  - **Frontend:** `/app/frontend/src/pages/FranchiseExit.jsx` (1215 lines)
+  - **Testing:** 22/22 backend tests passed, frontend fully verified, 100% success rate
+
+### Previous Update (Mar 20, 2026 - Session 15)
 
 - ✅ **P0: COMPREHENSIVE FRANCHISE AGREEMENT GENERATOR (COMPLETE REBUILD)**
   - **Problem Solved:** Previous generator only created 5-page documents. User needed 60+ page comprehensive legal agreements.
