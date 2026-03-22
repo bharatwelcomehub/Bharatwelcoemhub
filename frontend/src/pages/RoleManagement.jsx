@@ -15,6 +15,7 @@ import {
   Briefcase,
   Building2,
   ChefHat,
+  Store,
   RefreshCw,
   Search
 } from "lucide-react";
@@ -58,6 +59,12 @@ const ROLE_MODULES = [
     label: "Operations",
     icon: ChefHat,
     description: "Bhojan Guru, guest response, recipes"
+  },
+  {
+    id: "franchise",
+    label: "Franchise",
+    icon: Store,
+    description: "Franchise management, exit & closure processes"
   },
   {
     id: "view_all_centers",
@@ -127,6 +134,7 @@ export default function RoleManagement() {
       hr: false,
       mgt: false,
       operations: true,
+      franchise: false,
       view_all_centers: false
     };
     setSelectedRoles(roles);

@@ -103,8 +103,16 @@ const menuCategories = [
       { path: "/centers", icon: Building2, label: "Centers", forMGT: true },
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
-      { path: "/franchises", icon: Store, label: "Franchises", forAccounts: true },
-      { path: "/franchise-exit", icon: Store, label: "Franchise Exit", forAccounts: true },
+    ]
+  },
+  {
+    id: "franchise",
+    label: "Franchise",
+    icon: Store,
+    forFranchise: true,
+    items: [
+      { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true },
+      { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
     ]
   },
   {
@@ -125,7 +133,7 @@ export default function Dashboard() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "operations"]);
+  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations"]);
   
   // Check user access levels
   const isSuperAdmin = session?.is_super_admin === true;
@@ -141,7 +149,8 @@ export default function Dashboard() {
     mgt: true,
     operations: true,
     view_all_centers: true,
-    accounting: true
+    accounting: true,
+    franchise: true
   } : (session?.roles || {});
   
   // Check if user has accounting role (can view all centers in Sales & Cash)
@@ -164,6 +173,10 @@ export default function Dashboard() {
       // Admin items accessible to Admin or Super Admin
       return isAdmin || isSuperAdmin;
     }
+    if (item.forFranchise) {
+      // Franchise items accessible to Admin or users with franchise role
+      return isAdmin || userRoles.franchise === true;
+    }
     if (item.forAccounts) {
       // Accounts items accessible to Admin or Accounting role
       return isAdmin || userRoles.accounting === true;
@@ -182,6 +195,10 @@ export default function Dashboard() {
   const hasCategoryAccess = (category) => {
     if (isSuperAdmin) return true;
     if (category.forMGT) return isSuperAdmin;
+    if (category.forFranchise) {
+      // Franchise category accessible to Admin or users with franchise role
+      return isAdmin || userRoles.franchise === true;
+    }
     if (category.roleKey) {
       // Special case: Accounting role gets sales_cash category access
       if (category.roleKey === "sales_cash" && userRoles.accounting) {
