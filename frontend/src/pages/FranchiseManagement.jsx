@@ -1163,7 +1163,7 @@ export default function FranchiseManagement() {
                     data-testid="total-investment-input"
                   />
                   <p className="text-xs text-purple-300 mt-2">
-                    This is the actual total investment amount. Deductions below will be subtracted to calculate Net Investment for MG.
+                    This is the actual total investment amount. All deductions below (including Franchise Fee & Working Capital) will be subtracted to calculate Net Investment for MG.
                   </p>
                   {formData.total_investment > 0 && (
                     <div className="mt-3 p-3 bg-background/50 rounded text-sm space-y-1">
@@ -1171,24 +1171,53 @@ export default function FranchiseManagement() {
                         <span className="text-muted-foreground">Total Investment:</span>
                         <span className="font-medium">{formatCurrency(formData.total_investment, formData.country)}</span>
                       </div>
-                      <div className="flex justify-between text-red-400">
-                        <span>Less: Deductions</span>
+                      <div className="text-xs text-muted-foreground mt-2 mb-1">Deductions:</div>
+                      <div className="flex justify-between text-red-400 text-xs pl-2">
+                        <span>- Shop Rent Deposit:</span>
+                        <span>-{formatCurrency(formData.setup_costs?.shop_security_deposit || 0, formData.country)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400 text-xs pl-2">
+                        <span>- First Month Rent:</span>
+                        <span>-{formatCurrency(formData.setup_costs?.first_month_rent || 0, formData.country)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400 text-xs pl-2">
+                        <span>- Initial Salary Fund:</span>
+                        <span>-{formatCurrency(formData.setup_costs?.initial_salary_fund || 0, formData.country)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400 text-xs pl-2">
+                        <span>- Staff Travel Expense:</span>
+                        <span>-{formatCurrency(formData.setup_costs?.staff_traveling_expense || 0, formData.country)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400 text-xs pl-2">
+                        <span>- Franchise Fee:</span>
+                        <span>-{formatCurrency(formData.franchise_fee || 0, formData.country)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400 text-xs pl-2">
+                        <span>- Working Capital:</span>
+                        <span>-{formatCurrency(formData.working_capital || 0, formData.country)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400 font-medium border-t border-border/50 pt-1 mt-1">
+                        <span>Total Deductions:</span>
                         <span>-{formatCurrency(
                           (formData.setup_costs?.shop_security_deposit || 0) +
-                          (formData.setup_costs?.staff_traveling_expense || 0) +
+                          (formData.setup_costs?.first_month_rent || 0) +
                           (formData.setup_costs?.initial_salary_fund || 0) +
-                          (formData.setup_costs?.first_month_rent || 0),
+                          (formData.setup_costs?.staff_traveling_expense || 0) +
+                          (formData.franchise_fee || 0) +
+                          (formData.working_capital || 0),
                           formData.country
                         )}</span>
                       </div>
-                      <div className="flex justify-between font-bold text-green-400 border-t border-border pt-1">
+                      <div className="flex justify-between font-bold text-green-400 border-t-2 border-green-500/50 pt-2 mt-2 text-base">
                         <span>Net Investment:</span>
                         <span>{formatCurrency(
                           Math.max(0, (formData.total_investment || 0) -
                             (formData.setup_costs?.shop_security_deposit || 0) -
-                            (formData.setup_costs?.staff_traveling_expense || 0) -
+                            (formData.setup_costs?.first_month_rent || 0) -
                             (formData.setup_costs?.initial_salary_fund || 0) -
-                            (formData.setup_costs?.first_month_rent || 0)),
+                            (formData.setup_costs?.staff_traveling_expense || 0) -
+                            (formData.franchise_fee || 0) -
+                            (formData.working_capital || 0)),
                           formData.country
                         )}</span>
                       </div>

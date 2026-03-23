@@ -1035,6 +1035,14 @@ export default function CenterAccounts() {
                             <span className="pl-2">First Shop Rent</span>
                             <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.deductions?.first_shop_rent || 0, accountSummary.country)}</span>
                           </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="pl-2">Working Capital</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.deductions?.working_capital || 0, accountSummary.country)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="pl-2">Franchise Fee</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.deductions?.franchise_fee || 0, accountSummary.country)}</span>
+                          </div>
                           <hr />
                           <div className="flex justify-between text-sm font-medium">
                             <span>Total Deductions</span>

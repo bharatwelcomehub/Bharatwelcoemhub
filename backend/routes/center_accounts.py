@@ -68,12 +68,12 @@ AUSTRALIA_GST_ON_PROFIT_SHARE = 0.10  # 10% GST on profit share
 MG_INTEREST_RATE = 15  # 15% annual interest rate
 MG_TENURE_YEARS = 7  # 7 years tenure
 
-def calculate_mg(total_investment: float, setup_costs: dict) -> dict:
+def calculate_mg(total_investment: float, setup_costs: dict, franchise_fee: float = 0, working_capital: float = 0) -> dict:
     """
     Calculate Minimum Guarantee (MG) based on Net Investment.
     
     Formula:
-    - Net Investment = Total Investment - (Shop Rent Deposit + Staff Travel + 1st Salary + 1st Shop Rent)
+    - Net Investment = Total Investment - (Shop Rent Deposit + Staff Travel + 1st Salary + 1st Shop Rent + Working Capital + Franchise Fee)
     - MG = Monthly EMI based on Net Investment as loan amount @ 15% interest for 7 years
     
     EMI Formula: E = P × r × (1+r)^n / ((1+r)^n - 1)
@@ -94,14 +94,21 @@ def calculate_mg(total_investment: float, setup_costs: dict) -> dict:
     first_salary = float(setup_costs.get("initial_salary_fund", 0) or 0)
     first_shop_rent = float(setup_costs.get("first_month_rent", 0) or 0)
     
+    # Include Franchise Fee and Working Capital as deductions
+    franchise_fee_deduction = float(franchise_fee or 0)
+    working_capital_deduction = float(working_capital or 0)
+    
     deductions = {
         "shop_rent_deposit": shop_rent_deposit,
         "staff_traveling_expense": staff_travel,
         "first_salary": first_salary,
-        "first_shop_rent": first_shop_rent
+        "first_shop_rent": first_shop_rent,
+        "working_capital": working_capital_deduction,
+        "franchise_fee": franchise_fee_deduction
     }
     
-    total_deductions = shop_rent_deposit + staff_travel + first_salary + first_shop_rent
+    total_deductions = (shop_rent_deposit + staff_travel + first_salary + first_shop_rent +
+                        working_capital_deduction + franchise_fee_deduction)
     net_investment = max(0, total_investment - total_deductions)
     
     # EMI calculation
@@ -449,19 +456,20 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     if franchise:
         # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
         total_investment = float(franchise.get("total_investment", 0) or 0)
+        franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+        working_capital_val = float(franchise.get("working_capital", 0) or 0)
+        
         if total_investment <= 0:
             # Fallback: calculate from franchise_fee + working_capital
-            franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
-            working_capital_initial = float(franchise.get("working_capital", 0) or 0)
-            total_investment = franchise_fee + working_capital_initial
+            total_investment = franchise_fee + working_capital_val
         
         # Get setup costs
         setup_costs = franchise.get("setup_costs", {})
         if not isinstance(setup_costs, dict):
             setup_costs = {}
         
-        # Calculate MG
-        mg_data = calculate_mg(total_investment, setup_costs)
+        # Calculate MG (now includes franchise_fee and working_capital as deductions)
+        mg_data = calculate_mg(total_investment, setup_costs, franchise_fee, working_capital_val)
         
         # Determine payable: If MG > Revenue Share, MG is payable, else Revenue Share
         monthly_mg = mg_data.get("monthly_mg", 0)
@@ -1316,14 +1324,18 @@ async def get_payout_summary(data: dict = Body(...)):
     if franchise:
         # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
         total_investment = float(franchise.get("total_investment", 0) or 0)
+        franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+        working_capital = float(franchise.get("working_capital", 0) or 0)
+        
         if total_investment <= 0:
-            franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
-            working_capital = float(franchise.get("working_capital", 0) or 0)
             total_investment = franchise_fee + working_capital
+        
         setup_costs = franchise.get("setup_costs", {})
         if not isinstance(setup_costs, dict):
             setup_costs = {}
-        mg_data = calculate_mg(total_investment, setup_costs)
+        
+        # Calculate MG (now includes franchise_fee and working_capital as deductions)
+        mg_data = calculate_mg(total_investment, setup_costs, franchise_fee, working_capital)
         mg_amount = mg_data.get("monthly_mg", 0)
     
     # Get revenue start date from franchise
