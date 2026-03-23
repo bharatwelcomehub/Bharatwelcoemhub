@@ -8,7 +8,41 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 23, 2026 - Session 20)
+### Latest Update (Mar 23, 2026 - Session 21)
+
+- ✅ **SERVER REFACTORING - PAYROLL & RECIPES MODULES (COMPLETE)**
+  - Created `/app/backend/routes/payroll.py` (~770 lines)
+    - `POST /api/payroll_status` - Check if payroll is locked for a month
+    - `POST /api/lock_payroll` - Lock payroll for a month (Admin only)
+    - `POST /api/salary_preview` - Preview salary data for a center
+    - `POST /api/generate_salary` - Generate salary Excel for ICICI upload
+    - `POST /api/payslips_generate` - Generate payslips (PDF/DOCX)
+  - Created `/app/backend/routes/recipes.py` (~290 lines)
+    - `GET /api/recipes` - Get all recipes with ingredients and methods
+    - `GET /api/descriptions` - Get menu item descriptions
+    - `GET /api/recipes/categories` - Get recipe categories
+    - `GET /api/recipes/search` - Search recipes
+    - `POST/PUT/DELETE /api/recipes` - Recipe CRUD (MGT only)
+    - `GET /api/bhojan_guru` - Get Bhojan Guru recommendations
+    - `POST /api/bhojan_guru/suggest` - Get dish suggestions
+    - `GET /api/bhojan_guru/region/{day}` - Get region-wise recommendations
+    - `POST /api/bhojan_guru/body_need` - Body need-based suggestions
+
+- ✅ **MONTH-WISE PAYOUT GRID VIEW (COMPLETE)**
+  - Added comprehensive month-wise payout tracking to Center Accounts
+  - **API:** `POST /api/center-accounts/payout-summary`
+    - Returns monthly data from revenue start date
+    - Fields per month: total_sales, revenue_share, mg_amount, payable_type, payable_amount, paid, pending, status
+    - Includes totals: revenue_share, mg, payable, paid, pending
+  - **Frontend:** Added to "MG & Payout" tab
+    - Summary cards: Total Revenue Share, Monthly MG, Total Payable, Total Paid, Total Pending
+    - Table columns: Month, Total Sales, Revenue Share, MG, Type, Payable, Paid, Pending, Status
+    - Status badges: Paid (green), Partial (amber), Unpaid (red)
+    - Refresh button for updating data
+
+- ✅ **TESTING:** 100% backend (11/11), 100% frontend verification
+
+### Previous Update (Mar 23, 2026 - Session 20)
 
 - ✅ **P0: 5 NEW FINANCIAL FEATURES (COMPLETE)**
   1. **Expense Category in Dashboard** - Expense type/category now properly displayed in expense list table
