@@ -8,7 +8,21 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 23, 2026 - Session 18)
+### Latest Update (Mar 23, 2026 - Session 19)
+
+- ✅ **DOORDASH DATA SEEDED FOR PB-PERTH (COMPLETE)**
+  - Seeded DoorDash sales data for 23 records in February 2026
+  - Total DoorDash sales: AUD 7,053.66
+  - Created commission statement: 28% commission rate = AUD 1,975.02
+  - Center Accounts now correctly shows DoorDash sales and commission
+
+- ✅ **SERVER REFACTORING CONTINUED (IN PROGRESS)**
+  - Created `/app/backend/routes/employees.py` - Employee CRUD module
+  - Created `/app/backend/routes/attendance.py` - Attendance & Advances module
+  - Both modules successfully integrated with main server
+  - Modular structure now covers: auth, employees, attendance, franchise_exit, center_accounts, loan_entries, franchises, booking_intelligence, attendance_dashboard, mis_dashboard, sales_expenses
+
+### Previous Update (Mar 23, 2026 - Session 18)
 
 - ✅ **LOAN ENTRY FEATURE (COMPLETE)**
   - **Purpose:** Track working capital usage as loans with repayment tracking

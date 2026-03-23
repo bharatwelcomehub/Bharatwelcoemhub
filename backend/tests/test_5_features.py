@@ -14,7 +14,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://exit-docs-portal.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://purnabramha-accounts.preview.emergentagent.com')
 
 # Test credentials (READ-ONLY - do not modify production data)
 SUPER_ADMIN_CENTER = "PB-MGT"

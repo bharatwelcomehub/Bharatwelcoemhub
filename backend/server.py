@@ -4230,6 +4230,19 @@ set_loan_db(db)
 set_loan_verify_token_async(verify_token_async)
 app.include_router(loan_router)
 
+# Include Employees router
+from routes.employees import router as employees_router, set_db as set_employees_db, set_verify_token as set_employees_verify_token, set_has_admin_access as set_employees_has_admin_access
+set_employees_db(db)
+set_employees_verify_token(verify_token)
+set_employees_has_admin_access(has_admin_access)
+app.include_router(employees_router)
+
+# Include Attendance router
+from routes.attendance import router as attendance_router, set_db as set_attendance_db, set_verify_token as set_attendance_verify_token
+set_attendance_db(db)
+set_attendance_verify_token(verify_token)
+app.include_router(attendance_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

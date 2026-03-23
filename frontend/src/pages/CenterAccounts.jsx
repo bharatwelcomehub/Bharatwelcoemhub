@@ -708,7 +708,7 @@ export default function CenterAccounts() {
               </Card>
 
               {/* Commission Summary */}
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 <Card className="bg-orange-50">
                   <CardContent className="p-4">
                     <p className="text-sm text-orange-600">Aggregator Commission</p>
@@ -725,11 +725,21 @@ export default function CenterAccounts() {
                     </p>
                   </CardContent>
                 </Card>
+                {accountSummary.country === 'Australia' && (
+                  <Card className="bg-purple-50">
+                    <CardContent className="p-4">
+                      <p className="text-sm text-purple-600">Commission GST (10%)</p>
+                      <p className="text-xl font-bold text-purple-800">
+                        {formatCurrency(accountSummary.commissions.commission_gst, accountSummary.country)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
                 <Card className="bg-red-50">
                   <CardContent className="p-4">
-                    <p className="text-sm text-red-600">Total Commission</p>
+                    <p className="text-sm text-red-600">Total Commission {accountSummary.country === 'Australia' ? '(incl. GST)' : ''}</p>
                     <p className="text-xl font-bold text-red-800">
-                      {formatCurrency(accountSummary.commissions.total, accountSummary.country)}
+                      {formatCurrency(accountSummary.country === 'Australia' ? accountSummary.commissions.total_with_gst : accountSummary.commissions.total, accountSummary.country)}
                     </p>
                   </CardContent>
                 </Card>
@@ -751,11 +761,46 @@ export default function CenterAccounts() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
+                    {/* Calculation Breakdown for Australia */}
+                    {accountSummary.country === 'Australia' && (
+                      <div className="p-4 bg-gray-100 rounded-lg space-y-2">
+                        <h4 className="font-medium text-gray-700 mb-3">Profit Calculation Breakdown</h4>
+                        <div className="flex justify-between text-sm">
+                          <span>Total Sales (GST Inclusive)</span>
+                          <span>{formatCurrency(accountSummary.financial_summary.total_sales, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-500">
+                          <span className="pl-4">Less: Sales GST (10%)</span>
+                          <span>-{formatCurrency(accountSummary.financial_summary.sales_gst, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm font-medium border-t pt-1">
+                          <span>Sales (Ex GST)</span>
+                          <span>{formatCurrency(accountSummary.financial_summary.sales_ex_gst, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-red-600">
+                          <span>Less: Expenses</span>
+                          <span>-{formatCurrency(accountSummary.financial_summary.total_expenses, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-red-600">
+                          <span>Less: Commission</span>
+                          <span>-{formatCurrency(accountSummary.financial_summary.total_commissions, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-red-600">
+                          <span className="pl-4">Less: Commission GST (10%)</span>
+                          <span>-{formatCurrency(accountSummary.financial_summary.commission_gst, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex justify-between text-lg font-bold border-t-2 border-gray-400 pt-2 mt-2">
+                          <span>Net Profit (for Share Calculation)</span>
+                          <span className="text-green-700">{formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}</span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Base Amount */}
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">
-                          {accountSummary.share_calculation.type === 'profit_share' ? 'Net Profit (Base)' : 'Total Sales (Base)'}
+                          {accountSummary.share_calculation.type === 'profit_share' ? 'Net Profit (Base for 80/20 Split)' : 'Total Sales (Base)'}
                         </span>
                         <span className="text-xl font-bold">
                           {formatCurrency(accountSummary.share_calculation.net_profit_or_sales, accountSummary.country)}

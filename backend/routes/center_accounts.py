@@ -232,23 +232,30 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     
     sales_records = await db.daily_sales.find(sales_query, {"_id": 0}).to_list(100)
     
+    # DEBUG: Log sample records
+    logger.info(f"Found {len(sales_records)} sales records for {req.center} in {req.month}")
+    if sales_records:
+        sample = sales_records[0]
+        logger.info(f"Sample record fields: {list(sample.keys())}")
+        logger.info(f"Sample doordash value: {sample.get('doordash')}")
+    
     # Aggregate sales data
-    total_sale = sum(r.get("total_sale", 0) for r in sales_records)
-    direct_sale = sum(r.get("sale_pbm", 0) + r.get("sale_other", 0) for r in sales_records)
+    total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
+    direct_sale = sum((r.get("sale_pbm", 0) or 0) + (r.get("sale_other", 0) or 0) for r in sales_records)
     
     # Aggregator sales
-    swiggy_sale = sum(r.get("swiggy", 0) for r in sales_records)
-    zomato_sale = sum(r.get("zomato", 0) for r in sales_records)
-    doordash_sale = sum(r.get("doordash", 0) for r in sales_records)
+    swiggy_sale = sum(r.get("swiggy", 0) or 0 for r in sales_records)
+    zomato_sale = sum(r.get("zomato", 0) or 0 for r in sales_records)
+    doordash_sale = sum(r.get("doordash", 0) or 0 for r in sales_records)
     aggregator_sale = swiggy_sale + zomato_sale + doordash_sale
     
     # Card/Online sales
-    card_sale = sum(r.get("card_idfc", 0) for r in sales_records)
-    bharat_pay = sum(r.get("bharat_pay", 0) for r in sales_records)
-    online_other = sum(r.get("online_other", 0) for r in sales_records)
+    card_sale = sum(r.get("card_idfc", 0) or 0 for r in sales_records)
+    bharat_pay = sum(r.get("bharat_pay", 0) or 0 for r in sales_records)
+    online_other = sum(r.get("online_other", 0) or 0 for r in sales_records)
     
-    total_online_sale = sum(r.get("total_online_sale", 0) for r in sales_records)
-    total_cash_sale = sum(r.get("total_cash_sale", 0) for r in sales_records)
+    total_online_sale = sum(r.get("total_online_sale", 0) or 0 for r in sales_records)
+    total_cash_sale = sum(r.get("total_cash_sale", 0) or 0 for r in sales_records)
     
     # ==========================================
     # 2. Fetch Expenses Data
@@ -301,12 +308,34 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     card_commission = commission_by_platform["card_settlement"]["commission"]
     
     # ==========================================
-    # 4. Calculate Financial Summary
+    # 4. Calculate Financial Summary with GST
     # ==========================================
     
-    # Net Revenue = Total Sales - Expenses - Commissions
+    # Total commission
     total_commission = total_aggregator_commission + card_commission
-    net_revenue = total_sale - total_expenses - total_commission
+    
+    # For Australia: Sales are GST inclusive (10%)
+    # We need to extract GST from total sale
+    if country == "Australia":
+        # GST is 10% included in sale, so extract it
+        gst_rate = 0.10
+        sales_gst_amount = total_sale * gst_rate / (1 + gst_rate)
+        sales_ex_gst = total_sale - sales_gst_amount
+        
+        # Commission GST (10% on commission)
+        commission_gst = total_commission * gst_rate
+        total_commission_with_gst = total_commission + commission_gst
+        
+        # Net Revenue for profit share calculation:
+        # Sales (ex GST) - Expenses - Commission (with GST)
+        net_revenue = sales_ex_gst - total_expenses - total_commission_with_gst
+    else:
+        # India: GST is added separately
+        sales_gst_amount = total_sale * 0.05  # 5% GST on food
+        sales_ex_gst = total_sale
+        commission_gst = 0  # Commission GST handled differently in India
+        total_commission_with_gst = total_commission
+        net_revenue = total_sale - total_expenses - total_commission
     
     # Calculate share payable based on country
     # 80% goes to Franchise Owner, 20% goes to Purnabramha LLC
@@ -314,7 +343,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     purnabramha_percentage = 20
     
     if country == "Australia":
-        # Australia: Profit share model (% of net profit)
+        # Australia: Profit share model (% of net profit after GST deductions)
         profit_before_share = net_revenue
         purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
         franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
@@ -381,14 +410,20 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "aggregator_total": round(total_aggregator_commission, 2),
             "card_total": round(card_commission, 2),
             "total": round(total_commission, 2),
+            "commission_gst": round(commission_gst, 2) if country == "Australia" else 0,
+            "total_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),
             "by_platform": commission_by_platform
         },
         "financial_summary": {
             "total_sales": round(total_sale, 2),
+            "sales_gst": round(sales_gst_amount, 2),
+            "sales_ex_gst": round(sales_ex_gst, 2),
             "total_expenses": round(total_expenses, 2),
             "total_commissions": round(total_commission, 2),
+            "commission_gst": round(commission_gst, 2) if country == "Australia" else 0,
+            "total_commissions_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),
             "net_revenue": round(net_revenue, 2),
-            "working_capital": round(working_capital, 2),  # Just show initial, no calculation
+            "working_capital": round(working_capital, 2),
             "loans_outstanding": round(total_loans_outstanding, 2),
             "working_capital_available": round(working_capital - total_loans_outstanding, 2)
         },
