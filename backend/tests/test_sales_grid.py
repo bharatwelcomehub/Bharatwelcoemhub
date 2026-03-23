@@ -5,7 +5,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://expense-tracker-pro-84.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://mg-calculator.preview.emergentagent.com').rstrip('/')
 
 class TestSalesGridFeature:
     """Test suite for Sales Grid Bulk Update feature"""

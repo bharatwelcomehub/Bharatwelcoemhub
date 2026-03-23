@@ -416,24 +416,35 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
     
     if country == "India":
-        # India: Revenue share model (% of NET revenue after deductions)
-        # Net Revenue = Total Sales - Commissions (Swiggy, Zomato, etc.) - Card Fees - Expenses
+        # India: Revenue share model
+        # Net Revenue = Total Sales - Commissions (Swiggy, Zomato, Card) - GST on Sale (if gst_applicable is ON)
+        # NOTE: Expenses are NOT deducted for India revenue share calculation
+        
+        # Calculate GST on sales (5% of total sales) - only deducted if gst_applicable is ON
+        gst_on_sales = total_sale * INDIA_GST_ON_SALES if gst_applicable_india else 0
+        
+        # Net Revenue for India = Total Sales - Commissions - GST on Sales (if applicable)
+        india_net_revenue = total_sale - total_commission - gst_on_sales
+        
         # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
         franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
         purnabramha_percentage = 100 - franchise_owner_percentage
-        # Calculate on NET REVENUE (after commissions and expenses)
-        purnabramha_share = net_revenue * (purnabramha_percentage / 100)
-        franchise_owner_share = net_revenue * (franchise_owner_percentage / 100)
+        # Calculate on Net Revenue (after commissions and GST if applicable)
+        purnabramha_share = india_net_revenue * (purnabramha_percentage / 100)
+        franchise_owner_share = india_net_revenue * (franchise_owner_percentage / 100)
         share_type = "revenue_share"
+        # Store for display
+        net_revenue_for_share = india_net_revenue
     else:
         # Outside India (Australia, etc.): Profit share model - FIXED 80/20 split
-        # 80% to Franchise Owner, 20% to Purnabramha (on net profit)
+        # 80% to Franchise Owner, 20% to Purnabramha (on net profit after ALL deductions)
         franchise_owner_percentage = 80
         purnabramha_percentage = 20
-        profit_before_share = net_revenue
+        profit_before_share = net_revenue  # Uses full net_revenue (sales - expenses - commissions)
         purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
         franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
         share_type = "profit_share"
+        net_revenue_for_share = net_revenue
     
     # Apply GST on Purnabramha's share (payable by franchise to Purnabramha)
     # For India: Only apply 18% GST if gst_applicable toggle is ON
@@ -560,9 +571,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         },
         "share_calculation": {
             "type": share_type,
-            "net_profit_or_sales": round(net_revenue, 2),  # Both India and Australia now use net_revenue
+            "net_profit_or_sales": round(net_revenue_for_share, 2),  # India: Net Revenue (sales - commissions - GST), Australia: Net Profit (sales - expenses - commissions)
             "total_sales": round(total_sale, 2),  # Show total sales separately
-            "total_deductions": round(total_expenses + total_commission, 2),  # Commissions + Expenses
+            "total_deductions": round(total_commission + (gst_on_sales if country == "India" else total_expenses + total_commission), 2),  # India: Commissions + GST, Australia: Commissions + Expenses
             "franchise_owner": {
                 "percentage": franchise_owner_percentage,
                 "amount": round(franchise_owner_share, 2)
@@ -1440,20 +1451,31 @@ async def get_payout_summary(data: dict = Body(...)):
         }, {"commission_charged": 1}).to_list(100)
         total_commission = sum(c.get("commission_charged", 0) or 0 for c in commission_records)
         
-        # Calculate Net Revenue = Total Sales - Expenses - Commissions
-        net_revenue = max(0, total_sale - total_expenses - total_commission)
+        # Calculate Net Revenue / Net Profit based on country
+        # India: Net Revenue = Total Sales - Commissions - GST (if applicable) - NO expense deduction
+        # Outside India: Net Profit = Total Sales - Expenses - Commissions
+        franchise_country = franchise.get("country", "India") if franchise else "India"
+        gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
+        
+        if franchise_country == "India":
+            # India: Net Revenue = Sales - Commissions - GST on sales (if applicable)
+            # NOTE: Expenses are NOT deducted for India revenue share calculation
+            gst_on_sales = total_sale * 0.05 if gst_applicable_india else 0  # 5% GST on food sales
+            net_revenue_for_share = max(0, total_sale - total_commission - gst_on_sales)
+        else:
+            # Outside India: Net Profit = Sales - Expenses - Commissions
+            net_revenue_for_share = max(0, total_sale - total_expenses - total_commission)
         
         # Calculate FRANCHISE OWNER's share (this is what gets compared with MG)
         # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner) on NET REVENUE
         # Outside India: Fixed 80% to Franchise Owner on profit
-        franchise_country = franchise.get("country", "India") if franchise else "India"
         
         if franchise_country == "India":
             franchise_owner_pct = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
-            revenue_share = net_revenue * (franchise_owner_pct / 100)  # Franchise Owner's share on NET revenue
+            revenue_share = net_revenue_for_share * (franchise_owner_pct / 100)  # Franchise Owner's share on NET revenue
         else:
             # Outside India: Fixed 80% to Franchise Owner on net profit
-            revenue_share = net_revenue * 0.80
+            revenue_share = net_revenue_for_share * 0.80
         
         # Determine payable amount (MG or Franchise Owner's Revenue Share)
         if mg_amount > revenue_share:

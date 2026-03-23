@@ -8,7 +8,29 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 23, 2026 - Session 21)
+### Latest Update (Mar 23, 2026 - Session 22)
+
+- ✅ **CRITICAL FIX: India Net Revenue Calculation (COMPLETE)**
+  - Fixed the Net Revenue formula for India locations
+  - **India Formula:** `Net Revenue = Total Sales - Commissions - GST on Sales (if applicable)`
+  - **Expenses are NOT deducted** for India's revenue share calculation
+  - This fix applied to both `/api/center-accounts/summary` and `/api/center-accounts/payout-summary` endpoints
+  - Australia continues to use profit share: `Net Profit = Sales Ex-GST - Expenses - Commissions`
+
+- ✅ **SERVER CLEANUP: Removed Duplicate Routes (COMPLETE)**
+  - Removed ~1084 lines of duplicate code from `server.py` (from 4271 to 3187 lines)
+  - Removed duplicate PAYROLL ENDPOINTS section (now in `routes/payroll.py`)
+  - Removed duplicate BHOJAN GURU ENDPOINTS section (now in `routes/recipes.py`)
+  - All routes now served from modular route files
+
+- ✅ **TESTING:** All critical endpoints verified working
+  - Center Accounts Summary (India Net Revenue fix): ✓
+  - Recipes (from routes/recipes.py): ✓
+  - Bhojan Guru (from routes/recipes.py): ✓
+  - Payroll Status (from routes/payroll.py): ✓
+  - Salary Preview (from routes/payroll.py): ✓
+
+### Previous Update (Mar 23, 2026 - Session 21)
 
 - ✅ **TOTAL INVESTMENT FIELD FOR MG CALCULATION (COMPLETE)**
   - Added new "Total Investment Done" field in Franchise Management form

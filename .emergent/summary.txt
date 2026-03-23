@@ -1,184 +1,191 @@
 <analysis>**original_problem_statement:**
-The user wants to build a comprehensive internal management system for Purnabramha, a restaurant franchise.
+The user is building an internal management system for Purnabramha, a restaurant franchise. The initial request involved implementing a suite of 5 complex financial features, including a Minimum Guarantee (MG) calculation, new dashboard filters, and conditional GST logic. Throughout the session, the user provided extensive, iterative feedback to refine the financial calculations, specifically focusing on the distinction between Revenue Share (for India locations) and Profit Share (for outside India), and the precise formula for calculating Net Revenue for the purpose of sharing.
 
-The current set of requests are:
-1.  **Account Feature:** A comprehensive accounting module inside the Accounts section. This includes:
-    *   Center-wise financial views (Sales, Expenses, Commissions, Net Revenue).
-    *   Uploads for commission statements (Swiggy, Zomato, DoorDash, Card).
-    *   Country-specific tax logic (18% GST in India, 10% GST in Australia).
-    *   Automatic linking between centers and franchise profiles.
-    *   PDF report generation (PIB, GST summaries, etc.).
-2.  **Corrections to Account Feature:**
-    *   Profit/Revenue share must be calculated as an 80/20 split (80% for Franchise Owner, 20% for Purnabramha LLC).
-    *   GST (10% for Australia) on commissions must be deducted from sales *before* calculating the profit share.
-    *   Working Capital should be treated as a static security deposit and not be automatically reduced.
-    *   DoorDash sales and commission data should be visible.
-3.  **Loan Entry Feature:** A new feature to track loans taken from the Working Capital.
-4.  **Refactor :** Break down the monolithic backend server file into a modular, route-based structure.
+**PRODUCT REQUIREMENTS:**
+1.  **MG Calculation:**
+    *   **Net Investment** = Total Investment - (Shop Rent Deposit + Staff Traveling Expense + 1st Salary + 1st Shop Rent + Working Capital + Franchise Fee).
+    *   **MG** = Monthly EMI based on Net Investment, 15% interest, 7-year tenure.
+    *   The UI must have a Total Investment Done field and show the full breakdown of the calculation.
+2.  **Revenue vs. Profit Share:**
+    *   **India Locations:** Use a Revenue Share model. The share percentage is configurable per franchise (from  field, defaulting to 15% for the owner). The share is calculated on **Net Revenue**.
+    *   **Outside India Locations:** Use a Profit Share model with a **fixed 80/20 split** (80% to owner, 20% to Purnabramha). The share is calculated on **Net Profit**.
+3.  **India Net Revenue Formula (CRITICAL):**
+    *   
+    *   **Expenses are explicitly NOT deducted for India's revenue share calculation.**
+4.  **MG Payout Logic:**
+    *   The system must compare the monthly MG with the **Franchise Owner's Share**.
+    *   The greater of the two amounts is what is Payable to Franchise Owner.
+5.  **GST on Revenue Share:** An 18% GST is applied to Purnabramha's share for India locations if a GST Applicable toggle is enabled on the franchise.
+6.  **UI Enhancements:**
+    *   Add a From Date – To Date filter to the Expense module.
+    *   Display the expense category in the expense list.
+    -   Implement a month-wise Payout Grid view in the Center Accounts dashboard.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack React/FastAPI/MongoDB application with multi-tiered RBAC. The application includes modules for Sales, HR, Booking Intelligence, and Franchise Management.
-
-Key features recently completed:
--   **Franchise Exit & Closure Module:** A fully functional backend and frontend module to manage the entire franchise exit process, including the generation of four different legal PDF documents.
--   **Center Accounts Feature:** A comprehensive backend and frontend for center-wise financial management, with country-specific tax logic and franchise linking.
--   **Loan Entry Feature:** A new module under Accounts to create and track loans against working capital, which is now treated as a static security deposit.
--   **UI/UX Refactoring:** The main navigation has been reorganized to create a separate Franchise section, with its own access role for better permission management.
--   **Partial Server Refactoring:** Key modules like , , , and  have been extracted from the monolithic  into their own route files.
+A full-stack React/FastAPI/MongoDB application for restaurant franchise management. All 5 initial financial features have been implemented and iteratively refined based on extensive user feedback. The backend logic for Revenue Share, Profit Share, and MG calculation has been corrected multiple times to match the user's precise requirements. The frontend has been updated with a new Total Investment field, a date-range filter for expenses, and a month-wise payout grid. The agent also continued a major refactoring effort by creating new route files for  and  modules.
 
 **Last working item**:
--   **Last item agent was working:** The agent was addressing user feedback on the new Center Accounts feature. The two main tasks were to fix the profit share calculation to deduct commission GST first, and to investigate why DoorDash commission data was not appearing for the PB-PERTH center.
+-   **Last item agent was working:** Correcting the **Net Revenue** calculation formula for **India locations**. The user specified that expenses should NOT be deducted. The agent updated  to reflect the new formula: .
 -   **Status:** IN PROGRESS
--   **Agent Testing Done:** Y
--   **Which testing method agent to use?** Manual testing by curl / python -c. The backend logic is the primary area of change.
+-   **Agent Testing Done:** N
+-   **Which testing method agent to use?** backend testing agent
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Center Accounts Fixes (P0)
--   Issue 2: DoorDash Data Discrepancy (P0)
--   Issue 3: Duplicate PB-PERTH Center in Database (P2)
+-   Issue 1: Verify the latest Net Revenue calculation for India (P0)
+-   Issue 2: Clean up duplicate endpoints in  (P1)
+-   Issue 3: Payslip Data Overlap (P2)
 -   Issue 4: Frontend Build Fails with Babel Plugin (P2)
--   Issue 5: Payslip Data Overlap (P2)
+-   Issue 5: Duplicate PB-PERTH Center in Database (P2)
 
 **Issues Detail:**
--   **Issue 1: Center Accounts Fixes**
-    -   **Attempted fixes:** The agent has already implemented the required logic. In , the profit share calculation was updated to first deduct total expenses and the total commission amount (including its GST) from the sales revenue (exclusive of its GST) before applying the 80/20 split. The frontend was also updated to reflect this new breakdown.
-    -   **Next debug checklist:** The user needs to verify that the new calculation shown in the UI and the generated PIB PDF is correct.
-    -   **Why fix this issue and what will be achieved with the fix?** To ensure financial reports are accurate according to the user's business logic.
-    -   **Status:** USER VERIFICATION PENDING
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Both.
-    -   **Blocked on other issue:** None.
-
--   **Issue 2: DoorDash Data Discrepancy**
-    -   **Attempted fixes:** The agent investigated why DoorDash sales and commissions were showing as AUD 0.00. The investigation revealed that the code logic is correct, but the underlying data in the  for the  center for February 2026 does not contain a  field. The issue is with the data, not the code.
-    -   **Next debug checklist:** The agent needs to clearly explain this data discrepancy to the user and ask how they would like to proceed (e.g., seed the correct data, or confirm that this behavior is acceptable for now).
-    -   **Why fix this issue and what will be achieved with the fix?** To resolve user confusion and ensure reports reflect the correct data.
-    -   **Status:** BLOCKED (on user clarification regarding data)
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Backend (if data seeding is required).
-    -   **Blocked on other issue:** None.
-
--   **Issue 3: Duplicate PB-PERTH Center in Database**
-    -   **Attempted fixes:** None.
-    -   **Next debug checklist:** Connect to the  collection in MongoDB, identify the two PB-PERTH documents, determine which one is redundant, and delete it.
-    -   **Why fix this issue and what will be achieved with the fix?** Ensures data integrity and prevents potential bugs in center-based lookups.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** N
+-   **Issue 1: Verify the latest Net Revenue calculation for India**
+    -   **Attempted fixes:** The agent applied a code change in  to remove  from the Net Revenue calculation for India locations.
+    -   **Next debug checklist:**
+        1.  Execute a test script or  command targeting the  endpoint for an Indian center with sales and commission data.
+        2.  Verify that the  value equals .
+        3.  Confirm the franchise owner's share is calculated as a percentage of this new base value.
+    -   **Why fix this issue and what will be achieved with the fix?** This is the final and most critical correction to the financial logic requested by the user. It ensures the revenue share for India is calculated correctly.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** Y (The definition of Net Revenue has been a recurring point of clarification).
     -   **Should Test frontend/backend/both after fix?** Backend.
     -   **Blocked on other issue:** None.
 
--   **Issue 4: Frontend Build Fails with Babel Plugin**
-    -   **Attempted fixes:** A workaround is in place ( is disabled in ).
-    -   **Next debug checklist:** Research compatibility issues between the Babel plugin and other dependencies (, ).
-    -   **Why fix this issue and what will be achieved with the fix?** Removes technical debt and a temporary workaround.
-    -   **Status:** NOT STARTED
+-   **Issue 2: Clean up duplicate endpoints in **
+    -   **Attempted fixes:** None in this session.
+    -   **Next debug checklist:**
+        1.  Move the code for  and  from  to  and .
+        2.  Once all routes are verified to be working from the new modules, delete the original code blocks for , , , and  from .
+    -   **Why fix this issue and what will be achieved with the fix?** To improve code maintainability, reduce confusion, and complete the backend refactoring task.
+    -   **Status:** IN PROGRESS
     -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Frontend.
-    -   **Blocked on other issue:** None.
+    -   **Should Test frontend/backend/both after fix?** Backend.
+    -   **Blocked on other issue:** Blocked by  (Verification of financial logic).
 
--   **Issue 5: Payslip Data Overlap**
-    -   **Attempted fixes:** None.
-    -   **Next debug checklist:** Generate a PDF payslip via the API and inspect it for overlapping text. Adjust the coordinates in the  drawing logic in .
-    -   **Why fix this issue and what will be achieved with the fix?** Fixes a cosmetic but unprofessional bug in a key HR document.
+-   **Issue 3: Payslip Data Overlap**
     -   **Status:** NOT STARTED
     -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** Backend.
-    -   **Blocked on other issue:** None.
+
+-   **Issue 4: Frontend Build Fails with Babel Plugin**
+    -   **Status:** NOT STARTED (Workaround in place).
+
+-   **Issue 5: Duplicate PB-PERTH Center in Database**
+    -   **Status:** NOT STARTED (User explicitly asked to skip this task).
 
 **In progress Task List**:
--   **Task 1: Refactor  (P1)**
-    -   **Where to resume:** The agent has already extracted , , , and . The next step is to continue this process for other major sections like , , , and , moving their endpoints from  into new files under .
-    -   **What will be achieved with this?** A more maintainable, scalable, and organized backend codebase.
+-   **Task 1: Refactor ** (P1)
+    -   **Where to resume:** The files  and  have been created but are empty. The next step is to cut the code for the  and  endpoints from  and paste it into these new files, then integrate the routers into the main app.
+    -   **What will be achieved with this?** A more modular and maintainable backend.
     -   **Status:** IN PROGRESS
     -   **Should Test frontend/backend/both after fix?** Backend.
-    -   **Blocked on something:** None.
+    -   **Blocked on something:** .
 
 **Upcoming and Future Tasks**
+
 -   **Upcoming Tasks:**
-    -   **(P2) Resolve all pending issues:** Duplicate center, Babel plugin, and Payslip overlap.
+    -   **(P1) Add payment recording UI:** Implement a dialog or form in the Month-wise Payout Grid to allow users to record payments, which should update the Paid and Pending amounts.
+    -   **(P1) Refactor  and  modules:** Continue the refactoring of  by extracting these remaining large modules.
 -   **Future Tasks:**
-    -   **(P2) Add Image Upload for Recipes:** Implement functionality to allow users to upload images for recipes.
-    -   **(P2) Franchise Deal Simulator:** An enhancement to simulate ROI for new franchise investors.
+    -   **(P2) Fix Payslip PDF text overlap:** Resolve the recurring cosmetic issue in  PDF generation.
+    -   **(P2) Add Image Upload for Recipes:** Implement file upload functionality for recipe images.
+    -   **(P2) Franchise Deal Simulator:** Create a tool to simulate ROI for potential franchise investors.
 
 **Completed work in this session**
--   **Franchise Exit & Closure Module (DONE):** Built and tested a complete backend and frontend module for managing franchise exits and generating all necessary legal documents.
--   **Sidebar Navigation Refactoring (DONE):** Created a separate Franchise navigation section with a dedicated user role for granular access control.
--   **Center Accounts Feature (DONE):** Built a comprehensive, country-aware accounting module with financial summaries, commission tracking, and PDF reporting.
--   **Loan Entry Feature (DONE):** Built a new module to create and track loans against working capital, and integrated this data into the main financial summary.
--   **Center Accounts Financial Fixes (DONE):** Implemented the 80/20 profit share split, corrected the working capital calculation to be a static deposit, and fixed the profit share logic to correctly deduct commission GST before the split.
+-   **Financial Logic Implementation (DONE):** Successfully implemented and iteratively corrected all complex financial logic for MG, Revenue Share, Profit Share, and GST across multiple user feedback cycles.
+-   **MG Calculation Refined (DONE):** Added Total Investment field and updated MG formula to include deductions for Working Capital and Franchise Fee.
+-   **Revenue/Profit Share Logic Corrected (DONE):**
+    -   India: Flexible % share based on Net Revenue ().
+    -   Outside India: Fixed 80/20 profit share.
+-   **Payout Logic Corrected (DONE):** MG comparison is now correctly made against the Franchise Owner's share.
+-   **Frontend Enhancements (DONE):** Implemented date range filter for expenses, added Total Investment field, and built the Month-wise Payout Grid View.
+-   **Backend Refactoring (IN PROGRESS):** Created new route files  and .
+
+**Earlier issues found/mentioned but not fixed**
+-   **Issue 1: Duplicate PB-PERTH Center in Database:** A duplicate entry for the PB-PERTH center exists. The user asked to skip fixing this.
+-   **Issue 2: Frontend Build Fails with Babel Plugin:** A workaround is in place. The root cause needs investigation.
+-   **Issue 3: Payslip Data Overlap:** A recurring cosmetic issue in the generated PDF payslips.
+
+**Known issue recurrence from previous fork**
+-   **Issue recurrence in previous fork**: Payslip Data Overlap
+-   **Recurrence count**: 3
+-   **Status**: NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Modular API Design:** Actively refactoring a monolithic  into feature-specific routers (e.g., , ).
--   **Complex Financial Calculations:** Implementing country-specific tax logic (GST inclusive vs. exclusive), multi-step profit share calculations (deducting costs and commission GST before splitting), and loan tracking.
--   **Database Debugging:** Diagnosing a data discrepancy by isolating the database being used by the application () and querying it directly to confirm the absence of expected data fields ().
--   **Dynamic Frontend UI:** Building React components that render complex data structures, conditionally show UI elements based on user roles (), and handle user interactions through modals and API calls.
+-   **Iterative Financial Logic Implementation:** The session was dominated by the continuous refinement of complex financial rules (MG, Revenue Share, Profit Share, GST) based on rapid, detailed user feedback. This demonstrates the agent's ability to handle evolving and nuanced business requirements.
+-   **Modular API Refactoring:** The process of breaking down the monolithic  into feature-specific routers continued, improving code organization.
+-   **Dynamic Frontend Rendering:** The React frontend was updated to dynamically display different calculation breakdowns and labels based on data from the backend (e.g., showing a 15/85 split for India vs. an 80/20 split for Australia).
 
 **key DB schema**
--   : {exit_id, franchise_code, status, reason, effective_date, asset_handover, financial_settlement, signatures, ...}
--   : {loan_id, center, amount, loan_date, reason, status, repayments, ...}
--   : {statement_id, center, platform, period, file_path, gross_amount, commission, net_payout, ...}
+-   : Added , , . The  field became critical for India calculations.
+-   : New collection to track payments against monthly payouts. 
+
+**changes in tech stack**
+-   None.
 
 **All files of reference**
--   : Core logic for the accounting feature and recent financial fixes.
--   : UI for the accounting feature.
--   : The monolithic file being refactored.
--   : Main navigation and routing configuration.
--   : The product requirements document.
+-   : The most heavily modified file, containing all core financial logic.
+-   : Modified to include new fields for MG and GST settings.
+-   : The main frontend page, heavily updated to display all new financial data and breakdowns.
+-   : Updated to include the Total Investment and GST Applicable form fields.
+-   : Updated to support date range filtering.
+-   : The monolithic file that is being actively refactored.
+-   : Newly created placeholder for the payroll module.
+-   : Newly created placeholder for the recipes module.
 
 **Areas that need refactoring**:
--    is still a large file. The , , , and  sections are prime candidates for extraction into their own route files to continue the modularization effort.
+-   : Still contains the code for , , , and . The empty  and  files need to be populated. The duplicated code for already-migrated modules (, ) needs to be removed.
 
 **key api endpoints**
--   : Fetches the aggregated financial summary for a center. This was the focus of the latest fixes.
--   : Creates a new loan entry against working capital.
--   : Retrieves loan status and working capital details for a center.
--   : Begins the franchise exit process.
+-   : The primary endpoint for all financial calculations, which underwent numerous revisions.
+-   : New endpoint providing data for the month-wise payout grid.
+-   : Endpoint for updating franchise details, including new financial settings.
+-   : New endpoint to record payments made to franchises.
 
 **Critical Info for New Agent**
--   **User Verification Needed:** The immediate next step is to present the fixed Center Accounts UI to the user. You must explain that the GST calculation logic is now correct.
--   **Explain Data Discrepancy:** You must clearly communicate that the reason DoorDash sales show as  is due to a **data issue** (the field is missing in the ), not a code bug. Ask the user if they want to proceed with seeding the correct data.
--   **Prioritize User Feedback:** Address the user's verification of the accounting fixes before continuing with lower-priority background tasks like the  refactor or old pending issues.
--   **Continue Refactoring:** Once the user is satisfied with the accounting fixes, the next priority is to continue the refactoring of .
+-   **PRIORITY #1: VERIFY THE LATEST FIX.** Your first action must be to test the last change made to the India Net Revenue calculation. The user has been very specific, and this final logic must be confirmed before any other work begins.
+-   **India Net Revenue Formula:** . **Expenses are NOT deducted.** This is for the Revenue Share calculation in India only.
+-   **Payout Comparison:** The monthly MG is compared against the **Franchise Owner's** share, not Purnabramha's share. The higher of the two is payable to the franchise owner.
+-   **Refactoring is secondary:** Feature correctness and user-requested fixes are the priority. Continue refactoring  only after all high-priority financial logic is verified and stable.
 
 **documents and test reports created in this job**
 -   
 -   
--   
+-    (updated multiple times)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks to add a LOAN ENTRY feature and refactor . (Completed / In Progress)
-2.  **Agent:** Implements the Loan Entry feature and begins the refactor.
-3.  **User:** Provides feedback on the Center Accounts feature: 1) GST on commissions must be deducted *before* profit share calculation. 2) DoorDash commission is not visible. (In Progress)
-4.  **Agent:** Investigates the issues.
-5.  **Agent:** Discovers the DoorDash issue is due to missing data in .
-6.  **Agent:** Implements the fix for the GST calculation logic in the backend.
-7.  **Agent:** Updates the frontend UI to display the new financial breakdown.
-8.  **Agent:** Tests the backend logic and confirms the calculations are correct.
-9.  **Agent:** Confirms the frontend compiles and is ready for user review.
-10. **Agent:** Is about to summarize the work and present the fixes for user verification. (Current State)
+1.  **User:** Revenue share is as per franchise details, default 15%. (Completed)
+2.  **User:** No, outside India is fixed 80/20. Only India is flexible. (Completed)
+3.  **User:** MG Payout tab is showing the wrong revenue share amount. (Completed)
+4.  **User:** The revenue share in the MG comparison should be the *Franchise Owner's* share (the smaller amount), not Purnabramha's. (Completed)
+5.  **User:** The screenshots are matching, but the title is wrong. (Completed)
+6.  **User:** No, the screenshots are not matching. (Agent realizes the values are actually identical and suspects a UI display issue or user confusion). (Completed)
+7.  **User:** (Clarifies with screenshot) The payable amount should be the Franchise Owner's share (Rs. 99k), not Purnabramha's (Rs. 667k). (Completed - This was a re-statement of point #4, which the agent then correctly implemented).
+8.  **User:** The revenue share is calculated on Total Sales, but there should be deductions. (Pending)
+9.  **User:** Net Revenue = Total Sales - Commissions - GST on Sale. Expenses should NOT be deducted. (Pending - This is the last and most important clarification).
+10. **Agent:** Implements the fix for the Net Revenue formula. (Last action taken).
 
 **Project Health Check:**
 -   **Broken:** None.
 -   **Mocked:** WhatsApp integration for the Booking Intelligence module.
 
 **3rd Party Integrations**
--   **reportlab:** Used for all PDF generation (payslips, franchise agreements, exit documents, PIB reports).
+-   **reportlab:** Used for generating PDF payslips.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES (For Franchise Exit and Center Accounts features).
--   **Troubleshoot agent used after agent stuck in loop:** NO.
--   **Test files created:** No new persistent test files were created. Testing was done via  and  scripts within the session.
--   **Known regressions:** None.
+-   **Testing agent used after significant changes:** YES
+-   **Troubleshoot agent used after agent stuck in loop:** NO
+-   **Test files created:** None
+-   **Known regressions:** None
 
 **Credentials to test flow:**
 -   **Super Admin:** Center , mobile , OTP .
 -   **Perth Manager:** Center , mobile , OTP .
 
 **What agent forgot to execute**
--   The agent has not yet addressed the older, lower-priority issues from the initial handoff summary: the Babel plugin build error, the payslip data overlap, and removing the duplicate PB-PERTH database entry. These have been correctly deferred in favor of the user's more recent, higher-priority requests.</analysis>
+-   The agent created the  and  files but did not move the corresponding code into them from .
+-   The agent did not test the final, critical change to the Net Revenue calculation formula before the session ended. This must be the first action for the next agent.</analysis>
