@@ -456,19 +456,21 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # ==========================================
     mg_data = None
     payable_type = "revenue_share"  # Default
-    # Use the total payable (with GST if applicable) as the revenue share amount for comparison
-    revenue_share_for_comparison = purnabramha_share_with_tax.get("total_with_gst", purnabramha_share)
-    payable_amount = revenue_share_for_comparison  # Default to revenue share
+    # The comparison is: MG vs Franchise Owner's Share (NOT Purnabramha's share)
+    # If MG > Franchise Owner's Share → MG is payable to franchise owner
+    # If Franchise Owner's Share >= MG → Revenue Share is payable to franchise owner
+    franchise_owner_share_for_comparison = franchise_owner_share
+    payable_amount = franchise_owner_share_for_comparison  # Default to franchise owner's revenue share
     
     if franchise:
         # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
         total_investment = float(franchise.get("total_investment", 0) or 0)
-        franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+        franchise_fee_val = float(franchise.get("franchise_fee", 0) or 0)
         working_capital_val = float(franchise.get("working_capital", 0) or 0)
         
         if total_investment <= 0:
             # Fallback: calculate from franchise_fee + working_capital
-            total_investment = franchise_fee + working_capital_val
+            total_investment = franchise_fee_val + working_capital_val
         
         # Get setup costs
         setup_costs = franchise.get("setup_costs", {})
@@ -476,11 +478,11 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             setup_costs = {}
         
         # Calculate MG (now includes franchise_fee and working_capital as deductions)
-        mg_data = calculate_mg(total_investment, setup_costs, franchise_fee, working_capital_val)
+        mg_data = calculate_mg(total_investment, setup_costs, franchise_fee_val, working_capital_val)
         
-        # Determine payable: If MG > Revenue Share (with GST), MG is payable, else Revenue Share
+        # Determine payable: If MG > Franchise Owner's Revenue Share, MG is payable
         monthly_mg = mg_data.get("monthly_mg", 0)
-        if monthly_mg > revenue_share_for_comparison:
+        if monthly_mg > franchise_owner_share_for_comparison:
             payable_type = "minimum_guarantee"
             payable_amount = monthly_mg
     
@@ -573,13 +575,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         },
         # MG (Minimum Guarantee) calculation
         "mg_calculation": mg_data,
-        # Payout determination: MG vs Revenue Share
+        # Payout determination: MG vs Franchise Owner's Revenue Share
+        # This shows what the FRANCHISE OWNER receives (either MG or their Revenue Share)
         "payout": {
             "type": payable_type,  # "minimum_guarantee" or "revenue_share"
             "amount": round(payable_amount, 2),
             "mg_amount": round(mg_data.get("monthly_mg", 0), 2) if mg_data else 0,
-            "revenue_share_amount": round(revenue_share_for_comparison, 2),
-            "reason": f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(revenue_share_for_comparison, 2)})" if payable_type == "minimum_guarantee" else f"Revenue Share ({round(revenue_share_for_comparison, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
+            "revenue_share_amount": round(franchise_owner_share, 2),  # Franchise Owner's share
+            "reason": f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(franchise_owner_share, 2)})" if payable_type == "minimum_guarantee" else f"Revenue Share ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
         },
         "tax_rules": {
             "country": country,
@@ -1418,20 +1421,19 @@ async def get_payout_summary(data: dict = Body(...)):
         
         total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
         
-        # Calculate Purnabramha's share based on country
+        # Calculate FRANCHISE OWNER's share (this is what gets compared with MG)
         # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner)
-        # Outside India: Fixed 80/20 split (80% to Franchise Owner, 20% to Purnabramha)
+        # Outside India: Fixed 80% to Franchise Owner
         franchise_country = franchise.get("country", "India") if franchise else "India"
         
         if franchise_country == "India":
             franchise_owner_pct = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
-            purnabramha_pct = 100 - franchise_owner_pct
-            revenue_share = total_sale * (purnabramha_pct / 100)
+            revenue_share = total_sale * (franchise_owner_pct / 100)  # Franchise Owner's share
         else:
-            # Outside India: Fixed 20% to Purnabramha on profit (using sales as approximation here)
-            revenue_share = total_sale * 0.20
+            # Outside India: Fixed 80% to Franchise Owner on profit
+            revenue_share = total_sale * 0.80  # Using sales as approximation
         
-        # Determine payable amount (MG or Revenue Share)
+        # Determine payable amount (MG or Franchise Owner's Revenue Share)
         if mg_amount > revenue_share:
             payable = mg_amount
             payout_type = "mg"

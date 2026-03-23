@@ -1082,10 +1082,10 @@ export default function CenterAccounts() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Wallet className="w-5 h-5" />
-                      Payout for {accountSummary.period}
+                      Payout to Franchise Owner - {accountSummary.period}
                     </CardTitle>
                     <CardDescription>
-                      Comparison: MG vs Revenue Share - Higher amount is payable
+                      Comparison: MG vs Franchise Owner's Revenue Share - Higher amount is payable to Franchise Owner
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1106,7 +1106,7 @@ export default function CenterAccounts() {
                       </div>
                       <Card className={`border-2 ${accountSummary.payout.type === 'revenue_share' ? 'border-green-400 bg-green-50' : 'border-gray-200'}`}>
                         <CardContent className="p-4 text-center">
-                          <p className="text-sm text-gray-500">Revenue Share</p>
+                          <p className="text-sm text-gray-500">Franchise Owner's Revenue Share ({accountSummary.share_calculation?.franchise_owner?.percentage || 15}%)</p>
                           <p className="text-2xl font-bold text-green-600">
                             {formatCurrency(accountSummary.payout.revenue_share_amount, accountSummary.country)}
                           </p>
@@ -1119,7 +1119,7 @@ export default function CenterAccounts() {
                     <div className="mt-4 p-4 bg-blue-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-blue-600">Amount Payable This Month</p>
+                          <p className="text-sm text-blue-600">Amount Payable to Franchise Owner This Month</p>
                           <p className="text-3xl font-bold text-blue-800">
                             {formatCurrency(accountSummary.payout.amount, accountSummary.country)}
                           </p>
