@@ -790,12 +790,15 @@ export default function CenterAccounts() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    {accountSummary.share_calculation.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Calculation (80/20 Split)
+                    {accountSummary.share_calculation.type === 'profit_share' 
+                      ? `Profit Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)`
+                      : `Revenue Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`
+                    }
                   </CardTitle>
                   <CardDescription>
-                    {accountSummary.country === 'Australia' 
-                      ? 'Australia: Profit share model (% of net profit)'
-                      : 'India: Revenue share model (% of total sales)'}
+                    {accountSummary.country === 'India' 
+                      ? 'India: Revenue share model (% of total sales)'
+                      : `${accountSummary.country}: Profit share model (% of net profit) - Fixed 80/20`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
