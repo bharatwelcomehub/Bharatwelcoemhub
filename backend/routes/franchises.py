@@ -4,7 +4,7 @@
 # FOCO Model - Franchise Owned, Company Operated
 # =======================================
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Response, Body
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -66,6 +66,74 @@ FRANCHISE_TENURE_YEARS = 7  # Fixed 7 years
 REVENUE_SHARE_PERCENTAGE = 15  # 15% to franchise owner
 WORKING_CAPITAL_THRESHOLD = 50  # 50% threshold for revenue share
 
+# MG (Minimum Guarantee) Calculation Constants
+MG_INTEREST_RATE = 15  # 15% annual interest rate
+MG_TENURE_YEARS = 7  # 7 years tenure
+
+def calculate_mg(total_investment: float, setup_costs: dict) -> dict:
+    """
+    Calculate Minimum Guarantee (MG) based on Net Investment.
+    
+    Formula:
+    - Net Investment = Total Investment - (Shop Rent Deposit + Staff Travel + 1st Salary + 1st Shop Rent)
+    - MG = Monthly EMI based on Net Investment as loan amount @ 15% interest for 7 years
+    
+    EMI Formula: E = P × r × (1+r)^n / ((1+r)^n - 1)
+    Where: P = Principal, r = monthly rate, n = total months
+    """
+    if not total_investment or total_investment <= 0:
+        return {
+            "total_investment": 0,
+            "deductions": {},
+            "total_deductions": 0,
+            "net_investment": 0,
+            "monthly_mg": 0,
+            "interest_rate": MG_INTEREST_RATE,
+            "tenure_years": MG_TENURE_YEARS
+        }
+    
+    # Get deduction components from setup_costs
+    shop_rent_deposit = float(setup_costs.get("shop_security_deposit", 0) or 0)
+    staff_travel = float(setup_costs.get("staff_traveling_expense", 0) or 0)
+    first_salary = float(setup_costs.get("initial_salary_fund", 0) or 0)
+    first_shop_rent = float(setup_costs.get("first_month_rent", 0) or 0)
+    
+    deductions = {
+        "shop_rent_deposit": shop_rent_deposit,
+        "staff_traveling_expense": staff_travel,
+        "first_salary": first_salary,
+        "first_shop_rent": first_shop_rent
+    }
+    
+    total_deductions = shop_rent_deposit + staff_travel + first_salary + first_shop_rent
+    net_investment = max(0, total_investment - total_deductions)
+    
+    # Calculate EMI
+    if net_investment <= 0:
+        monthly_mg = 0
+    else:
+        # EMI calculation
+        P = net_investment  # Principal
+        annual_rate = MG_INTEREST_RATE / 100
+        r = annual_rate / 12  # Monthly interest rate
+        n = MG_TENURE_YEARS * 12  # Total months (84 months)
+        
+        # EMI Formula: E = P × r × (1+r)^n / ((1+r)^n - 1)
+        if r > 0:
+            monthly_mg = P * r * ((1 + r) ** n) / (((1 + r) ** n) - 1)
+        else:
+            monthly_mg = P / n
+    
+    return {
+        "total_investment": round(total_investment, 2),
+        "deductions": deductions,
+        "total_deductions": round(total_deductions, 2),
+        "net_investment": round(net_investment, 2),
+        "monthly_mg": round(monthly_mg, 2),
+        "interest_rate": MG_INTEREST_RATE,
+        "tenure_years": MG_TENURE_YEARS
+    }
+
 # =======================================
 # PYDANTIC MODELS
 # =======================================
@@ -83,6 +151,7 @@ class SetupCosts(BaseModel):
     first_month_rent: float = 0
     initial_salary_fund: float = 0
     initial_grocery_cost: float = 0
+    staff_traveling_expense: float = 0  # NEW: Staff Travel Expense for MG calculation
 
 class FranchiseCreate(BaseModel):
     franchise_code: str  # Unique code like "PB-HSR"
@@ -126,6 +195,9 @@ class FranchiseCreate(BaseModel):
     nominees: List[Dict] = []
     
     notes: Optional[str] = ""
+    
+    # GST Settings (for India locations)
+    gst_applicable: bool = False  # NEW: Toggle for 18% GST on Revenue Share (India only)
 
 class FranchiseUpdate(BaseModel):
     franchise_name: Optional[str] = None
@@ -151,6 +223,7 @@ class FranchiseUpdate(BaseModel):
     status: Optional[str] = None
     nominees: Optional[List[Dict]] = None
     notes: Optional[str] = None
+    gst_applicable: Optional[bool] = None  # NEW: GST toggle for India locations
 
 class TokenRequest(BaseModel):
     token: str
@@ -312,7 +385,8 @@ async def create_franchise(data: dict):
             "shop_security_deposit": float(setup_costs.get("shop_security_deposit", 0) or 0),
             "first_month_rent": float(setup_costs.get("first_month_rent", 0) or 0),
             "initial_salary_fund": float(setup_costs.get("initial_salary_fund", 0) or 0),
-            "initial_grocery_cost": float(setup_costs.get("initial_grocery_cost", 0) or 0)
+            "initial_grocery_cost": float(setup_costs.get("initial_grocery_cost", 0) or 0),
+            "staff_traveling_expense": float(setup_costs.get("staff_traveling_expense", 0) or 0)  # NEW
         }
     
     franchise = {
@@ -349,6 +423,7 @@ async def create_franchise(data: dict):
         
         "status": data.get("status", "Active"),
         "notes": data.get("notes", ""),
+        "gst_applicable": data.get("gst_applicable", False),  # NEW: GST toggle for India
         "documents": [],  # Will hold document references
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": session.get("managerName", ""),
@@ -409,7 +484,9 @@ async def update_franchise(franchise_code: str, data: dict):
         "agreement_end_date", "franchise_fee", "status", "notes",
         # FOCO fields
         "franchise_type", "working_capital", "setup_costs", "operations_start_date",
-        "revenue_share_percentage", "service_contract_fee", "nominees"
+        "revenue_share_percentage", "service_contract_fee", "nominees",
+        # NEW fields for MG and GST
+        "gst_applicable"
     ]
     
     changes = {}
@@ -817,4 +894,52 @@ async def get_countries():
             "Singapore",
             "Other"
         ]
+    }
+
+
+
+@router.post("/mg-calculation/{franchise_code}")
+async def get_mg_calculation(franchise_code: str, req: dict = Body(...)):
+    """
+    Get Minimum Guarantee (MG) calculation for a franchise.
+    
+    Returns:
+    - Total Investment
+    - Deductions breakdown
+    - Net Investment
+    - Monthly MG (EMI)
+    """
+    # Verify token
+    try:
+        session = await verify_token_async_func(req.get("token"))
+    except:
+        raise HTTPException(401, "Invalid token")
+    
+    # Get franchise details
+    franchise = await db.franchises.find_one(
+        {"franchise_code": franchise_code.upper()},
+        {"_id": 0}
+    )
+    
+    if not franchise:
+        raise HTTPException(404, f"Franchise '{franchise_code}' not found")
+    
+    # Calculate total investment
+    franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+    working_capital = float(franchise.get("working_capital", 0) or 0)
+    total_investment = franchise_fee + working_capital
+    
+    # Get setup costs
+    setup_costs = franchise.get("setup_costs", {})
+    if not isinstance(setup_costs, dict):
+        setup_costs = {}
+    
+    # Calculate MG
+    mg_data = calculate_mg(total_investment, setup_costs)
+    
+    return {
+        "success": True,
+        "franchise_code": franchise_code.upper(),
+        "franchise_name": franchise.get("franchise_name", ""),
+        "mg_calculation": mg_data
     }

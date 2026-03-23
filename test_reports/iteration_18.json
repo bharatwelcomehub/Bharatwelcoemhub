@@ -1,0 +1,58 @@
+{
+  "summary": "Completed testing of 5 new features for Purnabramha franchise management system. All backend API tests passed (14/14). Frontend UI tests verified all new features are working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_tested": {
+    "expense_date_range_filter": {
+      "status": "PASS",
+      "details": "Single/Range toggle buttons working. Range mode shows two date pickers (from/to). Single mode shows one date picker. Expense list updates based on selected date range."
+    },
+    "expense_category_in_list": {
+      "status": "PASS",
+      "details": "Category column visible in expense list table. Expense type field available in Add New Expense form."
+    },
+    "franchise_staff_travel_field": {
+      "status": "PASS",
+      "details": "Staff Traveling Expense field visible in Franchise Management form under Setup Costs section. Shows helper text 'Used for MG (Minimum Guarantee) calculation'."
+    },
+    "franchise_gst_toggle": {
+      "status": "PASS",
+      "details": "GST Applicable on Revenue Share toggle visible for India locations. Shows description '18% GST (9% CGST + 9% SGST) will be applied to the revenue share payable'."
+    },
+    "center_accounts_mg_payout_tab": {
+      "status": "PASS",
+      "details": "MG & Payout tab visible in Center Accounts page. Shows Minimum Guarantee vs Revenue Share comparison. Displays 'Amount Payable This Month' with explanation of which is higher."
+    },
+    "center_accounts_api_mg_calculation": {
+      "status": "PASS",
+      "details": "API returns mg_calculation and payout fields in summary response. MG calculation includes total_investment, deductions, net_investment, monthly_mg, interest_rate, tenure_years."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_new_features.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "seed_data_creation": "Test franchises created and deleted during backend tests (TEST-STAFF-*, TEST-GST-ON-*, TEST-GST-OFF-*)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 5 new features are working correctly. The MG calculation shows Rs. 0.00 when no franchise is linked to a center. To test MG calculation with actual values, need to create a franchise with setup costs and link it to a center. WhatsApp integration for Booking Intelligence module is MOCKED.",
+  "mocked_apis": {
+    "WhatsApp integration": "MOCKED for Booking Intelligence module"
+  }
+}

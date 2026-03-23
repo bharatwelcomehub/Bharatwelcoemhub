@@ -449,6 +449,7 @@ export default function CenterAccounts() {
               <TabsTrigger value="sales">Sales Breakdown</TabsTrigger>
               <TabsTrigger value="commissions">Commissions</TabsTrigger>
               <TabsTrigger value="share">Revenue/Profit Share</TabsTrigger>
+              <TabsTrigger value="payout">MG & Payout</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
             </TabsList>
 
@@ -570,6 +571,16 @@ export default function CenterAccounts() {
                             <span className="text-green-600">{formatCurrency(accountSummary.financial_summary.working_capital_available, accountSummary.country)}</span>
                           </div>
                         </>
+                      )}
+                      {/* MG (Minimum Guarantee) */}
+                      {accountSummary.mg_calculation && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="flex justify-between text-sm font-medium">
+                            <span>Minimum Guarantee (MG)</span>
+                            <span className="text-purple-600">{formatCurrency(accountSummary.mg_calculation.monthly_mg, accountSummary.country)}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 italic">EMI on Net Investment @ 15% for 7 years</p>
+                        </div>
                       )}
                       <p className="text-xs text-gray-400 italic">Working capital is kept as security, loans tracked separately</p>
                     </div>
@@ -953,6 +964,146 @@ export default function CenterAccounts() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* MG & Payout Tab */}
+            <TabsContent value="payout" className="space-y-4">
+              {/* MG Calculation Card */}
+              {accountSummary.mg_calculation && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calculator className="w-5 h-5" />
+                      Minimum Guarantee (MG) Calculation
+                    </CardTitle>
+                    <CardDescription>
+                      MG = EMI on Net Investment @ {accountSummary.mg_calculation.interest_rate}% for {accountSummary.mg_calculation.tenure_years} years
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <h4 className="font-medium text-gray-600">Investment Breakdown</h4>
+                        <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Total Investment</span>
+                            <span className="font-medium">{formatCurrency(accountSummary.mg_calculation.total_investment, accountSummary.country)}</span>
+                          </div>
+                          <hr />
+                          <div className="text-sm text-gray-500">Deductions:</div>
+                          <div className="flex justify-between text-sm">
+                            <span className="pl-2">Shop Rent Deposit</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.deductions?.shop_rent_deposit || 0, accountSummary.country)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="pl-2">Staff Travel</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.deductions?.staff_traveling_expense || 0, accountSummary.country)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="pl-2">First Salary</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.deductions?.first_salary || 0, accountSummary.country)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="pl-2">First Shop Rent</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.deductions?.first_shop_rent || 0, accountSummary.country)}</span>
+                          </div>
+                          <hr />
+                          <div className="flex justify-between text-sm font-medium">
+                            <span>Total Deductions</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.mg_calculation.total_deductions, accountSummary.country)}</span>
+                          </div>
+                          <div className="flex justify-between text-lg font-bold border-t-2 pt-2 mt-2">
+                            <span>Net Investment</span>
+                            <span className="text-green-600">{formatCurrency(accountSummary.mg_calculation.net_investment, accountSummary.country)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <h4 className="font-medium text-gray-600">Monthly MG (EMI)</h4>
+                        <div className="p-6 bg-purple-50 rounded-lg text-center">
+                          <p className="text-sm text-purple-600 mb-2">Minimum Guarantee per Month</p>
+                          <p className="text-4xl font-bold text-purple-800">
+                            {formatCurrency(accountSummary.mg_calculation.monthly_mg, accountSummary.country)}
+                          </p>
+                          <p className="text-xs text-purple-500 mt-2">
+                            @ {accountSummary.mg_calculation.interest_rate}% p.a. for {accountSummary.mg_calculation.tenure_years} years
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Payout Determination Card */}
+              {accountSummary.payout && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Wallet className="w-5 h-5" />
+                      Payout for {accountSummary.period}
+                    </CardTitle>
+                    <CardDescription>
+                      Comparison: MG vs Revenue Share - Higher amount is payable
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <Card className={`border-2 ${accountSummary.payout.type === 'minimum_guarantee' ? 'border-purple-400 bg-purple-50' : 'border-gray-200'}`}>
+                        <CardContent className="p-4 text-center">
+                          <p className="text-sm text-gray-500">Minimum Guarantee</p>
+                          <p className="text-2xl font-bold text-purple-600">
+                            {formatCurrency(accountSummary.payout.mg_amount, accountSummary.country)}
+                          </p>
+                          {accountSummary.payout.type === 'minimum_guarantee' && (
+                            <Badge className="mt-2 bg-purple-600">Payable</Badge>
+                          )}
+                        </CardContent>
+                      </Card>
+                      <div className="flex items-center justify-center">
+                        <span className="text-2xl font-bold text-gray-400">vs</span>
+                      </div>
+                      <Card className={`border-2 ${accountSummary.payout.type === 'revenue_share' ? 'border-green-400 bg-green-50' : 'border-gray-200'}`}>
+                        <CardContent className="p-4 text-center">
+                          <p className="text-sm text-gray-500">Revenue Share</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {formatCurrency(accountSummary.payout.revenue_share_amount, accountSummary.country)}
+                          </p>
+                          {accountSummary.payout.type === 'revenue_share' && (
+                            <Badge className="mt-2 bg-green-600">Payable</Badge>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-blue-600">Amount Payable This Month</p>
+                          <p className="text-3xl font-bold text-blue-800">
+                            {formatCurrency(accountSummary.payout.amount, accountSummary.country)}
+                          </p>
+                        </div>
+                        <Badge className="text-lg px-4 py-2" variant={accountSummary.payout.type === 'minimum_guarantee' ? 'default' : 'secondary'}>
+                          {accountSummary.payout.type === 'minimum_guarantee' ? 'MG' : 'Revenue Share'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-blue-500 mt-2">{accountSummary.payout.reason}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* GST Notice for India */}
+              {accountSummary.country === 'India' && accountSummary.share_calculation?.purnabramha?.gst_applicable && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                    <p className="text-sm text-amber-800">
+                      <strong>GST Applied:</strong> 18% GST (9% CGST + 9% SGST) has been applied to the Revenue Share as per franchise settings.
+                    </p>
+                  </div>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </>

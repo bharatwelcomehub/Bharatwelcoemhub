@@ -56,6 +56,9 @@ export default function ExpenseEntry({ session, selectedCenter }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
+  const [fromDate, setFromDate] = useState(getTodayStr());
+  const [toDate, setToDate] = useState(getTodayStr());
+  const [dateMode, setDateMode] = useState("single");  // "single" or "range"
   const [expenses, setExpenses] = useState([]);
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
@@ -99,18 +102,22 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     fetchMasters();
   }, []);
 
-  // Fetch expenses for selected date
+  // Fetch expenses for selected date or date range
   const fetchExpenses = async () => {
-    if (!selectedDate || !centerCode || !session?.token) {
-      console.log("ExpenseEntry: Skipping fetch - missing data", { selectedDate, centerCode, hasToken: !!session?.token });
+    if (!centerCode || !session?.token) {
+      console.log("ExpenseEntry: Skipping fetch - missing data", { centerCode, hasToken: !!session?.token });
       return;
     }
     
     setLoading(true);
     try {
-      // Check frozen status via API
+      // Determine dates based on mode
+      const startDate = dateMode === "range" ? fromDate : selectedDate;
+      const endDate = dateMode === "range" ? toDate : selectedDate;
+      
+      // Check frozen status via API (using the start date for single mode)
       try {
-        const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${selectedDate}?token=${session.token}`);
+        const frozenRes = await api.get(`/sales/check-frozen/${centerCode}/${startDate}?token=${session.token}`);
         setFrozenStatus({ 
           is_frozen: frozenRes.data.is_frozen, 
           is_admin_frozen: frozenRes.data.is_admin_frozen || false,
@@ -119,17 +126,17 @@ export default function ExpenseEntry({ session, selectedCenter }) {
         });
       } catch (err) {
         // Fallback to local check
-        const frozen = isDateFrozen(selectedDate);
+        const frozen = isDateFrozen(startDate);
         const canEdit = !frozen || session?.is_super_admin;
         setFrozenStatus({ is_frozen: frozen, is_admin_frozen: false, can_edit: canEdit, reason: "" });
       }
       
-      console.log("ExpenseEntry: Fetching expenses for", { centerCode, selectedDate });
+      console.log("ExpenseEntry: Fetching expenses for", { centerCode, startDate, endDate, dateMode });
       const res = await api.post("/sales/expenses", {
         token: session.token,
         center: centerCode,
-        start_date: selectedDate,
-        end_date: selectedDate
+        start_date: startDate,
+        end_date: endDate
       });
       
       if (res.data.expenses) {
@@ -154,7 +161,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
       fetchExpenses();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, centerCode, session?.token]);
+  }, [selectedDate, fromDate, toDate, dateMode, centerCode, session?.token]);
 
   // Note: Removed retry useEffect that was causing flickering
   // Empty expenses for new dates is expected
@@ -260,15 +267,55 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               )}
             </CardTitle>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Date Mode Toggle */}
+              <div className="flex items-center gap-1 bg-muted rounded-md p-1">
+                <button
+                  onClick={() => setDateMode("single")}
+                  className={`px-3 py-1 text-sm rounded ${dateMode === "single" ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                  data-testid="date-mode-single"
+                >
+                  Single
+                </button>
+                <button
+                  onClick={() => setDateMode("range")}
+                  className={`px-3 py-1 text-sm rounded ${dateMode === "range" ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                  data-testid="date-mode-range"
+                >
+                  Range
+                </button>
+              </div>
+              
               <Calendar className="w-4 h-4 text-muted-foreground" />
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-40"
-                data-testid="expense-date-input"
-              />
+              
+              {dateMode === "single" ? (
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-40"
+                  data-testid="expense-date-input"
+                />
+              ) : (
+                <>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-36"
+                    data-testid="expense-from-date"
+                  />
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="w-36"
+                    data-testid="expense-to-date"
+                  />
+                </>
+              )}
+              
               <Button variant="outline" size="icon" onClick={fetchExpenses} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
@@ -278,6 +325,9 @@ export default function ExpenseEntry({ session, selectedCenter }) {
           <p className="text-sm text-muted-foreground">
             Center: <span className="font-medium text-foreground">{centerCode}</span>
             <span className="ml-4">Total: <span className="font-bold text-red-500">{formatCurrency(totalExpenses, centerCode)}</span></span>
+            {dateMode === "range" && (
+              <span className="ml-4 text-xs">({expenses.length} records)</span>
+            )}
           </p>
         </CardHeader>
       </Card>
@@ -420,7 +470,10 @@ export default function ExpenseEntry({ session, selectedCenter }) {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            Expenses for {new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {dateMode === "single" 
+              ? `Expenses for ${new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+              : `Expenses from ${new Date(fromDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} to ${new Date(toDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+            }
             <span className="ml-2 text-sm font-normal text-muted-foreground">({expenses.length} entries)</span>
           </CardTitle>
         </CardHeader>
@@ -430,8 +483,11 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">#</th>
+                  {dateMode === "range" && (
+                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
+                  )}
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">Description</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Type</th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Category</th>
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">Mode</th>
                   <th className="text-right py-3 px-2 font-medium text-muted-foreground">Amount</th>
                   <th className="text-center py-3 px-2 font-medium text-muted-foreground">
@@ -443,6 +499,11 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 {expenses.map((exp, idx) => (
                   <tr key={exp.expense_id || idx} className="border-b border-border/50 hover:bg-muted/50">
                     <td className="py-3 px-2 text-muted-foreground">{idx + 1}</td>
+                    {dateMode === "range" && (
+                      <td className="py-3 px-2 text-sm text-muted-foreground">
+                        {exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-'}
+                      </td>
+                    )}
                     <td className="py-3 px-2">{exp.description}</td>
                     <td className="py-3 px-2">
                       <span className="px-2 py-1 rounded-full text-xs bg-muted">{exp.expense_type}</span>
@@ -469,8 +530,8 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 ))}
                 {expenses.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No expenses recorded for this date
+                    <td colSpan={dateMode === "range" ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                      No expenses recorded for this {dateMode === "range" ? "period" : "date"}
                     </td>
                   </tr>
                 )}
@@ -478,7 +539,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               {expenses.length > 0 && (
                 <tfoot>
                   <tr className="bg-muted/50">
-                    <td colSpan={4} className="py-3 px-2 font-bold text-right">Total:</td>
+                    <td colSpan={dateMode === "range" ? 5 : 4} className="py-3 px-2 font-bold text-right">Total:</td>
                     <td className="py-3 px-2 font-bold text-right text-red-500">{formatCurrency(totalExpenses, centerCode)}</td>
                     <td></td>
                   </tr>

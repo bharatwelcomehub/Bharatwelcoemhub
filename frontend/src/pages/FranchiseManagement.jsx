@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -148,7 +149,8 @@ export default function FranchiseManagement() {
         shop_security_deposit: 0,
         first_month_rent: 0,
         initial_salary_fund: 0,
-        initial_grocery_cost: 0
+        initial_grocery_cost: 0,
+        staff_traveling_expense: 0
       },
       operations_start_date: "",
       agreement_start_date: "",
@@ -157,7 +159,8 @@ export default function FranchiseManagement() {
       service_contract_fee: MONTHLY_SERVICE_CONTRACT,
       nominees: [],
       status: "Active",
-      notes: ""
+      notes: "",
+      gst_applicable: false  // NEW: GST toggle for India locations
     };
   }
 
@@ -269,10 +272,11 @@ export default function FranchiseManagement() {
       franchise_type: franchise.franchise_type || "Sanskriti",
       franchise_fee: franchise.franchise_fee || FRANCHISE_TYPES[franchise.franchise_type || "Sanskriti"]?.fee || 0,
       working_capital: franchise.working_capital || DEFAULT_WORKING_CAPITAL,
-      setup_costs: franchise.setup_costs || { shop_security_deposit: 0, first_month_rent: 0, initial_salary_fund: 0, initial_grocery_cost: 0 },
+      setup_costs: franchise.setup_costs || { shop_security_deposit: 0, first_month_rent: 0, initial_salary_fund: 0, initial_grocery_cost: 0, staff_traveling_expense: 0 },
       revenue_share_percentage: franchise.revenue_share_percentage || REVENUE_SHARE_PERCENTAGE,
       service_contract_fee: franchise.service_contract_fee || MONTHLY_SERVICE_CONTRACT,
-      nominees: franchise.nominees || []
+      nominees: franchise.nominees || [],
+      gst_applicable: franchise.gst_applicable || false
     });
     setShowForm(true);
   };
@@ -1194,6 +1198,22 @@ export default function FranchiseManagement() {
                     className="bg-background"
                   />
                 </div>
+                <div>
+                  <Label>Staff Traveling Expense</Label>
+                  <Input
+                    type="number"
+                    value={formData.setup_costs?.staff_traveling_expense || 0}
+                    onChange={(e) => setFormData(p => ({ 
+                      ...p, 
+                      setup_costs: { ...p.setup_costs, staff_traveling_expense: parseFloat(e.target.value) || 0 }
+                    }))}
+                    className="bg-background"
+                    data-testid="input-staff-travel"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used for MG (Minimum Guarantee) calculation
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1236,6 +1256,26 @@ export default function FranchiseManagement() {
                 </div>
               </div>
             </div>
+
+            {/* GST Settings (India Only) */}
+            {formData.country === "India" && (
+              <div className="space-y-4">
+                <h3 className="font-semibold text-white border-b border-border pb-2">GST Settings (India Only)</h3>
+                <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-border">
+                  <div>
+                    <Label className="text-base">GST Applicable on Revenue Share</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      When enabled, 18% GST (9% CGST + 9% SGST) will be applied to the revenue share payable.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.gst_applicable || false}
+                    onCheckedChange={(checked) => setFormData(p => ({ ...p, gst_applicable: checked }))}
+                    data-testid="gst-applicable-switch"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Notes */}
             <div>

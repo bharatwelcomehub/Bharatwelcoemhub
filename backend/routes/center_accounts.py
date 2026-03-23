@@ -3,7 +3,7 @@
 # Financial Management, Commission Processing, PIB Generation
 # =======================================
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -63,6 +63,70 @@ INDIA_SGST = 0.09  # 9% SGST
 # Australia Tax Rules
 AUSTRALIA_GST_INCLUSIVE = 0.10  # 10% GST included in sale value
 AUSTRALIA_GST_ON_PROFIT_SHARE = 0.10  # 10% GST on profit share
+
+# MG (Minimum Guarantee) Calculation Constants
+MG_INTEREST_RATE = 15  # 15% annual interest rate
+MG_TENURE_YEARS = 7  # 7 years tenure
+
+def calculate_mg(total_investment: float, setup_costs: dict) -> dict:
+    """
+    Calculate Minimum Guarantee (MG) based on Net Investment.
+    
+    Formula:
+    - Net Investment = Total Investment - (Shop Rent Deposit + Staff Travel + 1st Salary + 1st Shop Rent)
+    - MG = Monthly EMI based on Net Investment as loan amount @ 15% interest for 7 years
+    
+    EMI Formula: E = P × r × (1+r)^n / ((1+r)^n - 1)
+    """
+    if not total_investment or total_investment <= 0:
+        return {
+            "total_investment": 0,
+            "deductions": {},
+            "total_deductions": 0,
+            "net_investment": 0,
+            "monthly_mg": 0,
+            "interest_rate": MG_INTEREST_RATE,
+            "tenure_years": MG_TENURE_YEARS
+        }
+    
+    shop_rent_deposit = float(setup_costs.get("shop_security_deposit", 0) or 0)
+    staff_travel = float(setup_costs.get("staff_traveling_expense", 0) or 0)
+    first_salary = float(setup_costs.get("initial_salary_fund", 0) or 0)
+    first_shop_rent = float(setup_costs.get("first_month_rent", 0) or 0)
+    
+    deductions = {
+        "shop_rent_deposit": shop_rent_deposit,
+        "staff_traveling_expense": staff_travel,
+        "first_salary": first_salary,
+        "first_shop_rent": first_shop_rent
+    }
+    
+    total_deductions = shop_rent_deposit + staff_travel + first_salary + first_shop_rent
+    net_investment = max(0, total_investment - total_deductions)
+    
+    # EMI calculation
+    if net_investment <= 0:
+        monthly_mg = 0
+    else:
+        P = net_investment
+        annual_rate = MG_INTEREST_RATE / 100
+        r = annual_rate / 12  # Monthly interest rate
+        n = MG_TENURE_YEARS * 12  # Total months (84 months)
+        
+        if r > 0:
+            monthly_mg = P * r * ((1 + r) ** n) / (((1 + r) ** n) - 1)
+        else:
+            monthly_mg = P / n
+    
+    return {
+        "total_investment": round(total_investment, 2),
+        "deductions": deductions,
+        "total_deductions": round(total_deductions, 2),
+        "net_investment": round(net_investment, 2),
+        "monthly_mg": round(monthly_mg, 2),
+        "interest_rate": MG_INTEREST_RATE,
+        "tenure_years": MG_TENURE_YEARS
+    }
 
 # Colors for PDF
 BRAND_MAROON = colors.HexColor("#800020")
@@ -342,6 +406,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     franchise_owner_percentage = 80
     purnabramha_percentage = 20
     
+    # Check if GST is applicable for India (from franchise settings)
+    gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
+    
     if country == "Australia":
         # Australia: Profit share model (% of net profit after GST deductions)
         profit_before_share = net_revenue
@@ -355,7 +422,49 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         share_type = "revenue_share"
     
     # Apply GST on Purnabramha's share (payable by franchise to Purnabramha)
-    purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
+    # For India: Only apply 18% GST if gst_applicable toggle is ON
+    if country == "India" and gst_applicable_india:
+        # Apply 18% GST on revenue share for India when toggle is ON
+        purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
+    elif country == "India":
+        # No GST on revenue share for India when toggle is OFF
+        purnabramha_share_with_tax = {
+            "base_amount": purnabramha_share,
+            "gst_amount": 0,
+            "cgst": 0,
+            "sgst": 0,
+            "total_with_gst": purnabramha_share
+        }
+    else:
+        # Australia always applies profit share GST
+        purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
+    
+    # ==========================================
+    # Calculate MG (Minimum Guarantee)
+    # ==========================================
+    mg_data = None
+    payable_type = "revenue_share"  # Default
+    payable_amount = purnabramha_share_with_tax.get("total_with_gst", purnabramha_share)
+    
+    if franchise:
+        # Calculate total investment
+        franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+        working_capital_initial = float(franchise.get("working_capital", 0) or 0)
+        total_investment = franchise_fee + working_capital_initial
+        
+        # Get setup costs
+        setup_costs = franchise.get("setup_costs", {})
+        if not isinstance(setup_costs, dict):
+            setup_costs = {}
+        
+        # Calculate MG
+        mg_data = calculate_mg(total_investment, setup_costs)
+        
+        # Determine payable: If MG > Revenue Share, MG is payable, else Revenue Share
+        monthly_mg = mg_data.get("monthly_mg", 0)
+        if monthly_mg > purnabramha_share:
+            payable_type = "minimum_guarantee"
+            payable_amount = monthly_mg
     
     # Working Capital - DO NOT touch/calculate
     # Working capital is security deposit, only show initial amount
@@ -440,8 +549,19 @@ async def get_center_account_summary(req: AccountPeriodRequest):
                 "cgst": purnabramha_share_with_tax.get("cgst", 0),
                 "sgst": purnabramha_share_with_tax.get("sgst", 0),
                 "gst_amount": purnabramha_share_with_tax.get("gst_amount", 0),
-                "total_payable": round(purnabramha_share_with_tax.get("total_with_gst", purnabramha_share), 2)
+                "total_payable": round(purnabramha_share_with_tax.get("total_with_gst", purnabramha_share), 2),
+                "gst_applicable": gst_applicable_india if country == "India" else True
             }
+        },
+        # MG (Minimum Guarantee) calculation
+        "mg_calculation": mg_data,
+        # Payout determination: MG vs Revenue Share
+        "payout": {
+            "type": payable_type,  # "minimum_guarantee" or "revenue_share"
+            "amount": round(payable_amount, 2),
+            "mg_amount": round(mg_data.get("monthly_mg", 0), 2) if mg_data else 0,
+            "revenue_share_amount": round(purnabramha_share_with_tax.get("total_with_gst", purnabramha_share), 2),
+            "reason": f"MG ({round(mg_data.get('monthly_mg', 0), 2)}) > Revenue Share ({round(purnabramha_share, 2)})" if payable_type == "minimum_guarantee" else f"Revenue Share ({round(purnabramha_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
         },
         "tax_rules": {
             "country": country,
@@ -1096,4 +1216,237 @@ async def get_center_franchise_linkage(data: dict):
         "franchises": franchises,
         "linked_count": sum(1 for c in centers if c.get("linked")),
         "unlinked_count": sum(1 for c in centers if not c.get("linked"))
+    }
+
+
+# =======================================
+# PAYMENT TRACKING ENDPOINTS
+# =======================================
+
+class PaymentRecordRequest(BaseModel):
+    token: str
+    center: str
+    month: str  # YYYY-MM format
+    amount: float
+    payment_type: str  # "revenue_share" or "minimum_guarantee"
+    payment_date: str  # YYYY-MM-DD
+    payment_method: Optional[str] = "Bank Transfer"
+    reference: Optional[str] = ""
+    notes: Optional[str] = ""
+
+@router.post("/record-payment")
+async def record_payment(req: PaymentRecordRequest):
+    """Record a payment against monthly payout"""
+    session = await check_access(req.token)
+    
+    # Verify center exists
+    center = await get_center_details(req.center)
+    
+    # Create payment record
+    payment = {
+        "payment_id": f"PAY-{req.center}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "center": req.center.upper(),
+        "month": req.month,
+        "amount": round(req.amount, 2),
+        "payment_type": req.payment_type,
+        "payment_date": req.payment_date,
+        "payment_method": req.payment_method,
+        "reference": req.reference,
+        "notes": req.notes,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": session.get("managerName", "Unknown")
+    }
+    
+    await db.payout_payments.insert_one(payment)
+    
+    logger.info(f"Payment recorded: {payment['payment_id']} for {req.center} - {req.month}")
+    
+    return {
+        "success": True,
+        "payment_id": payment["payment_id"],
+        "message": f"Payment of {req.amount} recorded for {req.center} - {req.month}"
+    }
+
+@router.post("/get-payments")
+async def get_payments(data: dict = Body(...)):
+    """Get payment history for a center"""
+    token = data.get("token")
+    center = data.get("center")
+    month = data.get("month")  # Optional
+    
+    session = await check_access(token)
+    
+    query = {"center": center.upper()}
+    if month:
+        query["month"] = month
+    
+    payments = await db.payout_payments.find(
+        query,
+        {"_id": 0}
+    ).sort("payment_date", -1).to_list(500)
+    
+    # Calculate totals
+    total_paid = sum(p.get("amount", 0) for p in payments)
+    
+    return {
+        "success": True,
+        "payments": payments,
+        "total_paid": round(total_paid, 2),
+        "count": len(payments)
+    }
+
+@router.post("/payout-summary")
+async def get_payout_summary(data: dict = Body(...)):
+    """Get comprehensive payout summary with paid/pending amounts"""
+    token = data.get("token")
+    center = data.get("center")
+    from_month = data.get("from_month")  # Optional: Start month (YYYY-MM)
+    to_month = data.get("to_month")  # Optional: End month (YYYY-MM)
+    
+    session = await check_access(token)
+    
+    # Get franchise info for MG calculation
+    franchise = await get_franchise_for_center(center)
+    
+    # Calculate MG if franchise exists
+    mg_amount = 0
+    if franchise:
+        franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+        working_capital = float(franchise.get("working_capital", 0) or 0)
+        total_investment = franchise_fee + working_capital
+        setup_costs = franchise.get("setup_costs", {})
+        if not isinstance(setup_costs, dict):
+            setup_costs = {}
+        mg_data = calculate_mg(total_investment, setup_costs)
+        mg_amount = mg_data.get("monthly_mg", 0)
+    
+    # Get revenue start date from franchise
+    revenue_start_date = None
+    if franchise:
+        ops_start = franchise.get("operations_start_date") or franchise.get("agreement_start_date")
+        if ops_start:
+            try:
+                revenue_start_date = datetime.strptime(ops_start, "%Y-%m-%d")
+            except:
+                pass
+    
+    # If no from_month provided, use revenue start date
+    if not from_month and revenue_start_date:
+        from_month = revenue_start_date.strftime("%Y-%m")
+    elif not from_month:
+        # Default to 6 months ago
+        from_month = (datetime.now() - timedelta(days=180)).strftime("%Y-%m")
+    
+    if not to_month:
+        to_month = datetime.now().strftime("%Y-%m")
+    
+    # Generate list of months
+    months = []
+    current = datetime.strptime(from_month + "-01", "%Y-%m-%d")
+    end = datetime.strptime(to_month + "-01", "%Y-%m-%d")
+    
+    while current <= end:
+        months.append(current.strftime("%Y-%m"))
+        # Move to next month
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+    
+    # Get all payments for this center
+    payments_cursor = db.payout_payments.find(
+        {"center": center.upper()},
+        {"_id": 0}
+    )
+    payments_list = await payments_cursor.to_list(1000)
+    
+    # Group payments by month
+    payments_by_month = {}
+    for p in payments_list:
+        m = p.get("month")
+        if m not in payments_by_month:
+            payments_by_month[m] = []
+        payments_by_month[m].append(p)
+    
+    # Build monthly summary
+    monthly_data = []
+    total_revenue_share = 0
+    total_mg = 0
+    total_payable = 0
+    total_paid = 0
+    total_pending = 0
+    
+    for month in months:
+        # Get sales data for this month
+        year, mon = month.split("-")
+        start_date = f"{year}-{mon}-01"
+        if int(mon) == 12:
+            end_date = f"{int(year) + 1}-01-01"
+        else:
+            end_date = f"{year}-{int(mon) + 1:02d}-01"
+        
+        # Get total sales
+        sales_records = await db.daily_sales.find({
+            "center": center,
+            "date": {"$gte": start_date, "$lt": end_date}
+        }, {"total_sale": 1}).to_list(100)
+        
+        total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
+        
+        # Calculate revenue share (20% of sales)
+        revenue_share = total_sale * 0.20
+        
+        # Determine payable amount (MG or Revenue Share)
+        if mg_amount > revenue_share:
+            payable = mg_amount
+            payout_type = "mg"
+        else:
+            payable = revenue_share
+            payout_type = "revenue_share"
+        
+        # Get payments for this month
+        month_payments = payments_by_month.get(month, [])
+        paid = sum(p.get("amount", 0) for p in month_payments)
+        pending = max(0, payable - paid)
+        
+        monthly_data.append({
+            "month": month,
+            "total_sales": round(total_sale, 2),
+            "revenue_share": round(revenue_share, 2),
+            "mg_amount": round(mg_amount, 2),
+            "payable_type": payout_type,
+            "payable_amount": round(payable, 2),
+            "paid": round(paid, 2),
+            "pending": round(pending, 2),
+            "status": "paid" if pending <= 0 else ("partial" if paid > 0 else "unpaid"),
+            "payments": month_payments
+        })
+        
+        total_revenue_share += revenue_share
+        total_mg += mg_amount
+        total_payable += payable
+        total_paid += paid
+        total_pending += pending
+    
+    return {
+        "success": True,
+        "center": center,
+        "franchise": {
+            "code": franchise.get("franchise_code") if franchise else None,
+            "name": franchise.get("franchise_name") if franchise else None,
+            "mg_amount": round(mg_amount, 2)
+        },
+        "period": {
+            "from": from_month,
+            "to": to_month,
+            "revenue_start_date": revenue_start_date.strftime("%Y-%m-%d") if revenue_start_date else None
+        },
+        "totals": {
+            "revenue_share": round(total_revenue_share, 2),
+            "mg": round(total_mg * len(months), 2),  # Total MG for all months
+            "payable": round(total_payable, 2),
+            "paid": round(total_paid, 2),
+            "pending": round(total_pending, 2)
+        },
+        "monthly_data": monthly_data
     }
