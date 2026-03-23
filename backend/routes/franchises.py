@@ -177,6 +177,7 @@ class FranchiseCreate(BaseModel):
     # Financial Details
     franchise_fee: Optional[float] = 0  # Auto-calculated from type if not provided
     working_capital: float = 900000  # Default 9 Lakhs
+    total_investment: float = 0  # NEW: Total Investment for MG calculation
     setup_costs: Optional[SetupCosts] = None
     
     # Agreement details
@@ -214,6 +215,7 @@ class FranchiseUpdate(BaseModel):
     franchise_type: Optional[str] = None
     franchise_fee: Optional[float] = None
     working_capital: Optional[float] = None
+    total_investment: Optional[float] = None  # NEW: Total Investment for MG
     setup_costs: Optional[SetupCosts] = None
     operations_start_date: Optional[str] = None
     agreement_start_date: Optional[str] = None
@@ -407,6 +409,7 @@ async def create_franchise(data: dict):
         "franchise_type": franchise_type,
         "franchise_fee": franchise_fee,
         "working_capital": float(data.get("working_capital", DEFAULT_WORKING_CAPITAL) or DEFAULT_WORKING_CAPITAL),
+        "total_investment": float(data.get("total_investment", 0) or 0),  # NEW: Total Investment for MG
         "setup_costs": setup_costs,
         
         # Agreement dates
@@ -483,7 +486,7 @@ async def update_franchise(franchise_code: str, data: dict):
         "primary_contact_phone", "directors", "agreement_start_date",
         "agreement_end_date", "franchise_fee", "status", "notes",
         # FOCO fields
-        "franchise_type", "working_capital", "setup_costs", "operations_start_date",
+        "franchise_type", "working_capital", "total_investment", "setup_costs", "operations_start_date",
         "revenue_share_percentage", "service_contract_fee", "nominees",
         # NEW fields for MG and GST
         "gst_applicable"

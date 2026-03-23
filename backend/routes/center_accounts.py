@@ -447,10 +447,13 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     payable_amount = purnabramha_share_with_tax.get("total_with_gst", purnabramha_share)
     
     if franchise:
-        # Calculate total investment
-        franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
-        working_capital_initial = float(franchise.get("working_capital", 0) or 0)
-        total_investment = franchise_fee + working_capital_initial
+        # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
+        total_investment = float(franchise.get("total_investment", 0) or 0)
+        if total_investment <= 0:
+            # Fallback: calculate from franchise_fee + working_capital
+            franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+            working_capital_initial = float(franchise.get("working_capital", 0) or 0)
+            total_investment = franchise_fee + working_capital_initial
         
         # Get setup costs
         setup_costs = franchise.get("setup_costs", {})
@@ -1311,9 +1314,12 @@ async def get_payout_summary(data: dict = Body(...)):
     # Calculate MG if franchise exists
     mg_amount = 0
     if franchise:
-        franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
-        working_capital = float(franchise.get("working_capital", 0) or 0)
-        total_investment = franchise_fee + working_capital
+        # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
+        total_investment = float(franchise.get("total_investment", 0) or 0)
+        if total_investment <= 0:
+            franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
+            working_capital = float(franchise.get("working_capital", 0) or 0)
+            total_investment = franchise_fee + working_capital
         setup_costs = franchise.get("setup_costs", {})
         if not isinstance(setup_costs, dict):
             setup_costs = {}

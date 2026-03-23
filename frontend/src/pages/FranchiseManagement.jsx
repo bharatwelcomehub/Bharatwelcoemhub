@@ -145,6 +145,7 @@ export default function FranchiseManagement() {
       franchise_type: "Sanskriti",
       franchise_fee: FRANCHISE_TYPES["Sanskriti"].fee,
       working_capital: DEFAULT_WORKING_CAPITAL,
+      total_investment: 0,  // NEW: Total Investment for MG calculation
       setup_costs: {
         shop_security_deposit: 0,
         first_month_rent: 0,
@@ -272,6 +273,7 @@ export default function FranchiseManagement() {
       franchise_type: franchise.franchise_type || "Sanskriti",
       franchise_fee: franchise.franchise_fee || FRANCHISE_TYPES[franchise.franchise_type || "Sanskriti"]?.fee || 0,
       working_capital: franchise.working_capital || DEFAULT_WORKING_CAPITAL,
+      total_investment: franchise.total_investment || 0,
       setup_costs: franchise.setup_costs || { shop_security_deposit: 0, first_month_rent: 0, initial_salary_fund: 0, initial_grocery_cost: 0, staff_traveling_expense: 0 },
       revenue_share_percentage: franchise.revenue_share_percentage || REVENUE_SHARE_PERCENTAGE,
       service_contract_fee: franchise.service_contract_fee || MONTHLY_SERVICE_CONTRACT,
@@ -1142,6 +1144,56 @@ export default function FranchiseManagement() {
                     onChange={(e) => setFormData(p => ({ ...p, revenue_share_percentage: parseFloat(e.target.value) || 15 }))}
                     className="bg-background"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Total Investment for MG Calculation */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-white border-b border-border pb-2">Total Investment (for MG Calculation)</h3>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="p-4 bg-purple-900/30 border border-purple-500/30 rounded-lg">
+                  <Label className="text-purple-200">Total Investment Done *</Label>
+                  <Input
+                    type="number"
+                    value={formData.total_investment || 0}
+                    onChange={(e) => setFormData(p => ({ ...p, total_investment: parseFloat(e.target.value) || 0 }))}
+                    className="bg-background mt-2 text-lg font-bold"
+                    placeholder="Enter total investment amount"
+                    data-testid="total-investment-input"
+                  />
+                  <p className="text-xs text-purple-300 mt-2">
+                    This is the actual total investment amount. Deductions below will be subtracted to calculate Net Investment for MG.
+                  </p>
+                  {formData.total_investment > 0 && (
+                    <div className="mt-3 p-3 bg-background/50 rounded text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Investment:</span>
+                        <span className="font-medium">{formatCurrency(formData.total_investment, formData.country)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-400">
+                        <span>Less: Deductions</span>
+                        <span>-{formatCurrency(
+                          (formData.setup_costs?.shop_security_deposit || 0) +
+                          (formData.setup_costs?.staff_traveling_expense || 0) +
+                          (formData.setup_costs?.initial_salary_fund || 0) +
+                          (formData.setup_costs?.first_month_rent || 0),
+                          formData.country
+                        )}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-green-400 border-t border-border pt-1">
+                        <span>Net Investment:</span>
+                        <span>{formatCurrency(
+                          Math.max(0, (formData.total_investment || 0) -
+                            (formData.setup_costs?.shop_security_deposit || 0) -
+                            (formData.setup_costs?.staff_traveling_expense || 0) -
+                            (formData.setup_costs?.initial_salary_fund || 0) -
+                            (formData.setup_costs?.first_month_rent || 0)),
+                          formData.country
+                        )}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

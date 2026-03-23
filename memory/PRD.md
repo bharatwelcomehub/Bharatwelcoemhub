@@ -10,6 +10,15 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ### Latest Update (Mar 23, 2026 - Session 21)
 
+- ✅ **TOTAL INVESTMENT FIELD FOR MG CALCULATION (COMPLETE)**
+  - Added new "Total Investment Done" field in Franchise Management form
+  - Shows real-time calculation preview:
+    - Total Investment entered
+    - Less: Deductions (Shop Rent + Staff Travel + 1st Salary + 1st Shop Rent)
+    - = Net Investment
+  - MG calculated from Net Investment @ 15% for 7 years
+  - Backend updated to use `total_investment` field (fallback to franchise_fee + working_capital if not set)
+
 - ✅ **SERVER REFACTORING - PAYROLL & RECIPES MODULES (COMPLETE)**
   - Created `/app/backend/routes/payroll.py` (~770 lines)
     - `POST /api/payroll_status` - Check if payroll is locked for a month
