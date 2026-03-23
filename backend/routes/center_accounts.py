@@ -409,9 +409,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         net_revenue = total_sale - total_expenses - total_commission
     
     # Calculate share payable based on country
-    # 80% goes to Franchise Owner, 20% goes to Purnabramha LLC
-    franchise_owner_percentage = 80
-    purnabramha_percentage = 20
+    # Revenue Share % comes from franchise settings (default 15% to Franchise Owner)
+    # Purnabramha gets the remaining percentage
+    franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
+    purnabramha_percentage = 100 - franchise_owner_percentage
     
     # Check if GST is applicable for India (from franchise settings)
     gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
@@ -1411,8 +1412,11 @@ async def get_payout_summary(data: dict = Body(...)):
         
         total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
         
-        # Calculate revenue share (20% of sales)
-        revenue_share = total_sale * 0.20
+        # Calculate Purnabramha's share using franchise's revenue_share_percentage
+        # Default: Franchise Owner gets 15%, Purnabramha gets 85%
+        franchise_owner_pct = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
+        purnabramha_pct = 100 - franchise_owner_pct
+        revenue_share = total_sale * (purnabramha_pct / 100)
         
         # Determine payable amount (MG or Revenue Share)
         if mg_amount > revenue_share:

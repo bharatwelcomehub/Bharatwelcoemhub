@@ -839,7 +839,9 @@ export default function CenterAccounts() {
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">
-                          {accountSummary.share_calculation.type === 'profit_share' ? 'Net Profit (Base for 80/20 Split)' : 'Total Sales (Base)'}
+                          {accountSummary.share_calculation.type === 'profit_share' 
+                            ? `Net Profit (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)` 
+                            : 'Total Sales (Base)'}
                         </span>
                         <span className="text-xl font-bold">
                           {formatCurrency(accountSummary.share_calculation.net_profit_or_sales, accountSummary.country)}
@@ -847,9 +849,9 @@ export default function CenterAccounts() {
                       </div>
                     </div>
 
-                    {/* 80/20 Split Cards */}
+                    {/* Share Split Cards */}
                     <div className="grid md:grid-cols-2 gap-4">
-                      {/* Franchise Owner 80% */}
+                      {/* Franchise Owner Share */}
                       <Card className="border-2 border-green-200 bg-green-50">
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-3">
@@ -859,7 +861,7 @@ export default function CenterAccounts() {
                           <div className="space-y-2">
                             <div className="flex justify-between">
                               <span className="text-green-700">Percentage</span>
-                              <Badge className="bg-green-600 text-white">{accountSummary.share_calculation.franchise_owner?.percentage || 80}%</Badge>
+                              <Badge className="bg-green-600 text-white">{accountSummary.share_calculation.franchise_owner?.percentage || 15}%</Badge>
                             </div>
                             <div className="flex justify-between text-lg">
                               <span className="text-green-700">Amount</span>
@@ -871,7 +873,7 @@ export default function CenterAccounts() {
                         </CardContent>
                       </Card>
 
-                      {/* Purnabramha 20% */}
+                      {/* Purnabramha Share */}
                       <Card className="border-2 border-orange-200 bg-orange-50">
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-3">
@@ -881,7 +883,7 @@ export default function CenterAccounts() {
                           <div className="space-y-2">
                             <div className="flex justify-between">
                               <span className="text-orange-700">Percentage</span>
-                              <Badge className="bg-orange-600 text-white">{accountSummary.share_calculation.purnabramha?.percentage || 20}%</Badge>
+                              <Badge className="bg-orange-600 text-white">{accountSummary.share_calculation.purnabramha?.percentage || 85}%</Badge>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-orange-700">Base Amount</span>
