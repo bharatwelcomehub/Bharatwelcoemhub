@@ -8,7 +8,38 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 22, 2026 - Session 17)
+### Latest Update (Mar 23, 2026 - Session 18)
+
+- ✅ **LOAN ENTRY FEATURE (COMPLETE)**
+  - **Purpose:** Track working capital usage as loans with repayment tracking
+  - **Location:** Under "Accounts" section → "Loan Entries"
+  - **Key Features:**
+    - Create loan entries against working capital
+    - Track loan amount, date, reason, status
+    - Add repayments with date and notes
+    - Status tracking: Active → Partially Repaid → Fully Repaid
+    - Progress bar showing repayment progress
+    - Summary cards: Working Capital, Loans Outstanding, Available Capital, Utilization %
+    - Validation: Cannot exceed available working capital
+    - Integration with Center Accounts (shows loans in financial summary)
+  - **Backend:** `/app/backend/routes/loan_entries.py` (300+ lines)
+  - **Frontend:** `/app/frontend/src/pages/LoanEntries.jsx` (500+ lines)
+
+- ✅ **CENTER ACCOUNTS FIXES (COMPLETE)**
+  - Fixed DoorDash visibility in Sales Breakdown for Australia
+  - Implemented 80/20 profit share split:
+    - Franchise Owner: 80% (shown in green card)
+    - Purnabramha LLC: 20% with GST calculation (shown in orange card)
+  - Working Capital now shows as "Security Deposit" - not auto-deducted
+  - Added loans outstanding to financial summary
+
+- ✅ **SERVER REFACTORING (IN PROGRESS)**
+  - Created `/app/backend/routes/auth.py` - Authentication module
+  - Extracted loan entries to `/app/backend/routes/loan_entries.py`
+  - Modular structure established for new features
+  - Existing routes: `sales_expenses.py`, `attendance_dashboard.py`, `franchises.py`, `center_accounts.py`, `franchise_exit.py`, `booking_intelligence.py`, `mis_dashboard.py`
+
+### Previous Update (Mar 22, 2026 - Session 17)
 
 - ✅ **P0: CENTER ACCOUNTS FEATURE (COMPLETE)**
   - **Purpose:** Comprehensive financial management for each center with commission tracking, tax calculations, and PIB generation

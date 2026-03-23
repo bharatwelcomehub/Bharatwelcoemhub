@@ -4224,6 +4224,12 @@ set_accounts_verify_token(verify_token)
 set_accounts_verify_token_async(verify_token_async)
 app.include_router(accounts_router)
 
+# Include Loan Entries router
+from routes.loan_entries import router as loan_router, set_db as set_loan_db, set_verify_token_async as set_loan_verify_token_async
+set_loan_db(db)
+set_loan_verify_token_async(verify_token_async)
+app.include_router(loan_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

@@ -47,6 +47,7 @@ import FranchiseManagement from "@/pages/FranchiseManagement";
 import FranchiseExit from "@/pages/FranchiseExit";
 import MISDashboard from "@/pages/MISDashboard";
 import CenterAccounts from "@/pages/CenterAccounts";
+import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
 
@@ -79,6 +80,7 @@ const menuCategories = [
     forAccounts: true,
     items: [
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
+      { path: "/loan-entries", icon: Wallet, label: "Loan Entries", forAccounts: true },
       { path: "/mis-dashboard", icon: BarChart3, label: "MIS Dashboard", forAccounts: true },
     ]
   },
@@ -378,6 +380,7 @@ export default function Dashboard() {
             <Route path="/franchises" element={<FranchiseManagement />} />
             <Route path="/franchise-exit" element={<FranchiseExit />} />
             <Route path="/center-accounts" element={<CenterAccounts />} />
+            <Route path="/loan-entries" element={<LoanEntries />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />

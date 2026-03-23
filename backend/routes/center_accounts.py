@@ -333,6 +333,17 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # Usage will be handled as separate LOAN entries
     working_capital = franchise.get("working_capital", 0) if franchise else 0
     
+    # Get loan summary for this center
+    loan_entries = await db.loan_entries.find({
+        "center": req.center,
+        "status": {"$ne": "fully_repaid"}
+    }, {"_id": 0}).to_list(100)
+    
+    total_loans_outstanding = sum(
+        (loan.get("amount", 0) - loan.get("total_repaid", 0)) 
+        for loan in loan_entries
+    )
+    
     # ==========================================
     # 5. Build Response
     # ==========================================
@@ -377,7 +388,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "total_expenses": round(total_expenses, 2),
             "total_commissions": round(total_commission, 2),
             "net_revenue": round(net_revenue, 2),
-            "working_capital": round(working_capital, 2)  # Just show initial, no calculation
+            "working_capital": round(working_capital, 2),  # Just show initial, no calculation
+            "loans_outstanding": round(total_loans_outstanding, 2),
+            "working_capital_available": round(working_capital - total_loans_outstanding, 2)
         },
         "share_calculation": {
             "type": share_type,

@@ -559,7 +559,19 @@ export default function CenterAccounts() {
                         <span>Security Deposit</span>
                         <span className="font-medium">{formatCurrency(accountSummary.financial_summary.working_capital, accountSummary.country)}</span>
                       </div>
-                      <p className="text-xs text-gray-400 italic">Working capital is kept as security, not auto-deducted</p>
+                      {accountSummary.financial_summary.loans_outstanding > 0 && (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span>Loans Outstanding</span>
+                            <span className="text-red-600">-{formatCurrency(accountSummary.financial_summary.loans_outstanding, accountSummary.country)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm font-medium">
+                            <span>Available Capital</span>
+                            <span className="text-green-600">{formatCurrency(accountSummary.financial_summary.working_capital_available, accountSummary.country)}</span>
+                          </div>
+                        </>
+                      )}
+                      <p className="text-xs text-gray-400 italic">Working capital is kept as security, loans tracked separately</p>
                     </div>
                   </div>
                 </CardContent>
