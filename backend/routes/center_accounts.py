@@ -416,17 +416,17 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # Check if GST is applicable for India (from franchise settings)
     gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
     
-    if country == "Australia":
-        # Australia: Profit share model (% of net profit after GST deductions)
-        profit_before_share = net_revenue
-        purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
-        franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
-        share_type = "profit_share"
-    else:
+    if country == "India":
         # India: Revenue share model (% of total sales)
         purnabramha_share = total_sale * (purnabramha_percentage / 100)
         franchise_owner_share = total_sale * (franchise_owner_percentage / 100)
         share_type = "revenue_share"
+    else:
+        # Outside India (Australia, etc.): Profit share model (% of net profit after expenses)
+        profit_before_share = net_revenue
+        purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
+        franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
+        share_type = "profit_share"
     
     # Apply GST on Purnabramha's share (payable by franchise to Purnabramha)
     # For India: Only apply 18% GST if gst_applicable toggle is ON
