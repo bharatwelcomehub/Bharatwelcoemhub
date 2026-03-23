@@ -416,12 +416,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
     
     if country == "India":
-        # India: Revenue share model (% of total sales)
+        # India: Revenue share model (% of NET revenue after deductions)
+        # Net Revenue = Total Sales - Commissions (Swiggy, Zomato, etc.) - Card Fees - Expenses
         # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
         franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
         purnabramha_percentage = 100 - franchise_owner_percentage
-        purnabramha_share = total_sale * (purnabramha_percentage / 100)
-        franchise_owner_share = total_sale * (franchise_owner_percentage / 100)
+        # Calculate on NET REVENUE (after commissions and expenses)
+        purnabramha_share = net_revenue * (purnabramha_percentage / 100)
+        franchise_owner_share = net_revenue * (franchise_owner_percentage / 100)
         share_type = "revenue_share"
     else:
         # Outside India (Australia, etc.): Profit share model - FIXED 80/20 split
@@ -558,7 +560,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         },
         "share_calculation": {
             "type": share_type,
-            "net_profit_or_sales": round(net_revenue if country == "Australia" else total_sale, 2),
+            "net_profit_or_sales": round(net_revenue, 2),  # Both India and Australia now use net_revenue
+            "total_sales": round(total_sale, 2),  # Show total sales separately
+            "total_deductions": round(total_expenses + total_commission, 2),  # Commissions + Expenses
             "franchise_owner": {
                 "percentage": franchise_owner_percentage,
                 "amount": round(franchise_owner_share, 2)
@@ -1421,17 +1425,35 @@ async def get_payout_summary(data: dict = Body(...)):
         
         total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
         
+        # Get expenses for this month
+        expense_records = await db.expenses.find({
+            "center": center,
+            "date": {"$gte": start_date, "$lt": end_date}
+        }, {"amount": 1}).to_list(500)
+        total_expenses = sum(e.get("amount", 0) or 0 for e in expense_records)
+        
+        # Get commissions for this month
+        commission_records = await db.commission_statements.find({
+            "center": center,
+            "settlement_period_start": {"$gte": start_date},
+            "settlement_period_end": {"$lt": end_date}
+        }, {"commission_charged": 1}).to_list(100)
+        total_commission = sum(c.get("commission_charged", 0) or 0 for c in commission_records)
+        
+        # Calculate Net Revenue = Total Sales - Expenses - Commissions
+        net_revenue = max(0, total_sale - total_expenses - total_commission)
+        
         # Calculate FRANCHISE OWNER's share (this is what gets compared with MG)
-        # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner)
-        # Outside India: Fixed 80% to Franchise Owner
+        # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner) on NET REVENUE
+        # Outside India: Fixed 80% to Franchise Owner on profit
         franchise_country = franchise.get("country", "India") if franchise else "India"
         
         if franchise_country == "India":
             franchise_owner_pct = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
-            revenue_share = total_sale * (franchise_owner_pct / 100)  # Franchise Owner's share
+            revenue_share = net_revenue * (franchise_owner_pct / 100)  # Franchise Owner's share on NET revenue
         else:
-            # Outside India: Fixed 80% to Franchise Owner on profit
-            revenue_share = total_sale * 0.80  # Using sales as approximation
+            # Outside India: Fixed 80% to Franchise Owner on net profit
+            revenue_share = net_revenue * 0.80
         
         # Determine payable amount (MG or Franchise Owner's Revenue Share)
         if mg_amount > revenue_share:
