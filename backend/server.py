@@ -4243,6 +4243,20 @@ set_attendance_db(db)
 set_attendance_verify_token(verify_token)
 app.include_router(attendance_router)
 
+# Include Payroll router
+from routes.payroll import router as payroll_router, set_db as set_payroll_db, set_verify_token as set_payroll_verify_token, set_has_admin_access as set_payroll_has_admin_access, set_root_dir as set_payroll_root_dir
+set_payroll_db(db)
+set_payroll_verify_token(verify_token)
+set_payroll_has_admin_access(has_admin_access)
+set_payroll_root_dir(ROOT_DIR)
+app.include_router(payroll_router)
+
+# Include Recipes router
+from routes.recipes import router as recipes_router, set_root_dir as set_recipes_root_dir, set_verify_token as set_recipes_verify_token
+set_recipes_root_dir(ROOT_DIR)
+set_recipes_verify_token(verify_token)
+app.include_router(recipes_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

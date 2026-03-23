@@ -53,6 +53,8 @@ export default function CenterAccounts() {
   const [accountSummary, setAccountSummary] = useState(null);
   const [commissionStatements, setCommissionStatements] = useState([]);
   const [linkageStatus, setLinkageStatus] = useState(null);
+  const [payoutSummary, setPayoutSummary] = useState(null);
+  const [payoutLoading, setPayoutLoading] = useState(false);
   
   // Modal states
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -167,6 +169,31 @@ export default function CenterAccounts() {
     }
   }, [token]);
 
+  // Fetch payout summary for month-wise grid
+  const fetchPayoutSummary = useCallback(async () => {
+    if (!token || !selectedCenter) return;
+    
+    setPayoutLoading(true);
+    try {
+      const res = await fetch(`${API}/api/center-accounts/payout-summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          token, 
+          center: selectedCenter
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPayoutSummary(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payout summary:', error);
+    } finally {
+      setPayoutLoading(false);
+    }
+  }, [token, selectedCenter]);
+
   useEffect(() => {
     fetchCenters();
     fetchLinkageStatus();
@@ -176,8 +203,9 @@ export default function CenterAccounts() {
     if (selectedCenter) {
       fetchAccountSummary();
       fetchCommissions();
+      fetchPayoutSummary();
     }
-  }, [selectedCenter, selectedMonth, fetchAccountSummary, fetchCommissions]);
+  }, [selectedCenter, selectedMonth, fetchAccountSummary, fetchCommissions, fetchPayoutSummary]);
 
   // Save commission statement
   const handleSaveCommission = async () => {
@@ -1104,6 +1132,118 @@ export default function CenterAccounts() {
                   </div>
                 </div>
               )}
+
+              {/* Month-wise Payout Grid */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileSpreadsheet className="w-5 h-5" />
+                        Month-wise Payout Summary
+                      </CardTitle>
+                      <CardDescription>
+                        {payoutSummary?.period?.revenue_start_date 
+                          ? `From revenue start date: ${new Date(payoutSummary.period.revenue_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                          : 'Historical payout data with payment tracking'
+                        }
+                      </CardDescription>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={fetchPayoutSummary} disabled={payoutLoading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${payoutLoading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {payoutLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-500">Loading payout data...</span>
+                    </div>
+                  ) : payoutSummary?.monthly_data?.length > 0 ? (
+                    <>
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                        <div className="p-3 bg-blue-50 rounded-lg text-center">
+                          <p className="text-xs text-blue-600">Total Revenue Share</p>
+                          <p className="text-lg font-bold text-blue-800">{formatCurrency(payoutSummary.totals?.revenue_share, accountSummary?.country)}</p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded-lg text-center">
+                          <p className="text-xs text-purple-600">Monthly MG</p>
+                          <p className="text-lg font-bold text-purple-800">{formatCurrency(payoutSummary.franchise?.mg_amount, accountSummary?.country)}</p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded-lg text-center">
+                          <p className="text-xs text-green-600">Total Payable</p>
+                          <p className="text-lg font-bold text-green-800">{formatCurrency(payoutSummary.totals?.payable, accountSummary?.country)}</p>
+                        </div>
+                        <div className="p-3 bg-emerald-50 rounded-lg text-center">
+                          <p className="text-xs text-emerald-600">Total Paid</p>
+                          <p className="text-lg font-bold text-emerald-800">{formatCurrency(payoutSummary.totals?.paid, accountSummary?.country)}</p>
+                        </div>
+                        <div className="p-3 bg-red-50 rounded-lg text-center">
+                          <p className="text-xs text-red-600">Total Pending</p>
+                          <p className="text-lg font-bold text-red-800">{formatCurrency(payoutSummary.totals?.pending, accountSummary?.country)}</p>
+                        </div>
+                      </div>
+
+                      {/* Month-wise Table */}
+                      <div className="overflow-x-auto border rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="text-left py-3 px-4 font-medium text-gray-600">Month</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">Total Sales</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">Revenue Share</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">MG</th>
+                              <th className="text-center py-3 px-4 font-medium text-gray-600">Type</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">Payable</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">Paid</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">Pending</th>
+                              <th className="text-center py-3 px-4 font-medium text-gray-600">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {payoutSummary.monthly_data.map((month, idx) => (
+                              <tr key={month.month} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                                <td className="py-3 px-4 font-medium">
+                                  {new Date(month.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                                </td>
+                                <td className="py-3 px-4 text-right">{formatCurrency(month.total_sales, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-green-600">{formatCurrency(month.revenue_share, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-purple-600">{formatCurrency(month.mg_amount, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-center">
+                                  <Badge variant={month.payable_type === 'mg' ? 'default' : 'secondary'} className="text-xs">
+                                    {month.payable_type === 'mg' ? 'MG' : 'RS'}
+                                  </Badge>
+                                </td>
+                                <td className="py-3 px-4 text-right font-medium">{formatCurrency(month.payable_amount, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-emerald-600">{formatCurrency(month.paid, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-red-600">{formatCurrency(month.pending, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-center">
+                                  {month.status === 'paid' ? (
+                                    <Badge className="bg-green-100 text-green-800 text-xs">Paid</Badge>
+                                  ) : month.status === 'partial' ? (
+                                    <Badge className="bg-amber-100 text-amber-800 text-xs">Partial</Badge>
+                                  ) : (
+                                    <Badge className="bg-red-100 text-red-800 text-xs">Unpaid</Badge>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>No payout data available</p>
+                      <p className="text-sm text-gray-400 mt-1">Data will appear once franchise is linked and has sales</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </>
