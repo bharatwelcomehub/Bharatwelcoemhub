@@ -8,7 +8,31 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 23, 2026 - Session 22)
+### Latest Update (Mar 23, 2026 - Session 23)
+
+- ✅ **REVENUE SHARE START DATE FIELD (COMPLETE)**
+  - Added new `revenue_share_start_date` field to Franchise Management form
+  - Controls when payout calculations begin (separate from operations_start_date)
+  - Backend uses this date for payout-summary API to determine "From Month"
+  - Field is editable in the "Agreement Dates" section
+  - Falls back to operations_start_date if not set
+
+- ✅ **PAYMENT RECORDING UI (COMPLETE)**
+  - Added "Pay" button to each row in Month-wise Payout Grid
+  - New Payment Recording Dialog with:
+    - Month summary showing Payable, Already Paid, and Pending amounts
+    - Payment Amount input (defaults to pending amount)
+    - Payment Date picker
+    - Notes field (optional)
+  - Payments are recorded and reflected in real-time
+  - Status updates automatically (Paid, Partial, Unpaid)
+
+- ✅ **TESTING:** All new features verified
+  - revenue_share_start_date field: ✓ (saved and used in payout-summary)
+  - Payment recording: ✓ (payments recorded and reflected in grid)
+  - India Net Revenue calculation: ✓ (no expense deduction)
+
+### Previous Update (Mar 23, 2026 - Session 22)
 
 - ✅ **CRITICAL FIX: India Net Revenue Calculation (COMPLETE)**
   - Fixed the Net Revenue formula for India locations

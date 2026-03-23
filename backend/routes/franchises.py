@@ -191,6 +191,7 @@ class FranchiseCreate(BaseModel):
     operations_start_date: Optional[str] = ""  # YYYY-MM-DD
     agreement_start_date: Optional[str] = ""  # YYYY-MM-DD (same as operations_start_date)
     agreement_end_date: Optional[str] = ""    # Auto-calculated: start + 7 years
+    revenue_share_start_date: Optional[str] = ""  # YYYY-MM-DD - When revenue share calculation starts
     
     # Revenue Model
     revenue_share_percentage: float = 15  # 15% to franchise owner
@@ -227,6 +228,7 @@ class FranchiseUpdate(BaseModel):
     operations_start_date: Optional[str] = None
     agreement_start_date: Optional[str] = None
     agreement_end_date: Optional[str] = None
+    revenue_share_start_date: Optional[str] = None  # NEW: When revenue share calculation starts
     revenue_share_percentage: Optional[float] = None
     service_contract_fee: Optional[float] = None
     status: Optional[str] = None
@@ -423,6 +425,7 @@ async def create_franchise(data: dict):
         "operations_start_date": operations_start_date,
         "agreement_start_date": agreement_start_date,
         "agreement_end_date": agreement_end_date,
+        "revenue_share_start_date": data.get("revenue_share_start_date", "") or operations_start_date,  # NEW: Default to operations start
         
         # Revenue model
         "revenue_share_percentage": float(data.get("revenue_share_percentage", REVENUE_SHARE_PERCENTAGE) or REVENUE_SHARE_PERCENTAGE),
@@ -495,8 +498,8 @@ async def update_franchise(franchise_code: str, data: dict):
         # FOCO fields
         "franchise_type", "working_capital", "total_investment", "setup_costs", "operations_start_date",
         "revenue_share_percentage", "service_contract_fee", "nominees",
-        # NEW fields for MG and GST
-        "gst_applicable"
+        # NEW fields for MG, GST, and revenue share start
+        "gst_applicable", "revenue_share_start_date"
     ]
     
     changes = {}

@@ -156,6 +156,7 @@ export default function FranchiseManagement() {
       operations_start_date: "",
       agreement_start_date: "",
       agreement_end_date: "",
+      revenue_share_start_date: "",  // NEW: When revenue share calculation starts
       revenue_share_percentage: REVENUE_SHARE_PERCENTAGE,
       service_contract_fee: MONTHLY_SERVICE_CONTRACT,
       nominees: [],
@@ -275,6 +276,7 @@ export default function FranchiseManagement() {
       working_capital: franchise.working_capital || DEFAULT_WORKING_CAPITAL,
       total_investment: franchise.total_investment || 0,
       setup_costs: franchise.setup_costs || { shop_security_deposit: 0, first_month_rent: 0, initial_salary_fund: 0, initial_grocery_cost: 0, staff_traveling_expense: 0 },
+      revenue_share_start_date: franchise.revenue_share_start_date || franchise.operations_start_date || "",
       revenue_share_percentage: franchise.revenue_share_percentage || REVENUE_SHARE_PERCENTAGE,
       service_contract_fee: franchise.service_contract_fee || MONTHLY_SERVICE_CONTRACT,
       nominees: franchise.nominees || [],
@@ -1321,6 +1323,19 @@ export default function FranchiseManagement() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     7 years from start date (fixed tenure)
+                  </p>
+                </div>
+                <div>
+                  <Label>Revenue Share Start Date *</Label>
+                  <Input
+                    type="date"
+                    value={formData.revenue_share_start_date || formData.operations_start_date}
+                    onChange={(e) => setFormData(p => ({ ...p, revenue_share_start_date: e.target.value }))}
+                    className="bg-background"
+                    data-testid="revenue-share-start-date"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Date from which payout calculations start (defaults to Operations Start)
                   </p>
                 </div>
                 <div>

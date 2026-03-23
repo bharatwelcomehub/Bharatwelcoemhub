@@ -1264,7 +1264,7 @@ class PaymentRecordRequest(BaseModel):
     center: str
     month: str  # YYYY-MM format
     amount: float
-    payment_type: str  # "revenue_share" or "minimum_guarantee"
+    payment_type: Optional[str] = "payout"  # "revenue_share", "minimum_guarantee", or "payout"
     payment_date: str  # YYYY-MM-DD
     payment_method: Optional[str] = "Bank Transfer"
     reference: Optional[str] = ""
@@ -1363,13 +1363,13 @@ async def get_payout_summary(data: dict = Body(...)):
         mg_data = calculate_mg(total_investment, setup_costs, franchise_fee, working_capital)
         mg_amount = mg_data.get("monthly_mg", 0)
     
-    # Get revenue start date from franchise
+    # Get revenue start date from franchise - use revenue_share_start_date if set, fallback to operations_start_date
     revenue_start_date = None
     if franchise:
-        ops_start = franchise.get("operations_start_date") or franchise.get("agreement_start_date")
-        if ops_start:
+        rev_start = franchise.get("revenue_share_start_date") or franchise.get("operations_start_date") or franchise.get("agreement_start_date")
+        if rev_start:
             try:
-                revenue_start_date = datetime.strptime(ops_start, "%Y-%m-%d")
+                revenue_start_date = datetime.strptime(rev_start, "%Y-%m-%d")
             except:
                 pass
     

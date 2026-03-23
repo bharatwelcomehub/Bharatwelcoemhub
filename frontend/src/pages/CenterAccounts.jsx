@@ -60,6 +60,8 @@ export default function CenterAccounts() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showCommissionModal, setShowCommissionModal] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPayoutMonth, setSelectedPayoutMonth] = useState(null);
   
   // Form states
   const [uploadForm, setUploadForm] = useState({
@@ -74,6 +76,12 @@ export default function CenterAccounts() {
     gross_order_amount: 0,
     commission_charged: 0,
     net_payout_received: 0,
+    notes: ''
+  });
+  
+  const [paymentForm, setPaymentForm] = useState({
+    amount: 0,
+    payment_date: new Date().toISOString().split('T')[0],
     notes: ''
   });
   
@@ -280,6 +288,55 @@ export default function CenterAccounts() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Record payment for a month
+  const handleRecordPayment = async () => {
+    if (!paymentForm.amount || paymentForm.amount <= 0) {
+      toast.error('Please enter a valid payment amount');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/center-accounts/record-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          token, 
+          center: selectedCenter,
+          month: selectedPayoutMonth?.month,
+          amount: parseFloat(paymentForm.amount),
+          payment_date: paymentForm.payment_date,
+          notes: paymentForm.notes
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Payment of ${formatCurrency(paymentForm.amount, accountSummary?.country)} recorded`);
+        setShowPaymentModal(false);
+        setPaymentForm({ amount: 0, payment_date: new Date().toISOString().split('T')[0], notes: '' });
+        setSelectedPayoutMonth(null);
+        fetchPayoutSummary();  // Refresh payout data
+      } else {
+        toast.error(data.detail || 'Failed to record payment');
+      }
+    } catch (error) {
+      toast.error('Failed to record payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Open payment dialog for a month
+  const openPaymentDialog = (monthData) => {
+    setSelectedPayoutMonth(monthData);
+    setPaymentForm({ 
+      amount: monthData.pending || 0,  // Default to pending amount
+      payment_date: new Date().toISOString().split('T')[0], 
+      notes: '' 
+    });
+    setShowPaymentModal(true);
   };
 
   // Download PDF report
@@ -1214,11 +1271,12 @@ export default function CenterAccounts() {
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Paid</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Pending</th>
                               <th className="text-center py-3 px-4 font-medium text-gray-600">Status</th>
+                              <th className="text-center py-3 px-4 font-medium text-gray-600">Action</th>
                             </tr>
                           </thead>
                           <tbody>
                             {payoutSummary.monthly_data.map((month, idx) => (
-                              <tr key={month.month} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                              <tr key={month.month} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/50`}>
                                 <td className="py-3 px-4 font-medium">
                                   {new Date(month.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
                                 </td>
@@ -1241,6 +1299,18 @@ export default function CenterAccounts() {
                                   ) : (
                                     <Badge className="bg-red-100 text-red-800 text-xs">Unpaid</Badge>
                                   )}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="h-7 text-xs"
+                                    onClick={() => openPaymentDialog(month)}
+                                    data-testid={`record-payment-${month.month}`}
+                                  >
+                                    <DollarSign className="w-3 h-3 mr-1" />
+                                    Pay
+                                  </Button>
                                 </td>
                               </tr>
                             ))}
@@ -1397,6 +1467,79 @@ export default function CenterAccounts() {
             <Button onClick={handleLinkFranchise} disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link className="w-4 h-4 mr-2" />}
               Link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Payment Modal */}
+      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
+              {selectedPayoutMonth && (
+                <>
+                  Record payment for {new Date(selectedPayoutMonth.month + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                  <br />
+                  <span className="text-xs">
+                    Payable: {formatCurrency(selectedPayoutMonth.payable_amount, accountSummary?.country)} | 
+                    Pending: {formatCurrency(selectedPayoutMonth.pending, accountSummary?.country)}
+                  </span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedPayoutMonth && (
+              <div className="p-3 bg-gray-50 rounded-lg space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Total Payable:</span>
+                  <span className="font-medium">{formatCurrency(selectedPayoutMonth.payable_amount, accountSummary?.country)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Already Paid:</span>
+                  <span className="text-green-600">{formatCurrency(selectedPayoutMonth.paid, accountSummary?.country)}</span>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <span className="text-gray-500">Pending:</span>
+                  <span className="text-red-600">{formatCurrency(selectedPayoutMonth.pending, accountSummary?.country)}</span>
+                </div>
+              </div>
+            )}
+            <div>
+              <Label>Payment Amount *</Label>
+              <Input 
+                type="number" 
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
+                placeholder="Enter amount"
+                data-testid="payment-amount-input"
+              />
+            </div>
+            <div>
+              <Label>Payment Date *</Label>
+              <Input 
+                type="date" 
+                value={paymentForm.payment_date}
+                onChange={(e) => setPaymentForm(p => ({ ...p, payment_date: e.target.value }))}
+                data-testid="payment-date-input"
+              />
+            </div>
+            <div>
+              <Label>Notes (Optional)</Label>
+              <Input 
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm(p => ({ ...p, notes: e.target.value }))}
+                placeholder="e.g., Bank transfer, Cheque #123"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
+            <Button onClick={handleRecordPayment} disabled={loading} className="bg-green-600 hover:bg-green-700">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <DollarSign className="w-4 h-4 mr-2" />}
+              Record Payment
             </Button>
           </DialogFooter>
         </DialogContent>
