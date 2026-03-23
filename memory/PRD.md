@@ -8,7 +8,39 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 23, 2026 - Session 19)
+### Latest Update (Mar 23, 2026 - Session 20)
+
+- ✅ **P0: 5 NEW FINANCIAL FEATURES (COMPLETE)**
+  1. **Expense Category in Dashboard** - Expense type/category now properly displayed in expense list table
+  2. **Date Range Filter for Expenses** - Toggle between single date and date range (From-To) modes
+  3. **Staff Traveling Expense Field** - New field in Franchise Management form under Setup Costs
+  4. **Minimum Guarantee (MG) Calculation** - EMI-based calculation: Net Investment @ 15% for 7 years
+     - Formula: E = P × r × (1+r)^n / ((1+r)^n - 1)
+     - Net Investment = Total Investment - (Shop Rent Deposit + Staff Travel + 1st Salary + 1st Shop Rent)
+  5. **MG vs Revenue Share Payout Logic** - Higher of MG or Revenue Share is payable
+  6. **Conditional GST on Revenue Share (India)** - 18% GST toggle in franchise form for India locations
+
+- ✅ **BACKEND CHANGES:**
+  - Added `staff_traveling_expense` to SetupCosts model in `franchises.py`
+  - Added `gst_applicable` field to Franchise model for India GST toggle
+  - Added `calculate_mg()` utility function in both `franchises.py` and `center_accounts.py`
+  - Added MG calculation endpoint: `POST /api/franchise/mg-calculation/{franchise_code}`
+  - Updated `center-accounts/summary` to include `mg_calculation` and `payout` data
+  - Added payment tracking endpoints: `POST /api/center-accounts/record-payment`, `POST /api/center-accounts/get-payments`, `POST /api/center-accounts/payout-summary`
+
+- ✅ **FRONTEND CHANGES:**
+  - Updated `ExpenseEntry.jsx` with Single/Range date mode toggle
+  - Added Staff Traveling Expense field in `FranchiseManagement.jsx`
+  - Added GST Applicable toggle for India in `FranchiseManagement.jsx`
+  - Added "MG & Payout" tab in `CenterAccounts.jsx` showing:
+    - MG Calculation breakdown (Investment, Deductions, Net Investment, Monthly MG)
+    - MG vs Revenue Share comparison cards
+    - Amount Payable determination
+    - GST notice for India when applicable
+
+- ✅ **TESTING:** 100% backend tests passed (14/14), 100% frontend verification
+
+### Previous Update (Mar 23, 2026 - Session 19)
 
 - ✅ **DOORDASH DATA SEEDED FOR PB-PERTH (COMPLETE)**
   - Seeded DoorDash sales data for 23 records in February 2026
