@@ -308,31 +308,30 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     total_commission = total_aggregator_commission + card_commission
     net_revenue = total_sale - total_expenses - total_commission
     
-    # Get franchise details for revenue/profit share
-    revenue_share_percentage = franchise.get("revenue_share_percentage", 15) if franchise else 15
-    profit_share_percentage = franchise.get("royalty_percentage", 20) if franchise else 20
-    working_capital = franchise.get("working_capital", 0) if franchise else 0
-    
     # Calculate share payable based on country
+    # 80% goes to Franchise Owner, 20% goes to Purnabramha LLC
+    franchise_owner_percentage = 80
+    purnabramha_percentage = 20
+    
     if country == "Australia":
         # Australia: Profit share model (% of net profit)
         profit_before_share = net_revenue
-        share_payable = profit_before_share * (profit_share_percentage / 100)
+        purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
+        franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
         share_type = "profit_share"
-        share_percentage = profit_share_percentage
     else:
         # India: Revenue share model (% of total sales)
-        share_payable = total_sale * (revenue_share_percentage / 100)
+        purnabramha_share = total_sale * (purnabramha_percentage / 100)
+        franchise_owner_share = total_sale * (franchise_owner_percentage / 100)
         share_type = "revenue_share"
-        share_percentage = revenue_share_percentage
     
-    # Apply GST on share payable
-    share_with_tax = calculate_taxes(share_payable, country, share_type)
+    # Apply GST on Purnabramha's share (payable by franchise to Purnabramha)
+    purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
     
-    # Calculate working capital remaining
-    # This would typically come from a working capital ledger
-    working_capital_used = total_expenses  # Simplified
-    working_capital_remaining = max(0, working_capital - working_capital_used)
+    # Working Capital - DO NOT touch/calculate
+    # Working capital is security deposit, only show initial amount
+    # Usage will be handled as separate LOAN entries
+    working_capital = franchise.get("working_capital", 0) if franchise else 0
     
     # ==========================================
     # 5. Build Response
@@ -378,18 +377,23 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "total_expenses": round(total_expenses, 2),
             "total_commissions": round(total_commission, 2),
             "net_revenue": round(net_revenue, 2),
-            "working_capital_initial": round(working_capital, 2),
-            "working_capital_remaining": round(working_capital_remaining, 2)
+            "working_capital": round(working_capital, 2)  # Just show initial, no calculation
         },
         "share_calculation": {
             "type": share_type,
-            "percentage": share_percentage,
-            "base_amount": round(share_payable, 2),
-            "gst_rate": share_with_tax.get("gst_amount", 0) / share_payable * 100 if share_payable > 0 else 0,
-            "cgst": share_with_tax.get("cgst", 0),
-            "sgst": share_with_tax.get("sgst", 0),
-            "gst_amount": share_with_tax.get("gst_amount", 0),
-            "total_payable": round(share_with_tax.get("total_with_gst", share_payable), 2)
+            "net_profit_or_sales": round(net_revenue if country == "Australia" else total_sale, 2),
+            "franchise_owner": {
+                "percentage": franchise_owner_percentage,
+                "amount": round(franchise_owner_share, 2)
+            },
+            "purnabramha": {
+                "percentage": purnabramha_percentage,
+                "base_amount": round(purnabramha_share, 2),
+                "cgst": purnabramha_share_with_tax.get("cgst", 0),
+                "sgst": purnabramha_share_with_tax.get("sgst", 0),
+                "gst_amount": purnabramha_share_with_tax.get("gst_amount", 0),
+                "total_payable": round(purnabramha_share_with_tax.get("total_with_gst", purnabramha_share), 2)
+            }
         },
         "tax_rules": {
             "country": country,
@@ -732,8 +736,7 @@ async def generate_pib_report(req: PIBGenerateRequest):
         ["Less: Total Commissions", f"({currency} {fin['total_commissions']:,.2f})"],
         ["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"],
         ["", ""],
-        ["Working Capital (Initial)", f"{currency} {fin['working_capital_initial']:,.2f}"],
-        ["Working Capital (Remaining)", f"{currency} {fin['working_capital_remaining']:,.2f}"],
+        ["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"],
     ]
     
     fin_table = Table(fin_data, colWidths=[280, 170])
@@ -751,31 +754,39 @@ async def generate_pib_report(req: PIBGenerateRequest):
     story.append(fin_table)
     story.append(Spacer(1, 15))
     
-    # Revenue/Profit Share Calculation
+    # Revenue/Profit Share Calculation - 80/20 Split
     share = summary["share_calculation"]
-    story.append(Paragraph(f"5. {share['type'].upper().replace('_', ' ')} CALCULATION", styles['PIBSection']))
+    base_label = "Net Revenue" if share['type'] == 'profit_share' else "Total Sales"
+    story.append(Paragraph(f"5. {share['type'].upper().replace('_', ' ')} CALCULATION (80/20 SPLIT)", styles['PIBSection']))
     
     share_data = [
-        ["Description", "Amount"],
-        [f"Base Amount ({share['percentage']}% of {'Net Revenue' if share['type'] == 'profit_share' else 'Total Sales'})", 
-         f"{currency} {share['base_amount']:,.2f}"],
+        ["Description", "Percentage", "Amount"],
+        [f"{base_label} (Base for Calculation)", "", f"{currency} {share['net_profit_or_sales']:,.2f}"],
+        ["", "", ""],
+        ["FRANCHISE OWNER SHARE", f"{share['franchise_owner']['percentage']}%", f"{currency} {share['franchise_owner']['amount']:,.2f}"],
+        ["", "", ""],
+        ["PURNABRAMHA LLC SHARE", f"{share['purnabramha']['percentage']}%", f"{currency} {share['purnabramha']['base_amount']:,.2f}"],
     ]
     
     if summary["country"] == "India":
-        share_data.append(["Add: CGST (9%)", f"{currency} {share['cgst']:,.2f}"])
-        share_data.append(["Add: SGST (9%)", f"{currency} {share['sgst']:,.2f}"])
+        share_data.append(["  Add: CGST (9%)", "", f"{currency} {share['purnabramha']['cgst']:,.2f}"])
+        share_data.append(["  Add: SGST (9%)", "", f"{currency} {share['purnabramha']['sgst']:,.2f}"])
     else:
-        share_data.append([f"Add: GST ({summary['tax_rules']['share_gst_rate']:.0f}%)", f"{currency} {share['gst_amount']:,.2f}"])
+        share_data.append([f"  Add: GST ({summary['tax_rules']['share_gst_rate']:.0f}%)", "", f"{currency} {share['purnabramha']['gst_amount']:,.2f}"])
     
-    share_data.append(["TOTAL PAYABLE", f"{currency} {share['total_payable']:,.2f}"])
+    share_data.append(["PURNABRAMHA TOTAL (WITH GST)", "", f"{currency} {share['purnabramha']['total_payable']:,.2f}"])
     
-    share_table = Table(share_data, colWidths=[280, 170])
+    share_table = Table(share_data, colWidths=[220, 80, 150])
     share_table.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 3), (-1, 3), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 5), (-1, 5), 'Helvetica-Bold'),
         ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BACKGROUND', (0, 0), (-1, 0), BRAND_NAVY),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor("#e8f5e9")),  # Light green for franchise owner
+        ('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#fff3e0")),  # Light orange for Purnabramha
         ('BACKGROUND', (0, -1), (-1, -1), BRAND_MAROON),
         ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
         ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),

@@ -556,13 +556,10 @@ export default function CenterAccounts() {
                     <div className="space-y-2">
                       <h4 className="font-medium text-gray-600">Working Capital</h4>
                       <div className="flex justify-between text-sm">
-                        <span>Initial</span>
-                        <span>{formatCurrency(accountSummary.financial_summary.working_capital_initial, accountSummary.country)}</span>
+                        <span>Security Deposit</span>
+                        <span className="font-medium">{formatCurrency(accountSummary.financial_summary.working_capital, accountSummary.country)}</span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Remaining</span>
-                        <span className="font-medium text-green-600">{formatCurrency(accountSummary.financial_summary.working_capital_remaining, accountSummary.country)}</span>
-                      </div>
+                      <p className="text-xs text-gray-400 italic">Working capital is kept as security, not auto-deducted</p>
                     </div>
                   </div>
                 </CardContent>
@@ -732,7 +729,7 @@ export default function CenterAccounts() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    {accountSummary.share_calculation.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Calculation
+                    {accountSummary.share_calculation.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Calculation (80/20 Split)
                   </CardTitle>
                   <CardDescription>
                     {accountSummary.country === 'Australia' 
@@ -741,53 +738,93 @@ export default function CenterAccounts() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <div className="space-y-6">
+                    {/* Base Amount */}
                     <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Share Type</span>
-                          <Badge>{accountSummary.share_calculation.type.replace('_', ' ').toUpperCase()}</Badge>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Percentage</span>
-                          <span className="font-medium">{accountSummary.share_calculation.percentage}%</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Base Amount</span>
-                          <span className="font-medium">
-                            {formatCurrency(accountSummary.share_calculation.base_amount, accountSummary.country)}
-                          </span>
-                        </div>
-                        
-                        <hr className="my-2" />
-                        
-                        {accountSummary.country === 'India' ? (
-                          <>
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-500">CGST (9%)</span>
-                              <span>{formatCurrency(accountSummary.share_calculation.cgst, accountSummary.country)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-500">SGST (9%)</span>
-                              <span>{formatCurrency(accountSummary.share_calculation.sgst, accountSummary.country)}</span>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500">GST (10%)</span>
-                            <span>{formatCurrency(accountSummary.share_calculation.gst_amount, accountSummary.country)}</span>
-                          </div>
-                        )}
-                        
-                        <hr className="my-2" />
-                        
-                        <div className="flex justify-between items-center text-lg font-bold">
-                          <span>Total Payable</span>
-                          <span className="text-green-600">
-                            {formatCurrency(accountSummary.share_calculation.total_payable, accountSummary.country)}
-                          </span>
-                        </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">
+                          {accountSummary.share_calculation.type === 'profit_share' ? 'Net Profit (Base)' : 'Total Sales (Base)'}
+                        </span>
+                        <span className="text-xl font-bold">
+                          {formatCurrency(accountSummary.share_calculation.net_profit_or_sales, accountSummary.country)}
+                        </span>
                       </div>
+                    </div>
+
+                    {/* 80/20 Split Cards */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Franchise Owner 80% */}
+                      <Card className="border-2 border-green-200 bg-green-50">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Building2 className="w-5 h-5 text-green-600" />
+                            <h4 className="font-medium text-green-800">Franchise Owner Share</h4>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-green-700">Percentage</span>
+                              <Badge className="bg-green-600 text-white">{accountSummary.share_calculation.franchise_owner?.percentage || 80}%</Badge>
+                            </div>
+                            <div className="flex justify-between text-lg">
+                              <span className="text-green-700">Amount</span>
+                              <span className="font-bold text-green-800">
+                                {formatCurrency(accountSummary.share_calculation.franchise_owner?.amount || 0, accountSummary.country)}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Purnabramha 20% */}
+                      <Card className="border-2 border-orange-200 bg-orange-50">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <DollarSign className="w-5 h-5 text-orange-600" />
+                            <h4 className="font-medium text-orange-800">Purnabramha LLC Share</h4>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-orange-700">Percentage</span>
+                              <Badge className="bg-orange-600 text-white">{accountSummary.share_calculation.purnabramha?.percentage || 20}%</Badge>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-orange-700">Base Amount</span>
+                              <span className="font-medium">
+                                {formatCurrency(accountSummary.share_calculation.purnabramha?.base_amount || 0, accountSummary.country)}
+                              </span>
+                            </div>
+                            
+                            <hr className="border-orange-200 my-2" />
+                            
+                            {accountSummary.country === 'India' ? (
+                              <>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-orange-600">+ CGST (9%)</span>
+                                  <span>{formatCurrency(accountSummary.share_calculation.purnabramha?.cgst || 0, accountSummary.country)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-orange-600">+ SGST (9%)</span>
+                                  <span>{formatCurrency(accountSummary.share_calculation.purnabramha?.sgst || 0, accountSummary.country)}</span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-orange-600">+ GST (10%)</span>
+                                <span>{formatCurrency(accountSummary.share_calculation.purnabramha?.gst_amount || 0, accountSummary.country)}</span>
+                              </div>
+                            )}
+                            
+                            <hr className="border-orange-200 my-2" />
+                            
+                            <div className="flex justify-between text-lg font-bold">
+                              <span className="text-orange-800">Total Payable</span>
+                              <span className="text-orange-900">
+                                {formatCurrency(accountSummary.share_calculation.purnabramha?.total_payable || 0, accountSummary.country)}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
 
                     {/* Tax Rules Info */}
