@@ -409,21 +409,25 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         net_revenue = total_sale - total_expenses - total_commission
     
     # Calculate share payable based on country
-    # Revenue Share % comes from franchise settings (default 15% to Franchise Owner)
-    # Purnabramha gets the remaining percentage
-    franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
-    purnabramha_percentage = 100 - franchise_owner_percentage
+    # India: Revenue Share % from franchise settings (default 15% to Franchise Owner)
+    # Outside India: Fixed 80/20 split (80% to Franchise Owner, 20% to Purnabramha) on Profit
     
     # Check if GST is applicable for India (from franchise settings)
     gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
     
     if country == "India":
         # India: Revenue share model (% of total sales)
+        # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
+        franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
+        purnabramha_percentage = 100 - franchise_owner_percentage
         purnabramha_share = total_sale * (purnabramha_percentage / 100)
         franchise_owner_share = total_sale * (franchise_owner_percentage / 100)
         share_type = "revenue_share"
     else:
-        # Outside India (Australia, etc.): Profit share model (% of net profit after expenses)
+        # Outside India (Australia, etc.): Profit share model - FIXED 80/20 split
+        # 80% to Franchise Owner, 20% to Purnabramha (on net profit)
+        franchise_owner_percentage = 80
+        purnabramha_percentage = 20
         profit_before_share = net_revenue
         purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
         franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
@@ -1412,11 +1416,18 @@ async def get_payout_summary(data: dict = Body(...)):
         
         total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
         
-        # Calculate Purnabramha's share using franchise's revenue_share_percentage
-        # Default: Franchise Owner gets 15%, Purnabramha gets 85%
-        franchise_owner_pct = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
-        purnabramha_pct = 100 - franchise_owner_pct
-        revenue_share = total_sale * (purnabramha_pct / 100)
+        # Calculate Purnabramha's share based on country
+        # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner)
+        # Outside India: Fixed 80/20 split (80% to Franchise Owner, 20% to Purnabramha)
+        franchise_country = franchise.get("country", "India") if franchise else "India"
+        
+        if franchise_country == "India":
+            franchise_owner_pct = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
+            purnabramha_pct = 100 - franchise_owner_pct
+            revenue_share = total_sale * (purnabramha_pct / 100)
+        else:
+            # Outside India: Fixed 20% to Purnabramha on profit (using sales as approximation here)
+            revenue_share = total_sale * 0.20
         
         # Determine payable amount (MG or Revenue Share)
         if mg_amount > revenue_share:
