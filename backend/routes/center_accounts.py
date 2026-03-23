@@ -456,7 +456,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # ==========================================
     mg_data = None
     payable_type = "revenue_share"  # Default
-    payable_amount = purnabramha_share_with_tax.get("total_with_gst", purnabramha_share)
+    # Use the total payable (with GST if applicable) as the revenue share amount for comparison
+    revenue_share_for_comparison = purnabramha_share_with_tax.get("total_with_gst", purnabramha_share)
+    payable_amount = revenue_share_for_comparison  # Default to revenue share
     
     if franchise:
         # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
@@ -476,9 +478,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # Calculate MG (now includes franchise_fee and working_capital as deductions)
         mg_data = calculate_mg(total_investment, setup_costs, franchise_fee, working_capital_val)
         
-        # Determine payable: If MG > Revenue Share, MG is payable, else Revenue Share
+        # Determine payable: If MG > Revenue Share (with GST), MG is payable, else Revenue Share
         monthly_mg = mg_data.get("monthly_mg", 0)
-        if monthly_mg > purnabramha_share:
+        if monthly_mg > revenue_share_for_comparison:
             payable_type = "minimum_guarantee"
             payable_amount = monthly_mg
     
@@ -576,8 +578,8 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "type": payable_type,  # "minimum_guarantee" or "revenue_share"
             "amount": round(payable_amount, 2),
             "mg_amount": round(mg_data.get("monthly_mg", 0), 2) if mg_data else 0,
-            "revenue_share_amount": round(purnabramha_share_with_tax.get("total_with_gst", purnabramha_share), 2),
-            "reason": f"MG ({round(mg_data.get('monthly_mg', 0), 2)}) > Revenue Share ({round(purnabramha_share, 2)})" if payable_type == "minimum_guarantee" else f"Revenue Share ({round(purnabramha_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
+            "revenue_share_amount": round(revenue_share_for_comparison, 2),
+            "reason": f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(revenue_share_for_comparison, 2)})" if payable_type == "minimum_guarantee" else f"Revenue Share ({round(revenue_share_for_comparison, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
         },
         "tax_rules": {
             "country": country,
