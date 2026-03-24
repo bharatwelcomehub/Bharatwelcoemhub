@@ -27,9 +27,18 @@ User had existing HTML/Python files for an attendance and salary management syst
   - Payments are recorded and reflected in real-time
   - Status updates automatically (Paid, Partial, Unpaid)
 
+- ✅ **INLINE EDITABLE EXPENSE TABLE (COMPLETE)**
+  - Made all expense table rows editable inline
+  - Each row now has editable fields: Date, Description, Category, Mode, Amount
+  - "Save All" button appears when any changes are made
+  - "Cancel" button to discard all unsaved changes
+  - Edited rows are highlighted with amber background
+  - Works with existing freeze/lock permissions
+
 - ✅ **TESTING:** All new features verified
   - revenue_share_start_date field: ✓ (saved and used in payout-summary)
   - Payment recording: ✓ (payments recorded and reflected in grid)
+  - Inline expense editing: ✓ (PUT endpoint working)
   - India Net Revenue calculation: ✓ (no expense deduction)
 
 ### Previous Update (Mar 23, 2026 - Session 22)

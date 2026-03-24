@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock } from "lucide-react";
+import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
 
 // Check if center is Perth (Australia) - standardized to PB-PERTH
@@ -60,6 +60,8 @@ export default function ExpenseEntry({ session, selectedCenter }) {
   const [toDate, setToDate] = useState(getTodayStr());
   const [dateMode, setDateMode] = useState("single");  // "single" or "range"
   const [expenses, setExpenses] = useState([]);
+  const [editedExpenses, setEditedExpenses] = useState({});  // Track edited rows by expense_id
+  const [hasChanges, setHasChanges] = useState(false);
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
   const [frozenStatus, setFrozenStatus] = useState({ is_frozen: false, can_edit: true });
@@ -238,6 +240,86 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Handle inline edit for a single field
+  const handleInlineEdit = (expenseId, field, value) => {
+    setEditedExpenses(prev => ({
+      ...prev,
+      [expenseId]: {
+        ...(prev[expenseId] || {}),
+        [field]: value
+      }
+    }));
+    setHasChanges(true);
+  };
+
+  // Get current value (edited or original)
+  const getFieldValue = (expense, field) => {
+    const edited = editedExpenses[expense.expense_id];
+    if (edited && edited[field] !== undefined) {
+      return edited[field];
+    }
+    return expense[field];
+  };
+
+  // Save all edited expenses
+  const handleSaveAll = async () => {
+    if (!hasChanges || Object.keys(editedExpenses).length === 0) {
+      toast.info("No changes to save");
+      return;
+    }
+
+    setSaving(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const [expenseId, changes] of Object.entries(editedExpenses)) {
+        // Find original expense to merge
+        const original = expenses.find(e => e.expense_id === expenseId);
+        if (!original) continue;
+
+        // Prepare update payload
+        const updateData = {
+          description: changes.description !== undefined ? changes.description : original.description,
+          amount: changes.amount !== undefined ? parseFloat(changes.amount) : original.amount,
+          expense_type: changes.expense_type !== undefined ? changes.expense_type : original.expense_type,
+          payment_mode: changes.payment_mode !== undefined ? changes.payment_mode : original.payment_mode,
+          date: changes.date !== undefined ? changes.date : original.date
+        };
+
+        try {
+          await api.put(`/sales/expenses/${expenseId}?token=${session?.token}`, updateData);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to update expense ${expenseId}:`, err);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} expense(s) updated successfully`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} expense(s) failed to update`);
+      }
+
+      // Clear edits and refresh
+      setEditedExpenses({});
+      setHasChanges(false);
+      fetchExpenses();
+    } catch (err) {
+      toast.error("Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Cancel all edits
+  const handleCancelEdits = () => {
+    setEditedExpenses({});
+    setHasChanges(false);
   };
 
   // Calculate total
@@ -466,51 +548,155 @@ export default function ExpenseEntry({ session, selectedCenter }) {
         </Card>
       )}
 
-      {/* Expenses List */}
+      {/* Expenses List - Editable Table */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            {dateMode === "single" 
-              ? `Expenses for ${new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
-              : `Expenses from ${new Date(fromDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} to ${new Date(toDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
-            }
-            <span className="ml-2 text-sm font-normal text-muted-foreground">({expenses.length} entries)</span>
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">
+              {dateMode === "single" 
+                ? `Expenses for ${new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                : `Expenses from ${new Date(fromDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} to ${new Date(toDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+              }
+              <span className="ml-2 text-sm font-normal text-muted-foreground">({expenses.length} entries)</span>
+            </CardTitle>
+            
+            {/* Save All / Cancel Buttons */}
+            {hasChanges && frozenStatus.can_edit && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelEdits}
+                  className="gap-1"
+                  data-testid="cancel-edits-btn"
+                >
+                  <X className="w-4 h-4" /> Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveAll}
+                  disabled={saving}
+                  className="gap-1 bg-green-600 hover:bg-green-700"
+                  data-testid="save-all-btn"
+                >
+                  <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save All"}
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">#</th>
-                  {dateMode === "range" && (
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
-                  )}
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-10">#</th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28">Date</th>
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">Description</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Category</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Mode</th>
-                  <th className="text-right py-3 px-2 font-medium text-muted-foreground">Amount</th>
-                  <th className="text-center py-3 px-2 font-medium text-muted-foreground">
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-40">Category</th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-36">Mode</th>
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-28">Amount</th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-16">
                     {frozenStatus.can_edit ? 'Delete' : ''}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {expenses.map((exp, idx) => (
-                  <tr key={exp.expense_id || idx} className="border-b border-border/50 hover:bg-muted/50">
-                    <td className="py-3 px-2 text-muted-foreground">{idx + 1}</td>
-                    {dateMode === "range" && (
-                      <td className="py-3 px-2 text-sm text-muted-foreground">
-                        {exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-'}
-                      </td>
-                    )}
-                    <td className="py-3 px-2">{exp.description}</td>
-                    <td className="py-3 px-2">
-                      <span className="px-2 py-1 rounded-full text-xs bg-muted">{exp.expense_type}</span>
+                  <tr key={exp.expense_id || idx} className={`border-b border-border/50 ${editedExpenses[exp.expense_id] ? 'bg-amber-50/50' : 'hover:bg-muted/50'}`}>
+                    <td className="py-2 px-2 text-muted-foreground">{idx + 1}</td>
+                    
+                    {/* Date - Editable */}
+                    <td className="py-2 px-2">
+                      {frozenStatus.can_edit ? (
+                        <Input
+                          type="date"
+                          value={getFieldValue(exp, 'date')?.substring(0, 10) || ''}
+                          onChange={(e) => handleInlineEdit(exp.expense_id, 'date', e.target.value)}
+                          className="h-8 text-xs"
+                          data-testid={`edit-date-${idx}`}
+                        />
+                      ) : (
+                        <span className="text-sm">
+                          {exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-'}
+                        </span>
+                      )}
                     </td>
-                    <td className="py-3 px-2 text-xs">{exp.payment_mode}</td>
-                    <td className="text-right py-3 px-2 font-medium">{formatCurrency(exp.amount, centerCode)}</td>
-                    <td className="text-right py-3 px-2">
+                    
+                    {/* Description - Editable */}
+                    <td className="py-2 px-2">
+                      {frozenStatus.can_edit ? (
+                        <Input
+                          type="text"
+                          value={getFieldValue(exp, 'description') || ''}
+                          onChange={(e) => handleInlineEdit(exp.expense_id, 'description', e.target.value)}
+                          className="h-8 text-xs"
+                          data-testid={`edit-description-${idx}`}
+                        />
+                      ) : (
+                        <span>{exp.description}</span>
+                      )}
+                    </td>
+                    
+                    {/* Category - Editable */}
+                    <td className="py-2 px-2">
+                      {frozenStatus.can_edit ? (
+                        <Select
+                          value={getFieldValue(exp, 'expense_type') || ''}
+                          onValueChange={(val) => handleInlineEdit(exp.expense_id, 'expense_type', val)}
+                        >
+                          <SelectTrigger className="h-8 text-xs" data-testid={`edit-category-${idx}`}>
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {expenseTypes.map(type => (
+                              <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full text-xs bg-muted">{exp.expense_type}</span>
+                      )}
+                    </td>
+                    
+                    {/* Payment Mode - Editable */}
+                    <td className="py-2 px-2">
+                      {frozenStatus.can_edit ? (
+                        <Select
+                          value={getFieldValue(exp, 'payment_mode') || ''}
+                          onValueChange={(val) => handleInlineEdit(exp.expense_id, 'payment_mode', val)}
+                        >
+                          <SelectTrigger className="h-8 text-xs" data-testid={`edit-mode-${idx}`}>
+                            <SelectValue placeholder="Mode" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {paymentModes.map(mode => (
+                              <SelectItem key={mode} value={mode}>{mode}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-xs">{exp.payment_mode}</span>
+                      )}
+                    </td>
+                    
+                    {/* Amount - Editable */}
+                    <td className="py-2 px-2 text-right">
+                      {frozenStatus.can_edit ? (
+                        <Input
+                          type="number"
+                          value={getFieldValue(exp, 'amount') || ''}
+                          onChange={(e) => handleInlineEdit(exp.expense_id, 'amount', e.target.value)}
+                          className="h-8 text-xs text-right"
+                          data-testid={`edit-amount-${idx}`}
+                        />
+                      ) : (
+                        <span className="font-medium">{formatCurrency(exp.amount, centerCode)}</span>
+                      )}
+                    </td>
+                    
+                    {/* Delete */}
+                    <td className="text-center py-2 px-2">
                       {frozenStatus.can_edit ? (
                         <Button
                           variant="ghost"
@@ -530,7 +716,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 ))}
                 {expenses.length === 0 && (
                   <tr>
-                    <td colSpan={dateMode === "range" ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">
                       No expenses recorded for this {dateMode === "range" ? "period" : "date"}
                     </td>
                   </tr>
@@ -539,7 +725,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               {expenses.length > 0 && (
                 <tfoot>
                   <tr className="bg-muted/50">
-                    <td colSpan={dateMode === "range" ? 5 : 4} className="py-3 px-2 font-bold text-right">Total:</td>
+                    <td colSpan={5} className="py-3 px-2 font-bold text-right">Total:</td>
                     <td className="py-3 px-2 font-bold text-right text-red-500">{formatCurrency(totalExpenses, centerCode)}</td>
                     <td></td>
                   </tr>
@@ -547,6 +733,28 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               )}
             </table>
           </div>
+          
+          {/* Save All button at bottom for convenience */}
+          {hasChanges && frozenStatus.can_edit && expenses.length > 5 && (
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelEdits}
+                className="gap-1"
+              >
+                <X className="w-4 h-4" /> Cancel Changes
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveAll}
+                disabled={saving}
+                className="gap-1 bg-green-600 hover:bg-green-700"
+              >
+                <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save All Changes"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
