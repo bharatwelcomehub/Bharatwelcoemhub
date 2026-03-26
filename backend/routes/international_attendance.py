@@ -77,6 +77,23 @@ class MonthlyReportRequest(BaseModel):
 # HELPER FUNCTIONS
 # =======================================
 
+def normalize_center_code(center: str) -> str:
+    """Normalize center code by stripping trailing hyphens/spaces.
+    In production, centers collection may have 'PB-PERTH-' while employees have 'PB-PERTH'."""
+    return center.upper().rstrip("- ")
+
+def center_code_variants(center: str) -> list:
+    """Return both normalized and original variants for querying across collections."""
+    original = center.upper().strip()
+    normalized = original.rstrip("- ")
+    variants = [normalized]
+    if original != normalized:
+        variants.append(original)
+    # Also try with trailing hyphen in case employees have it
+    if not normalized.endswith("-"):
+        variants.append(normalized + "-")
+    return list(set(variants))
+
 def get_week_dates(year: int, month: int, week: int) -> List[str]:
     """Get dates for a specific week of a month (Mon-Sun)"""
     from calendar import monthrange
@@ -178,9 +195,10 @@ async def get_international_employees(req: CenterRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Query for casual employees at the specified center
+    # Query for casual employees at the specified center (handle PB-PERTH vs PB-PERTH- mismatch)
+    variants = center_code_variants(req.center)
     query = {
-        "center": req.center.upper(),
+        "center": {"$in": variants},
         "$or": [
             {"employment_type": {"$in": ["CASUAL", "Casual", "casual"]}},
             {"category": {"$regex": "CASUAL", "$options": "i"}}
@@ -216,9 +234,10 @@ async def get_week_attendance(req: WeekAttendanceRequest):
     employees_result = await get_international_employees(CenterRequest(token=req.token, center=req.center))
     employees = employees_result["employees"]
     
-    # Get attendance records for these dates
+    # Get attendance records for these dates (use variants for center code mismatch)
+    variants = center_code_variants(req.center)
     attendance_records = await db.international_attendance.find({
-        "center": req.center.upper(),
+        "center": {"$in": variants},
         "date": {"$in": valid_dates}
     }, {"_id": 0}).to_list(5000)
     
@@ -297,6 +316,10 @@ async def save_attendance(req: SaveAttendanceRequest):
     week_dates = get_week_dates(req.year, req.month, req.week)
     day_names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
     
+    # Use normalized center code for saving (strip trailing hyphens)
+    save_center = normalize_center_code(req.center)
+    search_variants = center_code_variants(req.center)
+    
     saved_count = 0
     warnings = []
     
@@ -320,17 +343,17 @@ async def save_attendance(req: SaveAttendanceRequest):
             if hours > MAX_HOURS_PER_DAY:
                 warnings.append(f"{entry.employee_id}: Hours exceed {MAX_HOURS_PER_DAY} for {day}")
             
-            # Upsert record
+            # Upsert record - search with variants, save with normalized code
             await db.international_attendance.update_one(
                 {
                     "employee_id": entry.employee_id,
-                    "center": req.center.upper(),
+                    "center": {"$in": search_variants},
                     "date": date
                 },
                 {
                     "$set": {
                         "employee_id": entry.employee_id,
-                        "center": req.center.upper(),
+                        "center": save_center,
                         "date": date,
                         "hours_worked": hours,
                         "week_number": req.week,
@@ -374,8 +397,9 @@ async def get_monthly_report(req: MonthlyReportRequest):
     start_date = f"{req.year}-{req.month:02d}-01"
     end_date = f"{req.year}-{req.month:02d}-{last_day:02d}"
     
+    variants = center_code_variants(req.center)
     attendance_records = await db.international_attendance.find({
-        "center": req.center.upper(),
+        "center": {"$in": variants},
         "date": {"$gte": start_date, "$lte": end_date}
     }, {"_id": 0}).to_list(10000)
     
@@ -574,8 +598,9 @@ async def export_attendance_sheet(req: MonthlyReportRequest):
     start_date = f"{req.year}-{req.month:02d}-01"
     end_date = f"{req.year}-{req.month:02d}-{last_day:02d}"
     
+    variants = center_code_variants(req.center)
     attendance_records = await db.international_attendance.find({
-        "center": req.center.upper(),
+        "center": {"$in": variants},
         "date": {"$gte": start_date, "$lte": end_date}
     }, {"_id": 0}).to_list(10000)
     
@@ -649,21 +674,24 @@ async def update_hourly_rate(req: UpdateRateRequest):
     
     # Only MGT or same center manager can update rates
     user_center = session.get("center", "")
-    if user_center != "PB-MGT" and user_center != req.center.upper():
+    normalized_req_center = normalize_center_code(req.center)
+    normalized_user_center = normalize_center_code(user_center)
+    if normalized_user_center != "PB-MGT" and normalized_user_center != normalized_req_center:
         raise HTTPException(403, "Not authorized to update rates for this center")
     
     if req.new_rate < 0:
         raise HTTPException(400, "Hourly rate cannot be negative")
     
-    # Try multiple ID fields since employee docs may use different keys
+    # Try multiple ID fields and center variants since employee docs may use different keys
+    variants = center_code_variants(req.center)
     result = await db.employees.update_one(
-        {"employee_id": req.employee_id, "center": req.center.upper()},
+        {"employee_id": req.employee_id, "center": {"$in": variants}},
         {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.modified_count == 0:
         result = await db.employees.update_one(
-            {"id": req.employee_id, "center": req.center.upper()},
+            {"id": req.employee_id, "center": {"$in": variants}},
             {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
     
@@ -671,8 +699,8 @@ async def update_hourly_rate(req: UpdateRateRequest):
         # Check if employee exists but rate is same
         emp = await db.employees.find_one(
             {"$or": [
-                {"employee_id": req.employee_id, "center": req.center.upper()},
-                {"id": req.employee_id, "center": req.center.upper()}
+                {"employee_id": req.employee_id, "center": {"$in": variants}},
+                {"id": req.employee_id, "center": {"$in": variants}}
             ]},
             {"_id": 0, "hourly_rate": 1}
         )

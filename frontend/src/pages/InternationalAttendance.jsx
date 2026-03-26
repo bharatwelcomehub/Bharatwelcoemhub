@@ -582,7 +582,7 @@ export default function InternationalAttendance() {
                 ) : employees.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>No casual employees found for {selectedCenter}</p>
+                    <p>No casual employees found for {selectedCenter?.replace(/-$/, '')}</p>
                     <p className="text-sm mt-1">Employees must have category: CASUAL-KITCHEN or CASUAL-SERVICE</p>
                   </div>
                 ) : (
