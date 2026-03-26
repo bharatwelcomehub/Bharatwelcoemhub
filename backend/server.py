@@ -2123,6 +2123,7 @@ async def mgt_center_create(data: dict):
         "email": data.get("email", "").strip(),
         "address": data.get("address", "").strip(),
         "active": data.get("active", True),
+        "is_india_center": data.get("is_india_center", True),
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     
@@ -2154,6 +2155,8 @@ async def mgt_center_update(data: dict):
         update_data["address"] = data["address"].strip()
     if "active" in data and data["active"] is not None:
         update_data["active"] = data["active"]
+    if "is_india_center" in data and data["is_india_center"] is not None:
+        update_data["is_india_center"] = data["is_india_center"]
     
     result = await db.centers.update_one({"code": code}, {"$set": update_data})
     
@@ -3242,7 +3245,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_cleanup_centers():
-    """Auto-cleanup: normalize center codes (strip trailing hyphens) and remove duplicates"""
+    """Auto-cleanup: normalize center codes, remove duplicates, set is_india_center flag"""
     try:
         all_centers = await db.centers.find({}).to_list(500)
         
@@ -3266,13 +3269,28 @@ async def startup_cleanup_centers():
         for code, entries in code_map.items():
             if len(entries) <= 1:
                 continue
-            # Score by non-empty fields - keep richest entry
             def score(entry):
                 return sum(1 for k, v in entry.items() if k != "_id" and v and str(v).strip())
             entries.sort(key=score, reverse=True)
             for dup in entries[1:]:
                 await db.centers.delete_one({"_id": dup["_id"]})
                 logger.info(f"Startup dedup: removed duplicate center '{code}' (_id={dup['_id']})")
+        
+        # Step 3: Auto-set is_india_center flag for centers that don't have it
+        # Known non-India centers: PERTH and any with country set to non-India
+        all_centers = await db.centers.find({}).to_list(500)
+        for c in all_centers:
+            if "is_india_center" not in c:
+                code = c.get("code", "")
+                country = c.get("country", "")
+                # Non-India if: has non-India country, or code contains PERTH
+                is_india = True
+                if country and country.lower() not in ("india", ""):
+                    is_india = False
+                if "PERTH" in code.upper():
+                    is_india = False
+                await db.centers.update_one({"_id": c["_id"]}, {"$set": {"is_india_center": is_india}})
+                logger.info(f"Startup: set is_india_center={is_india} for {code}")
     except Exception as e:
         logger.warning(f"Startup cleanup failed: {e}")
 

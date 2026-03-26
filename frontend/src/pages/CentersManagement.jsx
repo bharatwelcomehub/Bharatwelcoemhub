@@ -41,7 +41,8 @@ export default function CentersManagement() {
     phone: "",
     email: "",
     address: "",
-    active: true
+    active: true,
+    is_india_center: true
   });
 
   useEffect(() => {
@@ -67,7 +68,8 @@ export default function CentersManagement() {
       phone: "",
       email: "",
       address: "",
-      active: true
+      active: true,
+      is_india_center: true
     });
   };
 
@@ -102,7 +104,8 @@ export default function CentersManagement() {
       phone: center.phone || "",
       email: center.email || "",
       address: center.address || "",
-      active: center.active !== false
+      active: center.active !== false,
+      is_india_center: center.is_india_center !== false
     });
     setShowEditDialog(true);
   };
@@ -234,6 +237,14 @@ export default function CentersManagement() {
                   onCheckedChange={(checked) => setFormData({...formData, active: checked})}
                 />
               </div>
+              <div className="flex items-center justify-between">
+                <Label>Is India Center?</Label>
+                <Switch
+                  data-testid="is-india-center-toggle"
+                  checked={formData.is_india_center}
+                  onCheckedChange={(checked) => setFormData({...formData, is_india_center: checked})}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
@@ -309,6 +320,9 @@ export default function CentersManagement() {
                         <Badge variant={center.active !== false ? "default" : "secondary"}>
                           {center.active !== false ? "Active" : "Inactive"}
                         </Badge>
+                        {center.is_india_center === false && (
+                          <Badge variant="outline" className="ml-1 text-xs">Intl</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -392,6 +406,13 @@ export default function CentersManagement() {
               <Switch
                 checked={formData.active}
                 onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Is India Center?</Label>
+              <Switch
+                checked={formData.is_india_center}
+                onCheckedChange={(checked) => setFormData({...formData, is_india_center: checked})}
               />
             </div>
           </div>

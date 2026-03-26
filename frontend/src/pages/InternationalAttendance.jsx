@@ -62,10 +62,16 @@ const DAY_NAMES = {
 export default function InternationalAttendance() {
   const { session } = useAuth();
   const isMGT = session?.center === "PB-MGT";
+  const isSuperAdmin = session?.is_super_admin === true;
+  const isAdmin = session?.is_admin === true;
+  const isAdminOrSuper = isSuperAdmin || isAdmin;
   
   // Center selection
   const [centers, setCenters] = useState([]);
   const [selectedCenter, setSelectedCenter] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [accessError, setAccessError] = useState("");
   
   // Week selection
   const [year, setYear] = useState(getCurrentYear());
@@ -94,17 +100,29 @@ export default function InternationalAttendance() {
   const [editRateValue, setEditRateValue] = useState("");
   const [editRateSaving, setEditRateSaving] = useState(false);
 
-  // Fetch international centers
+  // Fetch international centers with RBAC
   useEffect(() => {
     const fetchCenters = async () => {
       try {
         const res = await fetch(`${API}/api/international-attendance/centers?token=${session?.token}`);
+        if (res.status === 403) {
+          setAccessDenied(true);
+          const err = await res.json();
+          setAccessError(err.detail || "Access denied");
+          return;
+        }
         const data = await res.json();
         if (data.success && data.centers) {
           setCenters(data.centers);
-          // Auto-select Perth or first center
-          const perth = data.centers.find(c => c.code === "PB-PERTH");
-          setSelectedCenter(perth?.code || data.centers[0]?.code || "");
+          setShowDropdown(data.show_dropdown !== false);
+          // Auto-select first center (or Perth for admin)
+          if (data.show_dropdown) {
+            const perth = data.centers.find(c => c.code === "PB-PERTH");
+            setSelectedCenter(perth?.code || data.centers[0]?.code || "");
+          } else {
+            // Center manager — auto-select their center
+            setSelectedCenter(data.centers[0]?.code || "");
+          }
         }
       } catch (err) {
         console.error("Failed to fetch centers:", err);
@@ -443,6 +461,19 @@ export default function InternationalAttendance() {
   // Current summary (with edits)
   const currentSummary = hasChanges ? calculateSummary() : summary;
 
+  // Access denied for India center managers
+  if (accessDenied) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <AlertTriangle className="w-12 h-12 mx-auto text-amber-500" />
+          <h2 className="text-xl font-bold">Access Restricted</h2>
+          <p className="text-muted-foreground">{accessError || "International Attendance is only available for international centers."}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -454,26 +485,33 @@ export default function InternationalAttendance() {
               International Attendance
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Hours-based attendance for Perth & international centers
+              Hours-based attendance for international centers
             </p>
           </div>
           
-          {/* Center Selector */}
-          <div className="flex items-center gap-3">
-            <Label className="text-sm font-medium">Center:</Label>
-            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-              <SelectTrigger className="w-48" data-testid="center-select">
-                <SelectValue placeholder="Select center" />
-              </SelectTrigger>
-              <SelectContent>
-                {centers.map(c => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.code} - {c.city}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Center Selector - only for Admin/Super Admin */}
+          {showDropdown ? (
+            <div className="flex items-center gap-3">
+              <Label className="text-sm font-medium">Center:</Label>
+              <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+                <SelectTrigger className="w-56" data-testid="center-select">
+                  <SelectValue placeholder="Select center" />
+                </SelectTrigger>
+                <SelectContent>
+                  {centers.map(c => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.code} - {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-sm font-mono">{selectedCenter}</Badge>
+              <span className="text-sm text-muted-foreground">{centers[0]?.name}</span>
+            </div>
+          )}
         </div>
 
         {/* Main Tabs */}

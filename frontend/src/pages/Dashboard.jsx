@@ -62,7 +62,7 @@ const menuCategories = [
     roleKey: "attendance",
     items: [
       { path: "/", icon: Calendar, label: "India Centers", roleKey: "attendance" },
-      { path: "/international-attendance", icon: Globe, label: "International", roleKey: "attendance" },
+      { path: "/international-attendance", icon: Globe, label: "International", roleKey: "attendance", forInternational: true },
       { path: "/attendance-dashboard", icon: BarChart3, label: "Attendance Dashboard", forAdmin: true },
     ]
   },
@@ -177,25 +177,35 @@ export default function Dashboard() {
     if (isSuperAdmin) return true; // Super Admin has full access
     if (item.forMGT) return isSuperAdmin; // MGT-only items require Super Admin
     if (item.forAdmin) {
-      // Admin items accessible to Admin or Super Admin
       return isAdmin || isSuperAdmin;
     }
+    if (item.forInternational) {
+      // International items: visible to Admin, Super Admin, and international center managers
+      // NOT visible to India center managers
+      if (isAdmin || isSuperAdmin) return true;
+      // Check session for center info - allow if not an India center
+      // We rely on the backend to reject India centers, but hide from sidebar too
+      const centerCode = session?.center || "";
+      // If center has is_india_center flag from session, use it
+      if (session?.is_india_center === false) return true;
+      if (session?.is_india_center === true) return false;
+      // Default: show for non-standard centers (PERTH etc), hide for common India centers
+      const indiaCodes = ["PB-HSR", "PB-TH", "PB-SN", "PB-DV", "PB-HW", "PB-KN", "PB-KAL"];
+      return !indiaCodes.includes(centerCode);
+    }
     if (item.forFranchise) {
-      // Franchise items accessible to Admin or users with franchise role
       return isAdmin || userRoles.franchise === true;
     }
     if (item.forAccounts) {
-      // Accounts items accessible to Admin or Accounting role
       return isAdmin || userRoles.accounting === true;
     }
     if (item.roleKey) {
-      // Special case: Accounting role gets sales_cash access
       if (item.roleKey === "sales_cash" && userRoles.accounting) {
         return true;
       }
       return userRoles[item.roleKey] === true;
     }
-    return true; // Items without roleKey are accessible by default
+    return true;
   };
 
   // Check if user has access to a category

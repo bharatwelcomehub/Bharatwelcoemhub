@@ -78,8 +78,7 @@ class MonthlyReportRequest(BaseModel):
 # =======================================
 
 def normalize_center_code(center: str) -> str:
-    """Normalize center code by stripping trailing hyphens/spaces.
-    In production, centers collection may have 'PB-PERTH-' while employees have 'PB-PERTH'."""
+    """Normalize center code by stripping trailing hyphens/spaces."""
     return center.upper().rstrip("- ")
 
 def center_code_variants(center: str) -> list:
@@ -89,10 +88,40 @@ def center_code_variants(center: str) -> list:
     variants = [normalized]
     if original != normalized:
         variants.append(original)
-    # Also try with trailing hyphen in case employees have it
     if not normalized.endswith("-"):
         variants.append(normalized + "-")
     return list(set(variants))
+
+async def check_international_access(session: dict, requested_center: str = None) -> dict:
+    """Verify user has access to international attendance.
+    Returns: {"allowed": bool, "is_admin": bool, "user_center": str, "error": str}
+    """
+    user_center = normalize_center_code(session.get("center", ""))
+    is_super_admin = session.get("is_super_admin", False)
+    is_admin = session.get("is_admin", False)
+    
+    if is_super_admin or is_admin:
+        return {"allowed": True, "is_admin": True, "user_center": user_center}
+    
+    # Check if user's center is international
+    user_center_doc = await db.centers.find_one(
+        {"code": {"$in": center_code_variants(user_center)}},
+        {"_id": 0, "code": 1, "is_india_center": 1}
+    )
+    
+    if not user_center_doc:
+        return {"allowed": False, "is_admin": False, "user_center": user_center, "error": "Center not found"}
+    
+    if user_center_doc.get("is_india_center", True):
+        return {"allowed": False, "is_admin": False, "user_center": user_center, "error": "International Attendance not available for India centers"}
+    
+    # International center manager: can only access own center
+    if requested_center:
+        req_normalized = normalize_center_code(requested_center)
+        if req_normalized != normalize_center_code(user_center_doc.get("code", "")):
+            return {"allowed": False, "is_admin": False, "user_center": user_center, "error": "You can only access your own center's attendance"}
+    
+    return {"allowed": True, "is_admin": False, "user_center": user_center_doc.get("code", user_center)}
 
 def get_week_dates(year: int, month: int, week: int) -> List[str]:
     """Get dates for a specific week of a month (Mon-Sun)"""
@@ -148,7 +177,11 @@ def calculate_weeks_in_month(year: int, month: int) -> int:
 
 @router.get("/centers")
 async def get_international_centers(token: str):
-    """Get list of all centers (consistent with other screens)"""
+    """Get international centers based on user role:
+    - Super Admin / Admin: all international centers (is_india_center=false)
+    - International center manager: only their own center
+    - India center manager: 403 forbidden
+    """
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
@@ -156,13 +189,36 @@ async def get_international_centers(token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Get ALL centers from DB - same source as management and sales screens
-    centers = await db.centers.find(
-        {},
-        {"_id": 0, "code": 1, "name": 1, "country": 1, "city": 1}
-    ).sort("code", 1).to_list(100)
+    user_center = normalize_center_code(session.get("center", ""))
+    is_super_admin = session.get("is_super_admin", False)
+    is_admin = session.get("is_admin", False)
     
-    return {"success": True, "centers": centers}
+    if is_super_admin or is_admin:
+        # Admin/Super Admin: return all international centers
+        centers = await db.centers.find(
+            {"is_india_center": {"$ne": True}},
+            {"_id": 0, "code": 1, "name": 1, "country": 1, "city": 1, "is_india_center": 1}
+        ).sort("code", 1).to_list(100)
+        return {"success": True, "centers": centers, "show_dropdown": True}
+    
+    # Regular manager: check if their center is international
+    user_center_doc = await db.centers.find_one(
+        {"code": {"$in": center_code_variants(user_center)}},
+        {"_id": 0, "code": 1, "name": 1, "country": 1, "is_india_center": 1}
+    )
+    
+    if not user_center_doc:
+        raise HTTPException(404, "Your center not found")
+    
+    if user_center_doc.get("is_india_center", True):
+        raise HTTPException(403, "International Attendance is not available for India centers")
+    
+    # International center manager: return only their center
+    return {
+        "success": True, 
+        "centers": [user_center_doc],
+        "show_dropdown": False  # No dropdown for center managers
+    }
 
 @router.post("/employees")
 async def get_international_employees(req: CenterRequest):
@@ -173,6 +229,11 @@ async def get_international_employees(req: CenterRequest):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
+    
+    # Access control
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
     
     # Query ALL employees at the specified center (handle PB-PERTH vs PB-PERTH- mismatch)
     variants = center_code_variants(req.center)
@@ -225,6 +286,11 @@ async def get_week_attendance(req: WeekAttendanceRequest):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
+    
+    # Access control
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
     
     # Get week dates
     week_dates = get_week_dates(req.year, req.month, req.week)
@@ -312,6 +378,11 @@ async def save_attendance(req: SaveAttendanceRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
+    # Access control
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
+    
     # Get week dates
     week_dates = get_week_dates(req.year, req.month, req.week)
     day_names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -389,6 +460,11 @@ async def get_monthly_report(req: MonthlyReportRequest):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
+    
+    # Access control
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
     
     # Get all attendance for the month
     from calendar import monthrange
@@ -476,6 +552,11 @@ async def export_weekly_excel(req: WeekAttendanceRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
+    # Access control
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
+    
     # Get week data
     week_data = await get_week_attendance(req)
     
@@ -539,6 +620,11 @@ async def export_monthly_excel(req: MonthlyReportRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
+    # Access control (checked again inside get_monthly_report, but early exit here)
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
+    
     # Get monthly data
     monthly_data = await get_monthly_report(req)
     
@@ -590,6 +676,11 @@ async def export_attendance_sheet(req: MonthlyReportRequest):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
+    
+    # Access control
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
     
     from calendar import monthrange
     _, last_day = monthrange(req.year, req.month)
