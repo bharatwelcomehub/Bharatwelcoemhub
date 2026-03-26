@@ -3179,6 +3179,12 @@ set_attachments_db(db)
 set_attachments_verify_token(verify_token)
 app.include_router(attachments_router)
 
+# Include International Attendance router (Perth, etc.)
+from routes.international_attendance import router as intl_attendance_router, set_db as set_intl_attendance_db, set_verify_token as set_intl_attendance_verify_token
+set_intl_attendance_db(db)
+set_intl_attendance_verify_token(verify_token)
+app.include_router(intl_attendance_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

@@ -10,6 +10,18 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ### Latest Update (Mar 26, 2026 - Session 24)
 
+- ✅ **INTERNATIONAL ATTENDANCE MODULE (COMPLETE)**
+  - New "International" tab under Attendance menu for Perth & future centers
+  - Hours-based attendance (not present/absent like India)
+  - Weekly attendance sheet with Mon-Sun columns
+  - Automatic salary calculation: Hours × Hourly Rate
+  - Employee hourly rate pulled from Employee Master (managers don't enter rates)
+  - Validation: Max 16 hours/day, no negative hours
+  - Weekly summary panel: Total Staff, Total Hours, Total Payroll
+  - Monthly summary combining all weeks
+  - Export options: Weekly CSV, Monthly CSV, Full Attendance Sheet
+  - Supports future centers: Sydney, Melbourne, Auckland, Dubai, London
+
 - ✅ **EXPENSE BILL ATTACHMENT FEATURE (COMPLETE)**
   - Upload button on each expense row (supports PDF up to 10MB, images up to 5MB)
   - Attachment status column: "Attached", "Attached via Group", "Missing"
@@ -30,15 +42,10 @@ User had existing HTML/Python files for an attendance and salary management syst
   - Audit report with summary: Total, Attached, Missing, Grouped, Mismatched
   - Table view with "Uploaded By" column for audit trail
   - Missing attachments highlighted in red, mismatches in amber
-  - ZIP export with structured folders: `Center/Month/Grouped_Invoices/` & `Individual_Expenses/`
-  - Includes CSV files: expense_register, grouped_invoice_summary, missing_attachment_report
+  - ZIP export with structured folders
   - **Auto-splits into 3-month batches** when date range > 3 months
 
-- ✅ **TESTING:** All new features verified
-  - Expense attachment status in list: ✓
-  - Invoice group creation: ✓
-  - Audit report generation: ✓
-  - ZIP batching (>3 months): ✓
+- ✅ **TESTING:** All features verified via API tests
 
 ### Previous Update (Mar 23, 2026 - Session 23)
 
