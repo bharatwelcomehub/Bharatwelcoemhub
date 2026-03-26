@@ -3240,6 +3240,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_dedup_centers():
+    """Auto-cleanup duplicate centers on startup"""
+    try:
+        all_centers = await db.centers.find({}).to_list(500)
+        code_map = {}
+        for c in all_centers:
+            code = c.get("code", "")
+            if code not in code_map:
+                code_map[code] = []
+            code_map[code].append(c)
+        
+        for code, entries in code_map.items():
+            if len(entries) <= 1:
+                continue
+            # Score by non-empty fields - keep richest entry
+            def score(entry):
+                return sum(1 for k, v in entry.items() if k != "_id" and v and str(v).strip())
+            entries.sort(key=score, reverse=True)
+            for dup in entries[1:]:
+                await db.centers.delete_one({"_id": dup["_id"]})
+                logger.info(f"Startup dedup: removed duplicate center '{code}' (_id={dup['_id']})")
+    except Exception as e:
+        logger.warning(f"Startup dedup failed: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
