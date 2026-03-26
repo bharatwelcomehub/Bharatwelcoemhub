@@ -148,7 +148,7 @@ def calculate_weeks_in_month(year: int, month: int) -> int:
 
 @router.get("/centers")
 async def get_international_centers(token: str):
-    """Get list of international centers"""
+    """Get list of all centers (consistent with other screens)"""
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
@@ -156,34 +156,13 @@ async def get_international_centers(token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Get centers that are outside India (have country field set and not "India")
+    # Get ALL centers from DB - same source as management and sales screens
     centers = await db.centers.find(
-        {
-            "$and": [
-                {"country": {"$exists": True}},
-                {"country": {"$ne": "India"}},
-                {"country": {"$ne": ""}},
-                {"country": {"$ne": None}}
-            ]
-        },
+        {},
         {"_id": 0, "code": 1, "name": 1, "country": 1, "city": 1}
-    ).to_list(100)
+    ).sort("code", 1).to_list(100)
     
-    # Remove duplicates
-    seen = set()
-    unique_centers = []
-    for c in centers:
-        if c.get("code") not in seen:
-            seen.add(c.get("code"))
-            unique_centers.append(c)
-    
-    # If no centers found, return Perth as default
-    if not unique_centers:
-        unique_centers = [
-            {"code": "PB-PERTH", "name": "Purnabramha Perth", "country": "Australia", "city": "Perth"}
-        ]
-    
-    return {"success": True, "centers": unique_centers}
+    return {"success": True, "centers": centers}
 
 @router.post("/employees")
 async def get_international_employees(req: CenterRequest):

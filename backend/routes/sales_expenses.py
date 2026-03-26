@@ -1527,28 +1527,14 @@ async def get_payment_modes():
 
 @router.get("/centers-list")
 async def get_centers_for_sales():
-    """Get list of centers with their full names from centers collection"""
-    # Get centers that have sales data
-    active_center_codes = await db.daily_sales.distinct("center")
-    
-    # Get full center info from centers collection
+    """Get list of ALL centers from centers collection (same source as management)"""
+    # Get ALL centers from DB - consistent across all screens
     centers_info = await db.centers.find(
-        {"code": {"$in": active_center_codes}},
+        {},
         {"_id": 0, "code": 1, "name": 1}
-    ).to_list(100)
+    ).sort("code", 1).to_list(100)
     
-    # Create a map for quick lookup
-    centers_map = {c["code"]: c["name"] for c in centers_info}
-    
-    # Return centers with both code and name
-    result = []
-    for code in sorted(active_center_codes):
-        result.append({
-            "code": code,
-            "name": centers_map.get(code, code)  # Fallback to code if name not found
-        })
-    
-    return {"centers": result}
+    return {"centers": centers_info}
 
 @router.get("/debug-data")
 async def debug_sales_data():
