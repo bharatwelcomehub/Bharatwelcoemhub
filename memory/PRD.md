@@ -1,72 +1,79 @@
 # Purnabramha IntraPB - Product Requirements Document
 
 ## Original Problem Statement
-Internal management system for Purnabramha restaurant franchise. Includes financial features (MG, Revenue/Profit Share), attendance, payroll, HR letters, recipes, and guest management.
+Internal management system for Purnabramha restaurant franchise. Includes financial features, attendance, payroll, HR letters, recipes, guest management, and employee transfers.
 
-## What's Been Implemented
+## Latest Session (Mar 26, 2026) - Employee Transfer Feature
 
-### Session 25 (Mar 26, 2026) - International Attendance Major Overhaul
+### Employee Transfer / Accept Shift (COMPLETE - 100% tested)
 
-**RBAC & Visibility Control (COMPLETE - 100% tested)**
-- International Attendance visible ONLY to: Super Admin, Admin, International Center Managers
-- India center managers see "Access Restricted" (403 from backend)
-- Center dropdown shows ONLY international centers (is_india_center=false) for Admin/Super Admin
-- International center managers see fixed badge with their center code — no dropdown
-- Sidebar hides International Attendance from India center managers
+**Core Workflow:**
+- Create transfer request (Temporary or Permanent)
+- Destination center manager accepts/rejects
+- On accept: employee center auto-updates
+- Temporary transfers auto-complete after end date
 
-**Center Master: "Is India Center?" Flag (COMPLETE)**
-- Added `is_india_center` boolean field to centers collection
-- Auto-set on startup: PERTH/non-India country = false, everything else = true
-- Toggle visible in Centers Management Add/Edit dialogs
-- "Intl" badge shows for international centers in list
+**Features Built:**
+1. Full CRUD: Create, Accept, Reject, Cancel transfers
+2. Manager Dashboard: Incoming / Outgoing / Active Shifts
+3. Transfer Types: Temporary (date range) and Permanent
+4. Employee Master auto-update on acceptance
+5. Notifications for all transfer events
+6. Complete audit trail / history
+7. Center-wise transfer summary reports
+8. Validation: no self-transfer, no overlapping dates, no duplicate active transfers
+9. Auto-complete expired temporary transfers on startup
 
-**Data Save Bug Fix (COMPLETE)**
-- Root cause: Production employees lacked `employee_id` field → all shared `None` key → editing one updated all
-- Fix: Uses MongoDB `_id` as fallback unique identifier
-- Uses `designation` field as fallback for `category`
-- Verified: ASHA=8hrs, MANISH=4hrs saved independently
+**Database Collections:**
+- `transfer_requests`: Full transfer lifecycle with audit fields
+- `transfer_notifications`: In-app notification system
+- `employees`: Added `home_center`, `current_operating_center`, `transfer_status`, `active_transfer_id`
 
-**Center Code Normalization (COMPLETE)**
-- `PB-PERTH-` auto-renamed to `PB-PERTH` on startup
-- Duplicate centers auto-removed (keeps richest entry)
-- All queries use `center_code_variants()` for mismatch handling
+**API Endpoints:**
+- POST /api/transfers/create
+- POST /api/transfers/action (accept/reject/cancel)
+- POST /api/transfers/list
+- POST /api/transfers/history
+- POST /api/transfers/reports/summary
+- POST /api/transfers/notifications
+- POST /api/transfers/notifications/mark-read
+- POST /api/transfers/employee-status
+- POST /api/transfers/auto-complete-expired
 
-**Other Fixes**
-- Update Hourly Rate UI: Pencil icon + modal in attendance table
-- Payslip PDF text overlap: Fixed box_bottom from 1.8" to 2.2"
-- Delete visible for Admin + Super Admin in Centers Management
-
-## Key API Endpoints (International Attendance)
-- GET /api/international-attendance/centers - RBAC-filtered centers
-- POST /api/international-attendance/week-data - Weekly hours (with access check)
-- POST /api/international-attendance/save - Save hours (with access check)
-- POST /api/international-attendance/update-rate - Update hourly rate
-- POST /api/international-attendance/monthly-report - Monthly payroll
-- POST /api/international-attendance/export/* - CSV exports
+### Previous Changes This Session
+- International Attendance RBAC overhaul (9/9 tests passed)
+- Center Master "Is India Center?" flag
+- Data save bug fix (per-employee hours)
+- Center code normalization (PB-PERTH- → PB-PERTH)
+- Update Hourly Rate UI
+- Payslip PDF text overlap fix
 
 ## Testing Credentials
 - Super Admin: PB-MGT, Mobile 9741399190, OTP 123456
 - Perth Manager: PB-PERTH, Mobile 0401832922, OTP 123456
-- India Manager (test): PB-HSR, Mobile 9999999999, OTP 123456
+- India Manager: PB-HSR, Mobile 9999999999, OTP 123456
 
 ## Test Reports
-- /app/test_reports/iteration_21.json - Session 25: RBAC overhaul (100% pass, 9/9)
-- /app/test_reports/iteration_20.json - Session 25: Initial fixes (100% pass, 8/8)
+- /app/test_reports/iteration_22.json - Employee Transfers (100% pass, 24/24 backend + all frontend)
+- /app/test_reports/iteration_21.json - RBAC overhaul (100% pass, 9/9)
 
 ## Backlog
 ### P1
-- PDF export for International payroll reports
-- Complete server.py refactoring (HR letters, centers/managers routes)
+- Attendance integration: transferred employees appear in correct center
+- Status tags in attendance: "Home", "Transferred In", "Transferred Out"
+- Duplicate attendance prevention across centers
+- Payroll mapping to actual working center
 
 ### P2
-- Test expense attachment file upload flow visually
-- 7-year retention deletion prompt for attachments
-- Frontend Babel build fix
+- PDF export for International payroll reports
+- Complete server.py refactoring
+- Approval hierarchy config (admin approval before destination)
+- WhatsApp/Email notification hooks
 
 ### P3
 - Image Upload for Recipes
 - Franchise Deal Simulator
-- Real WhatsApp Business API (currently MOCKED)
+- International center support for transfers
 
 ## Project Health
 - Broken: None
