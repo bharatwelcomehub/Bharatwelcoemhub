@@ -3234,6 +3234,14 @@ set_intl_attendance_db(db)
 set_intl_attendance_verify_token(verify_token)
 app.include_router(intl_attendance_router)
 
+# Include Employee Transfers router
+from routes.transfers import router as transfers_router, set_db as set_transfers_db, set_verify_token as set_transfers_verify_token, set_has_admin_access as set_transfers_admin
+set_transfers_db(db)
+set_transfers_verify_token(verify_token)
+set_transfers_admin(has_admin_access)
+app.include_router(transfers_router)
+
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -3291,6 +3299,27 @@ async def startup_cleanup_centers():
                     is_india = False
                 await db.centers.update_one({"_id": c["_id"]}, {"$set": {"is_india_center": is_india}})
                 logger.info(f"Startup: set is_india_center={is_india} for {code}")
+        
+        # Step 4: Auto-complete expired temporary transfers
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        now_str = datetime.now(timezone.utc).isoformat()
+        expired = await db.transfer_requests.find({
+            "transfer_type": "TEMPORARY",
+            "status": "ACCEPTED",
+            "end_date": {"$lt": today, "$ne": None, "$ne": ""}
+        }).to_list(500)
+        for transfer in expired:
+            emp_name = transfer["employee_name"]
+            home = transfer.get("home_center") or transfer["from_center"]
+            await db.employees.update_many(
+                {"name": emp_name},
+                {"$set": {"current_operating_center": home, "transfer_status": "", "active_transfer_id": "", "transfer_start_date": "", "transfer_end_date": "", "updated_at": now_str}}
+            )
+            await db.transfer_requests.update_one(
+                {"_id": transfer["_id"]},
+                {"$set": {"status": "COMPLETED", "action_notes": f"Auto-completed on startup: ended {transfer['end_date']}", "updated_at": now_str}}
+            )
+            logger.info(f"Startup: auto-completed expired transfer for {emp_name}")
     except Exception as e:
         logger.warning(f"Startup cleanup failed: {e}")
 

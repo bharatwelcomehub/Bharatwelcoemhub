@@ -28,7 +28,8 @@ import {
   Shield,
   Store,
   BarChart3,
-  Globe
+  Globe,
+  ArrowRightLeft
 } from "lucide-react";
 
 // Import pages
@@ -52,6 +53,7 @@ import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
 import InternationalAttendance from "@/pages/InternationalAttendance";
+import EmployeeTransfers from "@/pages/EmployeeTransfers";
 
 // Menu categories structure
 const menuCategories = [
@@ -63,6 +65,7 @@ const menuCategories = [
     items: [
       { path: "/", icon: Calendar, label: "India Centers", roleKey: "attendance" },
       { path: "/international-attendance", icon: Globe, label: "International", roleKey: "attendance", forInternational: true },
+      { path: "/employee-transfers", icon: ArrowRightLeft, label: "Transfers", roleKey: "attendance" },
       { path: "/attendance-dashboard", icon: BarChart3, label: "Attendance Dashboard", forAdmin: true },
     ]
   },
@@ -380,6 +383,7 @@ export default function Dashboard() {
           <Routes>
             <Route path="/" element={<Attendance />} />
             <Route path="/international-attendance" element={<InternationalAttendance />} />
+            <Route path="/employee-transfers" element={<EmployeeTransfers />} />
             <Route path="/attendance-dashboard" element={<AttendanceDashboard />} />
             <Route path="/sales" element={<SalesExpenses />} />
             <Route path="/expense-heads" element={<ExpenseHeads />} />
