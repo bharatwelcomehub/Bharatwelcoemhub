@@ -1,61 +1,73 @@
 # Purnabramha IntraPB - Product Requirements Document
 
 ## Original Problem Statement
-User had existing HTML/Python files for an attendance and salary management system using Excel as database storage. Required migration to MongoDB with modern UI design while preserving all functionality. Added Guest Response AI feature, Bhojan Guru with recipes from user's PDF file, Recipe Admin panel for MGT, and HR Letters generation.
-
-## Project Overview
-**Purnabramha IntraPB** - Internal portal for attendance, salary management, HR documents, and guest response for Purnabramha Restaurant Chain (Manswini Foods Pvt. Ltd.)
+Internal management system for Purnabramha restaurant franchise. Includes financial features (MG, Revenue/Profit Share), attendance, payroll, HR letters, recipes, and guest management.
 
 ## What's Been Implemented
 
-### Latest Update (Mar 26, 2026 - Session 25)
+### Session 25 (Mar 26, 2026) - International Attendance Major Overhaul
 
-- **UPDATE HOURLY RATE UI (COMPLETE)**
-  - Pencil icon next to Rate column in International Attendance table
-  - Click opens modal with employee name, category, current rate
-  - Input for new hourly rate with Save/Cancel buttons
-  - Backend endpoint: POST /api/international-attendance/update-rate (JSON body)
+**RBAC & Visibility Control (COMPLETE - 100% tested)**
+- International Attendance visible ONLY to: Super Admin, Admin, International Center Managers
+- India center managers see "Access Restricted" (403 from backend)
+- Center dropdown shows ONLY international centers (is_india_center=false) for Admin/Super Admin
+- International center managers see fixed badge with their center code — no dropdown
+- Sidebar hides International Attendance from India center managers
 
-- **CENTER CODE MISMATCH FIX (COMPLETE)**
-  - Production has center code `PB-PERTH-` (trailing hyphen) but employees stored as `PB-PERTH`
-  - Added `normalize_center_code()` and `center_code_variants()` helpers
-  - All 7 query points in international_attendance.py now handle both variants
-  - No live data modified — only query logic changed
+**Center Master: "Is India Center?" Flag (COMPLETE)**
+- Added `is_india_center` boolean field to centers collection
+- Auto-set on startup: PERTH/non-India country = false, everything else = true
+- Toggle visible in Centers Management Add/Edit dialogs
+- "Intl" badge shows for international centers in list
 
-- **DUPLICATE PB-PERTH CENTER FIX (COMPLETE)**
-  - Removed duplicate PB-PERTH entry, merged currency/GST fields
+**Data Save Bug Fix (COMPLETE)**
+- Root cause: Production employees lacked `employee_id` field → all shared `None` key → editing one updated all
+- Fix: Uses MongoDB `_id` as fallback unique identifier
+- Uses `designation` field as fallback for `category`
+- Verified: ASHA=8hrs, MANISH=4hrs saved independently
 
-- **PAYSLIP PDF TEXT OVERLAP FIX (COMPLETE)**
-  - Raised box_bottom from 1.8" to 2.2", repositioned footer to 1.15"
-  - Recurring issue (4x) now resolved
+**Center Code Normalization (COMPLETE)**
+- `PB-PERTH-` auto-renamed to `PB-PERTH` on startup
+- Duplicate centers auto-removed (keeps richest entry)
+- All queries use `center_code_variants()` for mismatch handling
 
-### Previous Sessions
-(See earlier PRD versions for full history of Sessions 1-24)
+**Other Fixes**
+- Update Hourly Rate UI: Pencil icon + modal in attendance table
+- Payslip PDF text overlap: Fixed box_bottom from 1.8" to 2.2"
+- Delete visible for Admin + Super Admin in Centers Management
 
-## Key Technical Notes
-- Center code normalization: `PB-PERTH-` and `PB-PERTH` are treated as equivalent
-- Object Storage: Emergent internal library for file attachments
-- WhatsApp Integration: MOCKED
+## Key API Endpoints (International Attendance)
+- GET /api/international-attendance/centers - RBAC-filtered centers
+- POST /api/international-attendance/week-data - Weekly hours (with access check)
+- POST /api/international-attendance/save - Save hours (with access check)
+- POST /api/international-attendance/update-rate - Update hourly rate
+- POST /api/international-attendance/monthly-report - Monthly payroll
+- POST /api/international-attendance/export/* - CSV exports
 
 ## Testing Credentials
-- Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456
-- Perth Manager: Center PB-PERTH, Mobile 0401832922, OTP 123456
+- Super Admin: PB-MGT, Mobile 9741399190, OTP 123456
+- Perth Manager: PB-PERTH, Mobile 0401832922, OTP 123456
+- India Manager (test): PB-HSR, Mobile 9999999999, OTP 123456
 
-## Backlog/Future Tasks
+## Test Reports
+- /app/test_reports/iteration_21.json - Session 25: RBAC overhaul (100% pass, 9/9)
+- /app/test_reports/iteration_20.json - Session 25: Initial fixes (100% pass, 8/8)
 
-### P1 - Upcoming
+## Backlog
+### P1
 - PDF export for International payroll reports
-- Complete server.py refactoring (extract HR letters & centers/managers routes)
-- Test expense attachment file upload flow visually
+- Complete server.py refactoring (HR letters, centers/managers routes)
 
-### P2 - Improvements
+### P2
+- Test expense attachment file upload flow visually
 - 7-year retention deletion prompt for attachments
 - Frontend Babel build fix
 
-### P3 - Future
+### P3
 - Image Upload for Recipes
 - Franchise Deal Simulator
-- Real WhatsApp Business API integration (currently MOCKED)
+- Real WhatsApp Business API (currently MOCKED)
 
-## Test Reports
-- /app/test_reports/iteration_20.json - Session 25: Update Rate, Duplicate Fix, Payslip Fix (100% pass)
+## Project Health
+- Broken: None
+- Mocked: WhatsApp Integration
