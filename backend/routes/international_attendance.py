@@ -187,7 +187,7 @@ async def get_international_centers(token: str):
 
 @router.post("/employees")
 async def get_international_employees(req: CenterRequest):
-    """Get casual employees for an international center"""
+    """Get all employees for an international center"""
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
@@ -195,14 +195,10 @@ async def get_international_employees(req: CenterRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Query for casual employees at the specified center (handle PB-PERTH vs PB-PERTH- mismatch)
+    # Query ALL employees at the specified center (handle PB-PERTH vs PB-PERTH- mismatch)
     variants = center_code_variants(req.center)
     query = {
-        "center": {"$in": variants},
-        "$or": [
-            {"employment_type": {"$in": ["CASUAL", "Casual", "casual"]}},
-            {"category": {"$regex": "CASUAL", "$options": "i"}}
-        ]
+        "center": {"$in": variants}
     }
     
     employees = await db.employees.find(query, {"_id": 0}).sort("name", 1).to_list(500)
