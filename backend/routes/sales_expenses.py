@@ -1052,6 +1052,42 @@ async def get_expenses(req: ExpenseQueryRequest):
     async for exp in expenses_cursor:
         exp_dict = {k: v for k, v in exp.items() if k != "_id"}
         exp_dict["expense_id"] = str(exp["_id"])  # Convert ObjectId to string
+        
+        # Add attachment status
+        has_direct_attachment = bool(exp.get("attachments") and len(exp.get("attachments", [])) > 0)
+        has_group_attachment = False
+        group_info = None
+        
+        if exp.get("invoice_group_id"):
+            group = await db.invoice_groups.find_one(
+                {"group_id": exp["invoice_group_id"], "is_deleted": {"$ne": True}},
+                {"_id": 0, "vendor_name": 1, "invoice_number": 1, "attachments": 1}
+            )
+            if group:
+                has_group_attachment = bool(group.get("attachments") and len(group.get("attachments", [])) > 0)
+                group_info = {
+                    "vendor_name": group.get("vendor_name"),
+                    "invoice_number": group.get("invoice_number")
+                }
+        
+        # Determine attachment status
+        if has_direct_attachment:
+            direct_count = len(exp.get("attachments", []))
+            exp_dict["attachment_status"] = "attached"
+            exp_dict["attachment_count"] = direct_count
+            exp_dict["attachment_source"] = "direct"
+        elif has_group_attachment:
+            exp_dict["attachment_status"] = "attached_via_group"
+            exp_dict["attachment_count"] = 0
+            exp_dict["attachment_source"] = "group"
+        else:
+            exp_dict["attachment_status"] = "missing"
+            exp_dict["attachment_count"] = 0
+            exp_dict["attachment_source"] = None
+        
+        exp_dict["is_grouped"] = bool(exp.get("invoice_group_id"))
+        exp_dict["group_info"] = group_info
+        
         expenses.append(exp_dict)
         if len(expenses) >= 5000:
             break

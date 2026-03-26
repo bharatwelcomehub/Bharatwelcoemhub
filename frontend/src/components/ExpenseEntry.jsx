@@ -1,11 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock, Check, X } from "lucide-react";
+import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock, Check, X, Paperclip, FileText, Link2, Eye, Download, Upload, FolderOpen, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 // Check if center is Perth (Australia) - standardized to PB-PERTH
@@ -65,6 +68,27 @@ export default function ExpenseEntry({ session, selectedCenter }) {
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [paymentModes, setPaymentModes] = useState([]);
   const [frozenStatus, setFrozenStatus] = useState({ is_frozen: false, can_edit: true });
+  
+  // Attachment & Grouping state
+  const [selectedExpenses, setSelectedExpenses] = useState([]);  // For bulk grouping
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showGroupDetailModal, setShowGroupDetailModal] = useState(false);
+  const [uploadingExpenseId, setUploadingExpenseId] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [invoiceGroups, setInvoiceGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupForm, setGroupForm] = useState({
+    vendor_name: "",
+    invoice_number: "",
+    bill_date: getTodayStr(),
+    total_bill_amount: "",
+    notes: "",
+    link_mode: "new"  // "new" or "existing"
+  });
+  const [existingGroupId, setExistingGroupId] = useState("");
+  const fileInputRef = useRef(null);
+  const groupFileInputRef = useRef(null);
   
   // New expense form
   const [newExpense, setNewExpense] = useState({
@@ -322,6 +346,233 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     setHasChanges(false);
   };
 
+  // Fetch invoice groups for current center
+  const fetchInvoiceGroups = async () => {
+    try {
+      const res = await api.get(`/expense-attachments/invoice-groups?token=${session?.token}&center=${centerCode}`);
+      if (res.data.groups) {
+        setInvoiceGroups(res.data.groups);
+      }
+    } catch (err) {
+      console.error("Failed to fetch invoice groups:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.token && centerCode) {
+      fetchInvoiceGroups();
+    }
+  }, [session?.token, centerCode]);
+
+  // Handle checkbox selection for bulk grouping
+  const handleSelectExpense = (expenseId, checked) => {
+    if (checked) {
+      setSelectedExpenses(prev => [...prev, expenseId]);
+    } else {
+      setSelectedExpenses(prev => prev.filter(id => id !== expenseId));
+    }
+  };
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedExpenses(expenses.map(e => e.expense_id));
+    } else {
+      setSelectedExpenses([]);
+    }
+  };
+
+  // Upload attachment for a single expense
+  const handleUploadAttachment = async (file, expenseId) => {
+    if (!file) return;
+    
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("File type not allowed. Use PDF, JPG, PNG, or WEBP");
+      return;
+    }
+    
+    // Validate file size
+    const maxSize = file.type === 'application/pdf' ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(`File too large. Max: ${file.type === 'application/pdf' ? '10 MB' : '5 MB'}`);
+      return;
+    }
+    
+    setSaving(true);
+    setUploadProgress(0);
+    
+    try {
+      const formData = new FormData();
+      formData.append('token', session?.token);
+      formData.append('expense_id', expenseId);
+      formData.append('center', centerCode);
+      formData.append('file', file);
+      
+      const res = await api.post('/expense-attachments/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(progress);
+        }
+      });
+      
+      if (res.data.success) {
+        toast.success("Attachment uploaded successfully");
+        fetchExpenses();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to upload attachment");
+    } finally {
+      setSaving(false);
+      setUploadProgress(0);
+      setShowUploadModal(false);
+      setUploadingExpenseId(null);
+    }
+  };
+
+  // Delete attachment
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!confirm("Are you sure you want to delete this attachment?")) return;
+    
+    setSaving(true);
+    try {
+      await api.delete(`/expense-attachments/attachment/${attachmentId}?token=${session?.token}`);
+      toast.success("Attachment deleted");
+      fetchExpenses();
+    } catch (err) {
+      toast.error("Failed to delete attachment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // View attachment
+  const viewAttachment = (attachmentId) => {
+    window.open(`${api.defaults.baseURL}/expense-attachments/view/${attachmentId}?auth=${session?.token}`, '_blank');
+  };
+
+  // Download attachment
+  const downloadAttachment = (attachmentId) => {
+    window.open(`${api.defaults.baseURL}/expense-attachments/download/${attachmentId}?auth=${session?.token}`, '_blank');
+  };
+
+  // Create invoice group with selected expenses
+  const handleCreateGroup = async () => {
+    if (!groupForm.vendor_name || !groupForm.invoice_number) {
+      toast.error("Vendor name and invoice number are required");
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('token', session?.token);
+      formData.append('center', centerCode);
+      formData.append('vendor_name', groupForm.vendor_name);
+      formData.append('invoice_number', groupForm.invoice_number);
+      formData.append('bill_date', groupForm.bill_date);
+      formData.append('total_bill_amount', groupForm.total_bill_amount || 0);
+      formData.append('notes', groupForm.notes || '');
+      formData.append('expense_ids', selectedExpenses.join(','));
+      
+      // If file is selected
+      if (groupFileInputRef.current?.files?.[0]) {
+        formData.append('file', groupFileInputRef.current.files[0]);
+      }
+      
+      const res = await api.post('/expense-attachments/invoice-groups', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      if (res.data.success) {
+        toast.success("Invoice group created successfully");
+        if (res.data.warning) {
+          toast.warning(res.data.warning);
+        }
+        setShowGroupModal(false);
+        setSelectedExpenses([]);
+        setGroupForm({
+          vendor_name: "",
+          invoice_number: "",
+          bill_date: getTodayStr(),
+          total_bill_amount: "",
+          notes: "",
+          link_mode: "new"
+        });
+        fetchExpenses();
+        fetchInvoiceGroups();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to create invoice group");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Link expenses to existing group
+  const handleLinkToExistingGroup = async () => {
+    if (!existingGroupId) {
+      toast.error("Please select an invoice group");
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const res = await api.post('/expense-attachments/link-expenses', {
+        token: session?.token,
+        invoice_group_id: existingGroupId,
+        expense_ids: selectedExpenses
+      });
+      
+      if (res.data.success) {
+        toast.success(`${res.data.linked_count} expenses linked to invoice group`);
+        setShowGroupModal(false);
+        setSelectedExpenses([]);
+        setExistingGroupId("");
+        fetchExpenses();
+        fetchInvoiceGroups();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to link expenses");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Unlink expense from group
+  const handleUnlinkExpense = async (expenseId) => {
+    setSaving(true);
+    try {
+      const res = await api.post('/expense-attachments/unlink-expense', {
+        token: session?.token,
+        expense_id: expenseId
+      });
+      
+      if (res.data.success) {
+        toast.success("Expense unlinked from invoice group");
+        fetchExpenses();
+      }
+    } catch (err) {
+      toast.error("Failed to unlink expense");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // View group details
+  const handleViewGroup = async (groupId) => {
+    try {
+      const res = await api.get(`/expense-attachments/invoice-groups/${groupId}?token=${session?.token}`);
+      if (res.data.success) {
+        setSelectedGroup(res.data.group);
+        setShowGroupDetailModal(true);
+      }
+    } catch (err) {
+      toast.error("Failed to load invoice group details");
+    }
+  };
+
   // Calculate total
   const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
 
@@ -551,7 +802,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
       {/* Expenses List - Editable Table */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base">
               {dateMode === "single" 
                 ? `Expenses for ${new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
@@ -560,29 +811,44 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               <span className="ml-2 text-sm font-normal text-muted-foreground">({expenses.length} entries)</span>
             </CardTitle>
             
-            {/* Save All / Cancel Buttons */}
-            {hasChanges && frozenStatus.can_edit && (
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Bulk Group Button */}
+              {selectedExpenses.length > 0 && frozenStatus.can_edit && (
                 <Button
+                  size="sm"
                   variant="outline"
-                  size="sm"
-                  onClick={handleCancelEdits}
+                  onClick={() => setShowGroupModal(true)}
                   className="gap-1"
-                  data-testid="cancel-edits-btn"
+                  data-testid="group-selected-btn"
                 >
-                  <X className="w-4 h-4" /> Cancel
+                  <Link2 className="w-4 h-4" /> Group {selectedExpenses.length} Selected
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSaveAll}
-                  disabled={saving}
-                  className="gap-1 bg-green-600 hover:bg-green-700"
-                  data-testid="save-all-btn"
-                >
-                  <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save All"}
-                </Button>
-              </div>
-            )}
+              )}
+              
+              {/* Save All / Cancel Buttons */}
+              {hasChanges && frozenStatus.can_edit && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelEdits}
+                    className="gap-1"
+                    data-testid="cancel-edits-btn"
+                  >
+                    <X className="w-4 h-4" /> Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveAll}
+                    disabled={saving}
+                    className="gap-1 bg-green-600 hover:bg-green-700"
+                    data-testid="save-all-btn"
+                  >
+                    <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save All"}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -590,20 +856,42 @@ export default function ExpenseEntry({ session, selectedCenter }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
+                  {frozenStatus.can_edit && (
+                    <th className="text-center py-3 px-2 w-8">
+                      <Checkbox 
+                        checked={selectedExpenses.length === expenses.length && expenses.length > 0}
+                        onCheckedChange={handleSelectAll}
+                        data-testid="select-all-checkbox"
+                      />
+                    </th>
+                  )}
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground w-10">#</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28">Date</th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-24">Date</th>
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground">Description</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-40">Category</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-36">Mode</th>
-                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-28">Amount</th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-32">Category</th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28">Mode</th>
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-24">Amount</th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-24">Invoice</th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-20">Bill</th>
                   <th className="text-center py-3 px-2 font-medium text-muted-foreground w-16">
-                    {frozenStatus.can_edit ? 'Delete' : ''}
+                    {frozenStatus.can_edit ? 'Actions' : ''}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {expenses.map((exp, idx) => (
-                  <tr key={exp.expense_id || idx} className={`border-b border-border/50 ${editedExpenses[exp.expense_id] ? 'bg-amber-50/50' : 'hover:bg-muted/50'}`}>
+                  <tr key={exp.expense_id || idx} className={`border-b border-border/50 ${editedExpenses[exp.expense_id] ? 'bg-amber-50/50' : 'hover:bg-muted/50'} ${selectedExpenses.includes(exp.expense_id) ? 'bg-blue-50/50' : ''}`}>
+                    {/* Checkbox for selection */}
+                    {frozenStatus.can_edit && (
+                      <td className="text-center py-2 px-2">
+                        <Checkbox 
+                          checked={selectedExpenses.includes(exp.expense_id)}
+                          onCheckedChange={(checked) => handleSelectExpense(exp.expense_id, checked)}
+                          data-testid={`select-expense-${idx}`}
+                        />
+                      </td>
+                    )}
+                    
                     <td className="py-2 px-2 text-muted-foreground">{idx + 1}</td>
                     
                     {/* Date - Editable */}
@@ -695,28 +983,111 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                       )}
                     </td>
                     
-                    {/* Delete */}
-                    <td className="text-center py-2 px-2">
-                      {frozenStatus.can_edit ? (
+                    {/* Invoice Group Column */}
+                    <td className="py-2 px-2 text-center">
+                      {exp.is_grouped ? (
+                        <button
+                          onClick={() => handleViewGroup(exp.invoice_group_id)}
+                          className="text-xs text-blue-600 hover:underline flex items-center gap-1 mx-auto"
+                          title={`${exp.group_info?.vendor_name} - ${exp.group_info?.invoice_number}`}
+                        >
+                          <FolderOpen className="w-3 h-3" />
+                          <span className="truncate max-w-[60px]">{exp.group_info?.vendor_name?.substring(0,8) || 'Grouped'}</span>
+                        </button>
+                      ) : frozenStatus.can_edit ? (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteExpense(exp.expense_id)}
-                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          data-testid={`delete-expense-${idx}`}
-                          disabled={saving}
+                          onClick={() => {
+                            setSelectedExpenses([exp.expense_id]);
+                            setShowGroupModal(true);
+                          }}
+                          className="h-7 text-xs px-2"
+                          title="Link to Invoice"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Link2 className="w-3 h-3" />
                         </Button>
                       ) : (
-                        <Lock className="w-4 h-4 text-muted-foreground mx-auto" title="Frozen - Cannot delete" />
+                        <Badge variant="outline" className="text-xs">Ungrouped</Badge>
                       )}
+                    </td>
+                    
+                    {/* Attachment Column */}
+                    <td className="py-2 px-2 text-center">
+                      {exp.attachment_status === 'attached' ? (
+                        <Badge className="bg-green-100 text-green-800 text-xs gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {exp.attachment_count || 1}
+                        </Badge>
+                      ) : exp.attachment_status === 'attached_via_group' ? (
+                        <Badge className="bg-blue-100 text-blue-800 text-xs gap-1" title="Attached via Invoice Group">
+                          <FolderOpen className="w-3 h-3" />
+                          Grp
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-red-600 border-red-300 gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          None
+                        </Badge>
+                      )}
+                    </td>
+                    
+                    {/* Actions */}
+                    <td className="text-center py-2 px-2">
+                      <div className="flex items-center justify-center gap-1">
+                        {frozenStatus.can_edit && (
+                          <>
+                            {/* Upload attachment button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setUploadingExpenseId(exp.expense_id);
+                                setShowUploadModal(true);
+                              }}
+                              className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                              title="Attach Bill"
+                            >
+                              <Paperclip className="w-4 h-4" />
+                            </Button>
+                            
+                            {/* Unlink from group (if grouped) */}
+                            {exp.is_grouped && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleUnlinkExpense(exp.expense_id)}
+                                className="h-7 w-7 p-0 text-amber-500 hover:text-amber-700 hover:bg-amber-50"
+                                title="Unlink from Group"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            )}
+                            
+                            {/* Delete button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteExpense(exp.expense_id)}
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              data-testid={`delete-expense-${idx}`}
+                              disabled={saving}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                        
+                        {!frozenStatus.can_edit && (
+                          <Lock className="w-4 h-4 text-muted-foreground" title="Frozen - Cannot edit" />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
                 {expenses.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={frozenStatus.can_edit ? 10 : 9} className="text-center py-8 text-muted-foreground">
                       No expenses recorded for this {dateMode === "range" ? "period" : "date"}
                     </td>
                   </tr>
@@ -725,9 +1096,9 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               {expenses.length > 0 && (
                 <tfoot>
                   <tr className="bg-muted/50">
-                    <td colSpan={5} className="py-3 px-2 font-bold text-right">Total:</td>
+                    <td colSpan={frozenStatus.can_edit ? 7 : 6} className="py-3 px-2 font-bold text-right">Total:</td>
                     <td className="py-3 px-2 font-bold text-right text-red-500">{formatCurrency(totalExpenses, centerCode)}</td>
-                    <td></td>
+                    <td colSpan={2}></td>
                   </tr>
                 </tfoot>
               )}
@@ -757,6 +1128,330 @@ export default function ExpenseEntry({ session, selectedCenter }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Upload Attachment Modal */}
+      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5" /> Upload Bill / Invoice
+            </DialogTitle>
+            <DialogDescription>
+              Attach a bill or invoice proof for this expense. Supported: PDF (max 10MB), Images (max 5MB)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    handleUploadAttachment(e.target.files[0], uploadingExpenseId);
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={saving}
+                className="gap-2"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading... {uploadProgress}%
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" /> Choose File
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                PDF, JPG, PNG, WEBP
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadModal(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Group Modal */}
+      <Dialog open={showGroupModal} onOpenChange={setShowGroupModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="w-5 h-5" /> Link Expenses to Invoice
+            </DialogTitle>
+            <DialogDescription>
+              Group {selectedExpenses.length} expense(s) under one common invoice/bill
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Link Mode Toggle */}
+            <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
+              <button
+                onClick={() => setGroupForm(p => ({ ...p, link_mode: 'new' }))}
+                className={`flex-1 py-2 px-4 rounded text-sm font-medium ${groupForm.link_mode === 'new' ? 'bg-background shadow' : 'text-muted-foreground'}`}
+              >
+                Create New Invoice Group
+              </button>
+              <button
+                onClick={() => setGroupForm(p => ({ ...p, link_mode: 'existing' }))}
+                className={`flex-1 py-2 px-4 rounded text-sm font-medium ${groupForm.link_mode === 'existing' ? 'bg-background shadow' : 'text-muted-foreground'}`}
+              >
+                Link to Existing
+              </button>
+            </div>
+
+            {groupForm.link_mode === 'new' ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>Vendor Name *</Label>
+                    <Input
+                      value={groupForm.vendor_name}
+                      onChange={(e) => setGroupForm(p => ({ ...p, vendor_name: e.target.value }))}
+                      placeholder="e.g., Woolworths"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Invoice Number *</Label>
+                    <Input
+                      value={groupForm.invoice_number}
+                      onChange={(e) => setGroupForm(p => ({ ...p, invoice_number: e.target.value }))}
+                      placeholder="e.g., INV-12345"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>Bill Date</Label>
+                    <Input
+                      type="date"
+                      value={groupForm.bill_date}
+                      onChange={(e) => setGroupForm(p => ({ ...p, bill_date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Total Bill Amount</Label>
+                    <Input
+                      type="number"
+                      value={groupForm.total_bill_amount}
+                      onChange={(e) => setGroupForm(p => ({ ...p, total_bill_amount: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Notes (Optional)</Label>
+                  <Input
+                    value={groupForm.notes}
+                    onChange={(e) => setGroupForm(p => ({ ...p, notes: e.target.value }))}
+                    placeholder="Additional notes..."
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Attach Invoice (Optional)</Label>
+                  <input
+                    type="file"
+                    ref={groupFileInputRef}
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    className="text-sm"
+                  />
+                </div>
+                
+                {/* Selected expenses summary */}
+                <div className="p-3 bg-muted rounded-lg text-sm">
+                  <p className="font-medium">Selected Expenses: {selectedExpenses.length}</p>
+                  <p className="text-muted-foreground">
+                    Total Amount: {formatCurrency(
+                      expenses.filter(e => selectedExpenses.includes(e.expense_id)).reduce((s, e) => s + (e.amount || 0), 0),
+                      centerCode
+                    )}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <Label>Select Existing Invoice Group</Label>
+                  <Select value={existingGroupId} onValueChange={setExistingGroupId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose an invoice group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {invoiceGroups.map(g => (
+                        <SelectItem key={g.group_id} value={g.group_id}>
+                          {g.vendor_name} - {g.invoice_number} ({g.bill_date})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {existingGroupId && (
+                  <div className="p-3 bg-muted rounded-lg text-sm">
+                    {(() => {
+                      const group = invoiceGroups.find(g => g.group_id === existingGroupId);
+                      return group ? (
+                        <>
+                          <p><strong>Vendor:</strong> {group.vendor_name}</p>
+                          <p><strong>Invoice #:</strong> {group.invoice_number}</p>
+                          <p><strong>Bill Amount:</strong> {formatCurrency(group.total_bill_amount, centerCode)}</p>
+                          <p><strong>Already Linked:</strong> {group.linked_expense_count} expenses</p>
+                        </>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowGroupModal(false);
+              setSelectedExpenses([]);
+            }}>Cancel</Button>
+            <Button 
+              onClick={groupForm.link_mode === 'new' ? handleCreateGroup : handleLinkToExistingGroup}
+              disabled={saving}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link2 className="w-4 h-4 mr-2" />}
+              {groupForm.link_mode === 'new' ? 'Create Group' : 'Link to Group'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Group Detail Modal */}
+      <Dialog open={showGroupDetailModal} onOpenChange={setShowGroupDetailModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="w-5 h-5" /> Invoice Group Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedGroup && (
+            <div className="space-y-4">
+              {/* Group Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div>
+                  <p className="text-xs text-muted-foreground">Vendor</p>
+                  <p className="font-medium">{selectedGroup.vendor_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Invoice Number</p>
+                  <p className="font-medium">{selectedGroup.invoice_number}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Bill Date</p>
+                  <p className="font-medium">{selectedGroup.bill_date}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Bill Amount</p>
+                  <p className="font-medium">{formatCurrency(selectedGroup.total_bill_amount, centerCode)}</p>
+                </div>
+              </div>
+
+              {/* Amount Comparison */}
+              <div className={`p-4 rounded-lg border ${selectedGroup.amount_match === 'exact' ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-medium">Linked Expense Total</p>
+                    <p className="text-lg font-bold">{formatCurrency(selectedGroup.linked_expense_total, centerCode)}</p>
+                  </div>
+                  <div className="text-center">
+                    {selectedGroup.amount_match === 'exact' ? (
+                      <Badge className="bg-green-100 text-green-800">
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> Exact Match
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-800">
+                        <AlertTriangle className="w-4 h-4 mr-1" /> Mismatch: {formatCurrency(selectedGroup.amount_difference, centerCode)}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">Invoice Amount</p>
+                    <p className="text-lg font-bold">{formatCurrency(selectedGroup.total_bill_amount, centerCode)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category Breakdown */}
+              {selectedGroup.category_breakdown && Object.keys(selectedGroup.category_breakdown).length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-2">Category Breakdown</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(selectedGroup.category_breakdown).map(([cat, amt]) => (
+                      <Badge key={cat} variant="outline">
+                        {cat}: {formatCurrency(amt, centerCode)}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Linked Expenses */}
+              <div>
+                <p className="text-sm font-medium mb-2">Linked Expenses ({selectedGroup.linked_expenses?.length || 0})</p>
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left py-2 px-3">Date</th>
+                        <th className="text-left py-2 px-3">Description</th>
+                        <th className="text-left py-2 px-3">Category</th>
+                        <th className="text-right py-2 px-3">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedGroup.linked_expenses?.map((exp, idx) => (
+                        <tr key={exp.expense_id || idx} className="border-t">
+                          <td className="py-2 px-3">{exp.date}</td>
+                          <td className="py-2 px-3">{exp.description}</td>
+                          <td className="py-2 px-3">{exp.expense_type}</td>
+                          <td className="py-2 px-3 text-right">{formatCurrency(exp.amount, centerCode)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Attachments */}
+              {selectedGroup.attachment_details?.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-2">Attachments</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedGroup.attachment_details.map(att => (
+                      <Button
+                        key={att.attachment_id}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => viewAttachment(att.attachment_id)}
+                        className="gap-1"
+                      >
+                        <FileText className="w-4 h-4" />
+                        {att.original_filename?.substring(0, 20)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGroupDetailModal(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

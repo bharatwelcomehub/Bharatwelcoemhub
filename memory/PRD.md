@@ -8,7 +8,39 @@ User had existing HTML/Python files for an attendance and salary management syst
 
 ## What's Been Implemented
 
-### Latest Update (Mar 23, 2026 - Session 23)
+### Latest Update (Mar 26, 2026 - Session 24)
+
+- ✅ **EXPENSE BILL ATTACHMENT FEATURE (COMPLETE)**
+  - Upload button on each expense row (supports PDF up to 10MB, images up to 5MB)
+  - Attachment status column: "Attached", "Attached via Group", "Missing"
+  - View/Download/Delete attachment functionality
+  - 7-year data retention tracking
+
+- ✅ **INVOICE GROUPING FEATURE (COMPLETE)**
+  - Bulk selection checkbox for multiple expenses
+  - "Group Selected" button to link expenses under one invoice
+  - Create new invoice group with: Vendor Name, Invoice #, Bill Date, Total Amount
+  - Link to existing invoice group option
+  - Group detail modal showing: linked expenses, category breakdown, amount match status
+  - Warning when grouped expense total ≠ invoice total
+
+- ✅ **CA/AUDITOR EXPORT (COMPLETE)**
+  - New "Invoice Export" tab in Center Accounts page
+  - Filters: Date range, Attachment status, Grouped status
+  - Audit report with summary: Total, Attached, Missing, Grouped, Mismatched
+  - Table view with "Uploaded By" column for audit trail
+  - Missing attachments highlighted in red, mismatches in amber
+  - ZIP export with structured folders: `Center/Month/Grouped_Invoices/` & `Individual_Expenses/`
+  - Includes CSV files: expense_register, grouped_invoice_summary, missing_attachment_report
+  - **Auto-splits into 3-month batches** when date range > 3 months
+
+- ✅ **TESTING:** All new features verified
+  - Expense attachment status in list: ✓
+  - Invoice group creation: ✓
+  - Audit report generation: ✓
+  - ZIP batching (>3 months): ✓
+
+### Previous Update (Mar 23, 2026 - Session 23)
 
 - ✅ **REVENUE SHARE START DATE FIELD (COMPLETE)**
   - Added new `revenue_share_start_date` field to Franchise Management form

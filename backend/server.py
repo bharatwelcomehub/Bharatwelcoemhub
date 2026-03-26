@@ -3173,6 +3173,12 @@ set_recipes_root_dir(ROOT_DIR)
 set_recipes_verify_token(verify_token)
 app.include_router(recipes_router)
 
+# Include Expense Attachments & Invoice Grouping router
+from routes.expense_attachments import router as attachments_router, set_db as set_attachments_db, set_verify_token as set_attachments_verify_token
+set_attachments_db(db)
+set_attachments_verify_token(verify_token)
+app.include_router(attachments_router)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

@@ -90,6 +90,20 @@ export default function CenterAccounts() {
     franchise_code: ''
   });
 
+  // Invoice Export state
+  const [invoiceExportState, setInvoiceExportState] = useState({
+    startDate: '',
+    endDate: '',
+    category: '',
+    vendor: '',
+    attachmentStatus: 'all',
+    groupedStatus: 'all',
+    paymentMode: ''
+  });
+  const [auditReport, setAuditReport] = useState(null);
+  const [exportBatches, setExportBatches] = useState(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+
   // Fetch centers
   const fetchCenters = useCallback(async () => {
     if (!token) return;
@@ -529,13 +543,14 @@ export default function CenterAccounts() {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList>
+            <TabsList className="flex-wrap">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="sales">Sales Breakdown</TabsTrigger>
               <TabsTrigger value="commissions">Commissions</TabsTrigger>
               <TabsTrigger value="share">Revenue/Profit Share</TabsTrigger>
               <TabsTrigger value="payout">MG & Payout</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
+              <TabsTrigger value="invoices" className="text-purple-600">Invoice Export</TabsTrigger>
             </TabsList>
 
             {/* Overview Tab */}
@@ -1323,6 +1338,290 @@ export default function CenterAccounts() {
                       <FileSpreadsheet className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                       <p>No payout data available</p>
                       <p className="text-sm text-gray-400 mt-1">Data will appear once franchise is linked and has sales</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Invoice Export Tab (CA/Auditor Ready) */}
+            <TabsContent value="invoices" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-purple-600" />
+                    Invoice & Bill Export (CA/Auditor Ready)
+                  </CardTitle>
+                  <CardDescription>
+                    Export expense invoices with attachment status, grouped invoice summary, and missing bill reports
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Filters */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <Label className="text-xs">From Date</Label>
+                      <Input
+                        type="date"
+                        value={invoiceExportState.startDate}
+                        onChange={(e) => setInvoiceExportState(p => ({ ...p, startDate: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">To Date</Label>
+                      <Input
+                        type="date"
+                        value={invoiceExportState.endDate}
+                        onChange={(e) => setInvoiceExportState(p => ({ ...p, endDate: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Attachment Status</Label>
+                      <Select 
+                        value={invoiceExportState.attachmentStatus} 
+                        onValueChange={(v) => setInvoiceExportState(p => ({ ...p, attachmentStatus: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="attached">With Attachment</SelectItem>
+                          <SelectItem value="missing">Missing Attachment</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Grouped Status</Label>
+                      <Select 
+                        value={invoiceExportState.groupedStatus} 
+                        onValueChange={(v) => setInvoiceExportState(p => ({ ...p, groupedStatus: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="grouped">Grouped Only</SelectItem>
+                          <SelectItem value="ungrouped">Ungrouped Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      onClick={async () => {
+                        if (!invoiceExportState.startDate || !invoiceExportState.endDate) {
+                          toast.error('Please select date range');
+                          return;
+                        }
+                        setAuditLoading(true);
+                        try {
+                          const res = await fetch(`${API}/api/expense-attachments/audit-report`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              token,
+                              center: selectedCenter,
+                              start_date: invoiceExportState.startDate,
+                              end_date: invoiceExportState.endDate,
+                              attachment_status: invoiceExportState.attachmentStatus === 'all' ? null : invoiceExportState.attachmentStatus,
+                              grouped_status: invoiceExportState.groupedStatus === 'all' ? null : invoiceExportState.groupedStatus
+                            })
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            setAuditReport(data);
+                            toast.success(`Found ${data.summary.total_count} expenses`);
+                          }
+                        } catch (err) {
+                          toast.error('Failed to generate report');
+                        } finally {
+                          setAuditLoading(false);
+                        }
+                      }}
+                      disabled={auditLoading}
+                      className="gap-2"
+                    >
+                      {auditLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                      Generate Audit Report
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        if (!invoiceExportState.startDate || !invoiceExportState.endDate) {
+                          toast.error('Please select date range');
+                          return;
+                        }
+                        setAuditLoading(true);
+                        try {
+                          const res = await fetch(`${API}/api/expense-attachments/export-zip`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              token,
+                              center: selectedCenter,
+                              start_date: invoiceExportState.startDate,
+                              end_date: invoiceExportState.endDate
+                            })
+                          });
+                          const data = await res.json();
+                          if (data.requires_batching) {
+                            setExportBatches(data.batches);
+                            toast.info(data.message);
+                          } else {
+                            // Direct download
+                            const blob = await res.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${selectedCenter}_Invoices.zip`;
+                            a.click();
+                          }
+                        } catch (err) {
+                          toast.error('Failed to export ZIP');
+                        } finally {
+                          setAuditLoading(false);
+                        }
+                      }}
+                      disabled={auditLoading}
+                      className="gap-2"
+                    >
+                      <Download className="w-4 h-4" /> Download ZIP
+                    </Button>
+                  </div>
+
+                  {/* Export Batches (when >3 months) */}
+                  {exportBatches && (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800 mb-3 font-medium">
+                        Date range exceeds 3 months. Download in batches:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {exportBatches.map((batch, idx) => (
+                          <Button
+                            key={idx}
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              const res = await fetch(`${API}/api/expense-attachments/export-zip-batch`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  token,
+                                  center: selectedCenter,
+                                  start_date: batch.start_date,
+                                  end_date: batch.end_date
+                                })
+                              });
+                              const blob = await res.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `${selectedCenter}_${batch.label.replace(/\s/g, '_')}.zip`;
+                              a.click();
+                            }}
+                            className="gap-1"
+                          >
+                            <Download className="w-3 h-3" /> {batch.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Audit Report Summary */}
+                  {auditReport && (
+                    <div className="space-y-4">
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div className="p-3 bg-blue-50 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-blue-700">{auditReport.summary.total_count}</p>
+                          <p className="text-xs text-blue-600">Total Expenses</p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-green-700">{auditReport.summary.attached_count}</p>
+                          <p className="text-xs text-green-600">With Attachments</p>
+                        </div>
+                        <div className="p-3 bg-red-50 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-red-700">{auditReport.summary.missing_count}</p>
+                          <p className="text-xs text-red-600">Missing Bills</p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-purple-700">{auditReport.summary.grouped_count}</p>
+                          <p className="text-xs text-purple-600">Grouped</p>
+                        </div>
+                        <div className="p-3 bg-amber-50 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-amber-700">{auditReport.summary.mismatch_count}</p>
+                          <p className="text-xs text-amber-600">Mismatched</p>
+                        </div>
+                      </div>
+
+                      {/* Expense List with Audit Details */}
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 sticky top-0">
+                              <tr>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Description</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Category</th>
+                                <th className="text-right py-2 px-3 font-medium text-gray-600">Amount</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Vendor</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Invoice #</th>
+                                <th className="text-center py-2 px-3 font-medium text-gray-600">Bill</th>
+                                <th className="text-left py-2 px-3 font-medium text-gray-600">Uploaded By</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {auditReport.expenses.map((exp, idx) => (
+                                <tr 
+                                  key={idx} 
+                                  className={`border-t ${
+                                    exp.attachment_status === 'missing' ? 'bg-red-50' : 
+                                    exp.amount_match === 'mismatch' ? 'bg-amber-50' : ''
+                                  }`}
+                                >
+                                  <td className="py-2 px-3">{exp.date}</td>
+                                  <td className="py-2 px-3">{exp.description}</td>
+                                  <td className="py-2 px-3">
+                                    <Badge variant="outline" className="text-xs">{exp.expense_type}</Badge>
+                                  </td>
+                                  <td className="py-2 px-3 text-right font-medium">
+                                    {formatCurrency(exp.amount, accountSummary?.country)}
+                                  </td>
+                                  <td className="py-2 px-3 text-xs">
+                                    {exp.group_info?.vendor_name || '-'}
+                                  </td>
+                                  <td className="py-2 px-3 text-xs">
+                                    {exp.group_info?.invoice_number || '-'}
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    {exp.attachment_status === 'attached' ? (
+                                      <Badge className="bg-green-100 text-green-800 text-xs">✓</Badge>
+                                    ) : exp.attachment_status === 'attached_via_group' ? (
+                                      <Badge className="bg-blue-100 text-blue-800 text-xs">Grp</Badge>
+                                    ) : (
+                                      <Badge className="bg-red-100 text-red-800 text-xs">✗</Badge>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-3 text-xs text-gray-500">
+                                    {exp.uploaded_by || exp.created_by || '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Total */}
+                      <div className="text-right text-lg font-bold">
+                        Total: {formatCurrency(auditReport.summary.total_amount, accountSummary?.country)}
+                      </div>
                     </div>
                   )}
                 </CardContent>
