@@ -146,12 +146,12 @@ export default function CentersManagement() {
     }
   };
 
-  if (session?.center !== "PB-MGT") {
+  if (!session) {
     return (
       <div className="text-center py-20">
         <Lock className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
         <h2 className="text-2xl font-bold text-muted-foreground">Access Denied</h2>
-        <p className="text-muted-foreground mt-2">Only PB-MGT can manage centers</p>
+        <p className="text-muted-foreground mt-2">Please login to manage centers</p>
       </div>
     );
   }

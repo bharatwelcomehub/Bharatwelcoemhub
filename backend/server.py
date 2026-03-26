@@ -2073,11 +2073,11 @@ class CenterUpdate(BaseModel):
 
 @api_router.post("/mgt/centers")
 async def mgt_get_centers(data: dict):
-    """Get all centers for management (MGT only)"""
+    """Get all centers for management (Super Admin + Admin)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage centers")
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
     
     centers = await db.centers.find({}, {"_id": 0}).to_list(100)
     if not centers:
@@ -2165,11 +2165,11 @@ async def mgt_center_update(data: dict):
 
 @api_router.post("/mgt/center_delete")
 async def mgt_center_delete(data: dict):
-    """Delete a center (MGT only)"""
+    """Delete a center (Super Admin + Admin)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can delete centers")
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
     
     code = data.get("code", "").upper().strip()
     if not code:
@@ -3241,9 +3241,20 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-async def startup_dedup_centers():
-    """Auto-cleanup duplicate centers on startup"""
+async def startup_cleanup_centers():
+    """Auto-cleanup: normalize center codes (strip trailing hyphens) and remove duplicates"""
     try:
+        all_centers = await db.centers.find({}).to_list(500)
+        
+        # Step 1: Normalize center codes - strip trailing hyphens/spaces
+        for c in all_centers:
+            code = c.get("code", "")
+            clean_code = code.upper().rstrip("- ").strip()
+            if clean_code != code and clean_code:
+                await db.centers.update_one({"_id": c["_id"]}, {"$set": {"code": clean_code}})
+                logger.info(f"Startup: normalized center code '{code}' -> '{clean_code}'")
+        
+        # Step 2: Re-fetch and deduplicate
         all_centers = await db.centers.find({}).to_list(500)
         code_map = {}
         for c in all_centers:
@@ -3263,7 +3274,7 @@ async def startup_dedup_centers():
                 await db.centers.delete_one({"_id": dup["_id"]})
                 logger.info(f"Startup dedup: removed duplicate center '{code}' (_id={dup['_id']})")
     except Exception as e:
-        logger.warning(f"Startup dedup failed: {e}")
+        logger.warning(f"Startup cleanup failed: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
