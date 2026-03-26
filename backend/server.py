@@ -2186,6 +2186,52 @@ async def mgt_center_delete(data: dict):
     logger.info(f"Center deleted: {code} by {session.get('managerName')}")
     return {"success": True, "message": f"Center '{code}' deleted successfully"}
 
+@api_router.post("/mgt/center_dedup")
+async def mgt_center_dedup(data: dict):
+    """Remove duplicate centers, keeping the one with more data (MGT only)"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or session.get("center") != "PB-MGT":
+        raise HTTPException(403, "Only PB-MGT can deduplicate centers")
+    
+    # Find all center codes
+    all_centers = await db.centers.find({}).to_list(500)
+    
+    # Group by code
+    code_map = {}
+    for c in all_centers:
+        code = c.get("code", "")
+        if code not in code_map:
+            code_map[code] = []
+        code_map[code].append(c)
+    
+    removed = []
+    for code, entries in code_map.items():
+        if len(entries) <= 1:
+            continue
+        
+        # Score each entry by how many non-empty fields it has
+        def score(entry):
+            s = 0
+            for k, v in entry.items():
+                if k == "_id":
+                    continue
+                if v and str(v).strip() and str(v).strip() != ".":
+                    s += 1
+            return s
+        
+        # Sort by score descending - keep the richest entry
+        entries.sort(key=score, reverse=True)
+        keep = entries[0]
+        duplicates = entries[1:]
+        
+        for dup in duplicates:
+            await db.centers.delete_one({"_id": dup["_id"]})
+            removed.append({"code": code, "removed_id": str(dup["_id"]), "kept_id": str(keep["_id"])})
+            logger.info(f"Dedup: removed duplicate center {code} (_id={dup['_id']}) by {session.get('managerName')}")
+    
+    return {"success": True, "removed_count": len(removed), "details": removed}
+
 # =======================================
 # MANAGERS MANAGEMENT ENDPOINTS (MGT Only)
 # =======================================
