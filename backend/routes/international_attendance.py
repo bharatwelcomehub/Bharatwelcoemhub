@@ -201,14 +201,39 @@ async def get_international_employees(req: CenterRequest):
         "center": {"$in": variants}
     }
     
-    employees = await db.employees.find(query, {"_id": 0}).sort("name", 1).to_list(500)
+    # Include _id so we can generate a unique key for employees without employee_id
+    employees_raw = await db.employees.find(query).sort("name", 1).to_list(500)
     
-    # Ensure hourly_rate exists for each employee
-    for emp in employees:
-        if "hourly_rate" not in emp or not emp.get("hourly_rate"):
-            emp["hourly_rate"] = 0
+    employees = []
+    for emp in employees_raw:
+        # Generate a reliable unique ID: prefer employee_id, fallback to _id string
+        emp_id = emp.get("employee_id") or emp.get("id") or emp.get("emp_id")
+        if not emp_id:
+            # Use MongoDB _id as fallback unique identifier
+            emp_id = str(emp.get("_id", ""))
+        
+        # Category: prefer 'category', fallback to 'designation'
+        category = emp.get("category") or emp.get("designation") or "STAFF"
+        
+        # Hourly rate: prefer 'hourly_rate', fallback to 0 (user can set it via edit button)
+        hourly_rate = emp.get("hourly_rate")
+        if hourly_rate is not None and hourly_rate != "":
+            hourly_rate = float(hourly_rate)
         else:
-            emp["hourly_rate"] = float(emp["hourly_rate"])
+            hourly_rate = 0.0
+        
+        # Build clean employee record (exclude _id for JSON serialization)
+        clean_emp = {
+            "employee_id": emp_id,
+            "name": emp.get("name", "Unknown"),
+            "center": emp.get("center", ""),
+            "category": category,
+            "role": emp.get("role") or emp.get("designation") or "",
+            "hourly_rate": hourly_rate,
+            "currentSalary": emp.get("currentSalary", 0),
+            "mobile": emp.get("mobile", ""),
+        }
+        employees.append(clean_emp)
     
     return {"success": True, "employees": employees, "count": len(employees)}
 
@@ -248,7 +273,7 @@ async def get_week_attendance(req: WeekAttendanceRequest):
     employee_data = []
     
     for emp in employees:
-        emp_id = emp.get("employee_id") or emp.get("id") or emp.get("emp_id")
+        emp_id = emp.get("employee_id")  # Already guaranteed by get_international_employees
         hourly_rate = float(emp.get("hourly_rate", 0) or 0)
         
         hours = {}
@@ -269,8 +294,8 @@ async def get_week_attendance(req: WeekAttendanceRequest):
         employee_data.append({
             "employee_id": emp_id,
             "employee_name": emp.get("name", "Unknown"),
-            "category": emp.get("category", "CASUAL"),
-            "role": emp.get("role", emp.get("designation", "")),
+            "category": emp.get("category", "STAFF"),
+            "role": emp.get("role", ""),
             "hourly_rate": hourly_rate,
             "hours": hours,
             "total_hours": round(total_hours, 2),
@@ -399,10 +424,10 @@ async def get_monthly_report(req: MonthlyReportRequest):
         "date": {"$gte": start_date, "$lte": end_date}
     }, {"_id": 0}).to_list(10000)
     
-    # Get employees
+    # Get employees - keyed by employee_id (already guaranteed unique)
     employees_result = await get_international_employees(CenterRequest(token=req.token, center=req.center))
     employees = {
-        (emp.get("employee_id") or emp.get("id")): emp 
+        emp.get("employee_id"): emp 
         for emp in employees_result["employees"]
     }
     
@@ -420,7 +445,7 @@ async def get_monthly_report(req: MonthlyReportRequest):
             employee_data[emp_id] = {
                 "employee_id": emp_id,
                 "employee_name": emp.get("name", "Unknown"),
-                "category": emp.get("category", "CASUAL"),
+                "category": emp.get("category", "STAFF"),
                 "hourly_rate": float(emp.get("hourly_rate", 0) or 0),
                 "weeks": {i: 0 for i in range(1, weeks_in_month + 1)},
                 "total_hours": 0,
@@ -680,27 +705,49 @@ async def update_hourly_rate(req: UpdateRateRequest):
     
     # Try multiple ID fields and center variants since employee docs may use different keys
     variants = center_code_variants(req.center)
+    
+    # First try employee_id field
     result = await db.employees.update_one(
         {"employee_id": req.employee_id, "center": {"$in": variants}},
         {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.modified_count == 0:
+        # Try 'id' field
         result = await db.employees.update_one(
             {"id": req.employee_id, "center": {"$in": variants}},
             {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
     
     if result.modified_count == 0:
+        # Try MongoDB _id (employee_id might be a stringified ObjectId)
+        from bson import ObjectId
+        try:
+            oid = ObjectId(req.employee_id)
+            result = await db.employees.update_one(
+                {"_id": oid},
+                {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+        except Exception:
+            pass
+    
+    if result.modified_count == 0:
         # Check if employee exists but rate is same
+        from bson import ObjectId as OID2
+        or_conditions = [
+            {"employee_id": req.employee_id, "center": {"$in": variants}},
+            {"id": req.employee_id, "center": {"$in": variants}}
+        ]
+        try:
+            or_conditions.append({"_id": OID2(req.employee_id)})
+        except Exception:
+            pass
+        
         emp = await db.employees.find_one(
-            {"$or": [
-                {"employee_id": req.employee_id, "center": {"$in": variants}},
-                {"id": req.employee_id, "center": {"$in": variants}}
-            ]},
+            {"$or": or_conditions},
             {"_id": 0, "hourly_rate": 1}
         )
-        if emp and float(emp.get("hourly_rate", 0)) == req.new_rate:
+        if emp and float(emp.get("hourly_rate", 0) or 0) == req.new_rate:
             return {"success": True, "message": f"Rate already set to ${req.new_rate:.2f}"}
         if not emp:
             raise HTTPException(404, "Employee not found")
