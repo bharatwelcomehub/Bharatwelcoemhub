@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { 
   Loader2, 
   Download, 
@@ -21,7 +22,8 @@ import {
   DollarSign,
   Globe,
   FileSpreadsheet,
-  AlertTriangle
+  AlertTriangle,
+  Pencil
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -85,6 +87,12 @@ export default function InternationalAttendance() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  
+  // Edit rate modal state
+  const [editRateOpen, setEditRateOpen] = useState(false);
+  const [editRateEmployee, setEditRateEmployee] = useState(null);
+  const [editRateValue, setEditRateValue] = useState("");
+  const [editRateSaving, setEditRateSaving] = useState(false);
 
   // Fetch international centers
   useEffect(() => {
@@ -382,6 +390,49 @@ export default function InternationalAttendance() {
     }
   };
 
+  // Open edit rate modal
+  const openEditRate = (emp) => {
+    setEditRateEmployee(emp);
+    setEditRateValue(emp.hourly_rate?.toString() || "0");
+    setEditRateOpen(true);
+  };
+
+  // Save updated rate
+  const handleSaveRate = async () => {
+    if (!editRateEmployee) return;
+    const rate = parseFloat(editRateValue);
+    if (isNaN(rate) || rate < 0) {
+      toast.error("Please enter a valid rate");
+      return;
+    }
+    
+    setEditRateSaving(true);
+    try {
+      const res = await fetch(`${API}/api/international-attendance/update-rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: session.token,
+          center: selectedCenter,
+          employee_id: editRateEmployee.employee_id,
+          new_rate: rate
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || "Rate updated");
+        setEditRateOpen(false);
+        fetchWeekData(); // Refresh to show new rate
+      } else {
+        toast.error(data.detail || "Failed to update rate");
+      }
+    } catch (err) {
+      toast.error("Failed to update rate");
+    } finally {
+      setEditRateSaving(false);
+    }
+  };
+
   // Format currency
   const formatCurrency = (amount) => {
     const center = centers.find(c => c.code === selectedCenter);
@@ -593,7 +644,17 @@ export default function InternationalAttendance() {
                                 {totalHours > 0 ? totalHours : "-"}
                               </td>
                               <td className="py-2 px-2 text-right text-muted-foreground">
-                                {formatCurrency(emp.hourly_rate)}/hr
+                                <span className="inline-flex items-center gap-1">
+                                  {formatCurrency(emp.hourly_rate)}/hr
+                                  <button
+                                    onClick={() => openEditRate(emp)}
+                                    className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded p-0.5 transition-colors"
+                                    title="Edit hourly rate"
+                                    data-testid={`edit-rate-${emp.employee_id}`}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                </span>
                               </td>
                               <td className="py-2 px-2 text-right font-bold text-green-600">
                                 {weeklySalary > 0 ? formatCurrency(weeklySalary) : "-"}
@@ -855,6 +916,45 @@ export default function InternationalAttendance() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Rate Dialog */}
+        <Dialog open={editRateOpen} onOpenChange={setEditRateOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Update Hourly Rate</DialogTitle>
+            </DialogHeader>
+            {editRateEmployee && (
+              <div className="space-y-4 py-2">
+                <div className="text-sm space-y-1">
+                  <div><span className="text-muted-foreground">Employee:</span> <span className="font-medium">{editRateEmployee.employee_name}</span></div>
+                  <div><span className="text-muted-foreground">Category:</span> <span>{editRateEmployee.category}</span></div>
+                  <div><span className="text-muted-foreground">Current Rate:</span> <span className="font-medium">{formatCurrency(editRateEmployee.hourly_rate)}/hr</span></div>
+                </div>
+                <div>
+                  <Label htmlFor="new-rate" className="text-sm font-medium">New Hourly Rate ($)</Label>
+                  <Input
+                    id="new-rate"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={editRateValue}
+                    onChange={(e) => setEditRateValue(e.target.value)}
+                    className="mt-1"
+                    data-testid="edit-rate-input"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setEditRateOpen(false)} data-testid="edit-rate-cancel">Cancel</Button>
+              <Button onClick={handleSaveRate} disabled={editRateSaving} data-testid="edit-rate-save" className="gap-2">
+                {editRateSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Rate
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

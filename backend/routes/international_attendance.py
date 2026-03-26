@@ -631,38 +631,56 @@ async def export_attendance_sheet(req: MonthlyReportRequest):
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
-@router.post("/bulk-update-rate")
-async def bulk_update_hourly_rate(
-    token: str,
-    center: str,
-    employee_id: str,
+class UpdateRateRequest(BaseModel):
+    token: str
+    center: str
+    employee_id: str
     new_rate: float
-):
-    """Update hourly rate for an employee (Admin only)"""
+
+@router.post("/update-rate")
+async def update_hourly_rate(req: UpdateRateRequest):
+    """Update hourly rate for an employee"""
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
     
-    session = verify_token(token)
+    session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Only admin can update rates
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only admin can update hourly rates")
+    # Only MGT or same center manager can update rates
+    user_center = session.get("center", "")
+    if user_center != "PB-MGT" and user_center != req.center.upper():
+        raise HTTPException(403, "Not authorized to update rates for this center")
     
-    if new_rate < 0:
+    if req.new_rate < 0:
         raise HTTPException(400, "Hourly rate cannot be negative")
     
+    # Try multiple ID fields since employee docs may use different keys
     result = await db.employees.update_one(
-        {"employee_id": employee_id, "center": center.upper()},
-        {"$set": {"hourly_rate": new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"employee_id": req.employee_id, "center": req.center.upper()},
+        {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     if result.modified_count == 0:
-        # Try alternate ID field
         result = await db.employees.update_one(
-            {"id": employee_id, "center": center.upper()},
-            {"$set": {"hourly_rate": new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            {"id": req.employee_id, "center": req.center.upper()},
+            {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
         )
     
-    return {"success": True, "message": f"Hourly rate updated to ${new_rate:.2f}"}
+    if result.modified_count == 0:
+        # Check if employee exists but rate is same
+        emp = await db.employees.find_one(
+            {"$or": [
+                {"employee_id": req.employee_id, "center": req.center.upper()},
+                {"id": req.employee_id, "center": req.center.upper()}
+            ]},
+            {"_id": 0, "hourly_rate": 1}
+        )
+        if emp and float(emp.get("hourly_rate", 0)) == req.new_rate:
+            return {"success": True, "message": f"Rate already set to ${req.new_rate:.2f}"}
+        if not emp:
+            raise HTTPException(404, "Employee not found")
+    
+    logger.info(f"Hourly rate updated: {req.employee_id} at {req.center} -> ${req.new_rate:.2f} by {session.get('managerName')}")
+    
+    return {"success": True, "message": f"Hourly rate updated to ${req.new_rate:.2f}"}

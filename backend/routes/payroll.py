@@ -531,7 +531,7 @@ async def payslips_generate(req: PayslipGenRequest):
                 
                 # Main Table
                 box_top = height - 2.35*inch
-                box_bottom = 1.8*inch
+                box_bottom = 2.2*inch
                 box_left = 0.4*inch
                 box_right = width - 0.4*inch
                 mid_col = width / 2
@@ -639,26 +639,27 @@ async def payslips_generate(req: PayslipGenRequest):
                     y -= 0.16*inch
                 
                 # Net Salary Section
+                net_y = box_bottom - 0.55*inch
                 c.setFillColorRGB(0.95, 0.95, 0.95)
-                c.rect(box_left, box_bottom - 0.5*inch, box_right - box_left, 0.45*inch, fill=1)
+                c.rect(box_left, net_y, box_right - box_left, 0.45*inch, fill=1)
                 c.setFillColorRGB(0, 0, 0)
                 
                 c.setFont("Helvetica-Bold", 11)
-                c.drawString(box_left + 0.15*inch, box_bottom - 0.32*inch, "NET SALARY")
-                c.drawRightString(box_right - 0.15*inch, box_bottom - 0.32*inch, f"Rs. {total_net:,.2f}")
+                c.drawString(box_left + 0.15*inch, net_y + 0.15*inch, "NET SALARY")
+                c.drawRightString(box_right - 0.15*inch, net_y + 0.15*inch, f"Rs. {total_net:,.2f}")
                 
                 # Footer
                 sign_path = ROOT_DIR / "assets" / "sandeep_gadhwal_signature.png" if ROOT_DIR else None
                 if sign_path and sign_path.exists():
                     try:
-                        c.drawImage(str(sign_path), width - 2*inch, 0.5*inch, width=1.2*inch, height=0.6*inch, preserveAspectRatio=True, mask='auto')
+                        c.drawImage(str(sign_path), width - 2*inch, 0.45*inch, width=1.2*inch, height=0.6*inch, preserveAspectRatio=True, mask='auto')
                     except Exception as e:
                         logger.warning(f"Could not add signature: {e}")
                 
                 c.setFont("Helvetica-Bold", 10)
-                c.drawRightString(width - 0.5*inch, 1.3*inch, "Purnabramha")
+                c.drawRightString(width - 0.5*inch, 1.15*inch, "Purnabramha")
                 c.setFont("Helvetica", 8)
-                c.drawRightString(width - 0.5*inch, 1.15*inch, "MANASWINI FOODS PVT. LTD.")
+                c.drawRightString(width - 0.5*inch, 1.0*inch, "MANASWINI FOODS PVT. LTD.")
                 c.drawRightString(width - 0.5*inch, 0.35*inch, "Mr. Sandeep Gadhwal")
                 c.drawRightString(width - 0.5*inch, 0.22*inch, "Director")
                 
