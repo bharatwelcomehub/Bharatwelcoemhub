@@ -1,0 +1,96 @@
+{
+  "summary": "Completed comprehensive testing of Master Data Management, Permission Engine, and Franchise Owner Dashboard features. All 16 backend tests passed (100%). Frontend features verified working with minor UI note about sidebar category expansion.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Sidebar Navigation",
+        "issues": ["Franchise category requires click to expand even though it's in initial expandedCategories state - minor UX issue, functionality works correctly"]
+      }
+    ]
+  },
+  "features_tested": {
+    "master_types_endpoint": {
+      "status": "PASS",
+      "details": "GET /api/masters/types returns 14 master type definitions with counts (expense_categories: 35 active, payment_modes: 8 active, employee_categories: 21 active, etc.)"
+    },
+    "master_crud_operations": {
+      "status": "PASS",
+      "details": "POST /api/masters/{type}/list, /create, /update, /delete all working. Tested with expense_categories - create, update, soft-delete (deactivate) all successful."
+    },
+    "seed_from_existing": {
+      "status": "PASS",
+      "details": "POST /api/masters/seed-from-existing migrates existing data safely. Seeded expense categories from expense_heads, payment modes, employee categories from designations, tax configs, order types, cancellation reasons, sales channels, licenses, discount types, menu categories."
+    },
+    "permission_roles_seed": {
+      "status": "PASS",
+      "details": "POST /api/permissions/roles/seed-defaults creates 7 default roles: super_admin, admin, center_manager, super_manager, accountant, franchise_owner, staff"
+    },
+    "permission_roles_list": {
+      "status": "PASS",
+      "details": "POST /api/permissions/roles/list returns all 7 seeded roles with permissions and scope"
+    },
+    "my_permissions_endpoint": {
+      "status": "PASS",
+      "details": "GET /api/permissions/my-permissions returns correct role_key, role_name, permissions map, and scope for super admin (all_centers)"
+    },
+    "role_assignment": {
+      "status": "PASS",
+      "details": "POST /api/permissions/roles/assign successfully assigns role_key to manager"
+    },
+    "expense_types_from_master": {
+      "status": "PASS",
+      "details": "GET /api/sales/expense-types returns source=master when master_expense_categories has data"
+    },
+    "payment_modes_from_master": {
+      "status": "PASS",
+      "details": "GET /api/sales/payment-modes returns source=master when master_payment_modes has data"
+    },
+    "master_data_page_ui": {
+      "status": "PASS",
+      "details": "Master Data Management page loads with 14 master type cards showing counts. Clicking a card loads items in table. 'Seed from System' and 'Seed Roles' buttons present. Add button opens create dialog with Name, Description, Code fields."
+    },
+    "franchise_owner_dashboard_ui": {
+      "status": "PASS",
+      "details": "Franchise Owner Dashboard at /franchise-dashboard loads with KPI cards (Total Sales, Total Expenses, Net Profit, Margin), View Only badge, period selector, Export button, and 3 tabs (Sales Overview, Expense Breakdown, Franchise Info)"
+    },
+    "role_management_page_ui": {
+      "status": "PASS",
+      "details": "Role Management page shows managers list with Edit Roles button. System Role section shows DB-driven role options when editing."
+    },
+    "sidebar_navigation": {
+      "status": "PASS",
+      "details": "Master Data visible under Management category. Owner Dashboard visible under Franchise category (requires expanding Franchise category)."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_master_data_permissions.py",
+    "/app/test_reports/pytest/pytest_master_data_permissions.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_master_data_permissions.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 tests passed)",
+    "frontend": "100% (all UI features verified)"
+  },
+  "test_credentials": {
+    "super_admin": "PB-MGT / 9741399190 / 123456",
+    "india_manager": "PB-HSR / 9999999999 / 123456"
+  },
+  "seed_data_creation": "Master data seeded via /api/masters/seed-from-existing: 35 expense categories, 8 payment modes, 21 employee categories, 3 tax configs, 7 menu categories, 4 order types, 6 cancellation reasons, 6 sales channels, 6 licenses, 5 discount types. 7 roles seeded via /api/permissions/roles/seed-defaults.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Master Data Management and Permission Engine fully working: 1) /api/masters/types returns 14 master types with counts, 2) Generic CRUD at /api/masters/{type}/list|create|update|delete, 3) /api/masters/seed-from-existing migrates existing data, 4) /api/permissions/roles/seed-defaults creates 7 roles, 5) /api/permissions/my-permissions returns user's role and permissions, 6) /api/sales/expense-types and /api/sales/payment-modes now return source=master, 7) Master Data page at /master-data, 8) Franchise Owner Dashboard at /franchise-dashboard, 9) Role Management shows DB-driven system roles. Sidebar Franchise category needs to be clicked to expand to see Owner Dashboard link.",
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

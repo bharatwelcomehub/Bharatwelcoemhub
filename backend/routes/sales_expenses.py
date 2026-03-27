@@ -1483,46 +1483,46 @@ async def get_monthly_summary(req: SalesQueryRequest):
 
 @router.get("/expense-types")
 async def get_expense_types():
-    """Get all unique expense types"""
-    types = await db.expenses.distinct("expense_type")
+    """Get all expense types — pulls from master_expense_categories first, then fallback"""
+    # PRIMARY: Pull from master table
+    master_types = await db.master_expense_categories.find(
+        {"is_active": True}, {"_id": 0, "name": 1}
+    ).to_list(500)
     
-    # Standard expense types
+    if master_types:
+        all_types = sorted(set(t["name"] for t in master_types))
+        return {"expense_types": all_types, "source": "master"}
+    
+    # FALLBACK: Legacy behavior (merge expense_heads + distinct + hardcoded)
+    types = await db.expenses.distinct("expense_type")
+    head_docs = await db.expense_heads.find({"is_active": {"$ne": False}}, {"_id": 0, "name": 1}).to_list(500)
+    head_names = [h["name"] for h in head_docs if h.get("name")]
+    
     standard_types = [
-        "GROCERY",
-        "DAIRY PRODUCTS",
-        "FRUITS & VEGETABLE",
-        "WATER CAN/ BOTTLE",
-        "CYLINDER",
-        "PAV",
-        "PACKAGING MATERIAL",
-        "CELEBRATION EXPENSES",
-        "MEDIA & ADVERTISEMENT",
-        "RESTAURANT GENERAL EXPENSES",
-        "REPAIR & MAINTENANCE",
-        "SALARY",
-        "ADVANCE",
-        "RENT",
-        "ELECTRICITY",
-        "OTHER"
+        "GROCERY", "DAIRY PRODUCTS", "FRUITS & VEGETABLE", "WATER CAN/ BOTTLE",
+        "CYLINDER", "PAV", "PACKAGING MATERIAL", "CELEBRATION EXPENSES",
+        "MEDIA & ADVERTISEMENT", "RESTAURANT GENERAL EXPENSES", "REPAIR & MAINTENANCE",
+        "SALARY", "ADVANCE", "RENT", "ELECTRICITY", "OTHER"
     ]
     
-    # Merge with existing types
-    all_types = list(set(standard_types + types))
-    all_types.sort()
-    
-    return {"expense_types": all_types}
+    all_types = sorted(set(standard_types + types + head_names))
+    return {"expense_types": all_types, "source": "legacy"}
 
 @router.get("/payment-modes")
 async def get_payment_modes():
-    """Get all payment modes"""
+    """Get all payment modes — pulls from master_payment_modes first"""
+    # PRIMARY: Pull from master table
+    master_modes = await db.master_payment_modes.find(
+        {"is_active": True}, {"_id": 0, "name": 1}
+    ).to_list(100)
+    
+    if master_modes:
+        return {"payment_modes": sorted(m["name"] for m in master_modes), "source": "master"}
+    
+    # FALLBACK: Hardcoded (will be removed after migration)
     return {
-        "payment_modes": [
-            "CASH",
-            "ONLINE UPI",
-            "ONLINE NEFT/IMPS",
-            "CARD",
-            "CHEQUE"
-        ]
+        "payment_modes": ["CASH", "ONLINE UPI", "ONLINE NEFT/IMPS", "CARD", "CHEQUE"],
+        "source": "legacy"
     }
 
 @router.get("/centers-list")

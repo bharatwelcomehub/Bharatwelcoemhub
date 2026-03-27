@@ -29,7 +29,8 @@ import {
   Store,
   BarChart3,
   Globe,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Database
 } from "lucide-react";
 
 // Import pages
@@ -54,6 +55,8 @@ import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
 import InternationalAttendance from "@/pages/InternationalAttendance";
 import EmployeeTransfers from "@/pages/EmployeeTransfers";
+import MasterDataManagement from "@/pages/MasterDataManagement";
+import FranchiseOwnerDashboard from "@/pages/FranchiseOwnerDashboard";
 
 // Menu categories structure
 const menuCategories = [
@@ -113,6 +116,7 @@ const menuCategories = [
       { path: "/centers", icon: Building2, label: "Centers", forMGT: true },
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
+      { path: "/master-data", icon: Database, label: "Master Data", forMGT: true },
     ]
   },
   {
@@ -123,6 +127,7 @@ const menuCategories = [
     items: [
       { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true },
       { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
+      { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
     ]
   },
   {
@@ -403,6 +408,8 @@ export default function Dashboard() {
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
+            <Route path="/master-data" element={<MasterDataManagement />} />
+            <Route path="/franchise-dashboard" element={<FranchiseOwnerDashboard />} />
           </Routes>
         </div>
       </main>

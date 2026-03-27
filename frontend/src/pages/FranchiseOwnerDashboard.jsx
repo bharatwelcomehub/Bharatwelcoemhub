@@ -1,0 +1,318 @@
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/App";
+import { api } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { 
+  BarChart3, Download, IndianRupee, Receipt, FileText, Store, Calendar,
+  TrendingUp, TrendingDown, Loader2, Eye
+} from "lucide-react";
+import {
+  ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend
+} from "recharts";
+import * as XLSX from "xlsx";
+
+const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F'];
+const formatCurrency = (v) => {
+  if (!v) return "0";
+  if (v >= 100000) return `${(v / 100000).toFixed(2)}L`;
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+  return v.toFixed(0);
+};
+
+export default function FranchiseOwnerDashboard() {
+  const { session } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [period, setPeriod] = useState("current_month");
+  const [tab, setTab] = useState("overview");
+  
+  // Data
+  const [overview, setOverview] = useState(null);
+  const [salesData, setSalesData] = useState([]);
+  const [expenseData, setExpenseData] = useState([]);
+  const [franchiseInfo, setFranchiseInfo] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+
+  const fetchData = useCallback(async () => {
+    if (!session?.token) return;
+    setLoading(true);
+    try {
+      const center = session.franchise_center || session.center;
+      const params = { token: session.token, period, center };
+      
+      const [ovRes, salesRes, expRes] = await Promise.all([
+        api.post("/mis/overview", params).catch(() => ({ data: {} })),
+        api.post("/mis/sales-trends", { ...params, group_by: "daily" }).catch(() => ({ data: { trends: [] } })),
+        api.post("/mis/expense-analysis", params).catch(() => ({ data: {} })),
+      ]);
+      
+      setOverview(ovRes.data);
+      setSalesData(salesRes.data.trends || []);
+      setExpenseData(expRes.data.by_type || []);
+      
+      // Fetch franchise info
+      const frRes = await api.post("/masters/franchises/list", { token: session.token, active_only: true }).catch(() => ({ data: { items: [] } }));
+      const myFranchise = (frRes.data.items || []).find(f => f.center === center);
+      setFranchiseInfo(myFranchise || null);
+      
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [session, period]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleExportReport = () => {
+    if (!overview) return;
+    const wb = XLSX.utils.book_new();
+    const center = session.franchise_center || session.center;
+    
+    // Summary
+    const summary = [
+      ["Franchise Report - Purnabramha"], ["Center", center], ["Period", period], [],
+      ["Metric", "Value"],
+      ["Total Sales", overview?.summary?.total_sales],
+      ["Total Expenses", overview?.summary?.total_expenses],
+      ["GST", overview?.summary?.total_gst],
+      ["Net Profit", overview?.summary?.profit],
+      ["Profit Margin (%)", overview?.summary?.profit_margin],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Summary");
+    
+    // Sales Trends
+    if (salesData.length > 0) {
+      const rows = salesData.map(s => [s.date, s.sales, s.expenses, s.profit]);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "Profit"], ...rows]), "Sales Trends");
+    }
+    
+    // Expense Breakdown
+    if (expenseData.length > 0) {
+      const rows = expenseData.map(e => [e.type, e.amount, e.percentage, e.count]);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Type", "Amount", "%", "Count"], ...rows]), "Expenses");
+    }
+    
+    XLSX.writeFile(wb, `Franchise_Report_${center}_${period}.xlsx`);
+    toast.success("Report downloaded");
+  };
+
+  const summary = overview?.summary || {};
+  const center = session?.franchise_center || session?.center;
+
+  return (
+    <div className="space-y-6" data-testid="franchise-owner-dashboard">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Store className="w-6 h-6 text-primary" />
+            Franchise Dashboard
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {franchiseInfo?.name || center} — View Only
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-xs border-amber-400 text-amber-600 bg-amber-50">
+            <Eye className="w-3 h-3 mr-1" /> View Only
+          </Badge>
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[160px]" data-testid="fo-period-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="current_month">This Month</SelectItem>
+              <SelectItem value="last_month">Last Month</SelectItem>
+              <SelectItem value="last_3_months">Last 3 Months</SelectItem>
+              <SelectItem value="last_6_months">Last 6 Months</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={handleExportReport} disabled={loading} data-testid="fo-export-btn">
+            <Download className="w-4 h-4 mr-2" /> Export
+          </Button>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      )}
+
+      {!loading && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-card border-border">
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Total Sales</p>
+                <p className="text-xl font-bold text-green-400" data-testid="fo-total-sales">
+                  {formatCurrency(summary.total_sales || 0)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Total Expenses</p>
+                <p className="text-xl font-bold text-red-400" data-testid="fo-total-expenses">
+                  {formatCurrency(summary.total_expenses || 0)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Net Profit</p>
+                <p className={`text-xl font-bold ${(summary.profit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`} data-testid="fo-profit">
+                  {formatCurrency(Math.abs(summary.profit || 0))}{(summary.profit || 0) < 0 && ' (-)'}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Margin</p>
+                <p className="text-xl font-bold text-primary" data-testid="fo-margin">
+                  {(summary.profit_margin || 0).toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tabs */}
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="bg-card border border-border">
+              <TabsTrigger value="overview">Sales Overview</TabsTrigger>
+              <TabsTrigger value="expenses">Expense Breakdown</TabsTrigger>
+              <TabsTrigger value="franchise">Franchise Info</TabsTrigger>
+            </TabsList>
+
+            {/* Sales Overview Tab */}
+            <TabsContent value="overview" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader><CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="w-5 h-5" /> Sales Trend</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={salesData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis dataKey="date" stroke="#888" fontSize={10} />
+                      <YAxis stroke="#888" fontSize={10} tickFormatter={v => `${(v/1000).toFixed(0)}K`} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }} />
+                      <Legend />
+                      <Bar dataKey="sales" fill="#22c55e" name="Sales" />
+                      <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+              
+              {/* Daily table */}
+              <Card className="bg-card border-border">
+                <CardHeader><CardTitle className="text-lg">Day-wise Sales</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="overflow-auto max-h-[400px]">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-card">
+                        <tr className="border-b border-border">
+                          <th className="text-left p-2">Date</th>
+                          <th className="text-right p-2">Sales</th>
+                          <th className="text-right p-2">Expenses</th>
+                          <th className="text-right p-2">GST</th>
+                          <th className="text-right p-2">Profit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesData.map((d, i) => (
+                          <tr key={i} className="border-b border-border/50 hover:bg-white/5">
+                            <td className="p-2">{d.date}</td>
+                            <td className="p-2 text-right text-green-400">{formatCurrency(d.sales)}</td>
+                            <td className="p-2 text-right text-red-400">{formatCurrency(d.expenses)}</td>
+                            <td className="p-2 text-right text-amber-400">{formatCurrency(d.gst)}</td>
+                            <td className={`p-2 text-right font-semibold ${(d.profit||0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {formatCurrency(Math.abs(d.profit || 0))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Expense Breakdown Tab */}
+            <TabsContent value="expenses" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Card className="bg-card border-border">
+                  <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Receipt className="w-5 h-5" /> By Category</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie data={expenseData} dataKey="amount" nameKey="type" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`}>
+                          {expenseData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={v => formatCurrency(v)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card className="bg-card border-border">
+                  <CardHeader><CardTitle className="text-lg">Expense Details</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {expenseData.map((e, i) => (
+                        <div key={i} className="flex justify-between items-center p-2 rounded bg-muted/30">
+                          <span className="text-sm font-medium">{e.type}</span>
+                          <div className="text-right">
+                            <span className="font-bold">{formatCurrency(e.amount)}</span>
+                            <span className="text-xs text-muted-foreground ml-2">({e.percentage?.toFixed(1)}%)</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Franchise Info Tab */}
+            <TabsContent value="franchise" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Store className="w-5 h-5" /> Franchise Profile</CardTitle></CardHeader>
+                <CardContent>
+                  {franchiseInfo ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[
+                        ["Franchise Name", franchiseInfo.name],
+                        ["Owner", franchiseInfo.owner_name],
+                        ["Center", franchiseInfo.center],
+                        ["Email", franchiseInfo.owner_email],
+                        ["Phone", franchiseInfo.owner_phone],
+                        ["Agreement Date", franchiseInfo.agreement_date],
+                        ["Royalty %", franchiseInfo.royalty_percent ? `${franchiseInfo.royalty_percent}%` : "N/A"],
+                        ["City", franchiseInfo.city],
+                        ["State", franchiseInfo.state],
+                        ["Address", franchiseInfo.address],
+                      ].map(([label, value]) => (
+                        <div key={label} className="space-y-1">
+                          <p className="text-xs text-muted-foreground">{label}</p>
+                          <p className="font-medium">{value || "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No franchise profile found for this center. Contact admin to set up.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
+    </div>
+  );
+}

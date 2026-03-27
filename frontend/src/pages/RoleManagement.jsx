@@ -3,6 +3,7 @@ import { useAuth } from "@/App";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { 
@@ -90,6 +91,10 @@ export default function RoleManagement() {
   const [selectedRoles, setSelectedRoles] = useState({});
   const [selectedAdminLevel, setSelectedAdminLevel] = useState("none");
   
+  // New: DB-driven roles
+  const [systemRoles, setSystemRoles] = useState([]);
+  const [selectedRoleKey, setSelectedRoleKey] = useState("");
+  
   // Check if current user is super admin
   const isSuperAdmin = session?.is_super_admin === true || session?.center === "PB-MGT";
 
@@ -97,12 +102,12 @@ export default function RoleManagement() {
   const fetchManagers = async () => {
     setLoading(true);
     try {
-      const res = await api.post("/mgt/managers", { token: session?.token });
-      if (res.data.managers) {
-        // Backend handles filtering based on user permissions
-        // Jayanti sees all managers, others see filtered list
-        setManagers(res.data.managers);
-      }
+      const [mgrRes, rolesRes] = await Promise.all([
+        api.post("/mgt/managers", { token: session?.token }),
+        api.post("/permissions/roles/list", { token: session?.token }).catch(() => ({ data: { roles: [] } }))
+      ]);
+      if (mgrRes.data.managers) setManagers(mgrRes.data.managers);
+      if (rolesRes.data.roles) setSystemRoles(rolesRes.data.roles);
     } catch (err) {
       console.error("Failed to fetch managers:", err);
       toast.error("Failed to load managers");
@@ -127,19 +132,13 @@ export default function RoleManagement() {
   // Start editing a manager's roles
   const handleEditRoles = (manager) => {
     setEditingManager(manager);
-    // Initialize selected roles from manager's existing roles or defaults
     const roles = manager.roles || {
-      attendance: true,
-      sales_cash: true,
-      hr: false,
-      mgt: false,
-      operations: true,
-      franchise: false,
-      view_all_centers: false
+      attendance: true, sales_cash: true, hr: false,
+      mgt: false, operations: true, franchise: false, view_all_centers: false
     };
     setSelectedRoles(roles);
+    setSelectedRoleKey(manager.role_key || "");
     
-    // Set admin level
     if (manager.is_super_admin) {
       setSelectedAdminLevel("super_admin");
     } else if (manager.is_admin) {
@@ -163,12 +162,22 @@ export default function RoleManagement() {
     
     setSaving(true);
     try {
+      // Save legacy module roles
       await api.post("/mgt/manager_roles", {
         token: session?.token,
         email: editingManager.email,
         roles: selectedRoles,
         is_admin: selectedAdminLevel === "admin"
       });
+      
+      // Also save the system role key if selected
+      if (selectedRoleKey) {
+        await api.post("/permissions/roles/assign", {
+          token: session?.token,
+          email: editingManager.email,
+          role_key: selectedRoleKey
+        }).catch(() => {});
+      }
       
       toast.success(`Roles updated for ${editingManager.managerName || editingManager.email}`);
       setEditingManager(null);
@@ -317,6 +326,34 @@ export default function RoleManagement() {
               </div>
             )}
             
+            {/* System Role (DB-driven) */}
+            {systemRoles.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-primary">System Role (DB-Driven)</h3>
+                <p className="text-xs text-muted-foreground">Assign a role from the permission engine. This overrides module-level access above.</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div 
+                    className={`p-3 rounded-lg border-2 cursor-pointer transition-colors text-center ${!selectedRoleKey ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground'}`}
+                    onClick={() => setSelectedRoleKey("")}
+                  >
+                    <span className="text-xs font-medium">No System Role</span>
+                    <p className="text-[10px] text-muted-foreground mt-1">Use module-level access above</p>
+                  </div>
+                  {systemRoles.filter(r => r.is_active !== false).map(r => (
+                    <div 
+                      key={r.key}
+                      className={`p-3 rounded-lg border-2 cursor-pointer transition-colors text-center ${selectedRoleKey === r.key ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground'}`}
+                      onClick={() => setSelectedRoleKey(r.key)}
+                      data-testid={`role-${r.key}`}
+                    >
+                      <span className="text-xs font-medium">{r.name}</span>
+                      <p className="text-[10px] text-muted-foreground mt-1">{r.scope?.replace(/_/g, ' ')}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             {/* Module Roles */}
             <div className="space-y-3">
               <h3 className="font-semibold text-sm text-primary">Module Access</h3>
@@ -393,6 +430,9 @@ export default function RoleManagement() {
                     <td className="py-3 px-2 text-muted-foreground">{manager.email}</td>
                     <td className="py-3 px-2">
                       <div className="flex flex-wrap gap-1">
+                        {manager.role_key && (
+                          <Badge className="bg-purple-500/20 text-purple-400 text-[10px]">{manager.role_name || manager.role_key}</Badge>
+                        )}
                         {getRoleBadges(manager)}
                       </div>
                     </td>

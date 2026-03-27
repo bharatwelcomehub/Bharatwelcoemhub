@@ -2160,6 +2160,18 @@ set_cm_db(db)
 set_cm_verify_token(verify_token)
 app.include_router(cm_router)
 
+# Include Master Data router
+from routes.masters import router as masters_router, set_db as set_masters_db, set_verify_token as set_masters_verify_token
+set_masters_db(db)
+set_masters_verify_token(verify_token)
+app.include_router(masters_router)
+
+# Include Permission Engine router
+from routes.permissions import router as perm_router, set_db as set_perm_db, set_verify_token as set_perm_verify_token
+set_perm_db(db)
+set_perm_verify_token(verify_token)
+app.include_router(perm_router)
+
 
 # CORS
 app.add_middleware(
