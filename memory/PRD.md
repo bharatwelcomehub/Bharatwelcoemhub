@@ -3,50 +3,40 @@
 ## Original Problem Statement
 Internal management system for Purnabramha restaurant franchise. Includes financial features, attendance, payroll, HR letters, recipes, guest management, and employee transfers.
 
-## Latest Session (Mar 26, 2026) - Employee Transfer Feature
+## Latest Session (Mar 27, 2026) - MIS Dashboard Fixes + Expense Enhancements
+
+### MIS Dashboard Center Filtering Fix (COMPLETE - 100% tested)
+- Fixed center dropdown: now loads from `/api/centers` independently (no longer depends on filtered overview response)
+- All charts (pie, trends, expense analysis, center comparison) properly filter by selected center
+- Added `center` parameter support to `/api/mis/center-comparison` endpoint
+
+### Working Capital Remaining Chart (COMPLETE - 100% tested)
+- New `/api/mis/working-capital` endpoint calculates cumulative (Sales - Expenses - GST) per day
+- New "Working Capital" tab with: summary cards, composed bar+line chart, daily breakdown table
+
+### MIS Report Export (COMPLETE - 100% tested)
+- Export button generates multi-sheet Excel file (xlsx library)
+- Sheets: Summary, Centers, Trends, Expenses, Working Capital, Quarterly
+
+### Expense Entry Enhancements (COMPLETE - 100% tested)
+- Sortable column headers: Date, Description, Category, Mode, Amount, Invoice, Bill
+- Click to toggle asc/desc, visual sort indicators
+- "Add 3 More Entries" button for batch expense entry
+- Batch rows with save all / clear all / remove individual row
+
+## Previous Session (Mar 26, 2026)
 
 ### Employee Transfer / Accept Shift (COMPLETE - 100% tested)
+- Full CRUD: Create, Accept, Reject, Cancel transfers
+- Manager Dashboard: Incoming / Outgoing / Active Shifts
+- Transfer Types: Temporary (date range) and Permanent
+- Employee Master auto-update on acceptance
+- Auto-complete expired temporary transfers on startup
 
-**Core Workflow:**
-- Create transfer request (Temporary or Permanent)
-- Destination center manager accepts/rejects
-- On accept: employee center auto-updates
-- Temporary transfers auto-complete after end date
-
-**Features Built:**
-1. Full CRUD: Create, Accept, Reject, Cancel transfers
-2. Manager Dashboard: Incoming / Outgoing / Active Shifts
-3. Transfer Types: Temporary (date range) and Permanent
-4. Employee Master auto-update on acceptance
-5. Notifications for all transfer events
-6. Complete audit trail / history
-7. Center-wise transfer summary reports
-8. Validation: no self-transfer, no overlapping dates, no duplicate active transfers
-9. Auto-complete expired temporary transfers on startup
-
-**Database Collections:**
-- `transfer_requests`: Full transfer lifecycle with audit fields
-- `transfer_notifications`: In-app notification system
-- `employees`: Added `home_center`, `current_operating_center`, `transfer_status`, `active_transfer_id`
-
-**API Endpoints:**
-- POST /api/transfers/create
-- POST /api/transfers/action (accept/reject/cancel)
-- POST /api/transfers/list
-- POST /api/transfers/history
-- POST /api/transfers/reports/summary
-- POST /api/transfers/notifications
-- POST /api/transfers/notifications/mark-read
-- POST /api/transfers/employee-status
-- POST /api/transfers/auto-complete-expired
-
-### Previous Changes This Session
-- International Attendance RBAC overhaul (9/9 tests passed)
+### International Attendance RBAC Overhaul (COMPLETE)
 - Center Master "Is India Center?" flag
-- Data save bug fix (per-employee hours)
-- Center code normalization (PB-PERTH- → PB-PERTH)
-- Update Hourly Rate UI
-- Payslip PDF text overlap fix
+- Module visibility locked to Super Admin, Admin, Int'l Manager only
+- Per-employee hours save fix, center code normalization
 
 ## Testing Credentials
 - Super Admin: PB-MGT, Mobile 9741399190, OTP 123456
@@ -54,6 +44,7 @@ Internal management system for Purnabramha restaurant franchise. Includes financ
 - India Manager: PB-HSR, Mobile 9999999999, OTP 123456
 
 ## Test Reports
+- /app/test_reports/iteration_23.json - MIS Dashboard v2 + Expense Enhancements (100% pass, 18/18 backend + all frontend)
 - /app/test_reports/iteration_22.json - Employee Transfers (100% pass, 24/24 backend + all frontend)
 - /app/test_reports/iteration_21.json - RBAC overhaul (100% pass, 9/9)
 
@@ -63,17 +54,20 @@ Internal management system for Purnabramha restaurant franchise. Includes financ
 - Status tags in attendance: "Home", "Transferred In", "Transferred Out"
 - Duplicate attendance prevention across centers
 - Payroll mapping to actual working center
+- Attendance marking maps to previous/new centers across transfer date boundary
 
 ### P2
 - PDF export for International payroll reports
-- Complete server.py refactoring
+- Complete server.py refactoring (extract remaining monolithic routes)
 - Approval hierarchy config (admin approval before destination)
 - WhatsApp/Email notification hooks
+- OTP Email verification on live site (works in preview)
 
 ### P3
 - Image Upload for Recipes
 - Franchise Deal Simulator
 - International center support for transfers
+- 7-year retention deletion prompt
 
 ## Project Health
 - Broken: None
