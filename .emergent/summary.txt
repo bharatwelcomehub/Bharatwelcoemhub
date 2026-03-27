@@ -1,137 +1,112 @@
 <analysis>**original_problem_statement:**
-The user is building an internal management system for Purnabramha, a restaurant franchise. In this session, the user requested multiple major additions and bug fixes:
-1. Fix issues in the newly created International Attendance module (Perth missing employees, hours saving for all employees simultaneously due to missing s in production, and center code mismatches  vs ).
-2. Add a comprehensive Role-Based Access Control (RBAC) overhaul to the International Attendance module, including an  flag to hide it from India managers.
-3. Build a massive Employee Transfer / Accept Shift feature for India centers (Supporting Temporary and Permanent transfers, manager request/accept workflows, and proper payroll mapping).
-4. **Current Issue:** MIS Dashboard charts are not filtering data when a specific center is selected. Need to fix the graphs, add a new Working Capital Remaining graph, and provide a center-wise download capability for franchise owners.
+The user is building an internal management system for Purnabramha, a restaurant franchise. The user has requested a massive architectural shift to a MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING system. All hardcoded center names, roles, expense categories, and logic must be removed. A strict Permission Engine must be implemented along with a new Franchise Owner role (View-Only dashboard). The ultimate goal is to evolve the application into a full-fledged Master-driven POS/Billing system without disrupting live production data.
 
 **PRODUCT REQUIREMENTS:**
-- **MIS Dashboard:** Selecting a center MUST update all graphs (pie charts, trends) to reflect only that center's data. Must include a Working Capital Remaining chart. Must have a download/export feature.
-- **Transfers:** Temporary transfers keep the employee's home center but change their operational center for a specific date range. Permanent transfers permanently change the home center upon acceptance. Past attendance must remain visible to the old center, while future attendance belongs to the new center.
-- **International Attendance:** Strictly restricted to Super Admin, Admin, and the specific International Manager. India centers must have  and completely hide this module. 
+- Remove all hardcoded values (centers, roles, expense categories, sales heads, payment modes, report filters, etc.) across the entire codebase.
+- Implement strict role-based access control (Super Admin, Admin, Center Manager, Franchise Owner, etc.) controlling page, module, center, and action visibility.
+- Build a Franchise Owner Dashboard with limited view/download access strictly for their mapped business entity.
+- Prepare CRUD management for 16+ Master tables (Center, Role, Franchise, Employee, Tax, Menu, etc.).
+- Safe migration: Current live data must remain intact and map to new master values safely.
 
-**User's preferred language**: English
+**User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A robust React/FastAPI/MongoDB franchise management application. It handles attendance, payroll, net revenue, expense attachments, and invoice batching. Recently, a fully-functional International Attendance module was overhauled with strict RBAC. A massive Employee Transfer/Accept Shift workflow was also built, allowing center managers to transfer employees seamlessly with proper backend audit trails and operational center overrides. 
+A robust React/FastAPI/MongoDB franchise management application. Phase 1 & 2 of the Master-Data-First architecture have just been completed, which introduced 16 master tables, a Permission Engine, a Franchise Owner Dashboard, and Master Data Management UI. The MIS dashboard was recently fixed to filter by center properly and calculate Working Capital. The Attendance and Payroll modules are now transfer-aware, automatically handling Home vs. Transferred-In/Out mappings.
 
 **Last working item**:
-- **Last item agent was working:** Fixing the MIS Dashboard. The user reported that selecting a center from the dropdown does not filter the charts (they still show All Centers data). The user also requested a new Working Capital Remaining graph and a download feature to share center-wise reports. The agent had just viewed  to start the fix.
+- **Last item agent was working:** Auditing the codebase to replace ALL remaining hardcoded values across 30+ files and enforcing role-based visibility on every button/screen. The agent executed a bash script to count hardcoded instances (found 83 center names, 173 role checks, 76 frontend PB-MGT checks) but has not started editing files yet.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** Frontend testing agent (to verify graph rendering and download button) + backend testing agent (to verify filtering endpoints).
+- **Which testing method agent to use?** both (frontend and backend testing agents must be used iteratively, as changing 30+ files is highly prone to regressions).
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-Issue 1: MIS Dashboard charts not filtering by selected center (P0)
-Issue 2: Add Working Capital Remaining graph to MIS Dashboard (P0)
-Issue 3: Add Download capability for center-wise MIS data (P1)
-Issue 4: Verify Live Site OTP Email Failure (P2)
-Issue 5: Ensure Attendance marking maps perfectly to previous/new centers across the exact transfer dates boundary (P2)
+Issue 1: Replace all hardcoded values across 30+ files (P0)
+Issue 2: Complete role-based visibility enforcement on every button/screen (P0)
 
 Issues Detail:
-- **Issue 1: MIS Dashboard charts not filtering by selected center**
-   - **Attempted fixes:** Agent executed grep and viewed  but made no edits yet.
-   - **Next debug checklist:** Check  endpoints. Ensure  is being applied as a  filter in all aggregations (Pie charts, Sales vs Expense trend). Update  to pass the  properly.
-   - **Why fix this issue and what will be achieved with the fix?** User needs real-time, center-specific data to share with franchise owners.
+- **Issue 1: Replace all hardcoded values across 30+ files**
+   - **Attempted fixes:** Agent ran a  audit, identifying 83 hardcoded center names, 173 role checks, 6 expense types, 9 payment modes, and 76 frontend PB-MGT checks. No files edited yet.
+   - **Next debug checklist:** Systematically replace hardcoded arrays/lists in frontend components and backend routes with API calls to  and . Start with high-impact files (, , ).
+   - **Why fix this issue and what will be achieved with the fix?** Core user requirement to ensure scalability and a single source of truth.
    - **Status:** IN PROGRESS
    - **Is recurring issue?** N
    - **Should Test frontend/backend/both after fix?** Both
    - **Blocked on other issue:** None
 
-- **Issue 2: Add Working Capital Remaining graph to MIS Dashboard**
-   - **Attempted fixes:** None
-   - **Next debug checklist:** Identify working capital data source in the DB, aggregate it per center in , and render a new Recharts component in .
-   - **Why fix this issue:** Explicitly requested by the user for financial tracking.
+- **Issue 2: Complete role-based visibility enforcement on every button/screen**
+   - **Attempted fixes:** None yet.
+   - **Next debug checklist:** Utilize the new Permission Engine. Update frontend components to check  and  instead of static role names to hide/show buttons, tabs, and pages.
+   - **Why fix this issue:** Security and strict RBAC requirement.
    - **Status:** NOT STARTED
    - **Is recurring issue?** N
    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 3: Add Download capability for center-wise MIS data**
-   - **Attempted fixes:** None
-   - **Next debug checklist:** Add an export button (PDF or Excel) to  utilizing either a frontend library (like / or ) or backend generation.
-   - **Status:** NOT STARTED
-   - **Is recurring issue?** N
-   - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 4: Verify Live Site OTP Email Failure**
-   - **Attempted fixes:** Agent checked logs and verified OTP works perfectly in the preview environment.
-   - **Next debug checklist:** Inform user if SMTP is failing in their production environment or if Google App Passwords need rotation. Code logic is confirmed working.
-   - **Status:** USER VERIFICATION PENDING
-   - **Is recurring issue?** N
-   - **Should Test frontend/backend/both after fix?** Backend
 
 **In progress Task List**:
-Task 1: Complete  refactoring (P2)
-- **Where to resume:** Modules for  and  are still inside the monolithic . Extract them into separate router files.
-- **What will be achieved with this?** Cleaner, modular backend architecture.
-- **Status:** IN PROGRESS
-- **Should Test frontend/backend/both after fix?** Backend
-- **Blocked on something:** None
+Task 1: Franchise document management & Approval hierarchy (P1)
+- **Where to resume:** Plan and implement document management features for the Franchise Owner Dashboard and configure an approval hierarchy engine for transfers and cancellations.
+- **What will be achieved with this?** Enhanced operational control and compliance tracking.
+- **Status:** NOT STARTED
+- **Should Test frontend/backend/both after fix?** Both
+- **Blocked on something:** Complete the hardcoding removal (Issue 1) first.
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
-- (P1) Add PDF export option for International payroll reports.
-- (P1) Approval hierarchy config (Admin approval required before destination center receives transfer request).
+- (P0) Phase 3: Full Master-Driven Restaurant Billing Software (Billing/POS, KOT, Cancellation/Void, Reports, Internal Integration).
+- (P1) Master tables to populate: Menu Items, Tables, Vendors, Order Types, Cancellation Reasons.
 Future Tasks:
-- (P2) WhatsApp/Email notification hooks for transfers.
-- (P2) Add Image Upload for Recipes.
+- (P2) Image Upload for Recipes.
 - (P2) Franchise Deal Simulator.
 - (P2) 7-year retention deletion prompt for attachments.
 
 **Completed work in this session**
-- Update Hourly Rate UI for Perth International Attendance (DONE)
-- Payslip PDF text overlap fix (DONE)
-- PB-PERTH- vs PB-PERTH mismatch handled (Centers collection vs Employees collection mismatch) (DONE)
-- International Attendance bugs fixed: Hours saving for all employees simultaneously fixed by handling legacy DB schema lacking  (fallback to MongoDB ). Category mappings fixed (DONE)
-- Center code auto-deduplication on server startup & manual deduplication API (DONE)
-- Consistent Center dropdowns across all modules (including visibility of PB-DELETE) (DONE)
-- International Attendance RBAC Overhaul (Is India Center flag in Center Master, UI locks, sidebar visibility) (DONE)
-- Employee Transfer / Accept Shift feature (Temporary and Permanent transfers, routing, backend tables, frontend UI) (DONE)
+- MIS Dashboard center filtering fix, Working Capital Graph, and XLSX Export (DONE)
+- Expense Entry Grid: Sorting functionality and Batch add multi-row feature (DONE)
+- Attendance Integration for transferred employees with HOME/TRANSFERRED badges (DONE)
+- Payroll mapping to actual working center for transfers (DONE)
+- PDF export for International payroll reports (DONE)
+-  refactoring (extracted  and ) (DONE)
+- Phase 1 & 2 of Master-Data-First:  (16 tables),  (Permission Engine), ,  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-- Issue recurrence in previous fork: Payslip Data Overlap
-- Recurrence count: 4 (Fixed in this session, PDF coordinates adjusted)
-- Status: RESOLVED
+None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Legacy Employee Data Handling:** Production DB has legacy schemas (e.g., missing , using  instead of , and  instead of ). The backend must fallback to  safely.
-- **Startup Deduplication:**  has an  hook that cleans duplicate centers and auto-strips hyphens from center codes (e.g.,  -> ).
-- **Transfer Engine:** Updates employee , , and  conditionally based on Temporary vs Permanent workflows.
+- **Transfer-Aware Logic:** Attendance and Payroll now inject  (HOME/TRANSFERRED_IN/TRANSFERRED_OUT) dynamically without mutating historical legacy data.
+- **Permission Engine:** RBAC logic determines user  and associated . The frontend must now rely on these dynamic rules rather than hardcoded string checks.
+- **Master Tables:** Data like expense categories, payment modes, and employee categories are now pulled from  collections rather than static arrays.
 
 **key DB schema**
-- : {..., }
-- : {uid=0(root) gid=0(root) groups=0(root), , , , , , , }
-- : {..., , , }
+- : {, , }
+- Master collections: , , , , , , etc.
+- : {..., , } (dynamically injected in responses)
 
 **changes in tech stack**
-- None
+- Added  library to frontend for MIS Excel exports.
 
 **All files of reference**
-- : Contains charts backend logic (needs center filtering fix).
-- : Contains frontend rendering for MIS.
-- : New Employee Transfer endpoints.
-- : New UI for Employee Transfers.
-- : Contains the important startup center-deduplication logic.
+-  & : Core of the new architecture.
+-  & : New module UIs.
+- , , and backend : Will need heavy editing to remove the audited hardcoded strings.
 
 **Areas that need refactoring**:
-- : Remaining monolithic endpoints (, etc.) need extraction to respective routers.
+- **30+ Files containing hardcoded checks:** Need refactoring to transition from static strings (e.g., , ) to DB-driven master values and permission evaluations.
 
 **key api endpoints**
-- : Creates a new transfer request.
-- : Accepts a transfer request.
-- : Various endpoints returning dashboard data. MUST update to filter by selected center.
+- : Endpoints managing master table data.
+- : Evaluates session to return user role and capability matrix.
+-  & : Updated to be transfer-aware.
 
 **Critical Info for New Agent**
-- **Immediate Action:** Fix the  endpoints. The frontend  passes a selected center, but the backend aggregations are largely ignoring it and returning global data.
-- **Production Data Mismatch:** Do not rely strictly on  in the  collection. Always fall back to  when handling employee lookups, as live production data lacks the strict  string fields on older records.
-- The  flag in the  collection dictates whether a manager has access to the International Attendance module.
+- **Immediate Action:** You are midway through an massive architectural migration. The bash audit found 83 hardcoded center names, 173 role checks, and 76 PB-MGT frontend checks. You MUST replace these systematically across the codebase with dynamic master data / permission engine variables. 
+- **DO NOT break live data:** The user explicitly requested to safely map old values to master values. Avoid dropping collections or breaking foreign key references.
+- Use parallel tool execution extensively when editing multiple files, and verify changes incrementally to avoid a monolithic breaking bug.
 
 **documents and test reports created in this job**
 - 
@@ -140,34 +115,31 @@ None.
 - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User:** HOW COME I KNOW WHICH IS NOT HAVING DATA WHICH DOSNET HAVE (Agent automated center dedup on startup). (Completed)
-2. **User:** HOPE ALL MY DATAT IN SALESDASHBOARD WILL STAY AS IS (Agent confirmed safe). (Completed)
-3. **User:** NOW U HAVE MADE CHNAGES TO INTERNATIONAL ATTENDACNE AND PLEASE RENAME TO PB-PERTH AND NOT PB-PERTH-... (Completed)
-4. **User:** AND SHOW PB-DELETED CENTER IN THE ALL DROPDOWNLIST FOR ADMIN ADN SUPERADMIN SCREEN ALL PLACE SHOULD COME FROM SAME DB (Completed)
-5. **User:** Make major corrections in INTERNATIONAL ATTENDANCE module... VISIBILITY CONTROL... CENTER ACCESS CONTROL... CENTER MASTER CHANGE... (Completed)
-6. **User:** all phases please Salary mapped to actual working center but for the privisou day the old center will have visisbility of attendace (Completed)
-7. **User:** THE INTRA SITE IS DOWN NOT ABLE TO SEND OTP EMAIL AND FAILIG (Agent confirmed it's a live site environment issue, preview is fine). (Completed)
-8. **User:** Implement an EMPLOYEE TRANSFER / ACCEPT SHIFT feature inside the Attendance + Employee Management system for INDIA centers... (Completed)
-9. **User:** Provided screenshots of MIS Dashboard: both the images are same only chnage is first image we selected center but still the graph shown are same for all center it is not chnagin can u please share the data for center wise and graphs aslo and this should have working capital remaining graph as well... (Pending - Agent investigating ).
+1. **User:** yes please and one more thing can u add 3 more entries for Expense entry grind like range can we have sorting... (Completed)
+2. **User:** please do this now P1: Attendance integration for transferred employees... P1: Payroll mapping... P2: PDF export... P2: Complete server.py refactoring (Completed)
+3. **User:** ok (Completed)
+4. **User:** HOPE NO DATA WILL BE DISTRUBED ON LIVE SITE (Agent explained data is safe). (Completed)
+5. **User:** Implement a MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING architecture across the entire system... 10 sections of requirements (Agent built Phase 1 & 2 infrastructure). (Completed)
+6. **User:** NOEP I KNOW U ARE CAPABLE OF DOING THIS PHASE MANNER PLEASE IMPLEMENT ALL PHASE START PHASE 1 AND 2 (Completed Phase 1 & 2).
+7. **User:** Replace ALL remaining hardcoded values across 30+ files. Complete role-based visibility enforcement on every button/screen. Franchise document management, approval hierarchy (Pending - Agent audited the codebase but hasn't started refactoring files yet).
 
 **Project Health Check:**
-- Broken: MIS Dashboard Center Filtering
+- Broken: None
 - Mocked: WhatsApp Integration
 
 **3rd Party Integrations**
-- Emergent Object Storage — uses internal Emergent library/keys.
-- ReportLab (PDFs)
+-  (Frontend Excel generation)
+- ReportLab (Backend PDF generation)
+- Emergent Object Storage
 
 **Testing status**
-- Testing agent used after significant changes: YES (Iterations 20, 21, and 22).
+- Testing agent used after significant changes: YES (Iterations 23, 24, 25).
 - Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: None explicitly created in this session, rely on .
-- Known regressions: None.
+- Test files created: None
+- Known regressions: None
 
 **Credentials to test flow:**
-- Super Admin: Center , mobile , OTP .
-- Perth Manager: Center , mobile , OTP .
-- Test India Manager: Center , mobile , OTP .
+- Ensure you retrieve latest session variables or test accounts natively via UI. Typical Super Admin: Center , mobile , OTP .
 
 **What agent forgot to execute**
-The agent stopped exactly after reviewing . The required fix for the MIS Dashboard charts not filtering by center, the Working Capital graph, and the download capability still need to be fully implemented.</analysis>
+The agent stopped exactly after running a  audit to identify all hardcoded values across the codebase. No actual file replacements or code writing occurred for the final user prompt (removing hardcoding across 30+ files).</analysis>
