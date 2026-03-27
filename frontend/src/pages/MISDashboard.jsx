@@ -40,7 +40,6 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
-  Calendar,
   PieChart as PieChartIcon,
   BarChart3,
   Settings,
@@ -50,36 +49,67 @@ import {
   Users,
   Receipt,
   Wallet,
-  Filter,
-  Download
+  Download,
+  FileText,
+  IndianRupee,
+  Percent,
+  Activity
 } from "lucide-react";
 import { api } from "@/lib/api";
 import * as XLSX from "xlsx";
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
-const ALERT_COLORS = { high: "#ef4444", medium: "#f59e0b", normal: "#22c55e" };
+// Premium color palette — Purnabramha brand-inspired (saffron, gold, deep green)
+const CHART_COLORS = ['#D97706', '#059669', '#7C3AED', '#DC2626', '#2563EB', '#F59E0B', '#10B981', '#8B5CF6'];
+const GRADIENT_PAIRS = [
+  { from: '#D97706', to: '#F59E0B' }, // Saffron → Gold
+  { from: '#DC2626', to: '#F87171' }, // Red
+  { from: '#059669', to: '#34D399' }, // Emerald
+  { from: '#7C3AED', to: '#A78BFA' }, // Purple
+  { from: '#2563EB', to: '#60A5FA' }, // Blue
+  { from: '#0891B2', to: '#67E8F9' }, // Cyan
+];
 
-const formatCurrency = (value) => {
-  if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)}Cr`;
-  if (value >= 100000) return `₹${(value / 100000).toFixed(2)}L`;
-  if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
-  return `₹${value?.toFixed(0) || 0}`;
+const formatCurrency = (value, intl = false) => {
+  const sym = intl ? "$" : "₹";
+  if (value === null || value === undefined) return `${sym}0`;
+  const abs = Math.abs(value);
+  if (abs >= 10000000) return `${sym}${(abs / 10000000).toFixed(2)}Cr`;
+  if (abs >= 100000) return `${sym}${(abs / 100000).toFixed(2)}L`;
+  if (abs >= 1000) return `${sym}${(abs / 1000).toFixed(1)}K`;
+  return `${sym}${abs.toFixed(0)}`;
 };
 
-const formatPercent = (value) => `${value?.toFixed(1) || 0}%`;
+const formatFullCurrency = (value, intl = false) => {
+  const sym = intl ? "$" : "₹";
+  if (value === null || value === undefined) return `${sym}0`;
+  return `${sym}${Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+};
+
+// Custom tooltip for charts
+const PremiumTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl px-4 py-3 shadow-2xl">
+      <p className="text-xs font-medium text-slate-400 mb-2">{label}</p>
+      {payload.map((entry, i) => (
+        <div key={i} className="flex items-center gap-2 text-sm">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span className="text-slate-300">{entry.name}:</span>
+          <span className="font-semibold text-white">{formatFullCurrency(entry.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export default function MISDashboard() {
   const { session } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(false);
-  
-  // Filters
   const [period, setPeriod] = useState("current_month");
   const [selectedCenter, setSelectedCenter] = useState("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  
-  // Data
   const [overview, setOverview] = useState(null);
   const [trends, setTrends] = useState([]);
   const [centerComparison, setCenterComparison] = useState([]);
@@ -89,43 +119,26 @@ export default function MISDashboard() {
   const [topPerformers, setTopPerformers] = useState(null);
   const [workingCapital, setWorkingCapital] = useState([]);
   const [totalWorkingCapital, setTotalWorkingCapital] = useState(0);
-  
-  // Independent centers list (not dependent on filtered overview)
   const [centersList, setCentersList] = useState([]);
-  
-  // Settings
   const [alertThreshold, setAlertThreshold] = useState(20);
   const [showSettings, setShowSettings] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-  // Fetch centers list independently (once on mount)
   useEffect(() => {
     const fetchCenters = async () => {
       try {
         const res = await api.get("/centers");
-        const centers = (res.data.centers || []).filter(c => c.active !== false);
-        setCentersList(centers);
-      } catch (err) {
-        console.error("Failed to fetch centers list");
-      }
+        setCentersList((res.data.centers || []).filter(c => c.active !== false));
+      } catch {}
     };
     fetchCenters();
   }, []);
 
-  // Fetch all data
   const fetchData = useCallback(async () => {
     if (!session?.token) return;
-    
     setLoading(true);
     try {
-      const params = {
-        token: session.token,
-        period,
-        center: selectedCenter,
-        custom_start: customStart,
-        custom_end: customEnd
-      };
-      
-      // Fetch all data in parallel
+      const params = { token: session.token, period, center: selectedCenter, custom_start: customStart, custom_end: customEnd };
       const [overviewRes, trendsRes, centerRes, expenseRes, alertsRes, quarterRes, topRes, wcRes] = await Promise.all([
         api.post("/mis/overview", params),
         api.post("/mis/sales-trends", { ...params, group_by: period === "current_month" ? "daily" : "weekly" }),
@@ -136,7 +149,6 @@ export default function MISDashboard() {
         api.post("/mis/top-performers", params),
         api.post("/mis/working-capital", params)
       ]);
-      
       setOverview(overviewRes.data);
       setTrends(trendsRes.data.trends || []);
       setCenterComparison(centerRes.data.centers || []);
@@ -146,138 +158,100 @@ export default function MISDashboard() {
       setTopPerformers(topRes.data);
       setWorkingCapital(wcRes.data.data || []);
       setTotalWorkingCapital(wcRes.data.total_working_capital || 0);
-      
     } catch (err) {
       toast.error("Failed to load dashboard data");
-      console.error(err);
     } finally {
       setLoading(false);
     }
   }, [session?.token, period, selectedCenter, customStart, customEnd, alertThreshold]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Fetch alert settings
+  useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
     const fetchSettings = async () => {
       if (session?.token) {
-        try {
-          const res = await api.post("/mis/get-alert-settings", { token: session.token });
-          setAlertThreshold(res.data.threshold || 20);
-        } catch (err) {
-          console.error("Failed to fetch settings");
-        }
+        try { const res = await api.post("/mis/get-alert-settings", { token: session.token }); setAlertThreshold(res.data.threshold || 20); } catch {}
       }
     };
     fetchSettings();
   }, [session?.token]);
 
-  // Save alert threshold
   const saveAlertThreshold = async () => {
     try {
-      await api.post("/mis/save-alert-settings", { 
-        token: session?.token, 
-        threshold: alertThreshold 
-      });
+      await api.post("/mis/save-alert-settings", { token: session?.token, threshold: alertThreshold });
       toast.success("Alert threshold saved");
       setShowSettings(false);
       fetchData();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to save");
-    }
+    } catch (err) { toast.error(err.response?.data?.detail || "Failed to save"); }
   };
 
-  // Download MIS Report as Excel
-  const handleDownloadReport = () => {
-    if (!overview) {
-      toast.error("No data to export");
-      return;
-    }
-    
+  // Excel Download
+  const handleDownloadExcel = () => {
+    if (!overview) { toast.error("No data to export"); return; }
     const wb = XLSX.utils.book_new();
-    const centerLabel = selectedCenter === "all" ? "All Centers" : selectedCenter;
-    const periodLabel = overview?.period?.start + " to " + overview?.period?.end;
-    
-    // Sheet 1: Summary
-    const summaryData = [
-      ["MIS Report - Purnabramha"],
-      ["Center", centerLabel],
-      ["Period", periodLabel],
-      [],
-      ["Metric", "Value"],
-      ["Total Sales", overview?.summary?.total_sales],
-      ["Cash Sales", overview?.summary?.total_cash_sales],
-      ["Online Sales", overview?.summary?.total_online_sales],
-      ["Total Expenses", overview?.summary?.total_expenses],
-      ["GST (5%)", overview?.summary?.total_gst],
-      ["Net Profit", overview?.summary?.profit],
-      ["Profit Margin (%)", overview?.summary?.profit_margin],
-      ["Total Guests", overview?.summary?.total_guests],
-      ["Total Bills", overview?.summary?.total_bills],
-      ["Avg per Guest", overview?.summary?.avg_per_guest],
-      ["Avg per Bill", overview?.summary?.avg_per_bill],
-    ];
-    const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+    const cl = selectedCenter === "all" ? "All Centers" : selectedCenter;
+    const pl = overview?.period?.start + " to " + overview?.period?.end;
+    const s = overview?.summary;
+    const ws1 = XLSX.utils.aoa_to_sheet([["MIS Report - Purnabramha"], ["Center", cl], ["Period", pl], [], ["Metric", "Value"],
+      ["Total Sales", s?.total_sales], ["Cash Sales", s?.total_cash_sales], ["Online Sales", s?.total_online_sales],
+      ["Total Expenses", s?.total_expenses], ["GST (5%)", s?.total_gst], ["Net Profit", s?.profit],
+      ["Profit Margin (%)", s?.profit_margin], ["Total Guests", s?.total_guests], ["Total Bills", s?.total_bills],
+      ["Avg per Guest", s?.avg_per_guest], ["Avg per Bill", s?.avg_per_bill]]);
     XLSX.utils.book_append_sheet(wb, ws1, "Summary");
-    
-    // Sheet 2: Center-wise Breakdown
     if (overview?.centers?.length > 0) {
-      const centerHeaders = ["Center", "Sales", "Expenses", "GST", "Profit", "Margin (%)"];
-      const centerRows = overview.centers.map(c => [
-        c.center, c.sales, c.expenses, c.gst, c.profit, c.profit_margin
-      ]);
-      const ws2 = XLSX.utils.aoa_to_sheet([centerHeaders, ...centerRows]);
+      const ws2 = XLSX.utils.aoa_to_sheet([["Center", "Sales", "Expenses", "GST", "Profit", "Margin (%)"],
+        ...overview.centers.map(c => [c.center, c.sales, c.expenses, c.gst, c.profit, c.profit_margin])]);
       XLSX.utils.book_append_sheet(wb, ws2, "Centers");
     }
-    
-    // Sheet 3: Trends
     if (trends.length > 0) {
-      const trendHeaders = ["Date", "Sales", "Expenses", "GST", "Profit"];
-      const trendRows = trends.map(t => [
-        t.date || t.week || t.month, t.sales, t.expenses, t.gst, t.profit
-      ]);
-      const ws3 = XLSX.utils.aoa_to_sheet([trendHeaders, ...trendRows]);
+      const ws3 = XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "GST", "Profit"],
+        ...trends.map(t => [t.date || t.week || t.month, t.sales, t.expenses, t.gst, t.profit])]);
       XLSX.utils.book_append_sheet(wb, ws3, "Trends");
     }
-    
-    // Sheet 4: Expense Analysis
     if (expenseAnalysis?.by_type?.length > 0) {
-      const expHeaders = ["Expense Head", "Amount", "% of Total", "Count", "Prev Period", "Change (%)"];
-      const expRows = expenseAnalysis.by_type.map(e => [
-        e.type, e.amount, e.percentage, e.count, e.prev_amount, e.change
-      ]);
-      const ws4 = XLSX.utils.aoa_to_sheet([expHeaders, ...expRows]);
+      const ws4 = XLSX.utils.aoa_to_sheet([["Expense Head", "Amount", "% of Total", "Count", "Prev Period", "Change (%)"],
+        ...expenseAnalysis.by_type.map(e => [e.type, e.amount, e.percentage, e.count, e.prev_amount, e.change])]);
       XLSX.utils.book_append_sheet(wb, ws4, "Expenses");
     }
-    
-    // Sheet 5: Working Capital
     if (workingCapital.length > 0) {
-      const wcHeaders = ["Date", "Sales", "Expenses", "GST", "Daily Net", "Cumulative Working Capital"];
-      const wcRows = workingCapital.map(w => [
-        w.date, w.daily_sales, w.daily_expenses, w.daily_gst, w.daily_net, w.working_capital
-      ]);
-      const ws5 = XLSX.utils.aoa_to_sheet([wcHeaders, ...wcRows]);
+      const ws5 = XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "GST", "Daily Net", "Cumulative WC"],
+        ...workingCapital.map(w => [w.date, w.daily_sales, w.daily_expenses, w.daily_gst, w.daily_net, w.working_capital])]);
       XLSX.utils.book_append_sheet(wb, ws5, "Working Capital");
     }
-    
-    // Sheet 6: Quarterly
     if (quarterlyData.length > 0) {
-      const qHeaders = ["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin (%)"];
-      const qRows = quarterlyData.map(q => [
-        q.label, q.sales, q.expenses, q.gst, q.profit, q.profit_margin
-      ]);
-      const ws6 = XLSX.utils.aoa_to_sheet([qHeaders, ...qRows]);
+      const ws6 = XLSX.utils.aoa_to_sheet([["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin (%)"],
+        ...quarterlyData.map(q => [q.label, q.sales, q.expenses, q.gst, q.profit, q.profit_margin])]);
       XLSX.utils.book_append_sheet(wb, ws6, "Quarterly");
     }
-    
-    const filename = `MIS_Report_${centerLabel}_${overview?.period?.start}_to_${overview?.period?.end}.xlsx`.replace(/ /g, '_');
-    XLSX.writeFile(wb, filename);
-    toast.success("Report downloaded successfully");
+    XLSX.writeFile(wb, `MIS_Report_${cl}_${overview?.period?.start}_to_${overview?.period?.end}.xlsx`.replace(/ /g, '_'));
+    toast.success("Excel report downloaded");
   };
 
-  // Access check
+  // PDF Download
+  const handleDownloadPDF = async () => {
+    if (!overview) { toast.error("No data to export"); return; }
+    setPdfLoading(true);
+    try {
+      const res = await api.post("/mis/download-pdf", {
+        token: session.token, period, center: selectedCenter,
+        custom_start: customStart, custom_end: customEnd
+      }, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      const cl = selectedCenter === "all" ? "All_Centers" : selectedCenter;
+      a.download = `MIS_Report_${cl}_${overview?.period?.start}_to_${overview?.period?.end}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("PDF report downloaded");
+    } catch (err) {
+      toast.error("PDF generation failed: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   const isSuperAdmin = session?.is_super_admin;
   const isAdmin = session?.is_admin;
   const hasAccounting = session?.roles?.accounting;
@@ -286,328 +260,241 @@ export default function MISDashboard() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
         <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
+        <h2 className="text-xl font-bold mb-2">Access Denied</h2>
         <p className="text-muted-foreground">Only Admin or Accounts users can access MIS Dashboard.</p>
       </div>
     );
   }
 
-  const getChangeIcon = (change) => {
-    if (change > 0) return <ArrowUpRight className="w-4 h-4 text-green-500" />;
-    if (change < 0) return <ArrowDownRight className="w-4 h-4 text-red-500" />;
-    return null;
-  };
+  const s = overview?.summary;
+  const centerLabel = selectedCenter === "all" ? "All Centers" : selectedCenter;
+  const centerObj = centersList.find(c => c.code === selectedCenter);
+  const isIntl = centerObj?.is_india_center === false;
 
-  const getChangeColor = (change, isExpense = false) => {
-    // For expenses, increase is bad (red), decrease is good (green)
-    if (isExpense) {
-      if (change > 10) return "text-red-500";
-      if (change < -10) return "text-green-500";
-    } else {
-      if (change > 10) return "text-green-500";
-      if (change < -10) return "text-red-500";
-    }
-    return "text-yellow-500";
-  };
+  const kpiCards = s ? [
+    { label: "Total Sales", value: s.total_sales, change: overview?.changes?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50", changeBad: false },
+    { label: "Total Expenses", value: s.total_expenses, change: overview?.changes?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50", changeBad: true },
+    { label: "Net Profit", value: s.profit, change: overview?.changes?.profit_change, icon: TrendingUp, gradient: s.profit >= 0 ? "from-amber-600 to-amber-400" : "from-red-700 to-red-500", textColor: "text-amber-50", changeBad: false },
+    { label: "Profit Margin", value: null, displayValue: `${s.profit_margin?.toFixed(1)}%`, icon: Percent, gradient: "from-violet-600 to-violet-400", textColor: "text-violet-50" },
+    { label: "Total Guests", value: null, displayValue: s.total_guests?.toLocaleString(), icon: Users, gradient: "from-sky-600 to-sky-400", textColor: "text-sky-50" },
+    { label: "Avg / Bill", value: null, displayValue: formatFullCurrency(s.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
+  ] : [];
 
   return (
     <div className="space-y-6" data-testid="mis-dashboard">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-secondary" />
-            MIS Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Centralized analytics for sales, expenses, and performance
-          </p>
-        </div>
-        
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3">
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[160px] bg-card border-border">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="current_month">Current Month</SelectItem>
-              <SelectItem value="current_quarter">Current Quarter</SelectItem>
-              <SelectItem value="last_3_months">Last 3 Months</SelectItem>
-              <SelectItem value="ytd">Year to Date</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
-            </SelectContent>
-          </Select>
+      {/* ── HEADER ── */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700/40">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <BarChart3 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white tracking-tight">MIS Dashboard</h1>
+                <p className="text-sm text-slate-400">
+                  {centerLabel} &middot; {overview?.period?.start || "..."} to {overview?.period?.end || "..."}
+                </p>
+              </div>
+            </div>
+          </div>
           
-          <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-            <SelectTrigger className="w-[140px] bg-card border-border" data-testid="mis-center-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Centers</SelectItem>
-              {centersList.map(c => (
-                <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          {period === "custom" && (
-            <>
-              <Input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="w-[140px] bg-card border-border"
-              />
-              <Input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="w-[140px] bg-card border-border"
-              />
-            </>
-          )}
-          
-          <Button variant="outline" onClick={fetchData} disabled={loading} data-testid="mis-refresh-btn">
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          
-          <Button variant="outline" onClick={handleDownloadReport} disabled={loading} data-testid="mis-download-btn">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          
-          {isSuperAdmin && (
-            <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)}>
-              <Settings className="w-4 h-4" />
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className="w-[150px] bg-slate-800/80 border-slate-600 text-white text-sm h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current_month">Current Month</SelectItem>
+                <SelectItem value="current_quarter">Current Quarter</SelectItem>
+                <SelectItem value="last_3_months">Last 3 Months</SelectItem>
+                <SelectItem value="ytd">Year to Date</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+              <SelectTrigger className="w-[130px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" data-testid="mis-center-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Centers</SelectItem>
+                {centersList.map(c => (
+                  <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {period === "custom" && (
+              <>
+                <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-[130px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" />
+                <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-[130px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" />
+              </>
+            )}
+            
+            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="h-9 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700" data-testid="mis-refresh-btn">
+              <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
-          )}
+            
+            <Button size="sm" onClick={handleDownloadPDF} disabled={pdfLoading || loading} className="h-9 bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/20" data-testid="mis-download-pdf-btn">
+              <FileText className={`w-4 h-4 mr-1.5 ${pdfLoading ? 'animate-pulse' : ''}`} />
+              {pdfLoading ? "Generating..." : "PDF"}
+            </Button>
+            
+            <Button variant="outline" size="sm" onClick={handleDownloadExcel} disabled={loading} className="h-9 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700" data-testid="mis-download-btn">
+              <Download className="w-4 h-4 mr-1.5" />
+              Excel
+            </Button>
+            
+            {isSuperAdmin && (
+              <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)} className="h-9 w-9 text-slate-400 hover:text-white">
+                <Settings className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Alert Settings Modal */}
+      {/* Alert Settings */}
       {showSettings && (
-        <Card className="bg-amber-500/10 border-amber-500/30">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Label>Alert Threshold (%)</Label>
-                <Input
-                  type="number"
-                  value={alertThreshold}
-                  onChange={(e) => setAlertThreshold(parseInt(e.target.value) || 20)}
-                  className="w-20 bg-card"
-                />
-                <span className="text-sm text-muted-foreground">
-                  Trigger alerts when expenses increase by more than {alertThreshold}%
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowSettings(false)}>Cancel</Button>
-                <Button onClick={saveAlertThreshold}>Save</Button>
-              </div>
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Label className="text-amber-200">Alert Threshold (%)</Label>
+              <Input type="number" value={alertThreshold} onChange={(e) => setAlertThreshold(parseInt(e.target.value) || 20)} className="w-20 bg-slate-800 border-slate-600 text-white" />
+              <span className="text-sm text-slate-400">Trigger alerts when expenses increase by more than {alertThreshold}%</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowSettings(false)}>Cancel</Button>
+              <Button size="sm" onClick={saveAlertThreshold} className="bg-amber-600 hover:bg-amber-500">Save</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Alerts Banner */}
       {alerts.length > 0 && (
-        <Card className="bg-red-500/10 border-red-500/30">
-          <CardContent className="pt-4">
-            <div className="flex items-start gap-3">
-              <Bell className="w-5 h-5 text-red-500 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-red-400 mb-2">
-                  {alerts.length} Alert{alerts.length > 1 ? 's' : ''} Detected
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {alerts.slice(0, 5).map((alert, i) => (
-                    <Badge 
-                      key={i} 
-                      className={`${alert.severity === 'high' ? 'bg-red-500' : 'bg-amber-500'}`}
-                    >
-                      {alert.entity}: +{alert.change?.toFixed(1)}%
-                    </Badge>
-                  ))}
-                  {alerts.length > 5 && (
-                    <Badge variant="outline">+{alerts.length - 5} more</Badge>
-                  )}
-                </div>
+        <div className="bg-gradient-to-r from-red-950/60 to-red-900/30 border border-red-500/20 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <Bell className="w-4 h-4 text-red-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-300 text-sm mb-2">{alerts.length} Alert{alerts.length > 1 ? 's' : ''} Detected</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {alerts.slice(0, 5).map((alert, i) => (
+                  <Badge key={i} className={`text-xs font-medium ${alert.severity === 'high' ? 'bg-red-500/80' : 'bg-amber-500/80'}`}>
+                    {alert.entity}: +{alert.change?.toFixed(1)}%
+                  </Badge>
+                ))}
+                {alerts.length > 5 && <Badge variant="outline" className="text-xs border-red-500/30 text-red-300">+{alerts.length - 5} more</Badge>}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Summary Cards */}
-      {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {/* Total Sales */}
-          <Card className="bg-card border-border">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Total Sales</p>
-                  <p className="text-xl font-bold text-white">{formatCurrency(overview.summary?.total_sales)}</p>
-                  <div className={`flex items-center text-xs ${getChangeColor(overview.changes?.sales_change)}`}>
-                    {getChangeIcon(overview.changes?.sales_change)}
-                    {overview.changes?.sales_change?.toFixed(1)}% vs prev
-                  </div>
-                </div>
-                <DollarSign className="w-8 h-8 text-green-500 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Expenses */}
-          <Card className="bg-card border-border">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Total Expenses</p>
-                  <p className="text-xl font-bold text-white">{formatCurrency(overview.summary?.total_expenses)}</p>
-                  <div className={`flex items-center text-xs ${getChangeColor(overview.changes?.expenses_change, true)}`}>
-                    {getChangeIcon(overview.changes?.expenses_change)}
-                    {overview.changes?.expenses_change?.toFixed(1)}% vs prev
-                  </div>
-                </div>
-                <Receipt className="w-8 h-8 text-red-500 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* GST */}
-          <Card className="bg-card border-border">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">GST (5%)</p>
-                  <p className="text-xl font-bold text-white">{formatCurrency(overview.summary?.total_gst)}</p>
-                  <p className="text-xs text-muted-foreground">Payable</p>
-                </div>
-                <Wallet className="w-8 h-8 text-amber-500 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Profit */}
-          <Card className={`border-border ${overview.summary?.profit >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Net Profit</p>
-                  <p className={`text-xl font-bold ${overview.summary?.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(Math.abs(overview.summary?.profit))}
-                    {overview.summary?.profit < 0 && ' (Loss)'}
-                  </p>
-                  <div className={`flex items-center text-xs ${getChangeColor(overview.changes?.profit_change)}`}>
-                    {getChangeIcon(overview.changes?.profit_change)}
-                    {overview.changes?.profit_change?.toFixed(1)}% vs prev
-                  </div>
-                </div>
-                {overview.summary?.profit >= 0 ? 
-                  <TrendingUp className="w-8 h-8 text-green-500 opacity-50" /> :
-                  <TrendingDown className="w-8 h-8 text-red-500 opacity-50" />
-                }
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Profit Margin */}
-          <Card className="bg-card border-border">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Profit Margin</p>
-                  <p className={`text-xl font-bold ${overview.summary?.profit_margin >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {overview.summary?.profit_margin?.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">of sales</p>
-                </div>
-                <PieChartIcon className="w-8 h-8 text-secondary opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Centers Count */}
-          <Card className="bg-card border-border">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Active Centers</p>
-                  <p className="text-xl font-bold text-white">{overview.centers?.length || 0}</p>
-                  <p className="text-xs text-muted-foreground">{overview.summary?.total_guests?.toLocaleString()} guests</p>
-                </div>
-                <Building2 className="w-8 h-8 text-secondary opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
+          </div>
         </div>
       )}
 
-      {/* Tabs for detailed views */}
+      {/* ── KPI CARDS ── */}
+      {overview && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {kpiCards.map((kpi, i) => {
+            const Icon = kpi.icon;
+            const displayVal = kpi.displayValue || formatCurrency(kpi.value, isIntl);
+            return (
+              <div
+                key={i}
+                className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${kpi.gradient} p-4 shadow-lg transition-transform hover:scale-[1.02]`}
+                style={{ animationDelay: `${i * 60}ms` }}
+                data-testid={`kpi-${kpi.label.toLowerCase().replace(/ /g, '-')}`}
+              >
+                {/* Decorative circle */}
+                <div className="absolute -right-3 -top-3 w-16 h-16 rounded-full bg-white/10" />
+                <div className="absolute -right-1 -bottom-4 w-12 h-12 rounded-full bg-white/5" />
+                
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className={`text-xs font-medium ${kpi.textColor} opacity-80`}>{kpi.label}</p>
+                    <Icon className={`w-4 h-4 ${kpi.textColor} opacity-60`} />
+                  </div>
+                  <p className={`text-xl font-bold ${kpi.textColor} tracking-tight`}>
+                    {displayVal}
+                    {kpi.label === "Net Profit" && s?.profit < 0 && <span className="text-xs ml-1">(Loss)</span>}
+                  </p>
+                  {kpi.change !== undefined && (
+                    <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${kpi.textColor} opacity-70`}>
+                      {kpi.change > 0 ? <ArrowUpRight className="w-3 h-3" /> : kpi.change < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
+                      {kpi.change?.toFixed(1)}% vs prev
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── TABS ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-card border border-border flex-wrap">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="working-capital">Working Capital</TabsTrigger>
-          <TabsTrigger value="centers">Center Analysis</TabsTrigger>
-          <TabsTrigger value="expenses">Expense Analysis</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts & Warnings</TabsTrigger>
-          <TabsTrigger value="quarterly">Quarterly Trends</TabsTrigger>
-          <TabsTrigger value="performers">Top Performers</TabsTrigger>
+        <TabsList className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 flex-wrap">
+          {["overview", "working-capital", "centers", "expenses", "alerts", "quarterly", "performers"].map(tab => (
+            <TabsTrigger key={tab} value={tab} className="rounded-lg text-xs capitalize data-[state=active]:bg-amber-600 data-[state=active]:text-white">
+              {tab.replace("-", " ")}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {/* Overview Tab */}
+        {/* ── OVERVIEW TAB ── */}
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sales vs Expenses Trend */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg">Sales vs Expenses Trend</CardTitle>
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-slate-200">Sales vs Expenses Trend</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={trends}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey={period === "current_month" ? "date" : "week"} stroke="#888" fontSize={10} />
-                    <YAxis stroke="#888" fontSize={10} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}K`} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
-                      formatter={(value) => formatCurrency(value)}
-                    />
-                    <Legend />
-                    <Area type="monotone" dataKey="sales" fill="#22c55e" stroke="#22c55e" fillOpacity={0.2} name="Sales" />
-                    <Area type="monotone" dataKey="expenses" fill="#ef4444" stroke="#ef4444" fillOpacity={0.2} name="Expenses" />
-                    <Line type="monotone" dataKey="profit" stroke="#8884d8" strokeWidth={2} name="Profit" />
+                    <defs>
+                      <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#059669" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#059669" stopOpacity={0.02}/>
+                      </linearGradient>
+                      <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#DC2626" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#DC2626" stopOpacity={0.02}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey={period === "current_month" ? "date" : "week"} stroke="#64748B" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#64748B" fontSize={10} tickLine={false} tickFormatter={(v) => formatCurrency(v, isIntl)} />
+                    <Tooltip content={<PremiumTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Area type="monotone" dataKey="sales" fill="url(#salesGrad)" stroke="#059669" strokeWidth={2.5} name="Sales" />
+                    <Area type="monotone" dataKey="expenses" fill="url(#expGrad)" stroke="#DC2626" strokeWidth={2} name="Expenses" />
+                    <Line type="monotone" dataKey="profit" stroke="#D97706" strokeWidth={2.5} dot={false} name="Profit" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            {/* Center-wise Sales Distribution */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg">Sales by Center</CardTitle>
+            {/* Pie Chart */}
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-slate-200">Sales by Center</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
-                    <Pie
-                      data={centerComparison}
-                      dataKey="sales"
-                      nameKey="center"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
+                    <Pie data={centerComparison} dataKey="sales" nameKey="center" cx="50%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={2}
                       label={({ center, percent }) => `${center} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={{ stroke: '#64748B' }}
                     >
                       {centerComparison.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="transparent" />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <Tooltip content={<PremiumTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -615,45 +502,45 @@ export default function MISDashboard() {
           </div>
 
           {/* Center Performance Table */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Center Performance Summary</CardTitle>
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-slate-200">Center Performance Summary</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" data-testid="center-perf-table">
                   <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-2">Center</th>
-                      <th className="text-right p-2">Sales</th>
-                      <th className="text-right p-2">Expenses</th>
-                      <th className="text-right p-2">GST</th>
-                      <th className="text-right p-2">Profit</th>
-                      <th className="text-right p-2">Margin</th>
-                      <th className="text-right p-2">Status</th>
+                    <tr className="bg-slate-800/60">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Center</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Sales</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Expenses</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">GST</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Profit</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Margin</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {overview?.centers?.map((c, i) => (
-                      <tr key={i} className="border-b border-border/50 hover:bg-white/5">
-                        <td className="p-2 font-medium">{c.center}</td>
-                        <td className="p-2 text-right text-green-400">{formatCurrency(c.sales)}</td>
-                        <td className="p-2 text-right text-red-400">{formatCurrency(c.expenses)}</td>
-                        <td className="p-2 text-right text-amber-400">{formatCurrency(c.gst)}</td>
-                        <td className={`p-2 text-right font-semibold ${c.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {formatCurrency(Math.abs(c.profit))}{c.profit < 0 && ' (L)'}
+                      <tr key={i} className="border-t border-slate-800/40 hover:bg-slate-800/30 transition-colors">
+                        <td className="px-4 py-3 font-semibold text-slate-200">{c.center}</td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-400">{formatCurrency(c.sales, isIntl)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-red-400">{formatCurrency(c.expenses, isIntl)}</td>
+                        <td className="px-4 py-3 text-right text-amber-400">{formatCurrency(c.gst, isIntl)}</td>
+                        <td className={`px-4 py-3 text-right font-bold ${c.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {formatCurrency(Math.abs(c.profit), isIntl)}{c.profit < 0 && ' (L)'}
                         </td>
-                        <td className={`p-2 text-right ${c.profit_margin >= 10 ? 'text-green-400' : c.profit_margin >= 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <td className={`px-4 py-3 text-right font-semibold ${c.profit_margin >= 10 ? 'text-emerald-400' : c.profit_margin >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
                           {c.profit_margin?.toFixed(1)}%
                         </td>
-                        <td className="p-2 text-right">
-                          {c.profit_margin >= 15 ? (
-                            <Badge className="bg-green-500">Healthy</Badge>
-                          ) : c.profit_margin >= 5 ? (
-                            <Badge className="bg-yellow-500">Moderate</Badge>
-                          ) : (
-                            <Badge className="bg-red-500">At Risk</Badge>
-                          )}
+                        <td className="px-4 py-3 text-right">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            c.profit_margin >= 15 ? 'bg-emerald-500/20 text-emerald-300' :
+                            c.profit_margin >= 5 ? 'bg-amber-500/20 text-amber-300' :
+                            'bg-red-500/20 text-red-300'
+                          }`}>
+                            {c.profit_margin >= 15 ? 'Healthy' : c.profit_margin >= 5 ? 'Moderate' : 'At Risk'}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -664,91 +551,85 @@ export default function MISDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Working Capital Tab */}
+        {/* ── WORKING CAPITAL TAB ── */}
         <TabsContent value="working-capital" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className={`border-border ${totalWorkingCapital >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total Working Capital Remaining</p>
-                <p className={`text-2xl font-bold ${totalWorkingCapital >= 0 ? 'text-green-400' : 'text-red-400'}`} data-testid="total-working-capital">
-                  {formatCurrency(Math.abs(totalWorkingCapital))}
-                  {totalWorkingCapital < 0 && ' (Deficit)'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {selectedCenter === "all" ? "All Centers" : selectedCenter} | {overview?.period?.start} to {overview?.period?.end}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total Revenue (Sales)</p>
-                <p className="text-2xl font-bold text-green-400">{formatCurrency(overview?.summary?.total_sales || 0)}</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total Outflow (Expenses + GST)</p>
-                <p className="text-2xl font-bold text-red-400">{formatCurrency((overview?.summary?.total_expenses || 0) + (overview?.summary?.total_gst || 0))}</p>
-              </CardContent>
-            </Card>
+            <div className={`rounded-xl p-5 shadow-lg ${totalWorkingCapital >= 0 ? 'bg-gradient-to-br from-emerald-900/60 to-emerald-800/30 border border-emerald-500/20' : 'bg-gradient-to-br from-red-900/60 to-red-800/30 border border-red-500/20'}`}>
+              <p className="text-xs font-medium text-slate-400 mb-1">Total Working Capital</p>
+              <p className={`text-3xl font-bold tracking-tight ${totalWorkingCapital >= 0 ? 'text-emerald-300' : 'text-red-300'}`} data-testid="total-working-capital">
+                {formatFullCurrency(totalWorkingCapital, isIntl)}
+                {totalWorkingCapital < 0 && <span className="text-base ml-2">(Deficit)</span>}
+              </p>
+              <p className="text-xs text-slate-400 mt-2">{centerLabel} &middot; {overview?.period?.start} to {overview?.period?.end}</p>
+            </div>
+            <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
+              <p className="text-xs font-medium text-slate-400 mb-1">Total Revenue</p>
+              <p className="text-2xl font-bold text-emerald-400">{formatCurrency(s?.total_sales || 0, isIntl)}</p>
+            </div>
+            <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
+              <p className="text-xs font-medium text-slate-400 mb-1">Total Outflow</p>
+              <p className="text-2xl font-bold text-red-400">{formatCurrency((s?.total_expenses || 0) + (s?.total_gst || 0), isIntl)}</p>
+            </div>
           </div>
 
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-secondary" />
-                Working Capital Trend
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-slate-200 flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-amber-400" /> Working Capital Trend
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
+              <ResponsiveContainer width="100%" height={380}>
                 <ComposedChart data={workingCapital}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="date" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}K`} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
-                    formatter={(value) => formatCurrency(value)}
-                  />
-                  <Legend />
-                  <Bar dataKey="daily_sales" fill="#22c55e" name="Daily Sales" opacity={0.6} />
-                  <Bar dataKey="daily_expenses" fill="#ef4444" name="Daily Expenses" opacity={0.6} />
-                  <Line type="monotone" dataKey="working_capital" stroke="#ffc658" strokeWidth={3} name="Working Capital" dot={{ r: 3 }} />
+                  <defs>
+                    <linearGradient id="wcGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#D97706" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#D97706" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="date" stroke="#64748B" fontSize={10} tickLine={false} />
+                  <YAxis stroke="#64748B" fontSize={10} tickLine={false} tickFormatter={(v) => formatCurrency(v, isIntl)} />
+                  <Tooltip content={<PremiumTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="daily_sales" fill="#059669" name="Daily Sales" radius={[2, 2, 0, 0]} opacity={0.7} />
+                  <Bar dataKey="daily_expenses" fill="#DC2626" name="Daily Expenses" radius={[2, 2, 0, 0]} opacity={0.7} />
+                  <Area type="monotone" dataKey="working_capital" fill="url(#wcGrad)" stroke="#D97706" strokeWidth={3} name="Working Capital" dot={{ r: 2, fill: '#D97706' }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Working Capital Table */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Daily Working Capital Breakdown</CardTitle>
+          {/* WC Table */}
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-slate-200">Daily Working Capital</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-card">
-                    <tr className="border-b border-border">
-                      <th className="text-left p-2">Date</th>
-                      <th className="text-right p-2">Sales</th>
-                      <th className="text-right p-2">Expenses</th>
-                      <th className="text-right p-2">GST</th>
-                      <th className="text-right p-2">Daily Net</th>
-                      <th className="text-right p-2">Cumulative WC</th>
+                  <thead className="sticky top-0 bg-slate-800/90 backdrop-blur">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Date</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Sales</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Expenses</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">GST</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Daily Net</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Cumulative WC</th>
                     </tr>
                   </thead>
                   <tbody>
                     {workingCapital.map((w, i) => (
-                      <tr key={i} className="border-b border-border/50 hover:bg-white/5">
-                        <td className="p-2">{w.date}</td>
-                        <td className="p-2 text-right text-green-400">{formatCurrency(w.daily_sales)}</td>
-                        <td className="p-2 text-right text-red-400">{formatCurrency(w.daily_expenses)}</td>
-                        <td className="p-2 text-right text-amber-400">{formatCurrency(w.daily_gst)}</td>
-                        <td className={`p-2 text-right font-semibold ${w.daily_net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {formatCurrency(Math.abs(w.daily_net))}{w.daily_net < 0 && ' (-)'}
+                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
+                        <td className="px-4 py-2 text-slate-300">{w.date}</td>
+                        <td className="px-4 py-2 text-right text-emerald-400">{formatCurrency(w.daily_sales, isIntl)}</td>
+                        <td className="px-4 py-2 text-right text-red-400">{formatCurrency(w.daily_expenses, isIntl)}</td>
+                        <td className="px-4 py-2 text-right text-amber-400">{formatCurrency(w.daily_gst, isIntl)}</td>
+                        <td className={`px-4 py-2 text-right font-semibold ${w.daily_net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {w.daily_net < 0 && '-'}{formatCurrency(Math.abs(w.daily_net), isIntl)}
                         </td>
-                        <td className={`p-2 text-right font-bold ${w.working_capital >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {formatCurrency(Math.abs(w.working_capital))}{w.working_capital < 0 && ' (-)'}
+                        <td className={`px-4 py-2 text-right font-bold ${w.working_capital >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                          {w.working_capital < 0 && '-'}{formatCurrency(Math.abs(w.working_capital), isIntl)}
                         </td>
                       </tr>
                     ))}
@@ -759,59 +640,48 @@ export default function MISDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Center Analysis Tab */}
+        {/* ── CENTER ANALYSIS TAB ── */}
         <TabsContent value="centers" className="space-y-6">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Center-wise Comparison</CardTitle>
-            </CardHeader>
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Center Comparison</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={centerComparison} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis type="number" stroke="#888" tickFormatter={(v) => `₹${(v/100000).toFixed(0)}L`} />
-                  <YAxis dataKey="center" type="category" stroke="#888" width={80} />
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
-                  <Legend />
-                  <Bar dataKey="sales" fill="#22c55e" name="Sales" />
-                  <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
-                  <Bar dataKey="profit" fill="#8884d8" name="Profit" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis type="number" stroke="#64748B" tickFormatter={(v) => formatCurrency(v, isIntl)} />
+                  <YAxis dataKey="center" type="category" stroke="#64748B" width={80} fontSize={11} />
+                  <Tooltip content={<PremiumTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="sales" fill="#059669" name="Sales" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="expenses" fill="#DC2626" name="Expenses" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="profit" fill="#D97706" name="Profit" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Growth/Decline Table */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Growth vs Previous Period</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Growth vs Previous Period</CardTitle></CardHeader>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-2">Center</th>
-                      <th className="text-right p-2">Current Sales</th>
-                      <th className="text-right p-2">Prev Sales</th>
-                      <th className="text-right p-2">Sales Change</th>
-                      <th className="text-right p-2">Current Exp</th>
-                      <th className="text-right p-2">Prev Exp</th>
-                      <th className="text-right p-2">Exp Change</th>
-                    </tr>
-                  </thead>
+                  <thead><tr className="bg-slate-800/60">
+                    {["Center", "Current Sales", "Prev Sales", "Sales Change", "Current Exp", "Prev Exp", "Exp Change"].map(h => (
+                      <th key={h} className={`${h === "Center" ? "text-left" : "text-right"} px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider`}>{h}</th>
+                    ))}
+                  </tr></thead>
                   <tbody>
                     {centerComparison.map((c, i) => (
-                      <tr key={i} className="border-b border-border/50">
-                        <td className="p-2 font-medium">{c.center}</td>
-                        <td className="p-2 text-right">{formatCurrency(c.sales)}</td>
-                        <td className="p-2 text-right text-muted-foreground">{formatCurrency(c.prev_sales)}</td>
-                        <td className={`p-2 text-right font-semibold ${getChangeColor(c.sales_change)}`}>
+                      <tr key={i} className="border-t border-slate-800/40 hover:bg-slate-800/30">
+                        <td className="px-4 py-3 font-semibold text-slate-200">{c.center}</td>
+                        <td className="px-4 py-3 text-right text-emerald-400">{formatCurrency(c.sales, isIntl)}</td>
+                        <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(c.prev_sales, isIntl)}</td>
+                        <td className={`px-4 py-3 text-right font-bold ${c.sales_change > 0 ? 'text-emerald-400' : c.sales_change < 0 ? 'text-red-400' : 'text-slate-400'}`}>
                           {c.sales_change > 0 ? '+' : ''}{c.sales_change?.toFixed(1)}%
                         </td>
-                        <td className="p-2 text-right">{formatCurrency(c.expenses)}</td>
-                        <td className="p-2 text-right text-muted-foreground">{formatCurrency(c.prev_expenses)}</td>
-                        <td className={`p-2 text-right font-semibold ${getChangeColor(c.expenses_change, true)}`}>
+                        <td className="px-4 py-3 text-right text-red-400">{formatCurrency(c.expenses, isIntl)}</td>
+                        <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(c.prev_expenses, isIntl)}</td>
+                        <td className={`px-4 py-3 text-right font-bold ${c.expenses_change > 10 ? 'text-red-400' : c.expenses_change < -10 ? 'text-emerald-400' : 'text-amber-400'}`}>
                           {c.expenses_change > 0 ? '+' : ''}{c.expenses_change?.toFixed(1)}%
                         </td>
                       </tr>
@@ -823,57 +693,37 @@ export default function MISDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Expense Analysis Tab */}
+        {/* ── EXPENSE ANALYSIS TAB ── */}
         <TabsContent value="expenses" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Expense Distribution Pie */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg">Expense Distribution</CardTitle>
-              </CardHeader>
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Expense Distribution</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
-                    <Pie
-                      data={expenseAnalysis?.by_type || []}
-                      dataKey="amount"
-                      nameKey="type"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label={({ type, percentage }) => `${type} (${percentage}%)`}
-                    >
+                    <Pie data={expenseAnalysis?.by_type || []} dataKey="amount" nameKey="type" cx="50%" cy="50%" innerRadius={50} outerRadius={110} paddingAngle={1}
+                      label={({ type, percentage }) => `${type} (${percentage}%)`} labelLine={{ stroke: '#64748B' }}>
                       {(expenseAnalysis?.by_type || []).map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.alert === 'high' ? '#ef4444' : entry.alert === 'medium' ? '#f59e0b' : COLORS[index % COLORS.length]} 
-                        />
+                        <Cell key={index} fill={entry.alert === 'high' ? '#DC2626' : entry.alert === 'medium' ? '#D97706' : CHART_COLORS[index % CHART_COLORS.length]} stroke="transparent" />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <Tooltip content={<PremiumTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-
-            {/* Expense by Category Bar */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg">Expenses by Category</CardTitle>
-              </CardHeader>
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Expenses by Category</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={expenseAnalysis?.by_type || []} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis type="number" stroke="#888" tickFormatter={(v) => `₹${(v/1000).toFixed(0)}K`} />
-                    <YAxis dataKey="type" type="category" stroke="#888" width={100} />
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
-                    <Bar dataKey="amount" name="Amount">
-                      {(expenseAnalysis?.by_type || []).map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.alert === 'high' ? '#ef4444' : entry.alert === 'medium' ? '#f59e0b' : '#8884d8'} 
-                        />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis type="number" stroke="#64748B" tickFormatter={(v) => formatCurrency(v, isIntl)} />
+                    <YAxis dataKey="type" type="category" stroke="#64748B" width={100} fontSize={10} />
+                    <Tooltip content={<PremiumTooltip />} />
+                    <Bar dataKey="amount" name="Amount" radius={[0, 4, 4, 0]}>
+                      {(expenseAnalysis?.by_type || []).map((e, i) => (
+                        <Cell key={i} fill={e.alert === 'high' ? '#DC2626' : e.alert === 'medium' ? '#D97706' : '#7C3AED'} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -882,44 +732,31 @@ export default function MISDashboard() {
             </Card>
           </div>
 
-          {/* Expense Details Table */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Expense Head Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Expense Head Analysis</CardTitle></CardHeader>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-2">Expense Head</th>
-                      <th className="text-right p-2">Amount</th>
-                      <th className="text-right p-2">% of Total</th>
-                      <th className="text-right p-2">Count</th>
-                      <th className="text-right p-2">Prev Period</th>
-                      <th className="text-right p-2">Change</th>
-                      <th className="text-right p-2">Status</th>
-                    </tr>
-                  </thead>
+                  <thead><tr className="bg-slate-800/60">
+                    {["Expense Head", "Amount", "% of Total", "Count", "Prev Period", "Change", "Status"].map(h => (
+                      <th key={h} className={`${h === "Expense Head" ? "text-left" : "text-right"} px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider`}>{h}</th>
+                    ))}
+                  </tr></thead>
                   <tbody>
                     {expenseAnalysis?.by_type?.map((exp, i) => (
-                      <tr key={i} className="border-b border-border/50">
-                        <td className="p-2 font-medium">{exp.type}</td>
-                        <td className="p-2 text-right">{formatCurrency(exp.amount)}</td>
-                        <td className="p-2 text-right">{exp.percentage}%</td>
-                        <td className="p-2 text-right">{exp.count}</td>
-                        <td className="p-2 text-right text-muted-foreground">{formatCurrency(exp.prev_amount)}</td>
-                        <td className={`p-2 text-right font-semibold ${getChangeColor(exp.change, true)}`}>
+                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 ? 'bg-slate-800/20' : ''}`}>
+                        <td className="px-4 py-2.5 font-medium text-slate-200">{exp.type}</td>
+                        <td className="px-4 py-2.5 text-right font-medium text-slate-300">{formatCurrency(exp.amount, isIntl)}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-400">{exp.percentage}%</td>
+                        <td className="px-4 py-2.5 text-right text-slate-400">{exp.count}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-500">{formatCurrency(exp.prev_amount, isIntl)}</td>
+                        <td className={`px-4 py-2.5 text-right font-bold ${exp.change > 10 ? 'text-red-400' : exp.change < -10 ? 'text-emerald-400' : 'text-amber-400'}`}>
                           {exp.change > 0 ? '+' : ''}{exp.change?.toFixed(1)}%
                         </td>
-                        <td className="p-2 text-right">
-                          {exp.alert === 'high' ? (
-                            <Badge className="bg-red-500">High Alert</Badge>
-                          ) : exp.alert === 'medium' ? (
-                            <Badge className="bg-yellow-500">Watch</Badge>
-                          ) : (
-                            <Badge className="bg-green-500">Normal</Badge>
-                          )}
+                        <td className="px-4 py-2.5 text-right">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            exp.alert === 'high' ? 'bg-red-500/20 text-red-300' : exp.alert === 'medium' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                          }`}>{exp.alert === 'high' ? 'Alert' : exp.alert === 'medium' ? 'Watch' : 'Normal'}</span>
                         </td>
                       </tr>
                     ))}
@@ -930,50 +767,32 @@ export default function MISDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Alerts Tab */}
+        {/* ── ALERTS TAB ── */}
         <TabsContent value="alerts" className="space-y-6">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                Expense Alerts (Quarter over Quarter)
-              </CardTitle>
-            </CardHeader>
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <CardHeader><CardTitle className="text-base font-semibold text-slate-200 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Expense Alerts</CardTitle></CardHeader>
             <CardContent>
               {alerts.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <p className="text-muted-foreground">No alerts! All expenses are within acceptable limits.</p>
+                <div className="text-center py-10">
+                  <CheckCircle className="w-14 h-14 text-emerald-500 mx-auto mb-3 opacity-60" />
+                  <p className="text-slate-400">All expenses within acceptable limits</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {alerts.map((alert, i) => (
-                    <div 
-                      key={i} 
-                      className={`p-4 rounded-lg border ${
-                        alert.severity === 'high' ? 'bg-red-500/10 border-red-500/30' : 'bg-amber-500/10 border-amber-500/30'
-                      }`}
-                    >
+                    <div key={i} className={`p-4 rounded-xl border ${alert.severity === 'high' ? 'bg-red-950/40 border-red-500/20' : 'bg-amber-950/40 border-amber-500/20'}`}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
-                          {alert.severity === 'high' ? (
-                            <XCircle className="w-5 h-5 text-red-500 mt-0.5" />
-                          ) : (
-                            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-                          )}
+                          {alert.severity === 'high' ? <XCircle className="w-5 h-5 text-red-400 mt-0.5" /> : <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5" />}
                           <div>
-                            <p className="font-medium">{alert.message}</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {alert.type === 'center' ? 'Center' : 'Expense Head'}: {alert.entity}
-                            </p>
+                            <p className="font-medium text-slate-200 text-sm">{alert.message}</p>
+                            <p className="text-xs text-slate-500 mt-1">{alert.type === 'center' ? 'Center' : 'Expense Head'}: {alert.entity}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm">Current: {formatCurrency(alert.current)}</p>
-                          <p className="text-sm text-muted-foreground">Previous: {formatCurrency(alert.previous)}</p>
-                          <Badge className={alert.severity === 'high' ? 'bg-red-500' : 'bg-amber-500'}>
-                            +{alert.change?.toFixed(1)}%
-                          </Badge>
+                          <p className="text-sm text-slate-300">Current: {formatCurrency(alert.current, isIntl)}</p>
+                          <p className="text-xs text-slate-500">Previous: {formatCurrency(alert.previous, isIntl)}</p>
+                          <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-bold ${alert.severity === 'high' ? 'bg-red-500/30 text-red-300' : 'bg-amber-500/30 text-amber-300'}`}>+{alert.change?.toFixed(1)}%</span>
                         </div>
                       </div>
                     </div>
@@ -984,57 +803,47 @@ export default function MISDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Quarterly Trends Tab */}
+        {/* ── QUARTERLY TAB ── */}
         <TabsContent value="quarterly" className="space-y-6">
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Quarterly Performance</CardTitle>
-            </CardHeader>
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Quarterly Performance</CardTitle></CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
+              <ResponsiveContainer width="100%" height={380}>
                 <ComposedChart data={quarterlyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="label" stroke="#888" />
-                  <YAxis stroke="#888" tickFormatter={(v) => `₹${(v/100000).toFixed(0)}L`} />
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
-                  <Legend />
-                  <Bar dataKey="sales" fill="#22c55e" name="Sales" />
-                  <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
-                  <Line type="monotone" dataKey="profit" stroke="#8884d8" strokeWidth={3} name="Profit" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="label" stroke="#64748B" fontSize={11} />
+                  <YAxis stroke="#64748B" fontSize={10} tickFormatter={(v) => formatCurrency(v, isIntl)} />
+                  <Tooltip content={<PremiumTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="sales" fill="#059669" name="Sales" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" fill="#DC2626" name="Expenses" radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="profit" stroke="#D97706" strokeWidth={3} name="Profit" dot={{ r: 4, fill: '#D97706' }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Quarterly Table */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Quarter-wise Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Quarter-wise Breakdown</CardTitle></CardHeader>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left p-2">Quarter</th>
-                      <th className="text-right p-2">Sales</th>
-                      <th className="text-right p-2">Expenses</th>
-                      <th className="text-right p-2">GST</th>
-                      <th className="text-right p-2">Profit</th>
-                      <th className="text-right p-2">Margin</th>
-                    </tr>
-                  </thead>
+                  <thead><tr className="bg-slate-800/60">
+                    {["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin"].map(h => (
+                      <th key={h} className={`${h === "Quarter" ? "text-left" : "text-right"} px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider`}>{h}</th>
+                    ))}
+                  </tr></thead>
                   <tbody>
                     {quarterlyData.map((q, i) => (
-                      <tr key={i} className="border-b border-border/50">
-                        <td className="p-2 font-medium">{q.label}</td>
-                        <td className="p-2 text-right text-green-400">{formatCurrency(q.sales)}</td>
-                        <td className="p-2 text-right text-red-400">{formatCurrency(q.expenses)}</td>
-                        <td className="p-2 text-right text-amber-400">{formatCurrency(q.gst)}</td>
-                        <td className={`p-2 text-right font-semibold ${q.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {formatCurrency(Math.abs(q.profit))}{q.profit < 0 && ' (L)'}
+                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 ? 'bg-slate-800/20' : ''}`}>
+                        <td className="px-4 py-2.5 font-semibold text-slate-200">{q.label}</td>
+                        <td className="px-4 py-2.5 text-right text-emerald-400">{formatCurrency(q.sales, isIntl)}</td>
+                        <td className="px-4 py-2.5 text-right text-red-400">{formatCurrency(q.expenses, isIntl)}</td>
+                        <td className="px-4 py-2.5 text-right text-amber-400">{formatCurrency(q.gst, isIntl)}</td>
+                        <td className={`px-4 py-2.5 text-right font-bold ${q.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {formatCurrency(Math.abs(q.profit), isIntl)}{q.profit < 0 && ' (L)'}
                         </td>
-                        <td className="p-2 text-right">{q.profit_margin?.toFixed(1)}%</td>
+                        <td className="px-4 py-2.5 text-right text-slate-300">{q.profit_margin?.toFixed(1)}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1044,88 +853,41 @@ export default function MISDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Top Performers Tab */}
+        {/* ── PERFORMERS TAB ── */}
         <TabsContent value="performers" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Top by Sales */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg text-green-400">Top Centers by Sales</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topPerformers?.top_by_sales?.map((c, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 bg-green-500/10 rounded">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-green-400">#{i + 1}</span>
-                        <span className="font-medium">{c.center}</span>
+            {[
+              { title: "Top by Sales", data: topPerformers?.top_by_sales, field: "sales", color: "emerald", format: true },
+              { title: "Top by Margin", data: topPerformers?.top_by_margin, field: "profit_margin", color: "amber", format: false, suffix: "%" },
+              { title: "Needs Attention", data: topPerformers?.bottom_by_sales, field: "sales", color: "orange", format: true },
+              { title: "At Risk (Low Margin)", data: topPerformers?.bottom_by_margin, field: "profit_margin", color: "red", format: false, suffix: "%" },
+            ].map((section, si) => (
+              <Card key={si} className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+                <CardHeader className="pb-2">
+                  <CardTitle className={`text-base font-semibold text-${section.color}-400`}>{section.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {section.data?.map((c, i) => (
+                      <div key={i} className={`flex items-center justify-between p-3 rounded-lg bg-${section.color}-500/10 border border-${section.color}-500/10`}>
+                        <div className="flex items-center gap-3">
+                          <span className={`w-7 h-7 rounded-lg bg-${section.color}-500/20 flex items-center justify-center text-sm font-bold text-${section.color}-400`}>
+                            {i + 1}
+                          </span>
+                          <span className="font-medium text-slate-200">{c.center}</span>
+                        </div>
+                        <span className={`font-bold text-${section.color}-400`}>
+                          {section.format ? formatCurrency(c[section.field], isIntl) : `${c[section.field]?.toFixed(1)}${section.suffix || ''}`}
+                        </span>
                       </div>
-                      <span className="text-green-400">{formatCurrency(c.sales)}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Top by Profit Margin */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg text-blue-400">Top Centers by Profit Margin</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topPerformers?.top_by_margin?.map((c, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 bg-blue-500/10 rounded">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-blue-400">#{i + 1}</span>
-                        <span className="font-medium">{c.center}</span>
-                      </div>
-                      <span className="text-blue-400">{c.profit_margin?.toFixed(1)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Bottom by Sales */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg text-amber-400">Needs Attention (Low Sales)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topPerformers?.bottom_by_sales?.map((c, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 bg-amber-500/10 rounded">
-                      <span className="font-medium">{c.center}</span>
-                      <span className="text-amber-400">{formatCurrency(c.sales)}</span>
-                    </div>
-                  ))}
-                  {(!topPerformers?.bottom_by_sales || topPerformers.bottom_by_sales.length === 0) && (
-                    <p className="text-muted-foreground text-center py-2">All centers performing well</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Bottom by Margin */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg text-red-400">At Risk (Low Margin)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topPerformers?.bottom_by_margin?.map((c, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 bg-red-500/10 rounded">
-                      <span className="font-medium">{c.center}</span>
-                      <span className="text-red-400">{c.profit_margin?.toFixed(1)}%</span>
-                    </div>
-                  ))}
-                  {(!topPerformers?.bottom_by_margin || topPerformers.bottom_by_margin.length === 0) && (
-                    <p className="text-muted-foreground text-center py-2">All centers healthy</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    ))}
+                    {(!section.data || section.data.length === 0) && (
+                      <p className="text-slate-500 text-center py-4 text-sm">No data available</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </TabsContent>
       </Tabs>
