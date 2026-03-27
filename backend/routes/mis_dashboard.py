@@ -751,59 +751,151 @@ async def get_alert_settings(data: dict):
 
 @router.post("/working-capital")
 async def get_working_capital(data: dict):
-    """Get working capital remaining (cumulative Sales - Expenses - GST) over time"""
+    """Get working capital: initial franchise deposit minus outstanding loans.
+    Working capital only changes when there are loan entries, not from daily sales."""
     token = data.get("token")
-    period = data.get("period", "current_month")
     center = data.get("center", "all")
-    custom_start = data.get("custom_start")
-    custom_end = data.get("custom_end")
     
     session = await check_mis_access(token)
     
-    start_date, end_date = get_period_dates(period, custom_start, custom_end)
+    # Build list of centers to check
+    if center == "all":
+        centers_list = await db.centers.find(
+            {"active": True}, {"_id": 0, "code": 1, "name": 1}
+        ).to_list(100)
+        center_codes = [c["code"] for c in centers_list]
+    else:
+        center_codes = [center]
     
-    query = {"date": {"$gte": start_date, "$lte": end_date}}
-    if center != "all":
-        query["center"] = center
+    # Get franchise records to find initial working capital
+    franchises = await db.franchises.find(
+        {}, {"_id": 0, "franchise_code": 1, "franchise_name": 1,
+             "working_capital": 1, "center": 1, "centers_mapped": 1}
+    ).to_list(100)
     
-    sales_data = await db.daily_sales.find(query, {"_id": 0}).to_list(10000)
-    expenses_data = await db.expenses.find(query, {"_id": 0}).to_list(10000)
+    # Get loan entries for relevant centers
+    loan_query = {"center": {"$in": center_codes}} if center != "all" else {}
+    loan_entries = await db.loan_entries.find(
+        loan_query, {"_id": 0}
+    ).sort("created_at", 1).to_list(500)
     
-    # Group by date
-    daily = {}
-    for s in sales_data:
-        date = s.get("date", "")
-        if date not in daily:
-            daily[date] = {"date": date, "sales": 0, "expenses": 0}
-        daily[date]["sales"] += float(s.get("total_sale", 0) or 0)
+    # Calculate per-center working capital
+    center_wc = {}
+    total_initial_wc = 0
+    total_loans = 0
+    total_repaid = 0
     
-    for e in expenses_data:
-        date = e.get("date", "")
-        if date not in daily:
-            daily[date] = {"date": date, "sales": 0, "expenses": 0}
-        daily[date]["expenses"] += float(e.get("amount", 0) or 0)
+    # Map franchise WC to centers via loan entries
+    franchise_wc_map = {}
+    for f in franchises:
+        fc = f.get("franchise_code", "")
+        franchise_wc_map[fc] = float(f.get("working_capital", 0) or 0)
     
-    # Sort by date and compute cumulative working capital
-    sorted_days = sorted(daily.values(), key=lambda x: x["date"])
+    # Get unique franchise codes from loan entries to find WC
+    for le in loan_entries:
+        fc = le.get("franchise_code", "")
+        c = le.get("center", "")
+        if c not in center_wc:
+            initial_wc = le.get("working_capital_at_time", franchise_wc_map.get(fc, 0))
+            center_wc[c] = {
+                "center": c,
+                "franchise_code": fc,
+                "franchise_name": le.get("franchise_name", ""),
+                "initial_wc": float(initial_wc),
+                "total_loans": 0,
+                "total_repaid": 0,
+                "loans": []
+            }
     
-    cumulative = 0
-    result = []
-    for d in sorted_days:
-        sales = d["sales"]
-        expenses = d["expenses"]
-        gst = round(sales * 0.05, 2)
-        net = sales - expenses - gst
-        cumulative += net
-        result.append({
-            "date": d["date"],
-            "daily_sales": round(sales, 2),
-            "daily_expenses": round(expenses, 2),
-            "daily_gst": gst,
-            "daily_net": round(net, 2),
-            "working_capital": round(cumulative, 2)
+    # Also add centers with franchises that have WC but no loans yet
+    for f in franchises:
+        wc = float(f.get("working_capital", 0) or 0)
+        if wc > 0:
+            # Find which centers this franchise is linked to via loan entries
+            fc = f.get("franchise_code", "")
+            linked_centers = set()
+            for le in loan_entries:
+                if le.get("franchise_code") == fc:
+                    linked_centers.add(le.get("center", ""))
+            if not linked_centers:
+                # No loans yet — WC is fully intact
+                # We still want to show the franchise in the summary
+                total_initial_wc += wc
+    
+    # Process loan entries
+    loan_timeline = []
+    for le in loan_entries:
+        c = le.get("center", "")
+        if c in center_wc:
+            amt = float(le.get("amount", 0) or 0)
+            repaid = float(le.get("total_repaid", 0) or 0)
+            center_wc[c]["total_loans"] += amt
+            center_wc[c]["total_repaid"] += repaid
+            
+            loan_timeline.append({
+                "date": le.get("loan_date", le.get("created_at", "")[:10]),
+                "center": c,
+                "loan_id": le.get("loan_id", ""),
+                "type": "loan",
+                "description": le.get("reason", "Loan"),
+                "amount": amt,
+                "repaid": repaid,
+                "outstanding": round(amt - repaid, 2),
+                "status": le.get("status", "active")
+            })
+            
+            # Add repayments as separate timeline entries
+            for rep in le.get("repayments", []):
+                loan_timeline.append({
+                    "date": rep.get("repayment_date", ""),
+                    "center": c,
+                    "loan_id": le.get("loan_id", ""),
+                    "type": "repayment",
+                    "description": f"Repayment - {rep.get('notes', '')}",
+                    "amount": float(rep.get("amount", 0)),
+                    "repaid": 0,
+                    "outstanding": 0,
+                    "status": "repaid"
+                })
+    
+    # Sort timeline by date
+    loan_timeline.sort(key=lambda x: x["date"])
+    
+    # Calculate totals
+    for c, data in center_wc.items():
+        total_initial_wc += data["initial_wc"]
+        total_loans += data["total_loans"]
+        total_repaid += data["total_repaid"]
+    
+    total_outstanding = total_loans - total_repaid
+    available_wc = total_initial_wc - total_outstanding
+    
+    # Build center summary
+    centers_summary = []
+    for c, data in center_wc.items():
+        outstanding = data["total_loans"] - data["total_repaid"]
+        centers_summary.append({
+            "center": c,
+            "franchise_name": data["franchise_name"],
+            "initial_wc": data["initial_wc"],
+            "total_loans": data["total_loans"],
+            "total_repaid": data["total_repaid"],
+            "outstanding": round(outstanding, 2),
+            "available_wc": round(data["initial_wc"] - outstanding, 2)
         })
     
-    return {"data": result, "total_working_capital": round(cumulative, 2)}
+    return {
+        "initial_working_capital": round(total_initial_wc, 2),
+        "total_loans": round(total_loans, 2),
+        "total_repaid": round(total_repaid, 2),
+        "total_outstanding": round(total_outstanding, 2),
+        "available_working_capital": round(available_wc, 2),
+        "centers": centers_summary,
+        "loan_timeline": loan_timeline,
+        # Keep backward compatibility for PDF export
+        "data": loan_timeline,
+        "total_working_capital": round(available_wc, 2)
+    }
 
 
 # =======================================
@@ -1036,39 +1128,40 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
         elements.append(Spacer(1, 10))
 
     # ── WORKING CAPITAL ──
-    wc_list = wc_data.get("data", []) if wc_data else []
-    if wc_list:
-        elements.append(Paragraph("Working Capital", section_style))
-        total_wc = wc_data.get("total_working_capital", 0)
-        wc_summary_color = GREEN if total_wc >= 0 else RED
-        elements.append(Paragraph(
-            f"Total Working Capital: <b><font color='{wc_summary_color}'>{fmt(total_wc)}</font></b>",
-            normal_style
-        ))
-        elements.append(Spacer(1, 4))
+    elements.append(Paragraph("Working Capital", section_style))
+    
+    initial_wc = wc_data.get("initial_working_capital", 0) if wc_data else 0
+    total_loans = wc_data.get("total_loans", 0) if wc_data else 0
+    total_repaid = wc_data.get("total_repaid", 0) if wc_data else 0
+    available_wc = wc_data.get("available_working_capital", 0) if wc_data else 0
+    total_outstanding = wc_data.get("total_outstanding", 0) if wc_data else 0
+    
+    elements.append(Paragraph(
+        f"Initial WC: <b>{fmt(initial_wc)}</b> &nbsp;|&nbsp; "
+        f"Loans: <b>{fmt(total_loans)}</b> &nbsp;|&nbsp; "
+        f"Repaid: <b>{fmt(total_repaid)}</b> &nbsp;|&nbsp; "
+        f"Available: <b>{fmt(available_wc)}</b>",
+        normal_style
+    ))
+    elements.append(Spacer(1, 6))
 
-        wc_header = ["Date", "Sales", "Expenses", "GST", "Daily Net", "Cumulative WC"]
+    wc_centers = wc_data.get("centers", []) if wc_data else []
+    if wc_centers:
+        wc_header = ["Center", "Franchise", "Initial WC", "Loans", "Repaid", "Outstanding", "Available"]
         wc_rows = [wc_header]
-        for w in wc_list:
-            net = w.get("daily_net", 0)
+        for c in wc_centers:
             wc_rows.append([
-                w.get("date", ""),
-                fmt(w.get("daily_sales")),
-                fmt(w.get("daily_expenses")),
-                fmt(w.get("daily_gst")),
-                fmt(net),
-                fmt(w.get("working_capital")),
+                c.get("center", ""),
+                c.get("franchise_name", ""),
+                fmt(c.get("initial_wc")),
+                fmt(c.get("total_loans")),
+                fmt(c.get("total_repaid")),
+                fmt(c.get("outstanding")),
+                fmt(c.get("available_wc")),
             ])
 
-        # Limit rows to avoid massive PDF (show first 45 + last 5 if too many)
-        if len(wc_rows) > 52:
-            truncated = wc_rows[:46]
-            truncated.append(["...", "...", "...", "...", "...", "..."])
-            truncated.extend(wc_rows[-5:])
-            wc_rows = truncated
-
-        wt = Table(wc_rows, colWidths=[70, 80, 80, 65, 75, 80])
-        wt_style = [
+        wt = Table(wc_rows, colWidths=[60, 90, 65, 65, 65, 65, 65])
+        wt.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -1076,14 +1169,18 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
-            ('TOPPADDING', (0, 0), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('LEFTPADDING', (0, 0), (-1, -1), 5),
-        ]
-        wt.setStyle(TableStyle(wt_style))
+        ]))
         elements.append(wt)
-        elements.append(Spacer(1, 10))
+    elif total_outstanding == 0:
+        elements.append(Paragraph(
+            "Working capital is fully intact. No loans drawn against it.",
+            normal_style
+        ))
+    elements.append(Spacer(1, 10))
 
     # ── QUARTERLY COMPARISON ──
     quarters = quarterly_data.get("quarters", []) if quarterly_data else []

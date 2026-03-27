@@ -117,7 +117,7 @@ export default function MISDashboard() {
   const [alerts, setAlerts] = useState([]);
   const [quarterlyData, setQuarterlyData] = useState([]);
   const [topPerformers, setTopPerformers] = useState(null);
-  const [workingCapital, setWorkingCapital] = useState([]);
+  const [workingCapital, setWorkingCapital] = useState(null);
   const [totalWorkingCapital, setTotalWorkingCapital] = useState(0);
   const [centersList, setCentersList] = useState([]);
   const [alertThreshold, setAlertThreshold] = useState(20);
@@ -156,8 +156,8 @@ export default function MISDashboard() {
       setAlerts(alertsRes.data.alerts || []);
       setQuarterlyData(quarterRes.data.quarters || []);
       setTopPerformers(topRes.data);
-      setWorkingCapital(wcRes.data.data || []);
-      setTotalWorkingCapital(wcRes.data.total_working_capital || 0);
+      setWorkingCapital(wcRes.data || {});
+      setTotalWorkingCapital(wcRes.data.available_working_capital || 0);
     } catch (err) {
       toast.error("Failed to load dashboard data");
     } finally {
@@ -212,9 +212,24 @@ export default function MISDashboard() {
         ...expenseAnalysis.by_type.map(e => [e.type, e.amount, e.percentage, e.count, e.prev_amount, e.change])]);
       XLSX.utils.book_append_sheet(wb, ws4, "Expenses");
     }
-    if (workingCapital.length > 0) {
-      const ws5 = XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "GST", "Daily Net", "Cumulative WC"],
-        ...workingCapital.map(w => [w.date, w.daily_sales, w.daily_expenses, w.daily_gst, w.daily_net, w.working_capital])]);
+    if (workingCapital?.centers?.length > 0) {
+      const ws5 = XLSX.utils.aoa_to_sheet([
+        ["Working Capital Summary"],
+        ["Initial WC", workingCapital.initial_working_capital],
+        ["Total Loans", workingCapital.total_loans],
+        ["Total Repaid", workingCapital.total_repaid],
+        ["Outstanding", workingCapital.total_outstanding],
+        ["Available WC", workingCapital.available_working_capital],
+        [],
+        ["Center", "Franchise", "Initial WC", "Total Loans", "Repaid", "Outstanding", "Available"],
+        ...workingCapital.centers.map(c => [c.center, c.franchise_name, c.initial_wc, c.total_loans, c.total_repaid, c.outstanding, c.available_wc]),
+        [],
+        ...(workingCapital.loan_timeline?.length > 0 ? [
+          ["Loan Timeline"],
+          ["Date", "Center", "Loan ID", "Type", "Description", "Amount", "Repaid", "Outstanding", "Status"],
+          ...workingCapital.loan_timeline.map(l => [l.date, l.center, l.loan_id, l.type, l.description, l.amount, l.repaid, l.outstanding, l.status])
+        ] : [])
+      ]);
       XLSX.utils.book_append_sheet(wb, ws5, "Working Capital");
     }
     if (quarterlyData.length > 0) {
@@ -553,91 +568,148 @@ export default function MISDashboard() {
 
         {/* ── WORKING CAPITAL TAB ── */}
         <TabsContent value="working-capital" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className={`rounded-xl p-5 shadow-lg ${totalWorkingCapital >= 0 ? 'bg-gradient-to-br from-emerald-900/60 to-emerald-800/30 border border-emerald-500/20' : 'bg-gradient-to-br from-red-900/60 to-red-800/30 border border-red-500/20'}`}>
-              <p className="text-xs font-medium text-slate-400 mb-1">Total Working Capital</p>
-              <p className={`text-3xl font-bold tracking-tight ${totalWorkingCapital >= 0 ? 'text-emerald-300' : 'text-red-300'}`} data-testid="total-working-capital">
-                {formatFullCurrency(totalWorkingCapital, isIntl)}
-                {totalWorkingCapital < 0 && <span className="text-base ml-2">(Deficit)</span>}
+          {/* WC Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
+              <p className="text-xs font-medium text-slate-400 mb-1">Initial Working Capital</p>
+              <p className="text-2xl font-bold text-slate-100" data-testid="initial-wc">
+                {formatFullCurrency(workingCapital?.initial_working_capital || 0, isIntl)}
               </p>
-              <p className="text-xs text-slate-400 mt-2">{centerLabel} &middot; {overview?.period?.start} to {overview?.period?.end}</p>
+              <p className="text-xs text-slate-500 mt-1">Franchise deposit</p>
             </div>
             <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
-              <p className="text-xs font-medium text-slate-400 mb-1">Total Revenue</p>
-              <p className="text-2xl font-bold text-emerald-400">{formatCurrency(s?.total_sales || 0, isIntl)}</p>
+              <p className="text-xs font-medium text-slate-400 mb-1">Total Loans</p>
+              <p className="text-2xl font-bold text-orange-300">
+                {formatFullCurrency(workingCapital?.total_loans || 0, isIntl)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Drawn against WC</p>
             </div>
             <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
-              <p className="text-xs font-medium text-slate-400 mb-1">Total Outflow</p>
-              <p className="text-2xl font-bold text-red-400">{formatCurrency((s?.total_expenses || 0) + (s?.total_gst || 0), isIntl)}</p>
+              <p className="text-xs font-medium text-slate-400 mb-1">Total Repaid</p>
+              <p className="text-2xl font-bold text-teal-300">
+                {formatFullCurrency(workingCapital?.total_repaid || 0, isIntl)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Loan repayments</p>
+            </div>
+            <div className={`rounded-xl p-5 border ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'bg-slate-900/60 border-slate-700/40' : 'bg-slate-900/60 border-orange-700/30'}`}>
+              <p className="text-xs font-medium text-slate-400 mb-1">Available Working Capital</p>
+              <p className="text-2xl font-bold text-slate-100" data-testid="total-working-capital">
+                {formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {(workingCapital?.total_outstanding || 0) > 0
+                  ? `₹${(workingCapital?.total_outstanding || 0).toLocaleString()} outstanding`
+                  : 'Fully intact'}
+              </p>
             </div>
           </div>
 
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-200 flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-amber-400" /> Working Capital Trend
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={380}>
-                <ComposedChart data={workingCapital}>
-                  <defs>
-                    <linearGradient id="wcGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#D97706" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#D97706" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="date" stroke="#64748B" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#64748B" fontSize={10} tickLine={false} tickFormatter={(v) => formatCurrency(v, isIntl)} />
-                  <Tooltip content={<PremiumTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Bar dataKey="daily_sales" fill="#059669" name="Daily Sales" radius={[2, 2, 0, 0]} opacity={0.7} />
-                  <Bar dataKey="daily_expenses" fill="#DC2626" name="Daily Expenses" radius={[2, 2, 0, 0]} opacity={0.7} />
-                  <Area type="monotone" dataKey="working_capital" fill="url(#wcGrad)" stroke="#D97706" strokeWidth={3} name="Working Capital" dot={{ r: 2, fill: '#D97706' }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* WC Table */}
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-200">Daily Working Capital</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-slate-800/90 backdrop-blur">
-                    <tr>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Date</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Sales</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Expenses</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">GST</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Daily Net</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Cumulative WC</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workingCapital.map((w, i) => (
-                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
-                        <td className="px-4 py-2 text-slate-300">{w.date}</td>
-                        <td className="px-4 py-2 text-right text-emerald-400">{formatCurrency(w.daily_sales, isIntl)}</td>
-                        <td className="px-4 py-2 text-right text-red-400">{formatCurrency(w.daily_expenses, isIntl)}</td>
-                        <td className="px-4 py-2 text-right text-amber-400">{formatCurrency(w.daily_gst, isIntl)}</td>
-                        <td className={`px-4 py-2 text-right font-semibold ${w.daily_net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {w.daily_net < 0 && '-'}{formatCurrency(Math.abs(w.daily_net), isIntl)}
-                        </td>
-                        <td className={`px-4 py-2 text-right font-bold ${w.working_capital >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                          {w.working_capital < 0 && '-'}{formatCurrency(Math.abs(w.working_capital), isIntl)}
-                        </td>
+          {/* Center-wise WC Breakdown */}
+          {workingCapital?.centers?.length > 0 && (
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-slate-200 flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-amber-400" /> Center-wise Working Capital
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-800/80">
+                      <tr>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Center</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Franchise</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Initial WC</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Loans</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Repaid</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Outstanding</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Available WC</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                    </thead>
+                    <tbody>
+                      {workingCapital.centers.map((c, i) => (
+                        <tr key={i} className={`border-t border-slate-800/40 ${i % 2 === 0 ? '' : 'bg-slate-800/15'}`}>
+                          <td className="px-4 py-2.5 text-slate-200 font-medium">{c.center}</td>
+                          <td className="px-4 py-2.5 text-slate-400">{c.franchise_name}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-300">{formatCurrency(c.initial_wc, isIntl)}</td>
+                          <td className="px-4 py-2.5 text-right text-orange-300/80">{formatCurrency(c.total_loans, isIntl)}</td>
+                          <td className="px-4 py-2.5 text-right text-teal-300/80">{formatCurrency(c.total_repaid, isIntl)}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-300">
+                            {c.outstanding > 0 ? formatCurrency(c.outstanding, isIntl) : '-'}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-slate-100">
+                            {formatCurrency(c.available_wc, isIntl)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loan Timeline */}
+          {workingCapital?.loan_timeline?.length > 0 ? (
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-slate-200">Loan Activity Timeline</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-slate-800/90 backdrop-blur">
+                      <tr>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Date</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Center</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Type</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Description</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Amount</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workingCapital.loan_timeline.map((l, i) => (
+                        <tr key={i} className={`border-t border-slate-800/40 ${i % 2 === 0 ? '' : 'bg-slate-800/15'}`}>
+                          <td className="px-4 py-2 text-slate-300">{l.date}</td>
+                          <td className="px-4 py-2 text-slate-300">{l.center}</td>
+                          <td className="px-4 py-2">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                              l.type === 'loan' ? 'bg-orange-900/30 text-orange-300' : 'bg-teal-900/30 text-teal-300'
+                            }`}>
+                              {l.type === 'loan' ? 'Loan' : 'Repayment'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-slate-400">{l.description}</td>
+                          <td className={`px-4 py-2 text-right font-medium ${l.type === 'loan' ? 'text-orange-300/80' : 'text-teal-300/80'}`}>
+                            {l.type === 'repayment' ? '+' : ''}{formatCurrency(l.amount, isIntl)}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              l.status === 'fully_repaid' ? 'bg-teal-900/30 text-teal-300' :
+                              l.status === 'partially_repaid' ? 'bg-amber-900/30 text-amber-300' :
+                              l.status === 'repaid' ? 'bg-teal-900/30 text-teal-300' :
+                              'bg-slate-700/50 text-slate-400'
+                            }`}>
+                              {l.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+              <CardContent className="py-12 text-center">
+                <Wallet className="w-10 h-10 mx-auto mb-3 text-slate-600" />
+                <p className="text-slate-400 text-sm">No loan entries found.</p>
+                <p className="text-slate-500 text-xs mt-1">Working capital remains fully intact until loans are drawn against it.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ── CENTER ANALYSIS TAB ── */}

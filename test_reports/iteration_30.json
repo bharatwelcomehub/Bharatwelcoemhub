@@ -1,0 +1,92 @@
+{
+  "summary": "Completed comprehensive testing of MIS Dashboard Working Capital feature. All 8 backend tests passed (100%). Frontend verified - Working Capital tab shows 4 summary cards (Initial WC, Loans, Repaid, Available), center-wise table, and loan activity timeline. Colors are muted/subtle as requested. MIS Overview tab and PDF/Excel exports still working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_tested": {
+    "working_capital_endpoint_structure": {
+      "status": "PASS",
+      "details": "/api/mis/working-capital returns correct structure: initial_working_capital, total_loans, total_repaid, total_outstanding, available_working_capital, centers array, loan_timeline"
+    },
+    "working_capital_all_centers": {
+      "status": "PASS",
+      "details": "All centers shows sum of franchise WC deposits: Initial ₹45L, Available ₹44.7L (after ₹30K outstanding)"
+    },
+    "working_capital_perth_loan": {
+      "status": "PASS",
+      "details": "PB-PERTH shows loan entry: ₹50K loan, ₹20K repaid, ₹30K outstanding, ₹8.70L available (from ₹9L initial)"
+    },
+    "working_capital_not_cumulative": {
+      "status": "PASS",
+      "details": "WC correctly calculated from franchise deposits minus outstanding loans, NOT from cumulative (Sales-Expenses-GST)"
+    },
+    "frontend_wc_summary_cards": {
+      "status": "PASS",
+      "details": "4 summary cards displayed: Initial Working Capital (₹45,00,000), Total Loans (₹50,000), Total Repaid (₹20,000), Available Working Capital (₹44,70,000)"
+    },
+    "frontend_wc_center_table": {
+      "status": "PASS",
+      "details": "Center-wise Working Capital table shows PB-PERTH with franchise name, initial WC, loans, repaid, outstanding, available WC"
+    },
+    "frontend_loan_timeline": {
+      "status": "PASS",
+      "details": "Loan Activity Timeline shows 2 entries: 2026-03-20 Loan (Equipment Purchase ₹50K), 2026-03-22 Repayment (+₹20K)"
+    },
+    "frontend_muted_colors": {
+      "status": "PASS",
+      "details": "Colors are muted/subtle - loan amounts in orange-ish tone, repaid in teal/green, no bright green/red/yellow text"
+    },
+    "mis_overview_tab": {
+      "status": "PASS",
+      "details": "Overview tab still works with 6 KPI cards, Sales vs Expenses chart, Sales by Center pie chart, Center Performance table"
+    },
+    "mis_pdf_export": {
+      "status": "PASS",
+      "details": "/api/mis/download-pdf generates valid PDF (~192KB) with Working Capital section"
+    },
+    "mis_excel_export": {
+      "status": "PASS",
+      "details": "Excel export includes Working Capital sheet with new structure (summary + centers + loan timeline)"
+    },
+    "international_center_currency": {
+      "status": "PASS",
+      "details": "PB-PERTH (Australia) correctly shows $ currency symbol instead of ₹"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_working_capital.py",
+    "/app/test_reports/pytest/pytest_working_capital.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Working capital endpoint correctly fetches initial WC from franchise records and loan entries from loan_entries collection",
+    "Available WC formula: Initial WC - Outstanding Loans (not cumulative sales-expenses-GST)",
+    "Frontend Working Capital tab has proper data-testid attributes: initial-wc, total-working-capital",
+    "Colors are muted using Tailwind classes like text-orange-300/80, text-teal-300/80 instead of bright colors",
+    "Backward compatibility maintained with 'data' and 'total_working_capital' fields in API response"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_working_capital.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100% (all UI features verified)"
+  },
+  "test_credentials": {
+    "super_admin": "PB-MGT / 9741399190 / 123456"
+  },
+  "seed_data_creation": "None - used existing loan entry for PB-PERTH",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Working Capital feature complete. Backend endpoint /api/mis/working-capital returns initial WC from franchise deposits, loans from loan_entries collection. Only PB-PERTH has loan data (₹50K loan, ₹20K repaid). Frontend Working Capital tab shows 4 summary cards + center-wise table + loan timeline. Colors are muted (orange for loans, teal for repaid). MIS Overview and exports still working.",
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}
