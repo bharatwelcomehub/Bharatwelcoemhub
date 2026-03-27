@@ -82,6 +82,21 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
 ## Test Credentials
 - Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456
 
+## Completed Features (continued)
+- [x] **MIS Dashboard PDF Export** (COMPLETED 2026-03-27)
+  - Backend `/api/mis/download-pdf` endpoint using ReportLab
+  - Professional branded PDF with Purnabramha logo header
+  - Includes: Financial Summary, Center Performance, Expense Analysis, Working Capital, Quarterly Comparison
+  - Color-coded profit/loss cells, alert status highlights
+  - Auto-detects international centers for currency symbol ($)
+  - Supports all period filters (current month, quarter, YTD, custom)
+- [x] **Premium MIS Dashboard UI** (COMPLETED 2026-03-27)
+  - Dark-themed header with brand colors (saffron, gold, emerald)
+  - 6 gradient KPI cards with change indicators
+  - 7 tabbed sections: Overview, Working Capital, Centers, Expenses, Alerts, Quarterly, Performers
+  - Recharts-based composited charts with premium tooltips
+  - Alerts banner with severity badges
+
 ## Project Health
 - Broken: None
 - Mocked: WhatsApp Integration
