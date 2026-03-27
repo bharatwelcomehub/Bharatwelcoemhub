@@ -29,17 +29,26 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
 - [x] PDF export for international payroll reports
 - [x] server.py refactoring (hr_letters.py, centers_managers.py extracted)
 - [x] **P0: Hardcoding removal across 34+ files** (COMPLETED 2026-03-27)
-  - All `session.center === "PB-MGT"` replaced with `isAdminUser(session)` (checks is_super_admin || is_admin)
-  - All `isPerth/PB-PERTH` checks replaced with `isInternationalCenter` using DB center data (is_india_center field)
+  - All `session.center === "PB-MGT"` replaced with `isAdminUser(session)`
+  - All `isPerth/PB-PERTH` checks replaced with `isInternationalCenter` using DB center data
   - All hardcoded CENTERS arrays replaced with `fetchCentersFromDB()` API calls
-  - Backend `has_admin_access()` no longer checks center == PB-MGT
+  - Backend `has_admin_access()` purely RBAC-driven
   - International centers cache populated at startup from DB
-  - Booking intelligence phone numbers fetched from center DB records
-  - All 17 automated tests passed (100% backend, 100% frontend)
 - [x] **P0: Role-based visibility enforcement**
   - Sidebar menu items controlled by admin/permission flags
   - Page-level access denied screens use isAdminUser() check
   - Backend routes check is_super_admin/is_admin instead of center codes
+- [x] **Bug Fix: isPerth not defined** (COMPLETED 2026-03-27)
+  - SalesDataEntry.jsx calculateGST renamed isPerth → isIntl with centersList prop
+  - ExpenseEntry.jsx uses fmtCurrency wrapper with centersList
+  - SalesGridEditor.jsx passes centersList for currency detection
+- [x] **Center-Specific Menu Management** (COMPLETED 2026-03-27)
+  - 146 real menu items seeded from India + Australia PDF menus
+  - 17 categories: Balgopal Kids, Tea/Coffee, Snacks, Heavy Brunch, Bhaji, Thali, etc.
+  - Per-center pricing: India (INR), Australia (AUD)
+  - Per-center availability: some items not served at certain centers
+  - MenuManagement.jsx: Admin-only page with center selector, pricing editor, search
+  - Endpoints: /api/masters/menu-items/by-center/{code}, /api/masters/seed-menu-data
 
 ## Prioritized Backlog
 
@@ -48,24 +57,27 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
 
 ### P1 — High
 - Franchise document management & Approval hierarchy
-- Master tables to populate: Menu Items, Tables, Vendors, Order Types, Cancellation Reasons
+- Master tables to populate: Tables, Vendors, Order Types, Cancellation Reasons
 
 ### P2 — Medium/Future
 - Image Upload for Recipes
 - Franchise Deal Simulator
 - 7-year retention deletion prompt for attachments
+- Menu card PDF generation per center (sharable digital menu)
 
 ## Key DB Schema
 - `permissions`: {role_key, permissions_list, description}
-- Master collections: expense_categories, payment_modes, employee_categories, tax_config, menu_categories, roles
 - `centers`: {code, name, phone, email, address, active, is_india_center, country, is_hq}
+- `master_menu_items`: {name, category, base_price, serves, is_veg, center_prices: {CENTER: {price, available}}, is_active}
+- `master_menu_categories`: {name, description, display_order}
 - `employees`: {..., transfer_tag, transfer_info} (dynamically injected)
 
 ## Key API Endpoints
-- `/api/centers`: Returns all centers from DB (with is_india_center, country, is_hq fields)
+- `/api/centers`: Returns all centers from DB (with is_india_center, country, is_hq)
 - `/api/masters/*`: CRUD for master tables
+- `/api/masters/menu-items/by-center/{code}`: Center-specific menu with pricing
+- `/api/masters/seed-menu-data`: Seeds 146 real menu items from PDF data
 - `/api/permissions/engine`: Returns user role and capability matrix
-- `/api/attendance_month`, `/api/payroll/preview`: Transfer-aware
 
 ## Test Credentials
 - Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456
