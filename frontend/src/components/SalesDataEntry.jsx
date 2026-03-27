@@ -14,9 +14,9 @@ const isIntl = (center, centersList = []) => isInternationalCenter(center, cente
 const getCurrencySymbol = (center, centersList = []) => isIntl(center, centersList) ? "$" : "₹";
 
 // Format currency for display
-const formatCurrency = (num, center) => {
+const formatCurrency = (num, center, cList = []) => {
   if (num === null || num === undefined || isNaN(num)) return "0.00";
-  const symbol = getCurrencySymbol(center);
+  const symbol = getCurrencySymbol(center, cList);
   return `${symbol}${Math.abs(num).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
@@ -45,11 +45,11 @@ const isDateFrozen = (dateStr) => {
 // GST Calculation
 // India: 5% GST ADDED to subtotal (excluding Swiggy/Zomato)
 // Perth: 10% GST INCLUDED in total (extract from total)
-const calculateGST = (totalSale, swiggy, zomato, center) => {
+const calculateGST = (totalSale, swiggy, zomato, center, centersList = []) => {
   // Exclude Swiggy and Zomato from GST calculation
   const gstApplicableSale = (parseFloat(totalSale) || 0) - (parseFloat(swiggy) || 0) - (parseFloat(zomato) || 0);
   
-  if (isPerth(center)) {
+  if (isIntl(center, centersList)) {
     // Australia (Perth): 10% GST is INCLUDED in price
     // Formula: GST = Total / 11
     const gstAmount = gstApplicableSale / 11;
@@ -138,7 +138,7 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
     // GST Calculation
-    const gst = calculateGST(total_sale, formData.swiggy, formData.zomato, centerCode);
+    const gst = calculateGST(total_sale, formData.swiggy, formData.zomato, centerCode, centersList);
     
     // Average calculations
     const num_guests = parseInt(formData.num_guests) || 0;
