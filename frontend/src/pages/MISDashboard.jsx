@@ -52,7 +52,6 @@ import {
   Download,
   FileText,
   IndianRupee,
-  Percent,
   Activity
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -193,18 +192,19 @@ export default function MISDashboard() {
     const s = overview?.summary;
     const ws1 = XLSX.utils.aoa_to_sheet([["MIS Report - Purnabramha"], ["Center", cl], ["Period", pl], [], ["Metric", "Value"],
       ["Total Sales", s?.total_sales], ["Cash Sales", s?.total_cash_sales], ["Online Sales", s?.total_online_sales],
-      ["Total Expenses", s?.total_expenses], ["GST (5%)", s?.total_gst], ["Net Profit", s?.profit],
-      ["Profit Margin (%)", s?.profit_margin], ["Total Guests", s?.total_guests], ["Total Bills", s?.total_bills],
-      ["Avg per Guest", s?.avg_per_guest], ["Avg per Bill", s?.avg_per_bill]]);
+      ["Total Expenses", s?.total_expenses], ["GST (5%)", s?.total_gst],
+      ["Total Guests", s?.total_guests], ["Total Bills", s?.total_bills],
+      ["Avg per Guest", s?.avg_per_guest], ["Avg per Bill", s?.avg_per_bill],
+      ["Working Capital", workingCapital?.available_working_capital || "N/A"]]);
     XLSX.utils.book_append_sheet(wb, ws1, "Summary");
     if (overview?.centers?.length > 0) {
-      const ws2 = XLSX.utils.aoa_to_sheet([["Center", "Sales", "Expenses", "GST", "Profit", "Margin (%)"],
-        ...overview.centers.map(c => [c.center, c.sales, c.expenses, c.gst, c.profit, c.profit_margin])]);
+      const ws2 = XLSX.utils.aoa_to_sheet([["Center", "Sales", "Expenses", "GST"],
+        ...overview.centers.map(c => [c.center, c.sales, c.expenses, c.gst])]);
       XLSX.utils.book_append_sheet(wb, ws2, "Centers");
     }
     if (trends.length > 0) {
-      const ws3 = XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "GST", "Profit"],
-        ...trends.map(t => [t.date || t.week || t.month, t.sales, t.expenses, t.gst, t.profit])]);
+      const ws3 = XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "GST"],
+        ...trends.map(t => [t.date || t.week || t.month, t.sales, t.expenses, t.gst])]);
       XLSX.utils.book_append_sheet(wb, ws3, "Trends");
     }
     if (expenseAnalysis?.by_type?.length > 0) {
@@ -233,8 +233,8 @@ export default function MISDashboard() {
       XLSX.utils.book_append_sheet(wb, ws5, "Working Capital");
     }
     if (quarterlyData.length > 0) {
-      const ws6 = XLSX.utils.aoa_to_sheet([["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin (%)"],
-        ...quarterlyData.map(q => [q.label, q.sales, q.expenses, q.gst, q.profit, q.profit_margin])]);
+      const ws6 = XLSX.utils.aoa_to_sheet([["Quarter", "Sales", "Expenses", "GST"],
+        ...quarterlyData.map(q => [q.label, q.sales, q.expenses, q.gst])]);
       XLSX.utils.book_append_sheet(wb, ws6, "Quarterly");
     }
     XLSX.writeFile(wb, `MIS_Report_${cl}_${overview?.period?.start}_to_${overview?.period?.end}.xlsx`.replace(/ /g, '_'));
@@ -289,9 +289,9 @@ export default function MISDashboard() {
   const kpiCards = s ? [
     { label: "Total Sales", value: s.total_sales, change: overview?.changes?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50", changeBad: false },
     { label: "Total Expenses", value: s.total_expenses, change: overview?.changes?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50", changeBad: true },
-    { label: "Net Profit", value: s.profit, change: overview?.changes?.profit_change, icon: TrendingUp, gradient: s.profit >= 0 ? "from-amber-600 to-amber-400" : "from-red-700 to-red-500", textColor: "text-amber-50", changeBad: false },
-    { label: "Profit Margin", value: null, displayValue: `${s.profit_margin?.toFixed(1)}%`, icon: Percent, gradient: "from-violet-600 to-violet-400", textColor: "text-violet-50" },
+    { label: "Working Capital", value: null, displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
     { label: "Total Guests", value: null, displayValue: s.total_guests?.toLocaleString(), icon: Users, gradient: "from-sky-600 to-sky-400", textColor: "text-sky-50" },
+    { label: "Total Bills", value: null, displayValue: s.total_bills?.toLocaleString(), icon: Activity, gradient: "from-violet-600 to-violet-400", textColor: "text-violet-50" },
     { label: "Avg / Bill", value: null, displayValue: formatFullCurrency(s.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
   ] : [];
 
@@ -434,7 +434,6 @@ export default function MISDashboard() {
                   </div>
                   <p className={`text-xl font-bold ${kpi.textColor} tracking-tight`}>
                     {displayVal}
-                    {kpi.label === "Net Profit" && s?.profit < 0 && <span className="text-xs ml-1">(Loss)</span>}
                   </p>
                   {kpi.change !== undefined && (
                     <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${kpi.textColor} opacity-70`}>
@@ -487,7 +486,6 @@ export default function MISDashboard() {
                     <Legend wrapperStyle={{ fontSize: '12px' }} />
                     <Area type="monotone" dataKey="sales" fill="url(#salesGrad)" stroke="#059669" strokeWidth={2.5} name="Sales" />
                     <Area type="monotone" dataKey="expenses" fill="url(#expGrad)" stroke="#DC2626" strokeWidth={2} name="Expenses" />
-                    <Line type="monotone" dataKey="profit" stroke="#D97706" strokeWidth={2.5} dot={false} name="Profit" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -530,9 +528,6 @@ export default function MISDashboard() {
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Sales</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Expenses</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">GST</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Profit</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Margin</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -542,21 +537,6 @@ export default function MISDashboard() {
                         <td className="px-4 py-3 text-right font-medium text-emerald-400">{formatCurrency(c.sales, isIntl)}</td>
                         <td className="px-4 py-3 text-right font-medium text-red-400">{formatCurrency(c.expenses, isIntl)}</td>
                         <td className="px-4 py-3 text-right text-amber-400">{formatCurrency(c.gst, isIntl)}</td>
-                        <td className={`px-4 py-3 text-right font-bold ${c.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {formatCurrency(Math.abs(c.profit), isIntl)}{c.profit < 0 && ' (L)'}
-                        </td>
-                        <td className={`px-4 py-3 text-right font-semibold ${c.profit_margin >= 10 ? 'text-emerald-400' : c.profit_margin >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
-                          {c.profit_margin?.toFixed(1)}%
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            c.profit_margin >= 15 ? 'bg-emerald-500/20 text-emerald-300' :
-                            c.profit_margin >= 5 ? 'bg-amber-500/20 text-amber-300' :
-                            'bg-red-500/20 text-red-300'
-                          }`}>
-                            {c.profit_margin >= 15 ? 'Healthy' : c.profit_margin >= 5 ? 'Moderate' : 'At Risk'}
-                          </span>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -564,6 +544,59 @@ export default function MISDashboard() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Day-wise Sales Table */}
+          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-slate-200">Day-wise Sales</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table className="w-full text-sm" data-testid="day-wise-table">
+                  <thead className="sticky top-0 bg-slate-800/90 backdrop-blur">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Date</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Sales</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Expenses</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">GST</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trends.map((d, i) => (
+                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 ? 'bg-slate-800/20' : ''} hover:bg-slate-800/30`}>
+                        <td className="px-4 py-2 text-slate-300">{d.date || d.week}</td>
+                        <td className="px-4 py-2 text-right text-emerald-400">{formatCurrency(d.sales, isIntl)}</td>
+                        <td className="px-4 py-2 text-right text-red-400">{formatCurrency(d.expenses, isIntl)}</td>
+                        <td className="px-4 py-2 text-right text-amber-400">{formatCurrency(d.gst, isIntl)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Month-wise Sales Chart */}
+          {quarterlyData.length > 0 && (
+            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-slate-200">Month / Quarter-wise Sales Comparison</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={quarterlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="label" stroke="#64748B" fontSize={11} />
+                    <YAxis stroke="#64748B" fontSize={10} tickFormatter={(v) => formatCurrency(v, isIntl)} />
+                    <Tooltip content={<PremiumTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Bar dataKey="sales" fill="#059669" name="Sales" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expenses" fill="#DC2626" name="Expenses" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ── WORKING CAPITAL TAB ── */}
@@ -726,7 +759,6 @@ export default function MISDashboard() {
                   <Legend wrapperStyle={{ fontSize: '12px' }} />
                   <Bar dataKey="sales" fill="#059669" name="Sales" radius={[0, 4, 4, 0]} />
                   <Bar dataKey="expenses" fill="#DC2626" name="Expenses" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="profit" fill="#D97706" name="Profit" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -889,7 +921,6 @@ export default function MISDashboard() {
                   <Legend wrapperStyle={{ fontSize: '12px' }} />
                   <Bar dataKey="sales" fill="#059669" name="Sales" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="expenses" fill="#DC2626" name="Expenses" radius={[4, 4, 0, 0]} />
-                  <Line type="monotone" dataKey="profit" stroke="#D97706" strokeWidth={3} name="Profit" dot={{ r: 4, fill: '#D97706' }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
@@ -901,7 +932,7 @@ export default function MISDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="bg-slate-800/60">
-                    {["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin"].map(h => (
+                    {["Quarter", "Sales", "Expenses", "GST"].map(h => (
                       <th key={h} className={`${h === "Quarter" ? "text-left" : "text-right"} px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider`}>{h}</th>
                     ))}
                   </tr></thead>
@@ -912,10 +943,6 @@ export default function MISDashboard() {
                         <td className="px-4 py-2.5 text-right text-emerald-400">{formatCurrency(q.sales, isIntl)}</td>
                         <td className="px-4 py-2.5 text-right text-red-400">{formatCurrency(q.expenses, isIntl)}</td>
                         <td className="px-4 py-2.5 text-right text-amber-400">{formatCurrency(q.gst, isIntl)}</td>
-                        <td className={`px-4 py-2.5 text-right font-bold ${q.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {formatCurrency(Math.abs(q.profit), isIntl)}{q.profit < 0 && ' (L)'}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-slate-300">{q.profit_margin?.toFixed(1)}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -930,9 +957,9 @@ export default function MISDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[
               { title: "Top by Sales", data: topPerformers?.top_by_sales, field: "sales", color: "emerald", format: true },
-              { title: "Top by Margin", data: topPerformers?.top_by_margin, field: "profit_margin", color: "amber", format: false, suffix: "%" },
-              { title: "Needs Attention", data: topPerformers?.bottom_by_sales, field: "sales", color: "orange", format: true },
-              { title: "At Risk (Low Margin)", data: topPerformers?.bottom_by_margin, field: "profit_margin", color: "red", format: false, suffix: "%" },
+              { title: "Top by Guests", data: topPerformers?.top_by_sales, field: "guests", color: "sky", format: false },
+              { title: "Needs Attention (Low Sales)", data: topPerformers?.bottom_by_sales, field: "sales", color: "orange", format: true },
+              { title: "Highest Expenses", data: topPerformers?.top_by_sales?.sort?.((a, b) => (b.expenses || 0) - (a.expenses || 0))?.slice(0, 5), field: "expenses", color: "red", format: true },
             ].map((section, si) => (
               <Card key={si} className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
                 <CardHeader className="pb-2">

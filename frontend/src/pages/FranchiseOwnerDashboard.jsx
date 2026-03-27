@@ -30,6 +30,8 @@ export default function FranchiseOwnerDashboard() {
   const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState("current_month");
   const [tab, setTab] = useState("overview");
+  const [centersList, setCentersList] = useState([]);
+  const [selectedCenter, setSelectedCenter] = useState("");
   
   // Data
   const [overview, setOverview] = useState(null);
@@ -37,23 +39,48 @@ export default function FranchiseOwnerDashboard() {
   const [expenseData, setExpenseData] = useState([]);
   const [franchiseInfo, setFranchiseInfo] = useState(null);
   const [invoices, setInvoices] = useState([]);
+  const [workingCapital, setWorkingCapital] = useState(null);
+
+  const isAdmin = session?.is_super_admin || session?.is_admin;
+
+  // Fetch centers for admin dropdown
+  useEffect(() => {
+    const fetchCenters = async () => {
+      if (!isAdmin || !session?.token) return;
+      try {
+        const res = await api.get("/centers");
+        const centers = (res.data.centers || []).filter(c => c.active !== false);
+        setCentersList(centers);
+      } catch {}
+    };
+    fetchCenters();
+  }, [isAdmin, session?.token]);
+
+  // Set initial center
+  useEffect(() => {
+    if (!selectedCenter && session?.center) {
+      setSelectedCenter(session.franchise_center || session.center);
+    }
+  }, [session, selectedCenter]);
 
   const fetchData = useCallback(async () => {
-    if (!session?.token) return;
+    if (!session?.token || !selectedCenter) return;
     setLoading(true);
     try {
-      const center = session.franchise_center || session.center;
+      const center = selectedCenter;
       const params = { token: session.token, period, center };
       
-      const [ovRes, salesRes, expRes] = await Promise.all([
+      const [ovRes, salesRes, expRes, wcRes] = await Promise.all([
         api.post("/mis/overview", params).catch(() => ({ data: {} })),
         api.post("/mis/sales-trends", { ...params, group_by: "daily" }).catch(() => ({ data: { trends: [] } })),
         api.post("/mis/expense-analysis", params).catch(() => ({ data: {} })),
+        api.post("/mis/working-capital", { token: session.token, center }).catch(() => ({ data: {} })),
       ]);
       
       setOverview(ovRes.data);
       setSalesData(salesRes.data.trends || []);
       setExpenseData(expRes.data.by_type || []);
+      setWorkingCapital(wcRes.data || null);
       
       // Fetch franchise info
       const frRes = await api.post("/masters/franchises/list", { token: session.token, active_only: true }).catch(() => ({ data: { items: [] } }));
@@ -65,7 +92,7 @@ export default function FranchiseOwnerDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [session, period]);
+  }, [session, period, selectedCenter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -81,15 +108,14 @@ export default function FranchiseOwnerDashboard() {
       ["Total Sales", overview?.summary?.total_sales],
       ["Total Expenses", overview?.summary?.total_expenses],
       ["GST", overview?.summary?.total_gst],
-      ["Net Profit", overview?.summary?.profit],
-      ["Profit Margin (%)", overview?.summary?.profit_margin],
+      ["Working Capital", workingCapital?.available_working_capital || "N/A"],
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Summary");
     
     // Sales Trends
     if (salesData.length > 0) {
-      const rows = salesData.map(s => [s.date, s.sales, s.expenses, s.profit]);
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "Profit"], ...rows]), "Sales Trends");
+      const rows = salesData.map(s => [s.date, s.sales, s.expenses, s.gst]);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "GST"], ...rows]), "Sales Trends");
     }
     
     // Expense Breakdown
@@ -122,6 +148,18 @@ export default function FranchiseOwnerDashboard() {
           <Badge variant="outline" className="text-xs border-amber-400 text-amber-600 bg-amber-50">
             <Eye className="w-3 h-3 mr-1" /> View Only
           </Badge>
+          {isAdmin && centersList.length > 0 && (
+            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+              <SelectTrigger className="w-[140px]" data-testid="fo-center-select">
+                <SelectValue placeholder="Center" />
+              </SelectTrigger>
+              <SelectContent>
+                {centersList.map(c => (
+                  <SelectItem key={c.code} value={c.code}>{c.code} - {c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[160px]" data-testid="fo-period-select">
               <SelectValue />
@@ -167,17 +205,22 @@ export default function FranchiseOwnerDashboard() {
             </Card>
             <Card className="bg-card border-border">
               <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Net Profit</p>
-                <p className={`text-xl font-bold ${(summary.profit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`} data-testid="fo-profit">
-                  {formatCurrency(Math.abs(summary.profit || 0))}{(summary.profit || 0) < 0 && ' (-)'}
+                <p className="text-xs text-muted-foreground">GST</p>
+                <p className="text-xl font-bold text-amber-400" data-testid="fo-gst">
+                  {formatCurrency(summary.total_gst || 0)}
                 </p>
               </CardContent>
             </Card>
             <Card className="bg-card border-border">
               <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Margin</p>
-                <p className="text-xl font-bold text-primary" data-testid="fo-margin">
-                  {(summary.profit_margin || 0).toFixed(1)}%
+                <p className="text-xs text-muted-foreground">Working Capital</p>
+                <p className="text-xl font-bold text-primary" data-testid="fo-working-capital">
+                  {formatCurrency(workingCapital?.available_working_capital || 0)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {(workingCapital?.total_outstanding || 0) > 0 
+                    ? `${formatCurrency(workingCapital.total_outstanding)} outstanding` 
+                    : 'Fully intact'}
                 </p>
               </CardContent>
             </Card>
@@ -222,7 +265,6 @@ export default function FranchiseOwnerDashboard() {
                           <th className="text-right p-2">Sales</th>
                           <th className="text-right p-2">Expenses</th>
                           <th className="text-right p-2">GST</th>
-                          <th className="text-right p-2">Profit</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -232,9 +274,6 @@ export default function FranchiseOwnerDashboard() {
                             <td className="p-2 text-right text-green-400">{formatCurrency(d.sales)}</td>
                             <td className="p-2 text-right text-red-400">{formatCurrency(d.expenses)}</td>
                             <td className="p-2 text-right text-amber-400">{formatCurrency(d.gst)}</td>
-                            <td className={`p-2 text-right font-semibold ${(d.profit||0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {formatCurrency(Math.abs(d.profit || 0))}
-                            </td>
                           </tr>
                         ))}
                       </tbody>

@@ -1,0 +1,103 @@
+{
+  "summary": "Completed comprehensive testing of MIS Report profit removal feature. All 11 backend tests passed (100%). Frontend verified - MIS Dashboard and Franchise Owner Dashboard correctly show only Total Sales, Total Expenses, Working Capital, GST without any Net Profit or Profit Margin displays.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_tested": {
+    "mis_kpi_cards_no_profit": {
+      "status": "PASS",
+      "details": "MIS Dashboard KPI cards show: Total Sales, Total Expenses, Working Capital, Total Guests, Total Bills, Avg/Bill - NO Net Profit or Profit Margin card"
+    },
+    "mis_sales_vs_expenses_chart_no_profit_line": {
+      "status": "PASS",
+      "details": "Sales vs Expenses chart shows only Sales (green) and Expenses (red) areas - NO profit line"
+    },
+    "mis_center_performance_table_no_profit": {
+      "status": "PASS",
+      "details": "Center Performance table headers: Center, Sales, Expenses, GST - NO Profit or Margin columns"
+    },
+    "mis_day_wise_table_no_profit": {
+      "status": "PASS",
+      "details": "Day-wise Sales table headers: Date, Sales, Expenses, GST - NO Profit column"
+    },
+    "mis_quarterly_table_no_profit": {
+      "status": "PASS",
+      "details": "Quarterly table headers: Quarter, Sales, Expenses, GST - NO Profit or Margin columns"
+    },
+    "mis_performers_tab_sales_based": {
+      "status": "PASS",
+      "details": "Performers tab shows: Top by Sales, Top by Guests, Needs Attention (Low Sales), Highest Expenses - NO profit-based rankings"
+    },
+    "franchise_owner_kpi_no_profit": {
+      "status": "PASS",
+      "details": "Franchise Owner Dashboard KPI cards: Total Sales, Total Expenses, GST, Working Capital - NO Net Profit or Margin"
+    },
+    "franchise_owner_day_wise_no_profit": {
+      "status": "PASS",
+      "details": "Franchise Owner day-wise table headers: Date, Sales, Expenses, GST - NO Profit column"
+    },
+    "franchise_owner_center_dropdown_admin": {
+      "status": "PASS",
+      "details": "Center dropdown visible for Admin/Super Admin in Franchise Owner Dashboard"
+    },
+    "pdf_export_no_profit": {
+      "status": "PASS",
+      "details": "PDF export generates valid PDF (~193KB). Summary table shows Sales/Expenses/GST. Center table: Center, Sales, Expenses, GST. Quarterly table: Quarter, Sales, Expenses, GST - NO profit fields"
+    },
+    "excel_export_no_profit": {
+      "status": "PASS",
+      "details": "Excel export verified in code - Summary, Centers, Trends, Quarterly sheets all exclude profit columns"
+    },
+    "centers_dropdown_from_db": {
+      "status": "PASS",
+      "details": "Center dropdown pulls from /api/centers endpoint (Center Master DB) - 10 centers returned, no hardcoding"
+    },
+    "backend_apis_working": {
+      "status": "PASS",
+      "details": "All MIS endpoints working: /api/mis/overview, /api/mis/quarterly-comparison, /api/mis/sales-trends, /api/mis/center-comparison, /api/mis/top-performers, /api/mis/working-capital, /api/mis/download-pdf"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mis_profit_removal.py",
+    "/app/test_reports/pytest/pytest_mis_profit_removal.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MISDashboard.jsx KPI cards (line 289-296) correctly exclude profit/margin - shows Total Sales, Total Expenses, Working Capital, Total Guests, Total Bills, Avg/Bill",
+    "MISDashboard.jsx Center Performance table (line 527-543) headers: Center, Sales, Expenses, GST - no profit columns",
+    "MISDashboard.jsx Day-wise table (line 555-575) headers: Date, Sales, Expenses, GST - no profit column",
+    "MISDashboard.jsx Quarterly table (line 934-952) headers: Quarter, Sales, Expenses, GST - no profit columns",
+    "MISDashboard.jsx Performers tab (line 956-990) uses sales-based rankings: Top by Sales, Top by Guests, Needs Attention (Low Sales), Highest Expenses",
+    "FranchiseOwnerDashboard.jsx KPI cards (line 189-227) show: Total Sales, Total Expenses, GST, Working Capital - no profit",
+    "FranchiseOwnerDashboard.jsx day-wise table (line 261-283) headers: Date, Sales, Expenses, GST - no profit",
+    "FranchiseOwnerDashboard.jsx has center dropdown for Admin/Super Admin (line 151-160)",
+    "Backend PDF export (_build_mis_pdf) Summary table (line 1008-1019) excludes profit",
+    "Backend PDF export Center table (line 1042-1050) headers: Center, Sales, Expenses, GST",
+    "Backend PDF export Quarterly table (line 1175-1183) headers: Quarter, Sales, Expenses, GST",
+    "Backend still returns profit fields in API responses for backward compatibility, but frontend does not display them"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_mis_profit_removal.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all UI features verified)"
+  },
+  "test_credentials": {
+    "super_admin": "PB-MGT / 9741399190 / 123456"
+  },
+  "seed_data_creation": "None - used existing data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "MIS Report profit removal complete. All profit-related displays removed from: MIS Dashboard (KPI cards, center table, day-wise table, quarterly table, performers tab, Sales vs Expenses chart), Franchise Owner Dashboard (KPI cards, day-wise table), PDF export (summary, centers, quarterly tables), Excel export. Backend APIs still return profit fields for backward compatibility but frontend does not display them. Center dropdown pulls from Center Master DB via /api/centers.",
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

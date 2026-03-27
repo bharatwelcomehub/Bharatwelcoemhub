@@ -1012,8 +1012,6 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
         ["Online Sales", fmt(s.get("total_online_sales")), ""],
         ["Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
         ["GST (5%)", fmt(s.get("total_gst")), ""],
-        ["Net Profit", fmt(s.get("profit")), f"{changes.get('profit_change', 0):+.1f}%"],
-        ["Profit Margin", f"{s.get('profit_margin', 0):.1f}%", ""],
         ["Total Guests", f"{s.get('total_guests', 0):,}", ""],
         ["Total Bills", f"{s.get('total_bills', 0):,}", ""],
         ["Avg per Guest", fmt(s.get("avg_per_guest")), ""],
@@ -1033,10 +1031,6 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
         ('TOPPADDING', (0, 0), (-1, -1), 5),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        # Highlight profit row
-        ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ECFDF5") if s.get("profit", 0) >= 0 else colors.HexColor("#FEF2F2")),
-        ('TEXTCOLOR', (1, 6), (1, 6), GREEN if s.get("profit", 0) >= 0 else RED),
-        ('FONTNAME', (0, 6), (-1, 6), 'Helvetica-Bold'),
     ]))
     elements.append(t)
     elements.append(Spacer(1, 10))
@@ -1045,20 +1039,17 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
     centers = overview_data.get("centers", [])
     if centers:
         elements.append(Paragraph("Center Performance", section_style))
-        center_header = ["Center", "Sales", "Expenses", "GST", "Profit", "Margin %"]
+        center_header = ["Center", "Sales", "Expenses", "GST"]
         center_rows = [center_header]
         for c in centers:
-            profit_val = c.get("profit", 0)
             center_rows.append([
                 c.get("center", ""),
                 fmt(c.get("sales")),
                 fmt(c.get("expenses")),
                 fmt(c.get("gst")),
-                fmt(profit_val) + (" (L)" if profit_val < 0 else ""),
-                f"{c.get('profit_margin', 0):.1f}%"
             ])
 
-        ct = Table(center_rows, colWidths=[80, 85, 85, 75, 90, 55])
+        ct = Table(center_rows, colWidths=[100, 120, 120, 100])
         ct_style = [
             ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1072,11 +1063,6 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ]
-        # Color-code profit cells
-        for idx, c in enumerate(centers, start=1):
-            pv = c.get("profit", 0)
-            ct_style.append(('TEXTCOLOR', (4, idx), (4, idx), GREEN if pv >= 0 else RED))
-            ct_style.append(('FONTNAME', (4, idx), (4, idx), 'Helvetica-Bold'))
         ct.setStyle(TableStyle(ct_style))
         elements.append(ct)
         elements.append(Spacer(1, 10))
@@ -1186,20 +1172,17 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
     quarters = quarterly_data.get("quarters", []) if quarterly_data else []
     if quarters:
         elements.append(Paragraph("Quarterly Comparison", section_style))
-        q_header = ["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin %"]
+        q_header = ["Quarter", "Sales", "Expenses", "GST"]
         q_rows = [q_header]
         for q in quarters:
-            pv = q.get("profit", 0)
             q_rows.append([
                 q.get("label", ""),
                 fmt(q.get("sales")),
                 fmt(q.get("expenses")),
                 fmt(q.get("gst")),
-                fmt(pv) + (" (L)" if pv < 0 else ""),
-                f"{q.get('profit_margin', 0):.1f}%"
             ])
 
-        qt = Table(q_rows, colWidths=[80, 90, 90, 75, 90, 55])
+        qt = Table(q_rows, colWidths=[120, 120, 120, 100])
         qt.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
