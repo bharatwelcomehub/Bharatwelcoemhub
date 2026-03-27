@@ -2035,6 +2035,14 @@ set_mis_verify_token(verify_token)
 set_mis_verify_token_async(verify_token_async)
 app.include_router(mis_router)
 
+# Include Billing/POS router
+from routes.billing import router as billing_router, set_db as set_billing_db, set_verify_token as set_billing_verify_token, set_verify_token_async as set_billing_verify_token_async
+set_billing_db(db)
+set_billing_verify_token(verify_token)
+set_billing_verify_token_async(verify_token_async)
+app.include_router(billing_router)
+
+
 # Include Booking Intelligence router
 from routes.booking_intelligence import router as booking_router, set_db as set_booking_db, set_verify_token as set_booking_verify_token, set_verify_token_async as set_booking_verify_token_async
 set_booking_db(db)

@@ -60,6 +60,7 @@ import EmployeeTransfers from "@/pages/EmployeeTransfers";
 import MasterDataManagement from "@/pages/MasterDataManagement";
 import FranchiseOwnerDashboard from "@/pages/FranchiseOwnerDashboard";
 import MenuManagement from "@/pages/MenuManagement";
+import POSBilling from "@/pages/POSBilling";
 
 // Menu categories structure
 const menuCategories = [
@@ -83,6 +84,7 @@ const menuCategories = [
     items: [
       { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", roleKey: "sales_cash" },
       { path: "/expense-heads", icon: Tags, label: "Expense Heads", forMGT: true },
+      { path: "/pos-billing", icon: Receipt, label: "POS / Billing", roleKey: "sales_cash" },
     ]
   },
   {
@@ -424,6 +426,7 @@ export default function Dashboard() {
             <Route path="/master-data" element={<MasterDataManagement />} />
             <Route path="/menu-management" element={<MenuManagement />} />
             <Route path="/franchise-dashboard" element={<FranchiseOwnerDashboard />} />
+            <Route path="/pos-billing" element={<POSBilling />} />
           </Routes>
         </div>
       </main>
