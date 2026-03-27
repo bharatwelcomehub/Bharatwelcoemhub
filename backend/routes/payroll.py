@@ -312,8 +312,8 @@ async def salary_preview(req: SalaryPreviewRequest):
 async def generate_salary(req: SalaryGenRequest):
     """Generate salary Excel for ICICI upload (transfer-aware)"""
     session = verify_token(req.token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can generate salary")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can generate salary")
     
     try:
         from openpyxl import Workbook
@@ -462,8 +462,8 @@ async def generate_salary(req: SalaryGenRequest):
 async def payslips_generate(req: PayslipGenRequest):
     """Generate payslips (PDF/DOCX)"""
     session = verify_token(req.token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can generate payslips")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can generate payslips")
     
     try:
         from reportlab.lib.pagesizes import A4

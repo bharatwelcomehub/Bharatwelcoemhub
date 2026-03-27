@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+import { isAdminUser } from "@/lib/api";
 
 const STATUS_COLORS = {
   DRAFT: "secondary",
@@ -41,7 +42,7 @@ const STATUS_LABELS = {
 
 export default function EmployeeTransfers() {
   const { session } = useAuth();
-  const isMGT = session?.center === "PB-MGT";
+  const isMGT = isAdminUser(session);
   const isAdmin = session?.is_super_admin || session?.is_admin;
   const userCenter = session?.center || "";
 

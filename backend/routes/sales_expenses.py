@@ -212,11 +212,21 @@ def has_accounting_role(session):
 # =======================================
 
 def is_perth_center(center: str) -> bool:
-    """Check if center is Perth (Australia) - handles multiple formats"""
+    """Check if center is international (non-India) — uses cached center data"""
     if not center:
         return False
     c = center.upper()
-    return c in ["PB-PERTH", "PERTH"]
+    # Use cached international centers list
+    return c in _international_centers_cache
+
+# Cache of international center codes - populated on first API call
+_international_centers_cache = set()
+
+async def refresh_international_centers_cache(db_ref):
+    """Refresh cache of international center codes from DB"""
+    global _international_centers_cache
+    centers = await db_ref.centers.find({"is_india_center": False}, {"_id": 0, "code": 1}).to_list(100)
+    _international_centers_cache = {c["code"].upper() for c in centers if c.get("code")}
 
 def get_currency_symbol(center: str) -> str:
     """Get currency symbol based on center"""
@@ -535,7 +545,7 @@ async def update_daily_sale(center: str, date: str, req: DailySaleUpdate, token:
         raise HTTPException(401, "Invalid or expired token")
     
     # Check permission
-    if session.get("center") != "PB-MGT" and session.get("center") != center.upper():
+    if not (session.get("is_super_admin") or session.get("is_admin")) and session.get("center") != center.upper():
         raise HTTPException(403, "Cannot update sales record for another center")
     
     # Check if date is frozen for SALES specifically
@@ -713,7 +723,7 @@ async def admin_freeze_control(req: AdminFreezeRequest):
         else:
             # Get all centers from database
             all_centers = await db.centers.distinct("code")
-            centers_to_unlock = all_centers if all_centers else ["PB-DV", "PB-HW", "PB-HSR", "PB-KAL", "PB-KN", "PB-PERTH", "PB-SN", "PB-TH"]
+            centers_to_unlock = all_centers if all_centers else []
         
         for date in dates_to_affect:
             for center in centers_to_unlock:
@@ -1105,7 +1115,7 @@ async def create_expense(req: ExpenseCreate, token: str):
         raise HTTPException(401, "Invalid or expired token")
     
     # Check permission
-    if session.get("center") != "PB-MGT" and session.get("center") != req.center.upper():
+    if not (session.get("is_super_admin") or session.get("is_admin")) and session.get("center") != req.center.upper():
         raise HTTPException(403, "Cannot create expense for another center")
     
     # Check if date is frozen for EXPENSES specifically
@@ -1153,7 +1163,7 @@ async def update_expense(expense_id: str, req: ExpenseUpdate, token: str):
         raise HTTPException(404, "Expense not found")
     
     # Check permission
-    if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
+    if not (session.get("is_super_admin") or session.get("is_admin")) and session.get("center") != existing.get("center"):
         raise HTTPException(403, "Cannot update expense for another center")
     
     # Check if date is frozen for EXPENSES specifically
@@ -1200,7 +1210,7 @@ async def delete_expense(expense_id: str, token: str):
         raise HTTPException(404, "Expense not found")
     
     # Check permission - MGT can delete any, others only their own center
-    if session.get("center") != "PB-MGT" and session.get("center") != existing.get("center"):
+    if not (session.get("is_super_admin") or session.get("is_admin")) and session.get("center") != existing.get("center"):
         raise HTTPException(403, "Cannot delete expense for another center")
     
     # Check if date is frozen for EXPENSES specifically
@@ -1236,7 +1246,7 @@ async def get_daily_summary(req: SalesQueryRequest):
     # Build query for sales
     sales_query = {}
     
-    if session.get("center") != "PB-MGT":
+    if not (session.get("is_super_admin") or session.get("is_admin")):
         sales_query["center"] = session.get("center")
     elif req.center:
         sales_query["center"] = req.center.upper()
@@ -1724,8 +1734,8 @@ async def create_expense_head(req: ExpenseHeadCreate, token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage expense heads")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can manage expense heads")
     
     # Check if already exists
     existing = await db.expense_heads.find_one({"name": req.name.upper()})
@@ -1757,8 +1767,8 @@ async def update_expense_head(head_name: str, req: ExpenseHeadUpdate, token: str
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage expense heads")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can manage expense heads")
     
     # Find existing
     existing = await db.expense_heads.find_one({"name": head_name.upper()})
@@ -1793,8 +1803,8 @@ async def delete_expense_head(head_name: str, token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage expense heads")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can manage expense heads")
     
     result = await db.expense_heads.delete_one({"name": head_name.upper()})
     
@@ -1811,7 +1821,6 @@ async def delete_expense_head(head_name: str, token: str):
 # Import Perth Sales Data from Excel without modification
 # =======================================
 
-from fastapi import UploadFile, File
 import io
 
 class PerthExcelUploadRequest(BaseModel):
@@ -1845,10 +1854,10 @@ PERTH_COLUMN_MAP = {
 }
 
 @router.post("/perth/upload-excel")
-async def upload_perth_excel(token: str, file: UploadFile = File(...)):
+async def upload_perth_excel(token: str, center: str = "PB-PERTH", file: UploadFile = File(...)):
     """
-    Upload Perth Sales Excel file and import data WITHOUT modification.
-    Preserves original structure, spelling, and currency ($AUD).
+    Upload international center Sales Excel file and import data WITHOUT modification.
+    Preserves original structure, spelling, and currency.
     """
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
@@ -1933,7 +1942,7 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
                 
                 # Create daily sale record - PRESERVE ALL VALUES EXACTLY AS IS
                 sale_record = {
-                    "center": "PB-PERTH",  # Perth center code (standardized)
+                    "center": center.upper(),  # Center code from request
                     "date": date_str,
                     "opening_balance": safe_float(row[1]),  # B
                     "deposited_in_bank": safe_float(row[2]),  # C
@@ -1978,7 +1987,7 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
                 
                 # Upsert - update if exists, insert if new
                 await db.daily_sales.update_one(
-                    {"center": "PB-PERTH", "date": date_str},
+                    {"center": center.upper(), "date": date_str},
                     {"$set": sale_record},
                     upsert=True
                 )
@@ -1992,13 +2001,13 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
         
         return {
             "success": True,
-            "message": f"Perth Excel imported successfully",
+            "message": "International center Excel imported successfully",
             "imported_count": imported_count,
             "skipped_count": skipped_count,
-            "errors": errors[:10] if errors else [],  # Return first 10 errors
-            "center": "PB-PERTH",
-            "currency": "AUD ($)",
-            "gst_rate": "10% inclusive"
+            "errors": errors[:10] if errors else [],
+            "center": center.upper(),
+            "currency": "AUD ($)" if is_perth_center(center) else "INR (₹)",
+            "gst_rate": "10% inclusive" if is_perth_center(center) else "GST as configured"
         }
         
     except ImportError:
@@ -2015,7 +2024,6 @@ async def upload_perth_excel(token: str, file: UploadFile = File(...)):
 @router.get("/upload-template")
 async def download_upload_template(token: str):
     """Download Excel template for bulk sales data upload"""
-    from fastapi.responses import Response
     
     session = verify_token(token)
     if not session:

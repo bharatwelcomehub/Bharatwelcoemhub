@@ -91,8 +91,8 @@ async def generate_hr_letter(req: HRLetterRequest):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can generate HR letters")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can generate HR letters")
 
     emp = await db.employees.find_one(
         {"name": {"$regex": f"^{req.employeeName}$", "$options": "i"}},
@@ -244,8 +244,8 @@ async def get_employees_for_hr(token: str):
     session = verify_token(token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can access HR features")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can access HR features")
     employees = await db.employees.find(
         {}, {"_id": 0, "name": 1, "designation": 1, "center": 1, "dateOfJoining": 1, "currentSalary": 1, "gender": 1}
     ).to_list(1000)
@@ -258,8 +258,8 @@ async def generate_custom_letter(req: CustomLetterRequest):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can generate HR letters")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can generate HR letters")
 
     today = datetime.now().strftime("%d %B %Y")
     emp_details = ""
@@ -337,8 +337,8 @@ async def download_hr_letter(req: HRLetterDownloadRequest):
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can download HR letters")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can download HR letters")
 
     today = datetime.now().strftime("%d-%m-%Y")
     safe_name = req.employeeName.replace(" ", "_")

@@ -34,7 +34,12 @@ def set_verify_token(func):
 # =======================================
 
 MAX_HOURS_PER_DAY = 16
-INTERNATIONAL_CENTERS = ["PB-PERTH", "PB-SYDNEY", "PB-MELBOURNE", "PB-AUCKLAND", "PB-DUBAI", "PB-LONDON"]
+# International centers are loaded from DB at runtime based on is_india_center field
+async def fetch_international_center_codes(db_ref):
+    """Fetch international center codes from DB"""
+    centers = await db_ref.centers.find({"is_india_center": False, "active": {"$ne": False}}, {"_id": 0, "code": 1}).to_list(100)
+    return [c["code"] for c in centers if c.get("code")]
+
 CASUAL_CATEGORIES = ["CASUAL-KITCHEN", "CASUAL-SERVICE", "CASUAL"]
 
 # =======================================
@@ -883,7 +888,7 @@ async def export_monthly_pdf(req: MonthlyReportRequest):
     # Footer
     c.setFont("Helvetica", 6)
     c.drawString(0.5 * inch, 0.3 * inch, "This is a computer-generated document. Purnabramha - MANASWINI FOODS PVT. LTD.")
-    c.drawRightString(width - 0.5 * inch, 0.3 * inch, f"Page 1")
+    c.drawRightString(width - 0.5 * inch, 0.3 * inch, "Page 1")
     
     c.save()
     pdf_buffer.seek(0)
@@ -910,7 +915,7 @@ async def update_hourly_rate(req: UpdateRateRequest):
     user_center = session.get("center", "")
     normalized_req_center = normalize_center_code(req.center)
     normalized_user_center = normalize_center_code(user_center)
-    if normalized_user_center != "PB-MGT" and normalized_user_center != normalized_req_center:
+    if not (session.get("is_super_admin") or session.get("is_admin")) and normalized_user_center != normalized_req_center:
         raise HTTPException(403, "Not authorized to update rates for this center")
     
     if req.new_rate < 0:

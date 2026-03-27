@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/App";
-import { api, CENTERS } from "@/lib/api";
+import { api, fetchCentersFromDB, isAdminUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,12 +160,12 @@ export default function ManagersManagement() {
     return acc;
   }, {});
 
-  if (session?.center !== "PB-MGT") {
+  if (!isAdminUser(session)) {
     return (
       <div className="text-center py-20">
         <Lock className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
         <h2 className="text-2xl font-bold text-muted-foreground">Access Denied</h2>
-        <p className="text-muted-foreground mt-2">Only PB-MGT can manage managers</p>
+        <p className="text-muted-foreground mt-2">Only Admin users can manage managers</p>
       </div>
     );
   }

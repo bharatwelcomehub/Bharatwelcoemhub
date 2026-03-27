@@ -330,11 +330,9 @@ def verify_token(token: str) -> Optional[Dict]:
     return verify_token_sync(token)
 
 def has_admin_access(session) -> bool:
-    """Check if user has admin/super admin access"""
+    """Check if user has admin/super admin access (RBAC-driven, no center hardcoding)"""
     if not session:
         return False
-    if session.get("center") == "PB-MGT":
-        return True
     if session.get("is_super_admin"):
         return True
     if session.get("is_admin"):
@@ -666,8 +664,8 @@ async def mgt_employee_update(data: dict):
     """Update employee (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can update employees")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can update employees")
     
     update_data = {
         "center": data.get("empCenter", "").upper(),
@@ -702,8 +700,8 @@ async def mgt_employee_delete(data: dict):
     """Delete employee (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can delete employees")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can delete employees")
     
     # Delete by rowIndex is tricky - need to find by name
     employees = await db.employees.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
@@ -805,9 +803,12 @@ async def mgt_employee_bulk_upload(data: dict):
 @api_router.get("/employee_template")
 async def get_employee_template():
     """Get the Excel template format for bulk employee upload"""
+    # Fetch center codes dynamically from DB
+    centers = await db.centers.find({"active": {"$ne": False}}, {"_id": 0, "code": 1}).sort("code", 1).to_list(100)
+    center_codes = [c["code"] for c in centers if c.get("code")]
     return {
         "columns": [
-            {"field": "center", "header": "Center Code", "required": True, "example": "PB-HSR", "description": "Center code (PB-HSR, PB-DV, PB-KN, etc.)"},
+            {"field": "center", "header": "Center Code", "required": True, "example": center_codes[0] if center_codes else "PB-HSR", "description": f"Center code ({', '.join(center_codes[:5])}{'...' if len(center_codes) > 5 else ''})"},
             {"field": "name", "header": "Employee Name", "required": True, "example": "JOHN DOE", "description": "Full name in UPPERCASE"},
             {"field": "gender", "header": "Gender", "required": False, "example": "Male", "description": "Male/Female"},
             {"field": "designation", "header": "Designation", "required": False, "example": "Chef", "description": "Job title"},
@@ -821,7 +822,7 @@ async def get_employee_template():
             {"field": "email", "header": "Email", "required": False, "example": "john@email.com", "description": "Email address"},
             {"field": "remark", "header": "Remarks", "required": False, "example": "Full time", "description": "Any additional notes"}
         ],
-        "centers": ["PB-DV", "PB-HW", "PB-HSR", "PB-KAL", "PB-KN", "PB-PERTH", "PB-SN", "PB-TH"]
+        "centers": center_codes
     }
 
 # =======================================
@@ -916,65 +917,22 @@ async def advances_by_month(req: MonthRequest):
 # GUEST RESPONSE AI ENDPOINTS
 # =======================================
 
-# Center information for AI context
-CENTER_INFO = {
-    "PB-HSR": {
-        "name": "Purnabramha HSR - Bangalore",
-        "address": "Bhagyalakshmi Square, 17/N, 18th Cross Rd, near Zepto, Sector 3, HSR Layout, Bengaluru, Karnataka 560102",
-        "phone": "+91 85500 78515",
-        "timings": "12:00 PM - 10:30 PM",
-        "country": "India"
-    },
-    "PB-TH": {
-        "name": "Purnabramha Thane - Mumbai",
-        "address": "Thane, Mumbai, Maharashtra",
-        "phone": "+91 89047 49084",
-        "timings": "12:00 PM - 10:30 PM",
-        "country": "India"
-    },
-    "PB-SN": {
-        "name": "Purnabramha Sambhajinagar (Aurangabad)",
-        "address": "Ch. Sambhajinagar, Maharashtra",
-        "phone": "+91 89710 49084",
-        "timings": "12:00 PM - 10:30 PM",
-        "country": "India"
-    },
-    "PB-DV": {
-        "name": "Purnabramha Dombivli - Mumbai",
-        "address": "Dombivli, Mumbai, Maharashtra",
-        "phone": "+91 96064 55433",
-        "timings": "12:00 PM - 10:30 PM",
-        "country": "India"
-    },
-    "PB-HW": {
-        "name": "Purnabramha Hinjawadi - Pune",
-        "address": "Hinjawadi, Pune, Maharashtra",
-        "phone": "+91 96064 55434",
-        "timings": "12:00 PM - 10:30 PM",
-        "country": "India"
-    },
-    "PB-KN": {
-        "name": "Purnabramha Kharadi Nyati - Pune",
-        "address": "Kharadi Nyati, Pune, Maharashtra",
-        "phone": "+91 99000 89803",
-        "timings": "12:00 PM - 10:30 PM",
-        "country": "India"
-    },
-    "PB-KAL": {
-        "name": "Purnabramha Kalyan",
-        "address": "Kalyan, Maharashtra",
-        "phone": "+91 96064 55433",
-        "timings": "12:00 PM - 10:30 PM",
-        "country": "India"
-    },
-    "PB-PERTH": {
-        "name": "Purnabramha Perth - Australia",
-        "address": "Perth, Western Australia",
-        "phone": "+61 401 832 922",
-        "timings": "12:00 PM - 10:00 PM",
-        "country": "Australia"
-    }
-}
+# Center information for AI context - loaded from DB at runtime
+# Fallback dict used only if DB has no centers
+async def get_center_info_from_db():
+    """Fetch center info from DB for AI context"""
+    centers = await db.centers.find({}, {"_id": 0}).to_list(100)
+    info = {}
+    for c in centers:
+        code = c.get("code", "")
+        info[code] = {
+            "name": c.get("name", code),
+            "address": c.get("address", ""),
+            "phone": c.get("phone", ""),
+            "timings": c.get("timings", "12:00 PM - 10:30 PM"),
+            "country": c.get("country", "India")
+        }
+    return info
 
 # System prompt for Guest AI
 GUEST_AI_SYSTEM_PROMPT = """You are the Guest Response AI for Purnabramha - The Largest Maharashtrian Restaurant chain.
@@ -1042,8 +1000,9 @@ async def guest_ai(req: GuestAIRequest):
         # Create session ID if not provided
         session_id = req.sessionId or f"guest_{req.center}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
-        # Get center context
-        center_info = CENTER_INFO.get(req.center.upper(), {})
+        # Get center context from DB
+        center_info_map = await get_center_info_from_db()
+        center_info = center_info_map.get(req.center.upper(), {})
         center_context = f"\n\nCurrent Center: {req.center}\n"
         if center_info:
             center_context += f"Center Name: {center_info.get('name', '')}\n"
@@ -1083,8 +1042,9 @@ async def guest_ai(req: GuestAIRequest):
 
 @api_router.get("/center_info")
 async def get_center_info():
-    """Get all center information"""
-    return {"centers": CENTER_INFO}
+    """Get all center information from DB"""
+    center_info = await get_center_info_from_db()
+    return {"centers": center_info}
 
 # =======================================
 # GUEST BOOKING RESPONSE CONVERTER
@@ -1163,8 +1123,9 @@ async def generate_booking_response(req: GuestBookingRequest):
         if not api_key:
             raise HTTPException(500, "AI service not configured")
         
-        # Get center context
-        center_info = CENTER_INFO.get(req.center.upper(), {})
+        # Get center context from DB
+        center_info_map = await get_center_info_from_db()
+        center_info = center_info_map.get(req.center.upper(), {})
         center_context = f"\n\nCenter: {req.center}\n"
         if center_info:
             center_context += f"Center Name: {center_info.get('name', 'Purnabramha')}\n"
@@ -1173,9 +1134,9 @@ async def generate_booking_response(req: GuestBookingRequest):
             center_context += f"Timings: {center_info.get('timings', '12:00 PM - 10:30 PM')}\n"
             center_context += f"Country: {center_info.get('country', 'India')}\n"
         
-        # Currency context
-        is_perth = req.center.upper() in ["PB-PERTH", "PERTH"]
-        currency_context = f"\nCurrency: {'AUD ($)' if is_perth else 'INR (₹)'}\n"
+        # Currency context — use center's country field instead of hardcoded check
+        is_international = center_info.get("country", "India") != "India"
+        currency_context = f"\nCurrency: {'AUD ($)' if is_international else 'INR (₹)'}\n"
         
         # Initialize chat
         chat = LlmChat(
@@ -1298,21 +1259,24 @@ async def health():
 
 @api_router.get("/centers")
 async def get_centers():
-    """Get list of all centers from DB or default"""
+    """Get list of all centers from DB (master-data-driven, no hardcoding)"""
     centers = await db.centers.find({}, {"_id": 0}).to_list(100)
     if not centers:
-        # Return default centers if none in DB
-        centers = [
-            {"code": "PB-HSR", "name": "Purnabramha HSR - Bangalore", "phone": "+91 85500 78515", "email": "purnabramha.hsr09@gmail.com", "address": "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102", "active": True},
-            {"code": "PB-TH", "name": "Purnabramha Thane - Mumbai", "phone": "+91 89047 49084", "email": "purnabramha.newthane@gmail.com", "address": "Thane, Mumbai, Maharashtra", "active": True},
-            {"code": "PB-SN", "name": "Purnabramha Sambhajinagar", "phone": "+91 89710 49084", "email": "Purnabramha.aurangabad@gmail.com", "address": "Ch. Sambhajinagar, Maharashtra", "active": True},
-            {"code": "PB-DV", "name": "Purnabramha Dombivli - Mumbai", "phone": "+91 96064 55433", "email": "purnabramha.dombivli@gmail.com", "address": "Dombivli, Mumbai, Maharashtra", "active": True},
-            {"code": "PB-HW", "name": "Purnabramha Hinjawadi - Pune", "phone": "+91 96064 55434", "email": "Purnabramha.hinjawadi@gmail.com", "address": "Hinjawadi, Pune, Maharashtra", "active": True},
-            {"code": "PB-KN", "name": "Purnabramha Kharadi Nyati - Pune", "phone": "", "email": "Purnabramha.kharadinyati@gmail.com", "address": "Kharadi Nyati, Pune, Maharashtra", "active": True},
-            {"code": "PB-KAL", "name": "Purnabramha Kalyan", "phone": "", "email": "purnabramha.kalyan@gmail.com", "address": "Kalyan, Maharashtra", "active": True},
-            {"code": "PB-PERTH", "name": "Purnabramha Perth - Australia", "phone": "0401832922", "email": "Purnabramha.perth@gmail.com", "address": "Perth, Australia", "active": True},
-            {"code": "PB-MGT", "name": "Purnabramha Management (HQ)", "phone": "+91 9960886185", "email": "sandeep.gadhwal@purnabramha.com", "address": "HSR Layout, Bangalore", "active": True},
+        # Seed default centers into DB on first access so all future reads are DB-driven
+        default_centers = [
+            {"code": "PB-HSR", "name": "Purnabramha HSR - Bangalore", "phone": "+91 85500 78515", "email": "purnabramha.hsr09@gmail.com", "address": "17/N, Ground Floor, 18th Cross, Sector 3, HSR Layout, Bangalore, Karnataka-560102", "active": True, "is_india_center": True, "country": "India"},
+            {"code": "PB-TH", "name": "Purnabramha Thane - Mumbai", "phone": "+91 89047 49084", "email": "purnabramha.newthane@gmail.com", "address": "Thane, Mumbai, Maharashtra", "active": True, "is_india_center": True, "country": "India"},
+            {"code": "PB-SN", "name": "Purnabramha Sambhajinagar", "phone": "+91 89710 49084", "email": "Purnabramha.aurangabad@gmail.com", "address": "Ch. Sambhajinagar, Maharashtra", "active": True, "is_india_center": True, "country": "India"},
+            {"code": "PB-DV", "name": "Purnabramha Dombivli - Mumbai", "phone": "+91 96064 55433", "email": "purnabramha.dombivli@gmail.com", "address": "Dombivli, Mumbai, Maharashtra", "active": True, "is_india_center": True, "country": "India"},
+            {"code": "PB-HW", "name": "Purnabramha Hinjawadi - Pune", "phone": "+91 96064 55434", "email": "Purnabramha.hinjawadi@gmail.com", "address": "Hinjawadi, Pune, Maharashtra", "active": True, "is_india_center": True, "country": "India"},
+            {"code": "PB-KN", "name": "Purnabramha Kharadi Nyati - Pune", "phone": "", "email": "Purnabramha.kharadinyati@gmail.com", "address": "Kharadi Nyati, Pune, Maharashtra", "active": True, "is_india_center": True, "country": "India"},
+            {"code": "PB-KAL", "name": "Purnabramha Kalyan", "phone": "", "email": "purnabramha.kalyan@gmail.com", "address": "Kalyan, Maharashtra", "active": True, "is_india_center": True, "country": "India"},
+            {"code": "PB-PERTH", "name": "Purnabramha Perth - Australia", "phone": "0401832922", "email": "Purnabramha.perth@gmail.com", "address": "Perth, Australia", "active": True, "is_india_center": False, "country": "Australia"},
+            {"code": "PB-MGT", "name": "Purnabramha Management (HQ)", "phone": "+91 9960886185", "email": "sandeep.gadhwal@purnabramha.com", "address": "HSR Layout, Bangalore", "active": True, "is_india_center": True, "country": "India", "is_hq": True},
         ]
+        for c in default_centers:
+            await db.centers.update_one({"code": c["code"]}, {"$set": c}, upsert=True)
+        centers = await db.centers.find({}, {"_id": 0}).to_list(100)
     return {"centers": centers}
 
 # Centers & Managers management endpoints: MOVED TO routes/centers_managers.py
@@ -1365,7 +1329,7 @@ async def generate_user_manual():
     
     c.setFont("Helvetica", 14)
     c.drawCentredString(width/2, height - 320, "Complete Guide for Managers & Staff")
-    c.drawCentredString(width/2, height - 340, f"Version 1.0 | December 2025")
+    c.drawCentredString(width/2, height - 340, "Version 1.0 | December 2025")
     
     c.showPage()
     
@@ -2230,6 +2194,14 @@ async def startup_cleanup_centers():
                     is_india = False
                 await db.centers.update_one({"_id": c["_id"]}, {"$set": {"is_india_center": is_india}})
                 logger.info(f"Startup: set is_india_center={is_india} for {code}")
+        
+        # Step 3b: Refresh international centers cache for sales_expenses
+        try:
+            from routes.sales_expenses import refresh_international_centers_cache
+            await refresh_international_centers_cache(db)
+            logger.info("Startup: refreshed international centers cache")
+        except Exception as cache_err:
+            logger.warning(f"Startup: could not refresh intl centers cache: {cache_err}")
         
         # Step 4: Auto-complete expired temporary transfers
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")

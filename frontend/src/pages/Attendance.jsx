@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/App";
-import { api, STATUS_OPTIONS, ADVANCE_MODES, getTodayISO, getCurrentMonth } from "@/lib/api";
+import { api, STATUS_OPTIONS, ADVANCE_MODES, getTodayISO, getCurrentMonth, isAdminUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 
 export default function Attendance() {
   const { session } = useAuth();
-  const isMGT = session?.center === "PB-MGT";
+  const isMGT = isAdminUser(session);
   
   // Daily state
   const [date, setDate] = useState(getTodayISO());
@@ -278,7 +278,7 @@ export default function Attendance() {
     try {
       await api.post("/lock_payroll", {
         token: session.token,
-        center: "PB-MGT",
+        center: session.center,
         month: month
       });
       toast.success("Payroll locked!");

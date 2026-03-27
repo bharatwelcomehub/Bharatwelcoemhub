@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { api } from "@/lib/api";
+import { api, isAdminUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -119,7 +119,7 @@ export default function HRLetters() {
       } catch (e) {
         console.error("Failed to load data:", e);
         if (e.response?.status === 403) {
-          toast.error("Only PB-MGT can access HR Letters");
+          toast.error("Only Admin users can access HR Letters");
         } else {
           toast.error("Failed to load data");
         }

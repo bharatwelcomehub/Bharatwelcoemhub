@@ -222,7 +222,7 @@ async def get_franchise_for_center(center_code: str):
 def get_country_from_center(center: dict) -> str:
     """Determine country from center data"""
     country = center.get("country", "").lower()
-    if "australia" in country or center.get("code", "").upper() == "PB-PERTH":
+    if "australia" in country or not center.get("is_india_center", True):
         return "Australia"
     return "India"
 

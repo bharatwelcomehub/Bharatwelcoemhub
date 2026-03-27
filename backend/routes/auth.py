@@ -305,8 +305,8 @@ async def verify_otp(req: OTPVerify):
     if not manager:
         raise HTTPException(404, "Manager not found")
     
-    # Check if super admin (PB-MGT center)
-    is_super_admin = req.center == "PB-MGT"
+    # Check if super admin (RBAC-driven, no center hardcoding)
+    is_super_admin = manager.get("is_super_admin", False)
     is_admin = manager.get("is_admin", False) or is_super_admin
     
     # Generate token

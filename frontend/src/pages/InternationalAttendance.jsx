@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/App";
-import { api } from "@/lib/api";
+import { api, isAdminUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +62,7 @@ const DAY_NAMES = {
 
 export default function InternationalAttendance() {
   const { session } = useAuth();
-  const isMGT = session?.center === "PB-MGT";
+  const isMGT = isAdminUser(session);
   const isSuperAdmin = session?.is_super_admin === true;
   const isAdmin = session?.is_admin === true;
   const isAdminOrSuper = isSuperAdmin || isAdmin;
@@ -118,8 +118,9 @@ export default function InternationalAttendance() {
           setShowDropdown(data.show_dropdown !== false);
           // Auto-select first center (or Perth for admin)
           if (data.show_dropdown) {
-            const perth = data.centers.find(c => c.code === "PB-PERTH");
-            setSelectedCenter(perth?.code || data.centers[0]?.code || "");
+            // Auto-select first international center for admin
+            const intlCenter = data.centers.find(c => c.is_india_center === false);
+            setSelectedCenter(intlCenter?.code || data.centers[0]?.code || "");
           } else {
             // Center manager — auto-select their center
             setSelectedCenter(data.centers[0]?.code || "");

@@ -75,7 +75,7 @@ export default function LoanEntries() {
           }
           return acc;
         }, []);
-        setCenters(uniqueCenters.filter(c => c.code !== 'PB-MGT'));
+        setCenters(uniqueCenters);
       }
     } catch (error) {
       console.error('Failed to fetch centers');
@@ -232,7 +232,7 @@ export default function LoanEntries() {
   const getCountry = () => {
     if (!selectedCenter) return 'India';
     const center = centers.find(c => c.code === selectedCenter);
-    return center?.country === 'Australia' || selectedCenter === 'PB-PERTH' ? 'Australia' : 'India';
+    return center?.country === 'Australia' || center?.is_india_center === false ? 'Australia' : 'India';
   };
 
   const country = getCountry();

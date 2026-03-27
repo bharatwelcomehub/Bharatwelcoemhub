@@ -334,7 +334,7 @@ export default function CentersManagement() {
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          {center.code !== "PB-MGT" && (
+                          {center.is_hq !== true && (
                             <Button
                               variant="ghost"
                               size="icon"

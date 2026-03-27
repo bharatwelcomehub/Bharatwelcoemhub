@@ -16,17 +16,13 @@ import {
   Check,
   X
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, isInternationalCenter } from "@/lib/api";
 
-// Check if center is Perth (Australia) - standardized to PB-PERTH
-const isPerth = (center) => {
-  if (!center) return false;
-  const c = center.toUpperCase();
-  return c === "PB-PERTH" || c === "PERTH";
-};
+// Check if center is international (non-India) — DB-driven via centersList
+const isIntl = (center, centersList = []) => isInternationalCenter(center, centersList);
 
-// Get currency symbol based on center
-const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
+// Get currency symbol based on center data
+const getCurrencySymbol = (center, centersList = []) => isIntl(center, centersList) ? "$" : "₹";
 
 // Format date for display
 const formatDateDisplay = (dateStr) => {
@@ -71,7 +67,7 @@ const CALCULATED_FIELDS = [
   { key: 'closing_balance', label: 'Closing Bal', computed: true },
 ];
 
-export default function SalesGridEditor({ session, selectedCenter, selectedMonth }) {
+export default function SalesGridEditor({ session, selectedCenter, selectedMonth, centersList = [] }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [gridData, setGridData] = useState([]);
@@ -83,7 +79,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
 
   // Get center code - use session center if selectedCenter is "all" or not set
   const centerCode = (selectedCenter && selectedCenter !== "all") ? selectedCenter : session?.center;
-  const currencySymbol = getCurrencySymbol(centerCode);
+  const currencySymbol = getCurrencySymbol(centerCode, centersList);
 
   // Generate all dates for the month
   const generateMonthDates = useCallback(() => {

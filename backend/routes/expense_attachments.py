@@ -178,7 +178,7 @@ async def create_invoice_group(
     
     # Verify center access
     user_center = session.get("center", "")
-    if user_center != "PB-MGT" and user_center != center:
+    if not (session.get("is_super_admin") or session.get("is_admin")) and user_center != center:
         raise HTTPException(403, "Cannot create invoice group for another center")
     
     # Check for duplicate invoice number from same vendor
@@ -350,7 +350,7 @@ async def update_invoice_group(group_id: str, req: InvoiceGroupUpdate, token: st
     
     # Check permission
     user_center = session.get("center", "")
-    if user_center != "PB-MGT" and user_center != group.get("center"):
+    if not (session.get("is_super_admin") or session.get("is_admin")) and user_center != group.get("center"):
         raise HTTPException(403, "Cannot update invoice group for another center")
     
     update_data = {k: v for k, v in req.dict().items() if v is not None}
@@ -1137,9 +1137,9 @@ async def check_retention(token: str, center: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Only allow PB-MGT (admin) to check retention
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only admin can check retention policy")
+    # Only allow Admin to check retention
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can check retention policy")
     
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=RETENTION_YEARS * 365)).strftime("%Y-%m-%d")
     

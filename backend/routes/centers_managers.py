@@ -61,8 +61,8 @@ async def mgt_center_create(data: dict):
     """Create a new center (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can create centers")
+    if not session or not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can create centers")
 
     code = data.get("code", "").upper().strip()
     if not code:
@@ -93,8 +93,8 @@ async def mgt_center_update(data: dict):
     """Update an existing center (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can update centers")
+    if not session or not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can update centers")
 
     code = data.get("code", "").upper().strip()
     if not code:
@@ -128,7 +128,9 @@ async def mgt_center_delete(data: dict):
     code = data.get("code", "").upper().strip()
     if not code:
         raise HTTPException(400, "Center code is required")
-    if code == "PB-MGT":
+    # Check if center is HQ (protect from deletion)
+    center_doc = await db.centers.find_one({"code": code}, {"_id": 0})
+    if center_doc and center_doc.get("is_hq"):
         raise HTTPException(400, "Cannot delete the Management HQ center")
 
     result = await db.centers.delete_one({"code": code})
@@ -144,8 +146,8 @@ async def mgt_center_dedup(data: dict):
     """Remove duplicate centers, keeping the one with more data (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can deduplicate centers")
+    if not session or not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can deduplicate centers")
 
     all_centers = await db.centers.find({}).to_list(500)
     code_map = {}
@@ -203,10 +205,9 @@ async def mgt_manager_create(data: dict):
     session = verify_token(token)
     is_super_admin = session.get("is_super_admin", False) if session else False
     is_admin = session.get("is_admin", False) if session else False
-    is_mgt = session.get("center") == "PB-MGT" if session else False
 
-    if not session or (not is_super_admin and not is_admin and not is_mgt):
-        raise HTTPException(403, "Only Admin or PB-MGT can create managers")
+    if not session or (not is_super_admin and not is_admin):
+        raise HTTPException(403, "Only Admin can create managers")
 
     center = data.get("center", "").upper().strip()
     email = data.get("email", "").strip().lower()
@@ -237,8 +238,8 @@ async def mgt_manager_update(data: dict):
     """Update an existing manager (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can update managers")
+    if not session or not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can update managers")
 
     email = data.get("email", "").strip().lower()
     if not email:
@@ -271,13 +272,12 @@ async def mgt_manager_delete(data: dict):
     session = verify_token(token)
     is_super_admin = session.get("is_super_admin", False) if session else False
     is_admin = session.get("is_admin", False) if session else False
-    is_mgt = session.get("center") == "PB-MGT" if session else False
     current_email = session.get("email", "").lower() if session else ""
     jayanti_email = "jayanti.kathale@purnabramha.com"
     is_jayanti = current_email == jayanti_email
 
-    if not session or (not is_super_admin and not is_admin and not is_mgt):
-        raise HTTPException(403, "Only Admin or PB-MGT can delete managers")
+    if not session or (not is_super_admin and not is_admin):
+        raise HTTPException(403, "Only Admin can delete managers")
 
     email = data.get("email", "").strip().lower()
     if not email:

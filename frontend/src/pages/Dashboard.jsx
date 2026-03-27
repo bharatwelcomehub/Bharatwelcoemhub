@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/App";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { fetchCentersFromDB, isAdminUser } from "@/lib/api";
 import { 
   Calendar, 
   CalendarDays,
@@ -149,10 +150,18 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations"]);
+  const [centersList, setCentersList] = useState([]);
   
-  // Check user access levels
+  // Fetch centers from DB on mount
+  useEffect(() => {
+    if (session?.token) {
+      fetchCentersFromDB(session.token).then(setCentersList);
+    }
+  }, [session?.token]);
+  
+  // Check user access levels (RBAC-driven, no hardcoding)
   const isSuperAdmin = session?.is_super_admin === true;
-  const isAdmin = session?.is_admin === true;
+  const isAdmin = isAdminUser(session);
   
   // Get user's role permissions from session (assigned by Super Admin)
   // Super Admin gets all access, others get their assigned roles
@@ -183,7 +192,7 @@ export default function Dashboard() {
   // Check if user has access to an item based on their assigned roles
   const hasAccess = (item) => {
     if (isSuperAdmin) return true; // Super Admin has full access
-    if (item.forMGT) return isSuperAdmin; // MGT-only items require Super Admin
+    if (item.forMGT) return isAdmin; // Management items require Admin access
     if (item.forAdmin) {
       return isAdmin || isSuperAdmin;
     }
@@ -197,9 +206,10 @@ export default function Dashboard() {
       // If center has is_india_center flag from session, use it
       if (session?.is_india_center === false) return true;
       if (session?.is_india_center === true) return false;
-      // Default: show for non-standard centers (PERTH etc), hide for common India centers
-      const indiaCodes = ["PB-HSR", "PB-TH", "PB-SN", "PB-DV", "PB-HW", "PB-KN", "PB-KAL"];
-      return !indiaCodes.includes(centerCode);
+      // Default: use center data from DB to determine if India center
+      const centerData = centersList.find(c => c.code === centerCode);
+      if (centerData) return centerData.is_india_center === false;
+      return false; // Default hide for unknown centers
     }
     if (item.forFranchise) {
       return isAdmin || userRoles.franchise === true;
@@ -219,7 +229,7 @@ export default function Dashboard() {
   // Check if user has access to a category
   const hasCategoryAccess = (category) => {
     if (isSuperAdmin) return true;
-    if (category.forMGT) return isSuperAdmin;
+    if (category.forMGT) return isAdmin;
     if (category.forFranchise) {
       // Franchise category accessible to Admin or users with franchise role
       return isAdmin || userRoles.franchise === true;

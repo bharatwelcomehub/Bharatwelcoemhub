@@ -96,7 +96,7 @@ export default function RoleManagement() {
   const [selectedRoleKey, setSelectedRoleKey] = useState("");
   
   // Check if current user is super admin
-  const isSuperAdmin = session?.is_super_admin === true || session?.center === "PB-MGT";
+  const isSuperAdmin = session?.is_super_admin === true;
 
   // Fetch managers with their roles
   const fetchManagers = async () => {
@@ -475,7 +475,7 @@ export default function RoleManagement() {
             <li>• <strong>Operations:</strong> Menu planning (Bhojan Guru), guest response, recipes</li>
           </ul>
           <p className="text-xs text-muted-foreground mt-3">
-            Note: PB-MGT users always have full access to all modules.
+            Note: Super Admin and Admin users have full access to all modules.
           </p>
         </CardContent>
       </Card>

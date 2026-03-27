@@ -35,10 +35,10 @@ export default function FreezeControl({ session }) {
     const loadCenters = async () => {
       if (session?.token) {
         const dbCenters = await fetchCentersFromDB(session.token);
-        // Add "All Centers" option and exclude MGT
+        // Add "All Centers" option (include all active centers)
         const centerList = [
           { code: "all", name: "All Centers" },
-          ...dbCenters.filter(c => c.code !== "PB-MGT")
+          ...dbCenters.filter(c => c.active !== false)
         ];
         setCenters(centerList);
       }

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/App";
-import { api, CENTERS } from "@/lib/api";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,23 @@ export default function Login() {
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [centers, setCenters] = useState([]);
+
+  // Fetch centers from DB on mount
+  useEffect(() => {
+    const fetchCenters = async () => {
+      try {
+        const res = await api.get("/centers");
+        if (res.data?.centers) {
+          setCenters(res.data.centers.filter(c => c.active !== false));
+        }
+      } catch (err) {
+        console.error("Failed to fetch centers:", err);
+        toast.error("Failed to load centers. Please refresh the page.");
+      }
+    };
+    fetchCenters();
+  }, []);
 
   const handleSendOTP = async () => {
     if (!center || !mobile) {
@@ -99,9 +116,9 @@ export default function Login() {
                         <SelectValue placeholder="Select your center" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CENTERS.map((c) => (
+                        {centers.map((c) => (
                           <SelectItem key={c.code} value={c.code}>
-                            {c.code} - {c.name.split(" - ")[0]}
+                            {c.code} - {c.name?.split(" - ")[0] || c.code}
                           </SelectItem>
                         ))}
                       </SelectContent>

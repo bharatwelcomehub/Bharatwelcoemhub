@@ -9,20 +9,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock, Check, X, Paperclip, FileText, Link2, Eye, Download, Upload, FolderOpen, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, isInternationalCenter } from "@/lib/api";
 
-// Check if center is Perth (Australia) - standardized to PB-PERTH
-const isPerth = (center) => {
-  if (!center) return false;
-  const c = center.toUpperCase();
-  return c === "PB-PERTH" || c === "PERTH";
-};
+// Check if center is international (non-India) — DB-driven via centersList
+const isIntl = (center, centersList = []) => isInternationalCenter(center, centersList);
 
 // Format currency based on center
-const formatCurrency = (amount, center) => {
-  if (amount === null || amount === undefined) return isPerth(center) ? "$0" : "₹0";
+const formatCurrency = (amount, center, centersList = []) => {
+  if (amount === null || amount === undefined) return isIntl(center, centersList) ? "$0" : "₹0";
   
-  if (isPerth(center)) {
+  if (isIntl(center, centersList)) {
     return new Intl.NumberFormat('en-AU', {
       style: 'currency',
       currency: 'AUD',
@@ -55,7 +51,7 @@ const isDateFrozen = (dateStr) => {
   return recordDate < today;
 };
 
-export default function ExpenseEntry({ session, selectedCenter }) {
+export default function ExpenseEntry({ session, selectedCenter, centersList = [] }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
@@ -108,6 +104,9 @@ export default function ExpenseEntry({ session, selectedCenter }) {
   // For freeze checks, use the user's actual center (not "all")
   const centerCode = selectedCenter === "all" ? session?.center : (selectedCenter || session?.center);
   const displayCenter = selectedCenter || session?.center;
+  
+  // Bound formatCurrency that auto-passes centersList
+  const fmtCurrency = (amount, center = centerCode) => formatCurrency(amount, center, centersList);
 
   // Fetch expense types and payment modes
   useEffect(() => {
@@ -766,7 +765,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
           
           <p className="text-sm text-muted-foreground">
             Center: <span className="font-medium text-foreground">{centerCode}</span>
-            <span className="ml-4">Total: <span className="font-bold text-red-500">{formatCurrency(totalExpenses, centerCode)}</span></span>
+            <span className="ml-4">Total: <span className="font-bold text-red-500">{fmtCurrency(totalExpenses, centerCode)}</span></span>
             {dateMode === "range" && (
               <span className="ml-4 text-xs">({expenses.length} records)</span>
             )}
@@ -975,7 +974,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 .map(([type, amount]) => (
                   <div key={type} className="p-3 rounded-lg bg-muted/50 border border-border">
                     <p className="text-xs text-muted-foreground truncate">{type}</p>
-                    <p className="text-lg font-bold text-foreground">{formatCurrency(amount, centerCode)}</p>
+                    <p className="text-lg font-bold text-foreground">{fmtCurrency(amount, centerCode)}</p>
                   </div>
                 ))
               }
@@ -1178,7 +1177,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                           data-testid={`edit-amount-${idx}`}
                         />
                       ) : (
-                        <span className="font-medium">{formatCurrency(exp.amount, centerCode)}</span>
+                        <span className="font-medium">{fmtCurrency(exp.amount, centerCode)}</span>
                       )}
                     </td>
                     
@@ -1296,7 +1295,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 <tfoot>
                   <tr className="bg-muted/50">
                     <td colSpan={frozenStatus.can_edit ? 7 : 6} className="py-3 px-2 font-bold text-right">Total:</td>
-                    <td className="py-3 px-2 font-bold text-right text-red-500">{formatCurrency(totalExpenses, centerCode)}</td>
+                    <td className="py-3 px-2 font-bold text-right text-red-500">{fmtCurrency(totalExpenses, centerCode)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
@@ -1469,7 +1468,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 <div className="p-3 bg-muted rounded-lg text-sm">
                   <p className="font-medium">Selected Expenses: {selectedExpenses.length}</p>
                   <p className="text-muted-foreground">
-                    Total Amount: {formatCurrency(
+                    Total Amount: {fmtCurrency(
                       expenses.filter(e => selectedExpenses.includes(e.expense_id)).reduce((s, e) => s + (e.amount || 0), 0),
                       centerCode
                     )}
@@ -1502,7 +1501,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                         <>
                           <p><strong>Vendor:</strong> {group.vendor_name}</p>
                           <p><strong>Invoice #:</strong> {group.invoice_number}</p>
-                          <p><strong>Bill Amount:</strong> {formatCurrency(group.total_bill_amount, centerCode)}</p>
+                          <p><strong>Bill Amount:</strong> {fmtCurrency(group.total_bill_amount, centerCode)}</p>
                           <p><strong>Already Linked:</strong> {group.linked_expense_count} expenses</p>
                         </>
                       ) : null;
@@ -1554,7 +1553,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Bill Amount</p>
-                  <p className="font-medium">{formatCurrency(selectedGroup.total_bill_amount, centerCode)}</p>
+                  <p className="font-medium">{fmtCurrency(selectedGroup.total_bill_amount, centerCode)}</p>
                 </div>
               </div>
 
@@ -1563,7 +1562,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="text-sm font-medium">Linked Expense Total</p>
-                    <p className="text-lg font-bold">{formatCurrency(selectedGroup.linked_expense_total, centerCode)}</p>
+                    <p className="text-lg font-bold">{fmtCurrency(selectedGroup.linked_expense_total, centerCode)}</p>
                   </div>
                   <div className="text-center">
                     {selectedGroup.amount_match === 'exact' ? (
@@ -1572,13 +1571,13 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                       </Badge>
                     ) : (
                       <Badge className="bg-amber-100 text-amber-800">
-                        <AlertTriangle className="w-4 h-4 mr-1" /> Mismatch: {formatCurrency(selectedGroup.amount_difference, centerCode)}
+                        <AlertTriangle className="w-4 h-4 mr-1" /> Mismatch: {fmtCurrency(selectedGroup.amount_difference, centerCode)}
                       </Badge>
                     )}
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium">Invoice Amount</p>
-                    <p className="text-lg font-bold">{formatCurrency(selectedGroup.total_bill_amount, centerCode)}</p>
+                    <p className="text-lg font-bold">{fmtCurrency(selectedGroup.total_bill_amount, centerCode)}</p>
                   </div>
                 </div>
               </div>
@@ -1590,7 +1589,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(selectedGroup.category_breakdown).map(([cat, amt]) => (
                       <Badge key={cat} variant="outline">
-                        {cat}: {formatCurrency(amt, centerCode)}
+                        {cat}: {fmtCurrency(amt, centerCode)}
                       </Badge>
                     ))}
                   </div>
@@ -1616,7 +1615,7 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                           <td className="py-2 px-3">{exp.date}</td>
                           <td className="py-2 px-3">{exp.description}</td>
                           <td className="py-2 px-3">{exp.expense_type}</td>
-                          <td className="py-2 px-3 text-right">{formatCurrency(exp.amount, centerCode)}</td>
+                          <td className="py-2 px-3 text-right">{fmtCurrency(exp.amount, centerCode)}</td>
                         </tr>
                       ))}
                     </tbody>

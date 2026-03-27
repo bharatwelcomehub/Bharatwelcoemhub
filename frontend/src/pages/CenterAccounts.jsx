@@ -122,7 +122,7 @@ export default function CenterAccounts() {
           }
           return acc;
         }, []);
-        setCenters(uniqueCenters.filter(c => c.code !== 'PB-MGT'));
+        setCenters(uniqueCenters);
       }
     } catch (error) {
       console.error('Failed to fetch centers');
@@ -396,7 +396,7 @@ export default function CenterAccounts() {
     if (!selectedCenter) return 'India';
     const center = centers.find(c => c.code === selectedCenter);
     if (!center) return 'India';
-    return center.country === 'Australia' || selectedCenter === 'PB-PERTH' ? 'Australia' : 'India';
+    return center.country === 'Australia' || center.is_india_center === false ? 'Australia' : 'India';
   };
 
   const availablePlatforms = getCountry() === 'Australia' ? PLATFORMS.australia : PLATFORMS.india;

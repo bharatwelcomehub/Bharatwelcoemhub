@@ -55,8 +55,6 @@ async def get_employees(req: TokenRequest):
         raise HTTPException(401, "Invalid or expired token")
     
     query = {"center": req.center.upper()}
-    if req.center.upper() != "PB-MGT":
-        query = {"center": req.center.upper()}
     
     employees = await db.employees.find(query, {"_id": 0}).sort("name", 1).to_list(1000)
     return {"employees": employees}
@@ -112,8 +110,8 @@ async def mgt_employee_update(data: dict):
     """Update employee (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can update employees")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can update employees")
     
     update_data = {
         "center": data.get("empCenter", "").upper(),
@@ -148,8 +146,8 @@ async def mgt_employee_delete(data: dict):
     """Delete employee (MGT only)"""
     token = data.get("token")
     session = verify_token(token)
-    if not session or session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can delete employees")
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can delete employees")
     
     # Delete by rowIndex is tricky - need to find by name
     employees = await db.employees.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
@@ -251,9 +249,13 @@ async def mgt_employee_bulk_upload(data: dict):
 @router.get("/employee_template")
 async def get_employee_template():
     """Get the Excel template format for bulk employee upload"""
+    # Fetch center codes dynamically from DB
+    centers = await db.centers.find({"active": {"$ne": False}}, {"_id": 0, "code": 1}).sort("code", 1).to_list(100)
+    center_codes = [c["code"] for c in centers if c.get("code")]
+    first_center = center_codes[0] if center_codes else "CENTER-1"
     return {
         "columns": [
-            {"field": "center", "header": "Center Code", "required": True, "example": "PB-HSR", "description": "Center code (PB-HSR, PB-DV, PB-KN, etc.)"},
+            {"field": "center", "header": "Center Code", "required": True, "example": first_center, "description": f"Center code ({', '.join(center_codes[:5])}{'...' if len(center_codes) > 5 else ''})"},
             {"field": "name", "header": "Employee Name", "required": True, "example": "JOHN DOE", "description": "Full name in UPPERCASE"},
             {"field": "gender", "header": "Gender", "required": False, "example": "Male", "description": "Male/Female"},
             {"field": "designation", "header": "Designation", "required": False, "example": "Chef", "description": "Job title"},
@@ -267,5 +269,5 @@ async def get_employee_template():
             {"field": "email", "header": "Email", "required": False, "example": "john@email.com", "description": "Email address"},
             {"field": "remark", "header": "Remarks", "required": False, "example": "Full time", "description": "Any additional notes"}
         ],
-        "centers": ["PB-DV", "PB-HW", "PB-HSR", "PB-KAL", "PB-KN", "PB-PERTH", "PB-SN", "PB-TH"]
+        "centers": center_codes
     }

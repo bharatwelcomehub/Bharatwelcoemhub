@@ -131,8 +131,8 @@ async def create_recipe(req: RecipeCreate, token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage recipes")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can manage recipes")
     
     data = load_recipe_data()
     
@@ -163,8 +163,8 @@ async def update_recipe(recipe_key: str, req: RecipeUpdate, token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage recipes")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can manage recipes")
     
     data = load_recipe_data()
     
@@ -197,8 +197,8 @@ async def delete_recipe(recipe_key: str, token: str):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if session.get("center") != "PB-MGT":
-        raise HTTPException(403, "Only PB-MGT can manage recipes")
+    if not (session.get("is_super_admin") or session.get("is_admin")):
+        raise HTTPException(403, "Only Admin can manage recipes")
     
     data = load_recipe_data()
     

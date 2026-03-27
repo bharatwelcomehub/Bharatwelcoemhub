@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/App";
-import { api } from "@/lib/api";
+import { api, isAdminUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -238,7 +238,7 @@ export default function RecipeAdmin() {
   };
 
   // Check if user has operations role
-  const hasAccess = session?.center === "PB-MGT" || session?.roles?.operations === true;
+  const hasAccess = isAdminUser(session) || session?.roles?.operations === true;
   
   if (!hasAccess) {
     return (

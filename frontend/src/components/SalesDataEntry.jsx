@@ -5,17 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Save, Calculator, Calendar, RefreshCw, ChevronLeft, ChevronRight, Users, Receipt, Lock, Unlock } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, isInternationalCenter } from "@/lib/api";
 
-// Check if center is Perth (Australia) - standardized to PB-PERTH
-const isPerth = (center) => {
-  if (!center) return false;
-  const c = center.toUpperCase();
-  return c === "PB-PERTH" || c === "PERTH";
-};
+// Check if center is international (non-India) — DB-driven via centersList
+const isIntl = (center, centersList = []) => isInternationalCenter(center, centersList);
 
-// Get currency symbol based on center
-const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
+// Get currency symbol based on center data
+const getCurrencySymbol = (center, centersList = []) => isIntl(center, centersList) ? "$" : "₹";
 
 // Format currency for display
 const formatCurrency = (num, center) => {
@@ -77,7 +73,7 @@ const calculateGST = (totalSale, swiggy, zomato, center) => {
   }
 };
 
-export default function SalesDataEntry({ session, selectedCenter }) {
+export default function SalesDataEntry({ session, selectedCenter, centersList = [] }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
@@ -113,8 +109,8 @@ export default function SalesDataEntry({ session, selectedCenter }) {
 
   // Get center code - use session center if selectedCenter is "all" or not set
   const centerCode = (selectedCenter && selectedCenter !== "all") ? selectedCenter : session?.center;
-  const currencySymbol = getCurrencySymbol(centerCode);
-  const isPerthCenter = isPerth(centerCode);
+  const currencySymbol = getCurrencySymbol(centerCode, centersList);
+  const isPerthCenter = isIntl(centerCode, centersList);
 
   // CALCULATED fields (gray background - auto-computed)
   // CORRECT FORMULAS:

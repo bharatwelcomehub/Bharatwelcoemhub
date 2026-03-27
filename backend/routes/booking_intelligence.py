@@ -105,17 +105,14 @@ CATERING_STATUS = [
     "Lost"
 ]
 
-# Center WhatsApp numbers
-CENTER_CONTACTS = {
-    "PB-HSR": "+91 85500 78515",
-    "PB-SN": "+91 89710 49084",  # Ch. Sambhajinagar
-    "PB-TH": "+91 89047 49084",  # Thane
-    "PB-DV": "+91 96064 55433",  # Dombivli
-    "PB-KH": "+91 99000 89803",  # Kharadi
-    "PB-HW": "+91 96064 55434",  # Hinjawadi
-    "PB-PERTH": "+61 401 832 922",  # Perth
-    "PB-KL": "+91 87928 87442",  # Kalyan
-}
+# Center WhatsApp numbers — loaded from DB at runtime
+async def get_center_contacts(db_ref):
+    """Fetch center phone numbers from DB"""
+    centers = await db_ref.centers.find({"active": {"$ne": False}}, {"_id": 0, "code": 1, "phone": 1}).to_list(100)
+    return {c["code"]: c.get("phone", "") for c in centers if c.get("code")}
+
+# Fallback contact map (will be overridden by DB data)
+CENTER_CONTACTS = {}
 
 # =======================================
 # ACCESS CHECK
@@ -392,7 +389,7 @@ async def create_booking(data: dict):
     return {
         "success": True,
         "booking_id": booking_id,
-        "message": f"Booking created successfully",
+        "message": "Booking created successfully",
         "guest_type": guest_type,
         "is_repeat_guest": existing_guest is not None
     }
@@ -1073,5 +1070,5 @@ async def get_constants():
         "booking_sources": BOOKING_SOURCES,
         "booking_status": BOOKING_STATUS,
         "catering_status": CATERING_STATUS,
-        "center_contacts": CENTER_CONTACTS
+        "center_contacts": await get_center_contacts(db)
     }

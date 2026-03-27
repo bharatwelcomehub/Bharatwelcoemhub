@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/App";
-import { api, CENTERS } from "@/lib/api";
+import { api, fetchCentersFromDB, isAdminUser } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ export default function Employees() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [centerFilter, setCenterFilter] = useState("");
+  const [centersList, setCentersList] = useState([]);
   
   // Selected employee for editing
   const [selectedEmp, setSelectedEmp] = useState(null);
@@ -48,7 +49,7 @@ export default function Employees() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
-    center: "PB-HSR",
+    center: "",
     designation: "",
     currentSalary: "",
     salaryBase: "",
@@ -66,7 +67,7 @@ export default function Employees() {
   const resetForm = () => {
     setFormData({
       name: "",
-      center: "PB-HSR",
+      center: "",
       designation: "",
       currentSalary: "",
       salaryBase: "",
@@ -89,7 +90,7 @@ export default function Employees() {
     try {
       const res = await api.post("/mgt_employees_list", {
         token: session.token,
-        center: "PB-MGT"
+        center: session.center
       });
       setEmployees(res.data.employees || []);
       toast.success(`Loaded ${res.data.employees?.length || 0} employees`);
@@ -101,10 +102,12 @@ export default function Employees() {
   }, [session?.token]);
 
   useEffect(() => {
-    if (session?.center === "PB-MGT") {
+    if (isAdminUser(session)) {
       loadEmployees();
+      // Fetch centers from DB
+      fetchCentersFromDB(session.token).then(setCentersList);
     }
-  }, [session?.center, loadEmployees]);
+  }, [session?.is_super_admin, session?.is_admin, loadEmployees]);
 
   // Filter employees
   const filteredEmployees = employees.filter(emp => {
@@ -125,7 +128,7 @@ export default function Employees() {
     setEditMode(true);
     setFormData({
       name: emp.name || "",
-      center: emp.center || "PB-HSR",
+      center: emp.center || "",
       designation: emp.designation || "",
       currentSalary: emp.currentSalary?.toString() || "",
       salaryBase: emp.salaryBase?.toString() || "",
@@ -151,7 +154,7 @@ export default function Employees() {
     try {
       await api.post("/mgt_employee_create", {
         token: session.token,
-        center: "PB-MGT",
+        center: session.center,
         empCenter: formData.center,
         name: formData.name.toUpperCase(),
         designation: formData.designation,
@@ -184,7 +187,7 @@ export default function Employees() {
     try {
       await api.post("/mgt_employee_update", {
         token: session.token,
-        center: "PB-MGT",
+        center: session.center,
         rowIndex: selectedEmp.rowIndex,
         empCenter: formData.center,
         name: formData.name.toUpperCase(),
@@ -219,7 +222,7 @@ export default function Employees() {
     try {
       await api.post("/mgt_employee_delete", {
         token: session.token,
-        center: "PB-MGT",
+        center: session.center,
         rowIndex: selectedEmp.rowIndex
       });
       toast.success("Employee deleted!");
@@ -236,7 +239,7 @@ export default function Employees() {
   const downloadTemplate = () => {
     const templateData = [
       {
-        "Center Code": "PB-HSR",
+        "Center Code": "CENTER-1",
         "Employee Name": "JOHN DOE",
         "Gender": "Male",
         "Designation": "Chef",
@@ -251,7 +254,7 @@ export default function Employees() {
         "Remarks": "Full time"
       },
       {
-        "Center Code": "PB-DV",
+        "Center Code": "CENTER-2",
         "Employee Name": "JANE SMITH",
         "Gender": "Female",
         "Designation": "Manager",
@@ -374,12 +377,12 @@ export default function Employees() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  if (session?.center !== "PB-MGT") {
+  if (!isAdminUser(session)) {
     return (
       <div className="text-center py-20">
         <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
         <h2 className="text-2xl font-bold text-muted-foreground">Access Denied</h2>
-        <p className="text-muted-foreground mt-2">Only PB-MGT can manage employees</p>
+        <p className="text-muted-foreground mt-2">Only Admin users can manage employees</p>
       </div>
     );
   }
@@ -441,7 +444,7 @@ export default function Employees() {
                 <strong>Note:</strong> Existing employees (same name + center) will be updated. New employees will be created.
               </p>
               <p className="mt-2 text-blue-600 dark:text-blue-400">
-                <strong>Valid Center Codes:</strong> PB-HSR, PB-TH, PB-SN, PB-DV, PB-HW, PB-KN, PB-KAL, PB-PERTH
+                <strong>Valid Center Codes:</strong> Use center codes as configured in Master Data
               </p>
             </div>
 
@@ -602,7 +605,7 @@ export default function Employees() {
                 className="w-full h-10 px-3 rounded-md border border-input bg-background"
                 data-testid="emp-center"
               >
-                {CENTERS.map(c => (
+                {centersList.map(c => (
                   <option key={c.code} value={c.code}>{c.code}</option>
                 ))}
               </select>
@@ -746,7 +749,7 @@ export default function Employees() {
                 className="h-10 px-3 rounded-md border border-input bg-background text-sm"
               >
                 <option value="">All Centers</option>
-                {CENTERS.map(c => (
+                {centersList.map(c => (
                   <option key={c.code} value={c.code}>{c.code}</option>
                 ))}
               </select>

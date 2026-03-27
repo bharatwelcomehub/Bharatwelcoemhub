@@ -106,34 +106,42 @@ export const apiWithRetry = async (requestFn, maxRetries = 2) => {
   throw lastError;
 };
 
-// Centers list - fallback only, should be fetched from database
-export const CENTERS = [
-  { code: "PB-HSR", name: "Purnabramha HSR - Bangalore" },
-  { code: "PB-TH", name: "Purnabramha Thane - Mumbai" },
-  { code: "PB-SN", name: "Purnabramha Sambhajinagar" },
-  { code: "PB-DV", name: "Purnabramha Dombivli - Mumbai" },
-  { code: "PB-HW", name: "Purnabramha Hinjawadi - Pune" },
-  { code: "PB-KN", name: "Purnabramha Kharadi Nyati - Pune" },
-  { code: "PB-KAL", name: "Purnabramha Kalyan" },
-  { code: "PB-PERTH", name: "Purnabramha Perth - Australia" },
-  { code: "PB-MGT", name: "Purnabramha Management (HQ)" },
-];
+// Centers list - DEPRECATED: Use fetchCentersFromDB() instead. Kept only as emergency fallback.
+export const CENTERS = [];
 
-// Fetch centers from database - use this for dynamic center list
+// Fetch centers from database - PRIMARY method for getting center list
 export const fetchCentersFromDB = async (token) => {
   try {
     const res = await api.get(`/centers?token=${token}`);
     if (res.data?.centers && res.data.centers.length > 0) {
       return res.data.centers.map(c => ({
         code: c.code,
-        name: c.name
+        name: c.name,
+        country: c.country || "India",
+        is_india_center: c.is_india_center !== false,
+        phone: c.phone || "",
+        email: c.email || "",
+        active: c.active !== false
       }));
     }
-    return CENTERS;
+    return [];
   } catch (err) {
     console.error("Failed to fetch centers from DB:", err);
-    return CENTERS;
+    return [];
   }
+};
+
+// Permission helper: check if user has admin access (replaces all PB-MGT checks)
+export const isAdminUser = (session) => {
+  return session?.is_super_admin === true || session?.is_admin === true;
+};
+
+// Check if a center is international (non-India) — replaces hardcoded PB-PERTH checks
+export const isInternationalCenter = (centerCode, centersList) => {
+  if (!centerCode || !centersList) return false;
+  const center = centersList.find(c => c.code === centerCode);
+  if (center) return center.is_india_center === false;
+  return false;
 };
 
 // Status options

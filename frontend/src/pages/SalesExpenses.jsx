@@ -36,22 +36,24 @@ import {
   Settings,
   AlertTriangle
 } from "lucide-react";
-import { api, API_URL, fetchCentersFromDB, CENTERS } from "@/lib/api";
+import { api, API_URL, fetchCentersFromDB } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 import FreezeControl from "@/components/FreezeControl";
 import SalesGridEditor from "@/components/SalesGridEditor";
 import * as XLSX from "xlsx";
 
-// Check if center is Perth (Australia) - standardized to PB-PERTH
-const isPerth = (center) => {
+// Check if center is international (non-India) — replaces hardcoded PB-PERTH check
+const isInternational = (center, centersList = []) => {
   if (!center) return false;
   const c = center.toUpperCase();
-  return c === "PB-PERTH" || c === "PERTH";
+  const centerData = centersList.find(cd => cd.code === c);
+  if (centerData) return centerData.is_india_center === false;
+  return false;
 };
 
-// Get currency symbol based on center
-const getCurrencySymbol = (center) => isPerth(center) ? "$" : "₹";
+// Get currency symbol based on center data
+const getCurrencySymbol = (center, centersList = []) => isInternational(center, centersList) ? "$" : "₹";
 
 // Format currency with dynamic symbol - can accept center code OR currency symbol directly
 const formatCurrency = (amount, centerOrCurrency = null) => {
@@ -246,7 +248,7 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
             <Input
               value={uploadCenter}
               onChange={(e) => setUploadCenter(e.target.value.toUpperCase())}
-              placeholder="Enter center code (e.g., PB-HSR)"
+              placeholder="Enter center code"
               className="max-w-xs"
             />
           ) : (
@@ -492,11 +494,10 @@ export default function SalesExpenses() {
   
   // Check if user has admin access - recalculate on every render
   // NEW: Accounting role also has access to ALL centers for Sales & Cash
-  const hasAllCentersAccess = session?.center === "PB-MGT" || 
-                              session?.is_super_admin === true || 
+  const hasAllCentersAccess = session?.is_super_admin === true || 
                               session?.is_admin === true ||
                               session?.roles?.view_all_centers === true ||
-                              session?.roles?.accounting === true;  // Accounting role can view all centers
+                              session?.roles?.accounting === true;
 
   // Fetch centers list
   useEffect(() => {
@@ -838,7 +839,7 @@ export default function SalesExpenses() {
   // Get currency from API response or fallback to center-based logic
   // For non-admin users, use their session center to determine currency
   const effectiveCenter = selectedCenter !== "all" ? selectedCenter : session?.center;
-  const currentCurrency = monthlySummary?.currency || getCurrencySymbol(effectiveCenter);
+  const currentCurrency = monthlySummary?.currency || getCurrencySymbol(effectiveCenter, centers);
 
   // Summary cards data
   const summaryCards = [
@@ -1047,7 +1048,7 @@ export default function SalesExpenses() {
 
         {/* Sales Data Entry Tab */}
         <TabsContent value="sales-entry">
-          <SalesDataEntry session={session} selectedCenter={selectedCenter} />
+          <SalesDataEntry session={session} selectedCenter={selectedCenter} centersList={centers} />
         </TabsContent>
 
         {/* Grid Update Tab */}
@@ -1056,6 +1057,7 @@ export default function SalesExpenses() {
             session={session} 
             selectedCenter={selectedCenter} 
             selectedMonth={selectedMonth}
+            centersList={centers}
           />
         </TabsContent>
 
@@ -1077,7 +1079,7 @@ export default function SalesExpenses() {
 
         {/* Expense Entry Tab */}
         <TabsContent value="expense-entry">
-          <ExpenseEntry session={session} selectedCenter={selectedCenter} />
+          <ExpenseEntry session={session} selectedCenter={selectedCenter} centersList={centers} />
         </TabsContent>
 
         {/* Freeze Control Tab - Super Admin Only */}
