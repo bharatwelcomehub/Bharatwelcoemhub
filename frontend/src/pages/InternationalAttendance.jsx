@@ -22,6 +22,7 @@ import {
   DollarSign,
   Globe,
   FileSpreadsheet,
+  FileText,
   AlertTriangle,
   Pencil
 } from "lucide-react";
@@ -403,6 +404,36 @@ export default function InternationalAttendance() {
       toast.success("Attendance sheet exported");
     } catch (err) {
       toast.error("Failed to export");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportMonthlyPDF = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(`${API}/api/international-attendance/export/monthly-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: session.token,
+          center: selectedCenter,
+          year,
+          month
+        })
+      });
+      
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${selectedCenter}_Payroll_${MONTHS[month-1].label}_${year}.pdf`;
+      a.click();
+      toast.success("PDF report exported");
+    } catch (err) {
+      toast.error("Failed to export PDF");
     } finally {
       setExporting(false);
     }
@@ -946,6 +977,28 @@ export default function InternationalAttendance() {
                       >
                         {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                         Export CSV
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* PDF Export */}
+                <div className="pt-4 border-t">
+                  <Card className="border-2 border-red-200 hover:border-red-400 transition-colors">
+                    <CardContent className="pt-6 text-center space-y-3">
+                      <FileText className="w-10 h-10 mx-auto text-red-600" />
+                      <h3 className="font-medium">Monthly Payroll PDF</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Professional PDF report for {MONTHS[month-1].label} {year} — ready to print
+                      </p>
+                      <Button 
+                        onClick={exportMonthlyPDF} 
+                        disabled={exporting}
+                        className="w-full gap-2 bg-red-600 hover:bg-red-700"
+                        data-testid="export-pdf-btn"
+                      >
+                        {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        Export PDF
                       </Button>
                     </CardContent>
                   </Card>

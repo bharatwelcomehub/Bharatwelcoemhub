@@ -753,6 +753,149 @@ class UpdateRateRequest(BaseModel):
     employee_id: str
     new_rate: float
 
+
+@router.post("/export/monthly-pdf")
+async def export_monthly_pdf(req: MonthlyReportRequest):
+    """Export monthly payroll report as PDF"""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
+    
+    # Get monthly data
+    monthly_data = await get_monthly_report(req)
+    
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch, cm
+    from reportlab.lib import colors
+    
+    pdf_buffer = io.BytesIO()
+    c = canvas.Canvas(pdf_buffer, pagesize=landscape(A4))
+    width, height = landscape(A4)
+    
+    # ---- HEADER ----
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(width / 2, height - 0.6 * inch, "Purnabramha - International Payroll Report")
+    
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(width / 2, height - 0.85 * inch,
+        f"Center: {req.center}  |  Month: {monthly_data['month_name']} {req.year}  |  Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}")
+    
+    # ---- SUMMARY BOX ----
+    box_y = height - 1.5 * inch
+    c.setFillColor(colors.Color(0.95, 0.95, 0.98))
+    c.rect(0.5 * inch, box_y - 0.1 * inch, width - 1 * inch, 0.45 * inch, fill=1, stroke=0)
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(0.7 * inch, box_y + 0.1 * inch,
+        f"Total Staff: {monthly_data['summary']['total_staff']}     |     "
+        f"Total Hours: {monthly_data['summary']['total_hours']:.1f}     |     "
+        f"Total Payroll: ${monthly_data['summary']['total_payroll']:,.2f}")
+    
+    # ---- TABLE ----
+    table_top = box_y - 0.4 * inch
+    weeks_count = monthly_data["weeks_in_month"]
+    
+    # Column widths
+    col_name_w = 2.2 * inch
+    col_cat_w = 1.2 * inch
+    col_week_w = 0.85 * inch
+    col_total_w = 0.9 * inch
+    col_rate_w = 0.85 * inch
+    col_salary_w = 1.1 * inch
+    
+    x_start = 0.5 * inch
+    row_height = 0.28 * inch
+    
+    # Header row
+    y = table_top
+    c.setFont("Helvetica-Bold", 8)
+    c.setFillColor(colors.Color(0.2, 0.2, 0.35))
+    header_h = 0.3 * inch
+    c.rect(x_start, y - header_h + 0.05 * inch, width - 1 * inch, header_h, fill=1, stroke=0)
+    c.setFillColor(colors.white)
+    
+    x = x_start + 0.1 * inch
+    c.drawString(x, y - 0.15 * inch, "Employee Name")
+    x += col_name_w
+    c.drawString(x, y - 0.15 * inch, "Category")
+    x += col_cat_w
+    for w in range(1, weeks_count + 1):
+        c.drawString(x, y - 0.15 * inch, f"Wk {w}")
+        x += col_week_w
+    c.drawString(x, y - 0.15 * inch, "Total Hrs")
+    x += col_total_w
+    c.drawString(x, y - 0.15 * inch, "Rate/Hr")
+    x += col_rate_w
+    c.drawString(x, y - 0.15 * inch, "Total Salary")
+    
+    # Data rows
+    y = table_top - header_h
+    c.setFont("Helvetica", 7.5)
+    c.setFillColor(colors.black)
+    
+    for i, emp in enumerate(monthly_data["employees"]):
+        if y < 0.8 * inch:
+            c.showPage()
+            c.setFont("Helvetica", 7.5)
+            y = height - 0.6 * inch
+        
+        # Alternate row shading
+        if i % 2 == 0:
+            c.setFillColor(colors.Color(0.96, 0.96, 0.96))
+            c.rect(x_start, y - row_height + 0.05 * inch, width - 1 * inch, row_height, fill=1, stroke=0)
+            c.setFillColor(colors.black)
+        
+        x = x_start + 0.1 * inch
+        c.drawString(x, y - 0.15 * inch, emp["employee_name"][:28])
+        x += col_name_w
+        c.drawString(x, y - 0.15 * inch, emp["category"][:15])
+        x += col_cat_w
+        for w in range(1, weeks_count + 1):
+            hrs = emp["weeks"].get(w, 0)
+            c.drawString(x, y - 0.15 * inch, f"{hrs:.1f}" if hrs else "-")
+            x += col_week_w
+        c.drawString(x, y - 0.15 * inch, f"{emp['total_hours']:.1f}")
+        x += col_total_w
+        c.drawString(x, y - 0.15 * inch, f"${emp['hourly_rate']:.2f}")
+        x += col_rate_w
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawString(x, y - 0.15 * inch, f"${emp['total_salary']:,.2f}")
+        c.setFont("Helvetica", 7.5)
+        
+        y -= row_height
+    
+    # Grand total line
+    y -= 0.15 * inch
+    c.setLineWidth(1)
+    c.line(x_start, y + 0.1 * inch, width - 0.5 * inch, y + 0.1 * inch)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(x_start + 0.1 * inch, y - 0.1 * inch,
+        f"GRAND TOTAL:  Hours: {monthly_data['summary']['total_hours']:.1f}   |   Payroll: ${monthly_data['summary']['total_payroll']:,.2f}")
+    
+    # Footer
+    c.setFont("Helvetica", 6)
+    c.drawString(0.5 * inch, 0.3 * inch, "This is a computer-generated document. Purnabramha - MANASWINI FOODS PVT. LTD.")
+    c.drawRightString(width - 0.5 * inch, 0.3 * inch, f"Page 1")
+    
+    c.save()
+    pdf_buffer.seek(0)
+    
+    filename = f"{req.center}_Payroll_{monthly_data['month_name']}_{req.year}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
 @router.post("/update-rate")
 async def update_hourly_rate(req: UpdateRateRequest):
     """Update hourly rate for an employee"""

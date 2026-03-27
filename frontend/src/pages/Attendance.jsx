@@ -19,7 +19,8 @@ import {
   CalendarDays,
   Wallet,
   Lock,
-  Users
+  Users,
+  ArrowRightLeft
 } from "lucide-react";
 
 export default function Attendance() {
@@ -75,7 +76,10 @@ export default function Attendance() {
         status: "P",
         notes: "",
         advanceAmount: 0,
-        advanceMode: "CASH"
+        advanceMode: "CASH",
+        transfer_tag: e.transfer_tag || "HOME",
+        transfer_from: e.transfer_from || "",
+        transfer_to: e.transfer_to || ""
       })));
       toast.success(`Loaded ${employees.length} employees`);
     } catch (e) {
@@ -119,7 +123,10 @@ export default function Attendance() {
         status: r.status || "P",
         notes: r.notes || "",
         advanceAmount: advMap[r.employeeName]?.amount || 0,
-        advanceMode: advMap[r.employeeName]?.mode || "CASH"
+        advanceMode: advMap[r.employeeName]?.mode || "CASH",
+        transfer_tag: r.transfer_tag || "HOME",
+        transfer_from: r.transfer_info?.from_center || "",
+        transfer_to: r.transfer_info?.to_center || ""
       })));
       
       toast.success(`Loaded ${attRows.length} records`);
@@ -404,12 +411,27 @@ export default function Attendance() {
                         </tr>
                       </thead>
                       <tbody>
-                        {dailyRows.map((row, idx) => (
-                          <tr key={idx} className="border-b hover:bg-muted/50">
+                        {dailyRows.map((row, idx) => {
+                          const isTransferredOut = row.transfer_tag === "TRANSFERRED_OUT";
+                          const isTransferredIn = row.transfer_tag === "TRANSFERRED_IN";
+                          return (
+                          <tr key={idx} className={cn("border-b hover:bg-muted/50", isTransferredOut && "opacity-50 bg-red-50/30")}>
                             <td className="p-3">
-                              <div>
-                                <p className="font-semibold">{row.name}</p>
-                                <p className="text-xs text-muted-foreground">{row.designation}</p>
+                              <div className="flex items-center gap-2">
+                                <div>
+                                  <p className="font-semibold">{row.name}</p>
+                                  <p className="text-xs text-muted-foreground">{row.designation}</p>
+                                </div>
+                                {isTransferredIn && (
+                                  <Badge variant="outline" className="text-[10px] border-blue-400 text-blue-600 bg-blue-50" data-testid={`transfer-in-badge-${idx}`}>
+                                    <ArrowRightLeft className="w-3 h-3 mr-1" /> In from {row.transfer_from || "?"}
+                                  </Badge>
+                                )}
+                                {isTransferredOut && (
+                                  <Badge variant="outline" className="text-[10px] border-orange-400 text-orange-600 bg-orange-50" data-testid={`transfer-out-badge-${idx}`}>
+                                    <ArrowRightLeft className="w-3 h-3 mr-1" /> Out to {row.transfer_to || "?"}
+                                  </Badge>
+                                )}
                               </div>
                             </td>
                             <td className="p-3">
@@ -417,12 +439,14 @@ export default function Attendance() {
                                 {STATUS_OPTIONS.map(s => (
                                   <button
                                     key={s.value}
-                                    onClick={() => updateDailyRow(idx, "status", s.value)}
+                                    onClick={() => !isTransferredOut && updateDailyRow(idx, "status", s.value)}
+                                    disabled={isTransferredOut}
                                     className={cn(
                                       "px-3 py-1.5 rounded-md text-xs font-bold border transition-all",
                                       row.status === s.value 
                                         ? s.color 
-                                        : "bg-white border-border hover:border-primary/30"
+                                        : "bg-white border-border hover:border-primary/30",
+                                      isTransferredOut && "cursor-not-allowed opacity-50"
                                     )}
                                   >
                                     {s.value}
@@ -461,10 +485,12 @@ export default function Attendance() {
                                 onChange={(e) => updateDailyRow(idx, "notes", e.target.value)}
                                 placeholder="Notes..."
                                 className="h-8"
+                                disabled={isTransferredOut}
                               />
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -561,12 +587,23 @@ export default function Attendance() {
                         </tr>
                       </thead>
                       <tbody>
-                        {monthlyGrid.map((emp, empIdx) => (
-                          <tr key={empIdx} className="border-t hover:bg-muted/30">
+                        {monthlyGrid.map((emp, empIdx) => {
+                          const isOut = emp.transfer_tag === "TRANSFERRED_OUT";
+                          const isIn = emp.transfer_tag === "TRANSFERRED_IN";
+                          return (
+                          <tr key={empIdx} className={cn("border-t hover:bg-muted/30", isOut && "opacity-50 bg-red-50/20")}>
                             <td className="p-2 sticky left-0 bg-card z-10 border-r">
-                              <div>
-                                <p className="font-semibold text-sm">{emp.employeeName}</p>
-                                <p className="text-xs text-muted-foreground">{emp.designation}</p>
+                              <div className="flex items-center gap-1">
+                                <div>
+                                  <p className="font-semibold text-sm">{emp.employeeName}</p>
+                                  <p className="text-xs text-muted-foreground">{emp.designation}</p>
+                                </div>
+                                {isIn && (
+                                  <Badge variant="outline" className="text-[9px] px-1 border-blue-400 text-blue-600 bg-blue-50 whitespace-nowrap">IN</Badge>
+                                )}
+                                {isOut && (
+                                  <Badge variant="outline" className="text-[9px] px-1 border-orange-400 text-orange-600 bg-orange-50 whitespace-nowrap">OUT</Badge>
+                                )}
                               </div>
                             </td>
                             {emp.days.map((day, dayIdx) => (
@@ -574,7 +611,7 @@ export default function Attendance() {
                                 <select
                                   value={day.status || ""}
                                   onChange={(e) => updateMonthlyCell(empIdx, dayIdx, e.target.value)}
-                                  disabled={payrollLocked}
+                                  disabled={payrollLocked || isOut}
                                   className={cn(
                                     "w-full h-8 text-xs font-bold text-center border rounded cursor-pointer",
                                     day.status === "P" && "bg-emerald-100 border-emerald-300",
@@ -582,7 +619,8 @@ export default function Attendance() {
                                     day.status === "HD" && "bg-amber-100 border-amber-300",
                                     day.status === "WO" && "bg-slate-100 border-slate-300",
                                     day.status === "L" && "bg-blue-100 border-blue-300",
-                                    !day.status && "bg-white border-border"
+                                    !day.status && "bg-white border-border",
+                                    isOut && "cursor-not-allowed opacity-50"
                                   )}
                                 >
                                   <option value="">-</option>
@@ -595,7 +633,8 @@ export default function Attendance() {
                               </td>
                             ))}
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
