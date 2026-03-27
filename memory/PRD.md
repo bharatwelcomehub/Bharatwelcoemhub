@@ -109,7 +109,8 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
   - Daily report: item-wise & category-wise breakdown, payment mode split
   - Receipt dialog with Purnabramha branding, print button
   - 17 backend routes at /api/billing/*
-  - 22/22 backend tests + full frontend verification passed
+  - **Separate sidebar section** "Billing / POS" (admin-only by default, assignable via Role Master `billing` module)
+  - Role Management updated with "Billing / POS" permission module
 
 ## Key DB Schema (continued)
 - `billing_config`: {country, gst_percentage, gst_type, service_charge_enabled, service_charge_type, service_charge_value, currency_symbol, currency_code}
