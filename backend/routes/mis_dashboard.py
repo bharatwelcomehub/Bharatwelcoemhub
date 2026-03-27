@@ -4,11 +4,14 @@
 # =======================================
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from dateutil.relativedelta import relativedelta
 import logging
+import io
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -801,3 +804,374 @@ async def get_working_capital(data: dict):
         })
     
     return {"data": result, "total_working_capital": round(cumulative, 2)}
+
+
+# =======================================
+# PDF REPORT GENERATION
+# =======================================
+
+def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_data, center_label, is_intl=False):
+    """Generate a professional branded MIS PDF report using ReportLab."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm, inch
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image,
+        PageBreak, HRFlowable
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=18*mm, rightMargin=18*mm,
+        topMargin=14*mm, bottomMargin=18*mm,
+        title="Purnabramha MIS Report"
+    )
+
+    styles = getSampleStyleSheet()
+    # Brand colours
+    SAFFRON = colors.HexColor("#D97706")
+    DARK_BG = colors.HexColor("#1E293B")
+    HEADER_BG = colors.HexColor("#0F172A")
+    GREEN = colors.HexColor("#059669")
+    RED = colors.HexColor("#DC2626")
+    LIGHT_GRAY = colors.HexColor("#F1F5F9")
+    MID_GRAY = colors.HexColor("#94A3B8")
+
+    # Custom styles
+    title_style = ParagraphStyle("BrandTitle", parent=styles["Title"], fontSize=20,
+        textColor=DARK_BG, spaceAfter=2, fontName="Helvetica-Bold")
+    subtitle_style = ParagraphStyle("SubTitle", parent=styles["Normal"], fontSize=10,
+        textColor=MID_GRAY, spaceAfter=6, fontName="Helvetica")
+    section_style = ParagraphStyle("SectionHead", parent=styles["Heading2"], fontSize=13,
+        textColor=DARK_BG, spaceBefore=14, spaceAfter=6, fontName="Helvetica-Bold",
+        borderPadding=(0, 0, 4, 0))
+    normal_style = ParagraphStyle("Body", parent=styles["Normal"], fontSize=9,
+        textColor=colors.HexColor("#334155"), fontName="Helvetica")
+    small_style = ParagraphStyle("Small", parent=styles["Normal"], fontSize=7.5,
+        textColor=MID_GRAY, fontName="Helvetica")
+
+    sym = "$" if is_intl else "\u20b9"  # ₹ or $
+
+    def fmt(val):
+        if val is None:
+            return f"{sym}0"
+        return f"{sym}{abs(val):,.2f}"
+
+    def fmt_short(val):
+        if val is None:
+            return f"{sym}0"
+        av = abs(val)
+        if av >= 10000000:
+            return f"{sym}{av/10000000:.2f}Cr"
+        if av >= 100000:
+            return f"{sym}{av/100000:.2f}L"
+        if av >= 1000:
+            return f"{sym}{av/1000:.1f}K"
+        return f"{sym}{av:,.0f}"
+
+    elements = []
+
+    # ── HEADER WITH LOGO ──
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "pb_logo.png")
+    header_data = []
+    if os.path.exists(logo_path):
+        logo_img = Image(logo_path, width=50, height=50)
+        header_data = [[
+            logo_img,
+            Paragraph("Purnabramha", title_style),
+            ""
+        ]]
+    else:
+        header_data = [[
+            "",
+            Paragraph("Purnabramha", title_style),
+            ""
+        ]]
+
+    header_table = Table(header_data, colWidths=[60, 340, 100])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+        ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+    ]))
+    elements.append(header_table)
+
+    # Subtitle line
+    period = overview_data.get("period", {})
+    elements.append(Paragraph(
+        f"MIS Report &mdash; {center_label} &nbsp;|&nbsp; {period.get('start', '')} to {period.get('end', '')}",
+        subtitle_style
+    ))
+    elements.append(HRFlowable(width="100%", thickness=1.5, color=SAFFRON, spaceAfter=10))
+
+    # ── SUMMARY SECTION ──
+    s = overview_data.get("summary", {})
+    changes = overview_data.get("changes", {})
+
+    elements.append(Paragraph("Financial Summary", section_style))
+
+    summary_rows = [
+        [Paragraph("<b>Metric</b>", normal_style), Paragraph("<b>Value</b>", normal_style), Paragraph("<b>vs Prev Period</b>", normal_style)],
+        ["Total Sales", fmt(s.get("total_sales")), f"{changes.get('sales_change', 0):+.1f}%"],
+        ["Cash Sales", fmt(s.get("total_cash_sales")), ""],
+        ["Online Sales", fmt(s.get("total_online_sales")), ""],
+        ["Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
+        ["GST (5%)", fmt(s.get("total_gst")), ""],
+        ["Net Profit", fmt(s.get("profit")), f"{changes.get('profit_change', 0):+.1f}%"],
+        ["Profit Margin", f"{s.get('profit_margin', 0):.1f}%", ""],
+        ["Total Guests", f"{s.get('total_guests', 0):,}", ""],
+        ["Total Bills", f"{s.get('total_bills', 0):,}", ""],
+        ["Avg per Guest", fmt(s.get("avg_per_guest")), ""],
+        ["Avg per Bill", fmt(s.get("avg_per_bill")), ""],
+    ]
+
+    t = Table(summary_rows, colWidths=[180, 160, 120])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        # Highlight profit row
+        ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor("#ECFDF5") if s.get("profit", 0) >= 0 else colors.HexColor("#FEF2F2")),
+        ('TEXTCOLOR', (1, 6), (1, 6), GREEN if s.get("profit", 0) >= 0 else RED),
+        ('FONTNAME', (0, 6), (-1, 6), 'Helvetica-Bold'),
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 10))
+
+    # ── CENTER PERFORMANCE ──
+    centers = overview_data.get("centers", [])
+    if centers:
+        elements.append(Paragraph("Center Performance", section_style))
+        center_header = ["Center", "Sales", "Expenses", "GST", "Profit", "Margin %"]
+        center_rows = [center_header]
+        for c in centers:
+            profit_val = c.get("profit", 0)
+            center_rows.append([
+                c.get("center", ""),
+                fmt(c.get("sales")),
+                fmt(c.get("expenses")),
+                fmt(c.get("gst")),
+                fmt(profit_val) + (" (L)" if profit_val < 0 else ""),
+                f"{c.get('profit_margin', 0):.1f}%"
+            ])
+
+        ct = Table(center_rows, colWidths=[80, 85, 85, 75, 90, 55])
+        ct_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]
+        # Color-code profit cells
+        for idx, c in enumerate(centers, start=1):
+            pv = c.get("profit", 0)
+            ct_style.append(('TEXTCOLOR', (4, idx), (4, idx), GREEN if pv >= 0 else RED))
+            ct_style.append(('FONTNAME', (4, idx), (4, idx), 'Helvetica-Bold'))
+        ct.setStyle(TableStyle(ct_style))
+        elements.append(ct)
+        elements.append(Spacer(1, 10))
+
+    # ── EXPENSE ANALYSIS ──
+    exp_types = expense_data.get("by_type", []) if expense_data else []
+    if exp_types:
+        elements.append(Paragraph("Expense Analysis", section_style))
+        exp_header = ["Expense Head", "Amount", "% of Total", "Count", "Prev Period", "Change %", "Status"]
+        exp_rows = [exp_header]
+        for e in exp_types:
+            alert = e.get("alert", "normal")
+            status = "Alert" if alert == "high" else ("Watch" if alert == "medium" else "Normal")
+            exp_rows.append([
+                e.get("type", ""),
+                fmt(e.get("amount")),
+                f"{e.get('percentage', 0)}%",
+                str(e.get("count", 0)),
+                fmt(e.get("prev_amount")),
+                f"{e.get('change', 0):+.1f}%",
+                status
+            ])
+
+        et = Table(exp_rows, colWidths=[90, 75, 55, 40, 75, 55, 50])
+        et_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ]
+        for idx, e in enumerate(exp_types, start=1):
+            alert = e.get("alert", "normal")
+            if alert == "high":
+                et_style.append(('BACKGROUND', (6, idx), (6, idx), colors.HexColor("#FEE2E2")))
+                et_style.append(('TEXTCOLOR', (6, idx), (6, idx), RED))
+            elif alert == "medium":
+                et_style.append(('BACKGROUND', (6, idx), (6, idx), colors.HexColor("#FEF3C7")))
+                et_style.append(('TEXTCOLOR', (6, idx), (6, idx), SAFFRON))
+        et.setStyle(TableStyle(et_style))
+        elements.append(et)
+        elements.append(Spacer(1, 10))
+
+    # ── WORKING CAPITAL ──
+    wc_list = wc_data.get("data", []) if wc_data else []
+    if wc_list:
+        elements.append(Paragraph("Working Capital", section_style))
+        total_wc = wc_data.get("total_working_capital", 0)
+        wc_summary_color = GREEN if total_wc >= 0 else RED
+        elements.append(Paragraph(
+            f"Total Working Capital: <b><font color='{wc_summary_color}'>{fmt(total_wc)}</font></b>",
+            normal_style
+        ))
+        elements.append(Spacer(1, 4))
+
+        wc_header = ["Date", "Sales", "Expenses", "GST", "Daily Net", "Cumulative WC"]
+        wc_rows = [wc_header]
+        for w in wc_list:
+            net = w.get("daily_net", 0)
+            wc_rows.append([
+                w.get("date", ""),
+                fmt(w.get("daily_sales")),
+                fmt(w.get("daily_expenses")),
+                fmt(w.get("daily_gst")),
+                fmt(net),
+                fmt(w.get("working_capital")),
+            ])
+
+        # Limit rows to avoid massive PDF (show first 45 + last 5 if too many)
+        if len(wc_rows) > 52:
+            truncated = wc_rows[:46]
+            truncated.append(["...", "...", "...", "...", "...", "..."])
+            truncated.extend(wc_rows[-5:])
+            wc_rows = truncated
+
+        wt = Table(wc_rows, colWidths=[70, 80, 80, 65, 75, 80])
+        wt_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ]
+        wt.setStyle(TableStyle(wt_style))
+        elements.append(wt)
+        elements.append(Spacer(1, 10))
+
+    # ── QUARTERLY COMPARISON ──
+    quarters = quarterly_data.get("quarters", []) if quarterly_data else []
+    if quarters:
+        elements.append(Paragraph("Quarterly Comparison", section_style))
+        q_header = ["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin %"]
+        q_rows = [q_header]
+        for q in quarters:
+            pv = q.get("profit", 0)
+            q_rows.append([
+                q.get("label", ""),
+                fmt(q.get("sales")),
+                fmt(q.get("expenses")),
+                fmt(q.get("gst")),
+                fmt(pv) + (" (L)" if pv < 0 else ""),
+                f"{q.get('profit_margin', 0):.1f}%"
+            ])
+
+        qt = Table(q_rows, colWidths=[80, 90, 90, 75, 90, 55])
+        qt.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(qt)
+        elements.append(Spacer(1, 10))
+
+    # ── FOOTER ──
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=MID_GRAY, spaceBefore=16))
+    generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
+    elements.append(Paragraph(
+        f"Generated on {generated_at} &nbsp;|&nbsp; Purnabramha Franchise Management System",
+        small_style
+    ))
+
+    doc.build(elements)
+    buf.seek(0)
+    return buf
+
+
+@router.post("/download-pdf")
+async def download_mis_pdf(data: dict):
+    """Generate and return a branded MIS PDF report."""
+    token = data.get("token")
+    period = data.get("period", "current_month")
+    center = data.get("center", "all")
+    custom_start = data.get("custom_start")
+    custom_end = data.get("custom_end")
+
+    session = await check_mis_access(token)
+
+    # Determine if international center
+    is_intl = False
+    if center != "all":
+        center_doc = await db.centers.find_one({"code": center}, {"_id": 0})
+        if center_doc and center_doc.get("is_india_center") is False:
+            is_intl = True
+
+    center_label = "All Centers" if center == "all" else center
+
+    # Reuse existing endpoint logic by calling internal helpers
+    base_params = {"token": token, "period": period, "center": center,
+                   "custom_start": custom_start, "custom_end": custom_end}
+
+    # Fetch data from existing endpoints (call them internally)
+    overview_data = await get_mis_overview({**base_params})
+    expense_data = await get_expense_analysis({**base_params})
+    wc_data = await get_working_capital({**base_params})
+    quarterly_data = await get_quarterly_comparison({"token": token, "center": center})
+
+    # Trends data
+    group_by = "daily" if period == "current_month" else "weekly"
+    trends_data = await get_sales_trends({**base_params, "group_by": group_by})
+
+    pdf_buf = _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_data, center_label, is_intl)
+
+    filename = f"MIS_Report_{center_label}_{overview_data['period']['start']}_to_{overview_data['period']['end']}.pdf"
+
+    return StreamingResponse(
+        pdf_buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
