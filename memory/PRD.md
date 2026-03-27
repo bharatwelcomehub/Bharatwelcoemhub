@@ -96,7 +96,45 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
   - 7 tabbed sections: Overview, Working Capital, Centers, Expenses, Alerts, Quarterly, Performers
   - Recharts-based composited charts with premium tooltips
   - Alerts banner with severity badges
+- [x] **Restaurant POS / Billing System** (COMPLETED 2026-03-27)
+  - Full touchscreen-style POS UI with category sidebar, item grid (224 items), order panel
+  - Billing config per country: India 5% GST exclusive, Australia 10% GST inclusive
+  - Service charge: % or fixed amount, configurable by admin
+  - Discounts: % or fixed at billing time
+  - Payment modes: Cash / UPI / Card
+  - KOT (Kitchen Order Ticket) with thermal printer format (80mm)
+  - Bill generation with auto-numbered sequences (ORD-, KOT-, BILL-)
+  - Bill void for admin users only, with reason tracking
+  - Active orders list, order cancellation with reason
+  - Daily report: item-wise & category-wise breakdown, payment mode split
+  - Receipt dialog with Purnabramha branding, print button
+  - 17 backend routes at /api/billing/*
+  - 22/22 backend tests + full frontend verification passed
+
+## Key DB Schema (continued)
+- `billing_config`: {country, gst_percentage, gst_type, service_charge_enabled, service_charge_type, service_charge_value, currency_symbol, currency_code}
+- `orders`: {order_id, center, table_no, order_type, items[], status, kot_count, created_at, created_by}
+- `bills`: {bill_no, order_id, center, items[], subtotal, gst_amount, service_charge_amount, discount_amount, grand_total, payment_mode, status, date}
+- `kot_entries`: {kot_no, order_id, center, table_no, items[], printed_at, printed_by}
+- `sequences`: {_id: "PREFIX-CENTER-DATE", seq: auto-increment}
+
+## Prioritized Backlog (Updated)
+
+### P0 — Critical
+- Phase 3 continued: Billing Reports Dashboard, Daily Settlement, Void/Cancel Reports
+
+### P1 — High
+- Franchise document management & Approval hierarchy
+- Master tables: Tables, Vendors, Order Types, Cancellation Reasons
+
+### P2 — Medium/Future
+- WhatsApp/Email notification hooks
+- Image Upload for Recipes
+- Franchise Deal Simulator
+- 7-year retention deletion prompt for attachments
 
 ## Project Health
 - Broken: None
 - Mocked: WhatsApp Integration
+
+- Menu card PDF generation per center
