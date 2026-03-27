@@ -136,5 +136,6 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
 ## Project Health
 - Broken: None
 - Mocked: WhatsApp Integration
+- Fixed: Working Capital logic (now uses franchise deposits + loan entries, not cumulative sales), muted color scheme on WC tab
 
 - Menu card PDF generation per center
