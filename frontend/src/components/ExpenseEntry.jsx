@@ -90,6 +90,10 @@ export default function ExpenseEntry({ session, selectedCenter }) {
   const fileInputRef = useRef(null);
   const groupFileInputRef = useRef(null);
   
+  // Sorting state
+  const [sortField, setSortField] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
+  
   // New expense form
   const [newExpense, setNewExpense] = useState({
     description: "",
@@ -97,6 +101,9 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     expense_type: "",
     payment_mode: "CASH"
   });
+  
+  // Multiple new expense rows for batch add
+  const [batchExpenses, setBatchExpenses] = useState([]);
   
   // For freeze checks, use the user's actual center (not "all")
   const centerCode = selectedCenter === "all" ? session?.center : (selectedCenter || session?.center);
@@ -248,6 +255,66 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Add 3 more blank batch rows
+  const handleAddBatchRows = () => {
+    const newRows = Array(3).fill(null).map((_, i) => ({
+      id: Date.now() + i,
+      description: "",
+      amount: "",
+      expense_type: "",
+      payment_mode: "CASH"
+    }));
+    setBatchExpenses(prev => [...prev, ...newRows]);
+  };
+
+  // Update a batch row field
+  const updateBatchRow = (id, field, value) => {
+    setBatchExpenses(prev => prev.map(row => 
+      row.id === id ? { ...row, [field]: value } : row
+    ));
+  };
+
+  // Remove a batch row
+  const removeBatchRow = (id) => {
+    setBatchExpenses(prev => prev.filter(row => row.id !== id));
+  };
+
+  // Save all batch expenses
+  const handleSaveBatch = async () => {
+    const validRows = batchExpenses.filter(r => r.description.trim() && r.amount && parseFloat(r.amount) > 0 && r.expense_type);
+    if (validRows.length === 0) {
+      toast.error("No valid entries to save. Fill description, amount, and type.");
+      return;
+    }
+    
+    setSaving(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const row of validRows) {
+      try {
+        await api.post(`/sales/expenses/create?token=${session.token}`, {
+          center: centerCode,
+          date: selectedDate,
+          description: row.description,
+          amount: parseFloat(row.amount),
+          expense_type: row.expense_type,
+          payment_mode: row.payment_mode || "CASH"
+        });
+        successCount++;
+      } catch (err) {
+        errorCount++;
+      }
+    }
+    
+    if (successCount > 0) toast.success(`${successCount} expense(s) added successfully`);
+    if (errorCount > 0) toast.error(`${errorCount} expense(s) failed`);
+    
+    setBatchExpenses([]);
+    fetchExpenses();
+    setSaving(false);
   };
 
   // Delete expense
@@ -583,6 +650,48 @@ export default function ExpenseEntry({ session, selectedCenter }) {
     return acc;
   }, {});
 
+  // Sort handler
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // Sorted expenses
+  const sortedExpenses = [...expenses].sort((a, b) => {
+    if (!sortField) return 0;
+    let aVal = a[sortField] ?? "";
+    let bVal = b[sortField] ?? "";
+    
+    if (sortField === "amount") {
+      aVal = parseFloat(aVal) || 0;
+      bVal = parseFloat(bVal) || 0;
+    } else if (sortField === "attachment_status") {
+      // Sort by attachment status: attached > attached_via_group > none
+      const order = { attached: 2, attached_via_group: 1 };
+      aVal = order[aVal] || 0;
+      bVal = order[bVal] || 0;
+    } else if (sortField === "is_grouped") {
+      aVal = a.is_grouped ? 1 : 0;
+      bVal = b.is_grouped ? 1 : 0;
+    } else {
+      aVal = String(aVal).toLowerCase();
+      bVal = String(bVal).toLowerCase();
+    }
+    
+    if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <span className="text-muted-foreground/40 ml-1">↕</span>;
+    return <span className="ml-1 text-primary">{sortDirection === "asc" ? "↑" : "↓"}</span>;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with date selector */}
@@ -756,7 +865,16 @@ export default function ExpenseEntry({ session, selectedCenter }) {
             </div>
           </div>
           
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end mt-4 gap-2">
+            <Button
+              variant="outline"
+              onClick={handleAddBatchRows}
+              disabled={frozenStatus.is_frozen && !frozenStatus.can_edit}
+              className="gap-2"
+              data-testid="add-3-more-btn"
+            >
+              <Plus className="w-4 h-4" /> Add 3 More Entries
+            </Button>
             <Button 
               onClick={handleAddExpense} 
               disabled={saving || (frozenStatus.is_frozen && !frozenStatus.can_edit)} 
@@ -774,6 +892,73 @@ export default function ExpenseEntry({ session, selectedCenter }) {
               )}
             </Button>
           </div>
+          
+          {/* Batch Entry Rows */}
+          {batchExpenses.length > 0 && (
+            <div className="mt-4 border-t pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-muted-foreground">Batch Entries ({batchExpenses.length} rows)</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setBatchExpenses([])} className="gap-1">
+                    <X className="w-3 h-3" /> Clear All
+                  </Button>
+                  <Button size="sm" onClick={handleSaveBatch} disabled={saving} className="gap-1 bg-green-600 hover:bg-green-700" data-testid="save-batch-btn">
+                    <Save className="w-3 h-3" /> {saving ? "Saving..." : "Save All"}
+                  </Button>
+                </div>
+              </div>
+              {batchExpenses.map((row, idx) => (
+                <div key={row.id} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end bg-muted/30 p-2 rounded">
+                  <div className="md:col-span-2">
+                    <Input
+                      value={row.description}
+                      onChange={(e) => updateBatchRow(row.id, 'description', e.target.value)}
+                      placeholder="Description"
+                      className="h-8 text-sm"
+                      data-testid={`batch-desc-${idx}`}
+                    />
+                  </div>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={row.amount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
+                        updateBatchRow(row.id, 'amount', val);
+                      }
+                    }}
+                    placeholder="Amount"
+                    className="h-8 text-sm"
+                    data-testid={`batch-amount-${idx}`}
+                  />
+                  <Select value={row.expense_type} onValueChange={(val) => updateBatchRow(row.id, 'expense_type', val)}>
+                    <SelectTrigger className="h-8 text-xs" data-testid={`batch-type-${idx}`}>
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {expenseTypes.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={row.payment_mode} onValueChange={(val) => updateBatchRow(row.id, 'payment_mode', val)}>
+                    <SelectTrigger className="h-8 text-xs" data-testid={`batch-mode-${idx}`}>
+                      <SelectValue placeholder="Mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentModes.map(mode => (
+                        <SelectItem key={mode} value={mode}>{mode}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="sm" onClick={() => removeBatchRow(row.id)} className="h-8 w-8 p-0 text-red-500">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -866,20 +1051,34 @@ export default function ExpenseEntry({ session, selectedCenter }) {
                     </th>
                   )}
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground w-10">#</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-24">Date</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">Description</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-32">Category</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28">Mode</th>
-                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-24">Amount</th>
-                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-24">Invoice</th>
-                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-20">Bill</th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("date")} data-testid="sort-date">
+                    Date<SortIcon field="date" />
+                  </th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("description")} data-testid="sort-description">
+                    Description<SortIcon field="description" />
+                  </th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-32 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("expense_type")} data-testid="sort-category">
+                    Category<SortIcon field="expense_type" />
+                  </th>
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("payment_mode")} data-testid="sort-mode">
+                    Mode<SortIcon field="payment_mode" />
+                  </th>
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("amount")} data-testid="sort-amount">
+                    Amount<SortIcon field="amount" />
+                  </th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("is_grouped")} data-testid="sort-invoice">
+                    Invoice<SortIcon field="is_grouped" />
+                  </th>
+                  <th className="text-center py-3 px-2 font-medium text-muted-foreground w-20 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("attachment_status")} data-testid="sort-bill">
+                    Bill<SortIcon field="attachment_status" />
+                  </th>
                   <th className="text-center py-3 px-2 font-medium text-muted-foreground w-16">
                     {frozenStatus.can_edit ? 'Actions' : ''}
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((exp, idx) => (
+                {sortedExpenses.map((exp, idx) => (
                   <tr key={exp.expense_id || idx} className={`border-b border-border/50 ${editedExpenses[exp.expense_id] ? 'bg-amber-50/50' : 'hover:bg-muted/50'} ${selectedExpenses.includes(exp.expense_id) ? 'bg-blue-50/50' : ''}`}>
                     {/* Checkbox for selection */}
                     {frozenStatus.can_edit && (

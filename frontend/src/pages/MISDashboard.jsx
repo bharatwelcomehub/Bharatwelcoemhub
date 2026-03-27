@@ -54,6 +54,7 @@ import {
   Download
 } from "lucide-react";
 import { api } from "@/lib/api";
+import * as XLSX from "xlsx";
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 const ALERT_COLORS = { high: "#ef4444", medium: "#f59e0b", normal: "#22c55e" };
@@ -86,10 +87,29 @@ export default function MISDashboard() {
   const [alerts, setAlerts] = useState([]);
   const [quarterlyData, setQuarterlyData] = useState([]);
   const [topPerformers, setTopPerformers] = useState(null);
+  const [workingCapital, setWorkingCapital] = useState([]);
+  const [totalWorkingCapital, setTotalWorkingCapital] = useState(0);
+  
+  // Independent centers list (not dependent on filtered overview)
+  const [centersList, setCentersList] = useState([]);
   
   // Settings
   const [alertThreshold, setAlertThreshold] = useState(20);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Fetch centers list independently (once on mount)
+  useEffect(() => {
+    const fetchCenters = async () => {
+      try {
+        const res = await api.get("/centers");
+        const centers = (res.data.centers || []).filter(c => c.active !== false);
+        setCentersList(centers);
+      } catch (err) {
+        console.error("Failed to fetch centers list");
+      }
+    };
+    fetchCenters();
+  }, []);
 
   // Fetch all data
   const fetchData = useCallback(async () => {
@@ -106,14 +126,15 @@ export default function MISDashboard() {
       };
       
       // Fetch all data in parallel
-      const [overviewRes, trendsRes, centerRes, expenseRes, alertsRes, quarterRes, topRes] = await Promise.all([
+      const [overviewRes, trendsRes, centerRes, expenseRes, alertsRes, quarterRes, topRes, wcRes] = await Promise.all([
         api.post("/mis/overview", params),
         api.post("/mis/sales-trends", { ...params, group_by: period === "current_month" ? "daily" : "weekly" }),
         api.post("/mis/center-comparison", params),
         api.post("/mis/expense-analysis", params),
         api.post("/mis/alerts", { token: session.token, alert_threshold: alertThreshold }),
         api.post("/mis/quarterly-comparison", { token: session.token, center: selectedCenter }),
-        api.post("/mis/top-performers", params)
+        api.post("/mis/top-performers", params),
+        api.post("/mis/working-capital", params)
       ]);
       
       setOverview(overviewRes.data);
@@ -123,6 +144,8 @@ export default function MISDashboard() {
       setAlerts(alertsRes.data.alerts || []);
       setQuarterlyData(quarterRes.data.quarters || []);
       setTopPerformers(topRes.data);
+      setWorkingCapital(wcRes.data.data || []);
+      setTotalWorkingCapital(wcRes.data.total_working_capital || 0);
       
     } catch (err) {
       toast.error("Failed to load dashboard data");
@@ -164,6 +187,94 @@ export default function MISDashboard() {
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to save");
     }
+  };
+
+  // Download MIS Report as Excel
+  const handleDownloadReport = () => {
+    if (!overview) {
+      toast.error("No data to export");
+      return;
+    }
+    
+    const wb = XLSX.utils.book_new();
+    const centerLabel = selectedCenter === "all" ? "All Centers" : selectedCenter;
+    const periodLabel = overview?.period?.start + " to " + overview?.period?.end;
+    
+    // Sheet 1: Summary
+    const summaryData = [
+      ["MIS Report - Purnabramha"],
+      ["Center", centerLabel],
+      ["Period", periodLabel],
+      [],
+      ["Metric", "Value"],
+      ["Total Sales", overview?.summary?.total_sales],
+      ["Cash Sales", overview?.summary?.total_cash_sales],
+      ["Online Sales", overview?.summary?.total_online_sales],
+      ["Total Expenses", overview?.summary?.total_expenses],
+      ["GST (5%)", overview?.summary?.total_gst],
+      ["Net Profit", overview?.summary?.profit],
+      ["Profit Margin (%)", overview?.summary?.profit_margin],
+      ["Total Guests", overview?.summary?.total_guests],
+      ["Total Bills", overview?.summary?.total_bills],
+      ["Avg per Guest", overview?.summary?.avg_per_guest],
+      ["Avg per Bill", overview?.summary?.avg_per_bill],
+    ];
+    const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, ws1, "Summary");
+    
+    // Sheet 2: Center-wise Breakdown
+    if (overview?.centers?.length > 0) {
+      const centerHeaders = ["Center", "Sales", "Expenses", "GST", "Profit", "Margin (%)"];
+      const centerRows = overview.centers.map(c => [
+        c.center, c.sales, c.expenses, c.gst, c.profit, c.profit_margin
+      ]);
+      const ws2 = XLSX.utils.aoa_to_sheet([centerHeaders, ...centerRows]);
+      XLSX.utils.book_append_sheet(wb, ws2, "Centers");
+    }
+    
+    // Sheet 3: Trends
+    if (trends.length > 0) {
+      const trendHeaders = ["Date", "Sales", "Expenses", "GST", "Profit"];
+      const trendRows = trends.map(t => [
+        t.date || t.week || t.month, t.sales, t.expenses, t.gst, t.profit
+      ]);
+      const ws3 = XLSX.utils.aoa_to_sheet([trendHeaders, ...trendRows]);
+      XLSX.utils.book_append_sheet(wb, ws3, "Trends");
+    }
+    
+    // Sheet 4: Expense Analysis
+    if (expenseAnalysis?.by_type?.length > 0) {
+      const expHeaders = ["Expense Head", "Amount", "% of Total", "Count", "Prev Period", "Change (%)"];
+      const expRows = expenseAnalysis.by_type.map(e => [
+        e.type, e.amount, e.percentage, e.count, e.prev_amount, e.change
+      ]);
+      const ws4 = XLSX.utils.aoa_to_sheet([expHeaders, ...expRows]);
+      XLSX.utils.book_append_sheet(wb, ws4, "Expenses");
+    }
+    
+    // Sheet 5: Working Capital
+    if (workingCapital.length > 0) {
+      const wcHeaders = ["Date", "Sales", "Expenses", "GST", "Daily Net", "Cumulative Working Capital"];
+      const wcRows = workingCapital.map(w => [
+        w.date, w.daily_sales, w.daily_expenses, w.daily_gst, w.daily_net, w.working_capital
+      ]);
+      const ws5 = XLSX.utils.aoa_to_sheet([wcHeaders, ...wcRows]);
+      XLSX.utils.book_append_sheet(wb, ws5, "Working Capital");
+    }
+    
+    // Sheet 6: Quarterly
+    if (quarterlyData.length > 0) {
+      const qHeaders = ["Quarter", "Sales", "Expenses", "GST", "Profit", "Margin (%)"];
+      const qRows = quarterlyData.map(q => [
+        q.label, q.sales, q.expenses, q.gst, q.profit, q.profit_margin
+      ]);
+      const ws6 = XLSX.utils.aoa_to_sheet([qHeaders, ...qRows]);
+      XLSX.utils.book_append_sheet(wb, ws6, "Quarterly");
+    }
+    
+    const filename = `MIS_Report_${centerLabel}_${overview?.period?.start}_to_${overview?.period?.end}.xlsx`.replace(/ /g, '_');
+    XLSX.writeFile(wb, filename);
+    toast.success("Report downloaded successfully");
   };
 
   // Access check
@@ -229,13 +340,13 @@ export default function MISDashboard() {
           </Select>
           
           <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-            <SelectTrigger className="w-[140px] bg-card border-border">
+            <SelectTrigger className="w-[140px] bg-card border-border" data-testid="mis-center-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Centers</SelectItem>
-              {overview?.centers?.map(c => (
-                <SelectItem key={c.center} value={c.center}>{c.center}</SelectItem>
+              {centersList.map(c => (
+                <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -257,9 +368,14 @@ export default function MISDashboard() {
             </>
           )}
           
-          <Button variant="outline" onClick={fetchData} disabled={loading}>
+          <Button variant="outline" onClick={fetchData} disabled={loading} data-testid="mis-refresh-btn">
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
+          </Button>
+          
+          <Button variant="outline" onClick={handleDownloadReport} disabled={loading} data-testid="mis-download-btn">
+            <Download className="w-4 h-4 mr-2" />
+            Export
           </Button>
           
           {isSuperAdmin && (
@@ -435,6 +551,7 @@ export default function MISDashboard() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-card border border-border flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="working-capital">Working Capital</TabsTrigger>
           <TabsTrigger value="centers">Center Analysis</TabsTrigger>
           <TabsTrigger value="expenses">Expense Analysis</TabsTrigger>
           <TabsTrigger value="alerts">Alerts & Warnings</TabsTrigger>
@@ -537,6 +654,101 @@ export default function MISDashboard() {
                           ) : (
                             <Badge className="bg-red-500">At Risk</Badge>
                           )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Working Capital Tab */}
+        <TabsContent value="working-capital" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className={`border-border ${totalWorkingCapital >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Total Working Capital Remaining</p>
+                <p className={`text-2xl font-bold ${totalWorkingCapital >= 0 ? 'text-green-400' : 'text-red-400'}`} data-testid="total-working-capital">
+                  {formatCurrency(Math.abs(totalWorkingCapital))}
+                  {totalWorkingCapital < 0 && ' (Deficit)'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {selectedCenter === "all" ? "All Centers" : selectedCenter} | {overview?.period?.start} to {overview?.period?.end}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Total Revenue (Sales)</p>
+                <p className="text-2xl font-bold text-green-400">{formatCurrency(overview?.summary?.total_sales || 0)}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Total Outflow (Expenses + GST)</p>
+                <p className="text-2xl font-bold text-red-400">{formatCurrency((overview?.summary?.total_expenses || 0) + (overview?.summary?.total_gst || 0))}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-secondary" />
+                Working Capital Trend
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <ComposedChart data={workingCapital}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="date" stroke="#888" fontSize={10} />
+                  <YAxis stroke="#888" fontSize={10} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}K`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
+                    formatter={(value) => formatCurrency(value)}
+                  />
+                  <Legend />
+                  <Bar dataKey="daily_sales" fill="#22c55e" name="Daily Sales" opacity={0.6} />
+                  <Bar dataKey="daily_expenses" fill="#ef4444" name="Daily Expenses" opacity={0.6} />
+                  <Line type="monotone" dataKey="working_capital" stroke="#ffc658" strokeWidth={3} name="Working Capital" dot={{ r: 3 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Working Capital Table */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-lg">Daily Working Capital Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-card">
+                    <tr className="border-b border-border">
+                      <th className="text-left p-2">Date</th>
+                      <th className="text-right p-2">Sales</th>
+                      <th className="text-right p-2">Expenses</th>
+                      <th className="text-right p-2">GST</th>
+                      <th className="text-right p-2">Daily Net</th>
+                      <th className="text-right p-2">Cumulative WC</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workingCapital.map((w, i) => (
+                      <tr key={i} className="border-b border-border/50 hover:bg-white/5">
+                        <td className="p-2">{w.date}</td>
+                        <td className="p-2 text-right text-green-400">{formatCurrency(w.daily_sales)}</td>
+                        <td className="p-2 text-right text-red-400">{formatCurrency(w.daily_expenses)}</td>
+                        <td className="p-2 text-right text-amber-400">{formatCurrency(w.daily_gst)}</td>
+                        <td className={`p-2 text-right font-semibold ${w.daily_net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {formatCurrency(Math.abs(w.daily_net))}{w.daily_net < 0 && ' (-)'}
+                        </td>
+                        <td className={`p-2 text-right font-bold ${w.working_capital >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {formatCurrency(Math.abs(w.working_capital))}{w.working_capital < 0 && ' (-)'}
                         </td>
                       </tr>
                     ))}

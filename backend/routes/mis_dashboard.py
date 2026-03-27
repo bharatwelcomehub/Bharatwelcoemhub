@@ -341,6 +341,7 @@ async def get_center_comparison(data: dict):
     """Get center-wise comparison data for charts"""
     token = data.get("token")
     period = data.get("period", "current_month")
+    center = data.get("center", "all")
     custom_start = data.get("custom_start")
     custom_end = data.get("custom_end")
     
@@ -352,11 +353,17 @@ async def get_center_comparison(data: dict):
     query = {"date": {"$gte": start_date, "$lte": end_date}}
     prev_query = {"date": {"$gte": prev_start, "$lte": prev_end}}
     
+    if center != "all":
+        query["center"] = center
+        prev_query["center"] = center
+    
     # Current period data
     sales_data = await db.daily_sales.find(query, {"_id": 0}).to_list(10000)
     expenses_data = await db.expenses.find(query, {"_id": 0}).to_list(10000)
     
     # Previous period data
+    if center != "all":
+        prev_query["center"] = center
     prev_sales = await db.daily_sales.find(prev_query, {"_id": 0}).to_list(10000)
     prev_expenses = await db.expenses.find(prev_query, {"_id": 0}).to_list(10000)
     
@@ -734,3 +741,63 @@ async def get_alert_settings(data: dict):
     threshold = setting.get("value", 20) if setting else 20
     
     return {"threshold": threshold}
+
+# =======================================
+# WORKING CAPITAL REMAINING ENDPOINT
+# =======================================
+
+@router.post("/working-capital")
+async def get_working_capital(data: dict):
+    """Get working capital remaining (cumulative Sales - Expenses - GST) over time"""
+    token = data.get("token")
+    period = data.get("period", "current_month")
+    center = data.get("center", "all")
+    custom_start = data.get("custom_start")
+    custom_end = data.get("custom_end")
+    
+    session = await check_mis_access(token)
+    
+    start_date, end_date = get_period_dates(period, custom_start, custom_end)
+    
+    query = {"date": {"$gte": start_date, "$lte": end_date}}
+    if center != "all":
+        query["center"] = center
+    
+    sales_data = await db.daily_sales.find(query, {"_id": 0}).to_list(10000)
+    expenses_data = await db.expenses.find(query, {"_id": 0}).to_list(10000)
+    
+    # Group by date
+    daily = {}
+    for s in sales_data:
+        date = s.get("date", "")
+        if date not in daily:
+            daily[date] = {"date": date, "sales": 0, "expenses": 0}
+        daily[date]["sales"] += float(s.get("total_sale", 0) or 0)
+    
+    for e in expenses_data:
+        date = e.get("date", "")
+        if date not in daily:
+            daily[date] = {"date": date, "sales": 0, "expenses": 0}
+        daily[date]["expenses"] += float(e.get("amount", 0) or 0)
+    
+    # Sort by date and compute cumulative working capital
+    sorted_days = sorted(daily.values(), key=lambda x: x["date"])
+    
+    cumulative = 0
+    result = []
+    for d in sorted_days:
+        sales = d["sales"]
+        expenses = d["expenses"]
+        gst = round(sales * 0.05, 2)
+        net = sales - expenses - gst
+        cumulative += net
+        result.append({
+            "date": d["date"],
+            "daily_sales": round(sales, 2),
+            "daily_expenses": round(expenses, 2),
+            "daily_gst": gst,
+            "daily_net": round(net, 2),
+            "working_capital": round(cumulative, 2)
+        })
+    
+    return {"data": result, "total_working_capital": round(cumulative, 2)}
