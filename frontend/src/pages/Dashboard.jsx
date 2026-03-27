@@ -84,7 +84,6 @@ const menuCategories = [
     items: [
       { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", roleKey: "sales_cash" },
       { path: "/expense-heads", icon: Tags, label: "Expense Heads", forMGT: true },
-      { path: "/pos-billing", icon: Receipt, label: "POS / Billing", roleKey: "sales_cash" },
     ]
   },
   {
@@ -148,13 +147,23 @@ const menuCategories = [
       { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", roleKey: "operations" },
     ]
   },
+  {
+    id: "billing",
+    label: "Billing / POS",
+    icon: Receipt,
+    roleKey: "billing",
+    forAdmin: true,
+    items: [
+      { path: "/pos-billing", icon: Receipt, label: "POS / Billing", roleKey: "billing", forAdmin: true },
+    ]
+  },
 ];
 
 export default function Dashboard() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations"]);
+  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations", "billing"]);
   const [centersList, setCentersList] = useState([]);
   
   // Fetch centers from DB on mount
@@ -179,7 +188,8 @@ export default function Dashboard() {
     operations: true,
     view_all_centers: true,
     accounting: true,
-    franchise: true
+    franchise: true,
+    billing: true
   } : (session?.roles || {});
   
   // Check if user has accounting role (can view all centers in Sales & Cash)
@@ -199,7 +209,10 @@ export default function Dashboard() {
     if (isSuperAdmin) return true; // Super Admin has full access
     if (item.forMGT) return isAdmin; // Management items require Admin access
     if (item.forAdmin) {
-      return isAdmin || isSuperAdmin;
+      // Admin-only items can also be accessed via roleKey assignment
+      if (isAdmin || isSuperAdmin) return true;
+      if (item.roleKey && userRoles[item.roleKey] === true) return true;
+      return false;
     }
     if (item.forInternational) {
       // International items: visible to Admin, Super Admin, and international center managers

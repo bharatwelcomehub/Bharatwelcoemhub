@@ -17,6 +17,7 @@ import {
   Building2,
   ChefHat,
   Store,
+  Receipt,
   RefreshCw,
   Search
 } from "lucide-react";
@@ -66,6 +67,12 @@ const ROLE_MODULES = [
     label: "Franchise",
     icon: Store,
     description: "Franchise management, exit & closure processes"
+  },
+  {
+    id: "billing",
+    label: "Billing / POS",
+    icon: Receipt,
+    description: "POS billing, KOT, invoices, bill management"
   },
   {
     id: "view_all_centers",
