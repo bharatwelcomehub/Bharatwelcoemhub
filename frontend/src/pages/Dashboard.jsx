@@ -31,7 +31,8 @@ import {
   BarChart3,
   Globe,
   ArrowRightLeft,
-  Database
+  Database,
+  UtensilsCrossed
 } from "lucide-react";
 
 // Import pages
@@ -58,6 +59,7 @@ import InternationalAttendance from "@/pages/InternationalAttendance";
 import EmployeeTransfers from "@/pages/EmployeeTransfers";
 import MasterDataManagement from "@/pages/MasterDataManagement";
 import FranchiseOwnerDashboard from "@/pages/FranchiseOwnerDashboard";
+import MenuManagement from "@/pages/MenuManagement";
 
 // Menu categories structure
 const menuCategories = [
@@ -118,6 +120,7 @@ const menuCategories = [
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
       { path: "/master-data", icon: Database, label: "Master Data", forMGT: true },
+      { path: "/menu-management", icon: UtensilsCrossed, label: "Menu Management", forMGT: true },
     ]
   },
   {
@@ -419,6 +422,7 @@ export default function Dashboard() {
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
             <Route path="/master-data" element={<MasterDataManagement />} />
+            <Route path="/menu-management" element={<MenuManagement />} />
             <Route path="/franchise-dashboard" element={<FranchiseOwnerDashboard />} />
           </Routes>
         </div>

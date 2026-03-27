@@ -1,0 +1,86 @@
+{
+  "summary": "Completed comprehensive testing of isPerth bug fix and Menu Management system. All 14 backend tests passed (100%). Frontend verified working - Sales Dashboard loads without 'isPerth is not defined' error, Menu Management shows center-specific pricing (INR for India, AUD for Perth) with 146+ real menu items seeded.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_tested": {
+    "login_flow": {
+      "status": "PASS",
+      "details": "Login with DB-driven center dropdown works. 10 centers loaded from /api/centers. Super Admin (PB-MGT, 9741399190, 123456) login successful."
+    },
+    "isPerth_bug_fix": {
+      "status": "PASS",
+      "details": "SalesDataEntry.jsx uses isIntl(center, centersList) instead of isPerth. No 'isPerth is not defined' error on Sales Dashboard page."
+    },
+    "sales_dashboard": {
+      "status": "PASS",
+      "details": "Sales Dashboard loads correctly with GST calculation (5% for India), shows Total Sales, Cash Sales, Online Sales, Expenses breakdown."
+    },
+    "expense_entry": {
+      "status": "PASS",
+      "details": "Expense Entry tab loads without errors. fmtCurrency wrapper uses centersList for currency detection."
+    },
+    "menu_management_page": {
+      "status": "PASS",
+      "details": "Menu Management page loads at /menu-management. Shows 'Admin only' access control. Center selector, search, and item grid working."
+    },
+    "menu_items_inr_pricing": {
+      "status": "PASS",
+      "details": "PB-HSR shows INR (₹) pricing. 196 available / 204 total items. Sample: BG Aloocha Paratha ₹189, Misal Pav ₹199."
+    },
+    "menu_items_aud_pricing": {
+      "status": "PASS",
+      "details": "PB-PERTH shows AUD ($) pricing. 177 available / 204 total items. Sample: BG Aloocha Paratha $7.99, Misal Pav $12.99."
+    },
+    "menu_items_availability": {
+      "status": "PASS",
+      "details": "Some items unavailable at Perth (e.g., Balgopal Thali shows 'No' with price 0). 24+ items marked unavailable at Perth."
+    },
+    "seed_menu_data_endpoint": {
+      "status": "PASS",
+      "details": "/api/masters/seed-menu-data returns 146+ items (29 created + 117 updated). Categories: 17 seeded."
+    },
+    "menu_categories_endpoint": {
+      "status": "PASS",
+      "details": "/api/masters/menu_categories/list returns 17+ categories including SNACKS, THALI, SWEET, RICE, ROTI."
+    },
+    "sidebar_menu_management": {
+      "status": "PASS",
+      "details": "Menu Management appears under Management category in sidebar (admin only). UtensilsCrossed icon used."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_menu_management.py",
+    "/app/test_reports/pytest/pytest_menu_management.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SalesDataEntry.jsx correctly passes centersList prop and uses isIntl() helper instead of hardcoded isPerth check",
+    "ExpenseEntry.jsx uses fmtCurrency wrapper that correctly handles center-based currency detection",
+    "MenuManagement.jsx properly fetches centers from DB and shows center-specific pricing grid"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_menu_management.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100% (all UI features verified)"
+  },
+  "test_credentials": {
+    "super_admin": "PB-MGT / 9741399190 / 123456"
+  },
+  "seed_data_creation": "146 menu items seeded via /api/masters/seed-menu-data with India (INR) and Australia (AUD) pricing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "isPerth bug fixed: SalesDataEntry.jsx line 48 uses isIntl(center, centersList) instead of isPerth. Menu Management system complete with 146 real Purnabramha menu items, center-specific pricing (INR vs AUD), and availability flags. Backend endpoints: /api/masters/menu-items/by-center/{code}, /api/masters/seed-menu-data, /api/masters/menu-items/bulk-set-center-prices.",
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["WhatsApp integration"]
+  }
+}

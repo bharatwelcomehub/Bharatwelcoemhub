@@ -57,7 +57,7 @@ MASTER_REGISTRY = {
     "menu_items": {
         "collection": "master_menu_items",
         "label": "Menu Item",
-        "fields": ["name", "category", "price", "description", "is_veg", "display_order"],
+        "fields": ["name", "category", "base_price", "description", "is_veg", "display_order", "serves", "center_prices"],
         "unique_key": "name"
     },
     "tables": {
@@ -525,3 +525,393 @@ async def seed_masters_from_existing(data: dict):
     results["franchises"] = c
     
     return {"success": True, "migrated": results}
+
+
+# ---- CENTER-SPECIFIC MENU MANAGEMENT ----
+
+@router.post("/menu-items/set-center-price")
+async def set_center_price(data: dict):
+    """Set or update center-specific price for a menu item"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    
+    from routes.permissions import check_permission
+    if not await check_permission(session, "masters", "edit"):
+        raise HTTPException(403, "No permission to edit menu pricing")
+    
+    item_name = data.get("item_name", "").strip()
+    center_code = data.get("center_code", "").strip().upper()
+    price = data.get("price")
+    available = data.get("available", True)
+    
+    if not item_name or not center_code:
+        raise HTTPException(400, "item_name and center_code required")
+    
+    coll = db["master_menu_items"]
+    item = await coll.find_one({"name": {"$regex": f"^{item_name}$", "$options": "i"}})
+    if not item:
+        raise HTTPException(404, f"Menu item '{item_name}' not found")
+    
+    update_key = f"center_prices.{center_code}"
+    await coll.update_one(
+        {"name": {"$regex": f"^{item_name}$", "$options": "i"}},
+        {"$set": {
+            update_key: {"price": price, "available": available},
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": session.get("managerName", "")
+        }}
+    )
+    
+    return {"success": True, "message": f"Price set for {item_name} at {center_code}: {price}"}
+
+
+@router.post("/menu-items/bulk-set-center-prices")
+async def bulk_set_center_prices(data: dict):
+    """Bulk set center-specific prices for multiple menu items"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    
+    from routes.permissions import check_permission
+    if not await check_permission(session, "masters", "edit"):
+        raise HTTPException(403, "No permission")
+    
+    items = data.get("items", [])
+    center_code = data.get("center_code", "").strip().upper()
+    if not center_code:
+        raise HTTPException(400, "center_code required")
+    
+    coll = db["master_menu_items"]
+    updated = 0
+    
+    for entry in items:
+        item_name = entry.get("name", "").strip()
+        price = entry.get("price")
+        available = entry.get("available", True)
+        if not item_name:
+            continue
+        
+        update_key = f"center_prices.{center_code}"
+        result = await coll.update_one(
+            {"name": {"$regex": f"^{item_name}$", "$options": "i"}},
+            {"$set": {
+                update_key: {"price": price, "available": available},
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_by": session.get("managerName", "")
+            }}
+        )
+        if result.matched_count > 0:
+            updated += 1
+    
+    return {"success": True, "updated": updated, "center": center_code}
+
+
+@router.get("/menu-items/by-center/{center_code}")
+async def get_menu_by_center(center_code: str, token: str):
+    """Get menu items with center-specific pricing"""
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    
+    center_code = center_code.upper()
+    coll = db["master_menu_items"]
+    items = await coll.find({"is_active": {"$ne": False}}, {"_id": 0}).sort([("category", 1), ("display_order", 1), ("name", 1)]).to_list(5000)
+    
+    result = []
+    for item in items:
+        center_prices = item.get("center_prices", {})
+        center_data = center_prices.get(center_code, {})
+        
+        result.append({
+            "name": item.get("name"),
+            "category": item.get("category"),
+            "description": item.get("description", ""),
+            "is_veg": item.get("is_veg", True),
+            "serves": item.get("serves", ""),
+            "base_price": item.get("base_price", 0),
+            "center_price": center_data.get("price", item.get("base_price", 0)),
+            "available": center_data.get("available", True),
+            "display_order": item.get("display_order", 99),
+        })
+    
+    # Get center currency info
+    center_doc = await db.centers.find_one({"code": center_code}, {"_id": 0})
+    currency = "AUD" if center_doc and not center_doc.get("is_india_center", True) else "INR"
+    symbol = "$" if currency == "AUD" else "₹"
+    
+    return {
+        "items": result,
+        "center": center_code,
+        "currency": currency,
+        "symbol": symbol,
+        "center_name": center_doc.get("name", center_code) if center_doc else center_code
+    }
+
+
+@router.post("/seed-menu-data")
+async def seed_menu_data(data: dict):
+    """Seed actual Purnabramha menu data from both India and Australia menus"""
+    token = data.get("token")
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    
+    from routes.permissions import check_permission
+    if not await check_permission(session, "masters", "create"):
+        raise HTTPException(403, "No permission")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    meta = {"created_at": now, "created_by": "Menu Seed", "updated_at": now, "updated_by": "Menu Seed", "is_active": True}
+    
+    # Step 1: Seed Menu Categories (actual Purnabramha categories)
+    categories = [
+        {"name": "BALGOPAL (KIDS)", "description": "Kids special menu", "display_order": 1, "icon": ""},
+        {"name": "TEA / COFFEE", "description": "Hot beverages", "display_order": 2, "icon": ""},
+        {"name": "NON TEA / DRINKS", "description": "Cold beverages and traditional drinks", "display_order": 3, "icon": ""},
+        {"name": "SOUP / SAAR", "description": "Traditional soups and saars", "display_order": 4, "icon": ""},
+        {"name": "SNACKS", "description": "Appetizers and snacks", "display_order": 5, "icon": ""},
+        {"name": "FASTING", "description": "Fasting special items", "display_order": 6, "icon": ""},
+        {"name": "HEAVY BRUNCH", "description": "Heavy breakfast items", "display_order": 7, "icon": ""},
+        {"name": "BHAKAR COMBO", "description": "Combos with 2 bhakar", "display_order": 8, "icon": ""},
+        {"name": "BHAJI", "description": "Vegetable dishes", "display_order": 9, "icon": ""},
+        {"name": "VARAN / DAL", "description": "Lentil dishes", "display_order": 10, "icon": ""},
+        {"name": "RICE", "description": "Rice preparations", "display_order": 11, "icon": ""},
+        {"name": "ROTI", "description": "Bread and rotis", "display_order": 12, "icon": ""},
+        {"name": "SWEET", "description": "Desserts and sweets", "display_order": 13, "icon": ""},
+        {"name": "MAHARASHTRIAN THALI", "description": "Daily special thalis", "display_order": 14, "icon": ""},
+        {"name": "SP. THALI", "description": "Special thalis", "display_order": 15, "icon": ""},
+        {"name": "TRAVELERS MENU", "description": "Travel-friendly packed meals", "display_order": 16, "icon": ""},
+        {"name": "SIDES", "description": "Side dishes, chutneys, extras", "display_order": 17, "icon": ""},
+    ]
+    
+    cat_created = 0
+    for cat in categories:
+        exists = await db.master_menu_categories.find_one({"name": cat["name"]})
+        if not exists:
+            await db.master_menu_categories.insert_one({**meta, **cat})
+            cat_created += 1
+        else:
+            await db.master_menu_categories.update_one({"name": cat["name"]}, {"$set": {**cat, "updated_at": now}})
+    
+    # Step 2: Seed Menu Items with India + Australia pricing
+    # India center codes for bulk pricing
+    india_centers = ["PB-HSR", "PB-TH", "PB-SN", "PB-DV", "PB-HW", "PB-KN", "PB-KAL"]
+    aus_centers = ["PB-PERTH"]
+    
+    menu_items = [
+        # BALGOPAL (KIDS)
+        {"name": "BG Shrikhanda Puri Bhaji", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 219, "serves": "1", "india_price": 219, "aus_price": 15.99},
+        {"name": "BG Misal Pav", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 189, "serves": "1", "india_price": 189, "aus_price": 12.99},
+        {"name": "BG MungDal Khichadi", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 8.99},
+        {"name": "BG Sabudana Khichadi", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 189, "serves": "1", "india_price": 189, "aus_price": 12.99},
+        {"name": "BG Aloocha Paratha", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 189, "serves": "1", "india_price": 189, "aus_price": 7.99},
+        {"name": "BG Vada Pav", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 45, "serves": "1", "india_price": 45, "aus_price": 4.99},
+        {"name": "BG Sabudana Vada (4 pcs)", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 199, "serves": "4 pcs", "india_price": 199, "aus_price": 12.99},
+        {"name": "BG Kanda Pohe", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 129, "serves": "1", "india_price": 129, "aus_price": 7.99},
+        {"name": "BG Tedamedha Aloo", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 129, "serves": "1", "india_price": 129, "aus_price": 5.99},
+        {"name": "Balgopal Thali", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 399, "serves": "1", "india_price": 399, "aus_price": 0, "aus_available": False},
+        {"name": "Balgopal Varan Fal", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 13.99},
+        {"name": "Balgopal Tup Varan Bhat", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 149, "serves": "1", "india_price": 149, "aus_price": 9.99},
+        {"name": "Balgopal Puranpoli", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 149, "serves": "1", "india_price": 149, "aus_price": 9.99},
+        {"name": "Balgopal Shrikhanda", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 149, "serves": "1", "india_price": 149, "aus_price": 9.99},
+        {"name": "Balgopal Khova Poli", "category": "BALGOPAL (KIDS)", "is_veg": True, "base_price": 149, "serves": "1", "india_price": 149, "aus_price": 10.99},
+        # TEA / COFFEE
+        {"name": "Simple Tea", "category": "TEA / COFFEE", "is_veg": True, "base_price": 55, "serves": "1 cup", "india_price": 55, "aus_price": 0, "aus_available": False},
+        {"name": "Masala Tea", "category": "TEA / COFFEE", "is_veg": True, "base_price": 65, "serves": "1 cup", "india_price": 65, "aus_price": 4.99},
+        {"name": "Ginger Tea", "category": "TEA / COFFEE", "is_veg": True, "base_price": 65, "serves": "1 cup", "india_price": 65, "aus_price": 0, "aus_available": False},
+        {"name": "Black Tea", "category": "TEA / COFFEE", "is_veg": True, "base_price": 65, "serves": "1 cup", "india_price": 65, "aus_price": 0, "aus_available": False},
+        {"name": "Simple Milk Coffee", "category": "TEA / COFFEE", "is_veg": True, "base_price": 75, "serves": "1 cup", "india_price": 75, "aus_price": 4.99},
+        {"name": "Black Coffee", "category": "TEA / COFFEE", "is_veg": True, "base_price": 50, "serves": "1 cup", "india_price": 50, "aus_price": 4.99},
+        {"name": "Masala Coffee", "category": "TEA / COFFEE", "is_veg": True, "base_price": 95, "serves": "1 cup", "india_price": 95, "aus_price": 0, "aus_available": False},
+        # NON TEA / DRINKS
+        {"name": "Solkadhi", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 199, "serves": "1 glass", "india_price": 199, "aus_price": 11.99},
+        {"name": "Piyush", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 199, "serves": "1 glass", "india_price": 199, "aus_price": 11.99},
+        {"name": "Mango Piyush", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 219, "serves": "1 glass", "india_price": 219, "aus_price": 2.99},
+        {"name": "Kokum", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 129, "serves": "1 glass", "india_price": 129, "aus_price": 7.99},
+        {"name": "Masala Kokum", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 149, "serves": "1 glass", "india_price": 149, "aus_price": 8.99},
+        {"name": "Butter Milk", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 129, "serves": "1 glass", "india_price": 129, "aus_price": 7.99},
+        {"name": "Masala Butter Milk", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 149, "serves": "1 glass", "india_price": 149, "aus_price": 8.99},
+        {"name": "Lime Juice", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 129, "serves": "1 glass", "india_price": 129, "aus_price": 6.99},
+        {"name": "Masala Lime", "category": "NON TEA / DRINKS", "is_veg": True, "base_price": 149, "serves": "1 glass", "india_price": 149, "aus_price": 7.99},
+        # SOUP / SAAR
+        {"name": "Tomato Saar", "category": "SOUP / SAAR", "is_veg": True, "base_price": 229, "serves": "1 bowl", "india_price": 229, "aus_price": 0, "aus_available": False},
+        {"name": "Vedik Soup", "category": "SOUP / SAAR", "is_veg": True, "base_price": 269, "serves": "1 bowl", "india_price": 269, "aus_price": 12.99},
+        {"name": "Pandhara Rassa", "category": "SOUP / SAAR", "is_veg": True, "base_price": 249, "serves": "1 bowl", "india_price": 249, "aus_price": 12.99},
+        {"name": "Pumpkin Soup (Sunday Only)", "category": "SOUP / SAAR", "is_veg": True, "base_price": 269, "serves": "1 bowl", "india_price": 269, "aus_price": 12.99},
+        {"name": "Daal Soup", "category": "SOUP / SAAR", "is_veg": True, "base_price": 229, "serves": "1 bowl", "india_price": 229, "aus_price": 12.99},
+        # SNACKS
+        {"name": "Kanda Bhaji (20 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 179, "serves": "20 pcs", "india_price": 179, "aus_price": 12.99},
+        {"name": "Maaswadi (4 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 279, "serves": "4 pcs", "india_price": 279, "aus_price": 19.99},
+        {"name": "Sabudana Vada (4 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 199, "serves": "4 pcs", "india_price": 199, "aus_price": 13.99},
+        {"name": "Snacks Platter", "category": "SNACKS", "is_veg": True, "base_price": 599, "serves": "4-9 pcs", "india_price": 599, "aus_price": 0, "aus_available": False},
+        {"name": "Batate Vada (4 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 219, "serves": "4 pcs", "india_price": 219, "aus_price": 15.99},
+        {"name": "Kachori (6 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 239, "serves": "6 pcs", "india_price": 239, "aus_price": 16.99},
+        {"name": "Vada Pav", "category": "SNACKS", "is_veg": True, "base_price": 55, "serves": "1", "india_price": 55, "aus_price": 6.99},
+        {"name": "Kanda Pohe", "category": "SNACKS", "is_veg": True, "base_price": 169, "serves": "1 plate", "india_price": 169, "aus_price": 11.99},
+        {"name": "Tarri Pohe", "category": "SNACKS", "is_veg": True, "base_price": 189, "serves": "1 plate", "india_price": 189, "aus_price": 13.99},
+        {"name": "Dadpe Pohe", "category": "SNACKS", "is_veg": True, "base_price": 169, "serves": "1 plate", "india_price": 169, "aus_price": 0, "aus_available": False},
+        {"name": "Alu Vadi (8 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 239, "serves": "8 pcs", "india_price": 239, "aus_price": 17.99},
+        {"name": "Pudachi Vadi (10 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 239, "serves": "10 pcs", "india_price": 239, "aus_price": 17.99},
+        {"name": "Kothimbir Vadi (10 pcs)", "category": "SNACKS", "is_veg": True, "base_price": 239, "serves": "10 pcs", "india_price": 239, "aus_price": 17.99},
+        {"name": "Vada Sample", "category": "SNACKS", "is_veg": True, "base_price": 149, "serves": "1", "india_price": 149, "aus_price": 12.99},
+        {"name": "Bread Pakoda", "category": "SNACKS", "is_veg": True, "base_price": 129, "serves": "1", "india_price": 129, "aus_price": 8.99},
+        {"name": "Masala Bread Pakoda", "category": "SNACKS", "is_veg": True, "base_price": 149, "serves": "1", "india_price": 149, "aus_price": 10.99},
+        {"name": "Ukad", "category": "SNACKS", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 0, "aus_available": False},
+        {"name": "Mataki Bhel", "category": "SNACKS", "is_veg": True, "base_price": 169, "serves": "1", "india_price": 169, "aus_price": 12.99},
+        # FASTING
+        {"name": "Fasting Sabudana Vada", "category": "FASTING", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 13.99},
+        {"name": "Sabudana Khichadi", "category": "FASTING", "is_veg": True, "base_price": 169, "serves": "1", "india_price": 169, "aus_price": 12.99},
+        {"name": "Sabudana Thalipith", "category": "FASTING", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 14.99},
+        {"name": "Upvas Thalipith", "category": "FASTING", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 14.99},
+        {"name": "Rajgeera Thalipith", "category": "FASTING", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 0, "aus_available": False},
+        {"name": "Fasting Thali", "category": "FASTING", "is_veg": True, "base_price": 499, "serves": "1", "india_price": 499, "aus_price": 0, "aus_available": False},
+        # HEAVY BRUNCH
+        {"name": "Thalipith (2 pcs)", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 199, "serves": "2 pcs", "india_price": 199, "aus_price": 8.99},
+        {"name": "Ghavan (3 pcs)", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 199, "serves": "3 pcs", "india_price": 199, "aus_price": 0, "aus_available": False},
+        {"name": "Dhirde (3 pcs)", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 199, "serves": "3 pcs", "india_price": 199, "aus_price": 0, "aus_available": False},
+        {"name": "Misal Pav", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 14.99},
+        {"name": "Ukarpendi", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 149, "serves": "1", "india_price": 149, "aus_price": 0, "aus_available": False},
+        {"name": "Masala Varan Fal", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 349, "serves": "1", "india_price": 349, "aus_price": 0, "aus_available": False},
+        {"name": "Shrikhanada Puri Bhaji", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 249, "serves": "1", "india_price": 249, "aus_price": 17.99},
+        {"name": "Aloocha Paratha", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 149, "serves": "1 pc", "india_price": 149, "aus_price": 7.99},
+        {"name": "Varan Fal", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 299, "serves": "1", "india_price": 299, "aus_price": 20.99},
+        {"name": "Puri Bhaji", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 199, "serves": "1", "india_price": 199, "aus_price": 13.99},
+        {"name": "Shengole", "category": "HEAVY BRUNCH", "is_veg": True, "base_price": 299, "serves": "1", "india_price": 299, "aus_price": 20.99},
+        # BHAKAR COMBO
+        {"name": "Shev Bhaji Combo", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 349, "serves": "with 2 bhakar", "india_price": 349, "aus_price": 20.99},
+        {"name": "Patodi Rassa Combo", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 349, "serves": "with 2 bhakar", "india_price": 349, "aus_price": 20.99},
+        {"name": "Maaswadi Rassa Combo", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 349, "serves": "with 2 bhakar", "india_price": 349, "aus_price": 20.99},
+        {"name": "Vangyacha Bharit Combo (Saturday)", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 349, "serves": "with 2 bhakar", "india_price": 349, "aus_price": 20.99},
+        {"name": "Ravan Pithala Combo", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 349, "serves": "with 2 bhakar", "india_price": 349, "aus_price": 19.99},
+        {"name": "Pithala Yellow Combo", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 319, "serves": "with 2 bhakar", "india_price": 319, "aus_price": 19.99},
+        {"name": "Zhunka Combo", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 319, "serves": "with 2 bhakar", "india_price": 319, "aus_price": 19.99},
+        {"name": "Kaju Curry Combo", "category": "BHAKAR COMBO", "is_veg": True, "base_price": 349, "serves": "with 2 bhakar", "india_price": 349, "aus_price": 21.99},
+        # BHAJI
+        {"name": "Ravan Pithala", "category": "BHAJI", "is_veg": True, "base_price": 379, "serves": "1", "india_price": 379, "aus_price": 20.99},
+        {"name": "Pithala (Yellow)", "category": "BHAJI", "is_veg": True, "base_price": 379, "serves": "1", "india_price": 379, "aus_price": 20.99},
+        {"name": "Bharit (Saturdays)", "category": "BHAJI", "is_veg": True, "base_price": 379, "serves": "1", "india_price": 379, "aus_price": 23.99},
+        {"name": "Dal Vanga", "category": "BHAJI", "is_veg": True, "base_price": 389, "serves": "1", "india_price": 389, "aus_price": 0, "aus_available": False},
+        {"name": "Mix Cauliflower Bhaji", "category": "BHAJI", "is_veg": True, "base_price": 389, "serves": "1", "india_price": 389, "aus_price": 0, "aus_available": False},
+        {"name": "Chef Special Bhaji", "category": "BHAJI", "is_veg": True, "base_price": 389, "serves": "1", "india_price": 389, "aus_price": 23.99},
+        {"name": "Shev Bhaji", "category": "BHAJI", "is_veg": True, "base_price": 379, "serves": "1", "india_price": 379, "aus_price": 23.99},
+        {"name": "Patodi Rassa", "category": "BHAJI", "is_veg": True, "base_price": 399, "serves": "1", "india_price": 399, "aus_price": 24.99},
+        {"name": "Maaswadi Rassa", "category": "BHAJI", "is_veg": True, "base_price": 399, "serves": "1", "india_price": 399, "aus_price": 24.99},
+        {"name": "Patal Bhaji (Sundays)", "category": "BHAJI", "is_veg": True, "base_price": 379, "serves": "1", "india_price": 379, "aus_price": 23.99},
+        {"name": "Bharli Vangi", "category": "BHAJI", "is_veg": True, "base_price": 349, "serves": "1", "india_price": 349, "aus_price": 24.99},
+        {"name": "Zhunka", "category": "BHAJI", "is_veg": True, "base_price": 289, "serves": "1", "india_price": 289, "aus_price": 20.99},
+        {"name": "Kaju Curry", "category": "BHAJI", "is_veg": True, "base_price": 479, "serves": "1", "india_price": 479, "aus_price": 26.99},
+        {"name": "Akkha Masur", "category": "BHAJI", "is_veg": True, "base_price": 379, "serves": "1", "india_price": 379, "aus_price": 22.99},
+        {"name": "Kadhi Gole", "category": "BHAJI", "is_veg": True, "base_price": 349, "serves": "1", "india_price": 349, "aus_price": 20.99},
+        {"name": "Dry / Jeera Aloo", "category": "BHAJI", "is_veg": True, "base_price": 249, "serves": "1", "india_price": 249, "aus_price": 17.99},
+        {"name": "Matki Usal", "category": "BHAJI", "is_veg": True, "base_price": 299, "serves": "1", "india_price": 299, "aus_price": 20.99},
+        # VARAN / DAL
+        {"name": "Mataki Amti", "category": "VARAN / DAL", "is_veg": True, "base_price": 249, "serves": "1 bowl", "india_price": 249, "aus_price": 15.99},
+        {"name": "Lasun Varan", "category": "VARAN / DAL", "is_veg": True, "base_price": 249, "serves": "1 bowl", "india_price": 249, "aus_price": 14.99},
+        {"name": "Sadha Varan", "category": "VARAN / DAL", "is_veg": True, "base_price": 199, "serves": "1 bowl", "india_price": 199, "aus_price": 13.99},
+        {"name": "Takachi Kadhi", "category": "VARAN / DAL", "is_veg": True, "base_price": 199, "serves": "1 bowl", "india_price": 199, "aus_price": 13.99},
+        {"name": "Kataachi Amti", "category": "VARAN / DAL", "is_veg": True, "base_price": 249, "serves": "1 bowl", "india_price": 249, "aus_price": 15.99},
+        {"name": "Jeera Varan", "category": "VARAN / DAL", "is_veg": True, "base_price": 249, "serves": "1 bowl", "india_price": 249, "aus_price": 14.99},
+        {"name": "Chef Special Dal", "category": "VARAN / DAL", "is_veg": True, "base_price": 289, "serves": "1 bowl", "india_price": 289, "aus_price": 17.99},
+        # RICE
+        {"name": "Steam Rice", "category": "RICE", "is_veg": True, "base_price": 199, "serves": "1 plate", "india_price": 199, "aus_price": 9.99},
+        {"name": "Dahi Bhat", "category": "RICE", "is_veg": True, "base_price": 219, "serves": "1 plate", "india_price": 219, "aus_price": 11.99},
+        {"name": "Kanda Rice", "category": "RICE", "is_veg": True, "base_price": 219, "serves": "1 plate", "india_price": 219, "aus_price": 11.99},
+        {"name": "Tup Bhat", "category": "RICE", "is_veg": True, "base_price": 249, "serves": "1 plate", "india_price": 249, "aus_price": 17.99},
+        {"name": "Bhaji Bhat", "category": "RICE", "is_veg": True, "base_price": 249, "serves": "1 plate", "india_price": 249, "aus_price": 17.99},
+        {"name": "Gola Bhat", "category": "RICE", "is_veg": True, "base_price": 249, "serves": "1 plate", "india_price": 249, "aus_price": 17.99},
+        {"name": "Masale Bhat", "category": "RICE", "is_veg": True, "base_price": 299, "serves": "1 plate", "india_price": 299, "aus_price": 17.99},
+        {"name": "Tup Varan Bhat", "category": "RICE", "is_veg": True, "base_price": 249, "serves": "1 plate", "india_price": 249, "aus_price": 15.99},
+        {"name": "Rice Platter", "category": "RICE", "is_veg": True, "base_price": 399, "serves": "1 platter", "india_price": 399, "aus_price": 0, "aus_available": False},
+        # ROTI
+        {"name": "Fulka", "category": "ROTI", "is_veg": True, "base_price": 29, "serves": "1 pc", "india_price": 29, "aus_price": 2.99},
+        {"name": "Dupodi Poli", "category": "ROTI", "is_veg": True, "base_price": 32, "serves": "1 pc", "india_price": 32, "aus_price": 3.99},
+        {"name": "Jowar Bhakar", "category": "ROTI", "is_veg": True, "base_price": 59, "serves": "1 pc", "india_price": 59, "aus_price": 4.99},
+        {"name": "Rice Bhakar", "category": "ROTI", "is_veg": True, "base_price": 59, "serves": "1 pc", "india_price": 59, "aus_price": 4.99},
+        {"name": "Wade (2 pcs)", "category": "ROTI", "is_veg": True, "base_price": 79, "serves": "2 pcs", "india_price": 79, "aus_price": 0, "aus_available": False},
+        {"name": "Puri Set (5 pcs)", "category": "ROTI", "is_veg": True, "base_price": 99, "serves": "5 pcs", "india_price": 99, "aus_price": 8.99},
+        # SWEET
+        {"name": "Modak", "category": "SWEET", "is_veg": True, "base_price": 249, "serves": "1 plate", "india_price": 249, "aus_price": 18.99},
+        {"name": "Shrikhanda", "category": "SWEET", "is_veg": True, "base_price": 199, "serves": "1 bowl", "india_price": 199, "aus_price": 12.99},
+        {"name": "Shirvale", "category": "SWEET", "is_veg": True, "base_price": 389, "serves": "1 plate", "india_price": 389, "aus_price": 14.99},
+        {"name": "Puranpoli", "category": "SWEET", "is_veg": True, "base_price": 119, "serves": "1 pc", "india_price": 119, "aus_price": 10.99},
+        {"name": "Khava Poli", "category": "SWEET", "is_veg": True, "base_price": 119, "serves": "1 pc", "india_price": 119, "aus_price": 10.99},
+        {"name": "Sheera (Rava)", "category": "SWEET", "is_veg": True, "base_price": 199, "serves": "1 bowl", "india_price": 199, "aus_price": 13.99},
+        {"name": "Basundi", "category": "SWEET", "is_veg": True, "base_price": 199, "serves": "1 bowl", "india_price": 199, "aus_price": 14.99},
+        {"name": "Amrakhanda", "category": "SWEET", "is_veg": True, "base_price": 219, "serves": "1 bowl", "india_price": 219, "aus_price": 13.99},
+        {"name": "Aamras (Seasonal)", "category": "SWEET", "is_veg": True, "base_price": 210, "serves": "1 bowl", "india_price": 210, "aus_price": 11.99},
+        # THALIS
+        {"name": "Shree Shiv Thali (Monday)", "category": "MAHARASHTRIAN THALI", "is_veg": True, "base_price": 499, "serves": "1 thali", "india_price": 499, "aus_price": 35.99},
+        {"name": "Shree Swami Samrath Thali (Tuesday)", "category": "MAHARASHTRIAN THALI", "is_veg": True, "base_price": 499, "serves": "1 thali", "india_price": 499, "aus_price": 35.99},
+        {"name": "Shree Vithayee Thali (Wednesday)", "category": "MAHARASHTRIAN THALI", "is_veg": True, "base_price": 499, "serves": "1 thali", "india_price": 499, "aus_price": 35.99},
+        {"name": "Shree Duttaguru Thali (Thursday)", "category": "MAHARASHTRIAN THALI", "is_veg": True, "base_price": 499, "serves": "1 thali", "india_price": 499, "aus_price": 35.99},
+        {"name": "Shree Balaji Thali (Friday)", "category": "MAHARASHTRIAN THALI", "is_veg": True, "base_price": 549, "serves": "1 thali", "india_price": 549, "aus_price": 35.99},
+        {"name": "Shree Gajanan Maharaj Thali (Saturday)", "category": "MAHARASHTRIAN THALI", "is_veg": True, "base_price": 549, "serves": "1 thali", "india_price": 549, "aus_price": 35.99},
+        {"name": "Shree Mahalakshmi Thali (Sunday)", "category": "MAHARASHTRIAN THALI", "is_veg": True, "base_price": 549, "serves": "1 thali", "india_price": 549, "aus_price": 35.99},
+        # SP. THALI
+        {"name": "Varhadi Thali", "category": "SP. THALI", "is_veg": True, "base_price": 549, "serves": "1 thali", "india_price": 549, "aus_price": 0, "aus_available": False},
+        {"name": "Misal Thali", "category": "SP. THALI", "is_veg": True, "base_price": 449, "serves": "1 thali", "india_price": 449, "aus_price": 29.99},
+        {"name": "Vidharbha Thali", "category": "SP. THALI", "is_veg": True, "base_price": 549, "serves": "1 thali", "india_price": 549, "aus_price": 39.99},
+        {"name": "Purankut Thali", "category": "SP. THALI", "is_veg": True, "base_price": 549, "serves": "1 thali", "india_price": 549, "aus_price": 39.99},
+        {"name": "Shravan Maas Thali", "category": "SP. THALI", "is_veg": True, "base_price": 549, "serves": "1 thali", "india_price": 549, "aus_price": 39.99},
+        {"name": "Meva Thali", "category": "SP. THALI", "is_veg": True, "base_price": 749, "serves": "1 thali", "india_price": 749, "aus_price": 0, "aus_available": False},
+        # SIDES (Australia-specific section)
+        {"name": "Day Sp. Koshimbeer", "category": "SIDES", "is_veg": True, "base_price": 0, "serves": "1", "india_price": 0, "india_available": False, "aus_price": 4.99},
+        {"name": "Green Salad", "category": "SIDES", "is_veg": True, "base_price": 0, "serves": "1", "india_price": 0, "india_available": False, "aus_price": 4.99},
+        {"name": "Thecha", "category": "SIDES", "is_veg": True, "base_price": 0, "serves": "1", "india_price": 0, "india_available": False, "aus_price": 1.99},
+        {"name": "Curd", "category": "SIDES", "is_veg": True, "base_price": 0, "serves": "1", "india_price": 0, "india_available": False, "aus_price": 2.99},
+        {"name": "Papad (2 pcs)", "category": "SIDES", "is_veg": True, "base_price": 0, "serves": "2 pcs", "india_price": 0, "india_available": False, "aus_price": 1.99},
+        {"name": "Lasun Chutney", "category": "SIDES", "is_veg": True, "base_price": 0, "serves": "1", "india_price": 0, "india_available": False, "aus_price": 3.99},
+    ]
+    
+    item_created = 0
+    item_updated = 0
+    coll = db["master_menu_items"]
+    
+    for item in menu_items:
+        name = item["name"]
+        india_price = item.get("india_price", item.get("base_price", 0))
+        aus_price = item.get("aus_price", 0)
+        india_available = item.get("india_available", True)
+        aus_available = item.get("aus_available", True)
+        
+        # Build center_prices
+        center_prices = {}
+        for ic in india_centers:
+            center_prices[ic] = {"price": india_price, "available": india_available}
+        for ac in aus_centers:
+            center_prices[ac] = {"price": aus_price, "available": aus_available}
+        
+        doc = {
+            "name": name,
+            "category": item["category"],
+            "description": item.get("description", ""),
+            "is_veg": item.get("is_veg", True),
+            "base_price": item.get("base_price", 0),
+            "serves": item.get("serves", ""),
+            "center_prices": center_prices,
+            "display_order": item.get("display_order", 99),
+            "is_active": True,
+            "updated_at": now,
+            "updated_by": "Menu Seed",
+        }
+        
+        existing = await coll.find_one({"name": {"$regex": f"^{name}$", "$options": "i"}})
+        if existing:
+            await coll.update_one({"name": {"$regex": f"^{name}$", "$options": "i"}}, {"$set": doc})
+            item_updated += 1
+        else:
+            doc["created_at"] = now
+            doc["created_by"] = "Menu Seed"
+            await coll.insert_one(doc)
+            item_created += 1
+    
+    return {
+        "success": True,
+        "categories_created": cat_created,
+        "items_created": item_created,
+        "items_updated": item_updated,
+        "total_items": len(menu_items)
+    }
