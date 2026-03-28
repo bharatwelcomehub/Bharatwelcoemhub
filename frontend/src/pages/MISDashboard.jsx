@@ -93,7 +93,7 @@ const PremiumTooltip = ({ active, payload, label }) => {
       {payload.map((entry, i) => (
         <div key={i} className="flex items-center gap-2 text-sm">
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-          <span className="text-slate-300">{entry.name}:</span>
+          <span className="text-slate-600">{entry.name}:</span>
           <span className="font-semibold text-white">{formatFullCurrency(entry.value)}</span>
         </div>
       ))}
@@ -347,7 +347,7 @@ export default function MISDashboard() {
               </>
             )}
             
-            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="h-9 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700" data-testid="mis-refresh-btn">
+            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="h-9 border-slate-600 text-slate-600 hover:text-white hover:bg-slate-700" data-testid="mis-refresh-btn">
               <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -357,7 +357,7 @@ export default function MISDashboard() {
               {pdfLoading ? "Generating..." : "PDF"}
             </Button>
             
-            <Button variant="outline" size="sm" onClick={handleDownloadExcel} disabled={loading} className="h-9 border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700" data-testid="mis-download-btn">
+            <Button variant="outline" size="sm" onClick={handleDownloadExcel} disabled={loading} className="h-9 border-slate-600 text-slate-600 hover:text-white hover:bg-slate-700" data-testid="mis-download-btn">
               <Download className="w-4 h-4 mr-1.5" />
               Excel
             </Button>
@@ -390,9 +390,9 @@ export default function MISDashboard() {
 
       {/* Alerts Banner */}
       {alerts.length > 0 && (
-        <div className="bg-gradient-to-r from-red-950/60 to-red-900/30 border border-red-500/20 rounded-xl p-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
               <Bell className="w-4 h-4 text-red-400" />
             </div>
             <div className="flex-1">
@@ -450,7 +450,7 @@ export default function MISDashboard() {
 
       {/* ── TABS ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-1 flex-wrap">
+        <TabsList className="bg-slate-100 border border-slate-200 rounded-xl p-1 flex-wrap">
           {["overview", "working-capital", "centers", "expenses", "alerts", "quarterly", "performers"].map(tab => (
             <TabsTrigger key={tab} value={tab} className="rounded-lg text-xs capitalize data-[state=active]:bg-amber-600 data-[state=active]:text-white">
               {tab.replace("-", " ")}
@@ -462,9 +462,9 @@ export default function MISDashboard() {
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sales vs Expenses Trend */}
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold text-slate-200">Sales vs Expenses Trend</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-800">Sales vs Expenses Trend</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -479,7 +479,7 @@ export default function MISDashboard() {
                         <stop offset="95%" stopColor="#DC2626" stopOpacity={0.02}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
                     <XAxis dataKey={period === "current_month" ? "date" : "week"} stroke="#64748B" fontSize={10} tickLine={false} />
                     <YAxis stroke="#64748B" fontSize={10} tickLine={false} tickFormatter={(v) => formatCurrency(v, isIntl)} />
                     <Tooltip content={<PremiumTooltip />} />
@@ -492,9 +492,9 @@ export default function MISDashboard() {
             </Card>
 
             {/* Pie Chart */}
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold text-slate-200">Sales by Center</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-800">Sales by Center</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -515,15 +515,15 @@ export default function MISDashboard() {
           </div>
 
           {/* Center Performance Table */}
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-200">Center Performance Summary</CardTitle>
+              <CardTitle className="text-base font-semibold text-slate-800">Center Performance Summary</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" data-testid="center-perf-table">
                   <thead>
-                    <tr className="bg-slate-800/60">
+                    <tr className="bg-slate-100/80">
                       <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Center</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Sales</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Expenses</th>
@@ -532,8 +532,8 @@ export default function MISDashboard() {
                   </thead>
                   <tbody>
                     {overview?.centers?.map((c, i) => (
-                      <tr key={i} className="border-t border-slate-800/40 hover:bg-slate-800/30 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-slate-200">{c.center}</td>
+                      <tr key={i} className="border-t border-slate-200/60 hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-semibold text-slate-800">{c.center}</td>
                         <td className="px-4 py-3 text-right font-medium text-emerald-400">{formatCurrency(c.sales, isIntl)}</td>
                         <td className="px-4 py-3 text-right font-medium text-red-400">{formatCurrency(c.expenses, isIntl)}</td>
                         <td className="px-4 py-3 text-right text-amber-400">{formatCurrency(c.gst, isIntl)}</td>
@@ -546,14 +546,14 @@ export default function MISDashboard() {
           </Card>
 
           {/* Day-wise Sales Table */}
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-200">Day-wise Sales</CardTitle>
+              <CardTitle className="text-base font-semibold text-slate-800">Day-wise Sales</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                 <table className="w-full text-sm" data-testid="day-wise-table">
-                  <thead className="sticky top-0 bg-slate-800/90 backdrop-blur">
+                  <thead className="sticky top-0 bg-slate-100/90 backdrop-blur">
                     <tr>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Date</th>
                       <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Sales</th>
@@ -563,8 +563,8 @@ export default function MISDashboard() {
                   </thead>
                   <tbody>
                     {trends.map((d, i) => (
-                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 ? 'bg-slate-800/20' : ''} hover:bg-slate-800/30`}>
-                        <td className="px-4 py-2 text-slate-300">{d.date || d.week}</td>
+                      <tr key={i} className={`border-t border-slate-200/60 ${i % 2 ? 'bg-slate-50' : ''} hover:bg-slate-50`}>
+                        <td className="px-4 py-2 text-slate-600">{d.date || d.week}</td>
                         <td className="px-4 py-2 text-right text-emerald-400">{formatCurrency(d.sales, isIntl)}</td>
                         <td className="px-4 py-2 text-right text-red-400">{formatCurrency(d.expenses, isIntl)}</td>
                         <td className="px-4 py-2 text-right text-amber-400">{formatCurrency(d.gst, isIntl)}</td>
@@ -578,14 +578,14 @@ export default function MISDashboard() {
 
           {/* Month-wise Sales Chart */}
           {quarterlyData.length > 0 && (
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold text-slate-200">Month / Quarter-wise Sales Comparison</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-800">Month / Quarter-wise Sales Comparison</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={quarterlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
                     <XAxis dataKey="label" stroke="#64748B" fontSize={11} />
                     <YAxis stroke="#64748B" fontSize={10} tickFormatter={(v) => formatCurrency(v, isIntl)} />
                     <Tooltip content={<PremiumTooltip />} />
@@ -603,30 +603,30 @@ export default function MISDashboard() {
         <TabsContent value="working-capital" className="space-y-6">
           {/* WC Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
-              <p className="text-xs font-medium text-slate-400 mb-1">Initial Working Capital</p>
-              <p className="text-2xl font-bold text-slate-100" data-testid="initial-wc">
+            <div className="rounded-xl p-5 bg-white border border-slate-200">
+              <p className="text-xs font-medium text-slate-500 mb-1">Initial Working Capital</p>
+              <p className="text-2xl font-bold text-slate-900" data-testid="initial-wc">
                 {formatFullCurrency(workingCapital?.initial_working_capital || 0, isIntl)}
               </p>
               <p className="text-xs text-slate-500 mt-1">Franchise deposit</p>
             </div>
-            <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
-              <p className="text-xs font-medium text-slate-400 mb-1">Total Loans</p>
-              <p className="text-2xl font-bold text-orange-300">
+            <div className="rounded-xl p-5 bg-white border border-slate-200">
+              <p className="text-xs font-medium text-slate-500 mb-1">Total Loans</p>
+              <p className="text-2xl font-bold text-orange-600">
                 {formatFullCurrency(workingCapital?.total_loans || 0, isIntl)}
               </p>
               <p className="text-xs text-slate-500 mt-1">Drawn against WC</p>
             </div>
-            <div className="rounded-xl p-5 bg-slate-900/60 border border-slate-700/40">
-              <p className="text-xs font-medium text-slate-400 mb-1">Total Repaid</p>
-              <p className="text-2xl font-bold text-teal-300">
+            <div className="rounded-xl p-5 bg-white border border-slate-200">
+              <p className="text-xs font-medium text-slate-500 mb-1">Total Repaid</p>
+              <p className="text-2xl font-bold text-teal-600">
                 {formatFullCurrency(workingCapital?.total_repaid || 0, isIntl)}
               </p>
               <p className="text-xs text-slate-500 mt-1">Loan repayments</p>
             </div>
-            <div className={`rounded-xl p-5 border ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'bg-slate-900/60 border-slate-700/40' : 'bg-slate-900/60 border-orange-700/30'}`}>
+            <div className={`rounded-xl p-5 border ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'bg-white border-slate-200' : 'bg-orange-50 border-orange-200'}`}>
               <p className="text-xs font-medium text-slate-400 mb-1">Available Working Capital</p>
-              <p className="text-2xl font-bold text-slate-100" data-testid="total-working-capital">
+              <p className="text-2xl font-bold text-slate-900" data-testid="total-working-capital">
                 {formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl)}
               </p>
               <p className="text-xs text-slate-500 mt-1">
@@ -639,21 +639,21 @@ export default function MISDashboard() {
 
           {/* Center-wise WC Breakdown */}
           {workingCapital?.centers?.length > 0 && (
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold text-slate-200 flex items-center gap-2">
+                <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-amber-400" /> Center-wise Working Capital
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-800/80">
+                    <thead className="bg-slate-100">
                       <tr>
-                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Center</th>
-                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Franchise</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Initial WC</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Loans</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Center</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Franchise</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Initial WC</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Loans</th>
                         <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Repaid</th>
                         <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Outstanding</th>
                         <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Available WC</th>
@@ -661,16 +661,16 @@ export default function MISDashboard() {
                     </thead>
                     <tbody>
                       {workingCapital.centers.map((c, i) => (
-                        <tr key={i} className={`border-t border-slate-800/40 ${i % 2 === 0 ? '' : 'bg-slate-800/15'}`}>
-                          <td className="px-4 py-2.5 text-slate-200 font-medium">{c.center}</td>
+                        <tr key={i} className={`border-t border-slate-200/60 ${i % 2 === 0 ? '' : 'bg-slate-50'}`}>
+                          <td className="px-4 py-2.5 text-slate-800 font-medium">{c.center}</td>
                           <td className="px-4 py-2.5 text-slate-400">{c.franchise_name}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-300">{formatCurrency(c.initial_wc, isIntl)}</td>
-                          <td className="px-4 py-2.5 text-right text-orange-300/80">{formatCurrency(c.total_loans, isIntl)}</td>
-                          <td className="px-4 py-2.5 text-right text-teal-300/80">{formatCurrency(c.total_repaid, isIntl)}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-300">
+                          <td className="px-4 py-2.5 text-right text-slate-600">{formatCurrency(c.initial_wc, isIntl)}</td>
+                          <td className="px-4 py-2.5 text-right text-orange-600">{formatCurrency(c.total_loans, isIntl)}</td>
+                          <td className="px-4 py-2.5 text-right text-teal-600">{formatCurrency(c.total_repaid, isIntl)}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-600">
                             {c.outstanding > 0 ? formatCurrency(c.outstanding, isIntl) : '-'}
                           </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-100">
+                          <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
                             {formatCurrency(c.available_wc, isIntl)}
                           </td>
                         </tr>
@@ -684,14 +684,14 @@ export default function MISDashboard() {
 
           {/* Loan Timeline */}
           {workingCapital?.loan_timeline?.length > 0 ? (
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold text-slate-200">Loan Activity Timeline</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-800">Loan Activity Timeline</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-slate-800/90 backdrop-blur">
+                    <thead className="sticky top-0 bg-slate-100/90 backdrop-blur">
                       <tr>
                         <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Date</th>
                         <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Center</th>
@@ -703,26 +703,26 @@ export default function MISDashboard() {
                     </thead>
                     <tbody>
                       {workingCapital.loan_timeline.map((l, i) => (
-                        <tr key={i} className={`border-t border-slate-800/40 ${i % 2 === 0 ? '' : 'bg-slate-800/15'}`}>
-                          <td className="px-4 py-2 text-slate-300">{l.date}</td>
-                          <td className="px-4 py-2 text-slate-300">{l.center}</td>
+                        <tr key={i} className={`border-t border-slate-200/60 ${i % 2 === 0 ? '' : 'bg-slate-50'}`}>
+                          <td className="px-4 py-2 text-slate-600">{l.date}</td>
+                          <td className="px-4 py-2 text-slate-600">{l.center}</td>
                           <td className="px-4 py-2">
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                              l.type === 'loan' ? 'bg-orange-900/30 text-orange-300' : 'bg-teal-900/30 text-teal-300'
+                              l.type === 'loan' ? 'bg-orange-100 text-orange-700' : 'bg-teal-100 text-teal-700'
                             }`}>
                               {l.type === 'loan' ? 'Loan' : 'Repayment'}
                             </span>
                           </td>
                           <td className="px-4 py-2 text-slate-400">{l.description}</td>
-                          <td className={`px-4 py-2 text-right font-medium ${l.type === 'loan' ? 'text-orange-300/80' : 'text-teal-300/80'}`}>
+                          <td className={`px-4 py-2 text-right font-medium ${l.type === 'loan' ? 'text-orange-600' : 'text-teal-600'}`}>
                             {l.type === 'repayment' ? '+' : ''}{formatCurrency(l.amount, isIntl)}
                           </td>
                           <td className="px-4 py-2">
                             <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              l.status === 'fully_repaid' ? 'bg-teal-900/30 text-teal-300' :
-                              l.status === 'partially_repaid' ? 'bg-amber-900/30 text-amber-300' :
-                              l.status === 'repaid' ? 'bg-teal-900/30 text-teal-300' :
-                              'bg-slate-700/50 text-slate-400'
+                              l.status === 'fully_repaid' ? 'bg-teal-100 text-teal-700' :
+                              l.status === 'partially_repaid' ? 'bg-amber-100 text-amber-700' :
+                              l.status === 'repaid' ? 'bg-teal-100 text-teal-700' :
+                              'bg-slate-100 text-slate-600'
                             }`}>
                               {l.status}
                             </span>
@@ -735,7 +735,7 @@ export default function MISDashboard() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
               <CardContent className="py-12 text-center">
                 <Wallet className="w-10 h-10 mx-auto mb-3 text-slate-600" />
                 <p className="text-slate-400 text-sm">No loan entries found.</p>
@@ -747,12 +747,12 @@ export default function MISDashboard() {
 
         {/* ── CENTER ANALYSIS TAB ── */}
         <TabsContent value="centers" className="space-y-6">
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
-            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Center Comparison</CardTitle></CardHeader>
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-800">Center Comparison</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={centerComparison} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
                   <XAxis type="number" stroke="#64748B" tickFormatter={(v) => formatCurrency(v, isIntl)} />
                   <YAxis dataKey="center" type="category" stroke="#64748B" width={80} fontSize={11} />
                   <Tooltip content={<PremiumTooltip />} />
@@ -764,20 +764,20 @@ export default function MISDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
-            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Growth vs Previous Period</CardTitle></CardHeader>
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-800">Growth vs Previous Period</CardTitle></CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="bg-slate-800/60">
+                  <thead><tr className="bg-slate-100/80">
                     {["Center", "Current Sales", "Prev Sales", "Sales Change", "Current Exp", "Prev Exp", "Exp Change"].map(h => (
                       <th key={h} className={`${h === "Center" ? "text-left" : "text-right"} px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider`}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {centerComparison.map((c, i) => (
-                      <tr key={i} className="border-t border-slate-800/40 hover:bg-slate-800/30">
-                        <td className="px-4 py-3 font-semibold text-slate-200">{c.center}</td>
+                      <tr key={i} className="border-t border-slate-200/60 hover:bg-slate-50">
+                        <td className="px-4 py-3 font-semibold text-slate-800">{c.center}</td>
                         <td className="px-4 py-3 text-right text-emerald-400">{formatCurrency(c.sales, isIntl)}</td>
                         <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(c.prev_sales, isIntl)}</td>
                         <td className={`px-4 py-3 text-right font-bold ${c.sales_change > 0 ? 'text-emerald-400' : c.sales_change < 0 ? 'text-red-400' : 'text-slate-400'}`}>
@@ -800,8 +800,8 @@ export default function MISDashboard() {
         {/* ── EXPENSE ANALYSIS TAB ── */}
         <TabsContent value="expenses" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
-              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Expense Distribution</CardTitle></CardHeader>
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
+              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-800">Expense Distribution</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
@@ -816,12 +816,12 @@ export default function MISDashboard() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
-              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Expenses by Category</CardTitle></CardHeader>
+            <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
+              <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-800">Expenses by Category</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={expenseAnalysis?.by_type || []} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
                     <XAxis type="number" stroke="#64748B" tickFormatter={(v) => formatCurrency(v, isIntl)} />
                     <YAxis dataKey="type" type="category" stroke="#64748B" width={100} fontSize={10} />
                     <Tooltip content={<PremiumTooltip />} />
@@ -836,21 +836,21 @@ export default function MISDashboard() {
             </Card>
           </div>
 
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
-            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Expense Head Analysis</CardTitle></CardHeader>
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-800">Expense Head Analysis</CardTitle></CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="bg-slate-800/60">
+                  <thead><tr className="bg-slate-100/80">
                     {["Expense Head", "Amount", "% of Total", "Count", "Prev Period", "Change", "Status"].map(h => (
                       <th key={h} className={`${h === "Expense Head" ? "text-left" : "text-right"} px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider`}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {expenseAnalysis?.by_type?.map((exp, i) => (
-                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 ? 'bg-slate-800/20' : ''}`}>
-                        <td className="px-4 py-2.5 font-medium text-slate-200">{exp.type}</td>
-                        <td className="px-4 py-2.5 text-right font-medium text-slate-300">{formatCurrency(exp.amount, isIntl)}</td>
+                      <tr key={i} className={`border-t border-slate-200/60 ${i % 2 ? 'bg-slate-50' : ''}`}>
+                        <td className="px-4 py-2.5 font-medium text-slate-800">{exp.type}</td>
+                        <td className="px-4 py-2.5 text-right font-medium text-slate-600">{formatCurrency(exp.amount, isIntl)}</td>
                         <td className="px-4 py-2.5 text-right text-slate-400">{exp.percentage}%</td>
                         <td className="px-4 py-2.5 text-right text-slate-400">{exp.count}</td>
                         <td className="px-4 py-2.5 text-right text-slate-500">{formatCurrency(exp.prev_amount, isIntl)}</td>
@@ -859,7 +859,7 @@ export default function MISDashboard() {
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            exp.alert === 'high' ? 'bg-red-500/20 text-red-300' : exp.alert === 'medium' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                            exp.alert === 'high' ? 'bg-red-100 text-red-700' : exp.alert === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                           }`}>{exp.alert === 'high' ? 'Alert' : exp.alert === 'medium' ? 'Watch' : 'Normal'}</span>
                         </td>
                       </tr>
@@ -873,8 +873,8 @@ export default function MISDashboard() {
 
         {/* ── ALERTS TAB ── */}
         <TabsContent value="alerts" className="space-y-6">
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
-            <CardHeader><CardTitle className="text-base font-semibold text-slate-200 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Expense Alerts</CardTitle></CardHeader>
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
+            <CardHeader><CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-400" /> Expense Alerts</CardTitle></CardHeader>
             <CardContent>
               {alerts.length === 0 ? (
                 <div className="text-center py-10">
@@ -884,17 +884,17 @@ export default function MISDashboard() {
               ) : (
                 <div className="space-y-3">
                   {alerts.map((alert, i) => (
-                    <div key={i} className={`p-4 rounded-xl border ${alert.severity === 'high' ? 'bg-red-950/40 border-red-500/20' : 'bg-amber-950/40 border-amber-500/20'}`}>
+                    <div key={i} className={`p-4 rounded-xl border ${alert.severity === 'high' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
                           {alert.severity === 'high' ? <XCircle className="w-5 h-5 text-red-400 mt-0.5" /> : <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5" />}
                           <div>
-                            <p className="font-medium text-slate-200 text-sm">{alert.message}</p>
+                            <p className="font-medium text-slate-800 text-sm">{alert.message}</p>
                             <p className="text-xs text-slate-500 mt-1">{alert.type === 'center' ? 'Center' : 'Expense Head'}: {alert.entity}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm text-slate-300">Current: {formatCurrency(alert.current, isIntl)}</p>
+                          <p className="text-sm text-slate-600">Current: {formatCurrency(alert.current, isIntl)}</p>
                           <p className="text-xs text-slate-500">Previous: {formatCurrency(alert.previous, isIntl)}</p>
                           <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-bold ${alert.severity === 'high' ? 'bg-red-500/30 text-red-300' : 'bg-amber-500/30 text-amber-300'}`}>+{alert.change?.toFixed(1)}%</span>
                         </div>
@@ -909,12 +909,12 @@ export default function MISDashboard() {
 
         {/* ── QUARTERLY TAB ── */}
         <TabsContent value="quarterly" className="space-y-6">
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
-            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Quarterly Performance</CardTitle></CardHeader>
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-800">Quarterly Performance</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={380}>
                 <ComposedChart data={quarterlyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
                   <XAxis dataKey="label" stroke="#64748B" fontSize={11} />
                   <YAxis stroke="#64748B" fontSize={10} tickFormatter={(v) => formatCurrency(v, isIntl)} />
                   <Tooltip content={<PremiumTooltip />} />
@@ -926,20 +926,20 @@ export default function MISDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur overflow-hidden">
-            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-200">Quarter-wise Breakdown</CardTitle></CardHeader>
+          <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
+            <CardHeader className="pb-2"><CardTitle className="text-base font-semibold text-slate-800">Quarter-wise Breakdown</CardTitle></CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="bg-slate-800/60">
+                  <thead><tr className="bg-slate-100/80">
                     {["Quarter", "Sales", "Expenses", "GST"].map(h => (
                       <th key={h} className={`${h === "Quarter" ? "text-left" : "text-right"} px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider`}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {quarterlyData.map((q, i) => (
-                      <tr key={i} className={`border-t border-slate-800/40 ${i % 2 ? 'bg-slate-800/20' : ''}`}>
-                        <td className="px-4 py-2.5 font-semibold text-slate-200">{q.label}</td>
+                      <tr key={i} className={`border-t border-slate-200/60 ${i % 2 ? 'bg-slate-50' : ''}`}>
+                        <td className="px-4 py-2.5 font-semibold text-slate-800">{q.label}</td>
                         <td className="px-4 py-2.5 text-right text-emerald-400">{formatCurrency(q.sales, isIntl)}</td>
                         <td className="px-4 py-2.5 text-right text-red-400">{formatCurrency(q.expenses, isIntl)}</td>
                         <td className="px-4 py-2.5 text-right text-amber-400">{formatCurrency(q.gst, isIntl)}</td>
@@ -961,7 +961,7 @@ export default function MISDashboard() {
               { title: "Needs Attention (Low Sales)", data: topPerformers?.bottom_by_sales, field: "sales", color: "orange", format: true },
               { title: "Highest Expenses", data: topPerformers?.top_by_sales?.sort?.((a, b) => (b.expenses || 0) - (a.expenses || 0))?.slice(0, 5), field: "expenses", color: "red", format: true },
             ].map((section, si) => (
-              <Card key={si} className="bg-slate-900/60 border-slate-700/40 rounded-xl backdrop-blur">
+              <Card key={si} className="bg-white border-slate-200/60 rounded-xl backdrop-blur">
                 <CardHeader className="pb-2">
                   <CardTitle className={`text-base font-semibold text-${section.color}-400`}>{section.title}</CardTitle>
                 </CardHeader>
@@ -973,7 +973,7 @@ export default function MISDashboard() {
                           <span className={`w-7 h-7 rounded-lg bg-${section.color}-500/20 flex items-center justify-center text-sm font-bold text-${section.color}-400`}>
                             {i + 1}
                           </span>
-                          <span className="font-medium text-slate-200">{c.center}</span>
+                          <span className="font-medium text-slate-800">{c.center}</span>
                         </div>
                         <span className={`font-bold text-${section.color}-400`}>
                           {section.format ? formatCurrency(c[section.field], isIntl) : `${c[section.field]?.toFixed(1)}${section.suffix || ''}`}
