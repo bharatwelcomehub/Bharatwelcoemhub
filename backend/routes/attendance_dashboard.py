@@ -151,6 +151,34 @@ async def get_dashboard_summary(req: DashboardRequest):
     # Get all employees (optionally filtered by center)
     emp_query = {"center": filter_center} if filter_center else {}
     all_employees = await db.employees.find(emp_query, {"_id": 0}).to_list(5000)
+    
+    # Include transferred-out employees who have attendance at this center on this date
+    current_emp_names = {e.get("name", "").upper() for e in all_employees}
+    if filter_center:
+        transfer_out_query = {
+            "from_center": filter_center,
+            "status": {"$in": ["ACCEPTED", "COMPLETED"]},
+            "start_date": {"$lte": target_date},
+            "$or": [
+                {"end_date": {"$gte": target_date}},
+                {"end_date": None},
+                {"end_date": ""},
+                {"transfer_type": "PERMANENT"}
+            ]
+        }
+        transfers_out = await db.transfer_requests.find(transfer_out_query, {"_id": 0}).to_list(500)
+        for t in transfers_out:
+            emp_name = t["employee_name"].upper()
+            if emp_name not in current_emp_names:
+                # Check if they have attendance at this center on this date
+                att_rec = await db.attendance.find_one(
+                    {"date": target_date, "center": filter_center, "employeeName": emp_name},
+                    {"_id": 0}
+                )
+                if att_rec:
+                    all_employees.append({"name": emp_name, "center": filter_center})
+                    current_emp_names.add(emp_name)
+    
     total_employees = len(all_employees)
     
     # Get attendance for the date (optionally filtered by center)
@@ -457,6 +485,50 @@ async def get_monthly_grid(req: DashboardRequest):
         key = f"{a.get('center')}_{a.get('employeeName')}_{a.get('date')}"
         att_map[key] = a.get("status", "")
     
+    # --- Transfer awareness: find employees transferred OUT during this month ---
+    # For each center (or the filtered center), find accepted transfers out 
+    # where the employee's center field was already changed (permanent transfers)
+    transfer_out_query = {
+        "status": {"$in": ["ACCEPTED", "COMPLETED"]},
+        "start_date": {"$lte": end_date},
+        "$or": [
+            {"end_date": {"$gte": start_date}},
+            {"end_date": None},
+            {"end_date": ""},
+            {"transfer_type": "PERMANENT"}
+        ]
+    }
+    if filter_center:
+        transfer_out_query["from_center"] = filter_center
+    
+    transfers_out = await db.transfer_requests.find(transfer_out_query, {"_id": 0}).to_list(500)
+    
+    # Build set of current employee names per center
+    current_emp_names_by_center = {}
+    for emp in employees:
+        c = emp.get("center", "")
+        if c not in current_emp_names_by_center:
+            current_emp_names_by_center[c] = set()
+        current_emp_names_by_center[c].add(emp.get("name", "").upper())
+    
+    # Find transferred-out employees missing from current employee list
+    transferred_out_emps = []
+    for t in transfers_out:
+        emp_name = t["employee_name"].upper()
+        from_center = t["from_center"]
+        current_names = current_emp_names_by_center.get(from_center, set())
+        if emp_name not in current_names:
+            # Employee no longer in this center, fetch their record
+            emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
+            if emp:
+                transferred_out_emps.append({
+                    "name": emp_name,
+                    "original_center": from_center,
+                    "designation": emp.get("designation", ""),
+                    "to_center": t["to_center"],
+                    "transfer_start": t["start_date"]
+                })
+    
     # Build employee grid data
     employee_grid = []
     center_stats = {}
@@ -497,7 +569,52 @@ async def get_monthly_grid(req: DashboardRequest):
             "name": emp_name,
             "center": emp_center,
             "designation": emp.get("designation", ""),
-            "attendance": attendance
+            "attendance": attendance,
+            "transfer_tag": "HOME"
+        })
+    
+    # Add transferred-out employees to the grid (they belong to the source center)
+    for t_emp in transferred_out_emps:
+        emp_name = t_emp["name"]
+        from_center = t_emp["original_center"]
+        
+        # Initialize center stats if needed
+        if from_center not in center_stats:
+            center_stats[from_center] = {
+                "total_staff": 0, "present": 0, "absent": 0,
+                "half_day": 0, "week_off": 0, "leave": 0
+            }
+        center_stats[from_center]["total_staff"] += 1
+        
+        attendance = []
+        for d in range(1, dim + 1):
+            date_str = f"{month}-{d:02d}"
+            key = f"{from_center}_{emp_name}_{date_str}"
+            status = att_map.get(key, "")
+            attendance.append(status)
+            
+            # Update center stats
+            if status == "P" or status == "LATE":
+                center_stats[from_center]["present"] += 1
+            elif status == "A":
+                center_stats[from_center]["absent"] += 1
+            elif status == "HD":
+                center_stats[from_center]["half_day"] += 1
+            elif status == "WO":
+                center_stats[from_center]["week_off"] += 1
+            elif status == "L":
+                center_stats[from_center]["leave"] += 1
+        
+        employee_grid.append({
+            "name": emp_name,
+            "center": from_center,
+            "designation": t_emp.get("designation", ""),
+            "attendance": attendance,
+            "transfer_tag": "TRANSFERRED_OUT",
+            "transfer_info": {
+                "to_center": t_emp["to_center"],
+                "transfer_start": t_emp["transfer_start"]
+            }
         })
     
     # Build center summary

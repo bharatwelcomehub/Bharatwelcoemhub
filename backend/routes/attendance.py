@@ -330,7 +330,7 @@ async def attendance_month(req: MonthRequest):
                     "transfer_end": t.get("end_date", "")
                 })
     
-    # Build out names set
+    # Build out names set and details
     out_names_set = {t["employee_name"].upper() for t in transfers_out}
     out_details_map = {}
     for t in transfers_out:
@@ -341,7 +341,27 @@ async def attendance_month(req: MonthRequest):
             "transfer_end": t.get("end_date", "")
         }
     
-    # Get all attendance for month (include transferred-in employees)
+    # Build transferred-out employee details for employees no longer in this center
+    # (e.g. PERMANENT transfers change the employee's center field)
+    transferred_out_emps = []
+    current_emp_names = {e.get("name", "").upper() for e in employees}
+    for t in transfers_out:
+        emp_name = t["employee_name"].upper()
+        if emp_name not in current_emp_names:
+            # Employee's center was already changed, fetch their current record
+            emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
+            if emp:
+                transferred_out_emps.append({
+                    "name": emp_name,
+                    "designation": emp.get("designation", ""),
+                    "transfer_tag": "TRANSFERRED_OUT",
+                    "to_center": t["to_center"],
+                    "transfer_type": t["transfer_type"],
+                    "transfer_start": t["start_date"],
+                    "transfer_end": t.get("end_date", "")
+                })
+    
+    # Get all attendance for month (include transferred-in AND transferred-out employees)
     attendance = await db.attendance.find(
         {
             "center": center,
@@ -381,6 +401,29 @@ async def attendance_month(req: MonthRequest):
             "designation": emp.get("designation", ""),
             "transfer_tag": tag,
             "transfer_info": transfer_info,
+            "days": days
+        })
+    
+    # Add transferred-out employees who are no longer in this center's employee list
+    for t_emp in transferred_out_emps:
+        emp_name = t_emp["name"]
+        days = []
+        for d in range(1, dim + 1):
+            date_str = f"{req.month}-{d:02d}"
+            key = f"{emp_name}_{date_str}"
+            status = att_map.get(key, "")
+            days.append({"day": d, "status": status})
+        
+        grid.append({
+            "employeeName": emp_name,
+            "designation": t_emp.get("designation", ""),
+            "transfer_tag": "TRANSFERRED_OUT",
+            "transfer_info": {
+                "to_center": t_emp["to_center"],
+                "transfer_type": t_emp["transfer_type"],
+                "transfer_start": t_emp["transfer_start"],
+                "transfer_end": t_emp["transfer_end"]
+            },
             "days": days
         })
     

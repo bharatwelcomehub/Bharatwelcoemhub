@@ -579,9 +579,16 @@ export default function AttendanceDashboard() {
                     const isEven = empIdx % 2 === 0;
 
                     return (
-                      <tr key={`${emp.center}-${emp.name}-${empIdx}`} className={isEven ? "bg-white dark:bg-slate-950" : "bg-gray-50 dark:bg-slate-900"}>
+                      <tr key={`${emp.center}-${emp.name}-${empIdx}`} className={`${isEven ? "bg-white dark:bg-slate-950" : "bg-gray-50 dark:bg-slate-900"} ${emp.transfer_tag === "TRANSFERRED_OUT" ? "opacity-80" : ""}`}>
                         <td className={`border border-gray-200 dark:border-gray-700 p-1.5 font-medium sticky left-0 z-10 ${isEven ? "bg-white dark:bg-slate-950" : "bg-gray-50 dark:bg-slate-900"}`}>
-                          <span className="truncate block max-w-[140px]" title={emp.name}>{emp.name}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="truncate block max-w-[120px]" title={emp.name}>{emp.name}</span>
+                            {emp.transfer_tag === "TRANSFERRED_OUT" && (
+                              <span className="text-[8px] px-1 py-0.5 bg-orange-100 text-orange-700 border border-orange-300 rounded whitespace-nowrap" title={`Transferred to ${emp.transfer_info?.to_center || "?"} on ${emp.transfer_info?.transfer_start || "?"}`}>
+                                OUT
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="border border-gray-200 dark:border-gray-700 p-1.5 text-muted-foreground font-mono">
                           {emp.center}
