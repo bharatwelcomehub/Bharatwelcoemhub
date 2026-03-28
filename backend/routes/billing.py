@@ -181,7 +181,30 @@ async def create_order(data: dict):
     center = data.get("center")
     table_no = data.get("table_no", "")
     order_type = data.get("order_type", "Dine-In")
+    guest_count = data.get("guest_count", 0)
+    customer_name = data.get("customer_name", "")
+    customer_phone = data.get("customer_phone", "")
+    table_id = data.get("table_id", "")
     session = await check_access(token)
+
+    # Validate based on order type
+    if order_type == "Dine-In":
+        if not table_no and not table_id:
+            raise HTTPException(400, "Table selection is mandatory for Dine-In orders")
+        if not guest_count or int(guest_count) < 1:
+            raise HTTPException(400, "Guest count is mandatory for Dine-In orders")
+    elif order_type in ("Takeaway", "Delivery"):
+        if not customer_name or not customer_name.strip():
+            raise HTTPException(400, "Customer name is mandatory for Takeaway/Delivery orders")
+        if not customer_phone or not customer_phone.strip():
+            raise HTTPException(400, "Customer phone is mandatory for Takeaway/Delivery orders")
+
+    # If table_id provided, mark table as occupied
+    if table_id:
+        await db.billing_tables.update_one(
+            {"table_id": table_id},
+            {"$set": {"status": "occupied", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
 
     order_id = await _next_sequence(center, "ORD")
 
@@ -189,7 +212,11 @@ async def create_order(data: dict):
         "order_id": order_id,
         "center": center,
         "table_no": table_no,
+        "table_id": table_id,
         "order_type": order_type,
+        "guest_count": int(guest_count) if guest_count else 0,
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
         "items": [],
         "status": "active",
         "kot_count": 0,
@@ -279,8 +306,21 @@ async def update_item_qty(data: dict):
 async def cancel_order(data: dict):
     token = data.get("token")
     order_id = data.get("order_id")
+    reason_id = data.get("reason_id", "")
     reason = data.get("reason", "")
     session = await check_access(token)
+
+    if not reason_id and not reason:
+        raise HTTPException(400, "Cancellation reason is mandatory")
+
+    # If reason_id provided, validate it exists in master
+    reason_text = reason
+    if reason_id:
+        master_reason = await db.billing_cancel_reasons.find_one(
+            {"reason_id": reason_id}, {"_id": 0}
+        )
+        if master_reason:
+            reason_text = master_reason.get("reason", reason)
 
     order = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
     if not order:
@@ -288,13 +328,38 @@ async def cancel_order(data: dict):
     if order["status"] == "billed":
         raise HTTPException(400, "Cannot cancel a billed order. Use void instead.")
 
+    # Free up the table if Dine-In
+    if order.get("table_id"):
+        await db.billing_tables.update_one(
+            {"table_id": order["table_id"]},
+            {"$set": {"status": "available", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+
+    cancel_audit = {
+        "action": "order_cancel",
+        "order_id": order_id,
+        "center": order.get("center", ""),
+        "reason_id": reason_id,
+        "reason": reason_text,
+        "cancelled_by": session.get("name", ""),
+        "cancelled_by_role": session.get("role_key", ""),
+        "cancelled_at": datetime.now(timezone.utc).isoformat(),
+        "order_items": order.get("items", []),
+        "order_total": sum(i.get("total", 0) for i in order.get("items", []))
+    }
+
+    await db.billing_audit_trail.insert_one(cancel_audit)
+    cancel_audit.pop("_id", None)
+
     await db.orders.update_one(
         {"order_id": order_id},
         {"$set": {
             "status": "cancelled",
-            "cancel_reason": reason,
+            "cancel_reason_id": reason_id,
+            "cancel_reason": reason_text,
             "cancelled_at": datetime.now(timezone.utc).isoformat(),
             "cancelled_by": session.get("name", ""),
+            "cancelled_by_role": session.get("role_key", ""),
             "updated_at": datetime.now(timezone.utc).isoformat()
         }}
     )
@@ -394,6 +459,62 @@ async def get_kot_print_data(data: dict):
         raise HTTPException(404, "KOT not found")
 
     return {"kot": kot}
+
+
+@router.post("/kot/cancel")
+async def cancel_kot(data: dict):
+    """Cancel a KOT with mandatory reason from master."""
+    token = data.get("token")
+    kot_no = data.get("kot_no")
+    reason_id = data.get("reason_id", "")
+    reason = data.get("reason", "")
+    session = await check_access(token)
+
+    if not reason_id and not reason:
+        raise HTTPException(400, "Cancellation reason is mandatory")
+
+    reason_text = reason
+    if reason_id:
+        master_reason = await db.billing_cancel_reasons.find_one(
+            {"reason_id": reason_id}, {"_id": 0}
+        )
+        if master_reason:
+            reason_text = master_reason.get("reason", reason)
+
+    kot = await db.kot_entries.find_one({"kot_no": kot_no}, {"_id": 0})
+    if not kot:
+        raise HTTPException(404, "KOT not found")
+
+    cancel_audit = {
+        "action": "kot_cancel",
+        "kot_no": kot_no,
+        "order_id": kot.get("order_id", ""),
+        "center": kot.get("center", ""),
+        "reason_id": reason_id,
+        "reason": reason_text,
+        "cancelled_by": session.get("name", ""),
+        "cancelled_by_role": session.get("role_key", ""),
+        "cancelled_at": datetime.now(timezone.utc).isoformat(),
+        "kot_items": kot.get("items", [])
+    }
+
+    await db.billing_audit_trail.insert_one(cancel_audit)
+    cancel_audit.pop("_id", None)
+
+    await db.kot_entries.update_one(
+        {"kot_no": kot_no},
+        {"$set": {
+            "status": "cancelled",
+            "cancel_reason_id": reason_id,
+            "cancel_reason": reason_text,
+            "cancelled_at": datetime.now(timezone.utc).isoformat(),
+            "cancelled_by": session.get("name", "")
+        }}
+    )
+
+    return {"success": True, "message": "KOT cancelled"}
+
+
 
 
 # =======================================
@@ -567,6 +688,13 @@ async def generate_bill(data: dict):
         }}
     )
 
+    # Free up the table after billing
+    if order.get("table_id"):
+        await db.billing_tables.update_one(
+            {"table_id": order["table_id"]},
+            {"$set": {"status": "available", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+
     return {"success": True, "bill": bill}
 
 
@@ -574,11 +702,24 @@ async def generate_bill(data: dict):
 async def void_bill(data: dict):
     token = data.get("token")
     bill_no = data.get("bill_no")
+    reason_id = data.get("reason_id", "")
     reason = data.get("reason", "")
     session = await check_access(token)
 
     if not session.get("is_super_admin") and not session.get("is_admin"):
         raise HTTPException(403, "Only Admin can void bills")
+
+    if not reason_id and not reason:
+        raise HTTPException(400, "Cancellation reason is mandatory for voiding bills")
+
+    # Validate reason from master
+    reason_text = reason
+    if reason_id:
+        master_reason = await db.billing_cancel_reasons.find_one(
+            {"reason_id": reason_id}, {"_id": 0}
+        )
+        if master_reason:
+            reason_text = master_reason.get("reason", reason)
 
     bill = await db.bills.find_one({"bill_no": bill_no}, {"_id": 0})
     if not bill:
@@ -586,21 +727,48 @@ async def void_bill(data: dict):
     if bill["status"] == "void":
         raise HTTPException(400, "Bill already voided")
 
+    void_audit = {
+        "action": "bill_void",
+        "bill_no": bill_no,
+        "order_id": bill.get("order_id", ""),
+        "center": bill.get("center", ""),
+        "reason_id": reason_id,
+        "reason": reason_text,
+        "voided_by": session.get("name", ""),
+        "voided_by_role": session.get("role_key", ""),
+        "voided_at": datetime.now(timezone.utc).isoformat(),
+        "bill_total": bill.get("grand_total", 0),
+        "payment_mode": bill.get("payment_mode", "")
+    }
+
+    await db.billing_audit_trail.insert_one(void_audit)
+    void_audit.pop("_id", None)
+
     await db.bills.update_one(
         {"bill_no": bill_no},
         {"$set": {
             "status": "void",
-            "void_reason": reason,
+            "void_reason_id": reason_id,
+            "void_reason": reason_text,
             "voided_at": datetime.now(timezone.utc).isoformat(),
-            "voided_by": session.get("name", "")
+            "voided_by": session.get("name", ""),
+            "voided_by_role": session.get("role_key", "")
         }}
     )
 
-    # Revert order status
+    # Revert order status and free table
+    order = await db.orders.find_one({"order_id": bill["order_id"]}, {"_id": 0})
     await db.orders.update_one(
         {"order_id": bill["order_id"]},
         {"$set": {"status": "void", "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
+
+    # Free up the table
+    if order and order.get("table_id"):
+        await db.billing_tables.update_one(
+            {"table_id": order["table_id"]},
+            {"$set": {"status": "available", "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
 
     return {"success": True, "message": "Bill voided"}
 

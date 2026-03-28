@@ -32,7 +32,10 @@ import {
   Globe,
   ArrowRightLeft,
   Database,
-  UtensilsCrossed
+  UtensilsCrossed,
+  LayoutGrid,
+  Ban,
+  Cog
 } from "lucide-react";
 
 // Import pages
@@ -61,6 +64,7 @@ import MasterDataManagement from "@/pages/MasterDataManagement";
 import FranchiseOwnerDashboard from "@/pages/FranchiseOwnerDashboard";
 import MenuManagement from "@/pages/MenuManagement";
 import POSBilling from "@/pages/POSBilling";
+import BillingConfiguration from "@/pages/BillingConfiguration";
 
 // Menu categories structure
 const menuCategories = [
@@ -121,7 +125,6 @@ const menuCategories = [
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
       { path: "/master-data", icon: Database, label: "Master Data", forMGT: true },
-      { path: "/menu-management", icon: UtensilsCrossed, label: "Menu Management", forMGT: true },
     ]
   },
   {
@@ -155,6 +158,8 @@ const menuCategories = [
     forAdmin: true,
     items: [
       { path: "/pos-billing", icon: Receipt, label: "POS / Billing", roleKey: "billing", forAdmin: true },
+      { path: "/billing-config", icon: Cog, label: "Configuration", roleKey: "billing", forAdmin: true },
+      { path: "/menu-management", icon: UtensilsCrossed, label: "Menu Items", roleKey: "billing", forAdmin: true },
     ]
   },
 ];
@@ -440,6 +445,7 @@ export default function Dashboard() {
             <Route path="/menu-management" element={<MenuManagement />} />
             <Route path="/franchise-dashboard" element={<FranchiseOwnerDashboard />} />
             <Route path="/pos-billing" element={<POSBilling />} />
+            <Route path="/billing-config" element={<BillingConfiguration />} />
           </Routes>
         </div>
       </main>

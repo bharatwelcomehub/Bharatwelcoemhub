@@ -2042,6 +2042,14 @@ set_billing_verify_token(verify_token)
 set_billing_verify_token_async(verify_token_async)
 app.include_router(billing_router)
 
+# Include Billing Config Masters router
+from routes.billing_config import router as billing_config_router, set_db as set_bc_db, set_verify_token as set_bc_verify_token, set_verify_token_async as set_bc_verify_token_async
+set_bc_db(db)
+set_bc_verify_token(verify_token)
+set_bc_verify_token_async(verify_token_async)
+app.include_router(billing_config_router)
+
+
 
 # Include Booking Intelligence router
 from routes.booking_intelligence import router as booking_router, set_db as set_booking_db, set_verify_token as set_booking_verify_token, set_verify_token_async as set_booking_verify_token_async

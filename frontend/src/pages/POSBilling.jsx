@@ -63,6 +63,15 @@ export default function POSBilling() {
   const [tableNo, setTableNo] = useState("");
   const [orderType, setOrderType] = useState("Dine-In");
 
+  // NEW: Pre-order flow state
+  const [availableTables, setAvailableTables] = useState([]);
+  const [selectedTableId, setSelectedTableId] = useState("");
+  const [guestCount, setGuestCount] = useState(1);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [showPreOrderDialog, setShowPreOrderDialog] = useState(false);
+  const [preOrderStep, setPreOrderStep] = useState("type"); // "type" | "table" | "guest" | "customer"
+
   // Active orders
   const [activeOrders, setActiveOrders] = useState([]);
   const [showActiveOrders, setShowActiveOrders] = useState(false);
@@ -73,8 +82,8 @@ export default function POSBilling() {
   const [discountType, setDiscountType] = useState("none");
   const [discountValue, setDiscountValue] = useState(0);
   const [paymentMode, setPaymentMode] = useState("Cash");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [billCustomerName, setBillCustomerName] = useState("");
+  const [billCustomerPhone, setBillCustomerPhone] = useState("");
 
   // KOT print dialog
   const [showKOTDialog, setShowKOTDialog] = useState(false);
@@ -88,9 +97,11 @@ export default function POSBilling() {
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [configForm, setConfigForm] = useState({});
 
-  // Cancel dialog
+  // Cancel dialog - now with master reasons
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReasons, setCancelReasons] = useState([]);
+  const [selectedCancelReasonId, setSelectedCancelReasonId] = useState("");
+  const [cancelReasonText, setCancelReasonText] = useState("");
 
   const [loading, setLoading] = useState(false);
   const searchRef = useRef(null);
@@ -117,13 +128,17 @@ export default function POSBilling() {
     if (!selectedCenter || !session?.token) return;
     const fetchMenu = async () => {
       try {
-        const [menuRes, configRes] = await Promise.all([
+        const [menuRes, configRes, tablesRes, reasonsRes] = await Promise.all([
           api.post("/billing/menu", { token: session.token, center: selectedCenter }),
           api.post("/billing/config/get", { token: session.token, center: selectedCenter }),
+          api.post("/billing-config/tables/list", { token: session.token, center: selectedCenter }),
+          api.post("/billing-config/cancel-reasons/list", { token: session.token, type: "order" }),
         ]);
         setMenuItems(menuRes.data.items || []);
         setCategories(menuRes.data.categories || []);
         setBillingConfig(configRes.data.config || null);
+        setAvailableTables((tablesRes.data.tables || []).filter(t => t.is_active !== false));
+        setCancelReasons(reasonsRes.data.reasons || []);
       } catch (err) {
         toast.error("Failed to load menu");
       }
@@ -151,53 +166,85 @@ export default function POSBilling() {
 
   // ── ORDER ACTIONS ──
 
-  const startNewOrder = async () => {
+  const openNewOrderFlow = () => {
     if (!selectedCenter) { toast.error("Select a center first"); return; }
+    setOrderType("Dine-In");
+    setSelectedTableId("");
+    setTableNo("");
+    setGuestCount(1);
+    setCustomerName("");
+    setCustomerPhone("");
+    setPreOrderStep("type");
+    setShowPreOrderDialog(true);
+  };
+
+  const proceedPreOrder = () => {
+    if (preOrderStep === "type") {
+      if (orderType === "Dine-In") {
+        setPreOrderStep("table");
+      } else {
+        setPreOrderStep("customer");
+      }
+    } else if (preOrderStep === "table") {
+      if (!selectedTableId && !tableNo) {
+        toast.error("Please select a table");
+        return;
+      }
+      setPreOrderStep("guest");
+    } else if (preOrderStep === "guest") {
+      if (!guestCount || guestCount < 1) {
+        toast.error("Please enter guest count");
+        return;
+      }
+      createOrderFromFlow();
+    } else if (preOrderStep === "customer") {
+      if (!customerName.trim()) {
+        toast.error("Customer name is required");
+        return;
+      }
+      if (!customerPhone.trim()) {
+        toast.error("Customer phone is required");
+        return;
+      }
+      createOrderFromFlow();
+    }
+  };
+
+  const createOrderFromFlow = async () => {
     try {
+      const selectedTable = availableTables.find(t => t.table_id === selectedTableId);
       const res = await api.post("/billing/order/create", {
         token: session.token,
         center: selectedCenter,
-        table_no: tableNo,
+        table_no: selectedTable?.table_no || tableNo,
+        table_id: selectedTableId || "",
         order_type: orderType,
+        guest_count: orderType === "Dine-In" ? guestCount : 0,
+        customer_name: customerName,
+        customer_phone: customerPhone,
       });
       setCurrentOrder(res.data.order);
       setOrderItems([]);
+      setBillCustomerName(customerName);
+      setBillCustomerPhone(customerPhone);
+      setShowPreOrderDialog(false);
+      // Refresh tables to update occupied status
+      const tablesRes = await api.post("/billing-config/tables/list", { token: session.token, center: selectedCenter });
+      setAvailableTables((tablesRes.data.tables || []).filter(t => t.is_active !== false));
       toast.success(`Order ${res.data.order.order_id} created`);
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to create order");
     }
   };
 
+  const startNewOrder = () => {
+    openNewOrderFlow();
+  };
+
   const addItemToOrder = async (menuItem) => {
     if (!currentOrder) {
-      // Auto-create order
-      if (!selectedCenter) { toast.error("Select a center first"); return; }
-      try {
-        const res = await api.post("/billing/order/create", {
-          token: session.token,
-          center: selectedCenter,
-          table_no: tableNo,
-          order_type: orderType,
-        });
-        setCurrentOrder(res.data.order);
-        // Add item to the new order
-        const addRes = await api.post("/billing/order/add-items", {
-          token: session.token,
-          order_id: res.data.order.order_id,
-          items: [{
-            item_name: menuItem.name,
-            category: menuItem.category,
-            qty: 1,
-            unit_price: menuItem.price,
-            is_veg: menuItem.is_veg,
-          }]
-        });
-        setCurrentOrder(addRes.data.order);
-        setOrderItems(addRes.data.order.items || []);
-        toast.success(`${menuItem.name} added`);
-      } catch (err) {
-        toast.error(err.response?.data?.detail || "Failed");
-      }
+      // Must go through pre-order flow
+      openNewOrderFlow();
       return;
     }
 
@@ -335,8 +382,8 @@ export default function POSBilling() {
         payment_mode: paymentMode,
         discount_type: discountType,
         discount_value: discountValue,
-        customer_name: customerName,
-        customer_phone: customerPhone,
+        customer_name: billCustomerName,
+        customer_phone: billCustomerPhone,
       });
       setReceiptData(res.data.bill);
       setShowBillDialog(false);
@@ -345,8 +392,11 @@ export default function POSBilling() {
       setOrderItems([]);
       setDiscountType("none");
       setDiscountValue(0);
-      setCustomerName("");
-      setCustomerPhone("");
+      setBillCustomerName("");
+      setBillCustomerPhone("");
+      // Refresh tables
+      const tablesRes = await api.post("/billing-config/tables/list", { token: session.token, center: selectedCenter });
+      setAvailableTables((tablesRes.data.tables || []).filter(t => t.is_active !== false));
       fetchActiveOrders();
       toast.success(`Bill ${res.data.bill.bill_no} generated`);
     } catch (err) {
@@ -358,17 +408,26 @@ export default function POSBilling() {
 
   const cancelOrder = async () => {
     if (!currentOrder) return;
+    if (!selectedCancelReasonId && !cancelReasonText) {
+      toast.error("Please select a cancellation reason");
+      return;
+    }
     try {
       await api.post("/billing/order/cancel", {
         token: session.token,
         order_id: currentOrder.order_id,
-        reason: cancelReason,
+        reason_id: selectedCancelReasonId,
+        reason: cancelReasonText || cancelReasons.find(r => r.reason_id === selectedCancelReasonId)?.reason || "",
       });
       toast.success("Order cancelled");
       setCurrentOrder(null);
       setOrderItems([]);
       setShowCancelDialog(false);
-      setCancelReason("");
+      setSelectedCancelReasonId("");
+      setCancelReasonText("");
+      // Refresh tables
+      const tablesRes = await api.post("/billing-config/tables/list", { token: session.token, center: selectedCenter });
+      setAvailableTables((tablesRes.data.tables || []).filter(t => t.is_active !== false));
       fetchActiveOrders();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Cancel failed");
@@ -431,7 +490,7 @@ export default function POSBilling() {
         </Select>
 
         <Select value={orderType} onValueChange={setOrderType}>
-          <SelectTrigger className="w-[110px] bg-slate-800 border-slate-600 text-white text-sm h-8">
+          <SelectTrigger className="w-[110px] bg-slate-800 border-slate-600 text-white text-sm h-8" data-testid="pos-order-type-select">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -441,16 +500,16 @@ export default function POSBilling() {
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-400">Table</span>
-          <Input
-            value={tableNo}
-            onChange={(e) => setTableNo(e.target.value)}
-            placeholder="T1"
-            className="w-[60px] bg-slate-800 border-slate-600 text-white text-sm h-8 text-center"
-            data-testid="pos-table-input"
-          />
-        </div>
+        <Button
+          size="sm"
+          onClick={openNewOrderFlow}
+          disabled={!!currentOrder}
+          className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+          data-testid="pos-new-order-btn"
+        >
+          <Plus className="w-3.5 h-3.5 mr-1" />
+          New Order
+        </Button>
 
         <div className="flex-1" />
 
@@ -604,6 +663,7 @@ export default function POSBilling() {
               <div className="flex items-center gap-1">
                 <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">
                   {currentOrder.table_no || "No Table"}
+                  {currentOrder.guest_count ? ` (${currentOrder.guest_count} pax)` : ""}
                 </Badge>
                 <Button variant="ghost" size="icon" onClick={clearOrder} className="h-6 w-6 text-slate-500 hover:text-red-400">
                   <X className="w-3.5 h-3.5" />
@@ -785,11 +845,11 @@ export default function POSBilling() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Customer Name</label>
-                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Optional" className="bg-slate-800 border-slate-600 text-white h-8 text-sm" />
+                <Input value={billCustomerName} onChange={e => setBillCustomerName(e.target.value)} placeholder="Optional" className="bg-slate-800 border-slate-600 text-white h-8 text-sm" />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Phone</label>
-                <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Optional" className="bg-slate-800 border-slate-600 text-white h-8 text-sm" />
+                <Input value={billCustomerPhone} onChange={e => setBillCustomerPhone(e.target.value)} placeholder="Optional" className="bg-slate-800 border-slate-600 text-white h-8 text-sm" />
               </div>
             </div>
 
@@ -1017,15 +1077,30 @@ export default function POSBilling() {
               <Ban className="w-5 h-5" /> Cancel Order
             </DialogTitle>
           </DialogHeader>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Reason for cancellation</label>
-            <Input
-              value={cancelReason}
-              onChange={e => setCancelReason(e.target.value)}
-              placeholder="Enter reason..."
-              className="bg-slate-800 border-slate-600 text-white"
-              data-testid="pos-cancel-reason"
-            />
+          <div className="space-y-3">
+            <label className="text-xs text-slate-400 mb-1 block">Reason for cancellation *</label>
+            {cancelReasons.filter(r => r.type === "order" && r.is_active !== false).length > 0 ? (
+              <Select value={selectedCancelReasonId} onValueChange={(v) => { setSelectedCancelReasonId(v); setCancelReasonText(""); }}>
+                <SelectTrigger className="bg-slate-800 border-slate-600 text-white" data-testid="pos-cancel-reason-select">
+                  <SelectValue placeholder="Select reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {cancelReasons.filter(r => r.type === "order" && r.is_active !== false).map(r => (
+                    <SelectItem key={r.reason_id} value={r.reason_id}>{r.reason}</SelectItem>
+                  ))}
+                  <SelectItem value="__other__">Other (specify)</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+            {(selectedCancelReasonId === "__other__" || cancelReasons.filter(r => r.type === "order" && r.is_active !== false).length === 0) && (
+              <Input
+                value={cancelReasonText}
+                onChange={e => setCancelReasonText(e.target.value)}
+                placeholder="Enter reason..."
+                className="bg-slate-800 border-slate-600 text-white"
+                data-testid="pos-cancel-reason-text"
+              />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelDialog(false)} className="border-slate-600 text-slate-300">Back</Button>
@@ -1119,6 +1194,176 @@ export default function POSBilling() {
             <Button variant="outline" onClick={() => setShowConfigDialog(false)} className="border-slate-600 text-slate-300">Cancel</Button>
             <Button onClick={saveConfig} className="bg-amber-600 hover:bg-amber-500 text-white" data-testid="pos-save-config">
               Save Configuration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ PRE-ORDER FLOW DIALOG ═══ */}
+      <Dialog open={showPreOrderDialog} onOpenChange={setShowPreOrderDialog}>
+        <DialogContent className="max-w-md bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-400">
+              <Receipt className="w-5 h-5" /> New Order — {
+                preOrderStep === "type" ? "Select Type" :
+                preOrderStep === "table" ? "Select Table" :
+                preOrderStep === "guest" ? "Guest Count" :
+                "Customer Details"
+              }
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Step: Order Type */}
+          {preOrderStep === "type" && (
+            <div className="space-y-3" data-testid="pre-order-step-type">
+              <p className="text-sm text-slate-400">What type of order?</p>
+              <div className="grid grid-cols-3 gap-3">
+                {["Dine-In", "Takeaway", "Delivery"].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setOrderType(t)}
+                    className={`p-4 rounded-lg border-2 text-center transition-all ${
+                      orderType === t
+                        ? "border-amber-500 bg-amber-500/10 text-amber-400"
+                        : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600"
+                    }`}
+                    data-testid={`pre-order-type-${t.toLowerCase()}`}
+                  >
+                    <div className="text-2xl mb-1">
+                      {t === "Dine-In" ? "🍽" : t === "Takeaway" ? "📦" : "🛵"}
+                    </div>
+                    <span className="text-sm font-medium">{t}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step: Table Selection (Dine-In only) */}
+          {preOrderStep === "table" && (
+            <div className="space-y-3" data-testid="pre-order-step-table">
+              <p className="text-sm text-slate-400">Select a table for Dine-In</p>
+              {availableTables.filter(t => t.status === "available").length > 0 ? (
+                <div className="grid grid-cols-3 gap-2 max-h-[300px] overflow-y-auto">
+                  {availableTables.filter(t => t.status === "available").map(t => (
+                    <button
+                      key={t.table_id}
+                      onClick={() => { setSelectedTableId(t.table_id); setTableNo(t.table_no); }}
+                      className={`p-3 rounded-lg border-2 text-center transition-all ${
+                        selectedTableId === t.table_id
+                          ? "border-amber-500 bg-amber-500/10"
+                          : "border-slate-700 bg-slate-800 hover:border-slate-600"
+                      }`}
+                      data-testid={`pre-order-table-${t.table_no}`}
+                    >
+                      <p className="font-bold text-white text-lg">{t.table_no}</p>
+                      <p className="text-[11px] text-slate-400">{t.capacity} pax</p>
+                      <p className="text-[10px] text-slate-500">{t.floor}{t.section ? ` / ${t.section}` : ""}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-6 text-center">
+                  <p className="text-slate-500 text-sm mb-2">No tables configured or all occupied</p>
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1 block">Enter table manually</label>
+                    <Input
+                      value={tableNo}
+                      onChange={e => { setTableNo(e.target.value); setSelectedTableId(""); }}
+                      placeholder="e.g. T1"
+                      className="bg-slate-800 border-slate-600 text-white text-center"
+                      data-testid="pre-order-manual-table"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step: Guest Count (Dine-In only) */}
+          {preOrderStep === "guest" && (
+            <div className="space-y-3" data-testid="pre-order-step-guest">
+              <p className="text-sm text-slate-400">
+                Table: <span className="text-white font-semibold">{tableNo || selectedTableId}</span> — How many guests?
+              </p>
+              <div className="flex items-center justify-center gap-4 py-4">
+                <button
+                  onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
+                  className="w-12 h-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-xl font-bold flex items-center justify-center"
+                >
+                  -
+                </button>
+                <span className="text-5xl font-bold text-amber-400 w-20 text-center" data-testid="pre-order-guest-count">{guestCount}</span>
+                <button
+                  onClick={() => setGuestCount(guestCount + 1)}
+                  className="w-12 h-12 rounded-full bg-slate-700 hover:bg-slate-600 text-white text-xl font-bold flex items-center justify-center"
+                >
+                  +
+                </button>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[1,2,3,4,5,6,7,8,10,12].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setGuestCount(n)}
+                    className={`py-2 rounded text-sm font-medium transition-all ${
+                      guestCount === n ? "bg-amber-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step: Customer Details (Takeaway/Delivery) */}
+          {preOrderStep === "customer" && (
+            <div className="space-y-3" data-testid="pre-order-step-customer">
+              <p className="text-sm text-slate-400">Customer details for {orderType}</p>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Customer Name *</label>
+                <Input
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  placeholder="Full name"
+                  className="bg-slate-800 border-slate-600 text-white"
+                  data-testid="pre-order-customer-name"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Mobile Number *</label>
+                <Input
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value)}
+                  placeholder="10-digit mobile"
+                  className="bg-slate-800 border-slate-600 text-white"
+                  data-testid="pre-order-customer-phone"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {preOrderStep !== "type" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (preOrderStep === "table") setPreOrderStep("type");
+                  else if (preOrderStep === "guest") setPreOrderStep("table");
+                  else if (preOrderStep === "customer") setPreOrderStep("type");
+                }}
+                className="border-slate-600 text-slate-300"
+              >
+                Back
+              </Button>
+            )}
+            <Button
+              onClick={proceedPreOrder}
+              className="bg-amber-600 hover:bg-amber-500 text-white"
+              data-testid="pre-order-proceed-btn"
+            >
+              {(preOrderStep === "guest" || preOrderStep === "customer") ? "Start Order" : "Next"}
             </Button>
           </DialogFooter>
         </DialogContent>
