@@ -6,7 +6,7 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
 ## Architecture: MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING
 - All center names, roles, expense categories, payment modes fetched from MongoDB master tables
 - Strict RBAC via Permission Engine (Super Admin, Admin, Center Manager, Franchise Owner)
-- No hardcoded center codes (PB-MGT, PB-PERTH, etc.) in access control logic
+- No hardcoded center codes in access control logic
 
 ## Tech Stack
 - Frontend: React + Shadcn/UI + Tailwind CSS
@@ -14,60 +14,52 @@ Internal management system for "Purnabramha," a restaurant franchise. The system
 - Database: MongoDB
 - Libraries: xlsx (Excel), ReportLab (PDF), Emergent Object Storage
 
-## User Personas
-- **Super Admin**: Full access to all modules, centers, and settings
-- **Admin**: Full access to operations, limited settings
-- **Center Manager**: Access only to their assigned center's data
-- **Franchise Owner**: View-only dashboard for their mapped business entity
+## Key DB Collections
+- `billing_tables`: {table_id, table_no, center, capacity, floor, section, status, is_active}
+- `billing_cancel_reasons`: {reason_id, reason, type (order/bill/kot), is_active}
+- `billing_audit_trail`: {action, order_id/bill_no/kot_no, center, reason_id, reason, cancelled_by, cancelled_by_role, timestamp, items, total}
+- `master_menu_categories`: {category_id, name, description, display_order, is_active}
+- `master_menu_items`: {name, category, base_price, center_prices, is_active}
+- `orders`: {order_id, center, table_no, table_id, order_type, guest_count, customer_name, customer_phone, items[], status, kot_count}
+- `bills`: {bill_no, order_id, center, items[], subtotal, gst_amount, grand_total, payment_mode, status, void_reason_id}
+- `franchises`: {franchise_code, franchise_name, working_capital, primary_contact_name, status}
 
 ## Completed Features
-- [x] Phase 1 & 2: Master Data Tables (16 master collections), Permission Engine, Franchise Owner Dashboard
-- [x] MIS Dashboard with center filtering, Working Capital Graph, XLSX Export
-- [x] Expense Entry Grid with sorting and batch add
-- [x] Attendance integration for transferred employees (HOME/TRANSFERRED badges)
-- [x] Payroll mapping to actual working center for transfers
-- [x] PDF export for international payroll reports
-- [x] server.py refactoring (hr_letters.py, centers_managers.py extracted)
-- [x] P0: Hardcoding removal across 34+ files
-- [x] P0: Role-based visibility enforcement
-- [x] Bug Fix: isPerth not defined
-- [x] Center-Specific Menu Management (146 real menu items)
-- [x] MIS Dashboard PDF Export (ReportLab branded)
-- [x] Premium MIS Dashboard UI (White theme, 7 tabbed sections)
-- [x] Restaurant POS / Billing System (Full touchscreen UI, 17 backend routes)
-- [x] **Expense Entry Amount Width Fix** (COMPLETED 2026-03-28) — Widened amount input fields (min-w-[140px] new entry, min-w-[120px] inline/batch, w-36 column header)
-- [x] **Franchise Dashboard Connectivity Link** (COMPLETED 2026-03-28) — Green card with franchise owner name when connected, amber "Vacant" card when not. Uses new `/api/franchises/by-center/{center_code}` endpoint with multi-strategy lookup.
-- [x] **MIS Working Capital Center-wise Mapping** (COMPLETED 2026-03-28) — Backend now builds `center_franchise_map` from `franchises` collection. Each center shows WC from its mapped franchise record. Super Admin sees all, franchise owner sees their mapped center.
-
-## Key DB Schema
-- `permissions`: {role_key, permissions_list, description}
-- `centers`: {code, name, phone, email, address, active, is_india_center, country, is_hq}
-- `master_menu_items`: {name, category, base_price, serves, is_veg, center_prices: {CENTER: {price, available}}, is_active}
-- `master_menu_categories`: {name, description, display_order}
-- `franchises`: {franchise_code, franchise_name, legal_entity_name, country, city, working_capital, primary_contact_name, primary_contact_email, primary_contact_phone, status, ...}
-- `loan_entries`: {center, franchise_code, franchise_name, amount, total_repaid, working_capital_at_time, status, repayments[]}
-- `billing_config`: {country, gst_percentage, gst_type, service_charge_enabled, ...}
-- `orders`: {order_id, center, table_no, order_type, items[], status, kot_count, ...}
-- `bills`: {bill_no, order_id, center, items[], subtotal, gst_amount, grand_total, payment_mode, status, ...}
+- [x] Master Data Tables (16 master collections), Permission Engine, Franchise Owner Dashboard
+- [x] MIS Dashboard with center filtering, Working Capital, XLSX/PDF Export (White theme)
+- [x] Expense Entry Grid with wider amount fields, batch add
+- [x] Attendance for transfers, Payroll mapping, PDF exports
+- [x] Franchise connectivity indicator (green=connected, amber=vacant)
+- [x] MIS Working Capital center-wise from franchise DB
+- [x] **Billing/POS Configuration Module** (COMPLETED 2026-03-28)
+  - Sidebar restructured: Billing/POS → POS/Billing, Configuration, Menu Items
+  - Tables CRUD per center (table_no, capacity, floor, section, status)
+  - Cancellation Reasons CRUD (order/bill/kot types)
+  - Menu Categories CRUD (name, display_order)
+- [x] **POS Workflow Update** (COMPLETED 2026-03-28)
+  - Dine-In: Type Selection → Table Selection (from master grid) → Guest Count → Order Created
+  - Takeaway/Delivery: Type Selection → Mandatory Name + Mobile → Order Created
+  - Backend validation enforced for both flows
+- [x] **KOT/Bill Cancellation Engine** (COMPLETED 2026-03-28)
+  - Order cancel: mandatory reason from master dropdown + audit trail
+  - Bill void: mandatory reason from master dropdown + audit trail (Admin only)
+  - KOT cancel: mandatory reason + audit trail
+  - All actions logged to `billing_audit_trail` collection
 
 ## Key API Endpoints
-- `/api/centers`: Returns all centers from DB
-- `/api/masters/*`: CRUD for master tables
-- `/api/mis/working-capital`: Center-wise working capital (franchise deposit - loans)
-- `/api/franchises/by-center/{code}`: Get franchise mapped to a center (new)
-- `/api/franchises/list`: List all franchises
-- `/api/billing/*`: POS billing routes (17 endpoints)
-- `/api/mis/download-pdf`: Branded MIS PDF report
+- `/api/billing-config/tables/list|save|delete|update-status` — Table CRUD
+- `/api/billing-config/cancel-reasons/list|save|delete` — Cancel Reasons CRUD
+- `/api/billing-config/categories/list|save|delete` — Menu Categories CRUD
+- `/api/billing/order/create` — Now validates table+guest for Dine-In, name+phone for Takeaway
+- `/api/billing/order/cancel` — Now requires reason_id, logs to audit trail
+- `/api/billing/bill/void` — Now requires reason_id, logs to audit trail
+- `/api/billing/kot/cancel` — New, requires reason_id, logs to audit trail
+- `/api/franchises/by-center/{code}` — Franchise lookup for connectivity indicator
 
 ## Test Credentials
 - Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456
 
 ## Prioritized Backlog
-
-### P0 — Critical
-- Billing/POS Configuration Module Overhaul: Move Menu Management under "Configuration" submenu in Billing/POS. Build CRUD for Menu Categories, Subcategories, Items, Tables, Cancellation Reasons.
-- POS Workflow Update: Dine-in = Table Selection first → Guest Count → Item entry. Pickup/Delivery = Mandatory Mobile + Customer Name.
-- KOT/Bill Cancellation Engine: Cancellation with mandatory reason (from master), role-checks, audit trail.
 
 ### P1 — High
 - Franchise document management & Approval hierarchy
