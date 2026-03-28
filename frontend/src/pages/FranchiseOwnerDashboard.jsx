@@ -82,10 +82,9 @@ export default function FranchiseOwnerDashboard() {
       setExpenseData(expRes.data.by_type || []);
       setWorkingCapital(wcRes.data || null);
       
-      // Fetch franchise info
-      const frRes = await api.post("/masters/franchises/list", { token: session.token, active_only: true }).catch(() => ({ data: { items: [] } }));
-      const myFranchise = (frRes.data.items || []).find(f => f.center === center);
-      setFranchiseInfo(myFranchise || null);
+      // Fetch franchise info for this center
+      const frRes = await api.post(`/franchises/by-center/${center}`, { token: session.token }).catch(() => ({ data: { found: false, franchise: null } }));
+      setFranchiseInfo(frRes.data.found ? frRes.data.franchise : null);
       
     } catch (err) {
       console.error(err);
@@ -141,7 +140,7 @@ export default function FranchiseOwnerDashboard() {
             Franchise Dashboard
           </h1>
           <p className="text-sm text-muted-foreground">
-            {franchiseInfo?.name || center} — View Only
+            {franchiseInfo?.franchise_name || franchiseInfo?.name || center} — View Only
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -196,10 +195,10 @@ export default function FranchiseOwnerDashboard() {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-green-800" data-testid="franchise-owner-name">
-                        {franchiseInfo.owner_name || franchiseInfo.name} — Franchise Owner Connected
+                        {franchiseInfo.primary_contact_name || franchiseInfo.franchise_name || franchiseInfo.name} — Franchise Owner Connected
                       </p>
                       <p className="text-xs text-green-600">
-                        Center: {franchiseInfo.center} | {franchiseInfo.owner_email || ''} {franchiseInfo.owner_phone ? `| ${franchiseInfo.owner_phone}` : ''}
+                        Center: {selectedCenter || center} | {franchiseInfo.primary_contact_email || ''} {franchiseInfo.primary_contact_phone ? `| ${franchiseInfo.primary_contact_phone}` : ''}
                       </p>
                     </div>
                     <Badge className="bg-green-100 text-green-700 border-green-300">
@@ -369,16 +368,18 @@ export default function FranchiseOwnerDashboard() {
                   {franchiseInfo ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
-                        ["Franchise Name", franchiseInfo.name],
-                        ["Owner", franchiseInfo.owner_name],
-                        ["Center", franchiseInfo.center],
-                        ["Email", franchiseInfo.owner_email],
-                        ["Phone", franchiseInfo.owner_phone],
-                        ["Agreement Date", franchiseInfo.agreement_date],
-                        ["Royalty %", franchiseInfo.royalty_percent ? `${franchiseInfo.royalty_percent}%` : "N/A"],
+                        ["Franchise Name", franchiseInfo.franchise_name || franchiseInfo.name],
+                        ["Owner / Primary Contact", franchiseInfo.primary_contact_name],
+                        ["Franchise Code", franchiseInfo.franchise_code],
+                        ["Email", franchiseInfo.primary_contact_email],
+                        ["Phone", franchiseInfo.primary_contact_phone],
+                        ["Agreement Start", franchiseInfo.agreement_start_date],
+                        ["Agreement End", franchiseInfo.agreement_end_date],
+                        ["Revenue Share %", franchiseInfo.revenue_share_percentage ? `${franchiseInfo.revenue_share_percentage}%` : "N/A"],
                         ["City", franchiseInfo.city],
                         ["State", franchiseInfo.state],
                         ["Address", franchiseInfo.address],
+                        ["Status", franchiseInfo.status],
                       ].map(([label, value]) => (
                         <div key={label} className="space-y-1">
                           <p className="text-xs text-muted-foreground">{label}</p>

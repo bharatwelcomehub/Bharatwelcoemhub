@@ -308,6 +308,50 @@ async def check_access(token: str) -> dict:
 # FRANCHISE CRUD ENDPOINTS
 # =======================================
 
+@router.post("/by-center/{center_code}")
+async def get_franchise_by_center(center_code: str, data: dict):
+    """Get franchise mapped to a specific center.
+    Looks up via loan_entries (center -> franchise_code), or direct center field on franchise."""
+    token = data.get("token")
+    session = await check_access(token)
+    
+    center_code = center_code.upper()
+    
+    # Strategy 1: Check if any franchise has this center directly
+    franchise = await db.franchises.find_one(
+        {"center": center_code, "status": {"$ne": "Deleted"}},
+        {"_id": 0}
+    )
+    
+    if not franchise:
+        # Strategy 2: Look up via loan_entries (center -> franchise_code mapping)
+        loan_entry = await db.loan_entries.find_one(
+            {"center": center_code},
+            {"_id": 0, "franchise_code": 1, "franchise_name": 1}
+        )
+        if loan_entry:
+            fc = loan_entry.get("franchise_code", "")
+            franchise = await db.franchises.find_one(
+                {"franchise_code": fc, "status": {"$ne": "Deleted"}},
+                {"_id": 0}
+            )
+    
+    if not franchise:
+        # Strategy 3: Try matching center code to franchise code (e.g., PB-PERTH -> FR-PERTH)
+        # Extract city part from center code
+        center_suffix = center_code.replace("PB-", "")
+        franchise = await db.franchises.find_one(
+            {"franchise_code": {"$regex": center_suffix, "$options": "i"}, "status": {"$ne": "Deleted"}},
+            {"_id": 0}
+        )
+    
+    if franchise:
+        return {"found": True, "franchise": franchise}
+    else:
+        return {"found": False, "franchise": None}
+
+
+
 @router.post("/list")
 async def list_franchises(req: FranchiseQueryRequest):
     """List all franchises with optional filters"""
