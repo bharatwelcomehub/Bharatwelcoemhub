@@ -504,6 +504,7 @@ async def get_expense_analysis(data: dict):
 async def get_alerts(data: dict):
     """Get expense alerts and warnings"""
     token = data.get("token")
+    center = data.get("center", "all")
     alert_threshold = data.get("alert_threshold", 20)  # Configurable threshold
     
     session = await check_mis_access(token)
@@ -526,6 +527,11 @@ async def get_alerts(data: dict):
     
     cq_query = {"date": {"$gte": cq_start.strftime("%Y-%m-%d"), "$lte": cq_end.strftime("%Y-%m-%d")}}
     pq_query = {"date": {"$gte": pq_start.strftime("%Y-%m-%d"), "$lte": pq_end.strftime("%Y-%m-%d")}}
+    
+    # Apply center filter
+    if center != "all":
+        cq_query["center"] = center
+        pq_query["center"] = center
     
     # Expenses by center
     cq_expenses = await db.expenses.find(cq_query, {"_id": 0}).to_list(10000)
@@ -667,6 +673,7 @@ async def get_top_performers(data: dict):
     """Get top and bottom performing centers"""
     token = data.get("token")
     period = data.get("period", "current_month")
+    center = data.get("center", "all")
     custom_start = data.get("custom_start")
     custom_end = data.get("custom_end")
     
@@ -674,6 +681,8 @@ async def get_top_performers(data: dict):
     
     start_date, end_date = get_period_dates(period, custom_start, custom_end)
     query = {"date": {"$gte": start_date, "$lte": end_date}}
+    if center != "all":
+        query["center"] = center
     
     sales = await db.daily_sales.find(query, {"_id": 0}).to_list(10000)
     expenses = await db.expenses.find(query, {"_id": 0}).to_list(10000)

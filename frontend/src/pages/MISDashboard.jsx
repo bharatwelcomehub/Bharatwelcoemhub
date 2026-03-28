@@ -143,7 +143,7 @@ export default function MISDashboard() {
         api.post("/mis/sales-trends", { ...params, group_by: period === "current_month" ? "daily" : "weekly" }),
         api.post("/mis/center-comparison", params),
         api.post("/mis/expense-analysis", params),
-        api.post("/mis/alerts", { token: session.token, alert_threshold: alertThreshold }),
+        api.post("/mis/alerts", { token: session.token, alert_threshold: alertThreshold, center: selectedCenter }),
         api.post("/mis/quarterly-comparison", { token: session.token, center: selectedCenter }),
         api.post("/mis/top-performers", params),
         api.post("/mis/working-capital", params)
