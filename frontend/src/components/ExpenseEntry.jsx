@@ -814,7 +814,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                 data-testid="expense-description"
               />
             </div>
-            <div className="space-y-1">
+            <div className="md:col-span-1 space-y-1">
               <Label className="text-xs text-muted-foreground">Amount *</Label>
               <Input
                 type="text"
@@ -827,6 +827,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                   }
                 }}
                 placeholder="0.00"
+                className="min-w-[140px] text-base"
                 data-testid="expense-amount"
               />
             </div>
@@ -928,7 +929,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                       }
                     }}
                     placeholder="Amount"
-                    className="h-8 text-sm"
+                    className="h-8 text-sm min-w-[120px]"
                     data-testid={`batch-amount-${idx}`}
                   />
                   <Select value={row.expense_type} onValueChange={(val) => updateBatchRow(row.id, 'expense_type', val)}>
@@ -1062,7 +1063,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("payment_mode")} data-testid="sort-mode">
                     Mode<SortIcon field="payment_mode" />
                   </th>
-                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("amount")} data-testid="sort-amount">
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-36 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("amount")} data-testid="sort-amount">
                     Amount<SortIcon field="amount" />
                   </th>
                   <th className="text-center py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("is_grouped")} data-testid="sort-invoice">
@@ -1173,7 +1174,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                           type="number"
                           value={getFieldValue(exp, 'amount') || ''}
                           onChange={(e) => handleInlineEdit(exp.expense_id, 'amount', e.target.value)}
-                          className="h-8 text-xs text-right"
+                          className="h-8 text-sm text-right w-full min-w-[120px]"
                           data-testid={`edit-amount-${idx}`}
                         />
                       ) : (

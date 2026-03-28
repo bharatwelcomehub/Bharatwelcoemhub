@@ -761,7 +761,8 @@ async def get_alert_settings(data: dict):
 @router.post("/working-capital")
 async def get_working_capital(data: dict):
     """Get working capital: initial franchise deposit minus outstanding loans.
-    Working capital only changes when there are loan entries, not from daily sales."""
+    Working capital only changes when there are loan entries, not from daily sales.
+    Center-wise: each center shows WC from the franchise mapped to it."""
     token = data.get("token")
     center = data.get("center", "all")
     
@@ -776,11 +777,24 @@ async def get_working_capital(data: dict):
     else:
         center_codes = [center]
     
-    # Get franchise records to find initial working capital
+    # Get ALL franchise records
     franchises = await db.franchises.find(
         {}, {"_id": 0, "franchise_code": 1, "franchise_name": 1,
-             "working_capital": 1, "center": 1, "centers_mapped": 1}
+             "working_capital": 1, "center": 1, "centers_mapped": 1,
+             "owner_name": 1, "name": 1}
     ).to_list(100)
+    
+    # Build a map: center_code -> franchise record
+    center_franchise_map = {}
+    for f in franchises:
+        # Direct center mapping
+        fc_center = f.get("center", "")
+        if fc_center:
+            center_franchise_map[fc_center] = f
+        # Also map via centers_mapped array if present
+        for mc in f.get("centers_mapped", []):
+            if mc not in center_franchise_map:
+                center_franchise_map[mc] = f
     
     # Get loan entries for relevant centers
     loan_query = {"center": {"$in": center_codes}} if center != "all" else {}
@@ -794,83 +808,84 @@ async def get_working_capital(data: dict):
     total_loans = 0
     total_repaid = 0
     
-    # Map franchise WC to centers via loan entries
-    franchise_wc_map = {}
-    for f in franchises:
-        fc = f.get("franchise_code", "")
-        franchise_wc_map[fc] = float(f.get("working_capital", 0) or 0)
-    
-    # Get unique franchise codes from loan entries to find WC
-    for le in loan_entries:
-        fc = le.get("franchise_code", "")
-        c = le.get("center", "")
-        if c not in center_wc:
-            initial_wc = le.get("working_capital_at_time", franchise_wc_map.get(fc, 0))
-            center_wc[c] = {
-                "center": c,
-                "franchise_code": fc,
-                "franchise_name": le.get("franchise_name", ""),
-                "initial_wc": float(initial_wc),
+    # First, initialize center_wc from franchise mapping for each requested center
+    for cc in center_codes:
+        mapped_franchise = center_franchise_map.get(cc)
+        if mapped_franchise:
+            initial_wc = float(mapped_franchise.get("working_capital", 0) or 0)
+            center_wc[cc] = {
+                "center": cc,
+                "franchise_code": mapped_franchise.get("franchise_code", ""),
+                "franchise_name": mapped_franchise.get("franchise_name", mapped_franchise.get("name", "")),
+                "owner_name": mapped_franchise.get("owner_name", ""),
+                "initial_wc": initial_wc,
                 "total_loans": 0,
                 "total_repaid": 0,
                 "loans": []
             }
     
-    # Also add centers with franchises that have WC but no loans yet
-    for f in franchises:
-        wc = float(f.get("working_capital", 0) or 0)
-        if wc > 0:
-            # Find which centers this franchise is linked to via loan entries
-            fc = f.get("franchise_code", "")
-            linked_centers = set()
-            for le in loan_entries:
-                if le.get("franchise_code") == fc:
-                    linked_centers.add(le.get("center", ""))
-            if not linked_centers:
-                # No loans yet — WC is fully intact
-                # We still want to show the franchise in the summary
-                total_initial_wc += wc
-    
-    # Process loan entries
+    # Process loan entries and accumulate loans per center
     loan_timeline = []
     for le in loan_entries:
         c = le.get("center", "")
-        if c in center_wc:
-            amt = float(le.get("amount", 0) or 0)
-            repaid = float(le.get("total_repaid", 0) or 0)
-            center_wc[c]["total_loans"] += amt
-            center_wc[c]["total_repaid"] += repaid
+        fc = le.get("franchise_code", "")
+        
+        # If center not yet in center_wc (franchise not directly mapped but has loans), add it
+        if c not in center_wc:
+            # Try to find initial WC from franchise record
+            mapped_franchise = center_franchise_map.get(c)
+            initial_wc_val = 0
+            if mapped_franchise:
+                initial_wc_val = float(mapped_franchise.get("working_capital", 0) or 0)
+            else:
+                initial_wc_val = float(le.get("working_capital_at_time", 0) or 0)
             
+            center_wc[c] = {
+                "center": c,
+                "franchise_code": fc,
+                "franchise_name": le.get("franchise_name", ""),
+                "owner_name": "",
+                "initial_wc": initial_wc_val,
+                "total_loans": 0,
+                "total_repaid": 0,
+                "loans": []
+            }
+        
+        amt = float(le.get("amount", 0) or 0)
+        repaid = float(le.get("total_repaid", 0) or 0)
+        center_wc[c]["total_loans"] += amt
+        center_wc[c]["total_repaid"] += repaid
+        
+        loan_timeline.append({
+            "date": le.get("loan_date", le.get("created_at", "")[:10] if le.get("created_at") else ""),
+            "center": c,
+            "loan_id": le.get("loan_id", ""),
+            "type": "loan",
+            "description": le.get("reason", "Loan"),
+            "amount": amt,
+            "repaid": repaid,
+            "outstanding": round(amt - repaid, 2),
+            "status": le.get("status", "active")
+        })
+        
+        # Add repayments as separate timeline entries
+        for rep in le.get("repayments", []):
             loan_timeline.append({
-                "date": le.get("loan_date", le.get("created_at", "")[:10]),
+                "date": rep.get("repayment_date", ""),
                 "center": c,
                 "loan_id": le.get("loan_id", ""),
-                "type": "loan",
-                "description": le.get("reason", "Loan"),
-                "amount": amt,
-                "repaid": repaid,
-                "outstanding": round(amt - repaid, 2),
-                "status": le.get("status", "active")
+                "type": "repayment",
+                "description": f"Repayment - {rep.get('notes', '')}",
+                "amount": float(rep.get("amount", 0)),
+                "repaid": 0,
+                "outstanding": 0,
+                "status": "repaid"
             })
-            
-            # Add repayments as separate timeline entries
-            for rep in le.get("repayments", []):
-                loan_timeline.append({
-                    "date": rep.get("repayment_date", ""),
-                    "center": c,
-                    "loan_id": le.get("loan_id", ""),
-                    "type": "repayment",
-                    "description": f"Repayment - {rep.get('notes', '')}",
-                    "amount": float(rep.get("amount", 0)),
-                    "repaid": 0,
-                    "outstanding": 0,
-                    "status": "repaid"
-                })
     
     # Sort timeline by date
-    loan_timeline.sort(key=lambda x: x["date"])
+    loan_timeline.sort(key=lambda x: x.get("date", ""))
     
-    # Calculate totals
+    # Calculate totals from center_wc
     for c, data in center_wc.items():
         total_initial_wc += data["initial_wc"]
         total_loans += data["total_loans"]
@@ -886,6 +901,7 @@ async def get_working_capital(data: dict):
         centers_summary.append({
             "center": c,
             "franchise_name": data["franchise_name"],
+            "owner_name": data.get("owner_name", ""),
             "initial_wc": data["initial_wc"],
             "total_loans": data["total_loans"],
             "total_repaid": data["total_repaid"],

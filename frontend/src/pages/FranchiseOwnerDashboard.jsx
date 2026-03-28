@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { 
   BarChart3, Download, IndianRupee, Receipt, FileText, Store, Calendar,
-  TrendingUp, TrendingDown, Loader2, Eye
+  TrendingUp, TrendingDown, Loader2, Eye, UserCheck, UserX, Link2
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -185,6 +185,49 @@ export default function FranchiseOwnerDashboard() {
 
       {!loading && (
         <>
+          {/* Franchise Ownership Status */}
+          <Card className={`border-2 ${franchiseInfo ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`} data-testid="franchise-connectivity-card">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-center gap-3">
+                {franchiseInfo ? (
+                  <>
+                    <div className="p-2 rounded-full bg-green-100">
+                      <UserCheck className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-green-800" data-testid="franchise-owner-name">
+                        {franchiseInfo.owner_name || franchiseInfo.name} — Franchise Owner Connected
+                      </p>
+                      <p className="text-xs text-green-600">
+                        Center: {franchiseInfo.center} | {franchiseInfo.owner_email || ''} {franchiseInfo.owner_phone ? `| ${franchiseInfo.owner_phone}` : ''}
+                      </p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 border-green-300">
+                      <Link2 className="w-3 h-3 mr-1" /> Active
+                    </Badge>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-2 rounded-full bg-amber-100">
+                      <UserX className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-amber-800" data-testid="franchise-vacant-status">
+                        No Franchise Owner Assigned — Vacant
+                      </p>
+                      <p className="text-xs text-amber-600">
+                        Center: {selectedCenter || center} | Contact admin to assign a franchise owner
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="border-amber-400 text-amber-600 bg-amber-50">
+                      Vacant
+                    </Badge>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="bg-card border-border">
