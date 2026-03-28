@@ -141,6 +141,17 @@ async def list_master_types(token: str):
     return {"master_types": result}
 
 
+@router.get("/{master_type}")
+async def get_master_items_public(master_type: str, active_only: bool = True):
+    """Public GET endpoint for master dropdown data (payment modes, order types, etc.)"""
+    cfg = get_master_config(master_type)
+    coll = db[cfg["collection"]]
+    query = {"is_active": True} if active_only else {}
+    items = await coll.find(query, {"_id": 0}).sort("name", 1).to_list(5000)
+    return {"items": items, "master_type": master_type, "label": cfg["label"]}
+
+
+
 @router.post("/{master_type}/list")
 async def list_master_items(master_type: str, data: dict):
     """Get all items from a master table"""
@@ -697,9 +708,10 @@ async def seed_menu_data(data: dict):
             await db.master_menu_categories.update_one({"name": cat["name"]}, {"$set": {**cat, "updated_at": now}})
     
     # Step 2: Seed Menu Items with India + Australia pricing
-    # India center codes for bulk pricing
-    india_centers = ["PB-HSR", "PB-TH", "PB-SN", "PB-DV", "PB-HW", "PB-KN", "PB-KAL"]
-    aus_centers = ["PB-PERTH"]
+    # Dynamically fetch center codes from DB instead of hardcoding
+    all_centers = await db.centers.find({"active": True}, {"_id": 0, "code": 1, "is_india_center": 1}).to_list(100)
+    india_centers = [c["code"] for c in all_centers if c.get("is_india_center", True)]
+    aus_centers = [c["code"] for c in all_centers if not c.get("is_india_center", True)]
     
     menu_items = [
         # BALGOPAL (KIDS)

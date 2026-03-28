@@ -784,14 +784,30 @@ async def get_working_capital(data: dict):
              "owner_name": 1, "name": 1}
     ).to_list(100)
     
-    # Build a map: center_code -> franchise record
-    center_franchise_map = {}
+    # Build franchise lookup by franchise_code
+    franchise_by_code = {}
     for f in franchises:
-        # Direct center mapping
+        franchise_by_code[f.get("franchise_code", "")] = f
+    
+    # Build center → franchise map using the AUTHORITATIVE source:
+    # the centers collection's franchise_code field (set by Center Accounts linking)
+    center_franchise_map = {}
+    
+    # Strategy 1 (PRIMARY): Read franchise_code from centers collection
+    centers_with_fc = await db.centers.find(
+        {"franchise_code": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "code": 1, "franchise_code": 1}
+    ).to_list(100)
+    for cdoc in centers_with_fc:
+        fc = cdoc.get("franchise_code", "")
+        if fc and fc in franchise_by_code:
+            center_franchise_map[cdoc["code"]] = franchise_by_code[fc]
+    
+    # Strategy 2 (FALLBACK): franchise.center or franchise.centers_mapped fields
+    for f in franchises:
         fc_center = f.get("center", "")
-        if fc_center:
+        if fc_center and fc_center not in center_franchise_map:
             center_franchise_map[fc_center] = f
-        # Also map via centers_mapped array if present
         for mc in f.get("centers_mapped", []):
             if mc not in center_franchise_map:
                 center_franchise_map[mc] = f

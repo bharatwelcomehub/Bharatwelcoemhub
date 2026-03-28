@@ -211,15 +211,15 @@ export default function FranchiseOwnerDashboard() {
                       <UserX className="w-5 h-5 text-amber-600" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-amber-800" data-testid="franchise-vacant-status">
-                        No Franchise Owner Assigned — Vacant
+                      <p className="text-sm font-semibold text-amber-800" data-testid="franchise-unmapped-status">
+                        No Franchise Mapped to This Center
                       </p>
                       <p className="text-xs text-amber-600">
-                        Center: {selectedCenter || center} | Contact admin to assign a franchise owner
+                        Center: {selectedCenter || center} | Link a franchise via Center Accounts
                       </p>
                     </div>
                     <Badge variant="outline" className="border-amber-400 text-amber-600 bg-amber-50">
-                      Vacant
+                      Unmapped
                     </Badge>
                   </>
                 )}

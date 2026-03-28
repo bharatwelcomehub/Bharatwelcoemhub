@@ -187,17 +187,21 @@ async def create_order(data: dict):
     table_id = data.get("table_id", "")
     session = await check_access(token)
 
-    # Validate based on order type
-    if order_type == "Dine-In":
+    # Validate based on order type (dynamic: check if dine-in type)
+    order_type_upper = order_type.upper().replace("-", "").replace(" ", "")
+    is_dine_in = "DINE" in order_type_upper
+    is_takeaway_or_delivery = any(kw in order_type_upper for kw in ["TAKE", "DELIVER", "CATER"])
+
+    if is_dine_in:
         if not table_no and not table_id:
             raise HTTPException(400, "Table selection is mandatory for Dine-In orders")
         if not guest_count or int(guest_count) < 1:
             raise HTTPException(400, "Guest count is mandatory for Dine-In orders")
-    elif order_type in ("Takeaway", "Delivery"):
+    elif is_takeaway_or_delivery:
         if not customer_name or not customer_name.strip():
-            raise HTTPException(400, "Customer name is mandatory for Takeaway/Delivery orders")
+            raise HTTPException(400, f"Customer name is mandatory for {order_type} orders")
         if not customer_phone or not customer_phone.strip():
-            raise HTTPException(400, "Customer phone is mandatory for Takeaway/Delivery orders")
+            raise HTTPException(400, f"Customer phone is mandatory for {order_type} orders")
 
     # If table_id provided, mark table as occupied
     if table_id:

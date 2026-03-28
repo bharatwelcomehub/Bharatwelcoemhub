@@ -1,0 +1,58 @@
+{
+  "summary": "Tested master-data-first architecture fix. All 17 backend tests passed (100%). Frontend verified: POS order types from master_order_types collection (CATERING, DELIVERY, DINE-IN, TAKEAWAY), 'Unmapped' text replaces 'Vacant', franchise connectivity card shows 'No Franchise Mapped to This Center'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_master_data_architecture.py",
+    "/app/test_reports/pytest/pytest_master_data_arch.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_master_data_architecture.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100% (all flows verified)"
+  },
+  "test_credentials": "Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456",
+  "seed_data_creation": "None - used existing master data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Master-data-first architecture fully tested. Key verifications: 1) GET /api/masters/{type} endpoints return order_types (CATERING, DELIVERY, DINE-IN, TAKEAWAY), payment_modes (CASH, UPI, CARD, etc.), discount_types from DB without auth. 2) Franchise-center mapping via centers.franchise_code field working (Strategy 1 in franchises.py). 3) Dynamic dine-in detection in billing validates table+guest for DINE-IN, customer info for TAKEAWAY/DELIVERY. 4) 'Unmapped' replaces 'Vacant' in FranchiseOwnerDashboard.jsx. 5) MIS working capital uses centers.franchise_code as primary lookup strategy.",
+  "features_tested": {
+    "master_data_endpoints": {
+      "order_types": "PASSED - GET /api/masters/order_types returns CATERING, DELIVERY, DINE-IN, TAKEAWAY",
+      "payment_modes": "PASSED - GET /api/masters/payment_modes returns CASH, UPI, CARD, BANK TRANSFER, etc.",
+      "discount_types": "PASSED - GET /api/masters/discount_types returns master discount types",
+      "no_auth_required": "PASSED - Public GET endpoints work without token"
+    },
+    "franchise_center_mapping": {
+      "by_center_endpoint": "PASSED - POST /api/franchises/by-center/{code} uses centers.franchise_code",
+      "unmapped_centers": "PASSED - Centers without franchise_code return found=false"
+    },
+    "dynamic_order_validation": {
+      "dinein_requires_table": "PASSED - DINE-IN requires table_no",
+      "dinein_requires_guest": "PASSED - DINE-IN requires guest_count",
+      "dinein_case_insensitive": "PASSED - Detection works with any casing",
+      "takeaway_requires_customer": "PASSED - TAKEAWAY requires customer_name and phone",
+      "delivery_requires_customer": "PASSED - DELIVERY requires customer_name and phone"
+    },
+    "working_capital": {
+      "endpoint": "PASSED - POST /api/mis/working-capital returns proper structure",
+      "franchise_mapping": "PASSED - Uses centers.franchise_code as primary strategy"
+    },
+    "frontend_ui": {
+      "pos_order_types": "PASSED - New Order dialog shows 4 master-driven order types",
+      "franchise_dashboard": "PASSED - Shows 'Unmapped' badge (not 'Vacant')",
+      "unmapped_message": "PASSED - Shows 'No Franchise Mapped to This Center'"
+    }
+  }
+}

@@ -45,6 +45,7 @@ import {
   Settings,
   RefreshCw,
   ListOrdered,
+  Wallet,
 } from "lucide-react";
 
 export default function POSBilling() {
@@ -103,24 +104,37 @@ export default function POSBilling() {
   const [selectedCancelReasonId, setSelectedCancelReasonId] = useState("");
   const [cancelReasonText, setCancelReasonText] = useState("");
 
+  // Master data for dropdowns (NO HARDCODING)
+  const [masterPaymentModes, setMasterPaymentModes] = useState([]);
+  const [masterOrderTypes, setMasterOrderTypes] = useState([]);
+  const [masterDiscountTypes, setMasterDiscountTypes] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const searchRef = useRef(null);
 
   const isAdmin = session?.is_super_admin || session?.is_admin;
 
-  // Fetch centers
+  // Fetch centers and master dropdown data
   useEffect(() => {
-    const fetch = async () => {
+    const fetchInitial = async () => {
       try {
-        const res = await api.get("/centers");
-        const centers = (res.data.centers || []).filter(c => c.active !== false);
+        const [centersRes, payModesRes, orderTypesRes, discountRes] = await Promise.all([
+          api.get("/centers"),
+          api.get("/masters/payment_modes"),
+          api.get("/masters/order_types"),
+          api.get("/masters/discount_types"),
+        ]);
+        const centers = (centersRes.data.centers || []).filter(c => c.active !== false);
         setCentersList(centers);
         if (!selectedCenter && session?.center) {
           setSelectedCenter(session.center);
         }
+        setMasterPaymentModes((payModesRes.data.items || []).filter(m => m.is_active !== false));
+        setMasterOrderTypes((orderTypesRes.data.items || []).filter(m => m.is_active !== false));
+        setMasterDiscountTypes((discountRes.data.items || []).filter(m => m.is_active !== false));
       } catch {}
     };
-    fetch();
+    fetchInitial();
   }, [session?.center, selectedCenter]);
 
   // Fetch menu & config when center changes
@@ -179,8 +193,9 @@ export default function POSBilling() {
   };
 
   const proceedPreOrder = () => {
+    const isDineIn = orderType.toUpperCase().replace(/[-\s]/g, "").includes("DINE");
     if (preOrderStep === "type") {
-      if (orderType === "Dine-In") {
+      if (isDineIn) {
         setPreOrderStep("table");
       } else {
         setPreOrderStep("customer");
@@ -212,6 +227,7 @@ export default function POSBilling() {
 
   const createOrderFromFlow = async () => {
     try {
+      const isDineIn = orderType.toUpperCase().replace(/[-\s]/g, "").includes("DINE");
       const selectedTable = availableTables.find(t => t.table_id === selectedTableId);
       const res = await api.post("/billing/order/create", {
         token: session.token,
@@ -219,7 +235,7 @@ export default function POSBilling() {
         table_no: selectedTable?.table_no || tableNo,
         table_id: selectedTableId || "",
         order_type: orderType,
-        guest_count: orderType === "Dine-In" ? guestCount : 0,
+        guest_count: isDineIn ? guestCount : 0,
         customer_name: customerName,
         customer_phone: customerPhone,
       });
@@ -490,13 +506,20 @@ export default function POSBilling() {
         </Select>
 
         <Select value={orderType} onValueChange={setOrderType}>
-          <SelectTrigger className="w-[110px] bg-slate-800 border-slate-600 text-white text-sm h-8" data-testid="pos-order-type-select">
+          <SelectTrigger className="w-[130px] bg-slate-800 border-slate-600 text-white text-sm h-8" data-testid="pos-order-type-select">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Dine-In">Dine-In</SelectItem>
-            <SelectItem value="Takeaway">Takeaway</SelectItem>
-            <SelectItem value="Delivery">Delivery</SelectItem>
+            {masterOrderTypes.length > 0
+              ? masterOrderTypes.map(t => (
+                  <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
+                ))
+              : <>
+                  <SelectItem value="Dine-In">Dine-In</SelectItem>
+                  <SelectItem value="Takeaway">Takeaway</SelectItem>
+                  <SelectItem value="Delivery">Delivery</SelectItem>
+                </>
+            }
           </SelectContent>
         </Select>
 
@@ -787,18 +810,25 @@ export default function POSBilling() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Discount */}
+            {/* Discount - From Master */}
             <div>
               <label className="text-xs text-slate-400 mb-1 block">Discount</label>
               <div className="flex gap-2">
                 <Select value={discountType} onValueChange={(v) => { setDiscountType(v); setDiscountValue(0); }}>
-                  <SelectTrigger className="w-[120px] bg-slate-800 border-slate-600 text-white text-sm h-9">
+                  <SelectTrigger className="w-[160px] bg-slate-800 border-slate-600 text-white text-sm h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="percentage">% Discount</SelectItem>
-                    <SelectItem value="fixed">Fixed Amount</SelectItem>
+                    <SelectItem value="none">No Discount</SelectItem>
+                    {masterDiscountTypes.length > 0
+                      ? masterDiscountTypes.filter(d => d.name !== "NO DISCOUNT").map(d => (
+                          <SelectItem key={d.name} value={d.name}>{d.name}</SelectItem>
+                        ))
+                      : <>
+                          <SelectItem value="percentage">% Discount</SelectItem>
+                          <SelectItem value="fixed">Fixed Amount</SelectItem>
+                        </>
+                    }
                   </SelectContent>
                 </Select>
                 {discountType !== "none" && (
@@ -815,27 +845,29 @@ export default function POSBilling() {
               </div>
             </div>
 
-            {/* Payment Mode */}
+            {/* Payment Mode - From Master */}
             <div>
               <label className="text-xs text-slate-400 mb-1 block">Payment Mode</label>
               <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: "Cash", icon: Banknote, label: "Cash" },
-                  { value: "UPI", icon: Smartphone, label: "UPI" },
-                  { value: "Card", icon: CreditCard, label: "Card" },
-                ].map(pm => (
+                {(masterPaymentModes.length > 0
+                  ? masterPaymentModes.slice(0, 6).map(pm => ({ value: pm.name, label: pm.name }))
+                  : [{ value: "CASH", label: "Cash" }, { value: "UPI", label: "UPI" }, { value: "CARD", label: "Card" }]
+                ).map(pm => (
                   <button
                     key={pm.value}
                     onClick={() => setPaymentMode(pm.value)}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all ${
+                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all text-xs font-medium ${
                       paymentMode === pm.value
                         ? "border-amber-500 bg-amber-500/10 text-amber-400"
                         : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600"
                     }`}
                     data-testid={`pos-pay-${pm.value.toLowerCase()}`}
                   >
-                    <pm.icon className="w-5 h-5" />
-                    <span className="text-xs font-medium">{pm.label}</span>
+                    {pm.value === "CASH" ? <Banknote className="w-5 h-5" /> :
+                     pm.value === "UPI" ? <Smartphone className="w-5 h-5" /> :
+                     pm.value === "CARD" ? <CreditCard className="w-5 h-5" /> :
+                     <Wallet className="w-5 h-5" />}
+                    <span>{pm.label}</span>
                   </button>
                 ))}
               </div>
@@ -1218,23 +1250,28 @@ export default function POSBilling() {
             <div className="space-y-3" data-testid="pre-order-step-type">
               <p className="text-sm text-slate-400">What type of order?</p>
               <div className="grid grid-cols-3 gap-3">
-                {["Dine-In", "Takeaway", "Delivery"].map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setOrderType(t)}
-                    className={`p-4 rounded-lg border-2 text-center transition-all ${
-                      orderType === t
-                        ? "border-amber-500 bg-amber-500/10 text-amber-400"
-                        : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600"
-                    }`}
-                    data-testid={`pre-order-type-${t.toLowerCase()}`}
-                  >
-                    <div className="text-2xl mb-1">
-                      {t === "Dine-In" ? "🍽" : t === "Takeaway" ? "📦" : "🛵"}
-                    </div>
-                    <span className="text-sm font-medium">{t}</span>
-                  </button>
-                ))}
+                {(masterOrderTypes.length > 0
+                  ? masterOrderTypes.map(t => ({ value: t.name, label: t.name }))
+                  : [{ value: "Dine-In", label: "Dine-In" }, { value: "Takeaway", label: "Takeaway" }, { value: "Delivery", label: "Delivery" }]
+                ).map(t => {
+                  const normalizedValue = t.value.toUpperCase().replace(/[-\s]/g, "");
+                  const icon = normalizedValue.includes("DINE") ? "🍽" : normalizedValue.includes("TAKE") ? "📦" : normalizedValue.includes("DELIVER") ? "🛵" : normalizedValue.includes("CATER") ? "🎪" : "🍴";
+                  return (
+                    <button
+                      key={t.value}
+                      onClick={() => setOrderType(t.value)}
+                      className={`p-4 rounded-lg border-2 text-center transition-all ${
+                        orderType === t.value
+                          ? "border-amber-500 bg-amber-500/10 text-amber-400"
+                          : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600"
+                      }`}
+                      data-testid={`pre-order-type-${t.value.toLowerCase().replace(/\s/g, '-')}`}
+                    >
+                      <div className="text-2xl mb-1">{icon}</div>
+                      <span className="text-sm font-medium">{t.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
