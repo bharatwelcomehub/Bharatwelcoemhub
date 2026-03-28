@@ -12,7 +12,7 @@ import os
 import time
 
 # Use production URL for testing
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://franchise-pos-system.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://table-order-system-20.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_CENTER = "PB-MGT"
