@@ -1493,30 +1493,18 @@ async def get_monthly_summary(req: SalesQueryRequest):
 
 @router.get("/expense-types")
 async def get_expense_types():
-    """Get all expense types — pulls from master_expense_categories first, then fallback"""
-    # PRIMARY: Pull from master table
-    master_types = await db.master_expense_categories.find(
-        {"is_active": True}, {"_id": 0, "name": 1}
+    """Get all expense types from expense_heads master collection"""
+    head_docs = await db.expense_heads.find(
+        {"is_active": {"$ne": False}}, {"_id": 0, "name": 1}
     ).to_list(500)
     
-    if master_types:
-        all_types = sorted(set(t["name"] for t in master_types))
-        return {"expense_types": all_types, "source": "master"}
+    if head_docs:
+        all_types = sorted(set(h["name"] for h in head_docs if h.get("name")))
+        return {"expense_types": all_types, "source": "expense_heads"}
     
-    # FALLBACK: Legacy behavior (merge expense_heads + distinct + hardcoded)
+    # Fallback: distinct from existing expenses
     types = await db.expenses.distinct("expense_type")
-    head_docs = await db.expense_heads.find({"is_active": {"$ne": False}}, {"_id": 0, "name": 1}).to_list(500)
-    head_names = [h["name"] for h in head_docs if h.get("name")]
-    
-    standard_types = [
-        "GROCERY", "DAIRY PRODUCTS", "FRUITS & VEGETABLE", "WATER CAN/ BOTTLE",
-        "CYLINDER", "PAV", "PACKAGING MATERIAL", "CELEBRATION EXPENSES",
-        "MEDIA & ADVERTISEMENT", "RESTAURANT GENERAL EXPENSES", "REPAIR & MAINTENANCE",
-        "SALARY", "ADVANCE", "RENT", "ELECTRICITY", "OTHER"
-    ]
-    
-    all_types = sorted(set(standard_types + types + head_names))
-    return {"expense_types": all_types, "source": "legacy"}
+    return {"expense_types": sorted(set(t for t in types if t)), "source": "fallback"}
 
 @router.get("/payment-modes")
 async def get_payment_modes():
