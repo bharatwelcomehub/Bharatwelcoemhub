@@ -311,20 +311,33 @@ async def check_access(token: str) -> dict:
 @router.post("/by-center/{center_code}")
 async def get_franchise_by_center(center_code: str, data: dict):
     """Get franchise mapped to a specific center.
-    Looks up via loan_entries (center -> franchise_code), or direct center field on franchise."""
+    Strategy 1: Check centers collection for franchise_code field (set by Center Accounts linking).
+    Strategy 2: Check if any franchise has this center directly.
+    Strategy 3: Look up via loan_entries.
+    Strategy 4: Regex match on franchise_code suffix."""
     token = data.get("token")
     session = await check_access(token)
     
     center_code = center_code.upper()
-    
-    # Strategy 1: Check if any franchise has this center directly
-    franchise = await db.franchises.find_one(
-        {"center": center_code, "status": {"$ne": "Deleted"}},
-        {"_id": 0}
-    )
+    franchise = None
+
+    # Strategy 1: Check centers collection for franchise_code (primary linking method)
+    center_doc = await db.centers.find_one({"code": center_code}, {"_id": 0, "franchise_code": 1})
+    if center_doc and center_doc.get("franchise_code"):
+        franchise = await db.franchises.find_one(
+            {"franchise_code": center_doc["franchise_code"], "status": {"$ne": "Deleted"}},
+            {"_id": 0}
+        )
+
+    if not franchise:
+        # Strategy 2: Check if any franchise has this center directly
+        franchise = await db.franchises.find_one(
+            {"center": center_code, "status": {"$ne": "Deleted"}},
+            {"_id": 0}
+        )
     
     if not franchise:
-        # Strategy 2: Look up via loan_entries (center -> franchise_code mapping)
+        # Strategy 3: Look up via loan_entries (center -> franchise_code mapping)
         loan_entry = await db.loan_entries.find_one(
             {"center": center_code},
             {"_id": 0, "franchise_code": 1, "franchise_name": 1}
@@ -337,8 +350,7 @@ async def get_franchise_by_center(center_code: str, data: dict):
             )
     
     if not franchise:
-        # Strategy 3: Try matching center code to franchise code (e.g., PB-PERTH -> FR-PERTH)
-        # Extract city part from center code
+        # Strategy 4: Try matching center code to franchise code (e.g., PB-PERTH -> FR-PERTH)
         center_suffix = center_code.replace("PB-", "")
         franchise = await db.franchises.find_one(
             {"franchise_code": {"$regex": center_suffix, "$options": "i"}, "status": {"$ne": "Deleted"}},
