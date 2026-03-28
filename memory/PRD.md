@@ -5,7 +5,7 @@ Internal management system for "Purnabramha," a restaurant franchise. Manages at
 
 ## CORE ARCHITECTURE: MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING
 - ALL dropdowns, filters, and lists pulled from MongoDB master collections
-- Center→Franchise mapping via `centers.franchise_code` field (set by Center Accounts "Link Franchise")
+- Center->Franchise mapping via `centers.franchise_code` field (set by Center Accounts "Link Franchise")
 - RBAC via Permission Engine (Super Admin, Admin, Center Manager, Franchise Owner)
 - No hardcoded center codes, franchise names, or static lists in any module
 - Public GET `/api/masters/{type}` endpoint for all dropdown data
@@ -28,6 +28,7 @@ Internal management system for "Purnabramha," a restaurant franchise. Manages at
 - `billing_audit_trail`: {action, order_id/bill_no, center, reason, cancelled_by, role, timestamp}
 - `expense_heads`: {name, description, is_active}
 - `permissions`: {role_key, permissions_list}
+- `transfer_requests`: {employee_name, from_center, to_center, transfer_type, start_date, end_date, status}
 
 ## Completed Features
 - [x] 16 Master Data Tables + Permission Engine + Franchise Owner Dashboard
@@ -36,16 +37,12 @@ Internal management system for "Purnabramha," a restaurant franchise. Manages at
 - [x] Attendance/Payroll for transfers, PDF exports
 - [x] POS/Billing (touchscreen UI, 17+ routes)
 - [x] Billing Configuration (Tables, Cancel Reasons, Categories CRUD)
-- [x] POS Workflow (Table Selection → Guest Count → Order for Dine-In; Name+Phone for Takeaway/Delivery)
+- [x] POS Workflow (Table Selection -> Guest Count -> Order for Dine-In; Name+Phone for Takeaway/Delivery)
 - [x] KOT/Bill Cancellation Engine (master reasons, audit trail)
 - [x] Franchise Connectivity Indicator (connected=green, unmapped=amber)
 - [x] **MASTER-DATA-FIRST Architecture Fix** (COMPLETED 2026-03-28)
-  - Franchise-center mapping: `centers.franchise_code` as PRIMARY lookup strategy
-  - All POS dropdowns (payment modes, order types, discounts) from master collections
-  - Hardcoded india_centers/aus_centers arrays replaced with DB queries
-  - "Vacant" → "Unmapped" across all dashboards
-  - Dynamic order type validation (keyword-based, not exact string match)
-  - Public GET `/api/masters/{type}` for dropdown data without auth
+- [x] **POS UI Redesign** — Dual-view: Table View landing (table grid, status colors, Delivery/Pickup buttons) + Order View (menu + cart) (COMPLETED 2026-03-28)
+- [x] **Attendance Transfer Bug Fix** — Permanently transferred-out employees now appear in source center's attendance grid with TRANSFERRED_OUT tag, preserving pre-transfer attendance data (COMPLETED 2026-03-28)
 
 ## Test Credentials
 - Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456
