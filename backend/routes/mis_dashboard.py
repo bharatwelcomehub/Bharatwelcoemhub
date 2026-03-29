@@ -70,6 +70,13 @@ def get_period_dates(period: str, custom_start: str = None, custom_end: str = No
     if period == "current_month":
         start = today.replace(day=1)
         end = today
+    elif period == "last_month":
+        last = today.replace(day=1) - timedelta(days=1)
+        start = last.replace(day=1)
+        end = last
+    elif period == "last_6_months":
+        start = today - relativedelta(months=6)
+        end = today
     elif period == "current_quarter":
         quarter = (today.month - 1) // 3
         start = today.replace(month=quarter * 3 + 1, day=1)
