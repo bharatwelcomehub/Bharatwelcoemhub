@@ -240,8 +240,12 @@ export default function Dashboard() {
     if (item.forFranchise) {
       const hasFranchiseAccess = isAdmin || userRoles.franchise === true;
       if (!hasFranchiseAccess) return false;
-      // Franchise owners can only see Owner Dashboard, not management pages
-      if (item.franchiseAdminOnly && session?.role_key === "franchise_owner") return false;
+      // Franchise owners (non-admin users with franchise role) can only see Owner Dashboard + Exit
+      // franchiseAdminOnly items are hidden for non-admin franchise users
+      if (item.franchiseAdminOnly) {
+        const isFranchiseOnlyUser = !isAdmin && !isSuperAdmin && (session?.role_key === "franchise_owner" || userRoles.franchise === true);
+        if (isFranchiseOnlyUser) return false;
+      }
       return true;
     }
     if (item.forAccounts) {

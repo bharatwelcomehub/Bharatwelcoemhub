@@ -1,0 +1,110 @@
+{
+  "summary": "Tested Franchise Owner Dashboard RBAC implementation. All 18 backend tests passed (100%). All frontend UI tests passed. Key verifications: 1) Franchise owner login returns role_key='franchise_owner', franchise_center='PB-HSR', franchise_code='FR-TEST-INDIA'. 2) resolve-owner-center endpoint works correctly. 3) MIS endpoints now accessible by franchise owners. 4) Center dropdown hidden for franchise owners, visible for admin. 5) Sidebar correctly shows only Exit & Closure and Owner Dashboard for franchise owners (Franchise Management and Documents hidden). 6) KPI cards show real data: Total Sales ₹27.0K, Net Profit ₹27,000, Working Capital ₹9,00,000, Avg/Bill ₹225, Revenue Share 15% = ₹4,050.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_franchise_owner_dashboard.py",
+    "/app/test_reports/pytest/pytest_franchise_owner_dashboard.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: Backend resolves franchise center from DB mapping at login time (server.py lines 524-570)",
+    "VERIFIED: New endpoint /api/franchises/resolve-owner-center works correctly for frontend fallback",
+    "VERIFIED: MIS endpoints now allow franchise owners (check_mis_access updated in mis_dashboard.py)",
+    "VERIFIED: Frontend removes center dropdown for non-admin users (FranchiseOwnerDashboard.jsx line 303)",
+    "VERIFIED: Sidebar RBAC updated - franchiseAdminOnly items hidden for non-admin franchise users (Dashboard.jsx lines 245-248)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_franchise_owner_dashboard.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": {
+    "franchise_owner": {
+      "mobile": "8888888888",
+      "center": "PB-HSR",
+      "otp": "123456",
+      "role_key": "franchise_owner",
+      "franchise_code": "FR-TEST-INDIA"
+    },
+    "super_admin": {
+      "mobile": "9741399190",
+      "center": "PB-MGT",
+      "otp": "123456"
+    }
+  },
+  "seed_data_creation": "Used existing test franchise owner account (mobile 8888888888, center PB-HSR)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Franchise Owner Dashboard RBAC fully verified. Key test points: 1) Login as franchise owner (8888888888/PB-HSR/123456) returns role_key='franchise_owner', franchise_center='PB-HSR', franchise_code='FR-TEST-INDIA'. 2) /api/franchises/resolve-owner-center returns correct center mapping. 3) MIS endpoints (/api/mis/overview, /api/mis/working-capital, /api/mis/sales-trends, /api/mis/expense-analysis) all accessible by franchise owner. 4) Frontend: center dropdown hidden for franchise owner, visible for admin. 5) Sidebar: only Exit & Closure and Owner Dashboard visible for franchise owner (Franchise Management and Documents hidden). 6) KPI cards show real data for PB-HSR. 7) Sales vs Expenses chart renders with data. 8) Sales Breakdown shows Cash Sales ₹10.0K, Online Sales ₹17.0K, 200 guests, 120 bills.",
+  "features_tested": {
+    "backend_auth": {
+      "franchise_owner_login": "PASSED - Returns role_key='franchise_owner', franchise_center='PB-HSR', franchise_code='FR-TEST-INDIA'",
+      "admin_login": "PASSED - Returns is_super_admin=True"
+    },
+    "resolve_owner_center_endpoint": {
+      "returns_correct_center": "PASSED - Returns center='PB-HSR'",
+      "returns_franchise_code": "PASSED - Returns franchise_code='FR-TEST-INDIA'",
+      "returns_is_franchise_owner": "PASSED - Returns is_franchise_owner=True"
+    },
+    "mis_access_for_franchise_owner": {
+      "mis_overview": "PASSED - Accessible by franchise owner (was previously blocked)",
+      "mis_working_capital": "PASSED - Returns available_working_capital",
+      "mis_sales_trends": "PASSED - Returns trend data",
+      "mis_expense_analysis": "PASSED - Returns expense breakdown"
+    },
+    "franchise_by_center": {
+      "accessible_by_franchise_owner": "PASSED - Returns franchise info for PB-HSR"
+    },
+    "franchise_exit_list": {
+      "accessible_by_franchise_owner": "PASSED - Returns exits list",
+      "admin_sees_all_exits": "PASSED - Admin can see all exits"
+    },
+    "frontend_center_dropdown": {
+      "hidden_for_franchise_owner": "PASSED - No center dropdown visible",
+      "visible_for_admin": "PASSED - Center dropdown visible with all centers"
+    },
+    "frontend_sidebar_rbac": {
+      "franchise_owner_sees_exit_closure": "PASSED",
+      "franchise_owner_sees_owner_dashboard": "PASSED",
+      "franchise_owner_hidden_franchise_management": "PASSED - franchiseAdminOnly item hidden",
+      "franchise_owner_hidden_documents": "PASSED - franchiseAdminOnly item hidden",
+      "admin_sees_all_franchise_items": "PASSED - All 4 items visible"
+    },
+    "frontend_kpi_cards": {
+      "total_sales": "PASSED - Shows ₹27.0K",
+      "net_profit": "PASSED - Shows ₹27,000",
+      "working_capital": "PASSED - Shows ₹9,00,000",
+      "avg_per_bill": "PASSED - Shows ₹225",
+      "revenue_share": "PASSED - Shows 15% = ₹4,050"
+    },
+    "frontend_charts": {
+      "sales_vs_expenses_trend": "PASSED - Chart renders with data",
+      "sales_breakdown": "PASSED - Shows Cash Sales, Online Sales, Total Guests, Total Bills, GST, Profit Margin"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/send_otp": "PASSED",
+    "POST /api/verify_otp": "PASSED - Returns correct role_key, franchise_center, franchise_code",
+    "POST /api/franchises/resolve-owner-center": "PASSED - Returns center, franchise_code, is_franchise_owner",
+    "POST /api/mis/overview": "PASSED - Accessible by franchise owner",
+    "POST /api/mis/working-capital": "PASSED",
+    "POST /api/mis/sales-trends": "PASSED",
+    "POST /api/mis/expense-analysis": "PASSED",
+    "POST /api/franchises/by-center/PB-HSR": "PASSED",
+    "POST /api/franchise-exit/list": "PASSED",
+    "GET /api/centers": "PASSED"
+  },
+  "mocked_apis": {
+    "whatsapp_notifications": "MOCKED - WhatsApp integration is mocked"
+  }
+}

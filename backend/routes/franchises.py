@@ -304,6 +304,30 @@ async def check_access(token: str) -> dict:
     
     return session
 
+async def check_access_with_franchise(token: str) -> dict:
+    """Check access - allows Admin, Accounts, AND franchise owners"""
+    if not token:
+        raise HTTPException(401, "Authentication required")
+    session = None
+    if verify_token_async_func:
+        session = await verify_token_async_func(token)
+    if not session:
+        session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    is_super_admin = session.get("is_super_admin", False)
+    is_admin = session.get("is_admin", False)
+    roles = session.get("roles", {})
+    has_accounting = roles.get("accounting", False)
+    is_franchise_owner = session.get("role_key") == "franchise_owner"
+    has_franchise_role = roles.get("franchise", False)
+    
+    if not (is_super_admin or is_admin or has_accounting or is_franchise_owner or has_franchise_role):
+        raise HTTPException(403, "Access denied")
+    
+    return session
+
 # =======================================
 # FRANCHISE CRUD ENDPOINTS
 # =======================================
@@ -311,12 +335,9 @@ async def check_access(token: str) -> dict:
 @router.post("/by-center/{center_code}")
 async def get_franchise_by_center(center_code: str, data: dict):
     """Get franchise mapped to a specific center.
-    Strategy 1: Check centers collection for franchise_code field (set by Center Accounts linking).
-    Strategy 2: Check if any franchise has this center directly.
-    Strategy 3: Look up via loan_entries.
-    Strategy 4: Regex match on franchise_code suffix."""
+    Accessible by Admin, Accounts, and Franchise Owners."""
     token = data.get("token")
-    session = await check_access(token)
+    session = await check_access_with_franchise(token)
     
     center_code = center_code.upper()
     franchise = None
@@ -363,8 +384,93 @@ async def get_franchise_by_center(center_code: str, data: dict):
         return {"found": False, "franchise": None}
 
 
-
-@router.post("/list")
+@router.post("/resolve-owner-center")
+async def resolve_franchise_owner_center(data: dict):
+    """Resolve the center for a franchise owner from DB mapping.
+    This endpoint allows franchise owners (not just admins) to resolve their center.
+    Uses multiple strategies to find the correct center:
+    1. session.franchise_center (if set by login)
+    2. centers.franchise_code -> franchise lookup
+    3. franchises.center or franchises.centers_mapped
+    Returns the resolved center code and franchise details."""
+    token = data.get("token")
+    if not token:
+        raise HTTPException(401, "Authentication required")
+    
+    # Use a broader access check that allows franchise owners
+    session = None
+    if verify_token_async_func:
+        session = await verify_token_async_func(token)
+    if not session:
+        session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    role_key = session.get("role_key", "")
+    login_center = session.get("center", "")
+    franchise_center = session.get("franchise_center", "")
+    franchise_id = session.get("franchise_id", "")
+    
+    resolved_center = franchise_center or ""
+    resolved_franchise = None
+    
+    # Strategy 1: Use franchise_center from session (already resolved at login)
+    if resolved_center:
+        # Look up the franchise details for this center
+        center_doc = await db.centers.find_one(
+            {"code": resolved_center, "franchise_code": {"$exists": True, "$ne": ""}},
+            {"_id": 0, "franchise_code": 1}
+        )
+        if center_doc:
+            resolved_franchise = await db.franchises.find_one(
+                {"franchise_code": center_doc["franchise_code"]},
+                {"_id": 0}
+            )
+    
+    # Strategy 2: Use login center -> centers.franchise_code
+    if not resolved_franchise:
+        center_doc = await db.centers.find_one(
+            {"code": login_center, "franchise_code": {"$exists": True, "$ne": ""}},
+            {"_id": 0, "franchise_code": 1}
+        )
+        if center_doc:
+            resolved_center = login_center
+            resolved_franchise = await db.franchises.find_one(
+                {"franchise_code": center_doc["franchise_code"]},
+                {"_id": 0}
+            )
+    
+    # Strategy 3: Use franchise_id from manager
+    if not resolved_franchise and franchise_id:
+        resolved_franchise = await db.franchises.find_one(
+            {"franchise_code": franchise_id},
+            {"_id": 0}
+        )
+        if resolved_franchise:
+            resolved_center = resolved_franchise.get("center", login_center) or login_center
+    
+    # Strategy 4: Check franchises with matching center
+    if not resolved_franchise:
+        resolved_franchise = await db.franchises.find_one(
+            {"$or": [{"center": login_center}, {"centers_mapped": login_center}]},
+            {"_id": 0}
+        )
+        if resolved_franchise:
+            resolved_center = login_center
+    
+    # Fallback: use login center
+    if not resolved_center:
+        resolved_center = login_center
+    
+    return {
+        "center": resolved_center,
+        "franchise": resolved_franchise,
+        "franchise_code": resolved_franchise.get("franchise_code", "") if resolved_franchise else "",
+        "franchise_name": resolved_franchise.get("franchise_name", "") if resolved_franchise else "",
+        "owner_name": resolved_franchise.get("owner_name", "") if resolved_franchise else "",
+        "revenue_share_percentage": resolved_franchise.get("revenue_share_percentage", 0) if resolved_franchise else 0,
+        "is_franchise_owner": role_key == "franchise_owner"
+    }
 async def list_franchises(req: FranchiseQueryRequest):
     """List all franchises with optional filters"""
     session = await check_access(req.token)

@@ -520,6 +520,57 @@ async def verify_otp(req: OTPVerify):
     stored["role_key"] = manager.get("role_key", "") if manager else ""
     stored["franchise_center"] = manager.get("franchise_center", "") if manager else ""
     stored["franchise_id"] = manager.get("franchise_id", "") if manager else ""
+    
+    # ── RESOLVE FRANCHISE CENTER FROM DB MAPPING ──
+    # If role_key is "franchise_owner" and franchise_center is empty, resolve from DB
+    if stored["role_key"] == "franchise_owner" and not stored["franchise_center"]:
+        resolved_center = ""
+        resolved_franchise_code = ""
+        login_center = stored.get("center", "")
+        
+        # Method 1: Check if the login center has a franchise_code in the centers collection
+        center_doc = await db.centers.find_one(
+            {"code": login_center, "franchise_code": {"$exists": True, "$ne": ""}},
+            {"_id": 0, "franchise_code": 1}
+        )
+        if center_doc:
+            resolved_center = login_center
+            resolved_franchise_code = center_doc["franchise_code"]
+        
+        # Method 2: Check franchise_id → franchise → center mapping
+        if not resolved_center and stored.get("franchise_id"):
+            franchise_doc = await db.franchises.find_one(
+                {"franchise_code": stored["franchise_id"]},
+                {"_id": 0, "center": 1, "centers_mapped": 1}
+            )
+            if franchise_doc:
+                resolved_franchise_code = stored["franchise_id"]
+                resolved_center = franchise_doc.get("center", "")
+                if not resolved_center and franchise_doc.get("centers_mapped"):
+                    resolved_center = franchise_doc["centers_mapped"][0]
+        
+        # Method 3: Find franchise that maps to the login center
+        if not resolved_center:
+            franchise_doc = await db.franchises.find_one(
+                {"$or": [{"center": login_center}, {"centers_mapped": login_center}]},
+                {"_id": 0, "franchise_code": 1, "center": 1}
+            )
+            if franchise_doc:
+                resolved_center = login_center
+                resolved_franchise_code = franchise_doc.get("franchise_code", "")
+        
+        if resolved_center:
+            stored["franchise_center"] = resolved_center
+            stored["franchise_code"] = resolved_franchise_code
+            logger.info(f"Resolved franchise center for owner: {resolved_center} (franchise: {resolved_franchise_code})")
+        else:
+            # Fallback: use login center
+            stored["franchise_center"] = login_center
+            logger.warning(f"Could not resolve franchise center for {login_center}, using login center")
+    
+    # Also store franchise_code if resolved
+    if not stored.get("franchise_code"):
+        stored["franchise_code"] = ""
     stored["key"] = key  # Add key for MongoDB lookup
     
     # Save to both in-memory and MongoDB for persistence
@@ -542,6 +593,7 @@ async def verify_otp(req: OTPVerify):
         "role_key": stored.get("role_key", ""),
         "franchise_center": stored.get("franchise_center", ""),
         "franchise_id": stored.get("franchise_id", ""),
+        "franchise_code": stored.get("franchise_code", ""),
         "session_expires_in_seconds": session_ttl
     }
 

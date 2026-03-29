@@ -39,7 +39,7 @@ def set_verify_token_async(func):
 # =======================================
 
 async def check_mis_access(token: str) -> dict:
-    """Check if user has MIS Dashboard access (Super Admin, Admin, or Accounts role)"""
+    """Check if user has MIS Dashboard access (Super Admin, Admin, Accounts, or Franchise Owner)"""
     # Try async verification first (checks MongoDB)
     session = None
     if verify_token_async_func:
@@ -53,9 +53,11 @@ async def check_mis_access(token: str) -> dict:
     is_admin = session.get("is_admin", False)
     roles = session.get("roles", {})
     has_accounting = roles.get("accounting", False)
+    is_franchise_owner = session.get("role_key") == "franchise_owner"
+    has_franchise_role = roles.get("franchise", False)
     
-    if not (is_super_admin or is_admin or has_accounting):
-        raise HTTPException(403, "Only Admin or Accounts users can access MIS Dashboard")
+    if not (is_super_admin or is_admin or has_accounting or is_franchise_owner or has_franchise_role):
+        raise HTTPException(403, "Only Admin, Accounts, or Franchise Owner users can access MIS Dashboard")
     
     return session
 

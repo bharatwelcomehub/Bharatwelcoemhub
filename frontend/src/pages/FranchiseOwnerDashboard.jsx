@@ -63,7 +63,8 @@ const PremiumTooltip = ({ active, payload, label }) => {
 export default function FranchiseOwnerDashboard() {
   const { session } = useAuth();
   const isFranchiseOwner = session?.role_key === "franchise_owner";
-  const isAdmin = session?.is_super_admin || session?.is_admin || session?.roles?.franchise === true;
+  const isAdmin = session?.is_super_admin || session?.is_admin;
+  const canSelectCenter = isAdmin; // Only admin/super admin can switch centers
 
   const [selectedCenter, setSelectedCenter] = useState("");
   const [centersList, setCentersList] = useState([]);
@@ -86,6 +87,7 @@ export default function FranchiseOwnerDashboard() {
   const [franchiseInfo, setFranchiseInfo] = useState(null);
   const [franchiseDocs, setFranchiseDocs] = useState([]);
 
+  // Only admin/super admin can see center dropdown
   useEffect(() => {
     const fetchCenters = async () => {
       if (!session?.token) return;
@@ -95,15 +97,40 @@ export default function FranchiseOwnerDashboard() {
         setCentersList(centers);
       } catch {}
     };
-    if (isAdmin) fetchCenters();
-  }, [isAdmin, session?.token]);
+    if (canSelectCenter) fetchCenters();
+  }, [canSelectCenter, session?.token]);
 
+  // Resolve franchise owner's center from DB mapping (no dropdown needed)
   useEffect(() => {
-    if (!selectedCenter && session) {
-      // Franchise owner sees only their assigned center
-      setSelectedCenter(session.franchise_center || session.center);
-    }
-  }, [session, selectedCenter]);
+    const resolveCenter = async () => {
+      if (!session?.token) return;
+      
+      // For admins: default to their login center, they can switch via dropdown
+      if (canSelectCenter) {
+        if (!selectedCenter) {
+          setSelectedCenter(session.center || "");
+        }
+        return;
+      }
+      
+      // For franchise owners: resolve from DB mapping, no manual selection
+      try {
+        const res = await api.post("/franchises/resolve-owner-center", { token: session.token });
+        const resolved = res.data?.center;
+        if (resolved) {
+          setSelectedCenter(resolved);
+        } else {
+          // Fallback: use session fields
+          setSelectedCenter(session.franchise_center || session.center || "");
+        }
+      } catch {
+        // Fallback if endpoint fails
+        setSelectedCenter(session.franchise_center || session.center || "");
+      }
+    };
+    
+    if (!selectedCenter) resolveCenter();
+  }, [session, canSelectCenter, selectedCenter]);
 
   const fetchData = useCallback(async () => {
     if (!session?.token || !selectedCenter) return;
@@ -209,7 +236,9 @@ export default function FranchiseOwnerDashboard() {
     { label: `Revenue Share (${revenueSharePct}%)`, displayValue: formatFullCurrency(netRevenue, isIntl), icon: Percent, gradient: netRevenue >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
   ] : [];
 
-  if (!isAdmin && !isFranchiseOwner) return null;
+  // Allow admin/super-admin, franchise owners, and users with franchise role
+  const hasAccess = isAdmin || isFranchiseOwner || session?.roles?.franchise === true;
+  if (!hasAccess) return null;
 
   return (
     <div className="space-y-6" data-testid="franchise-owner-dashboard">
@@ -271,7 +300,7 @@ export default function FranchiseOwnerDashboard() {
               {useRange ? 'Month' : 'Range'}
             </Button>
 
-            {isAdmin && !isFranchiseOwner && centersList.length > 0 && (
+            {canSelectCenter && centersList.length > 0 && (
               <Select value={selectedCenter} onValueChange={setSelectedCenter}>
                 <SelectTrigger className="w-[140px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" data-testid="fo-center-select">
                   <SelectValue />
