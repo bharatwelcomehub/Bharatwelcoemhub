@@ -217,8 +217,8 @@ async def get_mis_overview(data: dict):
             if c and c != "Unknown":
                 comm_data = await calculate_commissions_for_period(c, start_date, end_date)
                 centers_data[c]["commissions"] = round(comm_data.get("total_commission", 0), 2)
-    except Exception:
-        pass
+    except Exception as comm_err:
+        logger.error(f"MIS center commission calc failed: {comm_err}", exc_info=True)
     
     # Calculate profit for each center
     for c in centers_data:
