@@ -151,8 +151,8 @@ async def get_mis_overview(data: dict):
     total_guests = sum(int(s.get("num_guests", 0) or 0) for s in sales_data)
     total_bills = sum(int(s.get("num_bills", 0) or 0) for s in sales_data)
     
-    # GST calculation (5% of total sales)
-    total_gst = round(total_sales * 0.05, 2)
+    # GST from actual data (gst_amount field in daily_sales)
+    total_gst = round(sum(float(s.get("gst_amount", 0) or 0) for s in sales_data), 2)
     
     # Expenses
     total_expenses = sum(float(e.get("amount", 0) or 0) for e in expenses_data)
@@ -182,7 +182,7 @@ async def get_mis_overview(data: dict):
     # Calculate totals - Previous Period
     prev_total_sales = sum(float(s.get("total_sale", 0) or 0) for s in prev_sales_data)
     prev_total_expenses = sum(float(e.get("amount", 0) or 0) for e in prev_expenses_data)
-    prev_gst = round(prev_total_sales * 0.05, 2)
+    prev_gst = round(sum(float(s.get("gst_amount", 0) or 0) for s in prev_sales_data), 2)
     prev_profit = prev_total_sales - prev_total_expenses - prev_gst
     
     # Calculate changes
@@ -200,15 +200,16 @@ async def get_mis_overview(data: dict):
     for s in sales_data:
         c = s.get("center", "Unknown")
         if c not in centers_data:
-            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0}
+            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
         centers_data[c]["sales"] += float(s.get("total_sale", 0) or 0)
         centers_data[c]["guests"] += int(s.get("num_guests", 0) or 0)
         centers_data[c]["bills"] += int(s.get("num_bills", 0) or 0)
+        centers_data[c]["gst"] += float(s.get("gst_amount", 0) or 0)
     
     for e in expenses_data:
         c = e.get("center", "Unknown")
         if c not in centers_data:
-            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0}
+            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
         centers_data[c]["expenses"] += float(e.get("amount", 0) or 0)
     
     # Add commissions per center
@@ -224,7 +225,7 @@ async def get_mis_overview(data: dict):
     for c in centers_data:
         center_sales = centers_data[c]["sales"]
         center_expenses = centers_data[c]["expenses"]
-        center_gst = round(center_sales * 0.05, 2)
+        center_gst = round(centers_data[c]["gst"], 2)
         center_comm = centers_data[c].get("commissions", 0)
         centers_data[c]["gst"] = center_gst
         centers_data[c]["profit"] = round(center_sales - center_expenses - center_gst - center_comm, 2)
@@ -307,9 +308,10 @@ async def get_sales_trends(data: dict):
         for s in sales_data:
             date = s.get("date", "")
             if date not in grouped:
-                grouped[date] = {"date": date, "sales": 0, "expenses": 0, "guests": 0}
+                grouped[date] = {"date": date, "sales": 0, "expenses": 0, "guests": 0, "gst": 0}
             grouped[date]["sales"] += float(s.get("total_sale", 0) or 0)
             grouped[date]["guests"] += int(s.get("num_guests", 0) or 0)
+            grouped[date]["gst"] += float(s.get("gst_amount", 0) or 0)
         
         # Get expenses for same dates
         expenses_data = await db.expenses.find(query, {"_id": 0}).to_list(10000)
@@ -326,8 +328,9 @@ async def get_sales_trends(data: dict):
             date = datetime.strptime(s.get("date", "2025-01-01"), "%Y-%m-%d")
             week_start = (date - timedelta(days=date.weekday())).strftime("%Y-%m-%d")
             if week_start not in grouped:
-                grouped[week_start] = {"week": week_start, "sales": 0, "expenses": 0}
+                grouped[week_start] = {"week": week_start, "sales": 0, "expenses": 0, "gst": 0}
             grouped[week_start]["sales"] += float(s.get("total_sale", 0) or 0)
+            grouped[week_start]["gst"] += float(s.get("gst_amount", 0) or 0)
         
         expenses_data = await db.expenses.find(query, {"_id": 0}).to_list(10000)
         for e in expenses_data:
@@ -343,8 +346,9 @@ async def get_sales_trends(data: dict):
         for s in sales_data:
             month = s.get("date", "2025-01-01")[:7]  # YYYY-MM
             if month not in grouped:
-                grouped[month] = {"month": month, "sales": 0, "expenses": 0}
+                grouped[month] = {"month": month, "sales": 0, "expenses": 0, "gst": 0}
             grouped[month]["sales"] += float(s.get("total_sale", 0) or 0)
+            grouped[month]["gst"] += float(s.get("gst_amount", 0) or 0)
         
         expenses_data = await db.expenses.find(query, {"_id": 0}).to_list(10000)
         for e in expenses_data:
@@ -354,11 +358,11 @@ async def get_sales_trends(data: dict):
         
         trends = sorted(grouped.values(), key=lambda x: x["month"])
     
-    # Calculate profit for each period
+    # Calculate profit for each period (GST from actual data, not 5%)
     for t in trends:
         sales = t.get("sales", 0)
         expenses = t.get("expenses", 0)
-        gst = round(sales * 0.05, 2)
+        gst = round(t.get("gst", 0), 2)
         t["gst"] = gst
         t["profit"] = round(sales - expenses - gst, 2)
     
@@ -404,13 +408,14 @@ async def get_center_comparison(data: dict):
     for s in sales_data:
         c = s.get("center", "Unknown")
         if c not in centers:
-            centers[c] = {"center": c, "sales": 0, "expenses": 0, "prev_sales": 0, "prev_expenses": 0}
+            centers[c] = {"center": c, "sales": 0, "expenses": 0, "prev_sales": 0, "prev_expenses": 0, "gst": 0}
         centers[c]["sales"] += float(s.get("total_sale", 0) or 0)
+        centers[c]["gst"] += float(s.get("gst_amount", 0) or 0)
     
     for e in expenses_data:
         c = e.get("center", "Unknown")
         if c not in centers:
-            centers[c] = {"center": c, "sales": 0, "expenses": 0, "prev_sales": 0, "prev_expenses": 0}
+            centers[c] = {"center": c, "sales": 0, "expenses": 0, "prev_sales": 0, "prev_expenses": 0, "gst": 0}
         centers[c]["expenses"] += float(e.get("amount", 0) or 0)
     
     for s in prev_sales:
@@ -425,7 +430,7 @@ async def get_center_comparison(data: dict):
     
     # Calculate metrics for each center
     for c in centers.values():
-        c["gst"] = round(c["sales"] * 0.05, 2)
+        c["gst"] = round(c.get("gst", 0), 2)
         c["profit"] = round(c["sales"] - c["expenses"] - c["gst"], 2)
         c["profit_margin"] = round((c["profit"] / c["sales"] * 100) if c["sales"] > 0 else 0, 2)
         
@@ -675,7 +680,7 @@ async def get_quarterly_comparison(data: dict):
         
         total_sales = sum(float(s.get("total_sale", 0) or 0) for s in sales)
         total_expenses = sum(float(e.get("amount", 0) or 0) for e in expenses)
-        gst = round(total_sales * 0.05, 2)
+        gst = round(sum(float(s.get("gst_amount", 0) or 0) for s in sales), 2)
         profit = total_sales - total_expenses - gst
         
         quarters.append({
@@ -720,8 +725,9 @@ async def get_top_performers(data: dict):
     for s in sales:
         c = s.get("center", "Unknown")
         if c not in centers:
-            centers[c] = {"center": c, "sales": 0, "expenses": 0}
+            centers[c] = {"center": c, "sales": 0, "expenses": 0, "gst": 0}
         centers[c]["sales"] += float(s.get("total_sale", 0) or 0)
+        centers[c]["gst"] += float(s.get("gst_amount", 0) or 0)
     
     for e in expenses:
         c = e.get("center", "Unknown")
@@ -729,7 +735,7 @@ async def get_top_performers(data: dict):
             centers[c]["expenses"] += float(e.get("amount", 0) or 0)
     
     for c in centers.values():
-        c["gst"] = round(c["sales"] * 0.05, 2)
+        c["gst"] = round(c.get("gst", 0), 2)
         c["profit"] = round(c["sales"] - c["expenses"] - c["gst"], 2)
         c["profit_margin"] = round((c["profit"] / c["sales"] * 100) if c["sales"] > 0 else 0, 2)
     
@@ -1081,7 +1087,7 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
         ["Cash Sales", fmt(s.get("total_cash_sales")), ""],
         ["Online Sales", fmt(s.get("total_online_sales")), ""],
         ["Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
-        ["GST (5%)", fmt(s.get("total_gst")), ""],
+        ["GST", fmt(s.get("total_gst")), ""],
         ["Total Guests", f"{s.get('total_guests', 0):,}", ""],
         ["Total Bills", f"{s.get('total_bills', 0):,}", ""],
         ["Avg per Guest", fmt(s.get("avg_per_guest")), ""],

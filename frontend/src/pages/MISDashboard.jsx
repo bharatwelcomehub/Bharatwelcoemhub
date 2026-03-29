@@ -192,7 +192,7 @@ export default function MISDashboard() {
     const s = overview?.summary;
     const ws1 = XLSX.utils.aoa_to_sheet([["MIS Report - Purnabramha"], ["Center", cl], ["Period", pl], [], ["Metric", "Value"],
       ["Total Sales", s?.total_sales], ["Cash Sales", s?.total_cash_sales], ["Online Sales", s?.total_online_sales],
-      ["Total Expenses", s?.total_expenses], ["GST (5%)", s?.total_gst],
+      ["Total Expenses", s?.total_expenses], ["GST", s?.total_gst],
       ["Total Guests", s?.total_guests], ["Total Bills", s?.total_bills],
       ["Avg per Guest", s?.avg_per_guest], ["Avg per Bill", s?.avg_per_bill],
       ["Working Capital", workingCapital?.available_working_capital || "N/A"]]);
