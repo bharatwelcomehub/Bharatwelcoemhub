@@ -1,50 +1,83 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/App";
-import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { 
-  BarChart3, Download, IndianRupee, Receipt, FileText, Store, Calendar,
-  TrendingUp, TrendingDown, Loader2, Eye, UserCheck, UserX, Link2, FileDown
-} from "lucide-react";
 import {
-  ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ComposedChart, Area
 } from "recharts";
+import {
+  BarChart3, Download, IndianRupee, Receipt, FileText, Store, Calendar,
+  TrendingUp, TrendingDown, Loader2, UserCheck, FileDown, Wallet,
+  Activity, ArrowUpRight, ArrowDownRight, Percent
+} from "lucide-react";
+import { api } from "@/lib/api";
 import * as XLSX from "xlsx";
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F'];
-const formatCurrency = (v) => {
-  if (!v) return "0";
-  if (v >= 100000) return `${(v / 100000).toFixed(2)}L`;
-  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
-  return v.toFixed(0);
+const CHART_COLORS = ['#D97706', '#059669', '#7C3AED', '#DC2626', '#2563EB', '#F59E0B', '#10B981', '#8B5CF6'];
+
+const formatCurrency = (value, intl = false) => {
+  const sym = intl ? "$" : "\u20B9";
+  if (value === null || value === undefined) return `${sym}0`;
+  const abs = Math.abs(value);
+  if (abs >= 10000000) return `${value < 0 ? '-' : ''}${sym}${(abs / 10000000).toFixed(2)}Cr`;
+  if (abs >= 100000) return `${value < 0 ? '-' : ''}${sym}${(abs / 100000).toFixed(2)}L`;
+  if (abs >= 1000) return `${value < 0 ? '-' : ''}${sym}${(abs / 1000).toFixed(1)}K`;
+  return `${value < 0 ? '-' : ''}${sym}${abs.toFixed(0)}`;
+};
+
+const formatFullCurrency = (value, intl = false) => {
+  const sym = intl ? "$" : "\u20B9";
+  if (value === null || value === undefined) return `${sym}0`;
+  const sign = value < 0 ? '-' : '';
+  return `${sign}${sym}${Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+};
+
+const PremiumTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl px-4 py-3 shadow-2xl">
+      <p className="text-xs font-medium text-slate-400 mb-2">{label}</p>
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center gap-2 text-sm">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
+          <span className="text-slate-300">{p.name}:</span>
+          <span className="font-bold text-white">{formatFullCurrency(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 export default function FranchiseOwnerDashboard() {
   const { session } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [period, setPeriod] = useState("current_month");
-  const [tab, setTab] = useState("overview");
-  const [centersList, setCentersList] = useState([]);
+  const isAdmin = session?.is_super_admin || session?.role === "franchise" || session?.role === "accounts";
+
   const [selectedCenter, setSelectedCenter] = useState("");
-  
-  // Data
+  const [centersList, setCentersList] = useState([]);
+  const [period, setPeriod] = useState("current_month");
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  // Data states
   const [overview, setOverview] = useState(null);
   const [salesData, setSalesData] = useState([]);
   const [expenseData, setExpenseData] = useState([]);
-  const [franchiseInfo, setFranchiseInfo] = useState(null);
-  const [invoices, setInvoices] = useState([]);
   const [workingCapital, setWorkingCapital] = useState(null);
+  const [franchiseInfo, setFranchiseInfo] = useState(null);
   const [franchiseDocs, setFranchiseDocs] = useState([]);
 
-  const isAdmin = session?.is_super_admin || session?.is_admin;
-
-  // Fetch centers for admin dropdown
   useEffect(() => {
     const fetchCenters = async () => {
       if (!isAdmin || !session?.token) return;
@@ -57,7 +90,6 @@ export default function FranchiseOwnerDashboard() {
     fetchCenters();
   }, [isAdmin, session?.token]);
 
-  // Set initial center
   useEffect(() => {
     if (!selectedCenter && session?.center) {
       setSelectedCenter(session.franchise_center || session.center);
@@ -70,25 +102,25 @@ export default function FranchiseOwnerDashboard() {
     try {
       const center = selectedCenter;
       const params = { token: session.token, period, center };
-      
+
       const [ovRes, salesRes, expRes, wcRes] = await Promise.all([
         api.post("/mis/overview", params).catch(() => ({ data: {} })),
         api.post("/mis/sales-trends", { ...params, group_by: "daily" }).catch(() => ({ data: { trends: [] } })),
         api.post("/mis/expense-analysis", params).catch(() => ({ data: {} })),
         api.post("/mis/working-capital", { token: session.token, center }).catch(() => ({ data: {} })),
       ]);
-      
+
       setOverview(ovRes.data);
       setSalesData(salesRes.data.trends || []);
       setExpenseData(expRes.data.by_type || []);
       setWorkingCapital(wcRes.data || null);
-      
-      // Fetch franchise info for this center
+
+      // Fetch franchise info
       const frRes = await api.post(`/franchises/by-center/${center}`, { token: session.token }).catch(() => ({ data: { found: false, franchise: null } }));
       const franchise = frRes.data.found ? frRes.data.franchise : null;
       setFranchiseInfo(franchise);
-      
-      // Fetch documents for this franchise/center (view only)
+
+      // Fetch documents
       try {
         const docParams = { token: session.token, level: "franchise" };
         if (franchise?.franchise_code) {
@@ -99,9 +131,8 @@ export default function FranchiseOwnerDashboard() {
         const docRes = await api.post("/documents/list", docParams).catch(() => ({ data: { documents: [] } }));
         setFranchiseDocs(docRes.data.documents || []);
       } catch { setFranchiseDocs([]); }
-      
     } catch (err) {
-      console.error(err);
+      toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
@@ -125,226 +156,267 @@ export default function FranchiseOwnerDashboard() {
 
   const handleExportReport = () => {
     if (!overview) return;
+    const s = overview;
     const wb = XLSX.utils.book_new();
-    const center = session.franchise_center || session.center;
-    
-    // Summary
-    const summary = [
-      ["Franchise Report - Purnabramha"], ["Center", center], ["Period", period], [],
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Franchise Report - Purnabramha"], ["Center", selectedCenter], ["Period", period], [],
       ["Metric", "Value"],
-      ["Total Sales", overview?.summary?.total_sales],
-      ["Total Expenses", overview?.summary?.total_expenses],
-      ["GST", overview?.summary?.total_gst],
-      ["Working Capital", workingCapital?.available_working_capital || "N/A"],
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Summary");
-    
-    // Sales Trends
-    if (salesData.length > 0) {
-      const rows = salesData.map(s => [s.date, s.sales, s.expenses, s.gst]);
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Date", "Sales", "Expenses", "GST"], ...rows]), "Sales Trends");
-    }
-    
-    // Expense Breakdown
-    if (expenseData.length > 0) {
-      const rows = expenseData.map(e => [e.type, e.amount, e.percentage, e.count]);
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Type", "Amount", "%", "Count"], ...rows]), "Expenses");
-    }
-    
-    XLSX.writeFile(wb, `Franchise_Report_${center}_${period}.xlsx`);
-    toast.success("Report downloaded");
+      ["Total Sales", s?.total_sales], ["Total Expenses", s?.total_expenses],
+      ["Commissions", s?.total_commissions], ["GST", s?.total_gst],
+      ["Net Profit", s?.profit], ["Revenue Share %", franchiseInfo?.revenue_share_percentage || 0],
+      ["Net Revenue (Franchise Share)", (s?.profit || 0) * ((franchiseInfo?.revenue_share_percentage || 0) / 100)],
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws, "Summary");
+    XLSX.writeFile(wb, `Franchise_Report_${selectedCenter}_${period}.xlsx`);
+    toast.success("Report exported");
   };
 
-  const summary = overview?.summary || {};
-  const center = session?.franchise_center || session?.center;
+  const centerObj = centersList.find(c => c.code === selectedCenter);
+  const isIntl = centerObj?.is_india_center === false || centerObj?.country === "Australia";
+  const s = overview;
+  const revenueSharePct = franchiseInfo?.revenue_share_percentage || 0;
+  const netProfit = s?.profit || 0;
+  const netRevenue = netProfit * (revenueSharePct / 100);
+  const trends = salesData;
+
+  const kpiCards = s ? [
+    { label: "Total Sales", value: s.total_sales, change: s.changes?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50" },
+    { label: "Total Expenses", value: s.total_expenses, change: s.changes?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50" },
+    { label: "Commissions", displayValue: formatFullCurrency(s.total_commissions || 0, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
+    { label: "Net Profit", displayValue: formatFullCurrency(netProfit, isIntl), change: s.changes?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
+    { label: "Working Capital", displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
+    { label: "Avg / Bill", displayValue: formatFullCurrency(s.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
+    { label: `Revenue Share (${revenueSharePct}%)`, displayValue: formatFullCurrency(netRevenue, isIntl), icon: Percent, gradient: netRevenue >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
+  ] : [];
+
+  if (!isAdmin && !session?.role) return null;
 
   return (
     <div className="space-y-6" data-testid="franchise-owner-dashboard">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Store className="w-6 h-6 text-primary" />
-            Franchise Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {franchiseInfo?.franchise_name || franchiseInfo?.name || center} — View Only
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="text-xs border-amber-400 text-amber-600 bg-amber-50">
-            <Eye className="w-3 h-3 mr-1" /> View Only
-          </Badge>
-          {isAdmin && centersList.length > 0 && (
-            <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-              <SelectTrigger className="w-[140px]" data-testid="fo-center-select">
-                <SelectValue placeholder="Center" />
+      {/* HEADER */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700/40">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <Store className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Franchise Dashboard</h1>
+                <p className="text-sm text-slate-400">
+                  {franchiseInfo ? `${franchiseInfo.franchise_name} - ${selectedCenter}` : selectedCenter} &middot; View Only
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-xs">View Only</Badge>
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className="w-[150px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" data-testid="fo-period-select">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {centersList.map(c => (
-                  <SelectItem key={c.code} value={c.code}>{c.code} - {c.name}</SelectItem>
-                ))}
+                <SelectItem value="current_month">Current Month</SelectItem>
+                <SelectItem value="last_month">Last Month</SelectItem>
+                <SelectItem value="last_3_months">Last 3 Months</SelectItem>
+                <SelectItem value="last_6_months">Last 6 Months</SelectItem>
+                <SelectItem value="ytd">Year to Date</SelectItem>
               </SelectContent>
             </Select>
-          )}
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[160px]" data-testid="fo-period-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="current_month">This Month</SelectItem>
-              <SelectItem value="last_month">Last Month</SelectItem>
-              <SelectItem value="last_3_months">Last 3 Months</SelectItem>
-              <SelectItem value="last_6_months">Last 6 Months</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={handleExportReport} disabled={loading} data-testid="fo-export-btn">
-            <Download className="w-4 h-4 mr-2" /> Export
-          </Button>
+
+            {isAdmin && centersList.length > 0 && (
+              <Select value={selectedCenter} onValueChange={setSelectedCenter}>
+                <SelectTrigger className="w-[140px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" data-testid="fo-center-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {centersList.map(c => (
+                    <SelectItem key={c.code} value={c.code}>{c.code} - {c.name?.split(' - ')[0]?.substring(0, 12)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <Button variant="outline" size="sm" className="bg-slate-800/80 border-slate-600 text-white h-9" onClick={handleExportReport}>
+              <Download className="w-4 h-4 mr-1" /> Export
+            </Button>
+          </div>
         </div>
+
+        {/* Franchise Owner Info */}
+        {franchiseInfo && (
+          <div className="mt-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <UserCheck className="w-5 h-5 text-emerald-400" />
+              <div>
+                <p className="text-sm font-medium text-emerald-300">{franchiseInfo.owner_name} &mdash; Franchise Owner</p>
+                <p className="text-xs text-emerald-400/70">{franchiseInfo.email} | Revenue Share: {revenueSharePct}%</p>
+              </div>
+            </div>
+            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">{franchiseInfo.status || 'Active'}</Badge>
+          </div>
+        )}
       </div>
 
+      {/* LOADING */}
       {loading && (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
         </div>
       )}
 
-      {!loading && (
-        <>
-          {/* Franchise Ownership Status */}
-          <Card className={`border-2 ${franchiseInfo ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/50'}`} data-testid="franchise-connectivity-card">
-            <CardContent className="py-3 px-4">
-              <div className="flex items-center gap-3">
-                {franchiseInfo ? (
-                  <>
-                    <div className="p-2 rounded-full bg-green-100">
-                      <UserCheck className="w-5 h-5 text-green-600" />
+      {/* KPI CARDS */}
+      {overview && !loading && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {kpiCards.map((kpi, i) => {
+            const Icon = kpi.icon;
+            const displayVal = kpi.displayValue || formatCurrency(kpi.value, isIntl);
+            return (
+              <div
+                key={i}
+                className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${kpi.gradient} p-4 shadow-lg transition-transform hover:scale-[1.02]`}
+                data-testid={`fo-kpi-${kpi.label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+              >
+                <div className="absolute -right-3 -top-3 w-16 h-16 rounded-full bg-white/10" />
+                <div className="absolute -right-1 -bottom-4 w-12 h-12 rounded-full bg-white/5" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className={`text-xs font-medium ${kpi.textColor} opacity-80`}>{kpi.label}</p>
+                    <Icon className={`w-4 h-4 ${kpi.textColor} opacity-60`} />
+                  </div>
+                  <p className={`text-lg font-bold ${kpi.textColor} tracking-tight`}>{displayVal}</p>
+                  {kpi.change !== undefined && kpi.change !== null && (
+                    <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${kpi.textColor} opacity-70`}>
+                      {kpi.change > 0 ? <ArrowUpRight className="w-3 h-3" /> : kpi.change < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
+                      {kpi.change?.toFixed(1)}% vs prev
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-green-800" data-testid="franchise-owner-name">
-                        {franchiseInfo.primary_contact_name || franchiseInfo.franchise_name || franchiseInfo.name} — Franchise Owner Connected
-                      </p>
-                      <p className="text-xs text-green-600">
-                        Center: {selectedCenter || center} | {franchiseInfo.primary_contact_email || ''} {franchiseInfo.primary_contact_phone ? `| ${franchiseInfo.primary_contact_phone}` : ''}
-                      </p>
-                    </div>
-                    <Badge className="bg-green-100 text-green-700 border-green-300">
-                      <Link2 className="w-3 h-3 mr-1" /> Active
-                    </Badge>
-                  </>
-                ) : (
-                  <>
-                    <div className="p-2 rounded-full bg-amber-100">
-                      <UserX className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-amber-800" data-testid="franchise-unmapped-status">
-                        No Franchise Mapped to This Center
-                      </p>
-                      <p className="text-xs text-amber-600">
-                        Center: {selectedCenter || center} | Link a franchise via Center Accounts
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="border-amber-400 text-amber-600 bg-amber-50">
-                      Unmapped
-                    </Badge>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            );
+          })}
+        </div>
+      )}
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="bg-card border-border">
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total Sales</p>
-                <p className="text-xl font-bold text-green-400" data-testid="fo-total-sales">
-                  {formatCurrency(summary.total_sales || 0)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total Expenses</p>
-                <p className="text-xl font-bold text-red-400" data-testid="fo-total-expenses">
-                  {formatCurrency(summary.total_expenses || 0)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">GST</p>
-                <p className="text-xl font-bold text-amber-400" data-testid="fo-gst">
-                  {formatCurrency(summary.total_gst || 0)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Working Capital</p>
-                <p className="text-xl font-bold text-primary" data-testid="fo-working-capital">
-                  {formatCurrency(workingCapital?.available_working_capital || 0)}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {(workingCapital?.total_outstanding || 0) > 0 
-                    ? `${formatCurrency(workingCapital.total_outstanding)} outstanding` 
-                    : 'Fully intact'}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+      {/* TABS */}
+      {overview && !loading && (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="bg-slate-100 border border-slate-200 rounded-xl p-1 flex-wrap">
+            <TabsTrigger value="overview" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Sales Overview</TabsTrigger>
+            <TabsTrigger value="expenses" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Expense Breakdown</TabsTrigger>
+            <TabsTrigger value="franchise" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Franchise Info</TabsTrigger>
+            <TabsTrigger value="documents" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Documents</TabsTrigger>
+          </TabsList>
 
-          {/* Tabs */}
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="bg-card border border-border">
-              <TabsTrigger value="overview">Sales Overview</TabsTrigger>
-              <TabsTrigger value="expenses">Expense Breakdown</TabsTrigger>
-              <TabsTrigger value="franchise">Franchise Info</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-            </TabsList>
-
-            {/* Sales Overview Tab */}
-            <TabsContent value="overview" className="space-y-4">
-              <Card className="bg-card border-border">
-                <CardHeader><CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="w-5 h-5" /> Sales Trend</CardTitle></CardHeader>
+          {/* SALES OVERVIEW TAB */}
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Sales vs Expenses Trend */}
+              <Card className="bg-white border-slate-200/60 rounded-xl">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-slate-800">Sales vs Expenses Trend</CardTitle>
+                </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <BarChart data={salesData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                      <XAxis dataKey="date" stroke="#888" fontSize={10} />
-                      <YAxis stroke="#888" fontSize={10} tickFormatter={v => `${(v/1000).toFixed(0)}K`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }} />
-                      <Legend />
-                      <Bar dataKey="sales" fill="#22c55e" name="Sales" />
-                      <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
-                    </BarChart>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <ComposedChart data={trends}>
+                      <defs>
+                        <linearGradient id="foSalesGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#059669" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#059669" stopOpacity={0.02}/>
+                        </linearGradient>
+                        <linearGradient id="foExpGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#DC2626" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#DC2626" stopOpacity={0.02}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+                      <XAxis dataKey={period === "current_month" ? "date" : "week"} stroke="#64748B" fontSize={10} tickLine={false} />
+                      <YAxis stroke="#64748B" fontSize={10} tickLine={false} tickFormatter={(v) => formatCurrency(v, isIntl)} />
+                      <Tooltip content={<PremiumTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '12px' }} />
+                      <Area type="monotone" dataKey="sales" fill="url(#foSalesGrad)" stroke="#059669" strokeWidth={2.5} name="Sales" />
+                      <Area type="monotone" dataKey="expenses" fill="url(#foExpGrad)" stroke="#DC2626" strokeWidth={2} name="Expenses" />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-              
-              {/* Daily table */}
-              <Card className="bg-card border-border">
-                <CardHeader><CardTitle className="text-lg">Day-wise Sales</CardTitle></CardHeader>
+
+              {/* Sales Breakdown */}
+              <Card className="bg-white border-slate-200/60 rounded-xl">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-slate-800">Sales Breakdown</CardTitle>
+                </CardHeader>
                 <CardContent>
-                  <div className="overflow-auto max-h-[400px]">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Cash Sales", value: s?.total_cash_sales || 0, color: "bg-emerald-500" },
+                      { label: "Online Sales", value: s?.total_online_sales || 0, color: "bg-blue-500" },
+                      { label: "Total Guests", value: s?.total_guests || 0, color: "bg-amber-500", isCurrency: false },
+                      { label: "Total Bills", value: s?.total_bills || 0, color: "bg-purple-500", isCurrency: false },
+                      { label: "GST", value: s?.total_gst || 0, color: "bg-red-400" },
+                      { label: "Profit Margin", value: `${s?.profit_margin?.toFixed(1) || 0}%`, color: "bg-teal-500", isRaw: true },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                        <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                        <div>
+                          <p className="text-xs text-slate-500">{item.label}</p>
+                          <p className="text-sm font-bold text-slate-800">
+                            {item.isRaw ? item.value : item.isCurrency === false ? item.value.toLocaleString() : formatCurrency(item.value, isIntl)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* EXPENSE BREAKDOWN TAB */}
+          <TabsContent value="expenses" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-white border-slate-200/60 rounded-xl">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-slate-800">Expense Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie data={expenseData.filter(e => e.total > 0)} cx="50%" cy="50%" outerRadius={100} dataKey="total" nameKey="type" label={({ type, percent }) => `${type?.substring(0, 10)} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
+                        {expenseData.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<PremiumTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-slate-200/60 rounded-xl overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-slate-800">Expense Details</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="max-h-[350px] overflow-y-auto">
                     <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-card">
-                        <tr className="border-b border-border">
-                          <th className="text-left p-2">Date</th>
-                          <th className="text-right p-2">Sales</th>
-                          <th className="text-right p-2">Expenses</th>
-                          <th className="text-right p-2">GST</th>
+                      <thead className="bg-slate-50 sticky top-0">
+                        <tr>
+                          <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500">Type</th>
+                          <th className="text-right px-4 py-2 text-xs font-semibold text-slate-500">Amount</th>
+                          <th className="text-right px-4 py-2 text-xs font-semibold text-slate-500">%</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {salesData.map((d, i) => (
-                          <tr key={i} className="border-b border-border/50 hover:bg-white/5">
-                            <td className="p-2">{d.date}</td>
-                            <td className="p-2 text-right text-green-400">{formatCurrency(d.sales)}</td>
-                            <td className="p-2 text-right text-red-400">{formatCurrency(d.expenses)}</td>
-                            <td className="p-2 text-right text-amber-400">{formatCurrency(d.gst)}</td>
+                        {expenseData.filter(e => e.total > 0).sort((a, b) => b.total - a.total).map((exp, i) => (
+                          <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="px-4 py-2 flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                              {exp.type}
+                            </td>
+                            <td className="text-right px-4 py-2 font-medium">{formatFullCurrency(exp.total, isIntl)}</td>
+                            <td className="text-right px-4 py-2 text-slate-500">{s?.total_expenses ? ((exp.total / s.total_expenses) * 100).toFixed(1) : 0}%</td>
                           </tr>
                         ))}
                       </tbody>
@@ -352,142 +424,108 @@ export default function FranchiseOwnerDashboard() {
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+            </div>
+          </TabsContent>
 
-            {/* Expense Breakdown Tab */}
-            <TabsContent value="expenses" className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card className="bg-card border-border">
-                  <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Receipt className="w-5 h-5" /> By Category</CardTitle></CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie data={expenseData} dataKey="amount" nameKey="type" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`}>
-                          {expenseData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip formatter={v => formatCurrency(v)} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-                <Card className="bg-card border-border">
-                  <CardHeader><CardTitle className="text-lg">Expense Details</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {expenseData.map((e, i) => (
-                        <div key={i} className="flex justify-between items-center p-2 rounded bg-muted/30">
-                          <span className="text-sm font-medium">{e.type}</span>
-                          <div className="text-right">
-                            <span className="font-bold">{formatCurrency(e.amount)}</span>
-                            <span className="text-xs text-muted-foreground ml-2">({e.percentage?.toFixed(1)}%)</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            {/* Franchise Info Tab */}
-            <TabsContent value="franchise" className="space-y-4">
-              <Card className="bg-card border-border">
-                <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Store className="w-5 h-5" /> Franchise Profile</CardTitle></CardHeader>
-                <CardContent>
-                  {franchiseInfo ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {[
-                        ["Franchise Name", franchiseInfo.franchise_name || franchiseInfo.name],
-                        ["Owner / Primary Contact", franchiseInfo.primary_contact_name],
-                        ["Franchise Code", franchiseInfo.franchise_code],
-                        ["Email", franchiseInfo.primary_contact_email],
-                        ["Phone", franchiseInfo.primary_contact_phone],
-                        ["Agreement Start", franchiseInfo.agreement_start_date],
-                        ["Agreement End", franchiseInfo.agreement_end_date],
-                        ["Revenue Share %", franchiseInfo.revenue_share_percentage ? `${franchiseInfo.revenue_share_percentage}%` : "N/A"],
-                        ["City", franchiseInfo.city],
-                        ["State", franchiseInfo.state],
-                        ["Address", franchiseInfo.address],
-                        ["Status", franchiseInfo.status],
-                      ].map(([label, value]) => (
-                        <div key={label} className="space-y-1">
-                          <p className="text-xs text-muted-foreground">{label}</p>
-                          <p className="font-medium">{value || "—"}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">No franchise profile found for this center. Contact admin to set up.</p>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Documents Tab - View & Download Only */}
-            <TabsContent value="documents" className="space-y-4">
-              <Card className="bg-card border-border">
+          {/* FRANCHISE INFO TAB */}
+          <TabsContent value="franchise" className="space-y-4">
+            {franchiseInfo ? (
+              <Card className="bg-white border-slate-200/60 rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <FileText className="w-5 h-5" /> Franchise Documents
+                    <Store className="w-5 h-5" /> Franchise Profile
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {franchiseDocs.length === 0 ? (
-                    <p className="text-center py-8 text-muted-foreground" data-testid="fo-no-docs">
-                      No documents available for this franchise.
-                    </p>
-                  ) : (
-                    <div className="space-y-3" data-testid="fo-documents-list">
-                      {franchiseDocs.map((doc) => (
-                        <div
-                          key={doc.document_id}
-                          className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors"
-                          data-testid={`fo-doc-${doc.document_id}`}
-                        >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="p-2 rounded-lg bg-red-50">
-                              <FileText className="w-5 h-5 text-red-600" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-sm truncate">{doc.original_filename}</p>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                {doc.category_name && (
-                                  <Badge variant="outline" className="text-xs">{doc.category_name}</Badge>
-                                )}
-                                {doc.status && (
-                                  <Badge className={`text-xs ${doc.status === 'approved' ? 'bg-green-100 text-green-700' : doc.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                                    {doc.status}
-                                  </Badge>
-                                )}
-                                {doc.expiry_date && (
-                                  <span className="text-xs text-muted-foreground">
-                                    Expires: {new Date(doc.expiry_date).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Uploaded: {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : '—'}
-                                {doc.uploaded_by ? ` by ${doc.uploaded_by}` : ''}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => downloadDocument(doc)}
-                            data-testid={`fo-download-doc-${doc.document_id}`}
-                          >
-                            <FileDown className="w-4 h-4 mr-1" /> Download
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {[
+                      { label: "Franchise Name", value: franchiseInfo.franchise_name },
+                      { label: "Owner / Primary Contact", value: franchiseInfo.owner_name },
+                      { label: "Franchise Code", value: franchiseInfo.franchise_code },
+                      { label: "Email", value: franchiseInfo.email },
+                      { label: "Phone", value: franchiseInfo.phone || "—" },
+                      { label: "Agreement Start", value: franchiseInfo.agreement_start_date },
+                      { label: "Agreement End", value: franchiseInfo.agreement_end_date },
+                      { label: "Revenue Share %", value: `${revenueSharePct}%` },
+                      { label: "City", value: franchiseInfo.city },
+                      { label: "State", value: franchiseInfo.state },
+                      { label: "Address", value: franchiseInfo.address },
+                      { label: "Status", value: franchiseInfo.status },
+                    ].map((item, i) => (
+                      <div key={i}>
+                        <p className="text-xs text-slate-500 mb-1">{item.label}</p>
+                        <p className="text-sm font-semibold text-slate-800">{item.value || "—"}</p>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
-        </>
+            ) : (
+              <Card className="bg-white border-slate-200/60 rounded-xl">
+                <CardContent className="py-8 text-center text-slate-500">
+                  No franchise linked to this center.
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* DOCUMENTS TAB */}
+          <TabsContent value="documents" className="space-y-4">
+            <Card className="bg-white border-slate-200/60 rounded-xl">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5" /> Franchise Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {franchiseDocs.length === 0 ? (
+                  <p className="text-center py-8 text-slate-500" data-testid="fo-no-docs">
+                    No documents available for this franchise.
+                  </p>
+                ) : (
+                  <div className="space-y-3" data-testid="fo-documents-list">
+                    {franchiseDocs.map((doc) => (
+                      <div
+                        key={doc.document_id}
+                        className="flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                        data-testid={`fo-doc-${doc.document_id}`}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="p-2 rounded-lg bg-red-50">
+                            <FileText className="w-5 h-5 text-red-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{doc.original_filename}</p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {doc.category_name && (
+                                <Badge variant="outline" className="text-xs">{doc.category_name}</Badge>
+                              )}
+                              {doc.status && (
+                                <Badge className={`text-xs ${doc.status === 'approved' ? 'bg-green-100 text-green-700' : doc.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                  {doc.status}
+                                </Badge>
+                              )}
+                              {doc.expiry_date && (
+                                <span className="text-xs text-slate-500">Expires: {new Date(doc.expiry_date).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-1">
+                              Uploaded: {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : '—'}
+                              {doc.uploaded_by ? ` by ${doc.uploaded_by}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => downloadDocument(doc)} data-testid={`fo-download-doc-${doc.document_id}`}>
+                          <FileDown className="w-4 h-4 mr-1" /> Download
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
