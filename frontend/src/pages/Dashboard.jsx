@@ -135,10 +135,10 @@ const menuCategories = [
     icon: Store,
     forFranchise: true,
     items: [
-      { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true },
-      { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
+      { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true, franchiseAdminOnly: true },
+      { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true, franchiseAdminOnly: true },
       { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
-      { path: "/documents", icon: FileCheck2, label: "Documents", forFranchise: true },
+      { path: "/documents", icon: FileCheck2, label: "Documents", forFranchise: true, franchiseAdminOnly: true },
     ]
   },
   {
@@ -238,7 +238,11 @@ export default function Dashboard() {
       return false; // Default hide for unknown centers
     }
     if (item.forFranchise) {
-      return isAdmin || userRoles.franchise === true;
+      const hasFranchiseAccess = isAdmin || userRoles.franchise === true;
+      if (!hasFranchiseAccess) return false;
+      // Franchise owners can only see Owner Dashboard, not management pages
+      if (item.franchiseAdminOnly && session?.role_key === "franchise_owner") return false;
+      return true;
     }
     if (item.forAccounts) {
       return isAdmin || userRoles.accounting === true;
@@ -258,7 +262,10 @@ export default function Dashboard() {
     if (category.forMGT) return isAdmin;
     if (category.forFranchise) {
       // Franchise category accessible to Admin or users with franchise role
-      return isAdmin || userRoles.franchise === true;
+      const hasFranchiseAccess = isAdmin || userRoles.franchise === true;
+      if (!hasFranchiseAccess) return false;
+      // Check at least one item is accessible
+      return category.items.some(item => hasAccess(item));
     }
     if (category.roleKey) {
       // Special case: Accounting role gets sales_cash category access

@@ -484,14 +484,14 @@ async def verify_otp(req: OTPVerify):
             {"mobile": req.mobile},
             {"mobile": req.mobile.lstrip("0")},
         ]
-    }, {"_id": 0, "roles": 1, "is_admin": 1, "email": 1})
+    }, {"_id": 0, "roles": 1, "is_admin": 1, "email": 1, "role_key": 1, "franchise_center": 1, "franchise_id": 1})
     
     # Fallback: If no manager found by mobile, try to find by center alone
     # This handles cases where managers don't have mobile numbers registered
     if not manager:
         manager = await db.managers.find_one(
             {"center": stored["center"]},
-            {"_id": 0, "roles": 1, "is_admin": 1, "email": 1}
+            {"_id": 0, "roles": 1, "is_admin": 1, "email": 1, "role_key": 1, "franchise_center": 1, "franchise_id": 1}
         )
     
     # Get roles from DB - these are assigned by super admin
@@ -517,6 +517,9 @@ async def verify_otp(req: OTPVerify):
     stored["is_super_admin"] = is_super_admin
     stored["is_admin"] = is_admin
     stored["email"] = manager.get("email", "") if manager else ""
+    stored["role_key"] = manager.get("role_key", "") if manager else ""
+    stored["franchise_center"] = manager.get("franchise_center", "") if manager else ""
+    stored["franchise_id"] = manager.get("franchise_id", "") if manager else ""
     stored["key"] = key  # Add key for MongoDB lookup
     
     # Save to both in-memory and MongoDB for persistence
@@ -536,7 +539,10 @@ async def verify_otp(req: OTPVerify):
         "roles": roles,
         "is_super_admin": is_super_admin,
         "is_admin": is_admin,
-        "session_expires_in_seconds": session_ttl  # Let frontend know session duration
+        "role_key": stored.get("role_key", ""),
+        "franchise_center": stored.get("franchise_center", ""),
+        "franchise_id": stored.get("franchise_id", ""),
+        "session_expires_in_seconds": session_ttl
     }
 
 # =======================================

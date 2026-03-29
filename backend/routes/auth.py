@@ -325,7 +325,10 @@ async def verify_otp(req: OTPVerify):
         "email": manager.get("email", ""),
         "is_super_admin": is_super_admin,
         "is_admin": is_admin,
+        "role_key": manager.get("role_key", ""),
         "roles": manager.get("roles", {}),
+        "franchise_center": manager.get("franchise_center", ""),
+        "franchise_id": manager.get("franchise_id", ""),
         "expires": new_expires.isoformat(),
         "verified": True,
         "login_at": datetime.now(timezone.utc).isoformat()
@@ -351,7 +354,10 @@ async def verify_otp(req: OTPVerify):
         "managerName": manager.get("name", ""),
         "is_super_admin": is_super_admin,
         "is_admin": is_admin,
+        "role_key": manager.get("role_key", ""),
         "roles": manager.get("roles", {}),
+        "franchise_center": manager.get("franchise_center", ""),
+        "franchise_id": manager.get("franchise_id", ""),
         "expires_in_hours": session_hours
     }
 
@@ -376,5 +382,8 @@ async def verify_session(req: TokenRequest):
         "managerName": session.get("managerName"),
         "is_super_admin": session.get("is_super_admin", False),
         "is_admin": session.get("is_admin", False),
-        "roles": session.get("roles", {})
+        "role_key": session.get("role_key", ""),
+        "roles": session.get("roles", {}),
+        "franchise_center": session.get("franchise_center", ""),
+        "franchise_id": session.get("franchise_id", ""),
     }
