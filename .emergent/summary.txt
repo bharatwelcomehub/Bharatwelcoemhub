@@ -1,145 +1,143 @@
-<analysis>**original_problem_statement:**
-The user is building an internal management system for Purnabramha, a restaurant franchise. The user has requested a massive architectural shift to a MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING system. All hardcoded center names, roles, expense categories, and logic must be removed. A strict Permission Engine must be implemented along with a new Franchise Owner role (View-Only dashboard). The ultimate goal is to evolve the application into a full-fledged Master-driven POS/Billing system without disrupting live production data.
+<analysis>**original_problem_statement**: 
+Internal management system for Purnabramha, a restaurant franchise. The core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING. 
+Recent primary request: **Pivot Commission Tracking to an Upload-Driven Model**. 
+The user wants a single Commission Upload + Tracking feature strictly located inside Center Accounts. The system must allow Admins/Accountants to upload monthly Excel commission files (Zomato, Swiggy, DoorDash, PhonePe, Cards). The backend needs to parse these varying file structures to extract: center, month, platform, gross amount, commission amount, GST on commission, and net payout. All duplicate/old commission calculation logic should be removed. This data will feed into PIB and financial reporting.
 
-**PRODUCT REQUIREMENTS:**
-- Remove all hardcoded values (centers, roles, expense categories, sales heads, payment modes, report filters, etc.) across the entire codebase.
-- Implement strict role-based access control (Super Admin, Admin, Center Manager, Franchise Owner, etc.) controlling page, module, center, and action visibility.
-- Build a Franchise Owner Dashboard with limited view/download access strictly for their mapped business entity.
-- Prepare CRUD management for 16+ Master tables (Center, Role, Franchise, Employee, Tax, Menu, etc.).
-- Safe migration: Current live data must remain intact and map to new master values safely.
+PRODUCT REQUIREMENTS:
+- All logic must pull from master collections (No hardcoding).
+- Single source of truth for Commissions via monthly Excel uploads.
+- Parse 5 distinct provided Excel file formats accurately.
+- Secure document management using object storage.
+- Accurate profit calculations based on actual sales, expenses, exact GST amounts (not approximations), and uploaded commissions.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A robust React/FastAPI/MongoDB franchise management application. Phase 1 & 2 of the Master-Data-First architecture have just been completed, which introduced 16 master tables, a Permission Engine, a Franchise Owner Dashboard, and Master Data Management UI. The MIS dashboard was recently fixed to filter by center properly and calculate Working Capital. The Attendance and Payroll modules are now transfer-aware, automatically handling Home vs. Transferred-In/Out mappings.
+A React/FastAPI/MongoDB franchise management application. Recently, the attendance module was fixed to gracefully handle permanently transferred employees. A Document Management system was integrated using Emergent's Object Storage directly inside the Franchise Details view. The MIS Dashboard profit formulas were corrected to use actual  from  (fixing a huge math discrepancy). Currently, a basic commission engine exists but the user has just mandated pivoting to a strict Excel-upload-driven model placed inside Center Accounts.
 
 **Last working item**:
-- **Last item agent was working:** Auditing the codebase to replace ALL remaining hardcoded values across 30+ files and enforcing role-based visibility on every button/screen. The agent executed a bash script to count hardcoded instances (found 83 center names, 173 role checks, 76 frontend PB-MGT checks) but has not started editing files yet.
-- **Status:** IN PROGRESS
-- **Agent Testing Done:** N
-- **Which testing method agent to use?** both (frontend and backend testing agents must be used iteratively, as changing 30+ files is highly prone to regressions).
-- **User Testing Done:** N
+    - **Last item agent was working**: Analyzing the 5 newly uploaded Excel files (Zomato, Swiggy, DoorDash, PhonePe, Cards) to understand their data structures. The goal is to build a unified  feature inside Center Accounts and remove the duplicate/automated commission module built previously.
+    - **Status**: IN PROGRESS
+    - **Agent Testing Done**: N
+    - **Which testing method agent to use?**: both ( must be used once the multi-file parsing and upload UI are completed).
+    - **User Testing Done**: N
 
-**All Pending/In progress Issue list**:
-Issue 1: Replace all hardcoded values across 30+ files (P0)
-Issue 2: Complete role-based visibility enforcement on every button/screen (P0)
-
-Issues Detail:
-- **Issue 1: Replace all hardcoded values across 30+ files**
-   - **Attempted fixes:** Agent ran a  audit, identifying 83 hardcoded center names, 173 role checks, 6 expense types, 9 payment modes, and 76 frontend PB-MGT checks. No files edited yet.
-   - **Next debug checklist:** Systematically replace hardcoded arrays/lists in frontend components and backend routes with API calls to  and . Start with high-impact files (, , ).
-   - **Why fix this issue and what will be achieved with the fix?** Core user requirement to ensure scalability and a single source of truth.
-   - **Status:** IN PROGRESS
-   - **Is recurring issue?** N
-   - **Should Test frontend/backend/both after fix?** Both
-   - **Blocked on other issue:** None
-
-- **Issue 2: Complete role-based visibility enforcement on every button/screen**
-   - **Attempted fixes:** None yet.
-   - **Next debug checklist:** Utilize the new Permission Engine. Update frontend components to check  and  instead of static role names to hide/show buttons, tabs, and pages.
-   - **Why fix this issue:** Security and strict RBAC requirement.
-   - **Status:** NOT STARTED
-   - **Is recurring issue?** N
-   - **Should Test frontend/backend/both after fix?** Both
+**All Pending/In progress Issue list**: 
+  Issue 1: Excel-Upload Driven Commission Pivot (P0)
+     - Attempted fixes: Agent just called  to analyze the Zomato Excel file structure before context ended.
+     - Next debug checklist: 
+       1. Analyze all 5 Excel formats (Zomato, Swiggy, DoorDash, PhonePe, Cards) to map out extraction logic.
+       2. Build the UI in  (or a dedicated tab inside it) for uploading these sheets.
+       3. Create a unified backend parser that identifies the platform, extracts the required metrics (Gross, Comm, GST, Net), and saves it to a new  collection.
+       4. Strip out the old  and automated formula-based commission calculation logic.
+       5. Update the MIS Dashboard to read from the newly uploaded data.
+     - Why fix this issue and what will be achieved with the fix? Completes the user's explicit new requirement for accurate, source-of-truth financial tracking.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: None
 
 **In progress Task List**:
-Task 1: Franchise document management & Approval hierarchy (P1)
-- **Where to resume:** Plan and implement document management features for the Franchise Owner Dashboard and configure an approval hierarchy engine for transfers and cancellations.
-- **What will be achieved with this?** Enhanced operational control and compliance tracking.
-- **Status:** NOT STARTED
-- **Should Test frontend/backend/both after fix?** Both
-- **Blocked on something:** Complete the hardcoding removal (Issue 1) first.
+  Task 1: Excel Parsing Logic mapping (P0)
+     - Where to resume: Review the  output for the Zomato file, then extract and map the remaining 4 files (Swiggy, DoorDash, PhonePe, Cards).
+     - What will be achieved with this? Gives you the exact column names/headers needed to write robust Python pandas/openpyxl parsers.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on something: None
 
 **Upcoming and Future Tasks**
-Upcoming Tasks:
-- (P0) Phase 3: Full Master-Driven Restaurant Billing Software (Billing/POS, KOT, Cancellation/Void, Reports, Internal Integration).
-- (P1) Master tables to populate: Menu Items, Tables, Vendors, Order Types, Cancellation Reasons.
-Future Tasks:
-- (P2) Image Upload for Recipes.
-- (P2) Franchise Deal Simulator.
-- (P2) 7-year retention deletion prompt for attachments.
+    Upcoming Tasks:
+    - (P1) WhatsApp/Email notification hooks.
+    
+    Future Tasks:
+    - (P2) Image Upload for Recipes.
+    - (P2) Franchise Deal Simulator.
+    - (P2) 7-year retention deletion prompt for attachments.
+    - (P2) Menu card PDF generation per center.
 
 **Completed work in this session**
-- MIS Dashboard center filtering fix, Working Capital Graph, and XLSX Export (DONE)
-- Expense Entry Grid: Sorting functionality and Batch add multi-row feature (DONE)
-- Attendance Integration for transferred employees with HOME/TRANSFERRED badges (DONE)
-- Payroll mapping to actual working center for transfers (DONE)
-- PDF export for International payroll reports (DONE)
--  refactoring (extracted  and ) (DONE)
-- Phase 1 & 2 of Master-Data-First:  (16 tables),  (Permission Engine), ,  (DONE)
+- Comprehensive E2E Testing for POS Rewrite (Passed 100%) (DONE)
+- Fixed Employee Transfer bug: Employees transferred out now appear in their previous center's monthly attendance grid for historical accuracy (DONE)
+- Built Document Management backend using Emergent Object Storage with category seeding (DONE)
+- Rewired  to embed Document Management, replacing the old local file system (DONE)
+- Fixed MIS Dashboard Profit bug: Replaced arbitrary 5% GST deduction with actual  from  across all endpoints, fixing heavily inflated profit margins (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-None.
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
+  - Status: RESOLVED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Transfer-Aware Logic:** Attendance and Payroll now inject  (HOME/TRANSFERRED_IN/TRANSFERRED_OUT) dynamically without mutating historical legacy data.
-- **Permission Engine:** RBAC logic determines user  and associated . The frontend must now rely on these dynamic rules rather than hardcoded string checks.
-- **Master Tables:** Data like expense categories, payment modes, and employee categories are now pulled from  collections rather than static arrays.
+- **Document Storage**: Uses Emergent internal integrations library for object storage. DO NOT use local file system storage.
+- **Data Parsing**: You will need  or  to extract data from the 5 unique Excel formats provided by the user. 
+- **Profit Calculation Rule**: .
 
 **key DB schema**
-- : {, , }
-- Master collections: , , , , , , etc.
-- : {..., , } (dynamically injected in responses)
+  - : {, , , , , }
+  - : Pre-seeded master list (Agreement, License, ID Proof, etc.)
+  - : Contains exact , , ,  fields.
 
 **changes in tech stack**
-- Added  library to frontend for MIS Excel exports.
+  - Integrated  for file/object storage handling.
 
-**All files of reference**
--  & : Core of the new architecture.
--  & : New module UIs.
-- , , and backend : Will need heavy editing to remove the audited hardcoded strings.
+**All files of reference** 
+  1. 
+  2. 
+  3. Excel files provided in the last user message (Zomato, Swiggy, DoorDash, PhonePe, Cards)
+  4.  (This will be the target for the new Commission Upload UI)
 
 **Areas that need refactoring**:
-- **30+ Files containing hardcoded checks:** Need refactoring to transition from static strings (e.g., , ) to DB-driven master values and permission evaluations.
+-  and : The user explicitly requested to remove duplicate commission tracking pages and place a single upload-driven feature inside **Center Accounts**. These files/routes will need to be drastically altered or moved.
 
 **key api endpoints**
-- : Endpoints managing master table data.
-- : Evaluates session to return user role and capability matrix.
--  & : Updated to be transfer-aware.
+- : Multipart form data upload using object storage.
+- : Lists docs for a franchise.
 
-**Critical Info for New Agent**
-- **Immediate Action:** You are midway through an massive architectural migration. The bash audit found 83 hardcoded center names, 173 role checks, and 76 PB-MGT frontend checks. You MUST replace these systematically across the codebase with dynamic master data / permission engine variables. 
-- **DO NOT break live data:** The user explicitly requested to safely map old values to master values. Avoid dropping collections or breaking foreign key references.
-- Use parallel tool execution extensively when editing multiple files, and verify changes incrementally to avoid a monolithic breaking bug.
+**Critical Info for New Agent** 
+- **COMMISSION PIVOT**: Do not try to fix the old formula-based commission calculation. The user has explicitly mandated that commissions must be parsed from Monthly Excel Reports (Zomato, Swiggy, DoorDash, PhonePe, Card settlements).
+- **LOCATION**: The new upload tool must live ONLY inside the **Center Accounts** module. Admin/Accountant role access only.
+- **GST WARNING**: When dealing with finances, never estimate GST as a generic 5%. Always use the explicit  or  provided in the data.
 
-**documents and test reports created in this job**
-- 
-- 
-- 
-- 
+**documents and test reports created in this job** 
+  - 
+  -  (POS + Attendance tests)
+  -  (Initial Commission/Doc tests)
+  -  (Franchise Doc rewiring tests)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User:** yes please and one more thing can u add 3 more entries for Expense entry grind like range can we have sorting... (Completed)
-2. **User:** please do this now P1: Attendance integration for transferred employees... P1: Payroll mapping... P2: PDF export... P2: Complete server.py refactoring (Completed)
-3. **User:** ok (Completed)
-4. **User:** HOPE NO DATA WILL BE DISTRUBED ON LIVE SITE (Agent explained data is safe). (Completed)
-5. **User:** Implement a MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING architecture across the entire system... 10 sections of requirements (Agent built Phase 1 & 2 infrastructure). (Completed)
-6. **User:** NOEP I KNOW U ARE CAPABLE OF DOING THIS PHASE MANNER PLEASE IMPLEMENT ALL PHASE START PHASE 1 AND 2 (Completed Phase 1 & 2).
-7. **User:** Replace ALL remaining hardcoded values across 30+ files. Complete role-based visibility enforcement on every button/screen. Franchise document management, approval hierarchy (Pending - Agent audited the codebase but hasn't started refactoring files yet).
+1. **User**: TRANSFER HAPPEND ON 23RD... THANE LIST DONT HAVE THE EMPLOYEE (Agent fixed attendance bug).
+2. **User**: Start by running the E2E test on the POS flow immediately... (Agent ran test, passed).
+3. **User**: Prioritized Franchise Document Management & Commission Tracking. (Agent built both).
+4. **User**: i thought u are chnaging this screen for documentation if not please add this documents to new document screen (Agent embedded Docs inside Franchise Management Details tab).
+5. **User**: all the sales and commision should come from sales dashboard and not blank... (Agent fixed commission engine data sources).
+6. **User**: commission should come in this screen as well correct 0 it is showing zero (Agent identified UI missing real data integration and verified backend passed the right payload).
+7. **User**: ...please see the calculation how come the profit will come as 63 lakhs ?? (Agent diagnosed bug where MIS deducted a fake 5% of total sales for GST instead of using real . Fixed).
+8. **User**: Add a single Commission Upload + Tracking feature inside Center Accounts. Place it only in one location... Remove duplicate commission sections... Upload Zomato, Swiggy, DoorDash, PhonePe, Cards... [Attached 5 files].
+9. **Pending Human Message**: None. The agent just started extracting the Zomato Excel file structure. Proceed with parsing logic and building the upload module.
 
 **Project Health Check:**
-- Broken: None
-- Mocked: WhatsApp Integration
+- Broken: None. 
+- Mocked: WhatsApp Integration.
 
 **3rd Party Integrations**
--  (Frontend Excel generation)
-- ReportLab (Backend PDF generation)
-- Emergent Object Storage
+-  /  (Excel exports and parsing)
+-  (PDF generation)
+- Emergent Object Storage — uses Emergent integrations library
 
 **Testing status**
-- Testing agent used after significant changes: YES (Iterations 23, 24, 25).
-- Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: None
-- Known regressions: None
+  - Testing agent used after significant changes: YES (Iterations 37, 38, 39).
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None
+  - Known regressions: None
 
 **Credentials to test flow:**
-- Ensure you retrieve latest session variables or test accounts natively via UI. Typical Super Admin: Center , mobile , OTP .
+- Super Admin: Center  (or select from dropdown), mobile , OTP .
 
 **What agent forgot to execute**
-The agent stopped exactly after running a  audit to identify all hardcoded values across the codebase. No actual file replacements or code writing occurred for the final user prompt (removing hardcoding across 30+ files).</analysis>
+The agent did not finish extracting the structures of the 5 provided Excel files. The next agent must thoroughly analyze , , , , and  to build the required parsers.</analysis>
