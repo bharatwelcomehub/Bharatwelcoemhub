@@ -62,7 +62,8 @@ const PremiumTooltip = ({ active, payload, label }) => {
 
 export default function FranchiseOwnerDashboard() {
   const { session } = useAuth();
-  const isAdmin = session?.is_super_admin || session?.role === "franchise" || session?.role === "accounts";
+  const isFranchiseOwner = session?.role_key === "franchise_owner";
+  const isAdmin = session?.is_super_admin || session?.is_admin || session?.roles?.franchise === true;
 
   const [selectedCenter, setSelectedCenter] = useState("");
   const [centersList, setCentersList] = useState([]);
@@ -87,18 +88,19 @@ export default function FranchiseOwnerDashboard() {
 
   useEffect(() => {
     const fetchCenters = async () => {
-      if (!isAdmin || !session?.token) return;
+      if (!session?.token) return;
       try {
         const res = await api.get("/centers");
         const centers = (res.data.centers || []).filter(c => c.active !== false);
         setCentersList(centers);
       } catch {}
     };
-    fetchCenters();
+    if (isAdmin) fetchCenters();
   }, [isAdmin, session?.token]);
 
   useEffect(() => {
-    if (!selectedCenter && session?.center) {
+    if (!selectedCenter && session) {
+      // Franchise owner sees only their assigned center
       setSelectedCenter(session.franchise_center || session.center);
     }
   }, [session, selectedCenter]);
@@ -206,7 +208,7 @@ export default function FranchiseOwnerDashboard() {
     { label: `Revenue Share (${revenueSharePct}%)`, displayValue: formatFullCurrency(netRevenue, isIntl), icon: Percent, gradient: netRevenue >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
   ] : [];
 
-  if (!isAdmin && !session?.role) return null;
+  if (!isAdmin && !isFranchiseOwner) return null;
 
   return (
     <div className="space-y-6" data-testid="franchise-owner-dashboard">
@@ -268,7 +270,7 @@ export default function FranchiseOwnerDashboard() {
               {useRange ? 'Month' : 'Range'}
             </Button>
 
-            {isAdmin && centersList.length > 0 && (
+            {isAdmin && !isFranchiseOwner && centersList.length > 0 && (
               <Select value={selectedCenter} onValueChange={setSelectedCenter}>
                 <SelectTrigger className="w-[140px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" data-testid="fo-center-select">
                   <SelectValue />
