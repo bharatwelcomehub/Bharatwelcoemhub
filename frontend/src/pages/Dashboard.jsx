@@ -36,7 +36,6 @@ import {
   LayoutGrid,
   Ban,
   Cog,
-  TrendingDown,
   FileCheck2,
 } from "lucide-react";
 
@@ -67,7 +66,6 @@ import FranchiseOwnerDashboard from "@/pages/FranchiseOwnerDashboard";
 import MenuManagement from "@/pages/MenuManagement";
 import POSBilling from "@/pages/POSBilling";
 import BillingConfiguration from "@/pages/BillingConfiguration";
-import CommissionTracking from "@/pages/CommissionTracking";
 import DocumentManagement from "@/pages/DocumentManagement";
 
 // Menu categories structure
@@ -103,7 +101,6 @@ const menuCategories = [
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
       { path: "/loan-entries", icon: Wallet, label: "Loan Entries", forAccounts: true },
       { path: "/mis-dashboard", icon: BarChart3, label: "MIS Dashboard", forAccounts: true },
-      { path: "/commissions", icon: TrendingDown, label: "Commissions", forAccounts: true },
     ]
   },
   {
@@ -452,7 +449,6 @@ export default function Dashboard() {
             <Route path="/franchise-dashboard" element={<FranchiseOwnerDashboard />} />
             <Route path="/pos-billing" element={<POSBilling />} />
             <Route path="/billing-config" element={<BillingConfiguration />} />
-            <Route path="/commissions" element={<CommissionTracking />} />
             <Route path="/documents" element={<DocumentManagement />} />
           </Routes>
         </div>

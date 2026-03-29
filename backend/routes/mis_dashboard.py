@@ -157,20 +157,35 @@ async def get_mis_overview(data: dict):
     # Expenses
     total_expenses = sum(float(e.get("amount", 0) or 0) for e in expenses_data)
     
-    # Commission calculation (from commission_config)
+    # Commission calculation (from monthly_commissions uploads)
     total_commissions = 0.0
     try:
-        from routes.commissions import calculate_commissions_for_period
+        # Derive month strings from the period
+        from datetime import datetime as dt_cls
+        period_start = dt_cls.strptime(start_date, "%Y-%m-%d")
+        period_end = dt_cls.strptime(end_date, "%Y-%m-%d")
+        # Collect all months in the range
+        months_in_range = set()
+        cur = period_start.replace(day=1)
+        while cur <= period_end:
+            months_in_range.add(cur.strftime("%Y-%m"))
+            if cur.month == 12:
+                cur = cur.replace(year=cur.year + 1, month=1)
+            else:
+                cur = cur.replace(month=cur.month + 1)
+
         if center != "all":
-            comm_data = await calculate_commissions_for_period(center, start_date, end_date)
-            total_commissions = comm_data.get("total_commission", 0)
+            comm_records = await db.monthly_commissions.find(
+                {"center": center, "month": {"$in": list(months_in_range)}},
+                {"_id": 0, "commission_amount": 1, "gst_on_commission": 1},
+            ).to_list(500)
+            total_commissions = sum(r.get("commission_amount", 0) + r.get("gst_on_commission", 0) for r in comm_records)
         else:
-            # Sum commissions across all centers in the sales data
-            center_codes = set(s.get("center", "") for s in sales_data)
-            for cc in center_codes:
-                if cc:
-                    comm_data = await calculate_commissions_for_period(cc, start_date, end_date)
-                    total_commissions += comm_data.get("total_commission", 0)
+            comm_records = await db.monthly_commissions.find(
+                {"month": {"$in": list(months_in_range)}},
+                {"_id": 0, "center": 1, "commission_amount": 1, "gst_on_commission": 1},
+            ).to_list(5000)
+            total_commissions = sum(r.get("commission_amount", 0) + r.get("gst_on_commission", 0) for r in comm_records)
         total_commissions = round(total_commissions, 2)
     except Exception as comm_err:
         logger.warning(f"MIS: commission calc failed: {comm_err}")
@@ -212,12 +227,17 @@ async def get_mis_overview(data: dict):
             centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
         centers_data[c]["expenses"] += float(e.get("amount", 0) or 0)
     
-    # Add commissions per center
+    # Add commissions per center from monthly_commissions
     try:
+        # Build center->commission map from the records we already fetched
+        center_comm_map = {}
+        for r in comm_records:
+            cc = r.get("center", "")
+            if cc:
+                center_comm_map[cc] = center_comm_map.get(cc, 0) + r.get("commission_amount", 0) + r.get("gst_on_commission", 0)
         for c in centers_data:
             if c and c != "Unknown":
-                comm_data = await calculate_commissions_for_period(c, start_date, end_date)
-                centers_data[c]["commissions"] = round(comm_data.get("total_commission", 0), 2)
+                centers_data[c]["commissions"] = round(center_comm_map.get(c, 0), 2)
     except Exception as comm_err:
         logger.error(f"MIS center commission calc failed: {comm_err}", exc_info=True)
     

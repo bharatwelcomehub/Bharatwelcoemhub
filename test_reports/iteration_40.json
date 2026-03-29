@@ -1,0 +1,87 @@
+{
+  "summary": "Tested Commission Upload + Tracking feature pivot from formula-based to Excel-upload-driven model. Backend: 12/12 tests passed (100%). Fixed numpy.int64 JSON serialization bug in commission_parser.py. Frontend: All UI elements verified - Center Accounts page with Commissions tab, Upload Excel Report modal with Platform/Month/File inputs, commission table with correct columns.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_commission_upload.py",
+    "/app/test_reports/pytest/pytest_commission_upload.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed: commission_parser.py had numpy.int64 types that couldn't be JSON serialized - converted all len() and sum() results to native Python int/float"
+  ],
+  "updated_files": [
+    "/app/backend/routes/commission_parser.py",
+    "/app/backend/tests/test_commission_upload.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456",
+  "seed_data_creation": "Sample Excel files used from /app/backend/uploads/commission_samples/ (zomato.xlsx, swiggy.xlsx, doordash.xlsx, phonepe.xlsx, cards.xlsx)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Commission Upload feature fully tested. Key verifications: 1) Login flow works with PB-MGT/9741399190/123456. 2) Navigation: Accounts → Center Accounts. 3) Center Accounts page loads with center selector and tabs (Overview, Sales Breakdown, Commissions, Revenue/Profit Share, MG & Payout, Reports, Invoice Export). 4) Commissions tab shows 'Uploaded Commission Reports' header with 'Upload Excel Report' button. 5) Upload modal has Platform selector, Month picker, File input. 6) Backend APIs: upload-commission-excel parses all 5 platforms (Zomato, Swiggy, DoorDash, PhonePe, Cards), save-commission saves to monthly_commissions, list-commissions returns records, delete-commission removes records. 7) Old /commissions standalone route NOT in sidebar (correctly removed). 8) Commission table columns: Platform, Month, Gross Amount, Commission, GST on Comm, Net Payout, Orders, File, Actions.",
+  "features_tested": {
+    "login_flow": {
+      "center_selection": "PASSED - PB-MGT selected via data-testid='center-select'",
+      "mobile_input": "PASSED - 9741399190 entered",
+      "otp_verification": "PASSED - 123456 verified, lands on dashboard"
+    },
+    "navigation": {
+      "accounts_section": "PASSED - Accounts section in sidebar",
+      "center_accounts_link": "PASSED - Center Accounts link accessible via data-testid='nav-center-accounts'"
+    },
+    "center_accounts_page": {
+      "page_loads": "PASSED - data-testid='center-accounts-page' found",
+      "center_selector": "PASSED - data-testid='center-select' found",
+      "month_picker": "PASSED - data-testid='month-select' found",
+      "tabs": "PASSED - Overview, Sales Breakdown, Commissions, Revenue/Profit Share, MG & Payout, Reports, Invoice Export"
+    },
+    "commissions_tab": {
+      "header": "PASSED - 'Uploaded Commission Reports' header with data-testid='commissions-header'",
+      "upload_button": "PASSED - 'Upload Excel Report' button with data-testid='upload-commission-btn'",
+      "table": "PASSED - Commission table with data-testid='commission-table'",
+      "table_columns": "PASSED - Platform, Month, Gross Amount, Commission, GST on Comm, Net Payout, Orders, File, Actions"
+    },
+    "upload_modal": {
+      "title": "PASSED - 'Upload Commission Report' title",
+      "platform_selector": "PASSED - Platform dropdown present",
+      "month_picker": "PASSED - Month input present",
+      "file_input": "PASSED - File input for .xlsx present",
+      "supported_formats": "PASSED - Shows Zomato, Swiggy, DoorDash, PhonePe, Cards"
+    },
+    "backend_apis": {
+      "upload_zomato": "PASSED - POST /api/center-accounts/upload-commission-excel parses Zomato Excel",
+      "upload_swiggy": "PASSED - POST /api/center-accounts/upload-commission-excel parses Swiggy Excel",
+      "upload_doordash": "PASSED - POST /api/center-accounts/upload-commission-excel parses DoorDash Excel (AUD currency)",
+      "upload_phonepe": "PASSED - POST /api/center-accounts/upload-commission-excel parses PhonePe Excel",
+      "upload_cards": "PASSED - POST /api/center-accounts/upload-commission-excel parses Cards Excel",
+      "save_commission": "PASSED - POST /api/center-accounts/save-commission saves to monthly_commissions",
+      "list_commissions": "PASSED - POST /api/center-accounts/list-commissions returns records",
+      "delete_commission": "PASSED - POST /api/center-accounts/delete-commission removes record",
+      "duplicate_prevention": "PASSED - Duplicate commission upload rejected with 400",
+      "account_summary": "PASSED - POST /api/center-accounts/summary returns financial data"
+    },
+    "old_route_removed": {
+      "commissions_standalone": "PASSED - Old /commissions route NOT in sidebar navigation"
+    }
+  },
+  "bug_fixed": {
+    "issue": "numpy.int64 JSON serialization error in commission_parser.py",
+    "root_cause": "pandas len() and sum() return numpy types that FastAPI's JSON encoder cannot serialize",
+    "fix": "Wrapped all len() calls with int() and sum() results with float() in parse_swiggy, parse_doordash, parse_phonepe, parse_cards functions",
+    "files_modified": ["/app/backend/routes/commission_parser.py"]
+  },
+  "mocked_apis": {
+    "whatsapp_notifications": "MOCKED - WhatsApp integration is mocked"
+  }
+}

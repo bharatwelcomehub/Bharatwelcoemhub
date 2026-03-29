@@ -146,16 +146,6 @@ LIGHT_GRAY = colors.HexColor("#f3f4f6")
 # PYDANTIC MODELS
 # =======================================
 
-class CommissionStatementUpload(BaseModel):
-    platform: str  # swiggy, zomato, doordash, card_settlement
-    center: str
-    settlement_period_start: str  # YYYY-MM-DD
-    settlement_period_end: str
-    gross_order_amount: float
-    commission_charged: float
-    net_payout_received: float
-    notes: Optional[str] = ""
-
 class AccountPeriodRequest(BaseModel):
     token: str
     center: str
@@ -346,37 +336,39 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         expense_by_type[exp_type] = expense_by_type.get(exp_type, 0) + exp.get("amount", 0)
     
     # ==========================================
-    # 3. Fetch Commission Statements
+    # 3. Fetch Uploaded Commissions (monthly_commissions)
     # ==========================================
-    commission_query = {
-        "center": req.center,
-        "settlement_period_start": {"$gte": start_date},
-        "settlement_period_end": {"$lt": end_date}
-    }
-    
-    commission_records = await db.commission_statements.find(commission_query, {"_id": 0}).to_list(100)
-    
+    month_str = req.month  # "YYYY-MM"
+    commission_records = await db.monthly_commissions.find(
+        {"center": req.center, "month": month_str}, {"_id": 0}
+    ).to_list(100)
+
     # Aggregate commissions by platform
     commission_by_platform = {
         "swiggy": {"gross": 0, "commission": 0, "net": 0},
         "zomato": {"gross": 0, "commission": 0, "net": 0},
         "doordash": {"gross": 0, "commission": 0, "net": 0},
-        "card_settlement": {"gross": 0, "commission": 0, "net": 0}
+        "phonepe": {"gross": 0, "commission": 0, "net": 0},
+        "cards": {"gross": 0, "commission": 0, "net": 0},
     }
-    
+
     for comm in commission_records:
         platform = comm.get("platform", "").lower()
-        if platform in commission_by_platform:
-            commission_by_platform[platform]["gross"] += comm.get("gross_order_amount", 0)
-            commission_by_platform[platform]["commission"] += comm.get("commission_charged", 0)
-            commission_by_platform[platform]["net"] += comm.get("net_payout_received", 0)
-    
+        if platform not in commission_by_platform:
+            commission_by_platform[platform] = {"gross": 0, "commission": 0, "net": 0}
+        commission_by_platform[platform]["gross"] += comm.get("gross_amount", 0)
+        commission_by_platform[platform]["commission"] += comm.get("commission_amount", 0)
+        commission_by_platform[platform]["net"] += comm.get("net_payout", 0)
+
     total_aggregator_commission = (
         commission_by_platform["swiggy"]["commission"] +
         commission_by_platform["zomato"]["commission"] +
         commission_by_platform["doordash"]["commission"]
     )
-    card_commission = commission_by_platform["card_settlement"]["commission"]
+    card_commission = (
+        commission_by_platform["phonepe"]["commission"] +
+        commission_by_platform["cards"]["commission"]
+    )
     
     # ==========================================
     # 4. Calculate Financial Summary with GST
@@ -610,145 +602,127 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     return {"success": True, "summary": summary}
 
 # =======================================
-# COMMISSION STATEMENT UPLOAD
+# COMMISSION UPLOAD (EXCEL-DRIVEN)
 # =======================================
 
-@router.post("/upload-commission")
-async def upload_commission_statement(
+@router.post("/upload-commission-excel")
+async def upload_commission_excel(
     token: str = Form(...),
-    platform: str = Form(...),
+    platform: str = Form(""),
     center: str = Form(...),
+    month: str = Form(...),
     file: UploadFile = File(...)
 ):
-    """Upload commission statement file (CSV/Excel) for parsing"""
+    """Parse a commission Excel file and return extracted summary for preview."""
     session = await check_access(token)
-    
-    # Validate platform
-    valid_platforms = ["swiggy", "zomato", "doordash", "card_settlement"]
-    if platform.lower() not in valid_platforms:
-        raise HTTPException(400, f"Invalid platform. Must be one of: {valid_platforms}")
-    
-    # Validate center
-    center_info = await get_center_details(center)
-    country = get_country_from_center(center_info)
-    
-    # Validate platform for country
-    if country == "Australia" and platform.lower() in ["swiggy", "zomato"]:
-        raise HTTPException(400, f"{platform} is not available for Australia. Use DoorDash or Card Settlement.")
-    if country == "India" and platform.lower() == "doordash":
-        raise HTTPException(400, "DoorDash is not available for India. Use Swiggy or Zomato.")
-    
-    # Read file
+
+    if not file.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(400, "File must be Excel (.xlsx / .xls)")
+
+    from routes.commission_parser import parse_commission_file, detect_platform
+    import uuid
+
+    content = await file.read()
+    tmp_path = f"/tmp/comm_{uuid.uuid4().hex}.xlsx"
+    with open(tmp_path, "wb") as f:
+        f.write(content)
+
     try:
-        content = await file.read()
-        
-        # Parse based on file type
-        if file.filename.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(content))
-        elif file.filename.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(io.BytesIO(content))
-        else:
-            raise HTTPException(400, "File must be CSV or Excel (.xlsx/.xls)")
-        
-        # Basic parsing - try to find relevant columns
-        # This is a simplified parser - real implementation would need platform-specific parsing
-        parsed_data = {
-            "platform": platform.lower(),
-            "center": center,
-            "rows_found": len(df),
-            "columns": list(df.columns),
-            "preview": df.head(5).to_dict(orient="records") if len(df) > 0 else []
-        }
-        
-        return {
-            "success": True,
-            "message": f"File parsed successfully. Found {len(df)} rows.",
-            "parsed_data": parsed_data,
-            "instructions": "Review the data and submit commission details using /api/center-accounts/save-commission"
-        }
-        
+        detected = platform.strip().lower() if platform.strip() else None
+        result = parse_commission_file(tmp_path, detected, file.filename)
     except Exception as e:
-        logger.error(f"Error parsing commission file: {e}")
-        raise HTTPException(400, f"Error parsing file: {str(e)}")
+        logger.error(f"Commission parse error: {e}")
+        import os; os.remove(tmp_path)
+        raise HTTPException(400, f"Failed to parse file: {str(e)}")
+
+    import os; os.remove(tmp_path)
+
+    result["center"] = center
+    result["month"] = month
+    result["original_filename"] = file.filename
+
+    return {"success": True, "parsed": result}
+
 
 @router.post("/save-commission")
-async def save_commission_statement(data: dict):
-    """Save commission statement data"""
+async def save_parsed_commission(data: dict):
+    """Save parsed commission data to monthly_commissions collection."""
     token = data.get("token")
     session = await check_access(token)
-    
-    # Extract commission data
-    commission = CommissionStatementUpload(
-        platform=data.get("platform"),
-        center=data.get("center"),
-        settlement_period_start=data.get("settlement_period_start"),
-        settlement_period_end=data.get("settlement_period_end"),
-        gross_order_amount=data.get("gross_order_amount", 0),
-        commission_charged=data.get("commission_charged", 0),
-        net_payout_received=data.get("net_payout_received", 0),
-        notes=data.get("notes", "")
-    )
-    
-    # Check for duplicate
-    existing = await db.commission_statements.find_one({
-        "platform": commission.platform.lower(),
-        "center": commission.center,
-        "settlement_period_start": commission.settlement_period_start,
-        "settlement_period_end": commission.settlement_period_end
+    import uuid
+
+    center = data.get("center", "").upper().strip()
+    month = data.get("month", "").strip()
+    platform = data.get("platform", "").lower().strip()
+
+    if not center or not month or not platform:
+        raise HTTPException(400, "center, month, and platform are required")
+
+    # Check for duplicate (same center + month + platform)
+    existing = await db.monthly_commissions.find_one({
+        "center": center, "month": month, "platform": platform
     })
-    
     if existing:
-        raise HTTPException(400, "Commission statement for this period already exists")
-    
-    # Save to database
-    doc = commission.dict()
-    doc["created_at"] = datetime.now(timezone.utc).isoformat()
-    doc["created_by"] = session.get("managerName", "Unknown")
-    doc["platform"] = doc["platform"].lower()
-    
-    await db.commission_statements.insert_one(doc)
-    
-    return {"success": True, "message": "Commission statement saved successfully"}
+        raise HTTPException(400, f"Commission for {platform.upper()} - {center} - {month} already exists. Delete the old record first.")
+
+    doc = {
+        "commission_id": str(uuid.uuid4()),
+        "center": center,
+        "month": month,
+        "platform": platform,
+        "original_filename": data.get("original_filename", ""),
+        "gross_amount": float(data.get("gross_amount", 0)),
+        "commission_amount": float(data.get("commission_amount", 0)),
+        "gst_on_commission": float(data.get("gst_on_commission", 0)),
+        "tds": float(data.get("tds", 0)),
+        "net_payout": float(data.get("net_payout", 0)),
+        "order_count": int(data.get("order_count", 0)),
+        "currency": data.get("currency", "INR"),
+        "raw_summary": data.get("raw_summary", {}),
+        "uploaded_by": session.get("managerName", "Unknown"),
+        "upload_date": datetime.now(timezone.utc).isoformat(),
+    }
+
+    await db.monthly_commissions.insert_one(doc)
+    logger.info(f"Commission saved: {platform} / {center} / {month} by {doc['uploaded_by']}")
+
+    return {"success": True, "message": f"Commission saved for {platform.upper()} - {center} - {month}"}
+
 
 @router.post("/list-commissions")
-async def list_commission_statements(data: dict):
-    """List commission statements for a center"""
+async def list_commissions(data: dict):
+    """List uploaded commissions from monthly_commissions collection."""
     token = data.get("token")
     session = await check_access(token)
-    
-    center = data.get("center")
-    month = data.get("month")  # Optional YYYY-MM filter
-    
-    query = {"center": center}
-    
-    if month:
-        try:
-            year, m = month.split("-")
-            start_date = f"{year}-{int(m):02d}-01"
-            if int(m) == 12:
-                end_date = f"{int(year) + 1}-01-01"
-            else:
-                end_date = f"{year}-{int(m) + 1:02d}-01"
-            query["settlement_period_start"] = {"$gte": start_date, "$lt": end_date}
-        except:
-            pass
-    
-    statements = await db.commission_statements.find(query, {"_id": 0}).sort("settlement_period_start", -1).to_list(100)
-    
-    return {"success": True, "statements": statements, "total": len(statements)}
 
-@router.post("/delete-commission/{commission_id}")
-async def delete_commission_statement(commission_id: str, data: dict):
-    """Delete a commission statement"""
+    center = data.get("center", "").upper().strip()
+    month = data.get("month", "").strip()
+
+    query = {"center": center}
+    if month:
+        query["month"] = month
+
+    records = await db.monthly_commissions.find(query, {"_id": 0}).sort("upload_date", -1).to_list(200)
+
+    return {"success": True, "statements": records, "total": len(records)}
+
+
+@router.post("/delete-commission")
+async def delete_commission(data: dict):
+    """Delete a commission record by commission_id."""
     token = data.get("token")
     session = await check_access(token)
-    
-    result = await db.commission_statements.delete_one({"_id": commission_id})
-    
+
+    commission_id = data.get("commission_id")
+    if not commission_id:
+        raise HTTPException(400, "commission_id is required")
+
+    result = await db.monthly_commissions.delete_one({"commission_id": commission_id})
     if result.deleted_count == 0:
-        raise HTTPException(404, "Commission statement not found")
-    
-    return {"success": True, "message": "Commission statement deleted"}
+        raise HTTPException(404, "Commission record not found")
+
+    logger.info(f"Commission deleted: {commission_id} by {session.get('managerName')}")
+    return {"success": True, "message": "Commission record deleted"}
 
 # =======================================
 # PDF GENERATION - PIB REPORT

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -14,7 +13,7 @@ import {
   Building2, DollarSign, TrendingUp, TrendingDown, FileText, Upload, 
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
-  IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet
+  IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -23,13 +22,22 @@ const PLATFORMS = {
   india: [
     { value: 'swiggy', label: 'Swiggy', color: 'bg-orange-100 text-orange-800' },
     { value: 'zomato', label: 'Zomato', color: 'bg-red-100 text-red-800' },
-    { value: 'card_settlement', label: 'Card Settlement', color: 'bg-blue-100 text-blue-800' }
+    { value: 'phonepe', label: 'PhonePe', color: 'bg-purple-100 text-purple-800' },
+    { value: 'cards', label: 'Cards', color: 'bg-blue-100 text-blue-800' }
   ],
   australia: [
     { value: 'doordash', label: 'DoorDash', color: 'bg-red-100 text-red-800' },
-    { value: 'card_settlement', label: 'Card Settlement', color: 'bg-blue-100 text-blue-800' }
+    { value: 'cards', label: 'Cards', color: 'bg-blue-100 text-blue-800' }
   ]
 };
+
+const ALL_PLATFORMS = [
+  { value: 'swiggy', label: 'Swiggy', color: 'bg-orange-100 text-orange-800' },
+  { value: 'zomato', label: 'Zomato', color: 'bg-red-100 text-red-800' },
+  { value: 'doordash', label: 'DoorDash', color: 'bg-red-100 text-red-800' },
+  { value: 'phonepe', label: 'PhonePe', color: 'bg-purple-100 text-purple-800' },
+  { value: 'cards', label: 'Cards', color: 'bg-blue-100 text-blue-800' }
+];
 
 const formatCurrency = (value, country) => {
   const symbol = country === 'Australia' ? 'AUD ' : 'Rs. ';
@@ -58,26 +66,20 @@ export default function CenterAccounts() {
   
   // Modal states
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showCommissionModal, setShowCommissionModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPayoutMonth, setSelectedPayoutMonth] = useState(null);
   
-  // Form states
-  const [uploadForm, setUploadForm] = useState({
-    platform: '',
-    file: null
+  // Commission upload states
+  const [uploadPlatform, setUploadPlatform] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadMonth, setUploadMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  
-  const [commissionForm, setCommissionForm] = useState({
-    platform: '',
-    settlement_period_start: '',
-    settlement_period_end: '',
-    gross_order_amount: 0,
-    commission_charged: 0,
-    net_payout_received: 0,
-    notes: ''
-  });
+  const [parsedPreview, setParsedPreview] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
   
   const [paymentForm, setPaymentForm] = useState({
     amount: 0,
@@ -229,37 +231,62 @@ export default function CenterAccounts() {
     }
   }, [selectedCenter, selectedMonth, fetchAccountSummary, fetchCommissions, fetchPayoutSummary]);
 
-  // Save commission statement
-  const handleSaveCommission = async () => {
-    if (!commissionForm.platform || !commissionForm.settlement_period_start || !commissionForm.settlement_period_end) {
-      toast.error('Please fill all required fields');
+  // Upload and parse commission Excel
+  const handleUploadCommission = async () => {
+    if (!uploadFile || !uploadPlatform || !selectedCenter) {
+      toast.error('Please select a file, platform, and center');
       return;
     }
-    
+    setUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('token', token);
+      formData.append('platform', uploadPlatform);
+      formData.append('center', selectedCenter);
+      formData.append('month', uploadMonth);
+      formData.append('file', uploadFile);
+
+      const res = await fetch(`${API}/api/center-accounts/upload-commission-excel`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        setParsedPreview(data.parsed);
+        setShowUploadModal(false);
+        setShowPreviewModal(true);
+      } else {
+        toast.error(data.detail || 'Failed to parse file');
+      }
+    } catch (error) {
+      toast.error('Failed to upload file');
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  // Save parsed commission to DB
+  const handleSaveCommission = async () => {
+    if (!parsedPreview) return;
     setLoading(true);
     try {
       const res = await fetch(`${API}/api/center-accounts/save-commission`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          token, 
+        body: JSON.stringify({
+          token,
           center: selectedCenter,
-          ...commissionForm 
+          month: uploadMonth,
+          ...parsedPreview
         })
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('Commission statement saved');
-        setShowCommissionModal(false);
-        setCommissionForm({
-          platform: '',
-          settlement_period_start: '',
-          settlement_period_end: '',
-          gross_order_amount: 0,
-          commission_charged: 0,
-          net_payout_received: 0,
-          notes: ''
-        });
+        toast.success(data.message);
+        setShowPreviewModal(false);
+        setParsedPreview(null);
+        setUploadFile(null);
+        setUploadPlatform('');
         fetchCommissions();
         fetchAccountSummary();
       } else {
@@ -269,6 +296,28 @@ export default function CenterAccounts() {
       toast.error('Failed to save commission');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Delete commission
+  const handleDeleteCommission = async (commissionId) => {
+    if (!window.confirm('Delete this commission record?')) return;
+    try {
+      const res = await fetch(`${API}/api/center-accounts/delete-commission`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, commission_id: commissionId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Commission deleted');
+        fetchCommissions();
+        fetchAccountSummary();
+      } else {
+        toast.error(data.detail || 'Failed to delete');
+      }
+    } catch (error) {
+      toast.error('Failed to delete commission');
     }
   };
 
@@ -444,9 +493,9 @@ export default function CenterAccounts() {
               </Button>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowCommissionModal(true)} disabled={!selectedCenter}>
+              <Button variant="outline" onClick={() => setShowUploadModal(true)} disabled={!selectedCenter}>
                 <Upload className="w-4 h-4 mr-2" />
-                Add Commission
+                Upload Commission
               </Button>
               {session?.is_super_admin && (
                 <Button variant="outline" onClick={() => setShowLinkModal(true)}>
@@ -755,59 +804,66 @@ export default function CenterAccounts() {
               </Card>
             </TabsContent>
 
-            {/* Commissions Tab */}
+            {/* Commissions Tab — Upload-Driven */}
             <TabsContent value="commissions" className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">Commission Statements</h3>
-                <Button onClick={() => setShowCommissionModal(true)}>
+                <h3 className="text-lg font-medium" data-testid="commissions-header">Uploaded Commission Reports</h3>
+                <Button onClick={() => setShowUploadModal(true)} data-testid="upload-commission-btn">
                   <Upload className="w-4 h-4 mr-2" />
-                  Add Commission Statement
+                  Upload Excel Report
                 </Button>
               </div>
 
               <Card>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full" data-testid="commission-table">
                       <thead className="bg-gray-50 border-b">
                         <tr>
                           <th className="text-left p-3 text-sm font-medium">Platform</th>
-                          <th className="text-left p-3 text-sm font-medium">Period</th>
+                          <th className="text-left p-3 text-sm font-medium">Month</th>
                           <th className="text-right p-3 text-sm font-medium">Gross Amount</th>
                           <th className="text-right p-3 text-sm font-medium">Commission</th>
+                          <th className="text-right p-3 text-sm font-medium">GST on Comm</th>
                           <th className="text-right p-3 text-sm font-medium">Net Payout</th>
-                          <th className="text-right p-3 text-sm font-medium">Commission %</th>
+                          <th className="text-right p-3 text-sm font-medium">Orders</th>
+                          <th className="text-left p-3 text-sm font-medium">File</th>
+                          <th className="text-center p-3 text-sm font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {commissionStatements.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="text-center py-8 text-gray-500">
-                              No commission statements found for this period
+                            <td colSpan={9} className="text-center py-8 text-gray-500">
+                              No commission uploads for this period. Upload an Excel report to get started.
                             </td>
                           </tr>
                         ) : (
-                          commissionStatements.map((stmt, idx) => (
-                            <tr key={idx} className="border-b hover:bg-gray-50">
+                          commissionStatements.map((stmt) => (
+                            <tr key={stmt.commission_id} className="border-b hover:bg-gray-50">
                               <td className="p-3">
-                                <Badge className={availablePlatforms.find(p => p.value === stmt.platform)?.color || 'bg-gray-100'}>
-                                  {stmt.platform.replace('_', ' ').toUpperCase()}
+                                <Badge className={ALL_PLATFORMS.find(p => p.value === stmt.platform)?.color || 'bg-gray-100 text-gray-800'}>
+                                  {stmt.platform.toUpperCase()}
                                 </Badge>
                               </td>
-                              <td className="p-3 text-sm">
-                                {stmt.settlement_period_start} to {stmt.settlement_period_end}
+                              <td className="p-3 text-sm font-medium">{stmt.month}</td>
+                              <td className="p-3 text-right">{formatCurrency(stmt.gross_amount, accountSummary?.country)}</td>
+                              <td className="p-3 text-right text-red-600">{formatCurrency(stmt.commission_amount, accountSummary?.country)}</td>
+                              <td className="p-3 text-right text-orange-600">{formatCurrency(stmt.gst_on_commission, accountSummary?.country)}</td>
+                              <td className="p-3 text-right text-green-600">{formatCurrency(stmt.net_payout, accountSummary?.country)}</td>
+                              <td className="p-3 text-right">{stmt.order_count}</td>
+                              <td className="p-3 text-sm text-gray-500 max-w-[150px] truncate" title={stmt.original_filename}>
+                                {stmt.original_filename || '-'}
                               </td>
-                              <td className="p-3 text-right">
-                                {formatCurrency(stmt.gross_order_amount, accountSummary.country)}
-                              </td>
-                              <td className="p-3 text-right text-red-600">
-                                {formatCurrency(stmt.commission_charged, accountSummary.country)}
-                              </td>
-                              <td className="p-3 text-right text-green-600">
-                                {formatCurrency(stmt.net_payout_received, accountSummary.country)}
-                              </td>
-                              <td className="p-3 text-right">
-                                {stmt.gross_order_amount > 0 ? formatPercent(stmt.commission_charged / stmt.gross_order_amount * 100) : '0%'}
+                              <td className="p-3 text-center">
+                                <Button 
+                                  variant="ghost" size="sm" 
+                                  className="text-red-500 hover:text-red-700"
+                                  onClick={() => handleDeleteCommission(stmt.commission_id)}
+                                  data-testid={`delete-commission-${stmt.commission_id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </td>
                             </tr>
                           ))
@@ -818,7 +874,7 @@ export default function CenterAccounts() {
                 </CardContent>
               </Card>
 
-              {/* Commission Summary */}
+              {/* Commission Summary Cards */}
               <div className="grid md:grid-cols-4 gap-4">
                 <Card className="bg-orange-50">
                   <CardContent className="p-4">
@@ -830,7 +886,7 @@ export default function CenterAccounts() {
                 </Card>
                 <Card className="bg-blue-50">
                   <CardContent className="p-4">
-                    <p className="text-sm text-blue-600">Card Commission</p>
+                    <p className="text-sm text-blue-600">Payment Mode Commission</p>
                     <p className="text-xl font-bold text-blue-800">
                       {formatCurrency(accountSummary.commissions.card_total, accountSummary.country)}
                     </p>
@@ -848,9 +904,9 @@ export default function CenterAccounts() {
                 )}
                 <Card className="bg-red-50">
                   <CardContent className="p-4">
-                    <p className="text-sm text-red-600">Total Commission {accountSummary.country === 'Australia' ? '(incl. GST)' : ''}</p>
+                    <p className="text-sm text-red-600">Total Commission</p>
                     <p className="text-xl font-bold text-red-800">
-                      {formatCurrency(accountSummary.country === 'Australia' ? accountSummary.commissions.total_with_gst : accountSummary.commissions.total, accountSummary.country)}
+                      {formatCurrency(accountSummary.commissions.total, accountSummary.country)}
                     </p>
                   </CardContent>
                 </Card>
@@ -1642,18 +1698,18 @@ export default function CenterAccounts() {
         </Card>
       )}
 
-      {/* Add Commission Modal */}
-      <Dialog open={showCommissionModal} onOpenChange={setShowCommissionModal}>
+      {/* Upload Commission Excel Modal */}
+      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Commission Statement</DialogTitle>
-            <DialogDescription>Enter commission details for {selectedCenter}</DialogDescription>
+            <DialogTitle>Upload Commission Report</DialogTitle>
+            <DialogDescription>Upload monthly Excel report for {selectedCenter}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Platform *</Label>
-              <Select value={commissionForm.platform} onValueChange={(v) => setCommissionForm(p => ({ ...p, platform: v }))}>
-                <SelectTrigger>
+              <Select value={uploadPlatform} onValueChange={setUploadPlatform}>
+                <SelectTrigger data-testid="upload-platform-select">
                   <SelectValue placeholder="Select platform" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1663,62 +1719,88 @@ export default function CenterAccounts() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Period Start *</Label>
-                <Input 
-                  type="date" 
-                  value={commissionForm.settlement_period_start}
-                  onChange={(e) => setCommissionForm(p => ({ ...p, settlement_period_start: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label>Period End *</Label>
-                <Input 
-                  type="date" 
-                  value={commissionForm.settlement_period_end}
-                  onChange={(e) => setCommissionForm(p => ({ ...p, settlement_period_end: e.target.value }))}
-                />
-              </div>
-            </div>
             <div>
-              <Label>Gross Order Amount</Label>
-              <Input 
-                type="number" 
-                value={commissionForm.gross_order_amount}
-                onChange={(e) => setCommissionForm(p => ({ ...p, gross_order_amount: parseFloat(e.target.value) || 0 }))}
+              <Label>Month *</Label>
+              <Input
+                type="month"
+                value={uploadMonth}
+                onChange={(e) => setUploadMonth(e.target.value)}
+                data-testid="upload-month-input"
               />
             </div>
             <div>
-              <Label>Commission Charged</Label>
-              <Input 
-                type="number" 
-                value={commissionForm.commission_charged}
-                onChange={(e) => setCommissionForm(p => ({ ...p, commission_charged: parseFloat(e.target.value) || 0 }))}
+              <Label>Excel File (.xlsx) *</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                data-testid="upload-file-input"
               />
+              {uploadFile && (
+                <p className="text-sm text-gray-500 mt-1">{uploadFile.name}</p>
+              )}
             </div>
-            <div>
-              <Label>Net Payout Received</Label>
-              <Input 
-                type="number" 
-                value={commissionForm.net_payout_received}
-                onChange={(e) => setCommissionForm(p => ({ ...p, net_payout_received: parseFloat(e.target.value) || 0 }))}
-              />
-            </div>
-            <div>
-              <Label>Notes</Label>
-              <Textarea 
-                placeholder="Optional notes..."
-                value={commissionForm.notes}
-                onChange={(e) => setCommissionForm(p => ({ ...p, notes: e.target.value }))}
-              />
+            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+              <p className="font-medium mb-1">Supported formats:</p>
+              <p>Zomato, Swiggy, DoorDash, PhonePe, Cards — monthly reports as downloaded from each platform.</p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCommissionModal(false)}>Cancel</Button>
-            <Button onClick={handleSaveCommission} disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Save Commission
+            <Button variant="outline" onClick={() => setShowUploadModal(false)}>Cancel</Button>
+            <Button onClick={handleUploadCommission} disabled={uploadLoading || !uploadFile || !uploadPlatform}>
+              {uploadLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+              Parse & Preview
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Parsed Preview Modal */}
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review Parsed Data</DialogTitle>
+            <DialogDescription>
+              {parsedPreview?.platform?.toUpperCase()} — {parsedPreview?.month} — {parsedPreview?.original_filename}
+            </DialogDescription>
+          </DialogHeader>
+          {parsedPreview && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500">Gross Amount</p>
+                  <p className="text-2xl font-bold">{formatCurrency(parsedPreview.gross_amount, accountSummary?.country)}</p>
+                </div>
+                <div className="p-4 bg-red-50 rounded-lg">
+                  <p className="text-sm text-red-600">Commission</p>
+                  <p className="text-2xl font-bold text-red-700">{formatCurrency(parsedPreview.commission_amount, accountSummary?.country)}</p>
+                </div>
+                <div className="p-4 bg-orange-50 rounded-lg">
+                  <p className="text-sm text-orange-600">GST on Commission</p>
+                  <p className="text-2xl font-bold text-orange-700">{formatCurrency(parsedPreview.gst_on_commission, accountSummary?.country)}</p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <p className="text-sm text-green-600">Net Payout</p>
+                  <p className="text-2xl font-bold text-green-700">{formatCurrency(parsedPreview.net_payout, accountSummary?.country)}</p>
+                </div>
+              </div>
+              <div className="flex gap-4 text-sm text-gray-600">
+                <span>Orders: <strong>{parsedPreview.order_count}</strong></span>
+                <span>TDS: <strong>{formatCurrency(parsedPreview.tds, accountSummary?.country)}</strong></span>
+                <span>Currency: <strong>{parsedPreview.currency}</strong></span>
+              </div>
+              {parsedPreview.gross_amount > 0 && parsedPreview.commission_amount > 0 && (
+                <div className="p-3 bg-amber-50 rounded text-sm text-amber-700">
+                  Effective Commission Rate: <strong>{((parsedPreview.commission_amount / parsedPreview.gross_amount) * 100).toFixed(1)}%</strong>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowPreviewModal(false); setParsedPreview(null); }}>Cancel</Button>
+            <Button onClick={handleSaveCommission} disabled={loading} data-testid="confirm-save-commission">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              Confirm & Save
             </Button>
           </DialogFooter>
         </DialogContent>
