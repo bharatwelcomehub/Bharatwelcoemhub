@@ -1,39 +1,88 @@
-# Purnabramha IntraPB Portal — Product Requirements Document
+# Purnabramha IntraPB — Product Requirements Document
 
-## Original Problem Statement
-Internal management system for "Purnabramha," a restaurant franchise. Core philosophy: MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING.
+## Problem Statement
+Internal management system for "Purnabramha," a restaurant franchise. Core philosophy: **MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING**.
 
-## Tech Stack
-- Frontend: React + Shadcn/UI + Tailwind CSS
-- Backend: FastAPI + Python
-- Database: MongoDB
-- Libraries: xlsx, ReportLab, emergentintegrations (Object Storage)
+## User Personas
+- **Super Admin**: Full system access, manages all centers
+- **Center Manager**: Day-to-day operations at a specific center
+- **Accountant**: Financial reporting, commission tracking, MIS
 
-## Completed Features
-- [x] 16 Master Data Tables + Permission Engine + Franchise Owner Dashboard
-- [x] MIS Dashboard (center-wise, WC, XLSX/PDF, **Commissions in Profit**)
-- [x] Expense Entry Grid, Attendance/Payroll, POS/Billing (dual-view Table/Order)
-- [x] Billing Configuration, KOT/Bill Cancellation Engine
-- [x] MASTER-DATA-FIRST Architecture, Attendance Transfer Bug Fix
-- [x] Commission Tracking Module — **reads from daily_sales** (same source as Sales Dashboard)
-  - Platform commissions from swiggy/zomato fields (25%/22% default)
-  - Payment mode commissions from card_idfc/bharat_pay fields (Card 2% default)
-  - GST on commissions (18% default)
-  - Monthly + Date Range mode, center-wise dashboard
-  - MIS integration: Profit = Sales - Expenses - GST - Commissions
-- [x] Document Management Module — Object Storage, Approval Workflow, Expiry Tracking
-- [x] Franchise Detail Document Integration
+## Core Modules
 
-## Test Credentials
-- Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456
+### 1. Authentication (OTP-based)
+- Center selection → Mobile → OTP flow
+- Role-based access (super_admin, center, hr, accounts, franchise)
 
-## Prioritized Backlog
-### P1 — WhatsApp/Email notification hooks
-### P2 — Image Upload for Recipes, Franchise Deal Simulator, 7-year retention, Menu PDF
+### 2. Employee Management
+- CRUD, transfers between centers
+- Historical attendance preserved for transferred employees
 
-## Key Data: daily_sales schema
-Each record = one day, one center:
-- total_sale, total_cash_sale, total_online_sale
-- swiggy, zomato (platform amounts)
-- card_idfc, bharat_pay, online_other (payment mode amounts)
-- num_guests, num_bills, gst
+### 3. Attendance Module
+- Monthly grid with IN/OFF/HALF/ABSENT status
+- Handles transferred-out employees gracefully
+
+### 4. POS Billing
+- Multi-item billing with tax calculation
+- Payment mode tracking (Cash, Card, UPI, Swiggy, Zomato)
+
+### 5. Sales & Expenses
+- Daily sales entry with GST and payment mode breakdown
+- Monthly expense tracking
+
+### 6. Center Accounts
+- Financial summary: Sales, Expenses, Commissions, Profit Share
+- **Commission Upload (NEW - Excel-driven)**:
+  - Upload monthly Excel reports (Zomato, Swiggy, DoorDash, PhonePe, Cards)
+  - Auto-parse gross amount, commission, GST on commission, TDS, net payout
+  - Stored in `monthly_commissions` collection
+  - Replaces old formula-based commission calculation
+
+### 7. MIS Dashboard
+- Profit = Total Sales - Total Expenses - GST (actual) - Commissions (uploaded)
+- Per-center breakdown with date range filtering
+
+### 8. Franchise Management
+- Franchise profiles with document management (Object Storage)
+- Document categories: Agreement, License, ID Proof, etc.
+
+### 9. Document Management
+- Integrated inside Franchise Details view
+- Uses Emergent Object Storage
+
+## Technical Architecture
+- **Frontend**: React + Shadcn UI
+- **Backend**: FastAPI + Motor (async MongoDB)
+- **Database**: MongoDB
+- **Storage**: Emergent Object Storage for documents
+- **Excel Parsing**: pandas + openpyxl
+
+## Key DB Collections
+- `centers`, `employees`, `attendance`, `daily_sales`, `expenses`
+- `monthly_commissions` — Single source of truth for commission data
+- `documents`, `document_categories` — File/doc management
+- `franchises`, `franchise_linkages` — Franchise profiles
+
+## Profit Calculation Rule
+`Profit = Total Sales - Total Expenses - GST (from actual gst_amount) - Commissions (from uploaded Excel)`
+
+## What's Been Implemented
+
+### Completed (as of March 29, 2026)
+- Auth system with OTP login
+- Employee CRUD with transfers
+- Attendance module with transfer handling
+- POS Billing system (100% E2E tested)
+- Sales & Expenses module
+- Center Accounts with financial summary
+- **Commission Upload (Excel-driven)** — Parses Zomato, Swiggy, DoorDash, PhonePe, Cards
+- MIS Dashboard with correct profit formula
+- Franchise Management with Document Management
+- Document Management via Object Storage
+
+### Pending / Backlog
+- (P1) WhatsApp/Email notification hooks
+- (P2) Image Upload for Recipes
+- (P2) Franchise Deal Simulator
+- (P2) 7-year retention deletion prompt for attachments
+- (P2) Menu card PDF generation per center

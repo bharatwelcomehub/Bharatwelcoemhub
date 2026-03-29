@@ -8,4 +8,4 @@
 ## Login Flow
 1. POST /api/send_otp with {"center": "PB-MGT", "mobile": "9741399190"}
 2. POST /api/verify_otp with {"center": "PB-MGT", "mobile": "9741399190", "otp": "123456"}
-3. Token returned in response
+3. Returns token for authenticated requests
