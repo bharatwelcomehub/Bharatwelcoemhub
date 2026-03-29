@@ -7,6 +7,7 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Super Admin**: Full system access, manages all centers
 - **Center Manager**: Day-to-day operations at a specific center
 - **Accountant**: Financial reporting, commission tracking, MIS
+- **Franchise Owner**: View-only dashboard with sales, expenses, franchise info, documents
 
 ## Core Modules
 
@@ -36,7 +37,6 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
   - Upload monthly Excel reports (Zomato, Swiggy, DoorDash, PhonePe, Cards)
   - Auto-parse gross amount, commission, GST on commission, TDS, net payout
   - Stored in `monthly_commissions` collection
-  - Replaces old formula-based commission calculation
 
 ### 7. MIS Dashboard
 - Profit = Total Sales - Total Expenses - GST (actual) - Commissions (uploaded)
@@ -51,7 +51,12 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - Approval workflow (pending/approved/rejected)
 - Center and franchise-level filtering
 - Documents uploaded for a center auto-appear in linked franchise details
-- 9 seeded categories (franchise + employee level)
+- Franchise Owner Dashboard shows documents (view + download only, no upload)
+
+### 10. Franchise Owner Dashboard
+- View-only dashboard for franchise owners
+- Tabs: Sales Overview, Expense Breakdown, Franchise Info, **Documents**
+- Documents tab: Read-only view with download capability
 
 ## Technical Architecture
 - **Frontend**: React + Shadcn UI
@@ -59,12 +64,6 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Database**: MongoDB
 - **Storage**: Emergent Object Storage for documents
 - **Excel Parsing**: pandas + openpyxl
-
-## Key DB Collections
-- `centers` (9), `managers` (7), `daily_sales` (3047), `expenses` (2824), `expense_heads` (35)
-- `monthly_commissions` — Commission data from Excel uploads
-- `documents`, `document_categories` (9) — Unified document management
-- `franchises` — Franchise profiles (currently empty, needs manual re-creation)
 
 ## Profit Calculation Rule
 `Profit = Total Sales - Total Expenses - GST (from actual gst_amount) - Commissions (from uploaded Excel)`
@@ -78,16 +77,12 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - POS Billing system (100% E2E tested)
 - Sales & Expenses module
 - Center Accounts with financial summary
-- **Commission Upload (Excel-driven)** — Parses Zomato, Swiggy, DoorDash, PhonePe, Cards
+- Commission Upload (Excel-driven) — Parses Zomato, Swiggy, DoorDash, PhonePe, Cards
 - MIS Dashboard with correct profit formula
 - Franchise Management with Document Management
 - Document Management via Object Storage (unified - center-linked docs show in franchise details)
+- Franchise Owner Dashboard with Documents tab (view + download only)
 - Master data re-seeded (centers, managers, expenses, expense_heads, doc categories)
-
-### Data Status
-- Franchise records need manual re-creation (lost during fork)
-- Documents need re-upload (old uploads were lost during fork)
-- All other master data (centers, managers, sales, expenses) is intact
 
 ### Pending / Backlog
 - (P1) WhatsApp/Email notification hooks

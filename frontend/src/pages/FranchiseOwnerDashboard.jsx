@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { 
   BarChart3, Download, IndianRupee, Receipt, FileText, Store, Calendar,
-  TrendingUp, TrendingDown, Loader2, Eye, UserCheck, UserX, Link2
+  TrendingUp, TrendingDown, Loader2, Eye, UserCheck, UserX, Link2, FileDown
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -40,6 +40,7 @@ export default function FranchiseOwnerDashboard() {
   const [franchiseInfo, setFranchiseInfo] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [workingCapital, setWorkingCapital] = useState(null);
+  const [franchiseDocs, setFranchiseDocs] = useState([]);
 
   const isAdmin = session?.is_super_admin || session?.is_admin;
 
@@ -84,7 +85,20 @@ export default function FranchiseOwnerDashboard() {
       
       // Fetch franchise info for this center
       const frRes = await api.post(`/franchises/by-center/${center}`, { token: session.token }).catch(() => ({ data: { found: false, franchise: null } }));
-      setFranchiseInfo(frRes.data.found ? frRes.data.franchise : null);
+      const franchise = frRes.data.found ? frRes.data.franchise : null;
+      setFranchiseInfo(franchise);
+      
+      // Fetch documents for this franchise/center (view only)
+      try {
+        const docParams = { token: session.token, level: "franchise" };
+        if (franchise?.franchise_code) {
+          docParams.franchise_code = franchise.franchise_code;
+        } else {
+          docParams.center = center;
+        }
+        const docRes = await api.post("/documents/list", docParams).catch(() => ({ data: { documents: [] } }));
+        setFranchiseDocs(docRes.data.documents || []);
+      } catch { setFranchiseDocs([]); }
       
     } catch (err) {
       console.error(err);
@@ -94,6 +108,20 @@ export default function FranchiseOwnerDashboard() {
   }, [session, period, selectedCenter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const downloadDocument = async (doc) => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/documents/file/${doc.document_id}?auth=${session?.token}`);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.original_filename || "document";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Download failed"); }
+  };
 
   const handleExportReport = () => {
     if (!overview) return;
@@ -274,6 +302,7 @@ export default function FranchiseOwnerDashboard() {
               <TabsTrigger value="overview">Sales Overview</TabsTrigger>
               <TabsTrigger value="expenses">Expense Breakdown</TabsTrigger>
               <TabsTrigger value="franchise">Franchise Info</TabsTrigger>
+              <TabsTrigger value="documents">Documents</TabsTrigger>
             </TabsList>
 
             {/* Sales Overview Tab */}
@@ -389,6 +418,70 @@ export default function FranchiseOwnerDashboard() {
                     </div>
                   ) : (
                     <p className="text-muted-foreground">No franchise profile found for this center. Contact admin to set up.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Documents Tab - View & Download Only */}
+            <TabsContent value="documents" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5" /> Franchise Documents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {franchiseDocs.length === 0 ? (
+                    <p className="text-center py-8 text-muted-foreground" data-testid="fo-no-docs">
+                      No documents available for this franchise.
+                    </p>
+                  ) : (
+                    <div className="space-y-3" data-testid="fo-documents-list">
+                      {franchiseDocs.map((doc) => (
+                        <div
+                          key={doc.document_id}
+                          className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors"
+                          data-testid={`fo-doc-${doc.document_id}`}
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="p-2 rounded-lg bg-red-50">
+                              <FileText className="w-5 h-5 text-red-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-sm truncate">{doc.original_filename}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {doc.category_name && (
+                                  <Badge variant="outline" className="text-xs">{doc.category_name}</Badge>
+                                )}
+                                {doc.status && (
+                                  <Badge className={`text-xs ${doc.status === 'approved' ? 'bg-green-100 text-green-700' : doc.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    {doc.status}
+                                  </Badge>
+                                )}
+                                {doc.expiry_date && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Expires: {new Date(doc.expiry_date).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Uploaded: {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : '—'}
+                                {doc.uploaded_by ? ` by ${doc.uploaded_by}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadDocument(doc)}
+                            data-testid={`fo-download-doc-${doc.document_id}`}
+                          >
+                            <FileDown className="w-4 h-4 mr-1" /> Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </CardContent>
               </Card>
