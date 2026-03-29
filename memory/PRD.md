@@ -1,48 +1,56 @@
 # Purnabramha IntraPB Portal — Product Requirements Document
 
 ## Original Problem Statement
-Internal management system for "Purnabramha," a restaurant franchise. Manages attendance, payroll, sales/expenses, HR letters, transfers, MIS dashboards, POS/billing, and franchise operations across India + Australia centers.
+Internal management system for "Purnabramha," a restaurant franchise. Manages attendance, payroll, sales/expenses, HR letters, transfers, MIS dashboards, POS/billing, commissions, document management, and franchise operations across India + Australia centers.
 
 ## CORE ARCHITECTURE: MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING
 - ALL dropdowns, filters, and lists pulled from MongoDB master collections
-- Center->Franchise mapping via `centers.franchise_code` field (set by Center Accounts "Link Franchise")
+- Center->Franchise mapping via `centers.franchise_code` field
 - RBAC via Permission Engine (Super Admin, Admin, Center Manager, Franchise Owner)
-- No hardcoded center codes, franchise names, or static lists in any module
+- No hardcoded center codes, franchise names, or static lists
 - Public GET `/api/masters/{type}` endpoint for all dropdown data
 
 ## Tech Stack
 - Frontend: React + Shadcn/UI + Tailwind CSS
 - Backend: FastAPI + Python
 - Database: MongoDB
-- Libraries: xlsx (Excel), ReportLab (PDF)
+- Libraries: xlsx (Excel), ReportLab (PDF), emergentintegrations (Object Storage)
 
 ## Master Collections (Single Source of Truth)
 - `centers`: {code, name, franchise_code, is_india_center, active, country}
 - `franchises`: {franchise_code, franchise_name, working_capital, primary_contact_name, status}
-- `master_payment_modes`: {name, is_active} — CASH, UPI, CARD, BANK TRANSFER, etc.
-- `master_order_types`: {name, is_active} — DINE-IN, TAKEAWAY, DELIVERY, CATERING
-- `master_discount_types`: {name, is_active} — NO DISCOUNT, COMPLIMENTARY, STAFF DISCOUNT, etc.
-- `master_menu_categories`: {category_id, name, display_order, is_active}
-- `billing_tables`: {table_id, table_no, center, capacity, floor, section, status}
-- `billing_cancel_reasons`: {reason_id, reason, type (order/bill/kot), is_active}
-- `billing_audit_trail`: {action, order_id/bill_no, center, reason, cancelled_by, role, timestamp}
-- `expense_heads`: {name, description, is_active}
-- `permissions`: {role_key, permissions_list}
-- `transfer_requests`: {employee_name, from_center, to_center, transfer_type, start_date, end_date, status}
+- `master_payment_modes`, `master_order_types`, `master_discount_types`, `master_menu_categories`
+- `billing_tables`, `billing_cancel_reasons`, `billing_audit_trail`
+- `expense_heads`, `permissions`, `transfer_requests`
+- `commission_config`: {center, platforms[{platform, commission_pct, gst_on_commission_pct}], payment_modes[{payment_mode, commission_pct}]}
+- `document_categories`: {category_id, name, level (franchise/employee), requires_expiry}
+- `documents`: {document_id, center, category_id, level, storage_path, status (pending/approved/rejected), expiry_date, uploaded_by, approved_by}
 
 ## Completed Features
 - [x] 16 Master Data Tables + Permission Engine + Franchise Owner Dashboard
 - [x] MIS Dashboard (center-wise, WC from franchise mapping, XLSX/PDF Export)
 - [x] Expense Entry Grid (wider amount fields, batch add)
 - [x] Attendance/Payroll for transfers, PDF exports
-- [x] POS/Billing (touchscreen UI, 17+ routes)
+- [x] POS/Billing (touchscreen UI, 17+ routes, dual-view Table/Order)
 - [x] Billing Configuration (Tables, Cancel Reasons, Categories CRUD)
-- [x] POS Workflow (Table Selection -> Guest Count -> Order for Dine-In; Name+Phone for Takeaway/Delivery)
+- [x] POS Workflow (Table Selection -> Guest Count -> Order)
 - [x] KOT/Bill Cancellation Engine (master reasons, audit trail)
-- [x] Franchise Connectivity Indicator (connected=green, unmapped=amber)
-- [x] **MASTER-DATA-FIRST Architecture Fix** (COMPLETED 2026-03-28)
-- [x] **POS UI Redesign** — Dual-view: Table View landing (table grid, status colors, Delivery/Pickup buttons) + Order View (menu + cart) (COMPLETED 2026-03-28)
-- [x] **Attendance Transfer Bug Fix** — Permanently transferred-out employees now appear in source center's attendance grid with TRANSFERRED_OUT tag, preserving pre-transfer attendance data (COMPLETED 2026-03-28)
+- [x] MASTER-DATA-FIRST Architecture Fix
+- [x] POS UI Redesign — Dual-view Table View + Order View
+- [x] Attendance Transfer Bug Fix — Transferred-out employees appear in source center grid
+- [x] **Commission Tracking Module** (COMPLETED 2026-03-29)
+  - Platform commissions (Swiggy/Zomato/Magicpin/Direct)
+  - Payment mode commissions (Card/UPI/Cash/Bank Transfer)
+  - GST on commissions
+  - Center-wise dashboard + Configuration tab
+  - MIS Dashboard integration (Profit = Sales - Expenses - GST - Commissions)
+- [x] **Document Management Module** (COMPLETED 2026-03-29)
+  - Franchise-level & Employee-level documents
+  - Object storage (Emergent) for file upload/download
+  - Approval workflow: Center Manager uploads → Admin approves/rejects
+  - Expiry tracking with alerts (30/60 day windows)
+  - Document categories management
+  - Stats dashboard (total, pending, approved, rejected, expiring, expired)
 
 ## Test Credentials
 - Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456
@@ -50,8 +58,6 @@ Internal management system for "Purnabramha," a restaurant franchise. Manages at
 ## Prioritized Backlog
 
 ### P1 — High
-- Franchise document management & Approval hierarchy
-- Commission tracking module (needed to re-enable Profit metrics)
 - WhatsApp/Email notification hooks
 
 ### P2 — Medium/Future
@@ -60,7 +66,32 @@ Internal management system for "Purnabramha," a restaurant franchise. Manages at
 - 7-year retention deletion prompt
 - Menu card PDF generation per center
 
+## Code Architecture
+```
+/app/backend/routes/
+├── commissions.py        # NEW: Commission config, dashboard, MIS integration
+├── documents.py          # NEW: Document CRUD, approval, object storage
+├── attendance.py         # Updated: Transfer-aware monthly grid
+├── attendance_dashboard.py # Updated: Transfer-aware dashboard
+├── billing.py
+├── billing_config.py
+├── masters.py
+├── mis_dashboard.py      # Updated: Includes commissions in profit calc
+├── transfers.py
+├── sales_expenses.py
+└── server.py
+
+/app/frontend/src/pages/
+├── CommissionTracking.jsx  # NEW: Dashboard + Config tabs
+├── DocumentManagement.jsx  # NEW: Documents + Expiry + Categories tabs
+├── Dashboard.jsx           # Updated: New sidebar items + routes
+├── MISDashboard.jsx        # Updated: Commissions + Net Profit cards
+├── AttendanceDashboard.jsx # Updated: Transfer OUT badge
+├── POSBilling.jsx
+└── ...
+```
+
 ## Project Health
 - Broken: None
 - Mocked: WhatsApp Integration
-- Hidden: Net Profit metrics (until commission module is built)
+- Tested: All features tested via testing_agent (iterations 37, 38)
