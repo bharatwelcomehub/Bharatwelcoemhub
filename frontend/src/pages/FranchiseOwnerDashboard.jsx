@@ -139,13 +139,11 @@ export default function FranchiseOwnerDashboard() {
       const franchise = frRes.data.found ? frRes.data.franchise : null;
       setFranchiseInfo(franchise);
 
-      // Fetch documents
+      // Fetch documents (no level filter — show ALL docs for this franchise/center)
       try {
-        const docParams = { token: session.token, level: "franchise" };
+        const docParams = { token: session.token, center };
         if (franchise?.franchise_code) {
           docParams.franchise_code = franchise.franchise_code;
-        } else {
-          docParams.center = center;
         }
         const docRes = await api.post("/documents/list", docParams).catch(() => ({ data: { documents: [] } }));
         setFranchiseDocs(docRes.data.documents || []);

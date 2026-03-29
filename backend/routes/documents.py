@@ -295,8 +295,24 @@ async def list_documents(req: DocumentListReq):
     if not check_admin(session):
         query["center"] = session.get("center", "").upper()
 
-    if req.center:
+    if req.franchise_code:
+        # When filtering by franchise, use OR logic for franchise_code + linked centers + explicit center
+        franchise = await db.franchises.find_one(
+            {"franchise_code": req.franchise_code.upper()}, {"_id": 0, "linked_centers": 1}
+        )
+        linked_centers = franchise.get("linked_centers", []) if franchise else []
+        # Build set of all relevant centers
+        all_centers = set(c.upper() for c in linked_centers)
+        if req.center:
+            all_centers.add(req.center.upper())
+        # OR: match franchise_code OR center in linked/requested centers
+        franchise_or = [{"franchise_code": req.franchise_code.upper()}]
+        if all_centers:
+            franchise_or.append({"center": {"$in": list(all_centers)}})
+        query["$or"] = franchise_or
+    elif req.center:
         query["center"] = req.center.upper()
+
     if req.level:
         query["level"] = req.level
     if req.category:
@@ -305,17 +321,6 @@ async def list_documents(req: DocumentListReq):
         query["status"] = req.status
     if req.employee_name:
         query["employee_name"] = req.employee_name.upper()
-    if req.franchise_code:
-        # When filtering by franchise, also include docs from linked centers
-        franchise = await db.franchises.find_one(
-            {"franchise_code": req.franchise_code.upper()}, {"_id": 0, "linked_centers": 1}
-        )
-        linked_centers = franchise.get("linked_centers", []) if franchise else []
-        # OR logic: match franchise_code OR center in linked_centers
-        franchise_or = [{"franchise_code": req.franchise_code.upper()}]
-        if linked_centers:
-            franchise_or.append({"center": {"$in": [c.upper() for c in linked_centers]}})
-        query["$or"] = franchise_or
 
     # Expiry filter
     if req.expiring_within_days:
