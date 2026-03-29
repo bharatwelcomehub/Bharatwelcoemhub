@@ -148,10 +148,21 @@ async def get_all_commission_configs():
 # =======================================
 
 async def calculate_commissions_for_period(center: str, start_date: str, end_date: str):
-    """Core calculation: compute commissions from sales data and config"""
+    """Core calculation: compute commissions from daily_sales data and config.
+    
+    daily_sales schema per record:
+      - total_sale: total daily sale
+      - swiggy: Swiggy platform amount
+      - zomato: Zomato platform amount  
+      - card_idfc: Card payment amount
+      - bharat_pay: UPI/Bharat Pay amount
+      - online_other: Other online payments
+      - total_cash_sale: Cash sale amount
+      - total_online_sale: Total online
+    """
     config = await db.commission_config.find_one({"center": center}, {"_id": 0})
 
-    # Build lookup maps
+    # Build lookup maps from config (or use defaults)
     platform_rates = {}
     payment_rates = {}
     if config:
@@ -164,8 +175,15 @@ async def calculate_commissions_for_period(center: str, start_date: str, end_dat
         for pm in config.get("payment_modes", []):
             if pm.get("is_active", True):
                 payment_rates[pm["payment_mode"].upper()] = pm["commission_pct"]
+    else:
+        # Default rates when no config saved
+        platform_rates = {
+            "SWIGGY": {"commission_pct": 25.0, "gst_pct": 18.0},
+            "ZOMATO": {"commission_pct": 22.0, "gst_pct": 18.0},
+        }
+        payment_rates = {"CARD": 2.0}
 
-    # Fetch sales data for the period
+    # Fetch daily_sales for the period
     sales = await db.daily_sales.find(
         {"center": center, "date": {"$gte": start_date, "$lte": end_date}},
         {"_id": 0},
@@ -179,44 +197,75 @@ async def calculate_commissions_for_period(center: str, start_date: str, end_dat
     payment_breakdown = {}
     daily_data = {}
 
+    # Map daily_sales fields to platform/payment names
+    PLATFORM_FIELD_MAP = {
+        "swiggy": "SWIGGY",
+        "zomato": "ZOMATO",
+    }
+    PAYMENT_FIELD_MAP = {
+        "card_idfc": "CARD",
+        "bharat_pay": "UPI",
+        "total_cash_sale": "CASH",
+        "online_other": "OTHER ONLINE",
+    }
+
     for sale in sales:
         date = sale.get("date", "")
-        amount = float(sale.get("total_sales", 0) or sale.get("amount", 0) or 0)
-        platform = (sale.get("platform", "") or sale.get("order_source", "") or "DIRECT").upper()
-        payment_mode = (sale.get("payment_mode", "") or "CASH").upper()
+        day_total = float(sale.get("total_sale", 0) or 0)
+        total_sales += day_total
 
-        total_sales += amount
+        day_platform_comm = 0.0
+        day_gst = 0.0
+        day_payment_comm = 0.0
 
-        # Platform commission
-        p_rate = platform_rates.get(platform, {"commission_pct": 0, "gst_pct": 0})
-        p_comm = amount * p_rate["commission_pct"] / 100
-        p_gst = p_comm * p_rate["gst_pct"] / 100
-        total_platform_commission += p_comm
-        total_gst_on_commission += p_gst
+        # Platform commissions (Swiggy, Zomato amounts)
+        for field, platform_name in PLATFORM_FIELD_MAP.items():
+            amount = float(sale.get(field, 0) or 0)
+            if amount > 0:
+                rate_info = platform_rates.get(platform_name, {"commission_pct": 0, "gst_pct": 0})
+                p_comm = amount * rate_info["commission_pct"] / 100
+                p_gst = p_comm * rate_info["gst_pct"] / 100
+                total_platform_commission += p_comm
+                total_gst_on_commission += p_gst
+                day_platform_comm += p_comm
+                day_gst += p_gst
 
-        if platform not in platform_breakdown:
-            platform_breakdown[platform] = {"sales": 0, "commission": 0, "gst": 0}
-        platform_breakdown[platform]["sales"] += amount
-        platform_breakdown[platform]["commission"] += p_comm
-        platform_breakdown[platform]["gst"] += p_gst
+                if platform_name not in platform_breakdown:
+                    platform_breakdown[platform_name] = {"sales": 0, "commission": 0, "gst": 0}
+                platform_breakdown[platform_name]["sales"] += amount
+                platform_breakdown[platform_name]["commission"] += p_comm
+                platform_breakdown[platform_name]["gst"] += p_gst
 
-        # Payment mode commission
-        pm_rate = payment_rates.get(payment_mode, 0)
-        pm_comm = amount * pm_rate / 100
-        total_payment_commission += pm_comm
+        # Direct sales (total minus platform sales)
+        platform_total = sum(float(sale.get(f, 0) or 0) for f in PLATFORM_FIELD_MAP)
+        direct_sales = max(0, day_total - platform_total)
+        if direct_sales > 0:
+            if "DIRECT" not in platform_breakdown:
+                platform_breakdown["DIRECT"] = {"sales": 0, "commission": 0, "gst": 0}
+            platform_breakdown["DIRECT"]["sales"] += direct_sales
 
-        if payment_mode not in payment_breakdown:
-            payment_breakdown[payment_mode] = {"sales": 0, "commission": 0}
-        payment_breakdown[payment_mode]["sales"] += amount
-        payment_breakdown[payment_mode]["commission"] += pm_comm
+        # Payment mode commissions (Card, UPI, etc.)
+        for field, mode_name in PAYMENT_FIELD_MAP.items():
+            amount = float(sale.get(field, 0) or 0)
+            if amount > 0:
+                pm_rate = payment_rates.get(mode_name, 0)
+                pm_comm = amount * pm_rate / 100
+                total_payment_commission += pm_comm
+                day_payment_comm += pm_comm
+
+                if mode_name not in payment_breakdown:
+                    payment_breakdown[mode_name] = {"sales": 0, "commission": 0}
+                payment_breakdown[mode_name]["sales"] += amount
+                payment_breakdown[mode_name]["commission"] += pm_comm
 
         # Daily totals
-        if date not in daily_data:
-            daily_data[date] = {"sales": 0, "platform_commission": 0, "gst": 0, "payment_commission": 0}
-        daily_data[date]["sales"] += amount
-        daily_data[date]["platform_commission"] += p_comm
-        daily_data[date]["gst"] += p_gst
-        daily_data[date]["payment_commission"] += pm_comm
+        if date:
+            daily_data[date] = {
+                "sales": day_total,
+                "platform_commission": day_platform_comm,
+                "gst": day_gst,
+                "payment_commission": day_payment_comm,
+            }
 
     total_commission = total_platform_commission + total_gst_on_commission + total_payment_commission
     net_revenue = total_sales - total_commission

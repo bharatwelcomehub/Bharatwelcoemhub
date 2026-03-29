@@ -31,6 +31,9 @@ export default function CommissionTracking() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [dateMode, setDateMode] = useState("month"); // "month" or "range"
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("dashboard");
 
@@ -71,13 +74,19 @@ export default function CommissionTracking() {
     if (!session?.token) return;
     setLoading(true);
     try {
-      const params = { token: session.token, month };
-      if (selectedCenter) params.center = selectedCenter;
+      const params = { token: session.token };
+      if (dateMode === "month") {
+        params.month = month;
+      } else {
+        params.start_date = startDate;
+        params.end_date = endDate;
+      }
+      if (selectedCenter && selectedCenter !== "all") params.center = selectedCenter;
       const res = await api.post("/commissions/dashboard", params);
       setDashboardData(res.data);
     } catch { toast.error("Failed to load dashboard"); }
     setLoading(false);
-  }, [session?.token, month, selectedCenter]);
+  }, [session?.token, month, selectedCenter, dateMode, startDate, endDate]);
 
   useEffect(() => {
     if (tab === "dashboard") loadDashboard();
@@ -164,9 +173,32 @@ export default function CommissionTracking() {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Month</Label>
-              <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-44" data-testid="dash-month-input" />
+              <Label className="text-xs">Mode</Label>
+              <Select value={dateMode} onValueChange={setDateMode} data-testid="date-mode-select">
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">Monthly</SelectItem>
+                  <SelectItem value="range">Date Range</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            {dateMode === "month" ? (
+              <div>
+                <Label className="text-xs">Month</Label>
+                <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-44" data-testid="dash-month-input" />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label className="text-xs">From</Label>
+                  <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-40" data-testid="dash-start-date" />
+                </div>
+                <div>
+                  <Label className="text-xs">To</Label>
+                  <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-40" data-testid="dash-end-date" />
+                </div>
+              </>
+            )}
             <Button onClick={loadDashboard} variant="outline" data-testid="refresh-dashboard">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               <span className="ml-1">Refresh</span>
