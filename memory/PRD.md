@@ -83,6 +83,11 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - Document Management via Object Storage (unified - center-linked docs show in franchise details)
 - Franchise Owner Dashboard with Documents tab (view + download only)
 - Master data re-seeded (centers, managers, expenses, expense_heads, doc categories)
+- **[2026-03-29] Fixed $0 KPI bug**: Frontend now reads `overview.summary.*` instead of `overview.*`
+- **[2026-03-29] Fixed expense data mapping**: Pie chart uses `amount` key (was incorrectly using `total`)
+- **[2026-03-29] RBAC: Franchise Exit filtering**: Franchise owners only see their own exit entries
+- **[2026-03-29] RBAC: Center dropdown hidden for franchise owners** on Owner Dashboard
+- **[2026-03-29] Franchise owners can access Exit & Closure** (view-only, no initiate/edit)
 
 ### Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
