@@ -2152,6 +2152,20 @@ set_perm_db(db)
 set_perm_verify_token(verify_token)
 app.include_router(perm_router)
 
+# Commission Tracking
+from routes.commissions import router as comm_router, set_db as set_comm_db, set_verify_token as set_comm_verify_token, set_verify_token_async as set_comm_verify_token_async
+set_comm_db(db)
+set_comm_verify_token(verify_token)
+set_comm_verify_token_async(verify_token_async)
+app.include_router(comm_router)
+
+# Document Management
+from routes.documents import router as doc_router, set_db as set_doc_db, set_verify_token as set_doc_verify_token, set_verify_token_async as set_doc_verify_token_async
+set_doc_db(db)
+set_doc_verify_token(verify_token)
+set_doc_verify_token_async(verify_token_async)
+app.include_router(doc_router)
+
 
 # CORS
 app.add_middleware(
@@ -2165,6 +2179,14 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_cleanup_centers():
     """Auto-cleanup: normalize center codes, remove duplicates, set is_india_center flag"""
+    # Init document storage
+    try:
+        from routes.documents import init_storage
+        init_storage()
+        logger.info("Startup: document storage initialized")
+    except Exception as e:
+        logger.warning(f"Startup: document storage init failed (will retry on first upload): {e}")
+    
     try:
         all_centers = await db.centers.find({}).to_list(500)
         

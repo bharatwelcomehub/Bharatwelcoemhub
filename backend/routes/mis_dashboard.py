@@ -157,8 +157,26 @@ async def get_mis_overview(data: dict):
     # Expenses
     total_expenses = sum(float(e.get("amount", 0) or 0) for e in expenses_data)
     
-    # Profit calculation: Sales - Expenses - GST
-    profit = total_sales - total_expenses - total_gst
+    # Commission calculation (from commission_config)
+    total_commissions = 0.0
+    try:
+        from routes.commissions import calculate_commissions_for_period
+        if center != "all":
+            comm_data = await calculate_commissions_for_period(center, start_date, end_date)
+            total_commissions = comm_data.get("total_commission", 0)
+        else:
+            # Sum commissions across all centers in the sales data
+            center_codes = set(s.get("center", "") for s in sales_data)
+            for cc in center_codes:
+                if cc:
+                    comm_data = await calculate_commissions_for_period(cc, start_date, end_date)
+                    total_commissions += comm_data.get("total_commission", 0)
+        total_commissions = round(total_commissions, 2)
+    except Exception as comm_err:
+        logger.warning(f"MIS: commission calc failed: {comm_err}")
+    
+    # Profit calculation: Sales - Expenses - GST - Commissions
+    profit = total_sales - total_expenses - total_gst - total_commissions
     profit_margin = round((profit / total_sales * 100) if total_sales > 0 else 0, 2)
     
     # Calculate totals - Previous Period
@@ -182,7 +200,7 @@ async def get_mis_overview(data: dict):
     for s in sales_data:
         c = s.get("center", "Unknown")
         if c not in centers_data:
-            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0}
+            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0}
         centers_data[c]["sales"] += float(s.get("total_sale", 0) or 0)
         centers_data[c]["guests"] += int(s.get("num_guests", 0) or 0)
         centers_data[c]["bills"] += int(s.get("num_bills", 0) or 0)
@@ -190,16 +208,26 @@ async def get_mis_overview(data: dict):
     for e in expenses_data:
         c = e.get("center", "Unknown")
         if c not in centers_data:
-            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0}
+            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0}
         centers_data[c]["expenses"] += float(e.get("amount", 0) or 0)
+    
+    # Add commissions per center
+    try:
+        for c in centers_data:
+            if c and c != "Unknown":
+                comm_data = await calculate_commissions_for_period(c, start_date, end_date)
+                centers_data[c]["commissions"] = round(comm_data.get("total_commission", 0), 2)
+    except Exception:
+        pass
     
     # Calculate profit for each center
     for c in centers_data:
         center_sales = centers_data[c]["sales"]
         center_expenses = centers_data[c]["expenses"]
         center_gst = round(center_sales * 0.05, 2)
+        center_comm = centers_data[c].get("commissions", 0)
         centers_data[c]["gst"] = center_gst
-        centers_data[c]["profit"] = center_sales - center_expenses - center_gst
+        centers_data[c]["profit"] = round(center_sales - center_expenses - center_gst - center_comm, 2)
         centers_data[c]["profit_margin"] = round(
             (centers_data[c]["profit"] / center_sales * 100) if center_sales > 0 else 0, 2
         )
@@ -224,6 +252,7 @@ async def get_mis_overview(data: dict):
             "total_online_sales": round(total_online_sales, 2),
             "total_expenses": round(total_expenses, 2),
             "total_gst": total_gst,
+            "total_commissions": total_commissions,
             "profit": round(profit, 2),
             "profit_margin": profit_margin,
             "total_guests": total_guests,

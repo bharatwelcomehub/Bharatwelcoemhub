@@ -289,9 +289,9 @@ export default function MISDashboard() {
   const kpiCards = s ? [
     { label: "Total Sales", value: s.total_sales, change: overview?.changes?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50", changeBad: false },
     { label: "Total Expenses", value: s.total_expenses, change: overview?.changes?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50", changeBad: true },
+    { label: "Commissions", value: null, displayValue: formatFullCurrency(s.total_commissions || 0, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
+    { label: "Net Profit", value: null, displayValue: formatFullCurrency(s.profit || 0, isIntl), change: overview?.changes?.profit_change, icon: Activity, gradient: s.profit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
     { label: "Working Capital", value: null, displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
-    { label: "Total Guests", value: null, displayValue: s.total_guests?.toLocaleString(), icon: Users, gradient: "from-sky-600 to-sky-400", textColor: "text-sky-50" },
-    { label: "Total Bills", value: null, displayValue: s.total_bills?.toLocaleString(), icon: Activity, gradient: "from-violet-600 to-violet-400", textColor: "text-violet-50" },
     { label: "Avg / Bill", value: null, displayValue: formatFullCurrency(s.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
   ] : [];
 
@@ -528,6 +528,8 @@ export default function MISDashboard() {
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Sales</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Expenses</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">GST</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Commission</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Profit</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -537,6 +539,8 @@ export default function MISDashboard() {
                         <td className="px-4 py-3 text-right font-medium text-emerald-400">{formatCurrency(c.sales, isIntl)}</td>
                         <td className="px-4 py-3 text-right font-medium text-red-400">{formatCurrency(c.expenses, isIntl)}</td>
                         <td className="px-4 py-3 text-right text-amber-400">{formatCurrency(c.gst, isIntl)}</td>
+                        <td className="px-4 py-3 text-right text-purple-400">{formatCurrency(c.commissions || 0, isIntl)}</td>
+                        <td className={`px-4 py-3 text-right font-bold ${(c.profit || 0) >= 0 ? "text-emerald-500" : "text-red-500"}`}>{formatCurrency(c.profit || 0, isIntl)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,0 +1,93 @@
+{
+  "summary": "Tested Commission Tracking and Document Management P1 features. Backend: 29/29 tests passed (100%). Frontend: All UI elements verified - Commission Dashboard with summary cards and center-wise table, Config tab with platform/payment mode rows, Document Management with stats cards, upload dialog, categories, expiry alerts. MIS Dashboard integration shows Commissions and Net Profit cards. Fixed bug in MIS overview where 'filter_center' variable was undefined (should be 'center').",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Upload Dialog", "issues": ["Minor: Missing aria-describedby for DialogContent (accessibility warning in console)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_commissions_documents.py",
+    "/app/test_reports/pytest/pytest_commissions_documents.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed: MIS Dashboard /api/mis/overview had undefined variable 'filter_center' - changed to 'center != \"all\"' check"
+  ],
+  "updated_files": [
+    "/app/backend/routes/mis_dashboard.py",
+    "/app/backend/tests/test_commissions_documents.py"
+  ],
+  "success_rate": {
+    "backend": "100% (29/29 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456",
+  "seed_data_creation": "Created test document categories (TEST_Franchise Agreement, TEST_ID Proof) and test documents during testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Commission Tracking and Document Management features fully tested. Key verifications: 1) Commission Config: GET /api/commissions/config/get returns default template, POST /api/commissions/config/save saves platform and payment mode rates. 2) Commission Dashboard: POST /api/commissions/dashboard returns center-wise breakdown with platform_commission, gst_on_commission, payment_commission, total_commission, net_revenue. 3) MIS Integration: /api/mis/overview now includes total_commissions in summary and commissions per center. 4) Document Categories: Create/list categories with franchise/employee levels. 5) Document Upload: Multipart form upload to object storage via Emergent. 6) Document Approval: Approve/reject workflow with status tracking. 7) Document Stats: Total, pending, approved, rejected, expiring_soon, expired counts. 8) Expiry Alerts: Documents expiring within N days. 9) Sidebar: Commissions under Accounts section, Documents under Franchise section.",
+  "features_tested": {
+    "commission_config": {
+      "get_default_config": "PASSED - Returns template with SWIGGY, ZOMATO, MAGICPIN, DIRECT platforms and CARD, UPI, CASH, BANK TRANSFER payment modes",
+      "save_config": "PASSED - Saves platform and payment mode commission rates",
+      "get_saved_config": "PASSED - Returns saved config correctly",
+      "auth_required": "PASSED - Rejects invalid token",
+      "admin_required": "PASSED - Only admin can save config"
+    },
+    "commission_dashboard": {
+      "all_centers": "PASSED - Returns grand_totals and centers array",
+      "single_center": "PASSED - Returns detailed breakdown with platform_breakdown and payment_breakdown",
+      "date_range": "PASSED - Works with custom start_date and end_date",
+      "for_mis": "PASSED - Lightweight endpoint for MIS integration"
+    },
+    "mis_integration": {
+      "overview_includes_commissions": "PASSED - summary.total_commissions present",
+      "single_center_commissions": "PASSED - Works for specific center",
+      "centers_include_commissions": "PASSED - Each center has commissions field"
+    },
+    "document_categories": {
+      "create_franchise_category": "PASSED - Creates category with level=franchise",
+      "create_employee_category": "PASSED - Creates category with level=employee",
+      "list_categories": "PASSED - Returns all categories",
+      "filter_by_level": "PASSED - Filters by franchise/employee",
+      "invalid_level_rejected": "PASSED - Returns 400 for invalid level"
+    },
+    "document_upload": {
+      "upload_document": "PASSED - Uploads to object storage, creates DB record",
+      "list_documents": "PASSED - Returns documents with filters",
+      "document_stats": "PASSED - Returns total, pending, approved, rejected, expiring_soon, expired",
+      "expiring_documents": "PASSED - Returns expiring_soon and already_expired arrays"
+    },
+    "document_approval": {
+      "approve_document": "PASSED - Changes status to approved",
+      "reject_document": "PASSED - Changes status to rejected with reason",
+      "invalid_action_rejected": "PASSED - Returns 400 for invalid action"
+    },
+    "document_download": {
+      "download_document": "PASSED - Returns file content from object storage",
+      "auth_required": "PASSED - Returns 401 without token",
+      "nonexistent_document": "PASSED - Returns 404"
+    },
+    "frontend_ui": {
+      "commission_tracking_page": "PASSED - Dashboard and Config tabs render correctly",
+      "commission_dashboard_cards": "PASSED - Total Sales, Platform Commission, GST, Payment Commission, Total Commission, Net Revenue",
+      "commission_center_table": "PASSED - Center-wise breakdown table",
+      "commission_config_tab": "PASSED - Platform and payment mode rows with inputs",
+      "document_management_page": "PASSED - Stats cards, tabs, upload button",
+      "document_upload_dialog": "PASSED - All form fields present",
+      "document_categories_tab": "PASSED - Category cards with level badges",
+      "document_expiry_tab": "PASSED - Shows expiry alerts or 'all current' message",
+      "mis_dashboard_commissions": "PASSED - Commissions and Net Profit KPI cards visible",
+      "sidebar_navigation": "PASSED - Commissions under Accounts, Documents under Franchise"
+    }
+  },
+  "mocked_apis": {
+    "whatsapp_notifications": "MOCKED - WhatsApp integration is mocked"
+  }
+}
