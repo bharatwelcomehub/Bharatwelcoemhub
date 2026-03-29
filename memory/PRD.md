@@ -88,6 +88,11 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **[2026-03-29] RBAC: Franchise Exit filtering**: Franchise owners only see their own exit entries
 - **[2026-03-29] RBAC: Center dropdown hidden for franchise owners** on Owner Dashboard
 - **[2026-03-29] Franchise owners can access Exit & Closure** (view-only, no initiate/edit)
+- **[2026-03-29] Franchise Owner Center Auto-Resolution**: Center auto-detected from Franchise Master → Center Mapping via DB (no hardcoding)
+- **[2026-03-29] New endpoint /api/franchises/resolve-owner-center**: Resolves franchise center from DB mapping with 4 fallback strategies
+- **[2026-03-29] MIS access for franchise owners**: Updated check_mis_access to allow franchise_owner + franchise role
+- **[2026-03-29] Robust RBAC sidebar**: Non-admin franchise users see only Exit & Closure + Owner Dashboard (Franchise Management, Documents hidden)
+- **[2026-03-29] by-center endpoint access**: Franchise owners can now call /api/franchises/by-center/{code} to get franchise info
 
 ### Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
