@@ -2187,6 +2187,32 @@ async def startup_cleanup_centers():
     except Exception as e:
         logger.warning(f"Startup: document storage init failed (will retry on first upload): {e}")
     
+    # Seed default document categories if they don't exist (idempotent by category_id)
+    try:
+        default_cats = [
+            {"category_id": "cat-agreement", "name": "Franchise Agreement", "level": "franchise", "requires_expiry": True, "description": "Franchise agreements and amendments", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-license", "name": "License", "level": "franchise", "requires_expiry": True, "description": "Business licenses and permits", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-compliance", "name": "Compliance Certificate", "level": "franchise", "requires_expiry": True, "description": "FSSAI, GST, and compliance certificates", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-financial", "name": "Financial Document", "level": "franchise", "requires_expiry": False, "description": "Financial statements, invoices, receipts", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-legal", "name": "Legal Document", "level": "franchise", "requires_expiry": False, "description": "Legal documents and contracts", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-exit", "name": "Exit Document", "level": "franchise", "requires_expiry": False, "description": "Exit and closure documents", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-offer", "name": "Offer Letter", "level": "employee", "requires_expiry": False, "description": "Employee offer letters", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-idproof", "name": "ID Proof", "level": "employee", "requires_expiry": True, "description": "Aadhaar, PAN, passport, etc.", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"category_id": "cat-police", "name": "Police Verification", "level": "employee", "requires_expiry": True, "description": "Police verification certificates", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+        ]
+        seeded = 0
+        for cat in default_cats:
+            exists = await db.document_categories.find_one({"category_id": cat["category_id"]})
+            if not exists:
+                await db.document_categories.insert_one(cat)
+                seeded += 1
+        if seeded:
+            logger.info(f"Startup: seeded {seeded} default document categories")
+    except Exception as e:
+        logger.warning(f"Startup: document category seeding failed: {e}")
+    except Exception as e:
+        logger.warning(f"Startup: document category seeding failed: {e}")
+    
     try:
         all_centers = await db.centers.find({}).to_list(500)
         

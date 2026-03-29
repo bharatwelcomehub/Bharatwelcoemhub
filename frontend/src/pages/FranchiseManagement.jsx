@@ -71,7 +71,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 const COUNTRIES = ["India", "Australia", "United States", "United Kingdom", "Canada", "UAE", "Singapore", "Other"];
 const STATUS_OPTIONS = ["Active", "Inactive", "Pending", "Terminated"];
-const DOCUMENT_TYPES = ["Agreement", "Legal", "Compliance", "Exit", "Other"];
+// Document types now come from DB document_categories collection (no hardcoding)
 
 // FOCO Model Constants
 const FRANCHISE_TYPES = {
@@ -121,11 +121,13 @@ export default function FranchiseManagement() {
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [auditHistory, setAuditHistory] = useState([]);
   
-  // Document upload
+  // Document upload - uses new Document Management system
   const [showUpload, setShowUpload] = useState(false);
-  const [uploadData, setUploadData] = useState({ document_type: "", document_name: "", notes: "" });
+  const [uploadData, setUploadData] = useState({ document_type: "", document_name: "", notes: "", expiry_date: "" });
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [franchiseDocs, setFranchiseDocs] = useState([]);
+  const [docCategories, setDocCategories] = useState([]);
 
   function getEmptyForm() {
     return {
@@ -226,8 +228,28 @@ export default function FranchiseManagement() {
   useEffect(() => {
     if (session?.token) {
       loadFranchises();
+      // Load document categories for the upload dialog
+      fetch(`${API}/api/documents/categories/list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: session?.token, level: "franchise" })
+      }).then(r => r.json()).then(d => setDocCategories(d.categories || [])).catch(() => {});
     }
   }, [session?.token, loadFranchises]);
+
+  // Load franchise documents from the new Document Management system
+  const loadFranchiseDocs = async (franchiseCode) => {
+    if (!session?.token || !franchiseCode) return;
+    try {
+      const res = await fetch(`${API}/api/documents/list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: session?.token, franchise_code: franchiseCode, level: "franchise" })
+      });
+      const data = await res.json();
+      setFranchiseDocs(data.documents || []);
+    } catch { setFranchiseDocs([]); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -323,6 +345,8 @@ export default function FranchiseManagement() {
       setSelectedFranchise(data.franchise);
       setAuditHistory(data.audit_history || []);
       setActiveTab("detail");
+      // Load documents from new Document Management system
+      loadFranchiseDocs(code);
     } catch (err) {
       toast.error(err.message);
     }
@@ -340,13 +364,15 @@ export default function FranchiseManagement() {
     try {
       const formDataUpload = new FormData();
       formDataUpload.append("token", session?.token);
+      formDataUpload.append("center", session?.center || "PB-MGT");
+      formDataUpload.append("category_id", uploadData.document_type);
+      formDataUpload.append("level", "franchise");
       formDataUpload.append("franchise_code", selectedFranchise.franchise_code);
-      formDataUpload.append("document_type", uploadData.document_type);
-      formDataUpload.append("document_name", uploadData.document_name);
-      formDataUpload.append("notes", uploadData.notes || "");
+      formDataUpload.append("notes", uploadData.document_name + (uploadData.notes ? " - " + uploadData.notes : ""));
+      formDataUpload.append("expiry_date", uploadData.expiry_date || "");
       formDataUpload.append("file", uploadFile);
       
-      const res = await fetch(`${API}/api/franchises/documents/upload`, {
+      const res = await fetch(`${API}/api/documents/upload`, {
         method: "POST",
         body: formDataUpload
       });
@@ -359,8 +385,8 @@ export default function FranchiseManagement() {
       toast.success("Document uploaded");
       setShowUpload(false);
       setUploadFile(null);
-      setUploadData({ document_type: "", document_name: "", notes: "" });
-      loadFranchiseDetails(selectedFranchise.franchise_code);
+      setUploadData({ document_type: "", document_name: "", notes: "", expiry_date: "" });
+      loadFranchiseDocs(selectedFranchise.franchise_code);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -372,23 +398,33 @@ export default function FranchiseManagement() {
     if (!window.confirm("Delete this document?")) return;
     
     try {
-      const res = await fetch(`${API}/api/franchises/documents/delete/${selectedFranchise.franchise_code}/${docId}`, {
+      const res = await fetch(`${API}/api/documents/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: session?.token })
+        body: JSON.stringify({ token: session?.token, document_id: docId })
       });
       
       if (!res.ok) throw new Error("Delete failed");
       
       toast.success("Document deleted");
-      loadFranchiseDetails(selectedFranchise.franchise_code);
+      loadFranchiseDocs(selectedFranchise.franchise_code);
     } catch (err) {
       toast.error(err.message);
     }
   };
 
-  const downloadDocument = (docId) => {
-    window.open(`${API}/api/franchises/documents/download/${selectedFranchise.franchise_code}/${docId}?token=${session?.token}`, "_blank");
+  const downloadDocument = async (doc) => {
+    try {
+      const res = await fetch(`${API}/api/documents/file/${doc.document_id}?auth=${session?.token}`);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.original_filename || "document";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Download failed"); }
   };
 
   const generateAgreement = async () => {
@@ -797,47 +833,68 @@ export default function FranchiseManagement() {
                     <FileText className="w-5 h-5 text-secondary" />
                     Documents
                   </CardTitle>
-                  <Button onClick={() => setShowUpload(true)} size="sm">
+                  <Button onClick={() => setShowUpload(true)} size="sm" data-testid="upload-doc-btn">
                     <Upload className="w-4 h-4 mr-2" />
                     Upload Document
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  {selectedFranchise.documents?.length > 0 ? (
+                  {franchiseDocs.length > 0 ? (
                     <Table>
                       <TableHeader>
                         <TableRow className="border-border">
                           <TableHead>Name</TableHead>
                           <TableHead>Type</TableHead>
+                          <TableHead>Status</TableHead>
                           <TableHead>Uploaded</TableHead>
                           <TableHead>By</TableHead>
+                          <TableHead>Expiry</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {selectedFranchise.documents.map((doc) => (
-                          <TableRow key={doc.document_id} className="border-border">
+                        {franchiseDocs.map((doc) => {
+                          const isExpired = doc.expiry_date && new Date(doc.expiry_date) < new Date();
+                          const isExpiringSoon = doc.expiry_date && !isExpired && (new Date(doc.expiry_date) - new Date()) / (1000*60*60*24) <= 30;
+                          return (
+                          <TableRow key={doc.document_id} className="border-border" data-testid={`doc-row-${doc.document_id}`}>
                             <TableCell>
                               <div>
-                                <p className="font-medium">{doc.document_name}</p>
-                                <p className="text-xs text-muted-foreground">{doc.original_name}</p>
+                                <p className="font-medium">{doc.notes || doc.original_filename}</p>
+                                <p className="text-xs text-muted-foreground">{doc.original_filename}</p>
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline">{doc.document_type}</Badge>
+                              <Badge variant="outline">{doc.category_name || "Other"}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={
+                                doc.status === "approved" ? "bg-green-500/20 text-green-400 border-green-500/30" :
+                                doc.status === "rejected" ? "bg-red-500/20 text-red-400 border-red-500/30" :
+                                "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                              }>{doc.status}</Badge>
                             </TableCell>
                             <TableCell className="text-sm">
-                              {new Date(doc.uploaded_at).toLocaleDateString()}
+                              {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "-"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {doc.uploaded_by}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {doc.expiry_date ? (
+                                <span className={isExpired ? "text-red-500 font-semibold" : isExpiringSoon ? "text-orange-400 font-semibold" : ""}>
+                                  {new Date(doc.expiry_date).toLocaleDateString()}
+                                  {isExpired && " (Expired)"}
+                                </span>
+                              ) : "-"}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <Button 
                                   size="icon" 
                                   variant="ghost"
-                                  onClick={() => downloadDocument(doc.document_id)}
+                                  onClick={() => downloadDocument(doc)}
+                                  data-testid={`download-doc-${doc.document_id}`}
                                 >
                                   <Download className="w-4 h-4" />
                                 </Button>
@@ -846,13 +903,15 @@ export default function FranchiseManagement() {
                                   variant="ghost"
                                   className="text-red-500"
                                   onClick={() => handleDocumentDelete(doc.document_id)}
+                                  data-testid={`delete-doc-${doc.document_id}`}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
                             </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   ) : (
@@ -1410,11 +1469,12 @@ export default function FranchiseManagement() {
                 value={uploadData.document_type} 
                 onValueChange={(v) => setUploadData(p => ({ ...p, document_type: v }))}
               >
-                <SelectTrigger className="bg-background">
+                <SelectTrigger className="bg-background" data-testid="upload-doc-type">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DOCUMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {docCategories.map(c => <SelectItem key={c.category_id} value={c.category_id}>{c.name}</SelectItem>)}
+                  {docCategories.length === 0 && <SelectItem value="_none" disabled>No categories - create from Documents page</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -1425,6 +1485,17 @@ export default function FranchiseManagement() {
                 onChange={(e) => setUploadData(p => ({ ...p, document_name: e.target.value }))}
                 placeholder="e.g., Franchise Agreement 2024"
                 className="bg-background"
+                data-testid="upload-doc-name"
+              />
+            </div>
+            <div>
+              <Label>Expiry Date</Label>
+              <Input
+                type="date"
+                value={uploadData.expiry_date}
+                onChange={(e) => setUploadData(p => ({ ...p, expiry_date: e.target.value }))}
+                className="bg-background"
+                data-testid="upload-doc-expiry"
               />
             </div>
             <div>
@@ -1443,16 +1514,17 @@ export default function FranchiseManagement() {
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls"
                 onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                 className="bg-background"
+                data-testid="upload-doc-file"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Allowed: PDF, DOC, DOCX, JPG, PNG, XLS, XLSX
+                Allowed: PDF, DOC, DOCX, JPG, PNG, XLS, XLSX (Max 10MB)
               </p>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowUpload(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={uploading}>
+              <Button type="submit" disabled={uploading} data-testid="submit-upload-btn">
                 {uploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Upload
               </Button>

@@ -1,0 +1,66 @@
+{
+  "summary": "Tested Franchise Document Integration - document management integrated into franchise detail page. Backend: 11/11 tests passed (100%). Frontend: All UI elements verified - Franchise detail page shows Documents section with Upload Document button, upload dialog with document categories from DB, document table with Name/Type/Status/Uploaded/By/Expiry columns. Regression tests passed for Commission Tracking, standalone Document Management, and MIS Dashboard.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Upload Dialog", "issues": ["Minor: Missing aria-describedby for DialogContent (accessibility warning in console)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_franchise_document_integration.py",
+    "/app/test_reports/pytest/pytest_franchise_doc_integration.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_franchise_document_integration.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456",
+  "seed_data_creation": "Document categories seeded from DB (Franchise Agreement, License, Compliance Certificate, Financial Document, Legal Document, Exit Document)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Franchise Document Integration fully tested. Key verifications: 1) Franchise detail page (/franchises -> click FR-TEST-INDIA) shows Documents section with Upload Document button. 2) Upload dialog shows document categories from DB (franchise-level only). 3) Document upload via multipart form to /api/documents/upload with franchise_code works. 4) Uploaded documents appear in franchise detail view document table. 5) Download via GET /api/documents/file/{document_id}?auth=TOKEN works. 6) Delete document from franchise detail view works. 7) Regression: Commission Tracking page accessible and working. 8) Regression: Standalone Document Management page (/documents) works. 9) Regression: MIS Dashboard shows Commissions in profit calculation.",
+  "features_tested": {
+    "franchise_document_integration": {
+      "franchise_detail_documents_section": "PASSED - Documents section visible with Upload Document button",
+      "upload_dialog_categories": "PASSED - Shows franchise-level categories from DB",
+      "document_upload": "PASSED - Multipart form upload with franchise_code works",
+      "document_list_in_franchise": "PASSED - Documents appear in franchise detail view",
+      "document_download": "PASSED - GET /api/documents/file/{id}?auth=TOKEN works",
+      "document_delete": "PASSED - Delete from franchise detail view works",
+      "document_table_columns": "PASSED - Name, Type, Status, Uploaded, By, Expiry columns present"
+    },
+    "regression_commission_tracking": {
+      "page_accessible": "PASSED - Commission Tracking page loads",
+      "dashboard_tab": "PASSED - Dashboard tab with center-wise breakdown",
+      "config_tab": "PASSED - Configuration tab with platform/payment mode settings",
+      "config_get_endpoint": "PASSED - /api/commissions/config/get returns config",
+      "dashboard_endpoint": "PASSED - /api/commissions/dashboard returns data"
+    },
+    "regression_document_management": {
+      "page_accessible": "PASSED - Document Management page loads at /documents",
+      "stats_cards": "PASSED - Total, Pending, Approved, Rejected, Expiring Soon, Expired",
+      "tabs": "PASSED - Documents, Expiry Alerts, Categories tabs present",
+      "upload_button": "PASSED - Upload Document button visible",
+      "stats_endpoint": "PASSED - /api/documents/stats returns counts",
+      "expiring_endpoint": "PASSED - /api/documents/expiring returns alerts"
+    },
+    "regression_mis_dashboard": {
+      "page_accessible": "PASSED - MIS Dashboard loads",
+      "commissions_card": "PASSED - Commissions KPI card visible",
+      "overview_endpoint": "PASSED - /api/mis/overview includes total_commissions"
+    }
+  },
+  "mocked_apis": {
+    "whatsapp_notifications": "MOCKED - WhatsApp integration is mocked"
+  }
+}
