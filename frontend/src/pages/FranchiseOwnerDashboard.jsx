@@ -66,7 +66,14 @@ export default function FranchiseOwnerDashboard() {
 
   const [selectedCenter, setSelectedCenter] = useState("");
   const [centersList, setCentersList] = useState([]);
-  const [period, setPeriod] = useState("current_month");
+  const [period, setPeriod] = useState("custom");
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [useRange, setUseRange] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -101,7 +108,19 @@ export default function FranchiseOwnerDashboard() {
     setLoading(true);
     try {
       const center = selectedCenter;
-      const params = { token: session.token, period, center };
+
+      // Build period params from month or date range
+      let params;
+      if (useRange && customStart && customEnd) {
+        params = { token: session.token, period: "custom", custom_start: customStart, custom_end: customEnd, center };
+      } else {
+        // Derive start/end from selected month
+        const [y, m] = selectedMonth.split("-").map(Number);
+        const monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
+        const lastDay = new Date(y, m, 0).getDate();
+        const monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        params = { token: session.token, period: "custom", custom_start: monthStart, custom_end: monthEnd, center };
+      }
 
       const [ovRes, salesRes, expRes, wcRes] = await Promise.all([
         api.post("/mis/overview", params).catch(() => ({ data: {} })),
@@ -136,7 +155,7 @@ export default function FranchiseOwnerDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [session, period, selectedCenter]);
+  }, [session, selectedMonth, customStart, customEnd, useRange, selectedCenter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -212,18 +231,44 @@ export default function FranchiseOwnerDashboard() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-xs">View Only</Badge>
-            <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-[150px] bg-slate-800/80 border-slate-600 text-white text-sm h-9" data-testid="fo-period-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="current_month">Current Month</SelectItem>
-                <SelectItem value="last_month">Last Month</SelectItem>
-                <SelectItem value="last_3_months">Last 3 Months</SelectItem>
-                <SelectItem value="last_6_months">Last 6 Months</SelectItem>
-                <SelectItem value="ytd">Year to Date</SelectItem>
-              </SelectContent>
-            </Select>
+
+            {!useRange ? (
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="h-9 px-3 rounded-md bg-slate-800/80 border border-slate-600 text-white text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                data-testid="fo-month-picker"
+              />
+            ) : (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="h-9 px-2 rounded-md bg-slate-800/80 border border-slate-600 text-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 w-[130px]"
+                  data-testid="fo-range-start"
+                />
+                <span className="text-slate-400 text-xs">to</span>
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="h-9 px-2 rounded-md bg-slate-800/80 border border-slate-600 text-white text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 w-[130px]"
+                  data-testid="fo-range-end"
+                />
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-9 text-xs ${useRange ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800/80 border-slate-600 text-white'}`}
+              onClick={() => setUseRange(!useRange)}
+            >
+              <Calendar className="w-3.5 h-3.5 mr-1" />
+              {useRange ? 'Month' : 'Range'}
+            </Button>
 
             {isAdmin && centersList.length > 0 && (
               <Select value={selectedCenter} onValueChange={setSelectedCenter}>
@@ -331,7 +376,7 @@ export default function FranchiseOwnerDashboard() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
-                      <XAxis dataKey={period === "current_month" ? "date" : "week"} stroke="#64748B" fontSize={10} tickLine={false} />
+                      <XAxis dataKey="date" stroke="#64748B" fontSize={10} tickLine={false} />
                       <YAxis stroke="#64748B" fontSize={10} tickLine={false} tickFormatter={(v) => formatCurrency(v, isIntl)} />
                       <Tooltip content={<PremiumTooltip />} />
                       <Legend wrapperStyle={{ fontSize: '12px' }} />
