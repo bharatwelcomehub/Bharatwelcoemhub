@@ -11,7 +11,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://settlement-hub-18.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://owner-dash-fix.preview.emergentagent.com')
 
 class TestLoginAndCenters:
     """Test login flow and DB-driven centers"""

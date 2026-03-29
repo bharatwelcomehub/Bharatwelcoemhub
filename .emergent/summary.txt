@@ -1,49 +1,49 @@
-<analysis>**original_problem_statement**: 
-Internal management system for Purnabramha, a restaurant franchise. The core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING. 
-Recent primary request: **Pivot Commission Tracking to an Upload-Driven Model**. 
-The user wants a single Commission Upload + Tracking feature strictly located inside Center Accounts. The system must allow Admins/Accountants to upload monthly Excel commission files (Zomato, Swiggy, DoorDash, PhonePe, Cards). The backend needs to parse these varying file structures to extract: center, month, platform, gross amount, commission amount, GST on commission, and net payout. All duplicate/old commission calculation logic should be removed. This data will feed into PIB and financial reporting.
+<analysis>### Handover Summary
+
+**original_problem_statement**: 
+Internal management system for Purnabramha, a restaurant franchise. The core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING.
+Primary requests evolved into: 
+1. Pivot Commission Tracking to a pure Excel-upload model (parsing 5 platforms) directly inside Center Accounts.
+2. Unify Document Management so documents uploaded via Franchise Details sync with global Documents.
+3. Completely redesign the Franchise Owner Dashboard to mirror the MIS Dashboard (colorful KPI cards, net revenue, revenue share), restrict its access strictly to Franchise Owners using RBAC, and use an exact Month Picker.
 
 PRODUCT REQUIREMENTS:
-- All logic must pull from master collections (No hardcoding).
 - Single source of truth for Commissions via monthly Excel uploads.
-- Parse 5 distinct provided Excel file formats accurately.
-- Secure document management using object storage.
-- Accurate profit calculations based on actual sales, expenses, exact GST amounts (not approximations), and uploaded commissions.
+- Parse 5 distinct Excel formats accurately (Zomato, Swiggy, DoorDash, PhonePe, Cards).
+- Strict RBAC: Franchise owners must *only* see their own center and the Owner Dashboard (no Management/Exit tools).
+- Unified Documents: Documents uploaded anywhere for a franchise must appear in all franchise views.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
-A React/FastAPI/MongoDB franchise management application. Recently, the attendance module was fixed to gracefully handle permanently transferred employees. A Document Management system was integrated using Emergent's Object Storage directly inside the Franchise Details view. The MIS Dashboard profit formulas were corrected to use actual  from  (fixing a huge math discrepancy). Currently, a basic commission engine exists but the user has just mandated pivoting to a strict Excel-upload-driven model placed inside Center Accounts.
+A React/FastAPI/MongoDB franchise management application. 
+- The Excel Commission Upload tool has been built inside Center Accounts (Old duplicate tracking page removed). 
+- The Document Management system has been successfully unified (OR queries based on  and ). 
+- The Franchise Owner Dashboard has been completely redesigned to match the MIS Dashboard and secured via a  check. 
+- **Currently broken**: The KPI cards on the new Franchise Owner Dashboard show /bin/bash for historical data, despite the trend charts on the same page rendering data properly.
 
 **Last working item**:
-    - **Last item agent was working**: Analyzing the 5 newly uploaded Excel files (Zomato, Swiggy, DoorDash, PhonePe, Cards) to understand their data structures. The goal is to build a unified  feature inside Center Accounts and remove the duplicate/automated commission module built previously.
+    - **Last item agent was working**: Debugging the /bin/bash KPI values in the Franchise Owner Dashboard. The user reported that for a specific center (Perth), the trend chart shows data but the top KPI cards show /bin/bash. The agent discovered that  handles the data correctly, but  is failing to calculate/return data for the  period (or when driven by the new Month Picker).
     - **Status**: IN PROGRESS
     - **Agent Testing Done**: N
-    - **Which testing method agent to use?**: both ( must be used once the multi-file parsing and upload UI are completed).
+    - **Which testing method agent to use?**: manual testing by curl (to verify the endpoint payload) then screenshot tool.
     - **User Testing Done**: N
 
-**All Pending/In progress Issue list**: 
-  Issue 1: Excel-Upload Driven Commission Pivot (P0)
-     - Attempted fixes: Agent just called  to analyze the Zomato Excel file structure before context ended.
+**All Pending/In progress Issue list**:
+  Issue 1: Franchise Owner Dashboard KPI cards show /bin/bash for custom periods (P0)
+     - Attempted fixes: The agent just identified the discrepancy: the  endpoint processes / properly, but  inside  appears to be returning 0 for its aggregated sums when processing these same date parameters.
      - Next debug checklist: 
-       1. Analyze all 5 Excel formats (Zomato, Swiggy, DoorDash, PhonePe, Cards) to map out extraction logic.
-       2. Build the UI in  (or a dedicated tab inside it) for uploading these sheets.
-       3. Create a unified backend parser that identifies the platform, extracts the required metrics (Gross, Comm, GST, Net), and saves it to a new  collection.
-       4. Strip out the old  and automated formula-based commission calculation logic.
-       5. Update the MIS Dashboard to read from the newly uploaded data.
-     - Why fix this issue and what will be achieved with the fix? Completes the user's explicit new requirement for accurate, source-of-truth financial tracking.
+       1. Open .
+       2. Inspect . 
+       3. Trace how  and  (derived from the  period) are passed into the MongoDB queries for  and .
+       4. Ensure there is no bug dropping or defaulting the dates resulting in an empty query. Fix the aggregations.
+     - Why fix this issue and what will be achieved with the fix? Franchise owners cannot see their high-level financial metrics, rendering the dashboard useless.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
+     - Should Test frontend/backend/both after fix? Both (curl to verify JSON payload, screenshot to verify UI).
      - Blocked on other issue: None
 
-**In progress Task List**:
-  Task 1: Excel Parsing Logic mapping (P0)
-     - Where to resume: Review the  output for the Zomato file, then extract and map the remaining 4 files (Swiggy, DoorDash, PhonePe, Cards).
-     - What will be achieved with this? Gives you the exact column names/headers needed to write robust Python pandas/openpyxl parsers.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on something: None
+**In progress Task List**: None.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -56,11 +56,11 @@ A React/FastAPI/MongoDB franchise management application. Recently, the attendan
     - (P2) Menu card PDF generation per center.
 
 **Completed work in this session**
-- Comprehensive E2E Testing for POS Rewrite (Passed 100%) (DONE)
-- Fixed Employee Transfer bug: Employees transferred out now appear in their previous center's monthly attendance grid for historical accuracy (DONE)
-- Built Document Management backend using Emergent Object Storage with category seeding (DONE)
-- Rewired  to embed Document Management, replacing the old local file system (DONE)
-- Fixed MIS Dashboard Profit bug: Replaced arbitrary 5% GST deduction with actual  from  across all endpoints, fixing heavily inflated profit margins (DONE)
+- Excel-Driven Commission Upload (parsing 5 distinct formats using pandas) inside Center Accounts (DONE)
+- Unified Document Management queries to map  and  symmetrically (DONE)
+- Replaced Current/Last Month with exact Month Picker and custom Date Range toggle in Franchise Dashboard (DONE)
+- Redesigned Franchise Owner Dashboard to exactly match MIS Dashboard UI/KPIs (DONE)
+- RBAC Implementation: Added  to session state to hard-block franchise owners from accessing Center switching, Franchise Management, and Exit tools (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
@@ -74,55 +74,54 @@ None.
 
 
 **Key Technical Concepts**
-- **Document Storage**: Uses Emergent internal integrations library for object storage. DO NOT use local file system storage.
-- **Data Parsing**: You will need  or  to extract data from the 5 unique Excel formats provided by the user. 
-- **Profit Calculation Rule**: .
+- **Pandas/Openpyxl**: Used to parse and dynamically map columns from wildly different Excel formats.
+- **RBAC via session**:  is now securely passed from backend to frontend to restrict navigation.
+- **Dual DB Environments**: The user frequently gets confused, thinking their live data is deleted when looking at the preview environment. *Always politely remind them that the preview DB is isolated with sample data, and deploying will push code to their live DB containing their real data.*
 
 **key DB schema**
-  - : {, , , , , }
-  - : Pre-seeded master list (Agreement, License, ID Proof, etc.)
-  - : Contains exact , , ,  fields.
+  - : 
+  - : Added  to differentiate franchise_owner from internal admins.
 
 **changes in tech stack**
-  - Integrated  for file/object storage handling.
+  - Heavy reliance on  for backend Excel data extraction.
 
 **All files of reference** 
-  1. 
-  2. 
-  3. Excel files provided in the last user message (Zomato, Swiggy, DoorDash, PhonePe, Cards)
-  4.  (This will be the target for the new Commission Upload UI)
+  1.  (Focus here for P0 bug)
+  2.  
+  3. 
 
 **Areas that need refactoring**:
--  and : The user explicitly requested to remove duplicate commission tracking pages and place a single upload-driven feature inside **Center Accounts**. These files/routes will need to be drastically altered or moved.
+-  handles a massive amount of aggregations and date math. It is functional but highly susceptible to date parsing bugs (as seen in the current P0 issue).
 
 **key api endpoints**
-- : Multipart form data upload using object storage.
-- : Lists docs for a franchise.
+-  (Currently broken for  dates)
+- 
+- 
 
 **Critical Info for New Agent** 
-- **COMMISSION PIVOT**: Do not try to fix the old formula-based commission calculation. The user has explicitly mandated that commissions must be parsed from Monthly Excel Reports (Zomato, Swiggy, DoorDash, PhonePe, Card settlements).
-- **LOCATION**: The new upload tool must live ONLY inside the **Center Accounts** module. Admin/Accountant role access only.
-- **GST WARNING**: When dealing with finances, never estimate GST as a generic 5%. Always use the explicit  or  provided in the data.
+- To reproduce the P0 bug, hit  via curl with . Find out why it's returning zeros while  works perfectly.
+- You must test as an Admin to navigate freely, as setting a user to  will severely restrict your UI access.
 
 **documents and test reports created in this job** 
-  - 
-  -  (POS + Attendance tests)
-  -  (Initial Commission/Doc tests)
-  -  (Franchise Doc rewiring tests)
+  -  (Updated)
+  -  (Passed Commission Upload Tests)
+  -  (Passed Document Unification Tests)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User**: TRANSFER HAPPEND ON 23RD... THANE LIST DONT HAVE THE EMPLOYEE (Agent fixed attendance bug).
-2. **User**: Start by running the E2E test on the POS flow immediately... (Agent ran test, passed).
-3. **User**: Prioritized Franchise Document Management & Commission Tracking. (Agent built both).
-4. **User**: i thought u are chnaging this screen for documentation if not please add this documents to new document screen (Agent embedded Docs inside Franchise Management Details tab).
-5. **User**: all the sales and commision should come from sales dashboard and not blank... (Agent fixed commission engine data sources).
-6. **User**: commission should come in this screen as well correct 0 it is showing zero (Agent identified UI missing real data integration and verified backend passed the right payload).
-7. **User**: ...please see the calculation how come the profit will come as 63 lakhs ?? (Agent diagnosed bug where MIS deducted a fake 5% of total sales for GST instead of using real . Fixed).
-8. **User**: Add a single Commission Upload + Tracking feature inside Center Accounts. Place it only in one location... Remove duplicate commission sections... Upload Zomato, Swiggy, DoorDash, PhonePe, Cards... [Attached 5 files].
-9. **Pending Human Message**: None. The agent just started extracting the Zomato Excel file structure. Proceed with parsing logic and building the upload module.
+1. **User**: see i still cant see the documents under franchise details (Agent explained they need to deploy to see fix).
+2. **User**: yes please
+3. **User**: let the franchise owner see the documents no upload just view download (Agent added view-only tab).
+4. **User**: nothing is visible (User testing undeployed code).
+5. **User**: same franchise two different screens different data for same month why?? (Agent fixed period logic discrepancy).
+6. **User**: it should show net revenue and their revenue share... exactly same as MIS dashboard (Agent rebuilt the dashboard UI).
+7. **User**: see i think u give direct months and range instead of current month... (Agent added exact Month Picker).
+8. **User**: if i give full franchise as role to franchise owners then they will see all franchise related details which i dont want (Agent implemented strict RBAC ).
+9. **User**: everything is blank not linked to franchise and sales data is 0 (Agent fixed document query bug).
+10. **User**: see still the owners dashboard is zero for perth center [attached image] (Agent realized  endpoint is broken while charts work).
+- **Pending Human Message**: Resolve the /bin/bash KPI bug in the Franchise Owner Dashboard. 
 
 **Project Health Check:**
-- Broken: None. 
+- Broken:  (for custom periods).
 - Mocked: WhatsApp Integration.
 
 **3rd Party Integrations**
@@ -131,13 +130,13 @@ None.
 - Emergent Object Storage — uses Emergent integrations library
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iterations 37, 38, 39).
+  - Testing agent used after significant changes: YES (Iterations 40 & 41).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None
+  - Known regressions:  failing date logic after the Month Picker implementation.
 
 **Credentials to test flow:**
 - Super Admin: Center  (or select from dropdown), mobile , OTP .
 
 **What agent forgot to execute**
-The agent did not finish extracting the structures of the 5 provided Excel files. The next agent must thoroughly analyze , , , , and  to build the required parsers.</analysis>
+The agent was right in the middle of inspecting  lines  to find out why the MIS overview calculations result in /bin/bash for custom period dates. Pick up exactly there.</analysis>

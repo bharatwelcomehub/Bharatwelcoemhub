@@ -174,12 +174,38 @@ async def initiate_exit(data: dict):
 
 @router.post("/list")
 async def list_exits(data: dict):
-    """List all franchise exits"""
+    """List all franchise exits. Franchise owners only see their own."""
     token = data.get("token")
     session = await check_access(token)
     
     status_filter = data.get("status")  # initiated, in_progress, completed, cancelled
     franchise_code = data.get("franchise_code")
+    
+    # RBAC: If franchise_owner, restrict to their own franchise
+    is_franchise_owner = session.get("role_key") == "franchise_owner"
+    if is_franchise_owner:
+        # Find their franchise code from their center
+        owner_center = session.get("franchise_center") or session.get("center", "")
+        if owner_center:
+            # Look up franchise_code from franchise record linked to this center
+            franchise = await db.franchises.find_one(
+                {"$or": [{"center": owner_center}, {"centers_mapped": owner_center}]},
+                {"_id": 0, "franchise_code": 1}
+            )
+            if franchise:
+                franchise_code = franchise["franchise_code"]
+            else:
+                # Also check centers collection for franchise_code
+                center_doc = await db.centers.find_one(
+                    {"code": owner_center, "franchise_code": {"$exists": True, "$ne": ""}},
+                    {"_id": 0, "franchise_code": 1}
+                )
+                if center_doc:
+                    franchise_code = center_doc["franchise_code"]
+                else:
+                    return {"success": True, "exits": [], "total": 0}
+        else:
+            return {"success": True, "exits": [], "total": 0}
     
     query = {}
     if status_filter:

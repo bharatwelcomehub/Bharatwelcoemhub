@@ -136,7 +136,7 @@ const menuCategories = [
     forFranchise: true,
     items: [
       { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true, franchiseAdminOnly: true },
-      { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true, franchiseAdminOnly: true },
+      { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
       { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
       { path: "/documents", icon: FileCheck2, label: "Documents", forFranchise: true, franchiseAdminOnly: true },
     ]

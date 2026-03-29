@@ -174,16 +174,16 @@ export default function FranchiseOwnerDashboard() {
   };
 
   const handleExportReport = () => {
-    if (!overview) return;
-    const s = overview;
+    if (!overview?.summary) return;
+    const sm = overview.summary;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
       ["Franchise Report - Purnabramha"], ["Center", selectedCenter], ["Period", period], [],
       ["Metric", "Value"],
-      ["Total Sales", s?.total_sales], ["Total Expenses", s?.total_expenses],
-      ["Commissions", s?.total_commissions], ["GST", s?.total_gst],
-      ["Net Profit", s?.profit], ["Revenue Share %", franchiseInfo?.revenue_share_percentage || 0],
-      ["Net Revenue (Franchise Share)", (s?.profit || 0) * ((franchiseInfo?.revenue_share_percentage || 0) / 100)],
+      ["Total Sales", sm?.total_sales], ["Total Expenses", sm?.total_expenses],
+      ["Commissions", sm?.total_commissions], ["GST", sm?.total_gst],
+      ["Net Profit", sm?.profit], ["Revenue Share %", franchiseInfo?.revenue_share_percentage || 0],
+      ["Net Revenue (Franchise Share)", (sm?.profit || 0) * ((franchiseInfo?.revenue_share_percentage || 0) / 100)],
     ]);
     XLSX.utils.book_append_sheet(wb, ws, "Summary");
     XLSX.writeFile(wb, `Franchise_Report_${selectedCenter}_${period}.xlsx`);
@@ -192,19 +192,20 @@ export default function FranchiseOwnerDashboard() {
 
   const centerObj = centersList.find(c => c.code === selectedCenter);
   const isIntl = centerObj?.is_india_center === false || centerObj?.country === "Australia";
-  const s = overview;
+  const sm = overview?.summary;
+  const ch = overview?.changes;
   const revenueSharePct = franchiseInfo?.revenue_share_percentage || 0;
-  const netProfit = s?.profit || 0;
+  const netProfit = sm?.profit || 0;
   const netRevenue = netProfit * (revenueSharePct / 100);
   const trends = salesData;
 
-  const kpiCards = s ? [
-    { label: "Total Sales", value: s.total_sales, change: s.changes?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50" },
-    { label: "Total Expenses", value: s.total_expenses, change: s.changes?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50" },
-    { label: "Commissions", displayValue: formatFullCurrency(s.total_commissions || 0, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
-    { label: "Net Profit", displayValue: formatFullCurrency(netProfit, isIntl), change: s.changes?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
+  const kpiCards = sm ? [
+    { label: "Total Sales", value: sm.total_sales, change: ch?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50" },
+    { label: "Total Expenses", value: sm.total_expenses, change: ch?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50" },
+    { label: "Commissions", displayValue: formatFullCurrency(sm.total_commissions || 0, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
+    { label: "Net Profit", displayValue: formatFullCurrency(netProfit, isIntl), change: ch?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
     { label: "Working Capital", displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
-    { label: "Avg / Bill", displayValue: formatFullCurrency(s.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
+    { label: "Avg / Bill", displayValue: formatFullCurrency(sm.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
     { label: `Revenue Share (${revenueSharePct}%)`, displayValue: formatFullCurrency(netRevenue, isIntl), icon: Percent, gradient: netRevenue >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
   ] : [];
 
@@ -312,7 +313,7 @@ export default function FranchiseOwnerDashboard() {
       )}
 
       {/* KPI CARDS */}
-      {overview && !loading && (
+      {sm && !loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {kpiCards.map((kpi, i) => {
             const Icon = kpi.icon;
@@ -345,7 +346,7 @@ export default function FranchiseOwnerDashboard() {
       )}
 
       {/* TABS */}
-      {overview && !loading && (
+      {sm && !loading && (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-slate-100 border border-slate-200 rounded-xl p-1 flex-wrap">
             <TabsTrigger value="overview" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Sales Overview</TabsTrigger>
@@ -395,12 +396,12 @@ export default function FranchiseOwnerDashboard() {
                 <CardContent>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { label: "Cash Sales", value: s?.total_cash_sales || 0, color: "bg-emerald-500" },
-                      { label: "Online Sales", value: s?.total_online_sales || 0, color: "bg-blue-500" },
-                      { label: "Total Guests", value: s?.total_guests || 0, color: "bg-amber-500", isCurrency: false },
-                      { label: "Total Bills", value: s?.total_bills || 0, color: "bg-purple-500", isCurrency: false },
-                      { label: "GST", value: s?.total_gst || 0, color: "bg-red-400" },
-                      { label: "Profit Margin", value: `${s?.profit_margin?.toFixed(1) || 0}%`, color: "bg-teal-500", isRaw: true },
+                      { label: "Cash Sales", value: sm?.total_cash_sales || 0, color: "bg-emerald-500" },
+                      { label: "Online Sales", value: sm?.total_online_sales || 0, color: "bg-blue-500" },
+                      { label: "Total Guests", value: sm?.total_guests || 0, color: "bg-amber-500", isCurrency: false },
+                      { label: "Total Bills", value: sm?.total_bills || 0, color: "bg-purple-500", isCurrency: false },
+                      { label: "GST", value: sm?.total_gst || 0, color: "bg-red-400" },
+                      { label: "Profit Margin", value: `${sm?.profit_margin?.toFixed(1) || 0}%`, color: "bg-teal-500", isRaw: true },
                     ].map((item, i) => (
                       <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
                         <div className={`w-3 h-3 rounded-full ${item.color}`} />
@@ -428,7 +429,7 @@ export default function FranchiseOwnerDashboard() {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
-                      <Pie data={expenseData.filter(e => e.total > 0)} cx="50%" cy="50%" outerRadius={100} dataKey="total" nameKey="type" label={({ type, percent }) => `${type?.substring(0, 10)} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
+                      <Pie data={expenseData.filter(e => e.amount > 0)} cx="50%" cy="50%" outerRadius={100} dataKey="amount" nameKey="type" label={({ type, percent }) => `${type?.substring(0, 10)} ${(percent * 100).toFixed(0)}%`} labelLine={false} fontSize={10}>
                         {expenseData.map((_, i) => (
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
@@ -454,14 +455,14 @@ export default function FranchiseOwnerDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {expenseData.filter(e => e.total > 0).sort((a, b) => b.total - a.total).map((exp, i) => (
+                        {expenseData.filter(e => e.amount > 0).sort((a, b) => b.amount - a.amount).map((exp, i) => (
                           <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="px-4 py-2 flex items-center gap-2">
                               <span className="w-2.5 h-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
                               {exp.type}
                             </td>
-                            <td className="text-right px-4 py-2 font-medium">{formatFullCurrency(exp.total, isIntl)}</td>
-                            <td className="text-right px-4 py-2 text-slate-500">{s?.total_expenses ? ((exp.total / s.total_expenses) * 100).toFixed(1) : 0}%</td>
+                            <td className="text-right px-4 py-2 font-medium">{formatFullCurrency(exp.amount, isIntl)}</td>
+                            <td className="text-right px-4 py-2 text-slate-500">{sm?.total_expenses ? ((exp.amount / sm.total_expenses) * 100).toFixed(1) : 0}%</td>
                           </tr>
                         ))}
                       </tbody>

@@ -47,6 +47,7 @@ const STATUS_COLORS = {
 export default function FranchiseExit() {
   const { session } = useAuth();
   const token = session?.token;
+  const isFranchiseOwner = session?.role_key === "franchise_owner";
   const [exits, setExits] = useState([]);
   const [franchises, setFranchises] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -141,8 +142,8 @@ export default function FranchiseExit() {
 
   useEffect(() => {
     fetchExits();
-    fetchFranchises();
-  }, [fetchExits, fetchFranchises]);
+    if (!isFranchiseOwner) fetchFranchises();
+  }, [fetchExits, fetchFranchises, isFranchiseOwner]);
 
   // Initiate Exit
   const handleInitiateExit = async () => {
@@ -466,19 +467,27 @@ export default function FranchiseExit() {
   const renderExitList = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-gray-800">Exit Records</h2>
-        <Button onClick={() => setShowInitiateModal(true)} data-testid="initiate-exit-btn">
-          <Plus className="w-4 h-4 mr-2" />
-          Initiate Exit
-        </Button>
+        <h2 className="text-xl font-semibold text-gray-800">
+          {isFranchiseOwner ? "Your Exit Records" : "Exit Records"}
+        </h2>
+        {!isFranchiseOwner && (
+          <Button onClick={() => setShowInitiateModal(true)} data-testid="initiate-exit-btn">
+            <Plus className="w-4 h-4 mr-2" />
+            Initiate Exit
+          </Button>
+        )}
       </div>
       
       {exits.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p className="text-gray-500">No exit records found</p>
-            <p className="text-sm text-gray-400 mt-1">Click "Initiate Exit" to start a new exit process</p>
+            <p className="text-gray-500">
+              {isFranchiseOwner ? "No exit process has been initiated for your franchise" : "No exit records found"}
+            </p>
+            {!isFranchiseOwner && (
+              <p className="text-sm text-gray-400 mt-1">Click "Initiate Exit" to start a new exit process</p>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -549,7 +558,7 @@ export default function FranchiseExit() {
 
     const isCompleted = selectedExit.status === 'completed';
     const isCancelled = selectedExit.status === 'cancelled';
-    const canEdit = !isCompleted && !isCancelled;
+    const canEdit = !isCompleted && !isCancelled && !isFranchiseOwner;
 
     return (
       <div className="space-y-6">
