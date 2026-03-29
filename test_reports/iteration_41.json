@@ -1,0 +1,93 @@
+{
+  "summary": "Tested Document Management, Franchise Management, and data integrity after re-seeding. Backend: 19/19 tests passed (100%). Fixed duplicate document categories and cleaned up TEST_ prefixed data. Frontend: All pages load correctly - Login, Dashboard, Franchise Management, Document Management, Center Accounts, MIS Dashboard.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_document_franchise_iteration41.py",
+    "/app/test_reports/pytest/pytest_iteration41.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed: Document categories had duplicates (22 instead of 9) - cleaned up to 9 unique categories",
+    "Fixed: TEST_ prefixed categories still existed (4 found) - deleted all TEST_ categories",
+    "Fixed: TEST_ prefixed documents existed (4 found) - deleted all TEST_ documents",
+    "Fixed: Soft-deleted documents (is_deleted: true) were still in DB (10 found) - cleaned up"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_document_franchise_iteration41.py"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Super Admin: Center PB-MGT, Mobile 9741399190, OTP 123456",
+  "seed_data_creation": "Cleaned up duplicate document categories and TEST_ prefixed data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Document Management and Franchise Management fully tested. Key verifications: 1) Login flow works with PB-MGT/9741399190/123456. 2) Document categories: 9 clean categories (no TEST_ prefixes, no duplicates). 3) Franchise Management shows franchise list with FR-TEST-INDIA active. 4) Center Accounts page loads with commission upload feature. 5) MIS Dashboard shows sales data. 6) All 9 centers available: PB-HSR, PB-TH, PB-SN, PB-DV, PB-HW, PB-KN, PB-KAL, PB-PERTH, PB-MGT. 7) Documents collection has 1 remaining document after cleanup.",
+  "features_tested": {
+    "login_flow": {
+      "center_selection": "PASSED - PB-MGT selected",
+      "mobile_input": "PASSED - 9741399190 entered",
+      "otp_verification": "PASSED - 123456 verified, lands on dashboard"
+    },
+    "document_management": {
+      "page_loads": "PASSED - Document Management page accessible via sidebar",
+      "categories_count": "PASSED - 9 categories (no TEST_ prefixes)",
+      "upload_button": "PASSED - Upload Document button visible",
+      "categories_button": "PASSED - Categories button visible",
+      "tabs": "PASSED - Documents, Expiry Alerts, Categories tabs"
+    },
+    "franchise_management": {
+      "page_loads": "PASSED - Franchise Management page loads",
+      "add_franchise_button": "PASSED - Add Franchise button visible",
+      "franchise_list": "PASSED - Shows FR-TEST-INDIA (Active), FR-PERTH (closed), etc.",
+      "stats_cards": "PASSED - Total, Active, Pending, Terminated counts"
+    },
+    "center_accounts": {
+      "page_loads": "PASSED - Center Accounts page loads",
+      "center_selector": "PASSED - Can select PB-HSR",
+      "data_display": "PASSED - Shows Total Sales Rs. 27,000.00",
+      "franchise_linked": "PASSED - FR-TEST-INDIA linked to PB-HSR",
+      "tabs": "PASSED - Overview, Sales Breakdown, Commissions, Revenue/Profit Share, MG & Payout, Reports, Invoice Export",
+      "upload_commission": "PASSED - Upload Commission button visible"
+    },
+    "mis_dashboard": {
+      "page_loads": "PASSED - MIS Dashboard loads",
+      "sales_data": "PASSED - Shows Total Sales ₹27.0K",
+      "charts": "PASSED - Sales vs Expenses Trend chart visible",
+      "center_performance": "PASSED - Center Performance Summary shows PB-HSR"
+    },
+    "centers_availability": {
+      "all_9_centers": "PASSED - PB-HSR, PB-TH, PB-SN, PB-DV, PB-HW, PB-KN, PB-KAL, PB-PERTH, PB-MGT all available"
+    },
+    "backend_apis": {
+      "send_otp": "PASSED - POST /api/send_otp",
+      "verify_otp": "PASSED - POST /api/verify_otp",
+      "centers": "PASSED - GET /api/centers returns 9 centers",
+      "document_categories_list": "PASSED - POST /api/documents/categories/list returns 9 categories",
+      "documents_list": "PASSED - POST /api/documents/list works with filters",
+      "franchises_list": "PASSED - POST /api/franchises/list returns franchise data",
+      "center_accounts_summary": "PASSED - POST /api/center-accounts/summary",
+      "list_commissions": "PASSED - POST /api/center-accounts/list-commissions",
+      "expense_heads": "PASSED - GET /api/sales/expense-heads returns 35 heads",
+      "managers": "PASSED - POST /api/mgt/managers returns 7+ managers"
+    }
+  },
+  "data_cleanup_performed": {
+    "duplicate_categories_removed": 9,
+    "test_categories_removed": 4,
+    "test_documents_removed": 4,
+    "soft_deleted_documents_removed": 10
+  },
+  "mocked_apis": {
+    "whatsapp_notifications": "MOCKED - WhatsApp integration is mocked"
+  }
+}

@@ -2210,8 +2210,6 @@ async def startup_cleanup_centers():
             logger.info(f"Startup: seeded {seeded} default document categories")
     except Exception as e:
         logger.warning(f"Startup: document category seeding failed: {e}")
-    except Exception as e:
-        logger.warning(f"Startup: document category seeding failed: {e}")
     
     try:
         all_centers = await db.centers.find({}).to_list(500)

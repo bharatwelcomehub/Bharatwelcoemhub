@@ -306,7 +306,16 @@ async def list_documents(req: DocumentListReq):
     if req.employee_name:
         query["employee_name"] = req.employee_name.upper()
     if req.franchise_code:
-        query["franchise_code"] = req.franchise_code.upper()
+        # When filtering by franchise, also include docs from linked centers
+        franchise = await db.franchises.find_one(
+            {"franchise_code": req.franchise_code.upper()}, {"_id": 0, "linked_centers": 1}
+        )
+        linked_centers = franchise.get("linked_centers", []) if franchise else []
+        # OR logic: match franchise_code OR center in linked_centers
+        franchise_or = [{"franchise_code": req.franchise_code.upper()}]
+        if linked_centers:
+            franchise_or.append({"center": {"$in": [c.upper() for c in linked_centers]}})
+        query["$or"] = franchise_or
 
     # Expiry filter
     if req.expiring_within_days:
