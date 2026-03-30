@@ -63,6 +63,12 @@ export default function CenterAccounts() {
   const [linkageStatus, setLinkageStatus] = useState(null);
   const [payoutSummary, setPayoutSummary] = useState(null);
   const [payoutLoading, setPayoutLoading] = useState(false);
+  const [payoutFromMonth, setPayoutFromMonth] = useState('');
+  const [payoutToMonth, setPayoutToMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [exportLoading, setExportLoading] = useState(null);
   
   // Modal states
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -201,24 +207,29 @@ export default function CenterAccounts() {
     
     setPayoutLoading(true);
     try {
+      const body = { token, center: selectedCenter };
+      if (payoutFromMonth) body.from_month = payoutFromMonth;
+      if (payoutToMonth) body.to_month = payoutToMonth;
+      
       const res = await fetch(`${API}/api/center-accounts/payout-summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          token, 
-          center: selectedCenter
-        })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (data.success) {
         setPayoutSummary(data);
+        // Set fromMonth from server response if not set (revenue start date)
+        if (!payoutFromMonth && data.period?.from) {
+          setPayoutFromMonth(data.period.from);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch payout summary:', error);
     } finally {
       setPayoutLoading(false);
     }
-  }, [token, selectedCenter]);
+  }, [token, selectedCenter, payoutFromMonth, payoutToMonth]);
 
   useEffect(() => {
     fetchCenters();
@@ -477,6 +488,45 @@ export default function CenterAccounts() {
       toast.error('Failed to delete payment');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Export MG Payout as Excel or PDF
+  const handleExportMGPayout = async (format) => {
+    if (!token || !selectedCenter) return;
+    setExportLoading(format);
+    try {
+      const body = { token, center: selectedCenter, format };
+      if (payoutFromMonth) body.from_month = payoutFromMonth;
+      if (payoutToMonth) body.to_month = payoutToMonth;
+      
+      const res = await fetch(`${API}/api/center-accounts/export-mg-payout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.detail || 'Export failed');
+        return;
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ext = format === 'excel' ? 'xlsx' : 'pdf';
+      a.href = url;
+      a.download = `MG_Payout_${selectedCenter}_${payoutFromMonth || 'start'}_to_${payoutToMonth}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`MG Payout ${format.toUpperCase()} downloaded`);
+    } catch (error) {
+      toast.error('Export failed');
+    } finally {
+      setExportLoading(null);
     }
   };
 
@@ -1357,23 +1407,71 @@ export default function CenterAccounts() {
               {/* Month-wise Payout Grid */}
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <FileSpreadsheet className="w-5 h-5" />
-                        Month-wise Payout Summary
-                      </CardTitle>
-                      <CardDescription>
-                        {payoutSummary?.period?.revenue_start_date 
-                          ? `From revenue start date: ${new Date(payoutSummary.period.revenue_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
-                          : 'Historical payout data with payment tracking'
-                        }
-                      </CardDescription>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <FileSpreadsheet className="w-5 h-5" />
+                          Month-wise Payout Summary
+                        </CardTitle>
+                        <CardDescription>
+                          {payoutSummary?.period?.revenue_start_date 
+                            ? `Revenue start: ${new Date(payoutSummary.period.revenue_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                            : 'Historical payout data with payment tracking'
+                          }
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" size="sm" 
+                          onClick={() => handleExportMGPayout('excel')} 
+                          disabled={!!exportLoading || !payoutSummary?.monthly_data?.length}
+                          data-testid="export-mg-excel"
+                        >
+                          {exportLoading === 'excel' ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+                          Excel
+                        </Button>
+                        <Button 
+                          variant="outline" size="sm"
+                          onClick={() => handleExportMGPayout('pdf')}
+                          disabled={!!exportLoading || !payoutSummary?.monthly_data?.length}
+                          data-testid="export-mg-pdf"
+                        >
+                          {exportLoading === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Download className="w-4 h-4 mr-1" />}
+                          PDF
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={fetchPayoutSummary} disabled={payoutLoading}>
+                          <RefreshCw className={`w-4 h-4 ${payoutLoading ? 'animate-spin' : ''}`} />
+                        </Button>
+                      </div>
                     </div>
-                    <Button variant="outline" size="sm" onClick={fetchPayoutSummary} disabled={payoutLoading}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${payoutLoading ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
+                    {/* Month Range Filter */}
+                    <div className="flex items-end gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">From Month</Label>
+                        <Input
+                          type="month"
+                          value={payoutFromMonth}
+                          onChange={(e) => setPayoutFromMonth(e.target.value)}
+                          className="h-9 w-40 text-sm"
+                          data-testid="payout-from-month"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">To Month</Label>
+                        <Input
+                          type="month"
+                          value={payoutToMonth}
+                          onChange={(e) => setPayoutToMonth(e.target.value)}
+                          className="h-9 w-40 text-sm"
+                          data-testid="payout-to-month"
+                        />
+                      </div>
+                      <Button size="sm" onClick={fetchPayoutSummary} disabled={payoutLoading} className="h-9">
+                        {payoutLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+                        Apply
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>

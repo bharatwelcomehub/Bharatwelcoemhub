@@ -1595,3 +1595,231 @@ async def get_payout_summary(data: dict = Body(...)):
         },
         "monthly_data": monthly_data
     }
+
+
+@router.post("/export-mg-payout")
+async def export_mg_payout(data: dict = Body(...)):
+    """Export MG Payout summary as Excel or PDF"""
+    token = data.get("token")
+    center = data.get("center")
+    fmt = data.get("format", "excel")  # "excel" or "pdf"
+    from_month = data.get("from_month")
+    to_month = data.get("to_month")
+
+    await check_access(token)
+
+    # Reuse payout-summary logic
+    summary_data = await get_payout_summary({
+        "token": token,
+        "center": center,
+        "from_month": from_month,
+        "to_month": to_month
+    })
+
+    monthly_data = summary_data.get("monthly_data", [])
+    totals = summary_data.get("totals", {})
+    period = summary_data.get("period", {})
+    franchise_info = summary_data.get("franchise", {})
+
+    if fmt == "excel":
+        return _export_mg_excel(center, monthly_data, totals, period, franchise_info)
+    else:
+        return _export_mg_pdf(center, monthly_data, totals, period, franchise_info)
+
+
+def _export_mg_excel(center, monthly_data, totals, period, franchise_info):
+    """Generate MG Payout Excel export"""
+    buf = io.BytesIO()
+
+    rows = []
+    for m in monthly_data:
+        month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
+        rows.append({
+            "Month": month_label,
+            "Total Sales": m.get("total_sales", 0),
+            "Revenue Share": m.get("revenue_share", 0),
+            "MG Amount": m.get("mg_amount", 0),
+            "Type": "MG" if m.get("payable_type") == "mg" else "Revenue Share",
+            "Payable": m.get("payable_amount", 0),
+            "Paid": m.get("paid", 0),
+            "Pending": m.get("pending", 0),
+            "Status": m.get("status", "").capitalize()
+        })
+
+    # Add totals row
+    rows.append({
+        "Month": "TOTAL",
+        "Total Sales": sum(m.get("total_sales", 0) for m in monthly_data),
+        "Revenue Share": totals.get("revenue_share", 0),
+        "MG Amount": totals.get("mg", 0),
+        "Type": "",
+        "Payable": totals.get("payable", 0),
+        "Paid": totals.get("paid", 0),
+        "Pending": totals.get("pending", 0),
+        "Status": ""
+    })
+
+    df = pd.DataFrame(rows)
+
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        # Write header info
+        header_df = pd.DataFrame([
+            ["MG Payout Report"],
+            [f"Center: {center}"],
+            [f"Franchise: {franchise_info.get('name', 'N/A')} ({franchise_info.get('code', 'N/A')})"],
+            [f"Monthly MG: {franchise_info.get('mg_amount', 0)}"],
+            [f"Period: {period.get('from', '')} to {period.get('to', '')}"],
+            [""]
+        ])
+        header_df.to_excel(writer, sheet_name='MG Payout', index=False, header=False, startrow=0)
+        df.to_excel(writer, sheet_name='MG Payout', index=False, startrow=7)
+
+        # Auto-adjust column widths
+        ws = writer.sheets['MG Payout']
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or "")) for cell in col)
+            ws.column_dimensions[col[0].column_letter].width = min(max_len + 3, 20)
+
+    buf.seek(0)
+    filename = f"MG_Payout_{center}_{period.get('from', 'start')}_to_{period.get('to', 'end')}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+def _export_mg_pdf(center, monthly_data, totals, period, franchise_info):
+    """Generate MG Payout PDF export"""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=30, rightMargin=30, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    # Logo
+    from pathlib import Path
+    ROOT_DIR = Path(__file__).parent.parent
+    logo_path = ROOT_DIR / "assets" / "pb_logo.png"
+    if logo_path.exists():
+        try:
+            elements.append(Image(str(logo_path), width=1.2*inch, height=0.7*inch))
+        except:
+            pass
+
+    # Title
+    title_style = ParagraphStyle('MGTitle', parent=styles['Heading1'], fontSize=16, alignment=TA_CENTER, spaceAfter=6)
+    elements.append(Paragraph("MG Payout Report", title_style))
+    elements.append(Spacer(1, 6))
+
+    # Sub-header info
+    sub_style = ParagraphStyle('MGSub', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=colors.gray)
+    elements.append(Paragraph(f"Center: {center} | Franchise: {franchise_info.get('name', 'N/A')} ({franchise_info.get('code', 'N/A')})", sub_style))
+    elements.append(Paragraph(f"Monthly MG: Rs. {franchise_info.get('mg_amount', 0):,.2f} | Period: {period.get('from', '')} to {period.get('to', '')}", sub_style))
+    elements.append(Spacer(1, 12))
+
+    # Summary cards as a table
+    summary_data_table = [
+        ["Total Revenue Share", "Total MG", "Total Payable", "Total Paid", "Total Pending"],
+        [
+            f"Rs. {totals.get('revenue_share', 0):,.2f}",
+            f"Rs. {totals.get('mg', 0):,.2f}",
+            f"Rs. {totals.get('payable', 0):,.2f}",
+            f"Rs. {totals.get('paid', 0):,.2f}",
+            f"Rs. {totals.get('pending', 0):,.2f}"
+        ]
+    ]
+    summary_table = Table(summary_data_table, colWidths=[105, 95, 95, 95, 95])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#334155')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('FONTSIZE', (0, 1), (-1, 1), 9),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.gray),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 16))
+
+    # Monthly data table
+    table_header = ["Month", "Total Sales", "Rev Share", "MG", "Type", "Payable", "Paid", "Pending", "Status"]
+    table_rows = [table_header]
+
+    for m in monthly_data:
+        month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
+        ptype = "MG" if m.get("payable_type") == "mg" else "RS"
+        table_rows.append([
+            month_label,
+            f'{m.get("total_sales", 0):,.0f}',
+            f'{m.get("revenue_share", 0):,.0f}',
+            f'{m.get("mg_amount", 0):,.0f}',
+            ptype,
+            f'{m.get("payable_amount", 0):,.0f}',
+            f'{m.get("paid", 0):,.0f}',
+            f'{m.get("pending", 0):,.0f}',
+            m.get("status", "").capitalize()
+        ])
+
+    # Totals row
+    table_rows.append([
+        "TOTAL",
+        f'{sum(m.get("total_sales", 0) for m in monthly_data):,.0f}',
+        f'{totals.get("revenue_share", 0):,.0f}',
+        f'{totals.get("mg", 0):,.0f}',
+        "",
+        f'{totals.get("payable", 0):,.0f}',
+        f'{totals.get("paid", 0):,.0f}',
+        f'{totals.get("pending", 0):,.0f}',
+        ""
+    ])
+
+    col_widths = [55, 65, 60, 60, 35, 65, 60, 60, 45]
+    data_table = Table(table_rows, colWidths=col_widths, repeatRows=1)
+
+    table_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('ALIGN', (4, 0), (4, -1), 'CENTER'),
+        ('ALIGN', (-1, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#f8fafc')]),
+        # Totals row styling
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f1f5f9')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]
+
+    # Color-code status column
+    for i, m in enumerate(monthly_data, start=1):
+        status = m.get("status", "")
+        if status == "paid":
+            table_style.append(('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#166534')))
+        elif status == "partial":
+            table_style.append(('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#92400e')))
+        elif status == "unpaid":
+            table_style.append(('TEXTCOLOR', (-1, i), (-1, i), colors.HexColor('#991b1b')))
+
+    data_table.setStyle(TableStyle(table_style))
+    elements.append(data_table)
+    elements.append(Spacer(1, 20))
+
+    # Footer
+    footer_style = ParagraphStyle('MGFooter', parent=styles['Normal'], fontSize=7, textColor=colors.gray, alignment=TA_CENTER)
+    elements.append(Paragraph(f"Generated on {datetime.now().strftime('%d %b %Y, %I:%M %p')} | Purnabramha - MANASWINI FOODS PVT. LTD.", footer_style))
+
+    doc.build(elements)
+    buf.seek(0)
+    filename = f"MG_Payout_{center}_{period.get('from', 'start')}_to_{period.get('to', 'end')}.pdf"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
