@@ -471,6 +471,8 @@ async def resolve_franchise_owner_center(data: dict):
         "revenue_share_percentage": resolved_franchise.get("revenue_share_percentage", 0) if resolved_franchise else 0,
         "is_franchise_owner": role_key == "franchise_owner"
     }
+
+@router.post("/list")
 async def list_franchises(req: FranchiseQueryRequest):
     """List all franchises with optional filters"""
     session = await check_access(req.token)
