@@ -823,8 +823,8 @@ export default function CenterAccounts() {
                           <th className="text-left p-3 text-sm font-medium">Platform</th>
                           <th className="text-left p-3 text-sm font-medium">Month</th>
                           <th className="text-right p-3 text-sm font-medium">Gross Amount</th>
-                          <th className="text-right p-3 text-sm font-medium">Commission</th>
-                          <th className="text-right p-3 text-sm font-medium">GST on Comm</th>
+                          <th className="text-right p-3 text-sm font-medium">GST/Tax Ded.</th>
+                          <th className="text-right p-3 text-sm font-medium">Other Ded.</th>
                           <th className="text-right p-3 text-sm font-medium">Net Payout</th>
                           <th className="text-right p-3 text-sm font-medium">Orders</th>
                           <th className="text-left p-3 text-sm font-medium">File</th>
@@ -848,8 +848,8 @@ export default function CenterAccounts() {
                               </td>
                               <td className="p-3 text-sm font-medium">{stmt.month}</td>
                               <td className="p-3 text-right">{formatCurrency(stmt.gross_amount, accountSummary?.country)}</td>
-                              <td className="p-3 text-right text-red-600">{formatCurrency(stmt.commission_amount, accountSummary?.country)}</td>
-                              <td className="p-3 text-right text-orange-600">{formatCurrency(stmt.gst_on_commission, accountSummary?.country)}</td>
+                              <td className="p-3 text-right text-orange-600">{formatCurrency(stmt.gst_tax_deductions || stmt.gst_on_commission || 0, accountSummary?.country)}</td>
+                              <td className="p-3 text-right text-red-600">{formatCurrency(stmt.other_deductions || stmt.commission_amount || 0, accountSummary?.country)}</td>
                               <td className="p-3 text-right text-green-600">{formatCurrency(stmt.net_payout, accountSummary?.country)}</td>
                               <td className="p-3 text-right">{stmt.order_count}</td>
                               <td className="p-3 text-sm text-gray-500 max-w-[150px] truncate" title={stmt.original_filename}>
@@ -1767,19 +1767,19 @@ export default function CenterAccounts() {
           {parsedPreview && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Gross Amount</p>
-                  <p className="text-2xl font-bold">{formatCurrency(parsedPreview.gross_amount, accountSummary?.country)}</p>
+                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+                  <p className="text-sm text-emerald-600">Gross Amount</p>
+                  <p className="text-2xl font-bold text-emerald-800">{formatCurrency(parsedPreview.gross_amount, accountSummary?.country)}</p>
                 </div>
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <p className="text-sm text-red-600">Commission</p>
-                  <p className="text-2xl font-bold text-red-700">{formatCurrency(parsedPreview.commission_amount, accountSummary?.country)}</p>
+                <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
+                  <p className="text-sm text-orange-600">GST / Tax Deductions</p>
+                  <p className="text-2xl font-bold text-orange-700">{formatCurrency(parsedPreview.gst_tax_deductions, accountSummary?.country)}</p>
                 </div>
-                <div className="p-4 bg-orange-50 rounded-lg">
-                  <p className="text-sm text-orange-600">GST on Commission</p>
-                  <p className="text-2xl font-bold text-orange-700">{formatCurrency(parsedPreview.gst_on_commission, accountSummary?.country)}</p>
+                <div className="p-4 bg-red-50 rounded-lg border border-red-100">
+                  <p className="text-sm text-red-600">Other Deductions</p>
+                  <p className="text-2xl font-bold text-red-700">{formatCurrency(parsedPreview.other_deductions, accountSummary?.country)}</p>
                 </div>
-                <div className="p-4 bg-green-50 rounded-lg">
+                <div className="p-4 bg-green-50 rounded-lg border border-green-100">
                   <p className="text-sm text-green-600">Net Payout</p>
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(parsedPreview.net_payout, accountSummary?.country)}</p>
                 </div>
@@ -1789,9 +1789,9 @@ export default function CenterAccounts() {
                 <span>TDS: <strong>{formatCurrency(parsedPreview.tds, accountSummary?.country)}</strong></span>
                 <span>Currency: <strong>{parsedPreview.currency}</strong></span>
               </div>
-              {parsedPreview.gross_amount > 0 && parsedPreview.commission_amount > 0 && (
+              {parsedPreview.gross_amount > 0 && (parsedPreview.gst_tax_deductions > 0 || parsedPreview.other_deductions > 0) && (
                 <div className="p-3 bg-amber-50 rounded text-sm text-amber-700">
-                  Effective Commission Rate: <strong>{((parsedPreview.commission_amount / parsedPreview.gross_amount) * 100).toFixed(1)}%</strong>
+                  Total Deduction Rate: <strong>{(((parsedPreview.gst_tax_deductions + parsedPreview.other_deductions) / parsedPreview.gross_amount) * 100).toFixed(1)}%</strong>
                 </div>
               )}
             </div>
