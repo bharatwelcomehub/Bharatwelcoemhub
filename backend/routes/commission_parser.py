@@ -131,15 +131,11 @@ def parse_zomato(filepath: str) -> Dict[str, Any]:
 
 
 def parse_swiggy(filepath: str) -> Dict[str, Any]:
-    """Parse Swiggy order-level report and aggregate."""
+    """Parse Swiggy order-level report and aggregate ALL orders (including cancelled)."""
     df = pd.read_excel(filepath)
 
-    # Filter delivered orders
-    status_col = [c for c in df.columns if "order status" in c.lower()]
-    if status_col:
-        delivered = df[df[status_col[0]].str.lower().str.strip() == "delivered"]
-    else:
-        delivered = df
+    # Use ALL rows — cancelled orders also have financial impact (deductions)
+    all_orders = df
 
     # Find columns by partial match
     def find_col(keywords):
@@ -155,11 +151,17 @@ def parse_swiggy(filepath: str) -> Dict[str, Any]:
     tds_col = find_col(["tds"])
     net_col = find_col(["net payable", "after tcs"])
 
-    gross_amount = float(pd.to_numeric(delivered[gross_col], errors="coerce").sum()) if gross_col else 0.0
-    commission = float(pd.to_numeric(delivered[comm_col], errors="coerce").sum()) if comm_col else 0.0
-    gst_on_comm = float(pd.to_numeric(delivered[gst_col], errors="coerce").sum()) if gst_col else 0.0
-    tds = float(pd.to_numeric(delivered[tds_col], errors="coerce").sum()) if tds_col else 0.0
-    net_payout = float(pd.to_numeric(delivered[net_col], errors="coerce").sum()) if net_col else 0.0
+    gross_amount = float(pd.to_numeric(all_orders[gross_col], errors="coerce").sum()) if gross_col else 0.0
+    commission = float(pd.to_numeric(all_orders[comm_col], errors="coerce").sum()) if comm_col else 0.0
+    gst_on_comm = float(pd.to_numeric(all_orders[gst_col], errors="coerce").sum()) if gst_col else 0.0
+    tds = float(pd.to_numeric(all_orders[tds_col], errors="coerce").sum()) if tds_col else 0.0
+    net_payout = float(pd.to_numeric(all_orders[net_col], errors="coerce").sum()) if net_col else 0.0
+
+    # Count by status for reference
+    status_col = [c for c in df.columns if "order status" in c.lower()]
+    status_counts = {}
+    if status_col:
+        status_counts = df[status_col[0]].value_counts().to_dict()
 
     return {
         "platform": "swiggy",
@@ -168,11 +170,11 @@ def parse_swiggy(filepath: str) -> Dict[str, Any]:
         "gst_on_commission": round(gst_on_comm, 2),
         "tds": round(tds, 2),
         "net_payout": round(net_payout, 2),
-        "order_count": int(len(delivered)),
+        "order_count": int(len(all_orders)),
         "currency": "INR",
         "raw_summary": {
             "total_orders": int(len(df)),
-            "delivered_orders": int(len(delivered)),
+            "status_breakdown": status_counts,
             "gross_items_total": round(gross_amount, 2),
             "swiggy_service_fee": round(commission, 2),
             "taxes_on_swiggy_fee": round(gst_on_comm, 2),
@@ -183,35 +185,37 @@ def parse_swiggy(filepath: str) -> Dict[str, Any]:
 
 
 def parse_doordash(filepath: str) -> Dict[str, Any]:
-    """Parse DoorDash detailed transactions report."""
+    """Parse DoorDash detailed transactions report — ALL orders (including cancelled)."""
     df = pd.read_excel(filepath)
 
-    # Filter delivered orders
-    status_col = [c for c in df.columns if "final order status" in c.lower()]
-    if status_col:
-        delivered = df[df[status_col[0]].str.lower().str.strip() == "delivered"]
-    else:
-        delivered = df
+    # Use ALL rows — cancelled orders also have financial impact
+    all_orders = df
 
-    subtotal = float(pd.to_numeric(delivered.get("Subtotal including GST", pd.Series()), errors="coerce").sum())
-    commission = float(pd.to_numeric(delivered.get("Commission", pd.Series()), errors="coerce").sum())
-    net_total = float(pd.to_numeric(delivered.get("Net total", pd.Series()), errors="coerce").sum())
+    subtotal = float(pd.to_numeric(all_orders.get("Subtotal including GST", pd.Series()), errors="coerce").sum())
+    commission = float(pd.to_numeric(all_orders.get("Commission", pd.Series()), errors="coerce").sum())
+    net_total = float(pd.to_numeric(all_orders.get("Net total", pd.Series()), errors="coerce").sum())
     marketing_fees = float(pd.to_numeric(
-        delivered.get("Marketing fees | (including any applicable taxes)", pd.Series()),
+        all_orders.get("Marketing fees | (including any applicable taxes)", pd.Series()),
         errors="coerce",
     ).sum())
 
     # Commission from DoorDash is negative (it's a deduction); take absolute value
     commission_abs = abs(commission)
 
+    # Count by status for reference
+    status_col = [c for c in df.columns if "final order status" in c.lower()]
+    status_counts = {}
+    if status_col:
+        status_counts = df[status_col[0]].value_counts().to_dict()
+
     return {
         "platform": "doordash",
         "gross_amount": round(subtotal, 2),
         "commission_amount": round(commission_abs, 2),
-        "gst_on_commission": 0.0,  # Not broken out in DoorDash report
+        "gst_on_commission": 0.0,
         "tds": 0.0,
         "net_payout": round(net_total, 2),
-        "order_count": int(len(delivered)),
+        "order_count": int(len(all_orders)),
         "currency": "AUD",
         "raw_summary": {
             "subtotal_including_gst": round(subtotal, 2),
@@ -219,7 +223,7 @@ def parse_doordash(filepath: str) -> Dict[str, Any]:
             "marketing_fees": round(marketing_fees, 2),
             "net_total": round(net_total, 2),
             "total_orders": int(len(df)),
-            "delivered_orders": int(len(delivered)),
+            "status_breakdown": status_counts,
         },
     }
 
