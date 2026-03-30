@@ -1,46 +1,46 @@
-<analysis>### Handover Summary
-
-**original_problem_statement**: 
-Internal management system for Purnabramha, a restaurant franchise. The core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING.
-Primary requests evolved into: 
-1. Pivot Commission Tracking to a pure Excel-upload model (parsing 5 platforms) directly inside Center Accounts.
-2. Unify Document Management so documents uploaded via Franchise Details sync with global Documents.
-3. Completely redesign the Franchise Owner Dashboard to mirror the MIS Dashboard (colorful KPI cards, net revenue, revenue share), restrict its access strictly to Franchise Owners using RBAC, and use an exact Month Picker.
+<analysis>**original_problem_statement**: 
+Internal management system for Purnabramha, a restaurant franchise. Core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING.
+Primary requests evolved into:
+1. Fixing Franchise Owner Dashboard RBAC (No center dropdown, mapped center auto-loads from DB mapping).
+2. Refined Commission parsing logic for Excel uploads (including Cancelled orders, showing Gross -> GST/Tax -> Other Deductions -> Net Payout).
+3. Implementing dual-file upload (EDC + Bank Statement) for Cards & PhonePe to accurately calculate MDR charges and Sundry Debtors.
+4. NEW REQUIREMENT: Update the Payslip Generation PDF to include a top Logo, a selectable Signature (Sandeep Gadhwal vs Jayanti Kathale with seal), and ensure the employee list dropdown on the frontend is sorted from the Employee Database Master table for the selected center.
 
 PRODUCT REQUIREMENTS:
-- Single source of truth for Commissions via monthly Excel uploads.
-- Parse 5 distinct Excel formats accurately (Zomato, Swiggy, DoorDash, PhonePe, Cards).
-- Strict RBAC: Franchise owners must *only* see their own center and the Owner Dashboard (no Management/Exit tools).
-- Unified Documents: Documents uploaded anywhere for a franchise must appear in all franchise views.
+- Strict RBAC: Franchise owners must *only* see their mapped center and have NO access to center switching.
+- Excel Commission Upload must accurately track exact deductions using standard accounting practices (MDR % mapping, GST matching).
+- Payslip generation must dynamically query Employee Master Data and allow PDF customization (Logos, Signatures).
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
 A React/FastAPI/MongoDB franchise management application. 
-- The Excel Commission Upload tool has been built inside Center Accounts (Old duplicate tracking page removed). 
-- The Document Management system has been successfully unified (OR queries based on  and ). 
-- The Franchise Owner Dashboard has been completely redesigned to match the MIS Dashboard and secured via a  check. 
-- **Currently broken**: The KPI cards on the new Franchise Owner Dashboard show /bin/bash for historical data, despite the trend charts on the same page rendering data properly.
+- Franchise Owner Dashboard correctly auto-resolves mapped centers and hides dropdowns.
+- Commission module fully handles Swiggy/Zomato/DoorDash (single file) and Cards/PhonePe (dual-file with Bank Statement matching).
+- Commission aggregations properly feed into Top KPI cards and Financial Summaries.
+- PIB, GST, and Commission PDFs generate correctly.
+- Currently, the agent just downloaded new image assets for the Payslip generation feature but has not written any code.
 
 **Last working item**:
-    - **Last item agent was working**: Debugging the /bin/bash KPI values in the Franchise Owner Dashboard. The user reported that for a specific center (Perth), the trend chart shows data but the top KPI cards show /bin/bash. The agent discovered that  handles the data correctly, but  is failing to calculate/return data for the  period (or when driven by the new Month Picker).
-    - **Status**: IN PROGRESS
+    - **Last item agent was working**: Updating Payslip generation with a Logo, selectable signatures, and a sorted employee list from the Master database. The agent just executed a bash command to download the user-provided images (, , ).
+    - **Status**: NOT STARTED
     - **Agent Testing Done**: N
-    - **Which testing method agent to use?**: manual testing by curl (to verify the endpoint payload) then screenshot tool.
+    - **Which testing method agent to use?**: Both (frontend screenshot for the new signature dropdown/sorted employee list + backend PDF manual test via curl or direct UI download to verify Logo/Signature).
     - **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Franchise Owner Dashboard KPI cards show /bin/bash for custom periods (P0)
-     - Attempted fixes: The agent just identified the discrepancy: the  endpoint processes / properly, but  inside  appears to be returning 0 for its aggregated sums when processing these same date parameters.
-     - Next debug checklist: 
-       1. Open .
-       2. Inspect . 
-       3. Trace how  and  (derived from the  period) are passed into the MongoDB queries for  and .
-       4. Ensure there is no bug dropping or defaulting the dates resulting in an empty query. Fix the aggregations.
-     - Why fix this issue and what will be achieved with the fix? Franchise owners cannot see their high-level financial metrics, rendering the dashboard useless.
-     - Status: IN PROGRESS
+  Issue 1: Payslip UI & PDF Generation Updates (P0)
+     - Attempted fixes: Images were just successfully downloaded into the pod (, , ). No code changes made yet.
+     - Next debug checklist:
+       1. Identify the Frontend Payslip/HR page. Update the Employee dropdown to fetch & sort from the Master Employee table for the active center.
+       2. Add a UI element (Radio or Dropdown) to the Payslip generator to select the Signature (Sandeep Gadhwal or Jayanti Kathale).
+       3. Identify the Backend PDF generation logic for Payslips (likely  in an  or similar route).
+       4. Update the PDF layout to include  at the top.
+       5. Update the PDF layout to embed the selected signature image ( or ) at the bottom.
+     - Why fix this issue and what will be achieved with the fix? Makes generated payslips official and professional for employees, preventing manual stamp/sign processes.
+     - Status: NOT STARTED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both (curl to verify JSON payload, screenshot to verify UI).
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
 **In progress Task List**: None.
@@ -56,11 +56,13 @@ A React/FastAPI/MongoDB franchise management application.
     - (P2) Menu card PDF generation per center.
 
 **Completed work in this session**
-- Excel-Driven Commission Upload (parsing 5 distinct formats using pandas) inside Center Accounts (DONE)
-- Unified Document Management queries to map  and  symmetrically (DONE)
-- Replaced Current/Last Month with exact Month Picker and custom Date Range toggle in Franchise Dashboard (DONE)
-- Redesigned Franchise Owner Dashboard to exactly match MIS Dashboard UI/KPIs (DONE)
-- RBAC Implementation: Added  to session state to hard-block franchise owners from accessing Center switching, Franchise Management, and Exit tools (DONE)
+- Franchise Owner Dashboard RBAC fix (Removed Center Dropdown, Auto-resolved mapped center via ) (DONE)
+- Commission parsers updated to include Cancelled orders in deductions (DONE)
+- Implemented 4-Card UI for commissions (Gross Amount -> GST/Tax Deductions -> Other Deductions -> Net Payout) (DONE)
+- Built dual-file upload (EDC Excel + Bank Statement) for Cards to calculate accurate MDR Bank Charges (DONE)
+- Built dual-file upload for PhonePe to calculate Sundry Debtors based on next-day bank settlements (DONE)
+- Fixed KPI dashboard financial aggregations (Changed  key reference to  fields) (DONE)
+- Fixed PDF generation errors for PIB, GST, and Commission reports (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
@@ -74,69 +76,71 @@ None.
 
 
 **Key Technical Concepts**
-- **Pandas/Openpyxl**: Used to parse and dynamically map columns from wildly different Excel formats.
-- **RBAC via session**:  is now securely passed from backend to frontend to restrict navigation.
-- **Dual DB Environments**: The user frequently gets confused, thinking their live data is deleted when looking at the preview environment. *Always politely remind them that the preview DB is isolated with sample data, and deploying will push code to their live DB containing their real data.*
+- **ReportLab PDF Generation**: Heavily utilized for dynamic reports. You will need to use ReportLab's  class to embed the newly downloaded logos and signatures.
+- **Pandas Dataframe Matching**: Dual-file upload works by matching EDC dates/amounts against Bank Statement credit descriptions using regex.
+- **RBAC**: Handled via  and backend center mappings.
 
 **key DB schema**
   - : 
-  - : Added  to differentiate franchise_owner from internal admins.
+  -  (or similar): Need to query this collection for the master list of employees in the pending Payslip task.
 
 **changes in tech stack**
-  - Heavy reliance on  for backend Excel data extraction.
+  - Dual file Excel parsing capabilities utilizing  & .
 
 **All files of reference** 
-  1.  (Focus here for P0 bug)
-  2.  
-  3. 
+  1. , ,  (In current working directory / root pod dir)
+  2. Frontend Payslip Component (to be identified)
+  3. Backend Payslip PDF generation route (to be identified)
 
 **Areas that need refactoring**:
--  handles a massive amount of aggregations and date math. It is functional but highly susceptible to date parsing bugs (as seen in the current P0 issue).
+- PDF Generation logic is becoming heavily concentrated. If generating the Payslip PDF, ensure the code is modular.
 
 **key api endpoints**
--  (Currently broken for  dates)
+- 
 - 
 - 
 
 **Critical Info for New Agent** 
-- To reproduce the P0 bug, hit  via curl with . Find out why it's returning zeros while  works perfectly.
-- You must test as an Admin to navigate freely, as setting a user to  will severely restrict your UI access.
+- The user uses specific terminology for PDF layouts. Examine the uploaded file  (if available via  context) to mimic the exact layout they expect for the Payslip.
+- The new images (, , ) are located in the pod's current working directory (likely  or ). Move them to an appropriate backend static/assets folder before referencing them in ReportLab.
 
 **documents and test reports created in this job** 
-  -  (Updated)
-  -  (Passed Commission Upload Tests)
-  -  (Passed Document Unification Tests)
+  - 
+  - 
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User**: see i still cant see the documents under franchise details (Agent explained they need to deploy to see fix).
-2. **User**: yes please
-3. **User**: let the franchise owner see the documents no upload just view download (Agent added view-only tab).
-4. **User**: nothing is visible (User testing undeployed code).
-5. **User**: same franchise two different screens different data for same month why?? (Agent fixed period logic discrepancy).
-6. **User**: it should show net revenue and their revenue share... exactly same as MIS dashboard (Agent rebuilt the dashboard UI).
-7. **User**: see i think u give direct months and range instead of current month... (Agent added exact Month Picker).
-8. **User**: if i give full franchise as role to franchise owners then they will see all franchise related details which i dont want (Agent implemented strict RBAC ).
-9. **User**: everything is blank not linked to franchise and sales data is 0 (Agent fixed document query bug).
-10. **User**: see still the owners dashboard is zero for perth center [attached image] (Agent realized  endpoint is broken while charts work).
-- **Pending Human Message**: Resolve the /bin/bash KPI bug in the Franchise Owner Dashboard. 
+1. **User**: Fix Franchise Owner Dashboard once and for all. Requirement: NO CENTER DROPDOWN... (Resolved)
+2. **User**: please help me how u are parcing this and why are considering only 42 record when we have 43... (Resolved)
+3. **User**: i think if it is cancelled also the amount get deducted from our accounts so we have to consider those row as well... (Resolved)
+4. **User**: write text prompt for swiggy... Net Deductions is what actual get deducted... show GST and other deduction... (Resolved)
+5. **User**: Gross Amount → GST/Tax Deductions → Other Deductions → Net Payout (Resolved)
+6. **User**: as of now i have one issue for card payment... can u calculate it card commisison //bank charges... (Resolved)
+7. **User**: similar thing for phone pay (Resolved)
+8. **User**: this are not the charges this are the amount which will in next month bank so write sandry daters amount instead of charges (Resolved)
+9. **User**: AFTER SUCCEFULLY UPLOADED ALL THE COMMISION THE BELOW BLOCKS SHOULD HAVE ALL THE AMOUNT S AND ABOVE TAB ASLOS... (Resolved)
+10. **User**: THE DOCUNLOAD ARE NOT HAPPANING CAN U HELP AND GIVE ME CORRECTED pib REPORT NOW (Resolved)
+- **Pending HUMAN message**: PAYSLIP SECTION SHOULD HAVE LOGO AND SIGNATURE OPTION AND SHOULD HAVE EMPLOYEE LIST SORTED FROM EMPLOYEE DAATABE MASTER TABLE FOR SELECTED CENTER SHOULD HAVE LOGO ON TOP AND SHOULD ASK WHO SIGNATURE SHOULD BE USED SANDEEP gADHWAL OR jAYANTI kATHALE WITH SEAL (Assets downloaded; implementation NOT STARTED).
 
 **Project Health Check:**
-- Broken:  (for custom periods).
-- Mocked: WhatsApp Integration.
+- Broken: None.
+- Mocked: WhatsApp Notifications.
 
 **3rd Party Integrations**
--  /  (Excel exports and parsing)
--  (PDF generation)
+-  /  — Excel parsing.
+-  — PDF Generation.
 - Emergent Object Storage — uses Emergent integrations library
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iterations 40 & 41).
+  - Testing agent used after significant changes: YES (Iterations 42 & 43).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions:  failing date logic after the Month Picker implementation.
+  - Known regressions: None
 
 **Credentials to test flow:**
-- Super Admin: Center  (or select from dropdown), mobile , OTP .
+- Super Admin: Center , mobile , OTP .
+- Test Franchise Owner: Center , mobile , OTP .
 
 **What agent forgot to execute**
-The agent was right in the middle of inspecting  lines  to find out why the MIS overview calculations result in /bin/bash for custom period dates. Pick up exactly there.</analysis>
+The agent downloaded the images for the Payslip logo and signatures but did not yet inspect the Payslip frontend page or the backend PDF generator to apply them. Start there.</analysis>
