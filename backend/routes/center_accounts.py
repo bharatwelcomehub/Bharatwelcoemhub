@@ -905,15 +905,16 @@ async def generate_pib_report(req: PIBGenerateRequest):
     
     commissions = summary["commissions"]
     commission_data = [
-        ["Platform", "Gross Amount", "Commission", "Net Payout"],
+        ["Platform", "Gross Amount", "Total Deductions", "Net Payout"],
     ]
     
     for platform, data in commissions["by_platform"].items():
-        if data["gross"] > 0 or data["commission"] > 0:
+        ded = data.get("deduction", data.get("commission", 0))
+        if data["gross"] > 0 or ded > 0:
             commission_data.append([
                 platform.title().replace("_", " "),
                 f"{currency} {data['gross']:,.2f}",
-                f"{currency} {data['commission']:,.2f}",
+                f"{currency} {ded:,.2f}",
                 f"{currency} {data['net']:,.2f}"
             ])
     
@@ -1087,12 +1088,12 @@ async def generate_gst_summary(req: PIBGenerateRequest):
     gst_data = [
         ["Description", "Taxable Amount", "GST Rate", "GST Amount"],
         ["Sales GST", f"{currency} {summary['sales']['total_sale']:,.2f}", f"{tax_rules['sales_gst_rate']:.0f}%", f"{currency} {sales_gst:,.2f}"],
-        ["Revenue/Profit Share", f"{currency} {summary['share_calculation']['base_amount']:,.2f}", f"{tax_rules['share_gst_rate']:.0f}%", f"{currency} {summary['share_calculation']['gst_amount']:,.2f}"],
+        ["Revenue/Profit Share", f"{currency} {summary['share_calculation']['purnabramha']['base_amount']:,.2f}", f"{tax_rules['share_gst_rate']:.0f}%", f"{currency} {summary['share_calculation']['purnabramha']['gst_amount']:,.2f}"],
     ]
     
     if summary["country"] == "India":
-        gst_data.append(["  - CGST (9%)", "", "", f"{currency} {summary['share_calculation']['cgst']:,.2f}"])
-        gst_data.append(["  - SGST (9%)", "", "", f"{currency} {summary['share_calculation']['sgst']:,.2f}"])
+        gst_data.append(["  - CGST (9%)", "", "", f"{currency} {summary['share_calculation']['purnabramha']['cgst']:,.2f}"])
+        gst_data.append(["  - SGST (9%)", "", "", f"{currency} {summary['share_calculation']['purnabramha']['sgst']:,.2f}"])
     
     gst_table = Table(gst_data, colWidths=[150, 120, 80, 100])
     gst_table.setStyle(TableStyle([
@@ -1138,14 +1139,15 @@ async def generate_commission_summary(req: PIBGenerateRequest):
     currency = "AUD" if summary["country"] == "Australia" else "Rs."
     commissions = summary["commissions"]
     
-    comm_data = [["Platform", "Gross Orders", "Commission Charged", "Net Payout", "Commission %"]]
+    comm_data = [["Platform", "Gross Orders", "Total Deductions", "Net Payout", "Deduction %"]]
     
     for platform, data in commissions["by_platform"].items():
-        comm_pct = (data["commission"] / data["gross"] * 100) if data["gross"] > 0 else 0
+        ded = data.get("deduction", data.get("commission", 0))
+        comm_pct = (ded / data["gross"] * 100) if data["gross"] > 0 else 0
         comm_data.append([
             platform.title().replace("_", " "),
             f"{currency} {data['gross']:,.2f}",
-            f"{currency} {data['commission']:,.2f}",
+            f"{currency} {ded:,.2f}",
             f"{currency} {data['net']:,.2f}",
             f"{comm_pct:.1f}%"
         ])
