@@ -513,7 +513,7 @@ async def seed_masters_from_existing(data: dict):
     existing_franchises = await db.franchises.find({}, {"_id": 0}).to_list(100)
     c = 0
     for f in existing_franchises:
-        name = f.get("franchiseName", f.get("name", "")).strip()
+        name = f.get("franchise_name", f.get("franchiseName", f.get("name", ""))).strip()
         if not name:
             continue
         exists = await db.master_franchises.find_one({"name": {"$regex": f"^{name}$", "$options": "i"}})
@@ -521,12 +521,12 @@ async def seed_masters_from_existing(data: dict):
             await db.master_franchises.insert_one({
                 **meta,
                 "name": name,
-                "owner_name": f.get("ownerName", ""),
-                "owner_email": f.get("ownerEmail", ""),
-                "owner_phone": f.get("ownerPhone", ""),
-                "center": f.get("center", ""),
-                "agreement_date": f.get("agreementDate", ""),
-                "royalty_percent": f.get("royaltyPercent", 0),
+                "owner_name": f.get("primary_contact_name", f.get("ownerName", "")),
+                "owner_email": f.get("primary_contact_email", f.get("ownerEmail", "")),
+                "owner_phone": f.get("primary_contact_phone", f.get("ownerPhone", "")),
+                "center": f.get("franchise_code", f.get("center", "")),
+                "agreement_date": f.get("agreement_start_date", f.get("agreementDate", "")),
+                "royalty_percent": f.get("revenue_share_percentage", f.get("royaltyPercent", 0)),
                 "address": f.get("address", ""),
                 "city": f.get("city", ""),
                 "state": f.get("state", ""),
