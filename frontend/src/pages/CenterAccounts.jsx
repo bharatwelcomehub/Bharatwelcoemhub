@@ -246,7 +246,7 @@ export default function CenterAccounts() {
       formData.append('center', selectedCenter);
       formData.append('month', uploadMonth);
       formData.append('file', uploadFile);
-      if (bankFile && uploadPlatform === 'cards') {
+      if (bankFile && (uploadPlatform === 'cards' || uploadPlatform === 'phonepe')) {
         formData.append('bank_file', bankFile);
       }
 
@@ -1745,9 +1745,9 @@ export default function CenterAccounts() {
                 <p className="text-sm text-gray-500 mt-1">{uploadFile.name}</p>
               )}
             </div>
-            {uploadPlatform === 'cards' && (
+            {(uploadPlatform === 'cards' || uploadPlatform === 'phonepe') && (
               <div>
-                <Label>Bank Statement (.xlsx) — for MDR/charge calculation</Label>
+                <Label>Bank Statement (.xlsx) — for charge calculation</Label>
                 <Input
                   type="file"
                   accept=".xlsx,.xls"
@@ -1757,13 +1757,18 @@ export default function CenterAccounts() {
                 {bankFile && (
                   <p className="text-sm text-gray-500 mt-1">{bankFile.name}</p>
                 )}
-                <p className="text-xs text-amber-600 mt-1">Upload your bank statement to auto-calculate card charges by matching EDC settlements with bank credits.</p>
+                <p className="text-xs text-amber-600 mt-1">
+                  {uploadPlatform === 'cards'
+                    ? 'Upload your bank statement to auto-calculate card charges by matching EDC settlements with bank credits.'
+                    : 'Upload your bank statement to auto-calculate PhonePe charges by matching UPI settlements with bank credits (next-day settlement).'}
+                </p>
               </div>
             )}
             <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
               <p className="font-medium mb-1">Supported formats:</p>
               <p>Zomato, Swiggy, DoorDash, PhonePe, Cards — monthly reports as downloaded from each platform.</p>
               {uploadPlatform === 'cards' && <p className="mt-1">For Cards: Upload EDC report + Bank Statement to calculate exact bank charges (MDR).</p>}
+              {uploadPlatform === 'phonepe' && <p className="mt-1">For PhonePe: Upload transaction report + Bank Statement to calculate exact PhonePe charges.</p>}
             </div>
           </div>
           <DialogFooter>
@@ -1816,7 +1821,7 @@ export default function CenterAccounts() {
                 </div>
               )}
               {/* Daily breakdown for Cards with bank statement */}
-              {parsedPreview.platform === 'cards' && parsedPreview.raw_summary?.bank_statement_uploaded && (
+              {(parsedPreview.platform === 'cards' || parsedPreview.platform === 'phonepe') && parsedPreview.raw_summary?.bank_statement_uploaded && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-gray-700">Daily MDR Breakdown</p>

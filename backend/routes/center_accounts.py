@@ -641,9 +641,12 @@ async def upload_commission_excel(
 
     try:
         detected = platform.strip().lower() if platform.strip() else None
-        # For cards with bank statement, use the two-file parser
+        # For cards/phonepe with bank statement, use the two-file parser
         if detected == "cards" and bank_tmp_path:
             result = parse_cards(tmp_path, bank_tmp_path)
+        elif detected == "phonepe" and bank_tmp_path:
+            from routes.commission_parser import parse_phonepe
+            result = parse_phonepe(tmp_path, bank_tmp_path)
         else:
             result = parse_commission_file(tmp_path, detected, file.filename)
     except Exception as e:

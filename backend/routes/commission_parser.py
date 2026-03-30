@@ -280,8 +280,10 @@ def parse_doordash(filepath: str) -> Dict[str, Any]:
     }
 
 
-def parse_phonepe(filepath: str) -> Dict[str, Any]:
-    """Parse PhonePe transaction report — payment collection only."""
+def parse_phonepe(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
+    """Parse PhonePe transaction report + optionally match with Bank Statement.
+    PhonePe settles next-day: bank credit on day D is for EDC transactions on day D-1.
+    If bank_filepath provided: matches and calculates PhonePe charges."""
     df = pd.read_excel(filepath)
 
     status_col = [c for c in df.columns if "transaction status" in c.lower()]
@@ -292,20 +294,149 @@ def parse_phonepe(filepath: str) -> Dict[str, Any]:
 
     amt_col = [c for c in df.columns if "total transaction amount" in c.lower()]
     total_amount = float(pd.to_numeric(completed[amt_col[0]], errors="coerce").sum()) if amt_col else 0.0
+    total_txns = int(len(df))
+    completed_txns = int(len(completed))
+
+    if not bank_filepath:
+        return {
+            "platform": "phonepe",
+            "gross_amount": round(total_amount, 2),
+            "gst_tax_deductions": 0.0,
+            "other_deductions": 0.0,
+            "net_payout": round(total_amount, 2),
+            "order_count": completed_txns,
+            "tds": 0.0,
+            "currency": "INR",
+            "raw_summary": {
+                "total_transactions": total_txns,
+                "completed_transactions": completed_txns,
+                "total_collection": round(total_amount, 2),
+                "bank_statement_uploaded": False,
+            },
+        }
+
+    # ── MATCH WITH BANK STATEMENT ──
+    from datetime import timedelta
+
+    # Parse bank statement
+    df_bank_raw = pd.read_excel(bank_filepath, header=None)
+    header_row = None
+    for i in range(min(30, len(df_bank_raw))):
+        row_vals = [str(v).lower() for v in df_bank_raw.iloc[i].tolist() if str(v) != 'nan']
+        joined = ' '.join(row_vals)
+        if 'transaction date' in joined and ('particulars' in joined or 'description' in joined):
+            header_row = i
+            break
+        if 'txn date' in joined and 'debit' in joined:
+            header_row = i
+            break
+
+    if header_row is None:
+        raise ValueError("Could not find transaction header in bank statement.")
+
+    df_bank = pd.read_excel(bank_filepath, header=header_row)
+    df_bank.columns = [str(c).strip() for c in df_bank.columns]
+
+    # Find PhonePe rows
+    particulars_col = None
+    for c in df_bank.columns:
+        if 'particular' in c.lower() or 'description' in c.lower() or 'narration' in c.lower():
+            particulars_col = c
+            break
+
+    credit_col = None
+    for c in df_bank.columns:
+        if c.lower().strip() == 'credit':
+            credit_col = c
+            break
+
+    txn_date_col = None
+    for c in df_bank.columns:
+        if 'transaction date' in c.lower() or 'txn date' in c.lower():
+            txn_date_col = c
+            break
+
+    phonepe_rows = df_bank[df_bank[particulars_col].str.contains('PHONEPE', case=False, na=False)].copy()
+
+    if phonepe_rows.empty:
+        raise ValueError("No PhonePe settlement entries found in bank statement.")
+
+    phonepe_rows['bank_credit'] = pd.to_numeric(phonepe_rows[credit_col], errors='coerce').fillna(0)
+    phonepe_rows['bank_date'] = pd.to_datetime(phonepe_rows[txn_date_col], dayfirst=True)
+    # PhonePe settles next-day: bank credit date - 1 = EDC transaction date
+    phonepe_rows['edc_date'] = (phonepe_rows['bank_date'] - timedelta(days=1)).dt.strftime('%Y-%m-%d')
+
+    # Group EDC by date
+    completed_copy = completed.copy()
+    completed_copy['txn_date'] = pd.to_datetime(completed_copy['Transaction Date']).dt.strftime('%Y-%m-%d')
+    edc_by_date = completed_copy.groupby('txn_date').agg(
+        edc_amount=(amt_col[0], 'sum'),
+        txn_count=(amt_col[0], 'count')
+    ).reset_index()
+    edc_by_date.columns = ['date', 'edc_amount', 'txn_count']
+
+    # Group bank by EDC date (shifted)
+    bank_by_edc_date = phonepe_rows.groupby('edc_date').agg(
+        bank_credit=('bank_credit', 'sum')
+    ).reset_index()
+    bank_by_edc_date.columns = ['date', 'bank_credit']
+
+    # Merge
+    merged = pd.merge(edc_by_date, bank_by_edc_date, on='date', how='outer').sort_values('date').fillna(0)
+    merged['charge'] = merged['edc_amount'] - merged['bank_credit']
+    merged['charge_pct'] = merged.apply(
+        lambda r: round((r['charge'] / r['edc_amount'] * 100), 2) if r['edc_amount'] > 0 else 0, axis=1
+    )
+
+    # Monthly totals: use EDC month range, filter bank settlements within it
+    edc_dates_parsed = pd.to_datetime(completed_copy['txn_date'])
+    edc_month_start = edc_dates_parsed.min().strftime('%Y-%m-%d')
+    edc_month_end = edc_dates_parsed.max().strftime('%Y-%m-%d')
+
+    bank_in_month = phonepe_rows[
+        (phonepe_rows['edc_date'] >= edc_month_start) &
+        (phonepe_rows['edc_date'] <= edc_month_end)
+    ]
+    total_bank_in_month = float(bank_in_month['bank_credit'].sum())
+    total_charges = total_amount - total_bank_in_month
+    avg_charge_pct = round((total_charges / total_amount * 100), 2) if total_amount > 0 else 0
+
+    # Daily breakdown
+    daily_breakdown = []
+    for _, r in merged.iterrows():
+        daily_breakdown.append({
+            "date": r['date'],
+            "edc_amount": round(float(r['edc_amount']), 2),
+            "bank_credit": round(float(r['bank_credit']), 2),
+            "bank_charge": round(float(r['charge']), 2),
+            "charge_pct": float(r['charge_pct']),
+            "txn_count": int(r['txn_count']),
+        })
+
+    unmatched_edc = merged[(merged['edc_amount'] > 0) & (merged['bank_credit'] == 0)]
+    unmatched_bank = merged[(merged['edc_amount'] == 0) & (merged['bank_credit'] > 0)]
 
     return {
         "platform": "phonepe",
         "gross_amount": round(total_amount, 2),
         "gst_tax_deductions": 0.0,
-        "other_deductions": 0.0,
-        "net_payout": round(total_amount, 2),
-        "order_count": int(len(completed)),
+        "other_deductions": round(max(total_charges, 0), 2),
+        "net_payout": round(total_bank_in_month, 2),
+        "order_count": completed_txns,
         "tds": 0.0,
         "currency": "INR",
         "raw_summary": {
-            "total_transactions": int(len(df)),
-            "completed_transactions": int(len(completed)),
+            "total_transactions": total_txns,
+            "completed_transactions": completed_txns,
             "total_collection": round(total_amount, 2),
+            "total_bank_credits_in_month": round(total_bank_in_month, 2),
+            "total_charges": round(max(total_charges, 0), 2),
+            "avg_charge_rate": max(avg_charge_pct, 0),
+            "bank_settlements_matched": int(len(bank_in_month)),
+            "unmatched_edc_days": int(len(unmatched_edc)),
+            "unmatched_bank_days": int(len(unmatched_bank)),
+            "daily_breakdown": daily_breakdown,
+            "bank_statement_uploaded": True,
         },
     }
 
