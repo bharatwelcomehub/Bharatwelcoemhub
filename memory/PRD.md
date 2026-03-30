@@ -36,6 +36,7 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Commission Upload (Excel-driven)**:
   - Upload monthly Excel reports (Zomato, Swiggy, DoorDash, PhonePe, Cards)
   - Auto-parse gross amount, commission, GST on commission, TDS, net payout
+  - Dual-file upload for Cards (EDC + Bank Statement) and PhonePe (EDC + Bank Statement)
   - Stored in `monthly_commissions` collection
 
 ### 7. MIS Dashboard
@@ -50,13 +51,19 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - Centralized system using Emergent Object Storage
 - Approval workflow (pending/approved/rejected)
 - Center and franchise-level filtering
-- Documents uploaded for a center auto-appear in linked franchise details
-- Franchise Owner Dashboard shows documents (view + download only, no upload)
 
 ### 10. Franchise Owner Dashboard
 - View-only dashboard for franchise owners
-- Tabs: Sales Overview, Expense Breakdown, Franchise Info, **Documents**
-- Documents tab: Read-only view with download capability
+- Tabs: Sales Overview, Expense Breakdown, Franchise Info, Documents
+- RBAC: No center dropdown, auto-resolved center from DB mapping
+
+### 11. Payslip Generation
+- Sorted employee dropdown from Employee Master DB for selected center
+- Signatory selection: Sandeep Gadhwal or Jayanti Kathale (with Seal)
+- PDF with Logo (pb_logo.png) at top
+- PDF with selected signature image at bottom
+- Bulk and single employee modes
+- PDF and DOCX format support
 
 ## Technical Architecture
 - **Frontend**: React + Shadcn UI
@@ -64,11 +71,9 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Database**: MongoDB
 - **Storage**: Emergent Object Storage for documents
 - **Excel Parsing**: pandas + openpyxl
+- **PDF Generation**: ReportLab
 
-## Profit Calculation Rule
-`Profit = Total Sales - Total Expenses - GST (from actual gst_amount) - Commissions (from uploaded Excel)`
-
-## What's Been Implemented (as of March 29, 2026)
+## What's Been Implemented
 
 ### Completed
 - Auth system with OTP login
@@ -78,21 +83,20 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - Sales & Expenses module
 - Center Accounts with financial summary
 - Commission Upload (Excel-driven) — Parses Zomato, Swiggy, DoorDash, PhonePe, Cards
+- Dual-file upload for Cards (EDC + Bank Statement) for MDR calculation
+- Dual-file upload for PhonePe (EDC + Bank Statement) for Sundry Debtors
+- 4-Card Commission UI (Gross -> GST/Tax -> Other Deductions -> Net Payout)
 - MIS Dashboard with correct profit formula
 - Franchise Management with Document Management
-- Document Management via Object Storage (unified - center-linked docs show in franchise details)
-- Franchise Owner Dashboard with Documents tab (view + download only)
-- Master data re-seeded (centers, managers, expenses, expense_heads, doc categories)
-- **[2026-03-29] Fixed $0 KPI bug**: Frontend now reads `overview.summary.*` instead of `overview.*`
-- **[2026-03-29] Fixed expense data mapping**: Pie chart uses `amount` key (was incorrectly using `total`)
-- **[2026-03-29] RBAC: Franchise Exit filtering**: Franchise owners only see their own exit entries
-- **[2026-03-29] RBAC: Center dropdown hidden for franchise owners** on Owner Dashboard
-- **[2026-03-29] Franchise owners can access Exit & Closure** (view-only, no initiate/edit)
-- **[2026-03-29] Franchise Owner Center Auto-Resolution**: Center auto-detected from Franchise Master → Center Mapping via DB (no hardcoding)
-- **[2026-03-29] New endpoint /api/franchises/resolve-owner-center**: Resolves franchise center from DB mapping with 4 fallback strategies
-- **[2026-03-29] MIS access for franchise owners**: Updated check_mis_access to allow franchise_owner + franchise role
-- **[2026-03-29] Robust RBAC sidebar**: Non-admin franchise users see only Exit & Closure + Owner Dashboard (Franchise Management, Documents hidden)
-- **[2026-03-29] by-center endpoint access**: Franchise owners can now call /api/franchises/by-center/{code} to get franchise info
+- Document Management via Object Storage
+- Franchise Owner Dashboard with RBAC (auto-resolved center, no dropdown)
+- PIB, GST, and Commission PDF generation
+- **[2026-03-30] Payslip Generation with Logo, Signatory Selection, Sorted Employee Dropdown**
+  - `POST /api/payslip_employees` — Returns sorted employee list for a center
+  - Signatory dropdown (Sandeep Gadhwal / Jayanti Kathale with Seal)
+  - PDF embeds `pb_logo.png` at top and selected signature at bottom
+  - Employee dropdown replaces free-text input for single employee mode
+  - 100% test pass rate (11/11 backend, all frontend verified)
 
 ### Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
