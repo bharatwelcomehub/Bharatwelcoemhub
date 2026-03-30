@@ -1784,8 +1784,10 @@ export default function CenterAccounts() {
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(parsedPreview.net_payout, accountSummary?.country)}</p>
                 </div>
               </div>
-              <div className="flex gap-4 text-sm text-gray-600">
-                <span>Orders: <strong>{parsedPreview.order_count}</strong></span>
+              <div className="flex gap-4 text-sm text-gray-600 flex-wrap">
+                <span>Orders: <strong>{parsedPreview.order_count}</strong>{parsedPreview.raw_summary?.total_orders && parsedPreview.raw_summary.total_orders !== parsedPreview.order_count && (
+                  <span className="text-gray-400"> / {parsedPreview.raw_summary.total_orders} total ({parsedPreview.raw_summary.total_orders - parsedPreview.order_count} excluded)</span>
+                )}</span>
                 <span>TDS: <strong>{formatCurrency(parsedPreview.tds, accountSummary?.country)}</strong></span>
                 <span>Currency: <strong>{parsedPreview.currency}</strong></span>
               </div>
