@@ -310,8 +310,10 @@ def parse_phonepe(filepath: str) -> Dict[str, Any]:
     }
 
 
-def parse_cards(filepath: str) -> Dict[str, Any]:
-    """Parse Card settlement report — only SETTLED transactions."""
+def parse_cards(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
+    """Parse Card EDC report + optionally match with Bank Statement to calculate MDR charges.
+    If bank_filepath is provided: matches EDC transactions to bank settlements by date.
+    If not: returns EDC totals only (no commission calculation)."""
     df = pd.read_excel(filepath)
 
     status_col = [c for c in df.columns if c.lower() == "status"]
@@ -322,20 +324,156 @@ def parse_cards(filepath: str) -> Dict[str, Any]:
 
     amt_col = [c for c in df.columns if c.lower() == "amount"]
     total_amount = float(pd.to_numeric(settled[amt_col[0]], errors="coerce").sum()) if amt_col else 0.0
+    total_txns = int(len(df))
+    settled_txns = int(len(settled))
+    failed_txns = total_txns - settled_txns
+
+    # If no bank statement, return EDC-only summary
+    if not bank_filepath:
+        return {
+            "platform": "cards",
+            "gross_amount": round(total_amount, 2),
+            "gst_tax_deductions": 0.0,
+            "other_deductions": 0.0,
+            "net_payout": round(total_amount, 2),
+            "order_count": settled_txns,
+            "tds": 0.0,
+            "currency": "INR",
+            "raw_summary": {
+                "total_transactions": total_txns,
+                "settled_transactions": settled_txns,
+                "failed_transactions": failed_txns,
+                "total_settled_amount": round(total_amount, 2),
+                "bank_statement_uploaded": False,
+            },
+        }
+
+    # ── MATCH WITH BANK STATEMENT ──
+    import re
+
+    # Parse bank statement (find header row dynamically)
+    df_bank_raw = pd.read_excel(bank_filepath, header=None)
+    header_row = None
+    for i in range(min(30, len(df_bank_raw))):
+        row_vals = [str(v).lower() for v in df_bank_raw.iloc[i].tolist() if str(v) != 'nan']
+        joined = ' '.join(row_vals)
+        if 'transaction date' in joined and ('particulars' in joined or 'description' in joined):
+            header_row = i
+            break
+        if 'txn date' in joined and 'debit' in joined:
+            header_row = i
+            break
+
+    if header_row is None:
+        raise ValueError("Could not find transaction header in bank statement. Expected columns: Transaction Date, Particulars, Credit, Debit.")
+
+    df_bank = pd.read_excel(bank_filepath, header=header_row)
+    df_bank.columns = [str(c).strip() for c in df_bank.columns]
+
+    # Find card settlement rows in bank (CARD PMT pattern)
+    particulars_col = None
+    for c in df_bank.columns:
+        if 'particular' in c.lower() or 'description' in c.lower() or 'narration' in c.lower():
+            particulars_col = c
+            break
+    if not particulars_col:
+        raise ValueError("Could not find Particulars/Description column in bank statement.")
+
+    credit_col = None
+    for c in df_bank.columns:
+        if c.lower().strip() == 'credit':
+            credit_col = c
+            break
+
+    card_settlements = df_bank[df_bank[particulars_col].str.contains('CARD PMT', case=False, na=False)].copy()
+
+    if card_settlements.empty:
+        raise ValueError("No card settlement entries (CARD PMT) found in bank statement.")
+
+    # Extract settlement date from "SETDT-DDMMYYYY"
+    def extract_setdt(desc):
+        m = re.search(r'SETDT-(\d{2})(\d{2})(\d{4})', str(desc))
+        if m:
+            return f'{m.group(3)}-{m.group(2)}-{m.group(1)}'
+        return None
+
+    card_settlements['settle_date'] = card_settlements[particulars_col].apply(extract_setdt)
+    card_settlements['bank_credit'] = pd.to_numeric(card_settlements[credit_col], errors='coerce').fillna(0)
+
+    # ── CALCULATE MONTHLY TOTALS ──
+    # For accurate MDR: compare EDC month total vs bank settlements for same month (by SETDT)
+    # Get the month from the EDC data
+    settled_copy = settled.copy()
+    settled_copy['txn_date'] = pd.to_datetime(settled_copy['Date']).dt.strftime('%Y-%m-%d')
+    edc_dates = pd.to_datetime(settled_copy['Date'])
+    edc_month_start = edc_dates.min().strftime('%Y-%m-01') if len(edc_dates) > 0 else None
+    edc_month_end = edc_dates.max().strftime('%Y-%m-%d') if len(edc_dates) > 0 else None
+
+    # Filter bank settlements where SETDT falls within the EDC month
+    bank_in_month = card_settlements[
+        (card_settlements['settle_date'] >= edc_month_start) &
+        (card_settlements['settle_date'] <= edc_month_end)
+    ] if edc_month_start else card_settlements
+
+    total_bank_in_month = float(bank_in_month['bank_credit'].sum())
+    total_bank_charges = total_amount - total_bank_in_month
+    avg_mdr = round((total_bank_charges / total_amount * 100), 2) if total_amount > 0 else 0
+
+    # ── DAILY BREAKDOWN (for reference) ──
+    edc_by_date = settled_copy.groupby('txn_date').agg(
+        edc_amount=('Amount', 'sum'),
+        txn_count=('Amount', 'count')
+    ).reset_index()
+    edc_by_date.columns = ['date', 'edc_amount', 'txn_count']
+
+    bank_by_date = card_settlements.groupby('settle_date').agg(
+        bank_credit=('bank_credit', 'sum')
+    ).reset_index()
+    bank_by_date.columns = ['date', 'bank_credit']
+
+    merged = pd.merge(edc_by_date, bank_by_date, on='date', how='outer').sort_values('date').fillna(0)
+    merged['charge'] = merged['edc_amount'] - merged['bank_credit']
+    merged['charge_pct'] = merged.apply(
+        lambda r: round((r['charge'] / r['edc_amount'] * 100), 2) if r['edc_amount'] > 0 else 0, axis=1
+    )
+
+    daily_breakdown = []
+    for _, r in merged.iterrows():
+        daily_breakdown.append({
+            "date": r['date'],
+            "edc_amount": round(float(r['edc_amount']), 2),
+            "bank_credit": round(float(r['bank_credit']), 2),
+            "bank_charge": round(float(r['charge']), 2),
+            "charge_pct": float(r['charge_pct']),
+            "txn_count": int(r['txn_count']),
+        })
+
+    # Unmatched dates
+    unmatched_edc = merged[(merged['edc_amount'] > 0) & (merged['bank_credit'] == 0)]
+    unmatched_bank = merged[(merged['edc_amount'] == 0) & (merged['bank_credit'] > 0)]
 
     return {
         "platform": "cards",
         "gross_amount": round(total_amount, 2),
         "gst_tax_deductions": 0.0,
-        "other_deductions": 0.0,
-        "net_payout": round(total_amount, 2),
-        "order_count": int(len(settled)),
+        "other_deductions": round(max(total_bank_charges, 0), 2),
+        "net_payout": round(total_bank_in_month, 2),
+        "order_count": settled_txns,
         "tds": 0.0,
         "currency": "INR",
         "raw_summary": {
-            "total_transactions": int(len(df)),
-            "settled_transactions": int(len(settled)),
-            "total_settled_amount": round(total_amount, 2),
+            "total_transactions": total_txns,
+            "settled_transactions": settled_txns,
+            "failed_transactions": failed_txns,
+            "total_edc_amount": round(total_amount, 2),
+            "total_bank_credits_in_month": round(total_bank_in_month, 2),
+            "total_bank_charges": round(max(total_bank_charges, 0), 2),
+            "avg_mdr_rate": max(avg_mdr, 0),
+            "bank_settlements_matched": int(len(bank_in_month)),
+            "unmatched_edc_days": int(len(unmatched_edc)),
+            "unmatched_bank_days": int(len(unmatched_bank)),
+            "daily_breakdown": daily_breakdown,
+            "bank_statement_uploaded": True,
         },
     }
 

@@ -611,15 +611,17 @@ async def upload_commission_excel(
     platform: str = Form(""),
     center: str = Form(...),
     month: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    bank_file: Optional[UploadFile] = File(None)
 ):
-    """Parse a commission Excel file and return extracted summary for preview."""
+    """Parse a commission Excel file and return extracted summary for preview.
+    For 'cards' platform, optionally accepts a bank_file to calculate MDR charges."""
     session = await check_access(token)
 
     if not file.filename.endswith((".xlsx", ".xls")):
         raise HTTPException(400, "File must be Excel (.xlsx / .xls)")
 
-    from routes.commission_parser import parse_commission_file, detect_platform
+    from routes.commission_parser import parse_commission_file, parse_cards, detect_platform
     import uuid
 
     content = await file.read()
@@ -627,19 +629,41 @@ async def upload_commission_excel(
     with open(tmp_path, "wb") as f:
         f.write(content)
 
+    bank_tmp_path = None
+    if bank_file and bank_file.filename:
+        if not bank_file.filename.endswith((".xlsx", ".xls")):
+            import os; os.remove(tmp_path)
+            raise HTTPException(400, "Bank statement must be Excel (.xlsx / .xls)")
+        bank_content = await bank_file.read()
+        bank_tmp_path = f"/tmp/bank_{uuid.uuid4().hex}.xlsx"
+        with open(bank_tmp_path, "wb") as bf:
+            bf.write(bank_content)
+
     try:
         detected = platform.strip().lower() if platform.strip() else None
-        result = parse_commission_file(tmp_path, detected, file.filename)
+        # For cards with bank statement, use the two-file parser
+        if detected == "cards" and bank_tmp_path:
+            result = parse_cards(tmp_path, bank_tmp_path)
+        else:
+            result = parse_commission_file(tmp_path, detected, file.filename)
     except Exception as e:
         logger.error(f"Commission parse error: {e}")
-        import os; os.remove(tmp_path)
+        import os
+        os.remove(tmp_path)
+        if bank_tmp_path:
+            os.remove(bank_tmp_path)
         raise HTTPException(400, f"Failed to parse file: {str(e)}")
 
-    import os; os.remove(tmp_path)
+    import os
+    os.remove(tmp_path)
+    if bank_tmp_path:
+        os.remove(bank_tmp_path)
 
     result["center"] = center
     result["month"] = month
     result["original_filename"] = file.filename
+    if bank_file and bank_file.filename:
+        result["bank_filename"] = bank_file.filename
 
     return {"success": True, "parsed": result}
 

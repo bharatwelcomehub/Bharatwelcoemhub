@@ -74,6 +74,7 @@ export default function CenterAccounts() {
   // Commission upload states
   const [uploadPlatform, setUploadPlatform] = useState('');
   const [uploadFile, setUploadFile] = useState(null);
+  const [bankFile, setBankFile] = useState(null);
   const [uploadMonth, setUploadMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -245,6 +246,9 @@ export default function CenterAccounts() {
       formData.append('center', selectedCenter);
       formData.append('month', uploadMonth);
       formData.append('file', uploadFile);
+      if (bankFile && uploadPlatform === 'cards') {
+        formData.append('bank_file', bankFile);
+      }
 
       const res = await fetch(`${API}/api/center-accounts/upload-commission-excel`, {
         method: 'POST',
@@ -286,6 +290,7 @@ export default function CenterAccounts() {
         setShowPreviewModal(false);
         setParsedPreview(null);
         setUploadFile(null);
+        setBankFile(null);
         setUploadPlatform('');
         fetchCommissions();
         fetchAccountSummary();
@@ -1740,9 +1745,25 @@ export default function CenterAccounts() {
                 <p className="text-sm text-gray-500 mt-1">{uploadFile.name}</p>
               )}
             </div>
+            {uploadPlatform === 'cards' && (
+              <div>
+                <Label>Bank Statement (.xlsx) — for MDR/charge calculation</Label>
+                <Input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => setBankFile(e.target.files?.[0] || null)}
+                  data-testid="upload-bank-file-input"
+                />
+                {bankFile && (
+                  <p className="text-sm text-gray-500 mt-1">{bankFile.name}</p>
+                )}
+                <p className="text-xs text-amber-600 mt-1">Upload your bank statement to auto-calculate card charges by matching EDC settlements with bank credits.</p>
+              </div>
+            )}
             <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
               <p className="font-medium mb-1">Supported formats:</p>
               <p>Zomato, Swiggy, DoorDash, PhonePe, Cards — monthly reports as downloaded from each platform.</p>
+              {uploadPlatform === 'cards' && <p className="mt-1">For Cards: Upload EDC report + Bank Statement to calculate exact bank charges (MDR).</p>}
             </div>
           </div>
           <DialogFooter>
@@ -1792,6 +1813,46 @@ export default function CenterAccounts() {
               {parsedPreview.gross_amount > 0 && (parsedPreview.gst_tax_deductions > 0 || parsedPreview.other_deductions > 0) && (
                 <div className="p-3 bg-amber-50 rounded text-sm text-amber-700">
                   Total Deduction Rate: <strong>{(((parsedPreview.gst_tax_deductions + parsedPreview.other_deductions) / parsedPreview.gross_amount) * 100).toFixed(1)}%</strong>
+                </div>
+              )}
+              {/* Daily breakdown for Cards with bank statement */}
+              {parsedPreview.platform === 'cards' && parsedPreview.raw_summary?.bank_statement_uploaded && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-700">Daily MDR Breakdown</p>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                      Avg MDR: {parsedPreview.raw_summary.avg_mdr_rate}% | Settlements: {parsedPreview.raw_summary.bank_settlements_matched}
+                    </span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto border rounded">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="text-left p-2">Date</th>
+                          <th className="text-right p-2">EDC Amt</th>
+                          <th className="text-right p-2">Bank Credit</th>
+                          <th className="text-right p-2">Charge</th>
+                          <th className="text-right p-2">%</th>
+                          <th className="text-right p-2">Txns</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(parsedPreview.raw_summary.daily_breakdown || []).filter(d => d.edc_amount > 0 || d.bank_credit > 0).map((d, i) => (
+                          <tr key={i} className={`border-t ${d.edc_amount > 0 && d.bank_credit === 0 ? 'bg-yellow-50' : d.edc_amount === 0 ? 'bg-gray-50' : ''}`}>
+                            <td className="p-2">{d.date}</td>
+                            <td className="p-2 text-right">{formatCurrency(d.edc_amount, accountSummary?.country)}</td>
+                            <td className="p-2 text-right">{formatCurrency(d.bank_credit, accountSummary?.country)}</td>
+                            <td className="p-2 text-right text-red-600">{formatCurrency(d.bank_charge, accountSummary?.country)}</td>
+                            <td className="p-2 text-right">{d.charge_pct.toFixed(2)}%</td>
+                            <td className="p-2 text-right">{d.txn_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {parsedPreview.raw_summary.unmatched_edc_days > 0 && (
+                    <p className="text-xs text-amber-600">Note: {parsedPreview.raw_summary.unmatched_edc_days} day(s) have EDC transactions but no bank settlement yet (may settle next month).</p>
+                  )}
                 </div>
               )}
             </div>
