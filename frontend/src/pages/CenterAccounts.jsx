@@ -13,7 +13,7 @@ import {
   Building2, DollarSign, TrendingUp, TrendingDown, FileText, Upload, 
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
-  IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2
+  IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -87,6 +87,7 @@ export default function CenterAccounts() {
     payment_date: new Date().toISOString().split('T')[0],
     notes: ''
   });
+  const [editingPayment, setEditingPayment] = useState(null);
   
   const [linkForm, setLinkForm] = useState({
     center_code: '',
@@ -399,12 +400,84 @@ export default function CenterAccounts() {
   // Open payment dialog for a month
   const openPaymentDialog = (monthData) => {
     setSelectedPayoutMonth(monthData);
+    setEditingPayment(null);
     setPaymentForm({ 
-      amount: monthData.pending || 0,  // Default to pending amount
+      amount: monthData.pending || 0,
       payment_date: new Date().toISOString().split('T')[0], 
       notes: '' 
     });
     setShowPaymentModal(true);
+  };
+
+  // Start editing a payment
+  const startEditPayment = (payment) => {
+    setEditingPayment(payment.payment_id);
+    setPaymentForm({
+      amount: payment.amount || 0,
+      payment_date: payment.payment_date || new Date().toISOString().split('T')[0],
+      notes: payment.notes || ''
+    });
+  };
+
+  // Save edited payment
+  const handleUpdatePayment = async () => {
+    if (!editingPayment) return;
+    if (!paymentForm.amount || paymentForm.amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/center-accounts/update-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          payment_id: editingPayment,
+          amount: parseFloat(paymentForm.amount),
+          payment_date: paymentForm.payment_date,
+          notes: paymentForm.notes
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Payment updated');
+        setEditingPayment(null);
+        setShowPaymentModal(false);
+        fetchPayoutSummary();
+      } else {
+        toast.error(data.detail || 'Failed to update payment');
+      }
+    } catch (error) {
+      toast.error('Failed to update payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete a payment
+  const handleDeletePayment = async (paymentId) => {
+    if (!window.confirm('Are you sure you want to delete this payment?')) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/center-accounts/delete-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, payment_id: paymentId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Payment deleted');
+        setShowPaymentModal(false);
+        fetchPayoutSummary();
+      } else {
+        toast.error(data.detail || 'Failed to delete payment');
+      }
+    } catch (error) {
+      toast.error('Failed to delete payment');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Download PDF report
@@ -1937,11 +2010,11 @@ export default function CenterAccounts() {
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
+            <DialogTitle>{editingPayment ? 'Edit Payment' : 'Record Payment'}</DialogTitle>
             <DialogDescription>
               {selectedPayoutMonth && (
                 <>
-                  Record payment for {new Date(selectedPayoutMonth.month + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                  {editingPayment ? 'Update' : 'Record'} payment for {new Date(selectedPayoutMonth.month + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
                   <br />
                   <span className="text-xs">
                     Payable: {formatCurrency(selectedPayoutMonth.payable_amount, accountSummary?.country)} | 
@@ -1952,7 +2025,44 @@ export default function CenterAccounts() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {selectedPayoutMonth && (
+            {/* Existing payments list */}
+            {selectedPayoutMonth?.payments?.length > 0 && !editingPayment && (
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
+                  Payment History ({selectedPayoutMonth.payments.length})
+                </div>
+                <div className="max-h-40 overflow-y-auto divide-y">
+                  {selectedPayoutMonth.payments.map((p) => (
+                    <div key={p.payment_id} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50">
+                      <div className="flex-1">
+                        <span className="font-medium text-green-700">{formatCurrency(p.amount, accountSummary?.country)}</span>
+                        <span className="text-gray-400 mx-2">|</span>
+                        <span className="text-gray-500 text-xs">{p.payment_date}</span>
+                        {p.notes && <span className="text-gray-400 text-xs ml-2">({p.notes})</span>}
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        <Button 
+                          size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-800"
+                          onClick={() => startEditPayment(p)}
+                          data-testid={`edit-payment-${p.payment_id}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button 
+                          size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600 hover:text-red-800"
+                          onClick={() => handleDeletePayment(p.payment_id)}
+                          data-testid={`delete-payment-${p.payment_id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedPayoutMonth && !editingPayment && (
               <div className="p-3 bg-gray-50 rounded-lg space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-500">Total Payable:</span>
@@ -1997,10 +2107,20 @@ export default function CenterAccounts() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
-            <Button onClick={handleRecordPayment} disabled={loading} className="bg-green-600 hover:bg-green-700">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <DollarSign className="w-4 h-4 mr-2" />}
-              Record Payment
+            {editingPayment && (
+              <Button variant="outline" onClick={() => {
+                setEditingPayment(null);
+                setPaymentForm({ amount: selectedPayoutMonth?.pending || 0, payment_date: new Date().toISOString().split('T')[0], notes: '' });
+              }}>Cancel Edit</Button>
+            )}
+            <Button variant="outline" onClick={() => { setShowPaymentModal(false); setEditingPayment(null); }}>Close</Button>
+            <Button 
+              onClick={editingPayment ? handleUpdatePayment : handleRecordPayment} 
+              disabled={loading} 
+              className={editingPayment ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : editingPayment ? <Pencil className="w-4 h-4 mr-2" /> : <DollarSign className="w-4 h-4 mr-2" />}
+              {editingPayment ? 'Update Payment' : 'Record Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1343,6 +1343,58 @@ async def get_payments(data: dict = Body(...)):
         "count": len(payments)
     }
 
+@router.post("/update-payment")
+async def update_payment(data: dict = Body(...)):
+    """Update an existing payment record"""
+    token = data.get("token")
+    session = await check_access(token)
+
+    payment_id = data.get("payment_id")
+    if not payment_id:
+        raise HTTPException(400, "payment_id is required")
+
+    update_fields = {}
+    if "amount" in data:
+        update_fields["amount"] = round(float(data["amount"]), 2)
+    if "payment_date" in data:
+        update_fields["payment_date"] = data["payment_date"]
+    if "notes" in data:
+        update_fields["notes"] = data["notes"]
+
+    if not update_fields:
+        raise HTTPException(400, "No fields to update")
+
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_fields["updated_by"] = session.get("managerName", "Unknown")
+
+    result = await db.payout_payments.update_one(
+        {"payment_id": payment_id},
+        {"$set": update_fields}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(404, "Payment not found")
+
+    return {"success": True, "message": f"Payment {payment_id} updated"}
+
+@router.post("/delete-payment")
+async def delete_payment(data: dict = Body(...)):
+    """Delete a payment record"""
+    token = data.get("token")
+    session = await check_access(token)
+
+    payment_id = data.get("payment_id")
+    if not payment_id:
+        raise HTTPException(400, "payment_id is required")
+
+    result = await db.payout_payments.delete_one({"payment_id": payment_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Payment not found")
+
+    logger.info(f"Payment deleted: {payment_id} by {session.get('managerName')}")
+    return {"success": True, "message": f"Payment {payment_id} deleted"}
+
 @router.post("/payout-summary")
 async def get_payout_summary(data: dict = Body(...)):
     """Get comprehensive payout summary with paid/pending amounts"""
