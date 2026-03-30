@@ -701,6 +701,7 @@ async def save_parsed_commission(data: dict):
         "gross_amount": float(data.get("gross_amount", 0)),
         "gst_tax_deductions": float(data.get("gst_tax_deductions", 0)),
         "other_deductions": float(data.get("other_deductions", 0)),
+        "sundry_debtors": float(data.get("sundry_debtors", 0)),
         "tds": float(data.get("tds", 0)),
         "net_payout": float(data.get("net_payout", 0)),
         "order_count": int(data.get("order_count", 0)),

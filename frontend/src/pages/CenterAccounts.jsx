@@ -1801,10 +1801,17 @@ export default function CenterAccounts() {
                   <p className="text-sm text-orange-600">GST / Tax Deductions</p>
                   <p className="text-2xl font-bold text-orange-700">{formatCurrency(parsedPreview.gst_tax_deductions, accountSummary?.country)}</p>
                 </div>
-                <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-                  <p className="text-sm text-red-600">Other Deductions</p>
-                  <p className="text-2xl font-bold text-red-700">{formatCurrency(parsedPreview.other_deductions, accountSummary?.country)}</p>
-                </div>
+                {parsedPreview.sundry_debtors > 0 ? (
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-sm text-blue-600">Sundry Debtors (Next Month)</p>
+                    <p className="text-2xl font-bold text-blue-700">{formatCurrency(parsedPreview.sundry_debtors, accountSummary?.country)}</p>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-red-50 rounded-lg border border-red-100">
+                    <p className="text-sm text-red-600">Other Deductions</p>
+                    <p className="text-2xl font-bold text-red-700">{formatCurrency(parsedPreview.other_deductions, accountSummary?.country)}</p>
+                  </div>
+                )}
                 <div className="p-4 bg-green-50 rounded-lg border border-green-100">
                   <p className="text-sm text-green-600">Net Payout</p>
                   <p className="text-2xl font-bold text-green-700">{formatCurrency(parsedPreview.net_payout, accountSummary?.country)}</p>
@@ -1815,7 +1822,7 @@ export default function CenterAccounts() {
                 <span>TDS: <strong>{formatCurrency(parsedPreview.tds, accountSummary?.country)}</strong></span>
                 <span>Currency: <strong>{parsedPreview.currency}</strong></span>
               </div>
-              {parsedPreview.gross_amount > 0 && (parsedPreview.gst_tax_deductions > 0 || parsedPreview.other_deductions > 0) && (
+              {parsedPreview.gross_amount > 0 && (parsedPreview.gst_tax_deductions > 0 || parsedPreview.other_deductions > 0) && !parsedPreview.sundry_debtors && (
                 <div className="p-3 bg-amber-50 rounded text-sm text-amber-700">
                   Total Deduction Rate: <strong>{(((parsedPreview.gst_tax_deductions + parsedPreview.other_deductions) / parsedPreview.gross_amount) * 100).toFixed(1)}%</strong>
                 </div>
@@ -1824,9 +1831,14 @@ export default function CenterAccounts() {
               {(parsedPreview.platform === 'cards' || parsedPreview.platform === 'phonepe') && parsedPreview.raw_summary?.bank_statement_uploaded && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-700">Daily MDR Breakdown</p>
+                    <p className="text-sm font-medium text-gray-700">
+                      {parsedPreview.platform === 'phonepe' ? 'Daily Settlement Breakdown' : 'Daily MDR Breakdown'}
+                    </p>
                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                      Avg MDR: {parsedPreview.raw_summary.avg_mdr_rate}% | Settlements: {parsedPreview.raw_summary.bank_settlements_matched}
+                      {parsedPreview.platform === 'phonepe'
+                        ? `Settlements: ${parsedPreview.raw_summary.bank_settlements_matched}`
+                        : `Avg MDR: ${parsedPreview.raw_summary.avg_mdr_rate}% | Settlements: ${parsedPreview.raw_summary.bank_settlements_matched}`
+                      }
                     </span>
                   </div>
                   <div className="max-h-48 overflow-y-auto border rounded">

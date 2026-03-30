@@ -398,8 +398,9 @@ def parse_phonepe(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
         (phonepe_rows['edc_date'] <= edc_month_end)
     ]
     total_bank_in_month = float(bank_in_month['bank_credit'].sum())
-    total_charges = total_amount - total_bank_in_month
-    avg_charge_pct = round((total_charges / total_amount * 100), 2) if total_amount > 0 else 0
+    # For PhonePe: the difference is NOT charges — it's sundry debtors
+    # (last day's EDC settles in next month's bank statement)
+    sundry_debtors = max(total_amount - total_bank_in_month, 0)
 
     # Daily breakdown
     daily_breakdown = []
@@ -420,7 +421,8 @@ def parse_phonepe(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
         "platform": "phonepe",
         "gross_amount": round(total_amount, 2),
         "gst_tax_deductions": 0.0,
-        "other_deductions": round(max(total_charges, 0), 2),
+        "other_deductions": 0.0,
+        "sundry_debtors": round(sundry_debtors, 2),
         "net_payout": round(total_bank_in_month, 2),
         "order_count": completed_txns,
         "tds": 0.0,
@@ -430,8 +432,7 @@ def parse_phonepe(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
             "completed_transactions": completed_txns,
             "total_collection": round(total_amount, 2),
             "total_bank_credits_in_month": round(total_bank_in_month, 2),
-            "total_charges": round(max(total_charges, 0), 2),
-            "avg_charge_rate": max(avg_charge_pct, 0),
+            "sundry_debtors": round(sundry_debtors, 2),
             "bank_settlements_matched": int(len(bank_in_month)),
             "unmatched_edc_days": int(len(unmatched_edc)),
             "unmatched_bank_days": int(len(unmatched_bank)),
