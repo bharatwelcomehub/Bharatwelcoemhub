@@ -344,30 +344,38 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     ).to_list(100)
 
     # Aggregate commissions by platform
+    # Total deduction = gst_tax_deductions + other_deductions (new schema)
+    # Fallback to commission_amount for old records
     commission_by_platform = {
-        "swiggy": {"gross": 0, "commission": 0, "net": 0},
-        "zomato": {"gross": 0, "commission": 0, "net": 0},
-        "doordash": {"gross": 0, "commission": 0, "net": 0},
-        "phonepe": {"gross": 0, "commission": 0, "net": 0},
-        "cards": {"gross": 0, "commission": 0, "net": 0},
+        "swiggy": {"gross": 0, "deduction": 0, "net": 0},
+        "zomato": {"gross": 0, "deduction": 0, "net": 0},
+        "doordash": {"gross": 0, "deduction": 0, "net": 0},
+        "phonepe": {"gross": 0, "deduction": 0, "net": 0},
+        "cards": {"gross": 0, "deduction": 0, "net": 0},
     }
 
     for comm in commission_records:
         platform = comm.get("platform", "").lower()
         if platform not in commission_by_platform:
-            commission_by_platform[platform] = {"gross": 0, "commission": 0, "net": 0}
+            commission_by_platform[platform] = {"gross": 0, "deduction": 0, "net": 0}
         commission_by_platform[platform]["gross"] += comm.get("gross_amount", 0)
-        commission_by_platform[platform]["commission"] += comm.get("commission_amount", 0)
+        # Total deduction = GST/Tax deductions + Other deductions (excludes sundry debtors)
+        gst_ded = comm.get("gst_tax_deductions", 0)
+        other_ded = comm.get("other_deductions", 0)
+        # Fallback for old records that used commission_amount
+        old_comm = comm.get("commission_amount", 0)
+        total_ded = (gst_ded + other_ded) if (gst_ded or other_ded) else old_comm
+        commission_by_platform[platform]["deduction"] += total_ded
         commission_by_platform[platform]["net"] += comm.get("net_payout", 0)
 
     total_aggregator_commission = (
-        commission_by_platform["swiggy"]["commission"] +
-        commission_by_platform["zomato"]["commission"] +
-        commission_by_platform["doordash"]["commission"]
+        commission_by_platform["swiggy"]["deduction"] +
+        commission_by_platform["zomato"]["deduction"] +
+        commission_by_platform["doordash"]["deduction"]
     )
     card_commission = (
-        commission_by_platform["phonepe"]["commission"] +
-        commission_by_platform["cards"]["commission"]
+        commission_by_platform["phonepe"]["deduction"] +
+        commission_by_platform["cards"]["deduction"]
     )
     
     # ==========================================

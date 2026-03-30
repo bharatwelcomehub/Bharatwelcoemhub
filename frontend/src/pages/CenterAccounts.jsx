@@ -570,7 +570,7 @@ export default function CenterAccounts() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-orange-600">Commissions</p>
+                    <p className="text-sm text-orange-600">Total Deductions</p>
                     <p className="text-2xl font-bold text-orange-800">
                       {formatCurrency(accountSummary.commissions.total, accountSummary.country)}
                     </p>
@@ -883,18 +883,20 @@ export default function CenterAccounts() {
               <div className="grid md:grid-cols-4 gap-4">
                 <Card className="bg-orange-50">
                   <CardContent className="p-4">
-                    <p className="text-sm text-orange-600">Aggregator Commission</p>
+                    <p className="text-sm text-orange-600">Aggregator Deductions</p>
                     <p className="text-xl font-bold text-orange-800">
                       {formatCurrency(accountSummary.commissions.aggregator_total, accountSummary.country)}
                     </p>
+                    <p className="text-xs text-orange-500 mt-1">Swiggy + Zomato + DoorDash</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-blue-50">
                   <CardContent className="p-4">
-                    <p className="text-sm text-blue-600">Payment Mode Commission</p>
+                    <p className="text-sm text-blue-600">Payment Mode Deductions</p>
                     <p className="text-xl font-bold text-blue-800">
                       {formatCurrency(accountSummary.commissions.card_total, accountSummary.country)}
                     </p>
+                    <p className="text-xs text-blue-500 mt-1">Cards + PhonePe</p>
                   </CardContent>
                 </Card>
                 {accountSummary.country === 'Australia' && (
@@ -909,7 +911,7 @@ export default function CenterAccounts() {
                 )}
                 <Card className="bg-red-50">
                   <CardContent className="p-4">
-                    <p className="text-sm text-red-600">Total Commission</p>
+                    <p className="text-sm text-red-600">Total Deductions (incl. GST)</p>
                     <p className="text-xl font-bold text-red-800">
                       {formatCurrency(accountSummary.commissions.total, accountSummary.country)}
                     </p>
