@@ -71,6 +71,11 @@ class PayslipGenRequest(BaseModel):
     mode: str = "all"  # "single" or "all"
     employeeName: Optional[str] = None
     fmt: str = "pdf"  # "pdf" or "docx"
+    signatory: str = "sandeep"  # "sandeep" or "jayanti"
+
+class PayslipEmployeesRequest(BaseModel):
+    token: str
+    center: str
 
 # =======================================
 # UTILITY FUNCTIONS
@@ -458,6 +463,22 @@ async def generate_salary(req: SalaryGenRequest):
         logger.error(f"Salary generation error: {e}")
         raise HTTPException(500, str(e))
 
+@router.post("/payslip_employees")
+async def payslip_employees(req: PayslipEmployeesRequest):
+    """Get sorted employee list for a center (for payslip dropdown)"""
+    session = verify_token(req.token)
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can access payslip employees")
+
+    center = req.center.upper()
+    employees = await db.employees.find(
+        {"center": center},
+        {"_id": 0, "name": 1, "designation": 1}
+    ).sort("name", 1).to_list(1000)
+
+    return {"employees": [{"name": e.get("name", ""), "designation": e.get("designation", "")} for e in employees]}
+
+
 @router.post("/payslips_generate")
 async def payslips_generate(req: PayslipGenRequest):
     """Generate payslips (PDF/DOCX)"""
@@ -582,8 +603,8 @@ async def payslips_generate(req: PayslipGenRequest):
                 c = canvas.Canvas(pdf_buffer, pagesize=A4)
                 width, height = A4
                 
-                # Header
-                logo_path = ROOT_DIR / "assets" / "purnabramha_logo.png" if ROOT_DIR else None
+                # Header - Logo
+                logo_path = ROOT_DIR / "assets" / "pb_logo.png" if ROOT_DIR else None
                 if logo_path and logo_path.exists():
                     try:
                         c.drawImage(str(logo_path), width/2 - 0.6*inch, height - 0.9*inch, width=1.2*inch, height=0.7*inch, preserveAspectRatio=True, mask='auto')
@@ -745,20 +766,30 @@ async def payslips_generate(req: PayslipGenRequest):
                 c.drawString(box_left + 0.15*inch, net_y + 0.15*inch, "NET SALARY")
                 c.drawRightString(box_right - 0.15*inch, net_y + 0.15*inch, f"Rs. {total_net:,.2f}")
                 
-                # Footer
-                sign_path = ROOT_DIR / "assets" / "sandeep_gadhwal_signature.png" if ROOT_DIR else None
+                # Footer - Signature based on signatory selection
+                signatory = req.signatory or "sandeep"
+                if signatory == "jayanti":
+                    sign_file = "jayanti_sign.png"
+                    sign_name = "Mrs. Jayanti Kathale"
+                    sign_title = "Director"
+                else:
+                    sign_file = "sandeep_sign.png"
+                    sign_name = "Mr. Sandeep Gadhwal"
+                    sign_title = "Director"
+
+                sign_path = ROOT_DIR / "assets" / "signatures" / sign_file if ROOT_DIR else None
                 if sign_path and sign_path.exists():
                     try:
-                        c.drawImage(str(sign_path), width - 2*inch, 0.45*inch, width=1.2*inch, height=0.6*inch, preserveAspectRatio=True, mask='auto')
+                        c.drawImage(str(sign_path), width - 2.2*inch, 0.45*inch, width=1.4*inch, height=0.7*inch, preserveAspectRatio=True, mask='auto')
                     except Exception as e:
                         logger.warning(f"Could not add signature: {e}")
                 
                 c.setFont("Helvetica-Bold", 10)
-                c.drawRightString(width - 0.5*inch, 1.15*inch, "Purnabramha")
+                c.drawRightString(width - 0.5*inch, 1.25*inch, "Purnabramha")
                 c.setFont("Helvetica", 8)
-                c.drawRightString(width - 0.5*inch, 1.0*inch, "MANASWINI FOODS PVT. LTD.")
-                c.drawRightString(width - 0.5*inch, 0.35*inch, "Mr. Sandeep Gadhwal")
-                c.drawRightString(width - 0.5*inch, 0.22*inch, "Director")
+                c.drawRightString(width - 0.5*inch, 1.1*inch, "MANASWINI FOODS PVT. LTD.")
+                c.drawRightString(width - 0.5*inch, 0.35*inch, sign_name)
+                c.drawRightString(width - 0.5*inch, 0.22*inch, sign_title)
                 
                 c.setFont("Helvetica", 6)
                 c.drawString(0.5*inch, 0.3*inch, "This is a computer-generated document and does not require a signature.")
@@ -829,7 +860,9 @@ async def payslips_generate(req: PayslipGenRequest):
                 
                 footer = doc.add_paragraph()
                 footer.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                run = footer.add_run("Purnabramha\nMANASWINI FOODS PVT. LTD.\n\nMr. Sandeep Gadhwal\nDirector")
+                signatory = req.signatory or "sandeep"
+                sign_name = "Mrs. Jayanti Kathale" if signatory == "jayanti" else "Mr. Sandeep Gadhwal"
+                run = footer.add_run(f"Purnabramha\nMANASWINI FOODS PVT. LTD.\n\n{sign_name}\nDirector")
                 run.font.size = Pt(9)
                 
                 docx_buffer = BytesIO()

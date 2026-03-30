@@ -36,6 +36,9 @@ export default function Salary({ isPayslips = false }) {
   const [fmt, setFmt] = useState("pdf");
   const [employeeName, setEmployeeName] = useState("");
   const [payslipMode, setPayslipMode] = useState("bulk");
+  const [signatory, setSignatory] = useState("sandeep");
+  const [employeeList, setEmployeeList] = useState([]);
+  const [employeeListLoading, setEmployeeListLoading] = useState(false);
 
   const [centersList, setCentersList] = useState([]);
 
@@ -45,6 +48,24 @@ export default function Salary({ isPayslips = false }) {
       fetchCentersFromDB(session.token).then(setCentersList);
     }
   }, [session?.token]);
+
+  // Fetch employee list when center changes (for payslip employee dropdown)
+  useEffect(() => {
+    if (isPayslips && targetCenter && targetCenter !== "ALL" && session?.token) {
+      setEmployeeListLoading(true);
+      setEmployeeName("");
+      api.post("/payslip_employees", { token: session.token, center: targetCenter })
+        .then(res => {
+          setEmployeeList(res.data.employees || []);
+        })
+        .catch(() => {
+          setEmployeeList([]);
+        })
+        .finally(() => setEmployeeListLoading(false));
+    } else {
+      setEmployeeList([]);
+    }
+  }, [isPayslips, targetCenter, session?.token]);
 
   // All centers for selection + "ALL" option
   const centerOptions = [
@@ -203,7 +224,8 @@ export default function Salary({ isPayslips = false }) {
         fmt: fmt,
         mode: payslipMode,
         targetCenter: targetCenter,
-        employeeName: payslipMode === "single" ? employeeName.trim().toUpperCase() : null
+        employeeName: payslipMode === "single" ? employeeName.trim().toUpperCase() : null,
+        signatory: signatory
       }, {
         responseType: 'blob'
       });
@@ -326,7 +348,7 @@ export default function Salary({ isPayslips = false }) {
                 <div className="space-y-2">
                   <Label>Period</Label>
                   <Select value={period} onValueChange={setPeriod}>
-                    <SelectTrigger>
+                    <SelectTrigger data-testid="period-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -340,7 +362,7 @@ export default function Salary({ isPayslips = false }) {
                 <div className="space-y-2">
                   <Label>Format</Label>
                   <Select value={fmt} onValueChange={setFmt}>
-                    <SelectTrigger>
+                    <SelectTrigger data-testid="format-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -351,9 +373,25 @@ export default function Salary({ isPayslips = false }) {
                 </div>
 
                 <div className="space-y-2">
+                  <Label>Signatory</Label>
+                  <Select value={signatory} onValueChange={setSignatory}>
+                    <SelectTrigger data-testid="signatory-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sandeep">Sandeep Gadhwal</SelectItem>
+                      <SelectItem value="jayanti">Jayanti Kathale (with Seal)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Mode</Label>
-                  <Select value={payslipMode} onValueChange={setPayslipMode}>
-                    <SelectTrigger>
+                  <Select value={payslipMode} onValueChange={(v) => {
+                    setPayslipMode(v);
+                    setEmployeeName("");
+                  }}>
+                    <SelectTrigger data-testid="mode-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -365,16 +403,30 @@ export default function Salary({ isPayslips = false }) {
 
                 {payslipMode === "single" && (
                   <div className="space-y-2">
-                    <Label>Employee Name (exact match)</Label>
-                    <Input
-                      value={employeeName}
-                      onChange={(e) => setEmployeeName(e.target.value)}
-                      placeholder="e.g., EKTA SURESHKUMAR RAVAL"
-                      data-testid="employee-name"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Enter FULL name in CAPS as shown in employee list
-                    </p>
+                    <Label>Select Employee</Label>
+                    {employeeListLoading ? (
+                      <div className="flex items-center gap-2 h-10 px-3 border rounded-md text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Loading employees...
+                      </div>
+                    ) : employeeList.length > 0 ? (
+                      <Select value={employeeName} onValueChange={setEmployeeName}>
+                        <SelectTrigger data-testid="employee-select">
+                          <Users className="w-4 h-4 mr-2" />
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employeeList.map((emp) => (
+                            <SelectItem key={emp.name} value={emp.name}>
+                              {emp.name} {emp.designation ? `(${emp.designation})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="h-10 flex items-center px-3 border rounded-md text-sm text-muted-foreground">
+                        {targetCenter ? "No employees found for this center" : "Select a center first"}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
