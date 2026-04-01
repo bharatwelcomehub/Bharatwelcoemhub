@@ -186,15 +186,23 @@ async def get_mis_overview(data: dict):
         if center != "all":
             comm_records = await db.monthly_commissions.find(
                 {"center": center, "month": {"$in": list(months_in_range)}},
-                {"_id": 0, "commission_amount": 1, "gst_on_commission": 1},
+                {"_id": 0, "center": 1, "gst_tax_deductions": 1, "other_deductions": 1, "commission_amount": 1, "gst_on_commission": 1},
             ).to_list(500)
-            total_commissions = sum(r.get("commission_amount", 0) + r.get("gst_on_commission", 0) for r in comm_records)
+            total_commissions = sum(
+                r.get("gst_tax_deductions", 0) + r.get("other_deductions", 0)
+                or (r.get("commission_amount", 0) + r.get("gst_on_commission", 0))
+                for r in comm_records
+            )
         else:
             comm_records = await db.monthly_commissions.find(
                 {"month": {"$in": list(months_in_range)}},
-                {"_id": 0, "center": 1, "commission_amount": 1, "gst_on_commission": 1},
+                {"_id": 0, "center": 1, "gst_tax_deductions": 1, "other_deductions": 1, "commission_amount": 1, "gst_on_commission": 1},
             ).to_list(5000)
-            total_commissions = sum(r.get("commission_amount", 0) + r.get("gst_on_commission", 0) for r in comm_records)
+            total_commissions = sum(
+                r.get("gst_tax_deductions", 0) + r.get("other_deductions", 0)
+                or (r.get("commission_amount", 0) + r.get("gst_on_commission", 0))
+                for r in comm_records
+            )
         total_commissions = round(total_commissions, 2)
     except Exception as comm_err:
         logger.warning(f"MIS: commission calc failed: {comm_err}")
@@ -243,7 +251,11 @@ async def get_mis_overview(data: dict):
         for r in comm_records:
             cc = r.get("center", "")
             if cc:
-                center_comm_map[cc] = center_comm_map.get(cc, 0) + r.get("commission_amount", 0) + r.get("gst_on_commission", 0)
+                comm_val = (
+                    r.get("gst_tax_deductions", 0) + r.get("other_deductions", 0)
+                    or (r.get("commission_amount", 0) + r.get("gst_on_commission", 0))
+                )
+                center_comm_map[cc] = center_comm_map.get(cc, 0) + comm_val
         for c in centers_data:
             if c and c != "Unknown":
                 centers_data[c]["commissions"] = round(center_comm_map.get(c, 0), 2)
