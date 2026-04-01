@@ -57,7 +57,9 @@ const Admin = () => {
     price_aud: '',
     image_url: '',
     is_veg: true,
-    is_available: true
+    is_available: true,
+    no_onion_garlic: false,
+    fasting_friendly: false
   });
 
   // Locations state
@@ -364,7 +366,9 @@ const Admin = () => {
       price_aud: formData.price_aud ? parseFloat(formData.price_aud) : null,
       image_url: formData.image_url || null,
       is_veg: formData.is_veg,
-      is_available: formData.is_available
+      is_available: formData.is_available,
+      no_onion_garlic: formData.no_onion_garlic,
+      fasting_friendly: formData.fasting_friendly
     };
     
     try {
@@ -416,7 +420,9 @@ const Admin = () => {
       price_aud: item.price_aud || '',
       image_url: item.image_url || '',
       is_veg: item.is_veg,
-      is_available: item.is_available
+      is_available: item.is_available,
+      no_onion_garlic: item.no_onion_garlic || false,
+      fasting_friendly: item.fasting_friendly || false
     });
     setDialogOpen(true);
   };
@@ -426,7 +432,8 @@ const Admin = () => {
     setFormData({
       name: '', description: '', category: '',
       price_inr: '', price_aud: '', image_url: '',
-      is_veg: true, is_available: true
+      is_veg: true, is_available: true,
+      no_onion_garlic: false, fasting_friendly: false
     });
   };
 
@@ -479,7 +486,9 @@ const Admin = () => {
             price_aud: item.price_aud,
             image_url: imageUrl.trim(),
             is_veg: item.is_veg,
-            is_available: item.is_available
+            is_available: item.is_available,
+            no_onion_garlic: item.no_onion_garlic || false,
+            fasting_friendly: item.fasting_friendly || false
           },
           { headers: { Authorization: `Bearer ${currentToken}` } }
         );
@@ -1289,9 +1298,17 @@ const Admin = () => {
                           <TableCell>{item.price_inr || '-'}</TableCell>
                           <TableCell>{item.price_aud || '-'}</TableCell>
                           <TableCell>
-                            <Badge variant={item.is_available ? 'default' : 'secondary'} className="text-xs">
-                              {item.is_available ? 'Active' : 'Inactive'}
-                            </Badge>
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant={item.is_available ? 'default' : 'secondary'} className="text-xs">
+                                {item.is_available ? 'Active' : 'Inactive'}
+                              </Badge>
+                              {item.no_onion_garlic && (
+                                <Badge className="text-xs bg-orange-500 hover:bg-orange-600">No Onion/Garlic</Badge>
+                              )}
+                              {item.fasting_friendly && (
+                                <Badge className="text-xs bg-purple-500 hover:bg-purple-600">Fasting</Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1">
@@ -1658,7 +1675,7 @@ const Admin = () => {
                   <p className="text-xs text-center py-1 bg-muted">Image Preview</p>
                 </div>
               )}
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1676,6 +1693,24 @@ const Admin = () => {
                     className="rounded"
                   />
                   <span className="text-sm">Available</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer" data-testid="no-onion-garlic-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={formData.no_onion_garlic}
+                    onChange={(e) => setFormData({ ...formData, no_onion_garlic: e.target.checked })}
+                    className="rounded"
+                  />
+                  <span className="text-sm font-medium text-orange-700">No Onion/Garlic</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer" data-testid="fasting-friendly-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={formData.fasting_friendly}
+                    onChange={(e) => setFormData({ ...formData, fasting_friendly: e.target.checked })}
+                    className="rounded"
+                  />
+                  <span className="text-sm font-medium text-purple-700">Fasting Friendly</span>
                 </label>
               </div>
               <div className="flex justify-end gap-2 pt-2">

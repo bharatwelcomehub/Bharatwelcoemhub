@@ -137,6 +137,8 @@ class MenuItem(BaseModel):
     image_url: Optional[str] = None
     is_veg: bool = True
     is_available: bool = True
+    no_onion_garlic: bool = False
+    fasting_friendly: bool = False
 
 class HeroImage(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -446,7 +448,9 @@ async def create_menu_item(item_data: dict, current_user: dict = Depends(get_cur
         price_aud=float(item_data.get('price_aud', 0)) if item_data.get('price_aud') else None,
         image_url=item_data.get('image_url'),
         is_veg=item_data.get('is_veg', True),
-        is_available=item_data.get('is_available', True)
+        is_available=item_data.get('is_available', True),
+        no_onion_garlic=item_data.get('no_onion_garlic', False),
+        fasting_friendly=item_data.get('fasting_friendly', False)
     )
     
     doc = item.model_dump()
@@ -464,7 +468,9 @@ async def update_menu_item(item_id: str, item_data: dict, current_user: dict = D
         "price_aud": float(item_data.get('price_aud', 0)) if item_data.get('price_aud') else None,
         "image_url": item_data.get('image_url'),
         "is_veg": item_data.get('is_veg', True),
-        "is_available": item_data.get('is_available', True)
+        "is_available": item_data.get('is_available', True),
+        "no_onion_garlic": item_data.get('no_onion_garlic', False),
+        "fasting_friendly": item_data.get('fasting_friendly', False)
     }
     
     await db.menu_items.update_one({"id": item_id}, {"$set": update_data})

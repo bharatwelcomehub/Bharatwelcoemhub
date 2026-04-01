@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purnabramha Perth - Marketing Images</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #1a1a1a;
+            padding: 20px;
+        }
+        .page-title {
+            text-align: center;
+            color: white;
+            padding: 30px;
+            font-size: 1.5em;
+        }
+        .marketing-card {
+            width: 1080px;
+            height: 1080px;
+            margin: 40px auto;
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .card-label {
+            text-align: center;
+            color: #ccc;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        /* CARD 1 - Perth Location */
+        .card-1 {
+            background: linear-gradient(135deg, #2d1810 0%, #1a0f0a 100%);
+        }
+        .card-1 .bg-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 60%;
+            object-fit: cover;
+            opacity: 1;
+        }
+        .card-1 .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 60%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(45,24,16,1));
+        }
+        .card-1 .logo {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            z-index: 10;
+        }
+        .card-1 .content {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 45%;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .card-1 .location-badge {
+            background: linear-gradient(135deg, #d4af37, #f4d03f);
+            color: #2d1810;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .card-1 h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 52px;
+            color: #d4af37;
+            margin-bottom: 15px;
+            line-height: 1.1;
+        }
+        .card-1 .address {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .card-1 .tagline {
+            font-size: 22px;
+            color: #d4af37;
+            opacity: 0.9;
+        }
+        .card-1 .walk-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+        /* CARD 2 - Pickup Order */
+        .card-2 {
+            background: linear-gradient(135deg, #1a0f0a 0%, #2d1810 100%);
+            display: flex;
+            flex-direction: column;
+        }
+        .card-2 .top-section {
+            height: 55%;
+            display: flex;
+            padding: 30px;
+            gap: 20px;
+        }
+        .card-2 .food-img {
+            width: 50%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 20px;
+            border: 4px solid #d4af37;
+        }
+        .card-2 .bottom-section {
+            height: 45%;
+            background: linear-gradient(135deg, #d4af37, #f4d03f);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .card-2 h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 56px;
+            color: #2d1810;
+            margin-bottom: 15px;
+        }
+        .card-2 .subtitle {
+            font-size: 28px;
+            color: #2d1810;
+            margin-bottom: 20px;
+        }
+        .card-2 .cta-btn {
+            background: #2d1810;
+            color: #d4af37;
+            padding: 18px 50px;
+            border-radius: 50px;
+            font-size: 22px;
+            font-weight: 600;
+        }
+        .card-2 .website {
+            margin-top: 15px;
+            font-size: 20px;
+            color: #2d1810;
+        }
+
+        /* CARD 3 - Corporate Dining */
+        .card-3 {
+            background: #1a0f0a;
+        }
+        .card-3 .main-image {
+            width: 100%;
+            height: 60%;
+            object-fit: cover;
+        }
+        .card-3 .content {
+            height: 40%;
+            background: linear-gradient(135deg, #2d1810, #3d2418);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+        }
+        .card-3 .logo-small {
+            position: absolute;
+            top: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 5px solid #d4af37;
+        }
+        .card-3 h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 48px;
+            color: #d4af37;
+            margin-top: 30px;
+        }
+        .card-3 .features {
+            display: flex;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        .card-3 .feature {
+            background: rgba(212,175,55,0.2);
+            padding: 12px 25px;
+            border-radius: 30px;
+            color: #d4af37;
+            font-size: 16px;
+        }
+        .card-3 .contact {
+            margin-top: 20px;
+            color: white;
+            font-size: 22px;
+        }
+
+        /* CARD 4 - Catering */
+        .card-4 {
+            background: linear-gradient(135deg, #2d1810 0%, #1a0f0a 100%);
+        }
+        .card-4 .celebration-img {
+            width: 100%;
+            height: 55%;
+            object-fit: cover;
+        }
+        .card-4 .content {
+            height: 45%;
+            padding: 40px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .card-4 .badge {
+            background: linear-gradient(135deg, #d4af37, #f4d03f);
+            color: #2d1810;
+            padding: 10px 30px;
+            border-radius: 30px;
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .card-4 h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 52px;
+            color: #d4af37;
+            margin-bottom: 15px;
+        }
+        .card-4 .desc {
+            font-size: 22px;
+            color: #fff;
+            margin-bottom: 25px;
+            max-width: 800px;
+        }
+        .card-4 .packages {
+            display: flex;
+            gap: 20px;
+        }
+        .card-4 .package {
+            background: rgba(212,175,55,0.15);
+            border: 2px solid #d4af37;
+            padding: 15px 30px;
+            border-radius: 15px;
+            color: #d4af37;
+        }
+        .card-4 .package .price {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .card-4 .package .name {
+            font-size: 14px;
+        }
+
+        /* CARD 5 - Unlimited Breakfast */
+        .card-5 {
+            background: linear-gradient(135deg, #d4af37, #f4d03f);
+            position: relative;
+        }
+        .card-5 .food-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            padding: 30px;
+            height: 55%;
+        }
+        .card-5 .food-grid img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 20px;
+            border: 5px solid #2d1810;
+        }
+        .card-5 .content {
+            height: 45%;
+            background: #2d1810;
+            padding: 40px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .card-5 .price-badge {
+            background: linear-gradient(135deg, #d4af37, #f4d03f);
+            color: #2d1810;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        .card-5 h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 56px;
+            color: #d4af37;
+            margin-bottom: 15px;
+        }
+        .card-5 .items {
+            font-size: 20px;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+        .card-5 .timing {
+            background: rgba(212,175,55,0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            color: #d4af37;
+            font-size: 20px;
+        }
+
+        /* Instructions */
+        .instructions {
+            max-width: 800px;
+            margin: 50px auto;
+            background: #333;
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+        }
+        .instructions h2 {
+            color: #d4af37;
+            margin-bottom: 20px;
+        }
+        .instructions ol {
+            padding-left: 25px;
+        }
+        .instructions li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1 class="page-title">📸 Purnabramha Perth - Marketing Images (Using Your Original Photos)</h1>
+
+<div class="instructions">
+    <h2>📋 How to Save These Images:</h2>
+    <ol>
+        <li>Right-click on each card below</li>
+        <li>Select "Take Screenshot" or use Windows Snipping Tool (Win + Shift + S)</li>
+        <li>Or open Developer Tools (F12) → Select the card → Screenshot Node</li>
+        <li>Add your logo using Canva if needed for final polish</li>
+    </ol>
+</div>
+
+<!-- CARD 1: Perth Location -->
+<p class="card-label">IMAGE 1: Perth Location - Walking Distance from CBD</p>
+<div class="marketing-card card-1">
+    <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/cawndh55_DSC_0040.jpg" alt="Purnabramha Perth Store" class="bg-image">
+    <div class="overlay"></div>
+    <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/b4y5rp3l_food%20at%20pb%20perth%20%281%29.png" alt="Logo" class="logo">
+    <div class="content">
+        <div class="location-badge">📍 NOW OPEN IN PERTH</div>
+        <h1>Purnabramha Perth</h1>
+        <p class="address">42/273 Beaufort Street, Perth</p>
+        <p class="tagline">The Largest Maharashtrian Restaurant Chain</p>
+        <div class="walk-badge">🚶 Walking Distance from CBD</div>
+    </div>
+</div>
+
+<!-- CARD 2: Pickup Order -->
+<p class="card-label">IMAGE 2: Pickup Order - Order Online</p>
+<div class="marketing-card card-2">
+    <div class="top-section">
+        <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/bomiwkht_20260121_131233.jpg" alt="Batata Vada" class="food-img">
+        <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/izzv3v5m_20260121_133839.jpg" alt="Sabudana Khichdi" class="food-img">
+    </div>
+    <div class="bottom-section">
+        <h1>Order Pickup</h1>
+        <p class="subtitle">Ready in 10 Minutes! 🕐</p>
+        <div class="cta-btn">📱 Order Now Online</div>
+        <p class="website">app.purnabramha.com</p>
+    </div>
+</div>
+
+<!-- CARD 3: Corporate Dining -->
+<p class="card-label">IMAGE 3: Corporate Lunch Combos</p>
+<div class="marketing-card card-3">
+    <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/v32bn1zi_20260207_014524099_iOS.jpg" alt="Couple Dining" class="main-image">
+    <div class="content">
+        <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/b4y5rp3l_food%20at%20pb%20perth%20%281%29.png" alt="Logo" class="logo-small">
+        <h1>Corporate Lunch Combos</h1>
+        <div class="features">
+            <span class="feature">💼 Business Meetings</span>
+            <span class="feature">🍽️ Team Lunches</span>
+            <span class="feature">🎯 Quick Service</span>
+        </div>
+        <p class="contact">📞 +61 401 832 922 | Book Your Table</p>
+    </div>
+</div>
+
+<!-- CARD 4: Catering Services -->
+<p class="card-label">IMAGE 4: Catering Services</p>
+<div class="marketing-card card-4">
+    <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/wd6usgbl_ChatGPT%20Image%20Jan%2031%2C%202026%2C%2008_15_54%20PM.png" alt="Celebration" class="celebration-img">
+    <div class="content">
+        <div class="badge">🎉 PREMIUM CATERING</div>
+        <h1>Celebrate with Us</h1>
+        <p class="desc">Weddings, Birthdays, Corporate Events - Authentic Maharashtrian Cuisine for 50 to 500+ Guests</p>
+        <div class="packages">
+            <div class="package">
+                <div class="price">$25</div>
+                <div class="name">Classic</div>
+            </div>
+            <div class="package">
+                <div class="price">$35</div>
+                <div class="name">Premium</div>
+            </div>
+            <div class="package">
+                <div class="price">$50</div>
+                <div class="name">Royal</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CARD 5: Unlimited Breakfast -->
+<p class="card-label">IMAGE 5: Unlimited Breakfast</p>
+<div class="marketing-card card-5">
+    <div class="food-grid">
+        <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/bomiwkht_20260121_131233.jpg" alt="Batata Vada">
+        <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/izzv3v5m_20260121_133839.jpg" alt="Sabudana">
+        <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/phdm2y4p_adya%20super%20queen1.jpg" alt="Happy Customer">
+        <img src="https://customer-assets.emergentagent.com/job_90978f2a-dc16-4a1a-8e0e-3af84fe3f3db/artifacts/cawndh55_DSC_0040.jpg" alt="Store">
+    </div>
+    <div class="content">
+        <div class="price-badge">ONLY $35</div>
+        <h1>Unlimited Breakfast</h1>
+        <p class="items">Poha • Upma • Idli • Vada • Dosa • Sabudana Khichdi</p>
+        <div class="timing">⏰ 8 AM - 11 AM Daily</div>
+    </div>
+</div>
+
+<div class="instructions" style="margin-top: 60px;">
+    <h2>🎨 Need to Add Logo Overlay?</h2>
+    <p>Use <strong>Canva.com</strong> (free) to add your logo on top of these images:</p>
+    <ol>
+        <li>Screenshot each image above</li>
+        <li>Upload to Canva</li>
+        <li>Add your Purnabramha logo</li>
+        <li>Download as PNG/JPG</li>
+    </ol>
+    <p style="margin-top: 20px; color: #d4af37;"><strong>Your Logo:</strong> Already included in Image 1, 3, and 5!</p>
+</div>
+
+</body>
+</html>

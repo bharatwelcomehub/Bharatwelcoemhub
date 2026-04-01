@@ -195,10 +195,20 @@ const Menu = () => {
                     <h3 className="font-playfair text-lg font-semibold text-foreground mb-1 leading-tight">
                       {item.name}
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {item.is_veg && (
                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
                           Veg
+                        </Badge>
+                      )}
+                      {item.no_onion_garlic && (
+                        <Badge className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5" data-testid="badge-no-onion-garlic">
+                          No Onion/Garlic
+                        </Badge>
+                      )}
+                      {item.fasting_friendly && (
+                        <Badge className="bg-purple-600 text-white text-xs font-bold px-2 py-0.5" data-testid="badge-fasting-friendly">
+                          Fasting Friendly
                         </Badge>
                       )}
                       <Badge variant="outline" className="text-xs text-foreground/50 border-foreground/20">
@@ -274,9 +284,21 @@ const Menu = () => {
                     </div>
                   )}
                   {/* Veg badge overlay */}
-                  <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
-                    <Leaf className="h-4 w-4" />
-                    Pure Veg
+                  <div className="absolute top-4 left-4 flex flex-wrap gap-2">
+                    <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                      <Leaf className="h-4 w-4" />
+                      Pure Veg
+                    </div>
+                    {selectedItem.no_onion_garlic && (
+                      <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold" data-testid="modal-badge-no-onion-garlic">
+                        No Onion/Garlic
+                      </div>
+                    )}
+                    {selectedItem.fasting_friendly && (
+                      <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-bold" data-testid="modal-badge-fasting">
+                        Fasting Friendly
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -290,6 +312,16 @@ const Menu = () => {
                       <Badge variant="outline" className="text-sm">
                         {selectedItem.category}
                       </Badge>
+                      {selectedItem.no_onion_garlic && (
+                        <Badge className="bg-orange-500 text-white text-sm font-bold ml-2">
+                          No Onion/Garlic
+                        </Badge>
+                      )}
+                      {selectedItem.fasting_friendly && (
+                        <Badge className="bg-purple-600 text-white text-sm font-bold ml-2">
+                          Fasting Friendly
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-3xl font-bold text-[#5c1e1e]">

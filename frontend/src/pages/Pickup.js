@@ -89,7 +89,9 @@ const Pickup = () => {
           price: price,
           isVeg: item.is_veg ?? true,
           description: item.description,
-          image_url: item.image_url
+          image_url: item.image_url,
+          no_onion_garlic: item.no_onion_garlic || false,
+          fasting_friendly: item.fasting_friendly || false
         });
       });
 
@@ -692,7 +694,19 @@ const MenuItemCard = ({ item, cart, updateCart, formatPrice }) => {
           {item.description && (
             <p className="text-xs text-gray-500 truncate">{item.description}</p>
           )}
-          <p className="text-sm font-semibold text-[#5c1e1e]">{formatPrice(item.price)}</p>
+          <div className="flex flex-wrap items-center gap-1 mt-1">
+            <p className="text-sm font-semibold text-[#5c1e1e]">{formatPrice(item.price)}</p>
+            {item.no_onion_garlic && (
+              <Badge className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0" data-testid="pickup-badge-no-onion-garlic">
+                No Onion/Garlic
+              </Badge>
+            )}
+            {item.fasting_friendly && (
+              <Badge className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0" data-testid="pickup-badge-fasting">
+                Fasting
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 

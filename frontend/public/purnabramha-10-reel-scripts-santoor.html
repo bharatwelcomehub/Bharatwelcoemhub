@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purnabramha - 10 Premium Reel Scripts with Santoor Music</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1a0f0a 0%, #2d1810 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #fff;
+        }
+        .header {
+            text-align: center;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3em;
+            color: #d4af37;
+            margin-bottom: 15px;
+        }
+        .header p {
+            font-size: 1.2em;
+            color: #ccc;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .music-note {
+            background: linear-gradient(135deg, #d4af37, #f4d03f);
+            color: #2d1810;
+            padding: 20px 40px;
+            border-radius: 15px;
+            max-width: 800px;
+            margin: 30px auto;
+            text-align: center;
+        }
+        .music-note h3 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+        .script-card {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(212,175,55,0.3);
+            border-radius: 25px;
+            max-width: 1000px;
+            margin: 40px auto;
+            overflow: hidden;
+        }
+        .script-header {
+            background: linear-gradient(135deg, #d4af37, #b8962e);
+            padding: 25px 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .script-number {
+            background: #2d1810;
+            color: #d4af37;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+        .script-title {
+            flex: 1;
+            margin-left: 20px;
+        }
+        .script-title h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8em;
+            color: #2d1810;
+            margin-bottom: 5px;
+        }
+        .script-title .meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .script-title .meta span {
+            background: rgba(45,24,16,0.3);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            color: #2d1810;
+        }
+        .script-body {
+            padding: 35px;
+        }
+        .scene {
+            background: rgba(212,175,55,0.08);
+            border-left: 4px solid #d4af37;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 0 15px 15px 0;
+        }
+        .scene-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .scene-header h4 {
+            color: #d4af37;
+            font-size: 1.1em;
+        }
+        .scene-time {
+            background: #d4af37;
+            color: #2d1810;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        .visual {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-style: italic;
+            color: #aaa;
+            border-left: 3px solid #666;
+        }
+        .visual::before {
+            content: "🎬 VISUAL: ";
+            font-style: normal;
+            color: #888;
+        }
+        .voiceover {
+            background: linear-gradient(90deg, rgba(212,175,55,0.15), transparent);
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 1.15em;
+            line-height: 1.7;
+            color: #fff;
+            border-left: 4px solid #d4af37;
+        }
+        .voiceover::before {
+            content: "🎙️ VOICE OVER:";
+            display: block;
+            color: #d4af37;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+        .text-overlay {
+            background: rgba(76, 175, 80, 0.2);
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+            color: #81c784;
+            font-size: 0.95em;
+        }
+        .text-overlay::before {
+            content: "📝 ON-SCREEN TEXT: ";
+            font-weight: 600;
+        }
+        .music-mood {
+            background: rgba(33, 150, 243, 0.15);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            color: #64b5f6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .music-mood::before {
+            content: "🎵";
+            font-size: 1.3em;
+        }
+        .cta-section {
+            background: linear-gradient(135deg, rgba(212,175,55,0.2), rgba(212,175,55,0.05));
+            padding: 25px;
+            border-radius: 15px;
+            margin-top: 25px;
+            text-align: center;
+        }
+        .cta-section h4 {
+            color: #d4af37;
+            margin-bottom: 15px;
+        }
+        .hashtags {
+            background: rgba(156, 39, 176, 0.15);
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: #ce93d8;
+            font-size: 0.9em;
+            word-break: break-word;
+        }
+        .tips-section {
+            background: rgba(255,255,255,0.08);
+            border: 2px solid rgba(212,175,55,0.3);
+            border-radius: 20px;
+            max-width: 900px;
+            margin: 60px auto;
+            padding: 40px;
+        }
+        .tips-section h2 {
+            color: #d4af37;
+            font-family: 'Playfair Display', serif;
+            font-size: 2em;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .tip-item {
+            background: rgba(212,175,55,0.1);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+        }
+        .tip-item h4 {
+            color: #d4af37;
+            margin-bottom: 10px;
+        }
+        @media (max-width: 768px) {
+            .script-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            .script-title {
+                margin-left: 0;
+                margin-top: 15px;
+            }
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🎬 PURNABRAMHA</h1>
+    <h2 style="color: #d4af37; font-family: 'Playfair Display', serif; margin-bottom: 20px;">10 Premium Reel Scripts</h2>
+    <p>Professional video scripts with classical Santoor music background. Voice over only - no lyrics. Perfect for Instagram Reels, YouTube Shorts & Facebook.</p>
+</div>
+
+<div class="music-note">
+    <h3>🎵 Recommended Background Music</h3>
+    <p><strong>Santoor Instrumentals</strong> - Pandit Shivkumar Sharma style | <strong>Flute + Tabla Fusion</strong> | <strong>Classical Indian Upbeat</strong></p>
+    <p style="margin-top: 10px; font-size: 0.9em;">Search: "Santoor instrumental upbeat" or "Indian classical fusion" on YouTube Audio Library (Copyright Free)</p>
+</div>
+
+<!-- SCRIPT 1 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">1</div>
+        <div class="script-title">
+            <h2>"Welcome to Purnabramha"</h2>
+            <div class="meta">
+                <span>⏱️ 30 seconds</span>
+                <span>🎯 Brand Introduction</span>
+                <span>🎵 Santoor + Soft Tabla</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - The Essence</h4>
+                <span class="scene-time">0-8 sec</span>
+            </div>
+            <div class="visual">Slow motion: Steam rising from hot Poha, hands breaking Puran Poli, golden Jalebi being lifted</div>
+            <div class="voiceover">
+                "महाराष्ट्राच्या मातीतून... आमच्या हातांमधून... तुमच्या ताटामध्ये..."<br>
+                <em>(From the soil of Maharashtra... through our hands... to your plate...)</em>
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Journey</h4>
+                <span class="scene-time">8-18 sec</span>
+            </div>
+            <div class="visual">Quick montage: All 8 restaurant locations, happy families eating, chefs cooking, Namaste gesture</div>
+            <div class="voiceover">
+                "From one small dream to eight centers across India and Australia... Purnabramha brings the soul of Maharashtrian cuisine to the world."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Promise</h4>
+                <span class="scene-time">18-30 sec</span>
+            </div>
+            <div class="visual">Logo reveal with golden particles, tagline appears, warm restaurant ambiance</div>
+            <div class="voiceover">
+                "Pure vegetarian. Pure tradition. Pure love. Purnabramha - where every meal is a homecoming."
+            </div>
+            <div class="text-overlay">पूर्णब्रम्ह | The Largest Maharashtrian Restaurant Chain</div>
+        </div>
+        <div class="music-mood">Santoor begins soft, builds with tabla, crescendo at logo reveal</div>
+        <div class="cta-section">
+            <h4>Call to Action</h4>
+            <p>"Follow us for daily doses of Maharashtrian magic! 🧡"</p>
+            <div class="hashtags">#Purnabramha #MaharashtrianFood #AuthenticCuisine #PureVegetarian #IndianRestaurant #FoodLovers</div>
+        </div>
+    </div>
+</div>
+
+<!-- SCRIPT 2 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">2</div>
+        <div class="script-title">
+            <h2>"Unlimited Breakfast Magic"</h2>
+            <div class="meta">
+                <span>⏱️ 35 seconds</span>
+                <span>🎯 Breakfast Promotion</span>
+                <span>🎵 Upbeat Santoor + Flute</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - Morning Struggle</h4>
+                <span class="scene-time">0-7 sec</span>
+            </div>
+            <div class="visual">Person waking up, stretching, looking at empty kitchen, sad face emoji effect</div>
+            <div class="voiceover">
+                "Subah subah yehi sawaal... aaj naashte mein kya banau?"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Solution</h4>
+                <span class="scene-time">7-12 sec</span>
+            </div>
+            <div class="visual">Transition wipe to Purnabramha entrance, door opening with golden light</div>
+            <div class="voiceover">
+                "Kuch mat banao! Purnabramha aao!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Feast</h4>
+                <span class="scene-time">12-25 sec</span>
+            </div>
+            <div class="visual">Slow motion food parade: Poha with sev, fluffy Idli, crispy Vada, golden Dosa being poured, Upma garnished, Sabudana Khichdi with peanuts</div>
+            <div class="voiceover">
+                "Poha... Upma... Idli... Vada... Dosa... Sabudana Khichdi... सगळं UNLIMITED! Jitna mann kare, titna khao!"
+            </div>
+            <div class="text-overlay">UNLIMITED BREAKFAST ☀️</div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - The Price Reveal</h4>
+                <span class="scene-time">25-35 sec</span>
+            </div>
+            <div class="visual">Price tag animation: ₹299 / $35 with sparkle effect, happy customers eating, clock showing 8-11 AM</div>
+            <div class="voiceover">
+                "Aur yeh sab sirf 299 rupees mein! Australia mein just 35 dollars! Roz subah 8 se 11 baje. Purnabramha - Pet bhi khush, pocket bhi khush!"
+            </div>
+            <div class="text-overlay">₹299 | $35 AUD | 8 AM - 11 AM</div>
+        </div>
+        <div class="music-mood">Playful Santoor melody, tempo increases with food montage, triumphant at price reveal</div>
+    </div>
+</div>
+
+<!-- SCRIPT 3 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">3</div>
+        <div class="script-title">
+            <h2>"10-Minute Pickup Promise"</h2>
+            <div class="meta">
+                <span>⏱️ 30 seconds</span>
+                <span>🎯 Pickup Service</span>
+                <span>🎵 Fast-paced Santoor</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - The Rush</h4>
+                <span class="scene-time">0-8 sec</span>
+            </div>
+            <div class="visual">Office worker looking at watch, traffic jam, meeting notification, hungry stomach sound effect</div>
+            <div class="voiceover">
+                "Meeting pe meeting... traffic ka chakkar... lunch ka time hi nahi milta!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Smart Move</h4>
+                <span class="scene-time">8-15 sec</span>
+            </div>
+            <div class="visual">Phone screen showing website, finger tapping "Order Now", order confirmation animation</div>
+            <div class="voiceover">
+                "Smart log karte hain smart kaam! app.purnabramha.com pe order karo... bas!"
+            </div>
+            <div class="text-overlay">📱 app.purnabramha.com</div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Pickup</h4>
+                <span class="scene-time">15-25 sec</span>
+            </div>
+            <div class="visual">Person walking to counter, receiving packed food, steam rising from container, happy smile</div>
+            <div class="voiceover">
+                "10 minute mein garam garam khana ready! Vada Pav, Misal, Poha, Thali - jo chaaho wo!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - Satisfaction</h4>
+                <span class="scene-time">25-30 sec</span>
+            </div>
+            <div class="visual">Person enjoying food at desk, colleagues curious, logo with pickup icon</div>
+            <div class="voiceover">
+                "Purnabramha Pickup - Busy life, happy tummy!"
+            </div>
+            <div class="text-overlay">ORDER → PICKUP → ENJOY 🍽️</div>
+        </div>
+        <div class="music-mood">Energetic Santoor, fast tabla beats, satisfying resolution at end</div>
+    </div>
+</div>
+
+<!-- SCRIPT 4 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">4</div>
+        <div class="script-title">
+            <h2>"The Perfect Dine-In Experience"</h2>
+            <div class="meta">
+                <span>⏱️ 40 seconds</span>
+                <span>🎯 Dine-In Ambiance</span>
+                <span>🎵 Elegant Santoor + Sitar</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - Welcome</h4>
+                <span class="scene-time">0-10 sec</span>
+            </div>
+            <div class="visual">Restaurant entrance, staff doing Namaste, warm lighting, traditional decor with modern touch</div>
+            <div class="voiceover">
+                "Jab aap Purnabramha mein kadam rakhte ho... toh sirf restaurant nahi, ghar aate ho."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Ambiance</h4>
+                <span class="scene-time">10-20 sec</span>
+            </div>
+            <div class="visual">Cinematic shots: hanging lights, wooden furniture, families laughing, couple on date, friends celebrating</div>
+            <div class="voiceover">
+                "Yahan har table pe ek kahani hai... har thali mein ek yaad hai... har guest humara apna hai."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Food</h4>
+                <span class="scene-time">20-32 sec</span>
+            </div>
+            <div class="visual">Waiter serving elaborate Thali, close-up of each item, steam rising, first bite reaction</div>
+            <div class="voiceover">
+                "Authentic Maharashtrian Thali... jisme hai maa ke haath ka pyaar, aaji ki recipes ka jaadu, aur Maharashtra ki mitti ki khushboo."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - Invitation</h4>
+                <span class="scene-time">32-40 sec</span>
+            </div>
+            <div class="visual">Empty chair at beautifully set table, camera pulling back to reveal full restaurant, logo overlay</div>
+            <div class="voiceover">
+                "Aapki table ready hai. Purnabramha - Aao, ghar jaisa khana khao."
+            </div>
+            <div class="text-overlay">Book Your Table Today 🪑</div>
+        </div>
+        <div class="music-mood">Graceful Santoor, gentle sitar accents, warm and inviting throughout</div>
+    </div>
+</div>
+
+<!-- SCRIPT 5 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">5</div>
+        <div class="script-title">
+            <h2>"Catering for Your Celebrations"</h2>
+            <div class="meta">
+                <span>⏱️ 45 seconds</span>
+                <span>🎯 Catering Services</span>
+                <span>🎵 Grand Santoor + Shehnai hints</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - Life's Moments</h4>
+                <span class="scene-time">0-10 sec</span>
+            </div>
+            <div class="visual">Montage: Wedding mandap, birthday cake cutting, corporate event, baby shower - all moments of joy</div>
+            <div class="voiceover">
+                "Zindagi ke khaas lamhe... shaadi ho ya birthday, promotion ho ya reunion..."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Question</h4>
+                <span class="scene-time">10-15 sec</span>
+            </div>
+            <div class="visual">Person thinking, question marks animation, food emoji floating</div>
+            <div class="voiceover">
+                "Par sabse bada sawaal - mehmaano ko kya khilayein?"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Grand Spread</h4>
+                <span class="scene-time">15-32 sec</span>
+            </div>
+            <div class="visual">Magnificent buffet setup: Puran Poli stacks, Shrikhand bowls, Aamras glasses, multiple curries, chefs in uniform serving</div>
+            <div class="voiceover">
+                "Purnabramha Catering - 150 se zyada authentic dishes! Puran Poli, Shrikhand, Aamras, Masala Bhaat... sab kuch jo aapke mehman yaad rakhenge!"
+            </div>
+            <div class="text-overlay">150+ Authentic Maharashtrian Dishes</div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - Packages</h4>
+                <span class="scene-time">32-40 sec</span>
+            </div>
+            <div class="visual">Package cards appearing: Classic, Premium, Royal with prices, staff serving guests</div>
+            <div class="voiceover">
+                "50 guests se 500 tak... budget se royal tak... hum sab sambhaalte hain. Staff bhi, crockery bhi!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 5 - Happy Ending</h4>
+                <span class="scene-time">40-45 sec</span>
+            </div>
+            <div class="visual">Happy host receiving compliments, guests with satisfied smiles, WhatsApp contact appearing</div>
+            <div class="voiceover">
+                "Aapki khushiyon mein Maharashtrian tadka! WhatsApp karein, abhi book karein!"
+            </div>
+            <div class="text-overlay">📞 WhatsApp: +91 81056 45499</div>
+        </div>
+        <div class="music-mood">Celebratory Santoor with subtle Shehnai, builds grandeur, festive finale</div>
+    </div>
+</div>
+
+<!-- SCRIPT 6 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">6</div>
+        <div class="script-title">
+            <h2>"Tiffin Service - Ghar Ka Khana, Roz"</h2>
+            <div class="meta">
+                <span>⏱️ 35 seconds</span>
+                <span>🎯 Tiffin Subscription</span>
+                <span>🎵 Homely Santoor melody</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - The Longing</h4>
+                <span class="scene-time">0-10 sec</span>
+            </div>
+            <div class="visual">Young professional in small apartment, looking at instant noodles, photo frame of home/mom in background</div>
+            <div class="voiceover">
+                "Ghar se door... hostel ya PG mein... roz roz Maggi ya pizza... par mann toh ghar ke khane ka karta hai na?"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Solution</h4>
+                <span class="scene-time">10-18 sec</span>
+            </div>
+            <div class="visual">Tiffin box opening with steam, dal-rice-sabzi-roti reveal, person's eyes lighting up</div>
+            <div class="voiceover">
+                "Purnabramha Tiffin Service - ghar jaisa khana, roz aapke darwaze pe!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Menu</h4>
+                <span class="scene-time">18-28 sec</span>
+            </div>
+            <div class="visual">Weekly menu appearing day by day, different dishes each day, portion shots</div>
+            <div class="voiceover">
+                "Monday ko Usal, Tuesday ko Bharli Vangi, Wednesday ko Masala Bhaat... har din naya, har din swadisht!"
+            </div>
+            <div class="text-overlay">Weekly Plans Starting ₹750</div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - Happy Customer</h4>
+                <span class="scene-time">28-35 sec</span>
+            </div>
+            <div class="visual">Person eating happily, calling mom showing tiffin, satisfied smile, logo</div>
+            <div class="voiceover">
+                "Maa jaisi care, ghar jaisa swaad. Purnabramha Tiffin - Subscribe karo, tension chodo!"
+            </div>
+        </div>
+        <div class="music-mood">Warm, nostalgic Santoor, emotional but uplifting, feels like home</div>
+    </div>
+</div>
+
+<!-- SCRIPT 7 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">7</div>
+        <div class="script-title">
+            <h2>"Perth, Australia - We Are Here!"</h2>
+            <div class="meta">
+                <span>⏱️ 40 seconds</span>
+                <span>🎯 Perth Location</span>
+                <span>🎵 Fusion Santoor + Western undertones</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - Missing Home</h4>
+                <span class="scene-time">0-10 sec</span>
+            </div>
+            <div class="visual">Indian family in Australia, looking at old photos, kids asking about India, Perth skyline in window</div>
+            <div class="voiceover">
+                "Australia mein ghar bana liya... par dil abhi bhi Maharashtra mein hai..."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Discovery</h4>
+                <span class="scene-time">10-18 sec</span>
+            </div>
+            <div class="visual">Walking down Beaufort Street, seeing Purnabramha sign, surprised happy expression, entering restaurant</div>
+            <div class="voiceover">
+                "Aur phir Beaufort Street pe dikha - Purnabramha! Wahi naam, wahi taste, wahi ghar jaisa ahsaas!"
+            </div>
+            <div class="text-overlay">📍 42/273 Beaufort Street, Perth</div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - Taste of Home</h4>
+                <span class="scene-time">18-30 sec</span>
+            </div>
+            <div class="visual">Family eating Vada Pav, grandmother emotional, kids enjoying Misal, authentic dishes on table</div>
+            <div class="voiceover">
+                "Wahi Kolhapuri Misal... wahi Mumbai Vada Pav... wahi Puranpoli jo aaji banati thi... 15,000 km door, par taste bilkul ghar jaisa!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - Welcome Perth</h4>
+                <span class="scene-time">30-40 sec</span>
+            </div>
+            <div class="visual">Restaurant exterior at golden hour, staff waving, Perth city + Indian flag mashup, logo with Australia map pin</div>
+            <div class="voiceover">
+                "Perth waalo, aapka apna Maharashtrian ghar ab walking distance pe hai! Purnabramha Perth - Come home to Maharashtra!"
+            </div>
+            <div class="text-overlay">Walking Distance from CBD 🚶 | +61 401 832 922</div>
+        </div>
+        <div class="music-mood">Fusion of Indian Santoor with subtle Western strings, emotional journey, triumphant end</div>
+    </div>
+</div>
+
+<!-- SCRIPT 8 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">8</div>
+        <div class="script-title">
+            <h2>"A Journey Through Our Menu"</h2>
+            <div class="meta">
+                <span>⏱️ 45 seconds</span>
+                <span>🎯 Menu Showcase</span>
+                <span>🎵 Progressive Santoor</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - Snacks</h4>
+                <span class="scene-time">0-10 sec</span>
+            </div>
+            <div class="visual">Extreme close-ups: Vada Pav being assembled, Misal Pav with farsan shower, Kothimbir Vadi frying</div>
+            <div class="voiceover">
+                "Shuruwaat karein snacks se... Vada Pav jo Mumbai ki yaad dilaye... Misal jo Kolhapur ka teekha maza de... Kothimbir Vadi jo bachpan ki memory ho..."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - Main Course</h4>
+                <span class="scene-time">10-22 sec</span>
+            </div>
+            <div class="visual">Thali being served, gravy being poured, chapati puffing, dal tadka sizzling</div>
+            <div class="voiceover">
+                "Main course mein... Bharli Vangi ka magic... Amti chi unmatched taste... Masala Bhaat ki khushboo... aur chapati jo maa ke haath jaisi!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - Sweets</h4>
+                <span class="scene-time">22-32 sec</span>
+            </div>
+            <div class="visual">Puran Poli with ghee drizzle, Shrikhand being scooped, Gulab Jamun floating, Aamras pouring</div>
+            <div class="voiceover">
+                "Aur meethe mein... Puran Poli ghee ke saath... Shrikhand jo ek dum creamy... Aamras jo sirf mangoes ka asli ras... har bite mein meethas!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - The Count</h4>
+                <span class="scene-time">32-45 sec</span>
+            </div>
+            <div class="visual">Number counter going up: 150+, menu book flipping pages, satisfied customers montage</div>
+            <div class="voiceover">
+                "150 se zyada authentic dishes... har ek Maharashtra ki mitti se judi... har ek dil se bani. Purnabramha - Pura Maharashtra, ek jagah!"
+            </div>
+            <div class="text-overlay">150+ Authentic Dishes | Explore Full Menu at purnabramha.com</div>
+        </div>
+        <div class="music-mood">Santoor builds progressively, different moods for each course, grand finale</div>
+    </div>
+</div>
+
+<!-- SCRIPT 9 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">9</div>
+        <div class="script-title">
+            <h2>"Family Moments at Purnabramha"</h2>
+            <div class="meta">
+                <span>⏱️ 35 seconds</span>
+                <span>🎯 Family/Celebration</span>
+                <span>🎵 Heartwarming Santoor</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - Everyday Magic</h4>
+                <span class="scene-time">0-10 sec</span>
+            </div>
+            <div class="visual">Grandfather telling story to grandkids over Thali, parents smiling, three generations at one table</div>
+            <div class="voiceover">
+                "Kuch rishte khane ke saath aur bhi pyaare ho jaate hain..."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - Celebrations</h4>
+                <span class="scene-time">10-20 sec</span>
+            </div>
+            <div class="visual">Birthday celebration, cake cutting, anniversary couple, promotion party - all at Purnabramha</div>
+            <div class="voiceover">
+                "Birthday ho ya anniversary... promotion ho ya reunion... har khushi ka ek hi address - Purnabramha!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Bond</h4>
+                <span class="scene-time">20-30 sec</span>
+            </div>
+            <div class="visual">Kids finishing food showing empty plates, mom proud, dad paying bill with smile, family exit waving</div>
+            <div class="voiceover">
+                "Yahan bachche plate saaf karte hain... mummy tension-free rehti hain... aur papa khush hoke bill pay karte hain!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - Invitation</h4>
+                <span class="scene-time">30-35 sec</span>
+            </div>
+            <div class="visual">Empty table with warm lighting, chairs arranged, logo appears with heart</div>
+            <div class="voiceover">
+                "Apni family ko le kar aaiye. Purnabramha - Jahan har meal ek memory ban jaata hai."
+            </div>
+            <div class="text-overlay">Tag Your Family! 👨‍👩‍👧‍👦❤️</div>
+        </div>
+        <div class="music-mood">Emotional Santoor, gentle and warm, builds love and nostalgia</div>
+    </div>
+</div>
+
+<!-- SCRIPT 10 -->
+<div class="script-card">
+    <div class="script-header">
+        <div class="script-number">10</div>
+        <div class="script-title">
+            <h2>"Pure Vegetarian, Pure Pride"</h2>
+            <div class="meta">
+                <span>⏱️ 40 seconds</span>
+                <span>🎯 Vegetarian Pride</span>
+                <span>🎵 Soulful Santoor + Flute</span>
+            </div>
+        </div>
+    </div>
+    <div class="script-body">
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 1 - The Question</h4>
+                <span class="scene-time">0-8 sec</span>
+            </div>
+            <div class="visual">Text appearing: "Vegetarian food is boring?" - then getting crossed out dramatically</div>
+            <div class="voiceover">
+                "Log kehte hain vegetarian khana boring hota hai... hum kehte hain - unhe abhi Purnabramha aana baaki hai!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 2 - The Explosion</h4>
+                <span class="scene-time">8-20 sec</span>
+            </div>
+            <div class="visual">Rapid fire montage: colorful dishes, variety of textures, spices falling in slow motion, cooking flames, happy faces</div>
+            <div class="voiceover">
+                "150 dishes... 50 spices... 100% vegetarian... 0% compromise! Dekho colours... taste karo flavours... feel karo passion!"
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 3 - The Heritage</h4>
+                <span class="scene-time">20-30 sec</span>
+            </div>
+            <div class="visual">Old photo of grandmother cooking, transition to chef cooking same dish today, recipes being passed down</div>
+            <div class="voiceover">
+                "Har recipe mein hai humare purwajon ki wisdom... har dish mein hai Maharashtra ka dil... har bite mein hai generations ka pyaar."
+            </div>
+        </div>
+        <div class="scene">
+            <div class="scene-header">
+                <h4>Scene 4 - The Statement</h4>
+                <span class="scene-time">30-40 sec</span>
+            </div>
+            <div class="visual">Green leaf symbol, "Pure Veg" badge, proud chefs, satisfied customers, logo with Indian flag colors</div>
+            <div class="voiceover">
+                "Pure vegetarian nahi sirf humara choice hai... yeh humari identity hai, humara guroor hai! Purnabramha - Where Vegetarian is the MAIN course!"
+            </div>
+            <div class="text-overlay">🌿 100% Pure Vegetarian | शुद्ध शाकाहारी</div>
+        </div>
+        <div class="music-mood">Powerful Santoor with flute, starts contemplative, builds to proud crescendo</div>
+    </div>
+</div>
+
+<!-- TIPS SECTION -->
+<div class="tips-section">
+    <h2>🎬 Production Tips for All 10 Reels</h2>
+    
+    <div class="tip-item">
+        <h4>🎵 Music Selection</h4>
+        <p>Search for: "Santoor instrumental royalty free" | "Indian classical fusion" | "Pandit Shivkumar Sharma style" on YouTube Audio Library, Epidemic Sound, or Artlist. Ensure no vocals - only instruments.</p>
+    </div>
+    
+    <div class="tip-item">
+        <h4>📱 Video Format</h4>
+        <p>9:16 vertical | 1080x1920 resolution | 30-45 seconds | Add captions for accessibility</p>
+    </div>
+    
+    <div class="tip-item">
+        <h4>🍽️ Food Shots Must-Haves</h4>
+        <p>Steam rising from hot dishes | Slow motion pouring/drizzling | Close-up textures | Golden hour lighting | Clean backgrounds</p>
+    </div>
+    
+    <div class="tip-item">
+        <h4>🎤 Voice Over Tips</h4>
+        <p>Warm, inviting tone | Natural Hindi-English mix | Pause at emotional moments | Match tempo with music | Professional recording (no echo)</p>
+    </div>
+    
+    <div class="tip-item">
+        <h4>⏰ Best Posting Times</h4>
+        <p><strong>India:</strong> 7-9 AM, 12-2 PM, 7-9 PM | <strong>Australia:</strong> 11 AM - 1 PM, 5-7 PM | <strong>Frequency:</strong> 4-5 reels per week</p>
+    </div>
+    
+    <div class="tip-item">
+        <h4>#️⃣ Universal Hashtags</h4>
+        <p>#Purnabramha #MaharashtrianFood #AuthenticIndian #VegetarianRestaurant #IndianCuisine #FoodLovers #PureVeg #MisalPav #VadaPav #Thali #IndianFoodLovers #FoodieLife</p>
+    </div>
+</div>
+
+<div style="text-align: center; padding: 40px; color: #888;">
+    <p>© 2025 Purnabramha | Manaswini Foods Private Limited</p>
+    <p style="margin-top: 10px;">Created for Marketing Team | www.purnabramha.com</p>
+</div>
+
+</body>
+</html>
