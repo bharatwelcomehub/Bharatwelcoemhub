@@ -42,6 +42,11 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
   - Marathi greetings
   - One-click activate/deactivate
 - [x] **Menu CRUD** (173+ items) - name, description, category, prices, images
+- [x] **Dietary Tags** - No Onion/Garlic and Fasting Friendly boolean flags with bold colored badges
+  - Admin: Checkboxes in Add/Edit Menu Item dialog
+  - Menu Page: Orange 'No Onion/Garlic' and purple 'Fasting Friendly' badges on cards and modal
+  - Pickup Page: Dietary badges on MenuItemCard
+- [x] **Bulk Image Upload** - Paste Google Drive URLs for items without images
 - [x] **Tiffin Management** - Full CRUD with:
   - Unlimited Breakfast Settings (price, description, timings, days)
   - Lunch Box Options management
@@ -139,6 +144,7 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - `GET/POST/PUT /api/admin/locations` - Location CRUD
 
 ## Backlog
+- [ ] Tiffin Page Migration - Refactor Tiffin.js to use database APIs instead of hardcoded JSON
 - [ ] Payment Integration (Razorpay/Stripe)
 - [ ] Push notifications
 - [ ] Order history dashboard
