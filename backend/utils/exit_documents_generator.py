@@ -168,42 +168,122 @@ class ExitAgreementGenerator:
         story.append(Spacer(1, 0.2*inch))
     
     def _add_signature_section(self, story):
-        """Add signature section"""
+        """Add signature section with Franchisor Signatories, Exit Manager, and Franchisee Directors"""
+        sigs = self.exit.get("signatures", {})
+        
         story.append(Paragraph("<b>SIGNATURES</b>", self.styles['ExitSectionHead']))
+        story.append(Spacer(1, 0.15*inch))
+
+        # ---- SECTION 1: FOR FRANCHISOR (Purnabramha) ----
+        story.append(Paragraph("<b>FOR FRANCHISOR — MANASWINI FOODS PRIVATE LIMITED</b>", self.styles['ExitClauseHead']))
         
-        franchisor_sig = self.exit.get("signatures", {}).get("franchisor")
-        franchisee_sig = self.exit.get("signatures", {}).get("franchisee")
+        franchisor_signatories = sigs.get("franchisor_signatories", [])
+        # Fallback to old single franchisor if no new-format signatories
+        if not franchisor_signatories and sigs.get("franchisor"):
+            old = sigs["franchisor"]
+            franchisor_signatories = [{
+                "signer_name": old.get("signer_name", ""),
+                "signer_designation": old.get("signer_designation", "Director"),
+                "signature_date": old.get("signature_date", "")
+            }]
         
-        sig_data = [
-            ["FOR FRANCHISOR", "FOR FRANCHISEE"],
-            ["MANASWINI FOODS PRIVATE LIMITED", self.franchise.get("legal_entity_name", "[FRANCHISEE]")],
-            ["", ""],
-            ["_" * 30, "_" * 30],
-            [
-                franchisor_sig.get("signer_name", "[Name]") if franchisor_sig else "[Name]",
-                franchisee_sig.get("signer_name", "[Name]") if franchisee_sig else "[Name]"
-            ],
-            [
-                franchisor_sig.get("signer_designation", "[Designation]") if franchisor_sig else "[Designation]",
-                franchisee_sig.get("signer_designation", "[Designation]") if franchisee_sig else "[Designation]"
-            ],
-            ["", ""],
-            [
-                f"Date: {franchisor_sig.get('signature_date', '____________')[:10] if franchisor_sig else '____________'}",
-                f"Date: {franchisee_sig.get('signature_date', '____________')[:10] if franchisee_sig else '____________'}"
+        if franchisor_signatories:
+            for s in franchisor_signatories:
+                sig_block = [
+                    ["", ""],
+                    ["_" * 35, ""],
+                    [s.get("signer_name", "[Name]"), ""],
+                    [s.get("signer_designation", "Director"), ""],
+                    [f"Date: {s.get('signature_date', '____________')[:10]}", "(Seal & Signature)"],
+                ]
+                t = Table(sig_block, colWidths=[3*inch, 2*inch])
+                t.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                    ('FONTNAME', (0, 2), (0, 2), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('TEXTCOLOR', (1, -1), (1, -1), colors.HexColor(MEDIUM_GRAY)),
+                    ('TOPPADDING', (0, 0), (-1, -1), 2),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                ]))
+                story.append(t)
+                story.append(Spacer(1, 0.1*inch))
+        else:
+            story.append(Paragraph("_" * 35, self.styles['ExitBodyText']))
+            story.append(Paragraph("[Franchisor Signatory — Name & Designation]", self.styles['ExitSmallText']))
+            story.append(Paragraph("Date: ____________", self.styles['ExitSmallText']))
+
+        story.append(Spacer(1, 0.2*inch))
+
+        # ---- SECTION 2: EXIT MANAGER (Franchisor Side) ----
+        story.append(Paragraph("<b>EXIT MANAGER (FRANCHISOR SIDE)</b>", self.styles['ExitClauseHead']))
+        
+        exit_manager = sigs.get("exit_manager")
+        if exit_manager:
+            mgr_block = [
+                ["", ""],
+                ["_" * 35, ""],
+                [exit_manager.get("signer_name", "[Name]"), ""],
+                [exit_manager.get("signer_designation", "Exit Manager"), ""],
+                [f"Date: {exit_manager.get('signature_date', '____________')[:10]}", "(Signature)"],
             ]
-        ]
+            t = Table(mgr_block, colWidths=[3*inch, 2*inch])
+            t.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTNAME', (0, 2), (0, 2), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('TEXTCOLOR', (1, -1), (1, -1), colors.HexColor(MEDIUM_GRAY)),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ]))
+            story.append(t)
+        else:
+            story.append(Paragraph("_" * 35, self.styles['ExitBodyText']))
+            story.append(Paragraph("[Exit Manager — Name & Role]", self.styles['ExitSmallText']))
+            story.append(Paragraph("Date: ____________", self.styles['ExitSmallText']))
+
+        story.append(Spacer(1, 0.25*inch))
+
+        # ---- SECTION 3: FOR FRANCHISEE — Directors ----
+        legal_name = self.franchise.get("legal_entity_name", "[FRANCHISEE]")
+        story.append(Paragraph(f"<b>FOR FRANCHISEE — {legal_name.upper()}</b>", self.styles['ExitClauseHead']))
         
-        sig_table = Table(sig_data, colWidths=[3*inch, 3*inch])
-        sig_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('TOPPADDING', (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ]))
-        story.append(sig_table)
+        franchisee_dirs = sigs.get("franchisee_directors", [])
+        # Fallback to old single franchisee if no directors
+        if not franchisee_dirs and sigs.get("franchisee"):
+            old = sigs["franchisee"]
+            franchisee_dirs = [{
+                "signer_name": old.get("signer_name", ""),
+                "signer_designation": old.get("signer_designation", "Director"),
+                "signature_date": old.get("signature_date", "")
+            }]
+        
+        if franchisee_dirs:
+            for d in franchisee_dirs:
+                dir_block = [
+                    ["", ""],
+                    ["_" * 35, ""],
+                    [d.get("signer_name", "[Name]"), ""],
+                    [d.get("signer_designation", "Director"), ""],
+                    [f"Date: {d.get('signature_date', '____________')[:10]}", "(Signature)"],
+                ]
+                t = Table(dir_block, colWidths=[3*inch, 2*inch])
+                t.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                    ('FONTNAME', (0, 2), (0, 2), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('TEXTCOLOR', (1, -1), (1, -1), colors.HexColor(MEDIUM_GRAY)),
+                    ('TOPPADDING', (0, 0), (-1, -1), 2),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                ]))
+                story.append(t)
+                story.append(Spacer(1, 0.1*inch))
+        else:
+            story.append(Paragraph("_" * 35, self.styles['ExitBodyText']))
+            story.append(Paragraph("[Director Name & Designation]", self.styles['ExitSmallText']))
+            story.append(Paragraph("Date: ____________", self.styles['ExitSmallText']))
     
     # =======================================
     # EXIT AGREEMENT
