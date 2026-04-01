@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { 
   FileText, AlertTriangle, CheckCircle, Clock, Users, Building, 
   DollarSign, ClipboardCheck, Download, Plus, Trash2, X, Loader2,
-  FileSignature, Package, Calculator, Award, ArrowRight
+  FileSignature, Package, Calculator, Award, ArrowRight, RefreshCw
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -234,6 +234,54 @@ export default function FranchiseExit() {
       }
     } catch (error) {
       toast.error('Failed to update settlement');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Migrate signatures for current exit (pull from master data)
+  const handleMigrateSignatures = async () => {
+    if (!selectedExit) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/franchise-exit/migrate-signatures/${selectedExit.exit_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Signatures updated from master data');
+        fetchExitDetails(selectedExit.exit_id);
+      } else {
+        toast.error(data.detail || 'Migration failed');
+      }
+    } catch (error) {
+      toast.error('Failed to migrate signatures');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Migrate ALL exit signatures at once
+  const handleMigrateAllSignatures = async () => {
+    if (!window.confirm('This will update signature structure for ALL existing exit records. Continue?')) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/franchise-exit/migrate-all-signatures`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`${data.results?.length || 0} exit records updated`);
+        if (selectedExit) fetchExitDetails(selectedExit.exit_id);
+      } else {
+        toast.error(data.detail || 'Migration failed');
+      }
+    } catch (error) {
+      toast.error('Failed to migrate');
     } finally {
       setLoading(false);
     }
@@ -846,7 +894,31 @@ export default function FranchiseExit() {
         {selectedExit.signatures && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Signatures</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Signatures</CardTitle>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" variant="outline" 
+                    onClick={handleMigrateSignatures} 
+                    disabled={loading}
+                    data-testid="refresh-signatures-btn"
+                  >
+                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
+                    Refresh from Master Data
+                  </Button>
+                  {!isFranchiseOwner && (
+                    <Button 
+                      size="sm" variant="outline"
+                      onClick={handleMigrateAllSignatures}
+                      disabled={loading}
+                      data-testid="migrate-all-signatures-btn"
+                      className="text-xs"
+                    >
+                      Update All Exits
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* FRANCHISOR SIGNATORIES */}

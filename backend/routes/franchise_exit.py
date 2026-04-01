@@ -475,6 +475,127 @@ async def get_franchise_directors(franchise_code: str):
         "legal_entity_name": franchise.get("legal_entity_name", "")
     }
 
+
+async def _migrate_exit_signatures(exit_record):
+    """Internal helper: migrate a single exit record to the new signature structure.
+    Pulls directors from franchise management and converts old format to new."""
+    exit_id = exit_record["exit_id"]
+    franchise_code = exit_record.get("franchise_code", "")
+    sigs = exit_record.get("signatures", {})
+    now = datetime.now(timezone.utc).isoformat()
+    updates = {"updated_at": now}
+
+    # 1. FRANCHISOR SIGNATORIES — convert old franchisor to signatories array
+    if not sigs.get("franchisor_signatories"):
+        old_franchisor = sigs.get("franchisor")
+        if old_franchisor:
+            updates["signatures.franchisor_signatories"] = [{
+                "signer_name": old_franchisor.get("signer_name", ""),
+                "signer_designation": old_franchisor.get("signer_designation", "Director"),
+                "signature_date": old_franchisor.get("signature_date", now),
+                "signed": True,
+                "signed_by_user": old_franchisor.get("signed_by_user", "")
+            }]
+
+    # 2. EXIT MANAGER — use initiated_by_user if not already set
+    if not sigs.get("exit_manager"):
+        manager_name = exit_record.get("initiated_by_user", "")
+        if manager_name:
+            updates["signatures.exit_manager"] = {
+                "signer_name": manager_name,
+                "signer_role": "Exit Manager (Franchisor Side)",
+                "signer_designation": "Exit Manager",
+                "signature_date": now,
+                "signed": True,
+                "signed_by_user": manager_name
+            }
+
+    # 3. FRANCHISEE DIRECTORS — pull from franchise management
+    if not sigs.get("franchisee_directors"):
+        franchise = await db.franchises.find_one(
+            {"franchise_code": franchise_code},
+            {"_id": 0, "directors": 1}
+        )
+        directors = franchise.get("directors", []) if franchise else []
+        if directors:
+            dir_sigs = []
+            for d in directors:
+                dir_sigs.append({
+                    "signer_name": d.get("name", ""),
+                    "signer_designation": d.get("designation", "Director"),
+                    "signature_date": now,
+                    "signed": True,
+                    "signed_by_user": "Auto-populated from Franchise Management"
+                })
+            updates["signatures.franchisee_directors"] = dir_sigs
+            # Also set backward-compat franchisee field if empty
+            if not sigs.get("franchisee"):
+                updates["signatures.franchisee"] = {
+                    **dir_sigs[0],
+                    "signer_role": "franchisee"
+                }
+
+    # Ensure new fields exist even if empty
+    if "signatures.franchisor_signatories" not in updates and not sigs.get("franchisor_signatories"):
+        updates["signatures.franchisor_signatories"] = []
+    if "signatures.exit_manager" not in updates and not sigs.get("exit_manager"):
+        updates["signatures.exit_manager"] = None
+    if "signatures.franchisee_directors" not in updates and not sigs.get("franchisee_directors"):
+        updates["signatures.franchisee_directors"] = []
+
+    if updates:
+        await db.franchise_exits.update_one(
+            {"exit_id": exit_id},
+            {"$set": updates}
+        )
+
+    return updates
+
+
+@router.post("/migrate-signatures/{exit_id}")
+async def migrate_single_exit_signatures(exit_id: str, data: dict):
+    """Migrate a single exit record to the new signature structure"""
+    token = data.get("token")
+    session = await check_access(token)
+
+    exit_record = await db.franchise_exits.find_one({"exit_id": exit_id})
+    if not exit_record:
+        raise HTTPException(404, "Exit record not found")
+
+    updates = await _migrate_exit_signatures(exit_record)
+    return {
+        "success": True,
+        "exit_id": exit_id,
+        "message": "Signatures migrated successfully",
+        "fields_updated": len(updates)
+    }
+
+
+@router.post("/migrate-all-signatures")
+async def migrate_all_exit_signatures(data: dict):
+    """Migrate ALL existing exit records to the new signature structure.
+    Does NOT recreate exits — only adds the new signature fields."""
+    token = data.get("token")
+    session = await check_access(token)
+
+    all_exits = await db.franchise_exits.find({}, {"_id": 0}).to_list(1000)
+    results = []
+
+    for exit_record in all_exits:
+        exit_id = exit_record["exit_id"]
+        updates = await _migrate_exit_signatures(exit_record)
+        results.append({
+            "exit_id": exit_id,
+            "franchise_code": exit_record.get("franchise_code", ""),
+            "fields_updated": len(updates)
+        })
+
+    return {
+        "success": True,
+        "message": f"Migrated {len(results)} exit records",
+        "results": results
+    }
+
 @router.post("/complete/{exit_id}")
 async def complete_exit(exit_id: str, data: dict):
     """Complete the exit process and generate certificate"""
