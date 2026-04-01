@@ -135,7 +135,10 @@ async def initiate_exit(data: dict):
         },
         "signatures": {
             "franchisor": None,
-            "franchisee": None
+            "franchisee": None,
+            "franchisor_signatories": [],
+            "exit_manager": None,
+            "franchisee_directors": []
         },
         "asset_handover": None,
         "financial_settlement": None,
@@ -359,7 +362,10 @@ async def update_compliance(exit_id: str, data: dict):
 
 @router.post("/sign/{exit_id}")
 async def add_signature(exit_id: str, data: dict):
-    """Add digital signature to exit documents"""
+    """Add digital signature(s) to exit documents.
+    Supports: franchisor_signatories (Sandeep/Jayanti), exit_manager, franchisee_directors.
+    Also backward-compatible with old franchisor/franchisee roles.
+    """
     token = data.get("token")
     session = await check_access(token)
     
@@ -367,40 +373,107 @@ async def add_signature(exit_id: str, data: dict):
     if not exit_record:
         raise HTTPException(404, "Exit record not found")
     
-    signer_role = data.get("signer_role")  # franchisor or franchisee
-    if signer_role not in ["franchisor", "franchisee"]:
-        raise HTTPException(400, "Invalid signer role")
-    
-    signature = {
-        "signer_name": data.get("signer_name"),
-        "signer_role": signer_role,
-        "signer_designation": data.get("signer_designation", ""),
-        "signature_date": datetime.now(timezone.utc).isoformat(),
-        "ip_address": data.get("ip_address", ""),
-        "signed_by_user": session.get("managerName", "")
-    }
-    
-    update_field = f"signatures.{signer_role}"
-    
+    signer_type = data.get("signer_type", data.get("signer_role", ""))
+    now = datetime.now(timezone.utc).isoformat()
+    updates = {"updated_at": now}
+
+    # --- FRANCHISOR SIGNATORIES (Sandeep / Jayanti or both) ---
+    if signer_type == "franchisor_signatories":
+        selected = data.get("selected_signatories", [])  # list of names
+        signatories = []
+        for name in selected:
+            signatories.append({
+                "signer_name": name,
+                "signer_designation": "Director",
+                "signature_date": now,
+                "signed": True,
+                "signed_by_user": session.get("managerName", "")
+            })
+        updates["signatures.franchisor_signatories"] = signatories
+        # Backward compat: set franchisor to first signatory
+        if signatories:
+            updates["signatures.franchisor"] = signatories[0]
+
+    # --- EXIT MANAGER ---
+    elif signer_type == "exit_manager":
+        updates["signatures.exit_manager"] = {
+            "signer_name": data.get("signer_name", ""),
+            "signer_role": "Exit Manager (Franchisor Side)",
+            "signer_designation": data.get("signer_designation", "Exit Manager"),
+            "signature_date": now,
+            "signed": True,
+            "signed_by_user": session.get("managerName", "")
+        }
+
+    # --- FRANCHISEE DIRECTORS (auto-pulled from franchise mgmt) ---
+    elif signer_type == "franchisee_directors":
+        directors_list = data.get("directors", [])
+        dir_sigs = []
+        for d in directors_list:
+            dir_sigs.append({
+                "signer_name": d.get("name", ""),
+                "signer_designation": d.get("designation", "Director"),
+                "signature_date": now,
+                "signed": True,
+                "signed_by_user": session.get("managerName", "")
+            })
+        updates["signatures.franchisee_directors"] = dir_sigs
+        # Backward compat: set franchisee to first director
+        if dir_sigs:
+            updates["signatures.franchisee"] = {
+                **dir_sigs[0],
+                "signer_role": "franchisee"
+            }
+
+    # --- BACKWARD COMPATIBLE: old franchisor/franchisee single sign ---
+    elif signer_type in ["franchisor", "franchisee"]:
+        signature = {
+            "signer_name": data.get("signer_name"),
+            "signer_role": signer_type,
+            "signer_designation": data.get("signer_designation", ""),
+            "signature_date": now,
+            "ip_address": data.get("ip_address", ""),
+            "signed_by_user": session.get("managerName", "")
+        }
+        updates[f"signatures.{signer_type}"] = signature
+    else:
+        raise HTTPException(400, "Invalid signer_type. Use: franchisor_signatories, exit_manager, franchisee_directors")
+
     await db.franchise_exits.update_one(
         {"exit_id": exit_id},
-        {
-            "$set": {
-                update_field: signature,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-        }
+        {"$set": updates}
     )
     
-    # Check if both signatures are complete
+    # Check if all signature sections are complete
     updated_exit = await db.franchise_exits.find_one({"exit_id": exit_id})
-    if updated_exit["signatures"]["franchisor"] and updated_exit["signatures"]["franchisee"]:
+    sigs = updated_exit.get("signatures", {})
+    has_franchisor = bool(sigs.get("franchisor_signatories")) or bool(sigs.get("franchisor"))
+    has_franchisee = bool(sigs.get("franchisee_directors")) or bool(sigs.get("franchisee"))
+    
+    if has_franchisor and has_franchisee:
         await db.franchise_exits.update_one(
             {"exit_id": exit_id},
             {"$set": {"steps_completed.exit_agreement": True}}
         )
     
-    return {"success": True, "message": f"{signer_role.title()} signature recorded"}
+    return {"success": True, "message": "Signature(s) recorded successfully"}
+
+
+@router.get("/franchise-directors/{franchise_code}")
+async def get_franchise_directors(franchise_code: str):
+    """Get directors list from franchise management for auto-populating signatures"""
+    franchise = await db.franchises.find_one(
+        {"franchise_code": franchise_code},
+        {"_id": 0, "directors": 1, "franchise_name": 1, "legal_entity_name": 1}
+    )
+    if not franchise:
+        return {"directors": [], "franchise_name": "", "legal_entity_name": ""}
+    
+    return {
+        "directors": franchise.get("directors", []),
+        "franchise_name": franchise.get("franchise_name", ""),
+        "legal_entity_name": franchise.get("legal_entity_name", "")
+    }
 
 @router.post("/complete/{exit_id}")
 async def complete_exit(exit_id: str, data: dict):

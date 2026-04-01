@@ -91,10 +91,16 @@ export default function FranchiseExit() {
   });
   
   const [signatureForm, setSignatureForm] = useState({
-    signer_role: 'franchisor',
-    signer_name: '',
-    signer_designation: ''
+    // Franchisor signatories
+    sandeep_selected: false,
+    jayanti_selected: false,
+    // Exit manager
+    exit_manager_name: '',
+    exit_manager_designation: 'Exit Manager',
+    // Franchisee directors (auto-pulled)
+    franchisee_directors: []
   });
+  const [franchiseDirectors, setFranchiseDirectors] = useState([]);
   
   const [complianceForm, setComplianceForm] = useState({
     no_pending_payments: false,
@@ -233,31 +239,103 @@ export default function FranchiseExit() {
     }
   };
 
-  // Add Signature
+  // Fetch franchise directors when opening signature modal
+  const fetchFranchiseDirectors = useCallback(async (franchiseCode) => {
+    try {
+      const res = await fetch(`${API}/api/franchise-exit/franchise-directors/${franchiseCode}`);
+      const data = await res.json();
+      setFranchiseDirectors(data.directors || []);
+    } catch {
+      setFranchiseDirectors([]);
+    }
+  }, []);
+
+  // Open signature modal with pre-populated data
+  const openSignatureModal = () => {
+    if (!selectedExit) return;
+    const sigs = selectedExit.signatures || {};
+    
+    // Pre-fill from existing data
+    const existingFranchisor = sigs.franchisor_signatories || [];
+    const existingManager = sigs.exit_manager || null;
+    
+    setSignatureForm({
+      sandeep_selected: existingFranchisor.some(s => s.signer_name === 'Sandeep Gadhwal'),
+      jayanti_selected: existingFranchisor.some(s => s.signer_name === 'Jayanti Kathale'),
+      exit_manager_name: existingManager?.signer_name || selectedExit.initiated_by_user || '',
+      exit_manager_designation: existingManager?.signer_designation || 'Exit Manager',
+      franchisee_directors: []
+    });
+    
+    // Fetch directors
+    fetchFranchiseDirectors(selectedExit.franchise_code);
+    setShowSignatureModal(true);
+  };
+
+  // Add Signatures (all three sections at once)
   const handleAddSignature = async () => {
-    if (!selectedExit || !signatureForm.signer_name) {
-      toast.error('Please enter signer name');
+    if (!selectedExit) return;
+    
+    const { sandeep_selected, jayanti_selected, exit_manager_name } = signatureForm;
+    
+    if (!sandeep_selected && !jayanti_selected) {
+      toast.error('Please select at least one Franchisor signatory');
       return;
     }
-    
+    if (!exit_manager_name.trim()) {
+      toast.error('Please enter Exit Manager name');
+      return;
+    }
+    if (franchiseDirectors.length === 0) {
+      toast.error('No directors found for this franchise');
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/franchise-exit/sign/${selectedExit.exit_id}`, {
+      // 1. Save Franchisor Signatories
+      const selectedSignatories = [];
+      if (sandeep_selected) selectedSignatories.push('Sandeep Gadhwal');
+      if (jayanti_selected) selectedSignatories.push('Jayanti Kathale');
+      
+      await fetch(`${API}/api/franchise-exit/sign/${selectedExit.exit_id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, ...signatureForm })
+        body: JSON.stringify({
+          token,
+          signer_type: 'franchisor_signatories',
+          selected_signatories: selectedSignatories
+        })
       });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('Signature recorded');
-        setShowSignatureModal(false);
-        setSignatureForm({ signer_role: 'franchisor', signer_name: '', signer_designation: '' });
-        fetchExitDetails(selectedExit.exit_id);
-      } else {
-        toast.error(data.detail || 'Failed to add signature');
-      }
+
+      // 2. Save Exit Manager
+      await fetch(`${API}/api/franchise-exit/sign/${selectedExit.exit_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          signer_type: 'exit_manager',
+          signer_name: exit_manager_name.trim(),
+          signer_designation: signatureForm.exit_manager_designation
+        })
+      });
+
+      // 3. Save Franchisee Directors
+      await fetch(`${API}/api/franchise-exit/sign/${selectedExit.exit_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          signer_type: 'franchisee_directors',
+          directors: franchiseDirectors
+        })
+      });
+
+      toast.success('All signatures recorded successfully');
+      setShowSignatureModal(false);
+      fetchExitDetails(selectedExit.exit_id);
     } catch (error) {
-      toast.error('Failed to add signature');
+      toast.error('Failed to record signatures');
     } finally {
       setLoading(false);
     }
@@ -639,7 +717,7 @@ export default function FranchiseExit() {
                 size="sm" 
                 variant="outline" 
                 className="w-full"
-                onClick={() => setShowSignatureModal(true)}
+                onClick={() => openSignatureModal()}
                 disabled={!canEdit}
               >
                 {canEdit ? 'Add Signature' : 'View'}
@@ -770,34 +848,86 @@ export default function FranchiseExit() {
             <CardHeader>
               <CardTitle className="text-lg">Signatures</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-6">
-                <div className={`p-4 rounded-lg ${selectedExit.signatures.franchisor ? 'bg-green-50' : 'bg-gray-50'}`}>
-                  <h4 className="font-medium">Franchisor</h4>
-                  {selectedExit.signatures.franchisor ? (
-                    <>
-                      <p className="text-sm">{selectedExit.signatures.franchisor.signer_name}</p>
-                      <p className="text-xs text-gray-500">{selectedExit.signatures.franchisor.signer_designation}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Signed: {new Date(selectedExit.signatures.franchisor.signature_date).toLocaleDateString()}
-                      </p>
-                    </>
+            <CardContent className="space-y-6">
+              {/* FRANCHISOR SIGNATORIES */}
+              <div>
+                <h4 className="font-semibold text-sm text-gray-600 mb-3 uppercase tracking-wide">Franchisor (Purnabramha)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {(selectedExit.signatures.franchisor_signatories?.length > 0) ? (
+                    selectedExit.signatures.franchisor_signatories.map((s, i) => (
+                      <div key={i} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="font-medium text-sm">{s.signer_name}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 ml-6">{s.signer_designation}</p>
+                        <p className="text-xs text-gray-400 ml-6">Signed: {new Date(s.signature_date).toLocaleDateString()}</p>
+                      </div>
+                    ))
+                  ) : selectedExit.signatures.franchisor ? (
+                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="font-medium text-sm">{selectedExit.signatures.franchisor.signer_name}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 ml-6">{selectedExit.signatures.franchisor.signer_designation}</p>
+                      <p className="text-xs text-gray-400 ml-6">Signed: {new Date(selectedExit.signatures.franchisor.signature_date).toLocaleDateString()}</p>
+                    </div>
                   ) : (
-                    <p className="text-sm text-gray-400">Pending</p>
+                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-sm text-gray-400">Pending</p>
+                    </div>
                   )}
                 </div>
-                <div className={`p-4 rounded-lg ${selectedExit.signatures.franchisee ? 'bg-green-50' : 'bg-gray-50'}`}>
-                  <h4 className="font-medium">Franchisee</h4>
-                  {selectedExit.signatures.franchisee ? (
-                    <>
-                      <p className="text-sm">{selectedExit.signatures.franchisee.signer_name}</p>
-                      <p className="text-xs text-gray-500">{selectedExit.signatures.franchisee.signer_designation}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Signed: {new Date(selectedExit.signatures.franchisee.signature_date).toLocaleDateString()}
-                      </p>
-                    </>
-                  ) : (
+              </div>
+
+              {/* EXIT MANAGER */}
+              <div>
+                <h4 className="font-semibold text-sm text-gray-600 mb-3 uppercase tracking-wide">Exit Manager (Franchisor Side)</h4>
+                {selectedExit.signatures.exit_manager ? (
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CheckCircle className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium text-sm">{selectedExit.signatures.exit_manager.signer_name}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 ml-6">{selectedExit.signatures.exit_manager.signer_role || selectedExit.signatures.exit_manager.signer_designation}</p>
+                    <p className="text-xs text-gray-400 ml-6">Signed: {new Date(selectedExit.signatures.exit_manager.signature_date).toLocaleDateString()}</p>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <p className="text-sm text-gray-400">Pending</p>
+                  </div>
+                )}
+              </div>
+
+              {/* FRANCHISEE DIRECTORS */}
+              <div>
+                <h4 className="font-semibold text-sm text-gray-600 mb-3 uppercase tracking-wide">Franchisee Directors</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {(selectedExit.signatures.franchisee_directors?.length > 0) ? (
+                    selectedExit.signatures.franchisee_directors.map((d, i) => (
+                      <div key={i} className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="w-4 h-4 text-amber-600" />
+                          <span className="font-medium text-sm">{d.signer_name}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 ml-6">{d.signer_designation}</p>
+                        <p className="text-xs text-gray-400 ml-6">Signed: {new Date(d.signature_date).toLocaleDateString()}</p>
+                      </div>
+                    ))
+                  ) : selectedExit.signatures.franchisee ? (
+                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle className="w-4 h-4 text-amber-600" />
+                        <span className="font-medium text-sm">{selectedExit.signatures.franchisee.signer_name}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 ml-6">{selectedExit.signatures.franchisee.signer_designation}</p>
+                      <p className="text-xs text-gray-400 ml-6">Signed: {new Date(selectedExit.signatures.franchisee.signature_date).toLocaleDateString()}</p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-sm text-gray-400">Pending</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1114,46 +1244,99 @@ export default function FranchiseExit() {
 
       {/* Signature Modal */}
       <Dialog open={showSignatureModal} onOpenChange={setShowSignatureModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Signature</DialogTitle>
-            <DialogDescription>Record signature from franchisor or franchisee</DialogDescription>
+            <DialogTitle>Exit Agreement Signatures</DialogTitle>
+            <DialogDescription>Record signatures from all parties for the exit agreement</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Signer Role</Label>
-              <Select value={signatureForm.signer_role} onValueChange={(v) => setSignatureForm(p => ({ ...p, signer_role: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="franchisor">Franchisor</SelectItem>
-                  <SelectItem value="franchisee">Franchisee</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-1">
+            {/* Section 1: Franchisor Signatories */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wide border-b pb-1">
+                1. Franchisor Signatory (Select one or both)
+              </h4>
+              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <Checkbox 
+                  id="sandeep_sign"
+                  checked={signatureForm.sandeep_selected}
+                  onCheckedChange={(checked) => setSignatureForm(p => ({ ...p, sandeep_selected: checked }))}
+                  data-testid="sandeep-checkbox"
+                />
+                <Label htmlFor="sandeep_sign" className="cursor-pointer flex-1">
+                  <span className="font-medium">Sandeep Gadhwal</span>
+                  <span className="text-xs text-gray-500 block">Director - Manaswini Foods Pvt. Ltd.</span>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <Checkbox 
+                  id="jayanti_sign"
+                  checked={signatureForm.jayanti_selected}
+                  onCheckedChange={(checked) => setSignatureForm(p => ({ ...p, jayanti_selected: checked }))}
+                  data-testid="jayanti-checkbox"
+                />
+                <Label htmlFor="jayanti_sign" className="cursor-pointer flex-1">
+                  <span className="font-medium">Jayanti Kathale</span>
+                  <span className="text-xs text-gray-500 block">Director - Manaswini Foods Pvt. Ltd.</span>
+                </Label>
+              </div>
             </div>
-            <div>
-              <Label>Signer Name *</Label>
-              <Input 
-                placeholder="Full name"
-                value={signatureForm.signer_name}
-                onChange={(e) => setSignatureForm(p => ({ ...p, signer_name: e.target.value }))}
-              />
+
+            {/* Section 2: Exit Manager */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wide border-b pb-1">
+                2. Exit Manager (Franchisor Side)
+              </h4>
+              <div>
+                <Label className="text-xs">Name *</Label>
+                <Input 
+                  placeholder="e.g., Anirudha Suryavanshi"
+                  value={signatureForm.exit_manager_name}
+                  onChange={(e) => setSignatureForm(p => ({ ...p, exit_manager_name: e.target.value }))}
+                  data-testid="exit-manager-name"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Designation</Label>
+                <Input 
+                  placeholder="Exit Manager"
+                  value={signatureForm.exit_manager_designation}
+                  onChange={(e) => setSignatureForm(p => ({ ...p, exit_manager_designation: e.target.value }))}
+                  data-testid="exit-manager-designation"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Designation</Label>
-              <Input 
-                placeholder="e.g., Director, Managing Partner"
-                value={signatureForm.signer_designation}
-                onChange={(e) => setSignatureForm(p => ({ ...p, signer_designation: e.target.value }))}
-              />
+
+            {/* Section 3: Franchisee Directors (auto-pulled) */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wide border-b pb-1">
+                3. Franchisee Directors (Auto-populated from Franchise Management)
+              </h4>
+              {franchiseDirectors.length > 0 ? (
+                <div className="space-y-2">
+                  {franchiseDirectors.map((d, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                      <CheckCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{d.name}</p>
+                        <p className="text-xs text-gray-500">{d.designation || 'Director'} {d.email ? `| ${d.email}` : ''}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-gray-400">All directors will be signed automatically</p>
+                </div>
+              ) : (
+                <div className="p-4 bg-red-50 rounded-lg text-center">
+                  <p className="text-sm text-red-600">No directors found in Franchise Management</p>
+                  <p className="text-xs text-gray-500 mt-1">Please add directors in Franchise Management first</p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSignatureModal(false)}>Cancel</Button>
-            <Button onClick={handleAddSignature} disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Record Signature
+            <Button onClick={handleAddSignature} disabled={loading} data-testid="record-all-signatures-btn">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSignature className="w-4 h-4 mr-2" />}
+              Record All Signatures
             </Button>
           </DialogFooter>
         </DialogContent>
