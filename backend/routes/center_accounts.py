@@ -1507,13 +1507,24 @@ async def get_payout_summary(data: dict = Body(...)):
         }, {"amount": 1}).to_list(500)
         total_expenses = sum(e.get("amount", 0) or 0 for e in expense_records)
         
-        # Get commissions for this month
+        # Get commissions for this month - check both collections
+        # 1. From commission_statements (legacy)
         commission_records = await db.commission_statements.find({
             "center": center,
             "settlement_period_start": {"$gte": start_date},
             "settlement_period_end": {"$lt": end_date}
         }, {"commission_charged": 1}).to_list(100)
         total_commission = sum(c.get("commission_charged", 0) or 0 for c in commission_records)
+        
+        # 2. From monthly_commissions (uploaded Excel data)
+        monthly_comm_records = await db.monthly_commissions.find({
+            "center": center,
+            "month": month
+        }, {"gst_tax_deductions": 1, "other_deductions": 1, "commission_amount": 1, "gst_on_commission": 1}).to_list(100)
+        for mc in monthly_comm_records:
+            new_val = (mc.get("gst_tax_deductions", 0) or 0) + (mc.get("other_deductions", 0) or 0)
+            old_val = (mc.get("commission_amount", 0) or 0) + (mc.get("gst_on_commission", 0) or 0)
+            total_commission += new_val if new_val > 0 else old_val
         
         # Calculate Net Revenue / Net Profit based on country
         # India: Net Revenue = Total Sales - Commissions - GST (if applicable) - NO expense deduction

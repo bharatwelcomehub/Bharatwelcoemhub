@@ -1702,18 +1702,29 @@ export default function CenterAccounts() {
                               end_date: invoiceExportState.endDate
                             })
                           });
-                          const data = await res.json();
-                          if (data.requires_batching) {
-                            setExportBatches(data.batches);
-                            toast.info(data.message);
+                          
+                          const contentType = res.headers.get('content-type') || '';
+                          if (contentType.includes('application/json')) {
+                            // Batching response
+                            const data = await res.json();
+                            if (data.requires_batching) {
+                              setExportBatches(data.batches);
+                              toast.info(data.message);
+                            } else if (data.detail) {
+                              toast.error(data.detail);
+                            }
                           } else {
-                            // Direct download
+                            // Direct ZIP download
                             const blob = await res.blob();
                             const url = window.URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = `${selectedCenter}_Invoices.zip`;
+                            a.download = `${selectedCenter}_Invoices_${invoiceExportState.startDate}_to_${invoiceExportState.endDate}.zip`;
+                            document.body.appendChild(a);
                             a.click();
+                            a.remove();
+                            window.URL.revokeObjectURL(url);
+                            toast.success('ZIP downloaded');
                           }
                         } catch (err) {
                           toast.error('Failed to export ZIP');
