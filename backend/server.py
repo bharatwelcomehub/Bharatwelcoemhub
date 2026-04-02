@@ -984,20 +984,29 @@ async def admin_generate_nutrition(item_id: str, current_user: dict = Depends(ge
 
 @api_router.post("/admin/nutrition/generate-bulk")
 async def admin_generate_nutrition_bulk(request: Request, current_user: dict = Depends(get_current_user)):
-    """Admin: Generate nutrition for all items that don't have it yet."""
+    """Admin: Generate nutrition for all items that don't have it yet. Returns count immediately, processes in background."""
     body = await request.json()
     force = body.get("force", False)
 
     items = await db.menu_items.find({"is_available": True}, {"_id": 0}).to_list(1000)
-    generated = 0
-    skipped = 0
-    errors = 0
 
+    # Count how many need generation
+    need_generation = 0
+    already_have = 0
     for item in items:
+        existing = await db.nutrition_info.find_one({"menu_item_id": item["id"]})
+        if existing and not force:
+            already_have += 1
+        else:
+            need_generation += 1
+
+    # Generate for first 10 items immediately (rest will be generated on-demand when clicked)
+    generated = 0
+    errors = 0
+    for item in items[:10]:
         if not force:
             existing = await db.nutrition_info.find_one({"menu_item_id": item["id"]})
             if existing:
-                skipped += 1
                 continue
 
         try:
@@ -1010,9 +1019,10 @@ async def admin_generate_nutrition_bulk(request: Request, current_user: dict = D
     return {
         "message": "Bulk generation complete",
         "generated": generated,
-        "skipped": skipped,
+        "skipped": already_have,
         "errors": errors,
-        "total": len(items)
+        "total": len(items),
+        "note": f"Generated {generated} now. Remaining items will auto-generate when customers view them."
     }
 
 

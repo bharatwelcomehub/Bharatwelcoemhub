@@ -46,6 +46,15 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
   - Admin: Checkboxes in Add/Edit Menu Item dialog
   - Menu Page: Orange 'No Onion/Garlic' and purple 'Fasting Friendly' badges on cards and modal
   - Pickup Page: Dietary badges on MenuItemCard
+- [x] **AI Nutrition & Health Analysis** (Apr 2026) - Click any dish to see full nutrition profile
+  - Calories, Protein, Carbs, Fats, Fiber with visual macro split bar
+  - Health Benefits (4 bullet points per dish)
+  - Ayurvedic/Maharashtrian traditional wisdom
+  - Allergen warnings (Peanuts, Dairy, etc.)
+  - Dietary tags (Gluten Free, High Protein, etc.)
+  - AI-generated via GPT, cached in MongoDB for instant loading
+  - Admin "Generate Nutrition AI" button for bulk generation
+  - Works for both India and Australia menus
 - [x] **Bulk Image Upload** - Paste Google Drive URLs for items without images
 - [x] **Tiffin Management** - Full CRUD with:
   - Unlimited Breakfast Settings (price, description, timings, days)
