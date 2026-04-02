@@ -1,71 +1,66 @@
 <analysis>**original_problem_statement**: 
-Internal management system for Purnabramha, a restaurant franchise. Core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING.
-Primary requests evolved into:
-1. Fixing Franchise Owner Dashboard RBAC (No center dropdown, mapped center auto-loads from DB mapping).
-2. Refined Commission parsing logic for Excel uploads (including Cancelled orders, showing Gross -> GST/Tax -> Other Deductions -> Net Payout).
-3. Implementing dual-file upload (EDC + Bank Statement) for Cards & PhonePe to accurately calculate MDR charges and Sundry Debtors.
-4. NEW REQUIREMENT: Update the Payslip Generation PDF to include a top Logo, a selectable Signature (Sandeep Gadhwal vs Jayanti Kathale with seal), and ensure the employee list dropdown on the frontend is sorted from the Employee Database Master table for the selected center.
+Internal management system for Purnabramha, a restaurant franchise. Core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING. 
+The current specific requirement is to update the Revenue/Profit Share tab on the Center Accounts page to display a clear, step-by-step mathematical breakdown of the financial summary calculation (Total Sale - 5% GST - Commissions = Net Sale) to eliminate any ambiguity (shanka kushanka) for the franchise owners.
 
 PRODUCT REQUIREMENTS:
-- Strict RBAC: Franchise owners must *only* see their mapped center and have NO access to center switching.
-- Excel Commission Upload must accurately track exact deductions using standard accounting practices (MDR % mapping, GST matching).
-- Payslip generation must dynamically query Employee Master Data and allow PDF customization (Logos, Signatures).
+- Explicit mathematical breakdown on the Revenue/Profit Share UI.
+- Consistent application of GST rules based on region (e.g., 5% on sales in India).
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
 A React/FastAPI/MongoDB franchise management application. 
-- Franchise Owner Dashboard correctly auto-resolves mapped centers and hides dropdowns.
-- Commission module fully handles Swiggy/Zomato/DoorDash (single file) and Cards/PhonePe (dual-file with Bank Statement matching).
-- Commission aggregations properly feed into Top KPI cards and Financial Summaries.
-- PIB, GST, and Commission PDFs generate correctly.
-- Currently, the agent just downloaded new image assets for the Payslip generation feature but has not written any code.
+- Payslip PDFs now include dynamic logos, selectable signatures, and master-data-driven employee lists.
+- Franchise Exits fully handle multi-party digital signatures (Franchisor, Exit Manager, Franchisee Directors) pulled from Master Data.
+- MIS Dashboard and Center Accounts correctly calculate and render accurate commissions (fetching from  using  and ).
+- PIB Reports accurately deduct and display the 5% GST on sales.
+- A newly generated standalone HTML User Manual exists at .
 
 **Last working item**:
-    - **Last item agent was working**: Updating Payslip generation with a Logo, selectable signatures, and a sorted employee list from the Master database. The agent just executed a bash command to download the user-provided images (, , ).
-    - **Status**: NOT STARTED
+    - **Last item agent was working**: Adding a step-by-step financial calculation breakdown (Total Sale - GST - Commission = Net Sale) to the Revenue/Profit Share tab UI on the Center Accounts page. The agent just executed bash commands to inspect  (around line 1052).
+    - **Status**: IN PROGRESS
     - **Agent Testing Done**: N
-    - **Which testing method agent to use?**: Both (frontend screenshot for the new signature dropdown/sorted employee list + backend PDF manual test via curl or direct UI download to verify Logo/Signature).
+    - **Which testing method agent to use?**: screenshot tool (to verify frontend rendering of the breakdown).
     - **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Payslip UI & PDF Generation Updates (P0)
-     - Attempted fixes: Images were just successfully downloaded into the pod (, , ). No code changes made yet.
-     - Next debug checklist:
-       1. Identify the Frontend Payslip/HR page. Update the Employee dropdown to fetch & sort from the Master Employee table for the active center.
-       2. Add a UI element (Radio or Dropdown) to the Payslip generator to select the Signature (Sandeep Gadhwal or Jayanti Kathale).
-       3. Identify the Backend PDF generation logic for Payslips (likely  in an  or similar route).
-       4. Update the PDF layout to include  at the top.
-       5. Update the PDF layout to embed the selected signature image ( or ) at the bottom.
-     - Why fix this issue and what will be achieved with the fix? Makes generated payslips official and professional for employees, preventing manual stamp/sign processes.
-     - Status: NOT STARTED
+  Issue 1: Revenue/Profit Share UI Breakdown (P0)
+     - Attempted fixes: Investigated  lines containing the Revenue/Profit Share tab content. No code changes made yet.
+     - Next debug checklist: Edit  to render the step-by-step math (Total Sales -> less 5% GST -> less Commissions -> Net Sale) pulling from . Ensure the display is clear and matches the PIB report logic.
+     - Why fix this issue and what will be achieved with the fix? Provides full transparency to Franchise Owners, eliminating doubts about how their payout/MG is calculated.
+     - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
+     - Should Test frontend/backend/both after fix? Frontend
      - Blocked on other issue: None
 
-**In progress Task List**: None.
+**In progress Task List**: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) WhatsApp/Email notification hooks.
+    - Code freeze preparation audit
+    - (P1) WhatsApp/Email notification hooks
     
     Future Tasks:
-    - (P2) Image Upload for Recipes.
-    - (P2) Franchise Deal Simulator.
-    - (P2) 7-year retention deletion prompt for attachments.
-    - (P2) Menu card PDF generation per center.
+    - (P2) Image Upload for Recipes
+    - (P2) Franchise Deal Simulator
+    - (P2) 7-year retention deletion prompt
+    - (P2) Menu card PDF generation per center
 
 **Completed work in this session**
-- Franchise Owner Dashboard RBAC fix (Removed Center Dropdown, Auto-resolved mapped center via ) (DONE)
-- Commission parsers updated to include Cancelled orders in deductions (DONE)
-- Implemented 4-Card UI for commissions (Gross Amount -> GST/Tax Deductions -> Other Deductions -> Net Payout) (DONE)
-- Built dual-file upload (EDC Excel + Bank Statement) for Cards to calculate accurate MDR Bank Charges (DONE)
-- Built dual-file upload for PhonePe to calculate Sundry Debtors based on next-day bank settlements (DONE)
-- Fixed KPI dashboard financial aggregations (Changed  key reference to  fields) (DONE)
-- Fixed PDF generation errors for PIB, GST, and Commission reports (DONE)
+- Payslip UI & PDF Generation Updates with dynamic logo and signatures (DONE)
+- Franchise list 404 bug fix in  (DONE)
+- Master Data Franchise sync fix resolving field mapping mismatch (DONE)
+- Edit & Delete options for Payout Summary payments (DONE)
+- MG Payout Month Range filter + Export to Excel/PDF (DONE)
+- Exit Agreement Signature Logic update (Franchisor + Exit Manager + Franchisee Directors) (DONE)
+- Exit Agreement Signature Migration for existing records without recreation (DONE)
+- MIS Commission Display bug fixed by pointing to accurate DB fields ( + ) (DONE)
+- ZIP file download bug fixed by using  instead of  for binary responses (DONE)
+- PIB Financial Summary PDF updated to explicitly deduct and show 5% GST (DONE)
+- Created full standalone HTML User Manual for intra.purnabramha.com (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-None.
+None
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: None
@@ -76,24 +71,23 @@ None.
 
 
 **Key Technical Concepts**
-- **ReportLab PDF Generation**: Heavily utilized for dynamic reports. You will need to use ReportLab's  class to embed the newly downloaded logos and signatures.
-- **Pandas Dataframe Matching**: Dual-file upload works by matching EDC dates/amounts against Bank Statement credit descriptions using regex.
-- **RBAC**: Handled via  and backend center mappings.
+- **ReportLab PDF Generation**: Complex document assembly parsing dynamic data, signatures, and math logic.
+- **Data Migrations**: Using MongoDB  updates to inject new schemas into existing documents without destroying backward compatibility.
 
 **key DB schema**
-  - : 
-  -  (or similar): Need to query this collection for the master list of employees in the pending Payslip task.
+  - : Tracked status and  block containing , , and .
+  - : Actual uploaded commission data mapping directly to  and .
 
 **changes in tech stack**
-  - Dual file Excel parsing capabilities utilizing  & .
+  - None, but utilized  () via bash for local PDF text extraction to verify ReportLab generation.
 
 **All files of reference** 
-  1. , ,  (In current working directory / root pod dir)
-  2. Frontend Payslip Component (to be identified)
-  3. Backend Payslip PDF generation route (to be identified)
+  -  (Currently requires edits for P0 issue)
+  - 
+  -  (Newly created file)
 
 **Areas that need refactoring**:
-- PDF Generation logic is becoming heavily concentrated. If generating the Payslip PDF, ensure the code is modular.
+- PDF Generation logic inside  is getting quite large. It may benefit from being moved to a dedicated generator utility similar to .
 
 **key api endpoints**
 - 
@@ -101,39 +95,34 @@ None.
 - 
 
 **Critical Info for New Agent** 
-- The user uses specific terminology for PDF layouts. Examine the uploaded file  (if available via  context) to mimic the exact layout they expect for the Payslip.
-- The new images (, , ) are located in the pod's current working directory (likely  or ). Move them to an appropriate backend static/assets folder before referencing them in ReportLab.
+- In the Purnabramha logic, GST for India (usually 5% on food) is treated as a deduction off the Total Sale when calculating Net Revenue. 
+- When calculating Net Sale/Profit, mathematical transparency on the frontend is highly demanded by the user.
 
 **documents and test reports created in this job** 
   - 
-  - 
-  - 
-  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User**: Fix Franchise Owner Dashboard once and for all. Requirement: NO CENTER DROPDOWN... (Resolved)
-2. **User**: please help me how u are parcing this and why are considering only 42 record when we have 43... (Resolved)
-3. **User**: i think if it is cancelled also the amount get deducted from our accounts so we have to consider those row as well... (Resolved)
-4. **User**: write text prompt for swiggy... Net Deductions is what actual get deducted... show GST and other deduction... (Resolved)
-5. **User**: Gross Amount → GST/Tax Deductions → Other Deductions → Net Payout (Resolved)
-6. **User**: as of now i have one issue for card payment... can u calculate it card commisison //bank charges... (Resolved)
-7. **User**: similar thing for phone pay (Resolved)
-8. **User**: this are not the charges this are the amount which will in next month bank so write sandry daters amount instead of charges (Resolved)
-9. **User**: AFTER SUCCEFULLY UPLOADED ALL THE COMMISION THE BELOW BLOCKS SHOULD HAVE ALL THE AMOUNT S AND ABOVE TAB ASLOS... (Resolved)
-10. **User**: THE DOCUNLOAD ARE NOT HAPPANING CAN U HELP AND GIVE ME CORRECTED pib REPORT NOW (Resolved)
-- **Pending HUMAN message**: PAYSLIP SECTION SHOULD HAVE LOGO AND SIGNATURE OPTION AND SHOULD HAVE EMPLOYEE LIST SORTED FROM EMPLOYEE DAATABE MASTER TABLE FOR SELECTED CENTER SHOULD HAVE LOGO ON TOP AND SHOULD ASK WHO SIGNATURE SHOULD BE USED SANDEEP gADHWAL OR jAYANTI kATHALE WITH SEAL (Assets downloaded; implementation NOT STARTED).
+1. **User**: I SHOULD HAVE RANGE OF MONTHS AND SUMMRY AMOUNTS AND MG PAYS AS IS WITH EXPORT FACILITY AS EXCEL AND pdf... (Resolved)
+2. **User**: from revenue start date to current month (Resolved)
+3. **User**: Update Exit Agreement Signature Logic... allow either Sandeep/Jayanti, Exit Manager, Franchisee Directors... (Resolved)
+4. **User**: Update Existing Franchise Exit Agreements... Do not recreate exit records. (Resolved)
+5. **User**: hope the data which we have instered for exit intitted franchsie will not be deleted... (Resolved - Agent confirmed it's safe)
+6. **User**: documents are not getting updated as per the signature block can u please update the exsisitng document... (Resolved)
+7. **User**: I HAVE LOADED ALL THE DATTA FOR COMMISION FOR THANE BRANCH... BUT I M UNABLE TO SEE IT HERE... (Resolved)
+8. **User**: 1ST IMAGE IS FOR ZIP FOLDER IS NOT GETING DONWLOADED 2ND IMAGE IS FOR DEC 2023 WHEN I LOAD PRIVIOUS DATE SALE... IS STILL 0 (Resolved)
+9. **User**: the calculation for PIIB report is correct but just display gst amount got deducted 5%... (Resolved)
+10. **User**: Create a full HTML User Manual for intra.purnabramha.com. I need this as a BEAUTIFUL, COLOURFUL... HTML file (Resolved)
+- **Pending HUMAN message**: can u show the total calculation of finanatila summary i mean add the gst calculation total sale minun 5% and - commisison = net sale and all that here as display also so that there will not be any shanka kushanka (IN PROGRESS).
 
 **Project Health Check:**
-- Broken: None.
-- Mocked: WhatsApp Notifications.
+Broken: None.
+Mocked: WhatsApp Notifications.
 
 **3rd Party Integrations**
--  /  — Excel parsing.
--  — PDF Generation.
 - Emergent Object Storage — uses Emergent integrations library
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iterations 42 & 43).
+  - Testing agent used after significant changes: NO (relied on bash testing / screenshot tool heavily in this session).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
@@ -143,4 +132,12 @@ None.
 - Test Franchise Owner: Center , mobile , OTP .
 
 **What agent forgot to execute**
-The agent downloaded the images for the Payslip logo and signatures but did not yet inspect the Payslip frontend page or the backend PDF generator to apply them. Start there.</analysis>
+The agent acknowledged the user's latest request (to display a step-by-step financial math breakdown in the Revenue/Profit Share tab) and executed bash commands to find the relevant code in , but has not yet implemented the code changes.
+
+**Debugging checklist for current issue**
+    Issue: Display clear financial math breakdown on the Revenue/Profit Share tab UI.
+
+    Frontend files to check: 
+    -  (Around line 1052 inside the  TabsContent block)
+    
+    Variables to map: Use , , , and . Render them as a clear, vertically stacked math equation UI.</analysis>

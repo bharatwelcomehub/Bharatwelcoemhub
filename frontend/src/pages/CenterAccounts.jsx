@@ -1067,10 +1067,62 @@ export default function CenterAccounts() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
+                    {/* Step-by-step Calculation Breakdown for India */}
+                    {accountSummary.country === 'India' && (
+                      <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 space-y-3" data-testid="india-calculation-breakdown">
+                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <Calculator className="w-4 h-4 text-gray-600" />
+                          Revenue Calculation Breakdown
+                        </h4>
+
+                        {/* Step 1: Total Sales */}
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-gray-700 font-medium">Total Sales</span>
+                          <span className="font-semibold text-gray-900">{formatCurrency(accountSummary.financial_summary.total_sales, accountSummary.country)}</span>
+                        </div>
+
+                        {/* Step 2: Less GST on Sales (5%) */}
+                        {accountSummary.financial_summary.sales_gst > 0 && (
+                          <div className="flex justify-between text-sm items-center text-red-600">
+                            <span className="pl-4">Less: GST on Sales (5%)</span>
+                            <span className="font-medium">- {formatCurrency(accountSummary.financial_summary.sales_gst, accountSummary.country)}</span>
+                          </div>
+                        )}
+
+                        {/* Step 3: Less Commissions */}
+                        <div className="flex justify-between text-sm items-center text-red-600">
+                          <span className="pl-4">Less: Total Commissions (Swiggy, Zomato, Cards)</span>
+                          <span className="font-medium">- {formatCurrency(accountSummary.financial_summary.total_commissions, accountSummary.country)}</span>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="border-t-2 border-dashed border-gray-300 my-1" />
+
+                        {/* Result: Net Revenue */}
+                        <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                          <span className="text-green-800 font-bold text-base">= Net Revenue (Base for Split)</span>
+                          <span className="text-green-900 font-bold text-lg" data-testid="india-net-revenue">
+                            {formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}
+                          </span>
+                        </div>
+
+                        {/* GST Info Note */}
+                        <div className="flex items-start gap-2 mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                          <p className="text-xs text-amber-800">
+                            <strong>Revenue Share GST:</strong> 18% GST (CGST 9% + SGST 9%) is applicable on revenue share invoicing. For outside India, GST is 10%.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Calculation Breakdown for Australia */}
                     {accountSummary.country === 'Australia' && (
-                      <div className="p-4 bg-gray-100 rounded-lg space-y-2">
-                        <h4 className="font-medium text-gray-700 mb-3">Profit Calculation Breakdown</h4>
+                      <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200 space-y-3" data-testid="australia-calculation-breakdown">
+                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <Calculator className="w-4 h-4 text-gray-600" />
+                          Profit Calculation Breakdown
+                        </h4>
                         <div className="flex justify-between text-sm">
                           <span>Total Sales (GST Inclusive)</span>
                           <span>{formatCurrency(accountSummary.financial_summary.total_sales, accountSummary.country)}</span>
@@ -1095,9 +1147,16 @@ export default function CenterAccounts() {
                           <span className="pl-4">Less: Commission GST (10%)</span>
                           <span>-{formatCurrency(accountSummary.financial_summary.commission_gst, accountSummary.country)}</span>
                         </div>
-                        <div className="flex justify-between text-lg font-bold border-t-2 border-gray-400 pt-2 mt-2">
-                          <span>Net Profit (for Share Calculation)</span>
-                          <span className="text-green-700">{formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}</span>
+                        <div className="border-t-2 border-dashed border-gray-300 my-1" />
+                        <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                          <span className="text-green-800 font-bold">= Net Profit (for Share Calculation)</span>
+                          <span className="text-green-900 font-bold text-lg">{formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex items-start gap-2 mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                          <p className="text-xs text-amber-800">
+                            <strong>Profit Share GST:</strong> 10% GST is applied on profit share for Australia.
+                          </p>
                         </div>
                       </div>
                     )}
@@ -1107,8 +1166,8 @@ export default function CenterAccounts() {
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">
                           {accountSummary.share_calculation.type === 'profit_share' 
-                            ? `Net Profit (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)` 
-                            : 'Total Sales (Base)'}
+                            ? `Net Profit (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)` 
+                            : `Net Revenue (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
                         </span>
                         <span className="text-xl font-bold">
                           {formatCurrency(accountSummary.share_calculation.net_profit_or_sales, accountSummary.country)}
@@ -1162,16 +1221,11 @@ export default function CenterAccounts() {
                             <hr className="border-orange-200 my-2" />
                             
                             {accountSummary.country === 'India' ? (
-                              <>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-orange-600">+ CGST (9%)</span>
-                                  <span>{formatCurrency(accountSummary.share_calculation.purnabramha?.cgst || 0, accountSummary.country)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-orange-600">+ SGST (9%)</span>
-                                  <span>{formatCurrency(accountSummary.share_calculation.purnabramha?.sgst || 0, accountSummary.country)}</span>
-                                </div>
-                              </>
+                              <div className="text-xs text-orange-500 italic p-2 bg-orange-50 rounded">
+                                <span>Revenue Share GST (18%): {formatCurrency(accountSummary.share_calculation.purnabramha?.gst_amount || 0, accountSummary.country)}</span>
+                                <span className="block text-orange-400 mt-0.5">(CGST 9%: {formatCurrency(accountSummary.share_calculation.purnabramha?.cgst || 0, accountSummary.country)} + SGST 9%: {formatCurrency(accountSummary.share_calculation.purnabramha?.sgst || 0, accountSummary.country)})</span>
+                                <span className="block text-orange-400 mt-0.5">GST not included in total payable</span>
+                              </div>
                             ) : (
                               <div className="flex justify-between text-sm">
                                 <span className="text-orange-600">+ GST (10%)</span>
@@ -1399,12 +1453,12 @@ export default function CenterAccounts() {
               )}
 
               {/* GST Notice for India */}
-              {accountSummary.country === 'India' && accountSummary.share_calculation?.purnabramha?.gst_applicable && (
+              {accountSummary.country === 'India' && (
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-amber-600" />
                     <p className="text-sm text-amber-800">
-                      <strong>GST Applied:</strong> 18% GST (9% CGST + 9% SGST) has been applied to the Revenue Share as per franchise settings.
+                      <strong>Note:</strong> 18% GST (CGST 9% + SGST 9%) on Revenue Share is shown for reference only and is <strong>not included</strong> in Purnabramha's total payable amount. For outside India, 10% GST is applicable on Profit Share.
                     </p>
                   </div>
                 </div>

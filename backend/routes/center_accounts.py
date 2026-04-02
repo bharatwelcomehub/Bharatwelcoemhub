@@ -447,21 +447,21 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         net_revenue_for_share = net_revenue
     
     # Apply GST on Purnabramha's share (payable by franchise to Purnabramha)
-    # For India: Only apply 18% GST if gst_applicable toggle is ON
-    if country == "India" and gst_applicable_india:
-        # Apply 18% GST on revenue share for India when toggle is ON
-        purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
-    elif country == "India":
-        # No GST on revenue share for India when toggle is OFF
+    # For India: Calculate 18% GST for display/informational purposes but DO NOT add to total payable
+    # For Outside India (Australia): Apply 10% GST on profit share (added to total)
+    if country == "India":
+        # Calculate 18% GST amounts for informational display only
+        cgst_info = round(purnabramha_share * INDIA_CGST, 2)
+        sgst_info = round(purnabramha_share * INDIA_SGST, 2)
         purnabramha_share_with_tax = {
             "base_amount": purnabramha_share,
-            "gst_amount": 0,
-            "cgst": 0,
-            "sgst": 0,
-            "total_with_gst": purnabramha_share
+            "gst_amount": round(cgst_info + sgst_info, 2),
+            "cgst": cgst_info,
+            "sgst": sgst_info,
+            "total_with_gst": purnabramha_share  # GST NOT added to total for India
         }
     else:
-        # Australia always applies profit share GST
+        # Australia always applies profit share GST (10% added to total)
         purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
     
     # ==========================================

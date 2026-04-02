@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purnabramha IntraPB - User Manual</title>
+<style>
+:root{--maroon:#7B1E2A;--deep-red:#9B2335;--saffron:#D4A843;--gold:#C9A84C;--cream:#FFF8F0;--light-cream:#FFFDF7;--dark:#1a1a2e;--text:#2D2D2D;--text-light:#5A5A5A;--border:#E8DDD0;--green:#2D8B55;--blue:#2E5090;--orange:#C06520;--purple:#6B3FA0;--teal:#1A7A7A;--role-super:#7B1E2A;--role-admin:#2E5090;--role-center:#2D8B55;--role-accountant:#C06520;--role-owner:#6B3FA0}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--cream);color:var(--text);line-height:1.6}
+.cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--maroon) 0%,#4a0e18 100%);color:#fff;text-align:center;padding:2rem;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.cover h1{font-size:3.5rem;font-weight:800;letter-spacing:-1px;margin-bottom:.5rem;position:relative}
+.cover .subtitle{font-size:1.3rem;color:var(--saffron);font-weight:600;margin-bottom:.3rem;position:relative}
+.cover .tagline{font-size:1rem;opacity:.8;max-width:600px;position:relative}
+.cover .version{margin-top:2rem;padding:.5rem 2rem;border:1px solid rgba(255,255,255,.2);border-radius:50px;font-size:.85rem;opacity:.7;position:relative}
+.gold-line{width:80px;height:3px;background:var(--saffron);margin:1.2rem auto;border-radius:2px;position:relative}
+nav.topnav{position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.08);border-bottom:3px solid var(--saffron)}
+nav.topnav .inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;padding:.6rem 1.5rem;gap:1rem;flex-wrap:wrap}
+nav.topnav .brand{font-weight:800;color:var(--maroon);font-size:1.1rem;white-space:nowrap}
+nav.topnav .tabs{display:flex;gap:.3rem;flex-wrap:wrap;margin-left:auto}
+nav.topnav .tab{padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600;border:2px solid transparent;transition:all .2s;white-space:nowrap}
+nav.topnav .tab:hover{opacity:.85}
+nav.topnav .tab.active{color:#fff}
+.tab-super{color:var(--role-super);border-color:var(--role-super)!important}.tab-super.active{background:var(--role-super)}
+.tab-admin{color:var(--role-admin);border-color:var(--role-admin)!important}.tab-admin.active{background:var(--role-admin)}
+.tab-center{color:var(--role-center);border-color:var(--role-center)!important}.tab-center.active{background:var(--role-center)}
+.tab-accountant{color:var(--role-accountant);border-color:var(--role-accountant)!important}.tab-accountant.active{background:var(--role-accountant)}
+.tab-owner{color:var(--role-owner);border-color:var(--role-owner)!important}.tab-owner.active{background:var(--role-owner)}
+.main{max-width:1200px;margin:0 auto;padding:2rem 1.5rem}
+.role-section{display:none}.role-section.active{display:block}
+.role-header{padding:2rem;border-radius:16px;margin-bottom:2rem;color:#fff;position:relative;overflow:hidden}
+.role-header::after{content:'';position:absolute;right:-30px;top:-30px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.06)}
+.role-header h2{font-size:2rem;font-weight:800;margin-bottom:.3rem;position:relative}
+.role-header p{opacity:.9;font-size:1rem;position:relative}
+.rh-super{background:linear-gradient(135deg,var(--role-super),#4a0e18)}
+.rh-admin{background:linear-gradient(135deg,var(--role-admin),#1a3060)}
+.rh-center{background:linear-gradient(135deg,var(--role-center),#1a5535)}
+.rh-accountant{background:linear-gradient(135deg,var(--role-accountant),#7a3a10)}
+.rh-owner{background:linear-gradient(135deg,var(--role-owner),#3a1f60)}
+.access-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:2rem}
+.access-card{background:#fff;border-radius:12px;padding:1.2rem;border-left:4px solid var(--saffron);box-shadow:0 2px 8px rgba(0,0,0,.04);text-align:center}
+.access-card .ic{font-size:1.8rem;margin-bottom:.4rem}
+.access-card h4{font-size:.85rem;color:var(--text);font-weight:700}
+.access-card p{font-size:.72rem;color:var(--text-light);margin-top:.2rem}
+.module{background:#fff;border-radius:16px;margin-bottom:1.2rem;box-shadow:0 2px 12px rgba(0,0,0,.04);overflow:hidden;border:1px solid var(--border)}
+.module-head{padding:1.2rem 1.5rem;cursor:pointer;display:flex;align-items:center;gap:1rem;transition:background .2s;user-select:none}
+.module-head:hover{background:rgba(123,30,42,.03)}
+.module-head .ic{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+.module-head h3{font-size:1.05rem;font-weight:700;color:var(--text)}
+.module-head .path{font-size:.75rem;color:var(--text-light);margin-top:.15rem}
+.module-head .arrow{margin-left:auto;transition:transform .3s;font-size:1.2rem;color:var(--text-light)}
+.module-head.open .arrow{transform:rotate(180deg)}
+.module-body{display:none;padding:0 1.5rem 1.5rem;border-top:1px solid var(--border)}
+.module-body.open{display:block}
+.sec{margin-top:1.2rem}
+.sec h4{font-size:.85rem;font-weight:700;color:var(--maroon);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+.sec ul{list-style:none;padding-left:0}
+.sec ul li{padding:.35rem 0 .35rem 1.2rem;position:relative;font-size:.88rem;color:var(--text)}
+.sec ul li::before{content:'';position:absolute;left:0;top:.7rem;width:6px;height:6px;border-radius:50%;background:var(--saffron)}
+.box{padding:1rem 1.2rem;border-radius:10px;margin-top:.8rem;font-size:.85rem;line-height:1.5}
+.box-info{background:#EEF4FF;border-left:4px solid var(--blue);color:#1a3060}
+.box-warn{background:#FFF3E6;border-left:4px solid #E67E22;color:#7a3a10}
+.box-danger{background:#FFE8E8;border-left:4px solid #C0392B;color:#6B1A1A}
+.box-success{background:#E8F8EE;border-left:4px solid var(--green);color:#1a5535}
+.box-tip{background:#F3EEFF;border-left:4px solid var(--purple);color:#3a1f60}
+.box strong{display:block;margin-bottom:.2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.3px}
+.screenshot{background:linear-gradient(135deg,#f5f0e8,#ebe4d8);border:2px dashed var(--border);border-radius:10px;padding:2.5rem;text-align:center;color:var(--text-light);font-size:.85rem;margin-top:1rem;position:relative}
+.screenshot::before{content:'';display:block;font-size:2rem;margin-bottom:.5rem}
+.toc{background:#fff;border-radius:16px;padding:2rem;margin-bottom:2rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border)}
+.toc h3{color:var(--maroon);font-size:1.2rem;margin-bottom:1rem}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.5rem}
+.toc-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-radius:8px;font-size:.85rem;color:var(--text);cursor:pointer;transition:all .15s}
+.toc-item:hover{background:rgba(123,30,42,.05);color:var(--maroon)}
+.toc-item .num{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.ic-att{background:#E8F8EE;color:var(--green)}.num-att{background:var(--green)}
+.ic-sal{background:#FFF3E6;color:var(--orange)}.num-sal{background:var(--orange)}
+.ic-acc{background:#EEF4FF;color:var(--blue)}.num-acc{background:var(--blue)}
+.ic-hr{background:#F3EEFF;color:var(--purple)}.num-hr{background:var(--purple)}
+.ic-mgt{background:#FFE8E8;color:var(--deep-red)}.num-mgt{background:var(--deep-red)}
+.ic-fran{background:#E8F5F5;color:var(--teal)}.num-fran{background:var(--teal)}
+.ic-ops{background:#FFF8E8;color:#8B6914}.num-ops{background:#8B6914}
+.ic-pos{background:#F0E8FF;color:#5B2E91}.num-pos{background:#5B2E91}
+footer{text-align:center;padding:3rem 1rem;color:var(--text-light);font-size:.8rem;border-top:1px solid var(--border);margin-top:3rem}
+@media print{nav.topnav{position:relative;box-shadow:none}.cover{min-height:auto;padding:3rem;page-break-after:always}.module-body{display:block!important}.role-section{display:block!important;page-break-before:always}.module{break-inside:avoid}}
+@media(max-width:768px){.cover h1{font-size:2.2rem}nav.topnav .inner{justify-content:center}nav.topnav .tabs{margin-left:0;justify-content:center}.access-grid{grid-template-columns:repeat(2,1fr)}.toc-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- =============== COVER PAGE =============== -->
+<div class="cover">
+  <div class="subtitle">MANASWINI FOODS PRIVATE LIMITED</div>
+  <h1>Purnabramha</h1>
+  <div class="gold-line"></div>
+  <div class="tagline">IntraPB - Internal Management System<br>Complete Role-Based User Manual</div>
+  <div class="version">Version 3.0 &nbsp;|&nbsp; April 2026 &nbsp;|&nbsp; intra.purnabramha.com</div>
+</div>
+
+<!-- =============== NAVIGATION =============== -->
+<nav class="topnav" id="topnav">
+  <div class="inner">
+    <div class="brand">IntraPB Manual</div>
+    <div class="tabs">
+      <div class="tab tab-super active" onclick="showRole('super')">MGT / Super Admin</div>
+      <div class="tab tab-admin" onclick="showRole('admin')">Admin</div>
+      <div class="tab tab-center" onclick="showRole('center')">Center Manager</div>
+      <div class="tab tab-accountant" onclick="showRole('accountant')">Accountant</div>
+      <div class="tab tab-owner" onclick="showRole('owner')">Franchise Owner</div>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+
+<!-- ============================================================ -->
+<!--                    SUPER ADMIN MANUAL                        -->
+<!-- ============================================================ -->
+<div class="role-section active" id="role-super">
+
+<div class="role-header rh-super">
+  <h2>MGT / Super Admin Manual</h2>
+  <p>Full system control across all centers, all modules, all reports, and all configurations.</p>
+</div>
+
+<div class="access-grid">
+  <div class="access-card"><div class="ic">&#128736;</div><h4>Full Configuration</h4><p>Centers, Roles, Masters</p></div>
+  <div class="access-card"><div class="ic">&#128202;</div><h4>All Reports</h4><p>MIS, PIB, GST, Commissions</p></div>
+  <div class="access-card"><div class="ic">&#128101;</div><h4>HR Control</h4><p>Employees, Salary, Payslips</p></div>
+  <div class="access-card"><div class="ic">&#127970;</div><h4>All Centers</h4><p>Switch any center anytime</p></div>
+  <div class="access-card"><div class="ic">&#128176;</div><h4>Finance</h4><p>Accounts, Loans, Commissions</p></div>
+  <div class="access-card"><div class="ic">&#127969;</div><h4>Franchise</h4><p>Management, Exit, Documents</p></div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <div class="toc-grid">
+    <div class="toc-item" onclick="toggleModule('s-att')"><span class="num num-att">1</span>Attendance Module</div>
+    <div class="toc-item" onclick="toggleModule('s-sal')"><span class="num num-sal">2</span>Sales &amp; Cash Summary</div>
+    <div class="toc-item" onclick="toggleModule('s-exp')"><span class="num num-sal">3</span>Expense Heads</div>
+    <div class="toc-item" onclick="toggleModule('s-ca')"><span class="num num-acc">4</span>Center Accounts</div>
+    <div class="toc-item" onclick="toggleModule('s-comm')"><span class="num num-acc">5</span>Commission Tracking</div>
+    <div class="toc-item" onclick="toggleModule('s-pib')"><span class="num num-acc">6</span>PIB Report</div>
+    <div class="toc-item" onclick="toggleModule('s-mis')"><span class="num num-acc">7</span>MIS Dashboard</div>
+    <div class="toc-item" onclick="toggleModule('s-loan')"><span class="num num-acc">8</span>Loan Entries</div>
+    <div class="toc-item" onclick="toggleModule('s-emp')"><span class="num num-hr">9</span>Employee Management</div>
+    <div class="toc-item" onclick="toggleModule('s-salary')"><span class="num num-hr">10</span>Salary Module</div>
+    <div class="toc-item" onclick="toggleModule('s-payslip')"><span class="num num-hr">11</span>Payslip Generation</div>
+    <div class="toc-item" onclick="toggleModule('s-letters')"><span class="num num-hr">12</span>HR Letters</div>
+    <div class="toc-item" onclick="toggleModule('s-centers')"><span class="num num-mgt">13</span>Center Management</div>
+    <div class="toc-item" onclick="toggleModule('s-mgrs')"><span class="num num-mgt">14</span>Manager Management</div>
+    <div class="toc-item" onclick="toggleModule('s-roles')"><span class="num num-mgt">15</span>Role Management</div>
+    <div class="toc-item" onclick="toggleModule('s-master')"><span class="num num-mgt">16</span>Master Data</div>
+    <div class="toc-item" onclick="toggleModule('s-fran')"><span class="num num-fran">17</span>Franchise Management</div>
+    <div class="toc-item" onclick="toggleModule('s-exit')"><span class="num num-fran">18</span>Exit &amp; Closure</div>
+    <div class="toc-item" onclick="toggleModule('s-docs')"><span class="num num-fran">19</span>Documents</div>
+    <div class="toc-item" onclick="toggleModule('s-pos')"><span class="num num-pos">20</span>POS / Billing</div>
+    <div class="toc-item" onclick="toggleModule('s-menu')"><span class="num num-pos">21</span>Menu Management</div>
+    <div class="toc-item" onclick="toggleModule('s-ops')"><span class="num num-ops">22</span>Operations</div>
+  </div>
+</div>
+
+<!-- 1. Attendance -->
+<div class="module" id="s-att">
+  <div class="module-head" onclick="toggleModule('s-att')">
+    <div class="ic ic-att">&#128197;</div>
+    <div><h3>Attendance Module</h3><div class="path">Menu &#8594; Attendance &#8594; India Centers / International</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>The Attendance module is a monthly grid where you mark the attendance status of every employee at each center. It tracks IN (Present), OFF (Day Off), HALF (Half Day), and ABSENT for every day of the month.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Select any center and month to view/edit attendance</li>
+        <li>Mark attendance: IN, OFF, HALF, ABSENT for each employee each day</li>
+        <li>View transferred employees with their historical data preserved</li>
+        <li>Bulk update attendance for multiple employees</li>
+        <li>Lock/Unlock months to prevent accidental changes</li>
+        <li>View the Attendance Dashboard for center-wide summary analytics</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Attendance directly feeds into salary calculation. Any error here will result in wrong salary payouts. This is the <strong>foundation of payroll accuracy</strong>.</p>
+    </div>
+    <div class="box box-warn"><strong>Common Mistakes to Avoid</strong>Do not forget to mark attendance for transferred employees. Their data stays in the original center for the days they worked there.</div>
+    <div class="box box-danger"><strong>Do Not</strong>Do not edit a locked month without approval. Locking prevents accidental changes after salary is processed.</div>
+    <div class="sec"><h4>&#128100; Who Can Access</h4>
+      <ul><li>Super Admin: All centers</li><li>Admin: Configured centers</li><li>Center Manager: Own center only</li></ul>
+    </div>
+    <div class="screenshot">[ Attendance Grid Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 2. Sales & Cash -->
+<div class="module" id="s-sal">
+  <div class="module-head" onclick="toggleModule('s-sal')">
+    <div class="ic ic-sal">&#8377;</div>
+    <div><h3>Sales &amp; Cash Summary</h3><div class="path">Menu &#8594; Sales &amp; Cash &#8594; Sales Dashboard</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>The Sales Dashboard shows daily sales data broken down by payment mode: Cash, Card, UPI (BharatPay), Swiggy, Zomato, and other online channels. It includes a Grid Bulk Update feature for fast data entry.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>View monthly sales summary for any center</li>
+        <li>Enter daily sales via the Grid Bulk Update (row per day, column per payment mode)</li>
+        <li>View total sales, online vs cash split, aggregator breakdowns</li>
+        <li>Compare month-on-month sales trends</li>
+        <li>Track GST-inclusive and exclusive amounts</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Sales data is the primary input for PIB, MIS, Revenue Share calculation, and MG (Minimum Guarantee) Payout. Incorrect sales entry leads to wrong franchise payouts and financial statements.</p>
+    </div>
+    <div class="box box-info"><strong>Example Usage</strong>At the end of each day, the center manager enters the total sales breakdown. At month-end, the accountant verifies and locks the data for PIB generation.</div>
+    <div class="box box-danger"><strong>Do Not</strong>Do not enter aggregator sales (Swiggy/Zomato) amounts that include GST. Enter the net amount received from the aggregator platform.</div>
+    <div class="sec"><h4>&#128202; Reports Available</h4>
+      <ul><li>Monthly Sales Summary PDF</li><li>Daily Sales Export (Excel)</li></ul>
+    </div>
+    <div class="screenshot">[ Sales Dashboard Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 3. Expense Heads -->
+<div class="module" id="s-exp">
+  <div class="module-head" onclick="toggleModule('s-exp')">
+    <div class="ic ic-sal">&#127991;</div>
+    <div><h3>Expense Heads &amp; Entry</h3><div class="path">Menu &#8594; Sales &amp; Cash &#8594; Expense Heads (MGT Only)</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Manage expense categories (Dairy, Grocery, Packaging, Rent, Utilities, etc.) and enter daily/monthly expenses for each center. Expenses are deducted from sales to calculate net revenue.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Create and manage expense head categories (MGT only)</li>
+        <li>Enter daily expenses with amount and category</li>
+        <li>Upload expense invoice attachments</li>
+        <li>View monthly expense breakdown by category</li>
+        <li>Export expense data with attachments as ZIP</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Expenses directly reduce the Net Revenue and affect profit calculations in PIB and MIS. Proper categorization helps identify cost patterns and control spending.</p>
+    </div>
+    <div class="box box-warn"><strong>Important Note</strong>Always attach invoice images for expenses above Rs. 500. This is required for audit compliance and tax documentation.</div>
+    <div class="screenshot">[ Expense Entry Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 4. Center Accounts -->
+<div class="module" id="s-ca">
+  <div class="module-head" onclick="toggleModule('s-ca')">
+    <div class="ic ic-acc">&#127970;</div>
+    <div><h3>Center Accounts</h3><div class="path">Menu &#8594; Accounts &#8594; Center Accounts</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>The central financial hub for each center. Shows the complete financial picture: Sales, Expenses, Commission uploads, Financial Summary with GST breakdown, Revenue Share calculation, and MG (Minimum Guarantee) Payout tracking.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>View complete financial summary for any center and month</li>
+        <li>Upload commission Excel files (Swiggy, Zomato, DoorDash, Cards, PhonePe)</li>
+        <li>Track dual-file uploads: EDC + Bank Statement for Cards and PhonePe</li>
+        <li>View 4-card commission breakdown: Gross &#8594; GST/Tax &#8594; Other Deductions &#8594; Net Payout</li>
+        <li>Generate and download PIB, GST, and Commission PDF reports</li>
+        <li>Record, Edit, and Delete franchise payout payments</li>
+        <li>View MG &amp; Payout tab with month range filter and export (Excel/PDF)</li>
+        <li>Track invoice/bill attachments with ZIP export</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>This is where all financial data comes together. It calculates what the franchise owes Purnabramha (Revenue Share or MG, whichever is higher) and tracks actual payments. This is the <strong>single source of truth</strong> for franchise financials.</p>
+    </div>
+    <div class="box box-info"><strong>Key Tabs</strong>
+      <b>Commission:</b> Upload and view platform-wise commissions<br>
+      <b>Financial Summary:</b> Sales - Expenses - Commissions - GST = Net Revenue<br>
+      <b>MG &amp; Payout:</b> Month-wise payout tracking with payment history<br>
+      <b>Invoice Attachments:</b> Upload and manage expense invoices
+    </div>
+    <div class="box box-success"><strong>Reports / Downloads</strong>PIB Report (PDF) | GST Report (PDF) | Commission Summary (PDF) | MG Payout Export (Excel &amp; PDF) | Invoice ZIP Export</div>
+    <div class="box box-danger"><strong>Do Not</strong>Do not upload commission files without verifying the month and platform match. Wrong uploads will corrupt the financial summary.</div>
+    <div class="screenshot">[ Center Accounts - Financial Summary Screenshot Placeholder ]</div>
+    <div class="screenshot">[ Center Accounts - Commission Upload Screenshot Placeholder ]</div>
+    <div class="screenshot">[ Center Accounts - MG &amp; Payout Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 5. Commission Tracking -->
+<div class="module" id="s-comm">
+  <div class="module-head" onclick="toggleModule('s-comm')">
+    <div class="ic ic-acc">&#128178;</div>
+    <div><h3>Commission Tracking</h3><div class="path">Menu &#8594; Accounts &#8594; Center Accounts &#8594; Commission Tab</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Upload monthly commission Excel reports from aggregator platforms and bank statements. The system parses the data and calculates exact deductions, MDR charges, and sundry debtors.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li><strong>Swiggy/Zomato/DoorDash:</strong> Single file upload. System parses Gross Amount, GST on Commission, TDS, Other Deductions, and Net Payout</li>
+        <li><strong>Cards:</strong> Dual file upload (EDC Statement + Bank Statement). System matches transactions and calculates MDR Bank Charges</li>
+        <li><strong>PhonePe:</strong> Dual file upload (EDC + Bank Statement). System calculates Sundry Debtors (next-day settlement amounts)</li>
+        <li>View parsed results with 4-card breakdown before confirming</li>
+        <li>Re-upload to replace previous data for the same month/platform</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Commissions are one of the largest deductions from franchise revenue. Accurate commission tracking ensures the franchise is not over-paying or under-reporting deductions. The dual-file matching for Cards/PhonePe provides bank-reconciled accuracy.</p>
+    </div>
+    <div class="box box-tip"><strong>Example</strong>Upload the Swiggy monthly statement Excel &#8594; System shows: Gross = Rs. 1,50,000, GST = Rs. 2,700, TDS = Rs. 150, Net = Rs. 1,47,150 &#8594; Confirm to save.</div>
+    <div class="box box-warn"><strong>Important</strong>For Cards and PhonePe, you MUST upload BOTH files (EDC + Bank Statement). The system needs both to calculate accurate MDR/Sundry amounts.</div>
+    <div class="screenshot">[ Commission Upload Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 6. PIB Report -->
+<div class="module" id="s-pib">
+  <div class="module-head" onclick="toggleModule('s-pib')">
+    <div class="ic ic-acc">&#128196;</div>
+    <div><h3>PIB Report (Profit &amp; Investment Brief)</h3><div class="path">Menu &#8594; Accounts &#8594; Center Accounts &#8594; Generate PIB</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>The PIB is the official monthly financial report for each franchise center. It shows the complete profit calculation from Total Sales down to the final Revenue Share / MG amount payable.</p>
+    </div>
+    <div class="sec"><h4>&#128196; PIB Financial Summary Structure</h4>
+      <ul>
+        <li>Total Sales</li>
+        <li>Less: Total Expenses</li>
+        <li>Less: Total Commissions (uploaded)</li>
+        <li>Less: GST on Sales (5% for India, 10% for Australia)</li>
+        <li><strong>= NET REVENUE</strong></li>
+        <li>Revenue Share % applied on Net Revenue</li>
+        <li>Compared with Minimum Guarantee (MG)</li>
+        <li><strong>Payable = Higher of Revenue Share or MG</strong></li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>The PIB is the single document that determines what the franchise pays Purnabramha each month. It is the most critical financial document in the system.</p>
+    </div>
+    <div class="box box-success"><strong>Downloads</strong>PIB PDF Report with Purnabramha branding, Financial Summary table, Revenue Share calculation, and Working Capital details.</div>
+    <div class="screenshot">[ PIB Report PDF Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 7. MIS Dashboard -->
+<div class="module" id="s-mis">
+  <div class="module-head" onclick="toggleModule('s-mis')">
+    <div class="ic ic-acc">&#128202;</div>
+    <div><h3>MIS Dashboard</h3><div class="path">Menu &#8594; Accounts &#8594; MIS Dashboard</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Management Information System dashboard. Provides a bird's-eye view of business performance across all centers with customizable date ranges. Shows Sales, Expenses, Commissions, GST, and Profit in one consolidated view.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>View all-center or single-center financial overview</li>
+        <li>Filter by: This Month, Last Month, Last 3/6/12 Months, or Custom Date Range</li>
+        <li>See KPI cards: Total Sales, Expenses, Commissions, Profit</li>
+        <li>Compare current vs previous period performance</li>
+        <li>Center-wise comparison charts</li>
+        <li>Payment mode breakdown (Cash, Card, UPI, Aggregators)</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>The MIS Dashboard is the management's primary tool for monitoring business health. It answers: "How is the business doing across all locations?"</p>
+    </div>
+    <div class="box box-info"><strong>Profit Formula</strong>Profit = Total Sales - Total Expenses - Total Commissions - GST (actual, from uploaded data)</div>
+    <div class="screenshot">[ MIS Dashboard Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 8. Loan Entries -->
+<div class="module" id="s-loan">
+  <div class="module-head" onclick="toggleModule('s-loan')">
+    <div class="ic ic-acc">&#128179;</div>
+    <div><h3>Loan Entries</h3><div class="path">Menu &#8594; Accounts &#8594; Loan Entries</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Track loans and advances given to franchise centers. Monitors outstanding balances and deductions from working capital.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Record new loans/advances to franchise centers</li>
+        <li>Track repayments and outstanding balances</li>
+        <li>View loan history per center</li>
+        <li>Loans automatically reflect in PIB Working Capital section</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Outstanding loans reduce the available working capital shown in the PIB. Accurate loan tracking ensures correct franchise financial health assessment.</p>
+    </div>
+    <div class="screenshot">[ Loan Entries Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 9. Employee Management -->
+<div class="module" id="s-emp">
+  <div class="module-head" onclick="toggleModule('s-emp')">
+    <div class="ic ic-hr">&#128101;</div>
+    <div><h3>Employee Management</h3><div class="path">Menu &#8594; HR Management &#8594; Employees</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Complete employee database management. Add, edit, and manage all employees across centers. This is the master employee list that feeds into Attendance, Salary, and Payslip modules.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Add new employees with full details (name, designation, salary, bank details, documents)</li>
+        <li>Edit employee information</li>
+        <li>Transfer employees between centers</li>
+        <li>View employee list sorted by center</li>
+        <li>Manage employee status (Active, Inactive, Transferred)</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>This is the single source of employee data. The Payslip dropdown, Attendance grid, and Salary calculations all pull from this master list. An employee not added here will not appear anywhere.</p>
+    </div>
+    <div class="box box-warn"><strong>Common Mistake</strong>Forgetting to update employee salary after an increment. The old salary will continue to be used for payslip generation until updated here.</div>
+    <div class="screenshot">[ Employee List Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 10. Salary -->
+<div class="module" id="s-salary">
+  <div class="module-head" onclick="toggleModule('s-salary')">
+    <div class="ic ic-hr">&#128176;</div>
+    <div><h3>Salary Module</h3><div class="path">Menu &#8594; HR Management &#8594; Salary</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Calculate and manage monthly salaries based on attendance data. Shows salary breakdown with basic pay, allowances, deductions (PF, ESI, advances), and net pay.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Select center and month to view salary calculations</li>
+        <li>View per-employee salary breakdown</li>
+        <li>Apply deductions (advances, PF, ESI, etc.)</li>
+        <li>Preview and approve salary for the month</li>
+        <li>Download salary register</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Salary is the largest operational expense. Accurate calculation ensures compliance with labor laws and employee satisfaction.</p>
+    </div>
+    <div class="box box-info"><strong>Pre-requisite</strong>Attendance for the month must be complete before salary calculation. Incomplete attendance will result in incorrect salary.</div>
+    <div class="screenshot">[ Salary Module Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 11. Payslip -->
+<div class="module" id="s-payslip">
+  <div class="module-head" onclick="toggleModule('s-payslip')">
+    <div class="ic ic-hr">&#128195;</div>
+    <div><h3>Payslip Generation</h3><div class="path">Menu &#8594; HR Management &#8594; Payslips</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Generate professional payslip PDFs for employees. Features a sorted employee dropdown from the Employee Master database, signatory selection, and Purnabramha branding.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Select center, month, and period (1/3/6 months)</li>
+        <li>Choose format: PDF or DOCX</li>
+        <li><strong>Select Signatory:</strong> Sandeep Gadhwal or Jayanti Kathale (with Seal)</li>
+        <li>Generate for All Employees (Bulk) or Single Employee (from dropdown)</li>
+        <li>Employee dropdown is sorted alphabetically from the Employee Master for the selected center</li>
+        <li>Download generated payslips with Purnabramha logo and selected signature</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Professional payslips with proper branding and authorized signatures are required for employee records, bank loan applications, and labor compliance.</p>
+    </div>
+    <div class="box box-tip"><strong>Tip</strong>Use "Jayanti Kathale (with Seal)" for official payslips that require company seal. Use "Sandeep Gadhwal" for regular monthly payslips.</div>
+    <div class="screenshot">[ Payslip Generator Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 12. HR Letters -->
+<div class="module" id="s-letters">
+  <div class="module-head" onclick="toggleModule('s-letters')">
+    <div class="ic ic-hr">&#128221;</div>
+    <div><h3>HR Letters</h3><div class="path">Menu &#8594; HR Management &#8594; HR Letters</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Generate official HR letters: Offer Letter, Appointment Letter, Experience Letter, Increment Letter, and more.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Select letter type and employee</li>
+        <li>Auto-fill employee details from master data</li>
+        <li>Customize letter content where needed</li>
+        <li>Download as PDF with company branding</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Professional HR documentation is required for employee records, legal compliance, and employee satisfaction during joining, increments, and exits.</p>
+    </div>
+    <div class="screenshot">[ HR Letters Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 13. Center Management -->
+<div class="module" id="s-centers">
+  <div class="module-head" onclick="toggleModule('s-centers')">
+    <div class="ic ic-mgt">&#127970;</div>
+    <div><h3>Center Management</h3><div class="path">Menu &#8594; Management &#8594; Centers (MGT Only)</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Create and manage all Purnabramha restaurant centers (locations). Each center has a unique code (PB-TH, PB-HSR, etc.) and is the foundational unit for all operations.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Add new centers with code, name, city, state, country</li>
+        <li>Edit center details</li>
+        <li>Activate/Deactivate centers</li>
+        <li>Link centers to franchise records</li>
+        <li>Configure center-specific settings</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Every operation in IntraPB is center-based. A center must exist here before employees, sales, expenses, or any other data can be entered for it.</p>
+    </div>
+    <div class="box box-danger"><strong>Do Not</strong>Do not delete a center that has historical data. Deactivate it instead to preserve all records.</div>
+    <div class="screenshot">[ Center Management Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 14. Manager Management -->
+<div class="module" id="s-mgrs">
+  <div class="module-head" onclick="toggleModule('s-mgrs')">
+    <div class="ic ic-mgt">&#128100;</div>
+    <div><h3>Manager Management</h3><div class="path">Menu &#8594; Management &#8594; Managers (MGT Only)</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Create and manage user accounts for all system users. Assign roles, map centers, and control who can access what in the system.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Create new user accounts (Manager, Admin, Accountant, Center Manager, Franchise Owner)</li>
+        <li>Assign role and mapped center</li>
+        <li>Set mobile number for OTP login</li>
+        <li>Activate/Deactivate user accounts</li>
+        <li>Reset user access</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>User management controls system access. Wrong role assignment can expose sensitive data. This is the access control gateway.</p>
+    </div>
+    <div class="box box-warn"><strong>Important</strong>Always verify the role before creating a user. A Center Manager should only be mapped to their specific center. Franchise Owners should be mapped to their franchise center only.</div>
+    <div class="screenshot">[ Manager Management Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 15. Role Management -->
+<div class="module" id="s-roles">
+  <div class="module-head" onclick="toggleModule('s-roles')">
+    <div class="ic ic-mgt">&#128737;</div>
+    <div><h3>Role Management</h3><div class="path">Menu &#8594; Management &#8594; Role Management (MGT Only)</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Define and manage access roles in the system. Each role determines which modules, screens, and actions a user can access.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Create custom roles with specific permissions</li>
+        <li>Define read/write/delete access per module</li>
+        <li>View which users are assigned to which role</li>
+        <li>Modify role permissions as business needs change</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>RBAC (Role-Based Access Control) ensures data security. Only authorized personnel see sensitive financial data. This is the foundation of the "No Hardcoding" principle.</p>
+    </div>
+    <div class="screenshot">[ Role Management Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 16. Master Data -->
+<div class="module" id="s-master">
+  <div class="module-head" onclick="toggleModule('s-master')">
+    <div class="ic ic-mgt">&#128451;</div>
+    <div><h3>Master Data Management</h3><div class="path">Menu &#8594; Management &#8594; Master Data (MGT Only)</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Central repository for all dropdown values, categories, and reference data used across the system. Every dropdown in IntraPB pulls from these master tables.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Manage: Expense Categories, Payment Modes, Employee Designations, Document Types</li>
+        <li>Manage: License Types, Franchise Types, Countries, States, Cities</li>
+        <li>Add, edit, activate/deactivate any master data item</li>
+        <li>Seed from existing data (auto-populate from current records)</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Master Data ensures consistency across the system. When someone selects "Dairy Products" as an expense category, it's the same everywhere. No hardcoded values, no typos, no inconsistencies.</p>
+    </div>
+    <div class="box box-info"><strong>Master-Data-First Principle</strong>All dropdowns, filters, and categories in IntraPB are driven by Master Data. If a value doesn't exist here, it won't appear anywhere in the system.</div>
+    <div class="screenshot">[ Master Data Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 17. Franchise Management -->
+<div class="module" id="s-fran">
+  <div class="module-head" onclick="toggleModule('s-fran')">
+    <div class="ic ic-fran">&#127969;</div>
+    <div><h3>Franchise Management</h3><div class="path">Menu &#8594; Franchise &#8594; Franchise Management</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Complete franchise lifecycle management. Create franchise profiles, manage directors, track agreements, revenue share percentages, MG amounts, working capital, and all franchise-related documents.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Create new franchise records with full details</li>
+        <li>Manage franchise directors list (auto-feeds into Exit Agreement signatures)</li>
+        <li>Set Revenue Share %, Monthly MG Amount, Working Capital</li>
+        <li>Upload and manage franchise documents (Agreement, Licenses, Compliance)</li>
+        <li>Link franchise to center for financial calculations</li>
+        <li>Track franchise status (Active, Pending, Terminated, Inactive)</li>
+        <li>Generate Agreement documents</li>
+        <li>View country-wise franchise filtering (India/Australia)</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>The franchise record is the legal and financial foundation. Revenue Share %, MG amount, and Working Capital set here directly determine what appears in PIB and MG Payout calculations.</p>
+    </div>
+    <div class="box box-danger"><strong>Do Not</strong>Do not change Revenue Share % or MG Amount without proper authorization. These values directly affect franchise payout calculations for all future months.</div>
+    <div class="screenshot">[ Franchise Management Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 18. Exit & Closure -->
+<div class="module" id="s-exit">
+  <div class="module-head" onclick="toggleModule('s-exit')">
+    <div class="ic ic-fran">&#128196;</div>
+    <div><h3>Franchise Exit &amp; Closure</h3><div class="path">Menu &#8594; Franchise &#8594; Exit &amp; Closure</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Manage the complete franchise exit process with structured steps: Exit Agreement, Asset Handover, Financial Settlement, Compliance Check, and Exit Certificate.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Initiate franchise exit for any franchise</li>
+        <li>Track 5-step exit process with completion status</li>
+        <li><strong>Signatures:</strong> Record franchisor signatories (Sandeep Gadhwal / Jayanti Kathale), Exit Manager, and auto-populated Franchisee Directors</li>
+        <li>Refresh signatures from Master Data for existing exit records</li>
+        <li>Migrate all existing exit records to new signature structure</li>
+        <li>Generate and download Exit Agreement PDF with full signature blocks</li>
+        <li>Generate Handover Report, Settlement Sheet, and Exit Certificate</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>A structured exit process protects both Purnabramha and the franchise owner legally. Proper documentation with authorized signatures ensures clean closure with no disputes.</p>
+    </div>
+    <div class="box box-info"><strong>Signature Structure</strong>
+      <b>Franchisor Side:</b> Sandeep Gadhwal and/or Jayanti Kathale (with Seal) + Exit Manager<br>
+      <b>Franchisee Side:</b> All Directors auto-populated from Franchise Management
+    </div>
+    <div class="screenshot">[ Exit Process Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 19. Documents -->
+<div class="module" id="s-docs">
+  <div class="module-head" onclick="toggleModule('s-docs')">
+    <div class="ic ic-fran">&#128194;</div>
+    <div><h3>Document Management</h3><div class="path">Menu &#8594; Franchise &#8594; Documents</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Centralized document storage and management using Emergent Object Storage. Upload, categorize, approve, and share franchise and center-level documents.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Upload documents with category tags (Agreement, License, Financial, Legal, Compliance)</li>
+        <li>Filter documents by center, franchise, category, or status</li>
+        <li>Approve or reject uploaded documents (Admin only)</li>
+        <li>Download individual documents</li>
+        <li>Track document status (Pending, Approved, Rejected)</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Proper document management ensures all legal agreements, licenses, and compliance documents are stored securely and accessible when needed for audits or legal proceedings.</p>
+    </div>
+    <div class="screenshot">[ Document Management Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 20. POS / Billing -->
+<div class="module" id="s-pos">
+  <div class="module-head" onclick="toggleModule('s-pos')">
+    <div class="ic ic-pos">&#129534;</div>
+    <div><h3>POS / Billing</h3><div class="path">Menu &#8594; Billing / POS &#8594; POS / Billing</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Point of Sale billing system for restaurant operations. Create bills with multi-item selection, tax calculation, payment mode tracking, and print-ready KOT (Kitchen Order Token).</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Create new bills with menu item selection</li>
+        <li>Apply discounts, taxes (GST), and service charges</li>
+        <li>Track payment modes: Cash, Card, UPI, Aggregator</li>
+        <li>Generate and print bills</li>
+        <li>Generate KOT for kitchen</li>
+        <li>View daily billing summary</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>The POS system is the primary revenue capture point. Every sale must be recorded here for accurate sales tracking and tax compliance.</p>
+    </div>
+    <div class="screenshot">[ POS Billing Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 21. Menu Management -->
+<div class="module" id="s-menu">
+  <div class="module-head" onclick="toggleModule('s-menu')">
+    <div class="ic ic-pos">&#127860;</div>
+    <div><h3>Menu Management</h3><div class="path">Menu &#8594; Billing / POS &#8594; Menu Items</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Manage the restaurant menu items, categories, pricing, and availability for the POS billing system.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li>Add/edit menu items with name, price, category, and description</li>
+        <li>Manage menu categories (Starters, Main Course, Thali, Beverages, etc.)</li>
+        <li>Set item availability (Active/Inactive)</li>
+        <li>Configure tax rates per item</li>
+        <li>Manage center-specific menu variations</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>The menu configuration directly affects POS billing. Correct pricing ensures accurate bill generation and tax calculation.</p>
+    </div>
+    <div class="screenshot">[ Menu Management Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+<!-- 22. Operations -->
+<div class="module" id="s-ops">
+  <div class="module-head" onclick="toggleModule('s-ops')">
+    <div class="ic ic-ops">&#127859;</div>
+    <div><h3>Operations (Booking, Recipes, Guest Response)</h3><div class="path">Menu &#8594; Operations &#8594; Booking Intelligence / Bhojan Guru / Guest Response</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Operational tools for restaurant management including booking management, recipe database (Bhojan Guru), and guest feedback tracking.</p>
+    </div>
+    <div class="sec"><h4>&#9989; What You Can Do Here</h4>
+      <ul>
+        <li><strong>Booking Intelligence:</strong> Manage table bookings, view booking calendar, track occupancy</li>
+        <li><strong>Bhojan Guru:</strong> Recipe database with ingredients, preparation steps, and costing</li>
+        <li><strong>Guest Response:</strong> Track and manage customer feedback and reviews</li>
+        <li><strong>Recipe Admin:</strong> Manage recipe categories, ingredients, and standard operating procedures</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>Operational excellence drives customer satisfaction and repeat business. These tools help standardize operations across all centers.</p>
+    </div>
+    <div class="screenshot">[ Operations Screenshot Placeholder ]</div>
+  </div>
+</div>
+
+</div><!-- end super admin section -->
+
+<!-- ============================================================ -->
+<!--                      ADMIN MANUAL                            -->
+<!-- ============================================================ -->
+<div class="role-section" id="role-admin">
+<div class="role-header rh-admin">
+  <h2>Admin Manual</h2>
+  <p>Operational control with access to multiple modules as configured by Super Admin.</p>
+</div>
+<div class="access-grid">
+  <div class="access-card"><div class="ic">&#128197;</div><h4>Attendance</h4><p>All configured centers</p></div>
+  <div class="access-card"><div class="ic">&#8377;</div><h4>Sales &amp; Cash</h4><p>View and entry</p></div>
+  <div class="access-card"><div class="ic">&#128202;</div><h4>Reports</h4><p>MIS, PIB as permitted</p></div>
+  <div class="access-card"><div class="ic">&#128101;</div><h4>HR</h4><p>Employees, Salary</p></div>
+  <div class="access-card"><div class="ic">&#129534;</div><h4>Billing / POS</h4><p>As configured</p></div>
+  <div class="access-card"><div class="ic">&#127969;</div><h4>Franchise</h4><p>Limited access</p></div>
+</div>
+<div class="box box-info" style="margin-bottom:1.5rem"><strong>Admin Access Note</strong>Your access depends on the permissions assigned by Super Admin in Role Management. You may have access to all modules listed below, or a subset. If a module is not visible in your menu, contact Super Admin to request access.</div>
+<p style="color:var(--text-light);font-size:.9rem;margin-bottom:1.5rem">Admin has access to the same modules as Super Admin but <strong>without Management section</strong> (Centers, Managers, Role Management, Master Data). All module descriptions are the same as in the Super Admin manual above. Refer to the Super Admin sections for detailed module documentation.</p>
+<div class="box box-warn"><strong>Key Difference from Super Admin</strong>
+  <ul style="margin-top:.5rem;padding-left:1rem">
+    <li>Cannot create or modify Centers, Managers, or Roles</li>
+    <li>Cannot edit Master Data</li>
+    <li>Center access may be limited to assigned centers only</li>
+    <li>Some approval actions may require Super Admin elevation</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<!--                   CENTER MANAGER MANUAL                      -->
+<!-- ============================================================ -->
+<div class="role-section" id="role-center">
+<div class="role-header rh-center">
+  <h2>Center Manager Manual</h2>
+  <p>Day-to-day operations for your assigned center. Attendance, Sales, Expenses, and Billing.</p>
+</div>
+<div class="access-grid">
+  <div class="access-card" style="border-left-color:var(--green)"><div class="ic">&#128197;</div><h4>Attendance</h4><p>Own center only</p></div>
+  <div class="access-card" style="border-left-color:var(--green)"><div class="ic">&#8377;</div><h4>Sales Entry</h4><p>Daily sales data</p></div>
+  <div class="access-card" style="border-left-color:var(--green)"><div class="ic">&#128176;</div><h4>Expense Entry</h4><p>Daily expenses</p></div>
+  <div class="access-card" style="border-left-color:var(--green)"><div class="ic">&#129534;</div><h4>Billing / POS</h4><p>Create bills</p></div>
+</div>
+
+<div class="module">
+  <div class="module-head" onclick="toggleModule('cm-daily')">
+    <div class="ic ic-att">&#128197;</div>
+    <div><h3>Your Daily Routine</h3><div class="path">Start of day &#8594; During service &#8594; End of day</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body" id="cm-daily-body">
+    <div class="sec"><h4>&#127775; Morning</h4>
+      <ul>
+        <li>Mark attendance for all staff: Menu &#8594; Attendance &#8594; Your Center</li>
+        <li>Check any pending expense entries from yesterday</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#9749; During Service</h4>
+      <ul>
+        <li>Use POS / Billing to create bills for dine-in customers</li>
+        <li>Track aggregator orders (Swiggy/Zomato) for reconciliation</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127769; End of Day</h4>
+      <ul>
+        <li>Enter daily sales breakdown: Menu &#8594; Sales &amp; Cash &#8594; Sales Dashboard</li>
+        <li>Enter daily expenses with invoice photos: Expense section</li>
+        <li>Verify cash vs digital payment totals match actual collection</li>
+      </ul>
+    </div>
+    <div class="box box-success"><strong>Why This Matters</strong>Your daily data entry is the foundation for the entire financial system. PIB, MIS, and franchise payouts all depend on the accuracy of what you enter.</div>
+    <div class="box box-danger"><strong>Do Not</strong>
+      <ul style="margin-top:.3rem;padding-left:1rem">
+        <li>Do not skip daily sales entry. Missing data shows as Rs. 0 in reports</li>
+        <li>Do not mix up payment modes. Card sales should not be entered as Cash</li>
+        <li>Do not backdate entries without approval from management</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="box box-info" style="margin:1.5rem 0"><strong>Access Restriction</strong>As a Center Manager, you can ONLY see data for your assigned center. You cannot switch to other centers or view system-wide reports. If you need multi-center access, contact Super Admin.</div>
+</div>
+
+<!-- ============================================================ -->
+<!--                    ACCOUNTANT MANUAL                         -->
+<!-- ============================================================ -->
+<div class="role-section" id="role-accountant">
+<div class="role-header rh-accountant">
+  <h2>Accountant Manual</h2>
+  <p>Finance, commissions, reports, and compliance across configured centers.</p>
+</div>
+<div class="access-grid">
+  <div class="access-card" style="border-left-color:var(--orange)"><div class="ic">&#127970;</div><h4>Center Accounts</h4><p>Full financial view</p></div>
+  <div class="access-card" style="border-left-color:var(--orange)"><div class="ic">&#128178;</div><h4>Commission Upload</h4><p>All platforms</p></div>
+  <div class="access-card" style="border-left-color:var(--orange)"><div class="ic">&#128196;</div><h4>PIB Generation</h4><p>Monthly reports</p></div>
+  <div class="access-card" style="border-left-color:var(--orange)"><div class="ic">&#128202;</div><h4>MIS Dashboard</h4><p>All center analytics</p></div>
+  <div class="access-card" style="border-left-color:var(--orange)"><div class="ic">&#128179;</div><h4>Loans</h4><p>Track &amp; manage</p></div>
+  <div class="access-card" style="border-left-color:var(--orange)"><div class="ic">&#128230;</div><h4>Invoice Export</h4><p>ZIP downloads</p></div>
+</div>
+
+<div class="module">
+  <div class="module-head" onclick="toggleModule('acc-monthly')">
+    <div class="ic ic-acc">&#128197;</div>
+    <div><h3>Monthly Finance Workflow</h3><div class="path">Steps to complete each month's financial closing</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body" id="acc-monthly-body">
+    <div class="sec"><h4>&#128203; Step-by-Step Monthly Process</h4>
+      <ul>
+        <li><strong>Step 1:</strong> Verify all daily sales entries are complete for the month (Sales Dashboard)</li>
+        <li><strong>Step 2:</strong> Verify all expense entries are complete with invoices attached</li>
+        <li><strong>Step 3:</strong> Upload commission Excel files for each platform:
+          <ul style="padding-left:1.5rem;list-style:disc;margin-top:.3rem">
+            <li>Swiggy statement &#8594; Single file</li>
+            <li>Zomato statement &#8594; Single file</li>
+            <li>Cards &#8594; EDC file + Bank Statement (dual upload)</li>
+            <li>PhonePe &#8594; EDC file + Bank Statement (dual upload)</li>
+          </ul>
+        </li>
+        <li><strong>Step 4:</strong> Verify the 4-card commission breakdown: Gross &#8594; GST/Tax &#8594; Other Deductions &#8594; Net Payout</li>
+        <li><strong>Step 5:</strong> Generate PIB Report and verify Financial Summary</li>
+        <li><strong>Step 6:</strong> Check MIS Dashboard for overall business health</li>
+        <li><strong>Step 7:</strong> Record franchise payments in MG &amp; Payout section</li>
+        <li><strong>Step 8:</strong> Export MG Payout as Excel/PDF for records</li>
+      </ul>
+    </div>
+    <div class="box box-warn"><strong>Important</strong>Always upload commissions BEFORE generating PIB. The PIB uses commission data to calculate Net Revenue. Without commissions, the Net Revenue and Revenue Share will be overstated.</div>
+    <div class="box box-tip"><strong>Pro Tip</strong>Use the month range filter in MG &amp; Payout to view the full payout history. Export as PDF for franchise owner meetings.</div>
+  </div>
+</div>
+
+<div class="box box-info" style="margin:1.5rem 0"><strong>Key Reports You Generate</strong>
+  <ul style="margin-top:.5rem;padding-left:1rem">
+    <li><strong>PIB Report (PDF):</strong> Monthly profit statement per center</li>
+    <li><strong>GST Report (PDF):</strong> GST breakdown for tax filing</li>
+    <li><strong>Commission Summary (PDF):</strong> Platform-wise commission details</li>
+    <li><strong>MG Payout Export (Excel/PDF):</strong> Month-wise payment tracking</li>
+    <li><strong>Invoice ZIP:</strong> All expense invoices in a downloadable ZIP</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<!--                  FRANCHISE OWNER MANUAL                      -->
+<!-- ============================================================ -->
+<div class="role-section" id="role-owner">
+<div class="role-header rh-owner">
+  <h2>Franchise Owner Manual</h2>
+  <p>View-only access to your franchise center's performance data, documents, and reports.</p>
+</div>
+<div class="access-grid">
+  <div class="access-card" style="border-left-color:var(--purple)"><div class="ic">&#128202;</div><h4>Owner Dashboard</h4><p>Sales &amp; Performance</p></div>
+  <div class="access-card" style="border-left-color:var(--purple)"><div class="ic">&#128176;</div><h4>Expense View</h4><p>What was spent</p></div>
+  <div class="access-card" style="border-left-color:var(--purple)"><div class="ic">&#128196;</div><h4>MIS Overview</h4><p>Profit summary</p></div>
+  <div class="access-card" style="border-left-color:var(--purple)"><div class="ic">&#128194;</div><h4>Documents</h4><p>Your franchise docs</p></div>
+  <div class="access-card" style="border-left-color:var(--purple)"><div class="ic">&#127969;</div><h4>Franchise Info</h4><p>Your agreement details</p></div>
+  <div class="access-card" style="border-left-color:var(--purple)"><div class="ic">&#128274;</div><h4>View Only</h4><p>No editing allowed</p></div>
+</div>
+
+<div class="module">
+  <div class="module-head" onclick="toggleModule('owner-dash')">
+    <div class="ic" style="background:#F3EEFF;color:var(--purple)">&#128202;</div>
+    <div><h3>Owner Dashboard</h3><div class="path">Login &#8594; Auto-redirected to Owner Dashboard (No center switching)</div></div>
+    <div class="arrow">&#9660;</div>
+  </div>
+  <div class="module-body" id="owner-dash-body">
+    <div class="sec"><h4>&#128218; What This Screen Does</h4>
+      <p>Your personalized dashboard showing your franchise center's complete performance. You are automatically logged into your mapped center with no option to switch centers.</p>
+    </div>
+    <div class="sec"><h4>&#127916; Dashboard Tabs</h4>
+      <ul>
+        <li><strong>Sales Overview:</strong> Total sales, payment mode breakdown, month-on-month trends, online vs cash split</li>
+        <li><strong>Expense Breakdown:</strong> Category-wise expenses, monthly expense trends</li>
+        <li><strong>Franchise Info:</strong> Your franchise details, agreement terms, revenue share %, MG amount, directors</li>
+        <li><strong>Documents:</strong> View and download your franchise documents (Agreement, Licenses, etc.)</li>
+      </ul>
+    </div>
+    <div class="sec"><h4>&#127919; Why This Matters</h4>
+      <p>As a franchise owner, you need visibility into how your center is performing financially. This dashboard gives you the data to have informed conversations with the Purnabramha management team about payouts, expenses, and growth.</p>
+    </div>
+    <div class="box box-info"><strong>What You See</strong>
+      <ul style="margin-top:.3rem;padding-left:1rem">
+        <li>KPI Cards: Total Sales, Total Expenses, Commissions, GST, Profit</li>
+        <li>Payment mode pie chart</li>
+        <li>Monthly sales trend line chart</li>
+        <li>Expense category breakdown</li>
+        <li>Franchise agreement details</li>
+        <li>Downloadable documents</li>
+      </ul>
+    </div>
+    <div class="box box-warn"><strong>Important</strong>This is a VIEW-ONLY dashboard. You cannot edit any data. If you notice any discrepancy in sales or expenses, contact Purnabramha management directly.</div>
+    <div class="box box-danger"><strong>Access Restriction</strong>You can ONLY see YOUR center's data. There is no center dropdown or ability to view other franchise centers. This is by design for data privacy and security.</div>
+    <div class="screenshot">[ Franchise Owner Dashboard Screenshot Placeholder ]</div>
+  </div>
+</div>
+</div>
+
+</div><!-- end main -->
+
+<footer>
+  <div style="font-weight:700;color:var(--maroon);margin-bottom:.3rem">Purnabramha &mdash; MANASWINI FOODS PRIVATE LIMITED</div>
+  <div>IntraPB User Manual v3.0 &nbsp;|&nbsp; April 2026 &nbsp;|&nbsp; intra.purnabramha.com</div>
+  <div style="margin-top:.5rem">This document is confidential and intended for authorized personnel only.</div>
+</footer>
+
+<script>
+function showRole(role){
+  document.querySelectorAll('.role-section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('role-'+role).classList.add('active');
+  document.querySelector('.tab-'+role).classList.add('active');
+  window.scrollTo({top:document.getElementById('topnav').offsetTop,behavior:'smooth'});
+}
+function toggleModule(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const head=el.querySelector('.module-head');
+  const body=el.querySelector('.module-body');
+  if(head&&body){
+    head.classList.toggle('open');
+    body.classList.toggle('open');
+  }
+  el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+</script>
+</body>
+</html>
