@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import httpx
+import json
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional
@@ -864,6 +865,172 @@ async def delete_festival_theme(theme_id: str, credentials: HTTPAuthorizationCre
     
     await db.festival_themes.delete_one({"id": theme_id})
     return {"message": "Festival theme deleted"}
+
+# ===================== NUTRITION INFO API =====================
+
+@api_router.get("/nutrition/{item_id}")
+async def get_nutrition_info(item_id: str):
+    """Get nutrition info for a menu item. Generates via AI if not cached."""
+    # Check cache first
+    cached = await db.nutrition_info.find_one({"menu_item_id": item_id}, {"_id": 0})
+    if cached:
+        return cached
+
+    # Get menu item details
+    item = await db.menu_items.find_one({"id": item_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    # Generate via AI
+    nutrition = await generate_nutrition_for_item(item)
+    return nutrition
+
+
+async def generate_nutrition_for_item(item: dict) -> dict:
+    """Use GPT to generate nutrition info for a dish."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="LLM key not configured")
+
+    prompt = f"""You are a professional Indian food nutritionist. Analyze this Maharashtrian vegetarian dish and return ONLY a valid JSON object (no markdown, no code blocks).
+
+Dish: {item['name']}
+Description: {item.get('description', '')}
+Category: {item.get('category', '')}
+Is Vegetarian: {item.get('is_veg', True)}
+No Onion/Garlic (Jain): {item.get('no_onion_garlic', False)}
+Fasting Friendly (Upvas): {item.get('fasting_friendly', False)}
+
+Return this exact JSON structure:
+{{"calories": <number kcal per serving>, "protein": <number grams>, "carbs": <number grams>, "fats": <number grams>, "fiber": <number grams>, "serving_size": "<e.g. 1 plate / 1 piece / 1 bowl>", "health_benefits": ["<benefit 1>", "<benefit 2>", "<benefit 3>", "<benefit 4>"], "allergens": ["<allergen1>", "<allergen2>"], "ayurvedic_benefits": "<1-2 sentence traditional Ayurvedic/Maharashtrian health wisdom about this dish>", "dietary_tags": ["<tag1>", "<tag2>"]}}
+
+Guidelines:
+- Estimate realistic nutrition for a standard restaurant serving
+- Health benefits should be specific to THIS dish's ingredients
+- Include allergens like Dairy, Nuts, Gluten, Soy only if applicable
+- Dietary tags examples: High Protein, Low Calorie, Rich in Iron, Fiber Rich, Calcium Rich, Antioxidant Rich
+- Ayurvedic benefits should reference traditional Maharashtrian/Indian food wisdom
+- For thalis, estimate the full plate
+- Return ONLY the JSON, nothing else"""
+
+    try:
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"nutrition-{item['id']}",
+            system_message="You are a food nutrition expert. Return only valid JSON."
+        ).with_model("openai", "gpt-4.1-mini")
+
+        user_message = UserMessage(text=prompt)
+        response = await chat.send_message(user_message)
+
+        # Parse the response - handle potential markdown wrapping
+        response_text = response.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("\n", 1)[1] if "\n" in response_text else response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+
+        nutrition_data = json.loads(response_text)
+
+        # Build the document
+        doc = {
+            "menu_item_id": item["id"],
+            "menu_item_name": item["name"],
+            "calories": int(nutrition_data.get("calories", 0)),
+            "protein": round(float(nutrition_data.get("protein", 0)), 1),
+            "carbs": round(float(nutrition_data.get("carbs", 0)), 1),
+            "fats": round(float(nutrition_data.get("fats", 0)), 1),
+            "fiber": round(float(nutrition_data.get("fiber", 0)), 1),
+            "serving_size": nutrition_data.get("serving_size", "1 serving"),
+            "health_benefits": nutrition_data.get("health_benefits", []),
+            "allergens": nutrition_data.get("allergens", []),
+            "ayurvedic_benefits": nutrition_data.get("ayurvedic_benefits", ""),
+            "dietary_tags": nutrition_data.get("dietary_tags", []),
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        # Cache in DB
+        await db.nutrition_info.update_one(
+            {"menu_item_id": item["id"]},
+            {"$set": doc},
+            upsert=True
+        )
+
+        return doc
+
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse nutrition JSON for {item['name']}: {response_text[:200]}")
+        raise HTTPException(status_code=500, detail="Failed to parse nutrition data")
+    except Exception as e:
+        logger.error(f"Failed to generate nutrition for {item['name']}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate nutrition: {str(e)}")
+
+
+@api_router.post("/admin/nutrition/generate/{item_id}")
+async def admin_generate_nutrition(item_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin: Force regenerate nutrition for a specific item."""
+    item = await db.menu_items.find_one({"id": item_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    # Delete existing cache to force regeneration
+    await db.nutrition_info.delete_one({"menu_item_id": item_id})
+    nutrition = await generate_nutrition_for_item(item)
+    return nutrition
+
+
+@api_router.post("/admin/nutrition/generate-bulk")
+async def admin_generate_nutrition_bulk(request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: Generate nutrition for all items that don't have it yet."""
+    body = await request.json()
+    force = body.get("force", False)
+
+    items = await db.menu_items.find({"is_available": True}, {"_id": 0}).to_list(1000)
+    generated = 0
+    skipped = 0
+    errors = 0
+
+    for item in items:
+        if not force:
+            existing = await db.nutrition_info.find_one({"menu_item_id": item["id"]})
+            if existing:
+                skipped += 1
+                continue
+
+        try:
+            await generate_nutrition_for_item(item)
+            generated += 1
+        except Exception as e:
+            logger.error(f"Bulk nutrition error for {item['name']}: {str(e)}")
+            errors += 1
+
+    return {
+        "message": "Bulk generation complete",
+        "generated": generated,
+        "skipped": skipped,
+        "errors": errors,
+        "total": len(items)
+    }
+
+
+@api_router.put("/admin/nutrition/{item_id}")
+async def admin_update_nutrition(item_id: str, nutrition_data: dict, current_user: dict = Depends(get_current_user)):
+    """Admin: Manually edit nutrition info for an item."""
+    nutrition_data["menu_item_id"] = item_id
+    nutrition_data["generated_at"] = datetime.now(timezone.utc).isoformat()
+
+    await db.nutrition_info.update_one(
+        {"menu_item_id": item_id},
+        {"$set": nutrition_data},
+        upsert=True
+    )
+
+    updated = await db.nutrition_info.find_one({"menu_item_id": item_id}, {"_id": 0})
+    return updated
+
 
 app.include_router(api_router)
 

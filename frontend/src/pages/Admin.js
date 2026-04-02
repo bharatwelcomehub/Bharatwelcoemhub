@@ -48,6 +48,9 @@ const Admin = () => {
   const [bulkImageMode, setBulkImageMode] = useState(false);
   const [bulkImageData, setBulkImageData] = useState({});
   const [bulkSaving, setBulkSaving] = useState(false);
+  // Bulk Nutrition Generation state
+  const [nutritionGenerating, setNutritionGenerating] = useState(false);
+  const [nutritionProgress, setNutritionProgress] = useState(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -510,6 +513,24 @@ const Admin = () => {
     
     if (errorCount > 0) {
       toast.error(`❌ Failed to update ${errorCount} items`);
+    }
+  };
+
+  // Bulk Nutrition Generation
+  const handleBulkNutritionGenerate = async () => {
+    if (!window.confirm('Generate AI nutrition data for all menu items? This may take a few minutes.')) return;
+    setNutritionGenerating(true);
+    setNutritionProgress(null);
+    try {
+      const res = await axios.post(`${API}/admin/nutrition/generate-bulk`, { force: false }, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      setNutritionProgress(res.data);
+      toast.success(`Nutrition generated for ${res.data.generated} items (${res.data.skipped} already had data)`);
+    } catch (error) {
+      toast.error('Failed to generate nutrition data');
+    } finally {
+      setNutritionGenerating(false);
     }
   };
 
@@ -1190,6 +1211,19 @@ const Admin = () => {
                   Bulk Add Images ({itemsWithoutImages.length})
                 </Button>
               )}
+              <Button
+                onClick={handleBulkNutritionGenerate}
+                variant="outline"
+                disabled={nutritionGenerating}
+                className="border-green-500 text-green-700 hover:bg-green-50"
+                data-testid="generate-nutrition-btn"
+              >
+                {nutritionGenerating ? (
+                  <><span className="animate-spin mr-2">&#9881;</span>Generating...</>
+                ) : (
+                  <><span className="mr-2">&#9889;</span>Generate Nutrition AI</>
+                )}
+              </Button>
             </div>
 
             {/* Bulk Image Upload Panel */}
