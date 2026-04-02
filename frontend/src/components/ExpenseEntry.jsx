@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -649,6 +649,20 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
     return acc;
   }, {});
 
+  // Merge master lists with custom values saved in existing expenses
+  // This ensures saved category/mode values always appear in the dropdown
+  const allExpenseTypes = useMemo(() => {
+    const savedTypes = expenses.map(e => e.expense_type).filter(Boolean);
+    const editedTypes = Object.values(editedExpenses).map(e => e.expense_type).filter(Boolean);
+    return [...new Set([...expenseTypes, ...savedTypes, ...editedTypes])].sort();
+  }, [expenseTypes, expenses, editedExpenses]);
+
+  const allPaymentModes = useMemo(() => {
+    const savedModes = expenses.map(e => e.payment_mode).filter(Boolean);
+    const editedModes = Object.values(editedExpenses).map(e => e.payment_mode).filter(Boolean);
+    return [...new Set([...paymentModes, ...savedModes, ...editedModes])].sort();
+  }, [paymentModes, expenses, editedExpenses]);
+
   // Sort handler
   const handleSort = (field) => {
     if (sortField === field) {
@@ -1136,7 +1150,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                             <SelectValue placeholder="Category" />
                           </SelectTrigger>
                           <SelectContent>
-                            {expenseTypes.map(type => (
+                            {allExpenseTypes.map(type => (
                               <SelectItem key={type} value={type}>{type}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1157,7 +1171,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                             <SelectValue placeholder="Mode" />
                           </SelectTrigger>
                           <SelectContent>
-                            {paymentModes.map(mode => (
+                            {allPaymentModes.map(mode => (
                               <SelectItem key={mode} value={mode}>{mode}</SelectItem>
                             ))}
                           </SelectContent>

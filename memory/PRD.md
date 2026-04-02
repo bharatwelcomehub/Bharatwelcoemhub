@@ -25,6 +25,12 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-02] Expense Category/Mode Dropdown Fix
+- Fixed bug where saved expense_type and payment_mode values not showing in inline Select dropdowns
+- Root cause: Saved custom values (e.g., "REPAIR & MAINTAINANCE", "ONLINE NEFT / IMPS") didn't exist in master lists
+- Fix: Merged master list + all saved values from current expenses using useMemo → allExpenseTypes / allPaymentModes
+- File: `/app/frontend/src/components/ExpenseEntry.jsx`
+
 ### [2026-04-02] Revenue/Profit Share Financial Breakdown + GST Changes
 - Added India-specific step-by-step calculation breakdown on Revenue/Profit Share tab:
   Total Sales → Less 5% GST → Less Commissions → = Net Revenue
@@ -41,31 +47,17 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - PIB Financial Summary PDF updated to explicitly deduct and show 5% GST on sales
 
 ### [2026-04-01] Exit Agreement Signature Migration
-- Backend migration endpoint: `POST /api/franchise-exit/migrate-all-signatures`
-- Single exit migration: `POST /api/franchise-exit/migrate-signatures/{exit_id}`
-- Directors auto-pull: `GET /api/franchise-exit/franchise-directors/{code}`
-- Converts old `signatures.franchisor` to `franchisor_signatories[]`
-- Populates `exit_manager` from `initiated_by_user`
-- Auto-populates `franchisee_directors` from Franchise Management directors list
+- Backend migration endpoint for signature block updates
+- Directors auto-pull from Franchise Management
 
 ### [2026-04-01] Exit Agreement Signature Logic Overhaul
-- Franchisor Signatories: Select Sandeep Gadhwal and/or Jayanti Kathale
-- Exit Manager: New signature block from exit process
-- Franchisee Directors: Auto-populated from Franchise Management
+- Franchisor Signatories: Select Sandeep/Jayanti
+- Exit Manager, Franchisee Directors auto-populated
 
-### [2026-03-30] MG Payout Month Range + Export
-- FROM/TO month range picker, Excel + PDF export
-- `POST /api/center-accounts/export-mg-payout`
-
-### [2026-03-30] Edit & Delete Payments, Payslip Generation, Bug Fixes
-- Payment edit/delete on Payout Summary
-- Payslip with Logo, Signatory selection, Employee dropdown
-- Franchise List route decorator fix, Master Data sync fix
+### [2026-03-30] MG Payout Month Range + Export, Edit/Delete Payments, Payslips, Bug Fixes
 
 ### Earlier
-- Commission parsers (all platforms), Dual-file upload, 4-Card UI
-- Franchise Owner Dashboard RBAC, PIB/GST/Commission PDFs
-- All base modules
+- Commission parsers, Dual-file upload, 4-Card UI, Franchise Owner Dashboard RBAC, PIB/GST/Commission PDFs
 
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
