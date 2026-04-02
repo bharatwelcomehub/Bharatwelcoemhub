@@ -58,6 +58,21 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 app = FastAPI(title="Purnabramha IntraPB API")
+
+# CORS - must be added before routes for proper handling
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Root-level health endpoint - bypasses all routers for maximum reliability
+@app.get("/api/health")
+async def root_health_check():
+    return {"status": "healthy"}
+
 api_router = APIRouter(prefix="/api")
 
 # Static files
@@ -1311,10 +1326,6 @@ async def seed_data():
 async def root():
     return {"message": "Purnabramha IntraPB API", "version": "2.0"}
 
-@api_router.get("/health")
-async def health():
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
-
 @api_router.get("/centers")
 async def get_centers():
     """Get list of all centers from DB (master-data-driven, no hardcoding)"""
@@ -2225,19 +2236,10 @@ set_doc_verify_token_async(verify_token_async)
 app.include_router(doc_router)
 
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 @app.on_event("startup")
 async def startup_cleanup_centers():
     """Auto-cleanup: normalize center codes, remove duplicates, set is_india_center flag"""
-    # Init document storage
+    # Init document storage (fast, non-DB)
     try:
         from routes.documents import init_storage
         init_storage()
@@ -2245,31 +2247,37 @@ async def startup_cleanup_centers():
     except Exception as e:
         logger.warning(f"Startup: document storage init failed (will retry on first upload): {e}")
     
-    # Seed default document categories if they don't exist (idempotent by category_id)
+    # Run heavy DB operations in background so they don't block health checks
+    import asyncio
+    asyncio.create_task(_startup_db_tasks())
+
+async def _startup_db_tasks():
+    """Background startup tasks that interact with MongoDB - non-blocking"""
     try:
-        default_cats = [
-            {"category_id": "cat-agreement", "name": "Franchise Agreement", "level": "franchise", "requires_expiry": True, "description": "Franchise agreements and amendments", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-license", "name": "License", "level": "franchise", "requires_expiry": True, "description": "Business licenses and permits", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-compliance", "name": "Compliance Certificate", "level": "franchise", "requires_expiry": True, "description": "FSSAI, GST, and compliance certificates", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-financial", "name": "Financial Document", "level": "franchise", "requires_expiry": False, "description": "Financial statements, invoices, receipts", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-legal", "name": "Legal Document", "level": "franchise", "requires_expiry": False, "description": "Legal documents and contracts", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-exit", "name": "Exit Document", "level": "franchise", "requires_expiry": False, "description": "Exit and closure documents", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-offer", "name": "Offer Letter", "level": "employee", "requires_expiry": False, "description": "Employee offer letters", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-idproof", "name": "ID Proof", "level": "employee", "requires_expiry": True, "description": "Aadhaar, PAN, passport, etc.", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"category_id": "cat-police", "name": "Police Verification", "level": "employee", "requires_expiry": True, "description": "Police verification certificates", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
-        ]
-        seeded = 0
-        for cat in default_cats:
-            exists = await db.document_categories.find_one({"category_id": cat["category_id"]})
-            if not exists:
-                await db.document_categories.insert_one(cat)
-                seeded += 1
-        if seeded:
-            logger.info(f"Startup: seeded {seeded} default document categories")
-    except Exception as e:
-        logger.warning(f"Startup: document category seeding failed: {e}")
-    
-    try:
+        # Seed default document categories if they don't exist (idempotent by category_id)
+        try:
+            default_cats = [
+                {"category_id": "cat-agreement", "name": "Franchise Agreement", "level": "franchise", "requires_expiry": True, "description": "Franchise agreements and amendments", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-license", "name": "License", "level": "franchise", "requires_expiry": True, "description": "Business licenses and permits", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-compliance", "name": "Compliance Certificate", "level": "franchise", "requires_expiry": True, "description": "FSSAI, GST, and compliance certificates", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-financial", "name": "Financial Document", "level": "franchise", "requires_expiry": False, "description": "Financial statements, invoices, receipts", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-legal", "name": "Legal Document", "level": "franchise", "requires_expiry": False, "description": "Legal documents and contracts", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-exit", "name": "Exit Document", "level": "franchise", "requires_expiry": False, "description": "Exit and closure documents", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-offer", "name": "Offer Letter", "level": "employee", "requires_expiry": False, "description": "Employee offer letters", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-idproof", "name": "ID Proof", "level": "employee", "requires_expiry": True, "description": "Aadhaar, PAN, passport, etc.", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+                {"category_id": "cat-police", "name": "Police Verification", "level": "employee", "requires_expiry": True, "description": "Police verification certificates", "is_active": True, "created_by": "System", "created_at": datetime.now(timezone.utc).isoformat()},
+            ]
+            seeded = 0
+            for cat in default_cats:
+                exists = await db.document_categories.find_one({"category_id": cat["category_id"]})
+                if not exists:
+                    await db.document_categories.insert_one(cat)
+                    seeded += 1
+            if seeded:
+                logger.info(f"Startup: seeded {seeded} default document categories")
+        except Exception as e:
+            logger.warning(f"Startup: document category seeding failed: {e}")
+        
         all_centers = await db.centers.find({}).to_list(500)
         
         # Step 1: Normalize center codes - strip trailing hyphens/spaces
@@ -2300,13 +2308,11 @@ async def startup_cleanup_centers():
                 logger.info(f"Startup dedup: removed duplicate center '{code}' (_id={dup['_id']})")
         
         # Step 3: Auto-set is_india_center flag for centers that don't have it
-        # Known non-India centers: PERTH and any with country set to non-India
         all_centers = await db.centers.find({}).to_list(500)
         for c in all_centers:
             if "is_india_center" not in c:
                 code = c.get("code", "")
                 country = c.get("country", "")
-                # Non-India if: has non-India country, or code contains PERTH
                 is_india = True
                 if country and country.lower() not in ("india", ""):
                     is_india = False
@@ -2329,7 +2335,7 @@ async def startup_cleanup_centers():
         expired = await db.transfer_requests.find({
             "transfer_type": "TEMPORARY",
             "status": "ACCEPTED",
-            "end_date": {"$lt": today, "$ne": None, "$ne": ""}
+            "end_date": {"$lt": today, "$ne": ""}
         }).to_list(500)
         for transfer in expired:
             emp_name = transfer["employee_name"]
@@ -2343,6 +2349,8 @@ async def startup_cleanup_centers():
                 {"$set": {"status": "COMPLETED", "action_notes": f"Auto-completed on startup: ended {transfer['end_date']}", "updated_at": now_str}}
             )
             logger.info(f"Startup: auto-completed expired transfer for {emp_name}")
+        
+        logger.info("Startup: all background DB tasks completed")
     except Exception as e:
         logger.warning(f"Startup cleanup failed: {e}")
 
