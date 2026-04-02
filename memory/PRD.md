@@ -25,6 +25,18 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-02] Bank Statement vs Expense Reconciliation Feature
+- **Full Feature Implementation**: Upload bank statements (Excel/CSV), parse debit transactions, match against recorded expenses
+- **Matching Logic**: Exact date+amount match, Fuzzy date (±2 days) + exact amount match
+- **Category Suggestions**: Auto-suggests categories from `expense_heads` (Category Master) using keyword mapping
+- **Actions**: Add as Expense (validates category in master), Ignore, Export CSV report
+- **Audit Trail**: Full logging in `expense_reconciliation_log` collection
+- **UI Integration**: New "Bank Reconciliation" tab in Sales Dashboard with summary cards and transaction tables
+- **Critical Rules Followed**: Never auto-deletes existing expenses, categories strictly from Category Master
+- Files: `/app/backend/routes/bank_reconciliation.py`, `/app/frontend/src/components/BankReconciliation.jsx`
+- Collections: `bank_statement_uploads`, `bank_transactions`, `expense_reconciliation_log`
+- Test coverage: 100% (23/23 backend tests passed)
+
 ### [2026-04-02] Role-Based User Manuals + Download Page
 - Created 4 standalone HTML manuals, each with unique color theme:
   - `manual-super-admin.html` (Maroon) — 18 sections covering all modules
@@ -61,6 +73,9 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - (P2) 7-year retention deletion prompt
 - (P2) Menu card PDF generation per center
 - Code freeze preparation audit
+
+## Completed in This Session
+- ✅ Bank Statement vs Expense Reconciliation Feature (P0) - DONE
 
 ## Refactoring Needed
 - PDF Generation logic in `center_accounts.py` → dedicated generator utility
