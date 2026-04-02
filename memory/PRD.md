@@ -55,6 +55,12 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
   - AI-generated via GPT, cached in MongoDB for instant loading
   - Admin "Generate Nutrition AI" button for bulk generation
   - Works for both India and Australia menus
+- [x] **Scan Dish (AI Image Recognition)** (Apr 2026) - Take photo or upload image of any dish
+  - Floating camera button on Menu page
+  - AI identifies dish from menu using GPT-4.1 vision
+  - Shows matched dish with full nutrition card + "Order for Pickup" button
+  - Supports camera capture (mobile) and gallery upload
+  - Handles unidentified dishes gracefully with retry option
 - [x] **Bulk Image Upload** - Paste Google Drive URLs for items without images
 - [x] **Tiffin Management** - Full CRUD with:
   - Unlimited Breakfast Settings (price, description, timings, days)
