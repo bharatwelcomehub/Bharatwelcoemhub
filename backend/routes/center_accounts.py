@@ -558,13 +558,15 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         },
         "financial_summary": {
             "total_sales": round(total_sale, 2),
-            "sales_gst": round(sales_gst_amount, 2),
+            "sales_gst": round(gst_on_sales if country == "India" else sales_gst_amount, 2),
+            "sales_gst_rate": "5%" if country == "India" else "10%",
+            "gst_applicable": gst_applicable_india if country == "India" else True,
             "sales_ex_gst": round(sales_ex_gst, 2),
             "total_expenses": round(total_expenses, 2),
             "total_commissions": round(total_commission, 2),
             "commission_gst": round(commission_gst, 2) if country == "Australia" else 0,
             "total_commissions_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),
-            "net_revenue": round(net_revenue, 2),
+            "net_revenue": round(net_revenue_for_share, 2),
             "working_capital": round(working_capital, 2),
             "loans_outstanding": round(total_loans_outstanding, 2),
             "working_capital_available": round(working_capital - total_loans_outstanding, 2)
@@ -944,28 +946,41 @@ async def generate_pib_report(req: PIBGenerateRequest):
     story.append(Paragraph("4. FINANCIAL SUMMARY", styles['PIBSection']))
     
     fin = summary["financial_summary"]
+    gst_applicable = summary.get("share_calculation", {}).get("purnabramha", {}).get("gst_applicable", False)
+    gst_on_sales = fin.get("sales_gst", 0)
+    
     fin_data = [
         ["Description", "Amount"],
         ["Total Sales", f"{currency} {fin['total_sales']:,.2f}"],
         ["Less: Total Expenses", f"({currency} {fin['total_expenses']:,.2f})"],
         ["Less: Total Commissions", f"({currency} {fin['total_commissions']:,.2f})"],
-        ["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"],
-        ["", ""],
-        ["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"],
     ]
     
+    # Show GST deduction line for India (5% on sales)
+    if summary.get("country") == "India" and gst_on_sales > 0:
+        fin_data.append(["Less: GST on Sales (5%)", f"({currency} {gst_on_sales:,.2f})"])
+    elif summary.get("country") == "Australia":
+        fin_data.append(["Less: GST on Sales (10%)", f"({currency} {gst_on_sales:,.2f})"])
+    
+    fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
+    fin_data.append(["", ""])
+    fin_data.append(["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"])
+    
+    net_revenue_row_idx = len(fin_data) - 3  # NET REVENUE row index
+    
     fin_table = Table(fin_data, colWidths=[280, 170])
-    fin_table.setStyle(TableStyle([
+    fin_style = [
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTNAME', (0, 4), (-1, 4), 'Helvetica-Bold'),
+        ('FONTNAME', (0, net_revenue_row_idx), (-1, net_revenue_row_idx), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('BACKGROUND', (0, 0), (-1, 0), BRAND_NAVY),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('BACKGROUND', (0, 4), (-1, 4), BRAND_GOLD),
+        ('BACKGROUND', (0, net_revenue_row_idx), (-1, net_revenue_row_idx), BRAND_GOLD),
         ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
+    ]
+    fin_table.setStyle(TableStyle(fin_style))
     story.append(fin_table)
     story.append(Spacer(1, 15))
     

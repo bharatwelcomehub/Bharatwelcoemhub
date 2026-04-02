@@ -830,6 +830,12 @@ export default function CenterAccounts() {
                         <span>Commissions</span>
                         <span className="text-red-600">-{formatCurrency(accountSummary.financial_summary.total_commissions, accountSummary.country)}</span>
                       </div>
+                      {accountSummary.financial_summary.sales_gst > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span>GST on Sales ({accountSummary.financial_summary.sales_gst_rate || '5%'})</span>
+                          <span className="text-red-600">-{formatCurrency(accountSummary.financial_summary.sales_gst, accountSummary.country)}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <h4 className="font-medium text-gray-600">Working Capital</h4>
