@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Globe, ShoppingBag, Leaf, X, ZoomIn, Flame, Dumbbell, Wheat, Droplets, AlertTriangle, Heart, Sparkles, Loader2 } from 'lucide-react';
+import { Globe, ShoppingBag, Leaf, X, ZoomIn, Flame, Dumbbell, Wheat, Droplets, AlertTriangle, Heart, Sparkles, Loader2, Camera, Upload, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 import SEOHead from '@/components/SEOHead';
 
@@ -18,6 +18,13 @@ const Menu = () => {
   const [selectedItem, setSelectedItem] = useState(null); // For modal
   const [nutritionData, setNutritionData] = useState(null);
   const [nutritionLoading, setNutritionLoading] = useState(false);
+  // Scan Dish state
+  const [scanModalOpen, setScanModalOpen] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [scanPreview, setScanPreview] = useState(null);
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const [selectedCountry, setSelectedCountry] = useState(() => {
     return localStorage.getItem('purnabramha_country') || 'India';
   });
@@ -77,6 +84,53 @@ const Menu = () => {
   const handleItemClick = (item) => {
     setSelectedItem(item);
     fetchNutrition(item.id);
+  };
+
+  // Scan Dish functions
+  const handleFileSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onload = (ev) => setScanPreview(ev.target.result);
+    reader.readAsDataURL(file);
+
+    // Convert to base64 and scan
+    const base64Reader = new FileReader();
+    base64Reader.onload = async (ev) => {
+      const base64 = ev.target.result.split(',')[1];
+      await scanDish(base64);
+    };
+    base64Reader.readAsDataURL(file);
+  };
+
+  const scanDish = async (imageBase64) => {
+    setScanLoading(true);
+    setScanResult(null);
+    try {
+      const response = await axios.post(`${API}/scan-dish`, {
+        image_base64: imageBase64
+      });
+      setScanResult(response.data);
+      if (response.data.success) {
+        toast.success(`Identified: ${response.data.matched_item.name}`);
+      } else {
+        toast.error(response.data.message || 'Could not identify dish');
+      }
+    } catch (error) {
+      console.error('Scan failed:', error);
+      toast.error('Failed to scan dish. Please try again.');
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  const closeScanModal = () => {
+    setScanModalOpen(false);
+    setScanResult(null);
+    setScanPreview(null);
+    setScanLoading(false);
   };
 
   const getPrice = (item) => {
@@ -414,6 +468,203 @@ const Menu = () => {
         <div className="text-center mt-8 text-sm text-foreground/50 font-manrope">
           Showing {filteredItems.length} items {selectedCategory !== 'all' && `in ${selectedCategory}`}
         </div>
+      </div>
+
+      {/* Floating Scan Dish Button */}
+      <button
+        onClick={() => setScanModalOpen(true)}
+        className="fixed bottom-6 right-6 z-50 bg-[#5c1e1e] hover:bg-[#8b2c2c] text-white rounded-full p-4 shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+        data-testid="scan-dish-btn"
+        title="Scan a dish photo"
+      >
+        <Camera className="h-7 w-7" />
+        <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-[#5c1e1e] text-white text-sm px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+          Scan Dish
+        </span>
+      </button>
+
+      {/* Hidden file inputs */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleFileSelect}
+        data-testid="scan-file-input"
+      />
+      <input
+        type="file"
+        ref={cameraInputRef}
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileSelect}
+        data-testid="scan-camera-input"
+      />
+
+      {/* Scan Dish Modal */}
+      <AnimatePresence>
+        {scanModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) closeScanModal(); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] p-5 rounded-t-2xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ScanLine className="h-6 w-6 text-white" />
+                  <h2 className="text-xl font-bold text-white font-playfair">Scan Your Dish</h2>
+                </div>
+                <button onClick={closeScanModal} className="text-white/80 hover:text-white p-1">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="p-5">
+                {/* Upload Area */}
+                {!scanPreview && !scanLoading && !scanResult && (
+                  <div className="space-y-4">
+                    <p className="text-gray-600 text-sm text-center mb-4">
+                      Take a photo or upload an image of any dish to get instant nutrition info
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-[#5c1e1e]/30 rounded-xl hover:border-[#5c1e1e] hover:bg-amber-50 transition-all"
+                        data-testid="scan-camera-btn"
+                      >
+                        <Camera className="h-10 w-10 text-[#5c1e1e]" />
+                        <span className="text-sm font-medium text-[#5c1e1e]">Take Photo</span>
+                      </button>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-[#5c1e1e]/30 rounded-xl hover:border-[#5c1e1e] hover:bg-amber-50 transition-all"
+                        data-testid="scan-upload-btn"
+                      >
+                        <Upload className="h-10 w-10 text-[#5c1e1e]" />
+                        <span className="text-sm font-medium text-[#5c1e1e]">Upload Image</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading */}
+                {scanLoading && (
+                  <div className="text-center py-8" data-testid="scan-loading">
+                    {scanPreview && (
+                      <img src={scanPreview} alt="Scanning..." className="w-48 h-48 object-cover rounded-xl mx-auto mb-4 border-2 border-amber-200" />
+                    )}
+                    <div className="flex items-center justify-center gap-3">
+                      <Loader2 className="h-6 w-6 text-[#5c1e1e] animate-spin" />
+                      <span className="text-[#5c1e1e] font-medium">Identifying dish...</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">AI is analyzing your photo</p>
+                  </div>
+                )}
+
+                {/* Scan Result */}
+                {scanResult && !scanLoading && (
+                  <ScanResultPanel
+                    result={scanResult}
+                    preview={scanPreview}
+                    getCurrencySymbol={getCurrencySymbol}
+                    getPrice={(item) => selectedCountry === 'Australia' ? item.price_aud : item.price_inr}
+                    onRetry={() => { setScanResult(null); setScanPreview(null); }}
+                    onClose={closeScanModal}
+                  />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// Scan Result Panel Component
+const ScanResultPanel = ({ result, preview, getCurrencySymbol, getPrice, onRetry, onClose }) => {
+  if (!result.success) {
+    return (
+      <div className="text-center py-4" data-testid="scan-no-match">
+        {preview && (
+          <img src={preview} alt="Scanned" className="w-40 h-40 object-cover rounded-xl mx-auto mb-4 border-2 border-gray-200" />
+        )}
+        <div className="bg-red-50 rounded-xl p-4 mb-4">
+          <p className="text-red-700 font-medium">{result.message}</p>
+          {result.ai_description && (
+            <p className="text-sm text-gray-500 mt-2">AI saw: {result.ai_description}</p>
+          )}
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={onRetry} variant="outline" className="flex-1 rounded-full">
+            <Camera className="mr-2 h-4 w-4" /> Try Again
+          </Button>
+          <Button onClick={onClose} variant="ghost" className="rounded-full">Close</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const item = result.matched_item;
+  const nutrition = result.nutrition;
+
+  return (
+    <div className="space-y-4" data-testid="scan-result-success">
+      {/* Matched Dish Header */}
+      <div className="flex gap-4 items-start">
+        {preview && (
+          <img src={preview} alt="Your photo" className="w-24 h-24 object-cover rounded-xl border-2 border-amber-200 flex-shrink-0" />
+        )}
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <Badge className={`text-xs ${result.confidence === 'high' ? 'bg-green-500' : result.confidence === 'medium' ? 'bg-amber-500' : 'bg-red-500'} text-white`}>
+              {result.confidence} match
+            </Badge>
+          </div>
+          <h3 className="font-playfair text-xl font-bold text-[#5c1e1e]">{item.name}</h3>
+          <div className="flex flex-wrap gap-1 mt-1">
+            <Badge variant="outline" className="text-xs">{item.category}</Badge>
+            {item.is_veg && <Badge className="bg-green-100 text-green-700 text-xs border-green-200" variant="outline">Veg</Badge>}
+            {item.no_onion_garlic && <Badge className="bg-orange-500 text-white text-xs font-bold">No Onion/Garlic</Badge>}
+            {item.fasting_friendly && <Badge className="bg-purple-600 text-white text-xs font-bold">Fasting Friendly</Badge>}
+          </div>
+          <p className="text-2xl font-bold text-[#5c1e1e] mt-2">{getCurrencySymbol()}{getPrice(item)}</p>
+        </div>
+      </div>
+
+      {item.description && (
+        <p className="text-sm text-gray-600">{item.description}</p>
+      )}
+
+      {result.ai_description && (
+        <p className="text-xs text-gray-400 italic">AI observation: {result.ai_description}</p>
+      )}
+
+      {/* Nutrition Data */}
+      {nutrition && <NutritionPanel data={nutrition} loading={false} />}
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 pt-2">
+        <Link to="/pickup" className="flex-1">
+          <Button className="w-full bg-[#5c1e1e] hover:bg-[#8b2c2c] rounded-full py-5" data-testid="scan-order-btn">
+            <ShoppingBag className="mr-2 h-5 w-5" />
+            Order for Pickup
+          </Button>
+        </Link>
+        <Button onClick={onRetry} variant="outline" className="rounded-full py-5" data-testid="scan-retry-btn">
+          <Camera className="mr-2 h-4 w-4" /> Scan Another
+        </Button>
       </div>
     </div>
   );

@@ -866,6 +866,120 @@ async def delete_festival_theme(theme_id: str, credentials: HTTPAuthorizationCre
     await db.festival_themes.delete_one({"id": theme_id})
     return {"message": "Festival theme deleted"}
 
+# ===================== SCAN DISH (IMAGE RECOGNITION) API =====================
+
+@api_router.post("/scan-dish")
+async def scan_dish(request: Request):
+    """Identify a dish from a photo and return its menu match + nutrition."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+
+    body = await request.json()
+    image_base64 = body.get("image_base64")
+    if not image_base64:
+        raise HTTPException(status_code=400, detail="image_base64 is required")
+
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="LLM key not configured")
+
+    # Get all menu item names for matching
+    all_items = await db.menu_items.find({"is_available": True}, {"_id": 0}).to_list(1000)
+    item_names = [item["name"] for item in all_items]
+
+    prompt = f"""You are a food recognition expert specializing in Indian/Maharashtrian cuisine from the restaurant "Purnabramha".
+
+Look at this food photo and identify which dish it is from our menu. Here are all the dishes on our menu:
+
+{json.dumps(item_names)}
+
+Return ONLY a valid JSON object (no markdown, no code blocks) with this exact structure:
+{{"identified_dish": "<exact name from the menu list above>", "confidence": "<high/medium/low>", "description": "<brief 1-line description of what you see in the image>"}}
+
+Rules:
+- Match to the CLOSEST dish from the menu list above
+- If you cannot identify the dish at all, return: {{"identified_dish": "unknown", "confidence": "low", "description": "<what you see>"}}
+- Use the EXACT dish name from the menu list
+- Be generous in matching - if it looks like any Indian dish on the menu, match it"""
+
+    try:
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"scan-{uuid.uuid4()}",
+            system_message="You are a food recognition expert. Return only valid JSON."
+        ).with_model("openai", "gpt-4.1")
+
+        image_content = ImageContent(image_base64=image_base64)
+        user_message = UserMessage(text=prompt, file_contents=[image_content])
+        response = await chat.send_message(user_message)
+
+        # Parse response
+        response_text = response.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("\n", 1)[1] if "\n" in response_text else response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+
+        result = json.loads(response_text)
+        identified_name = result.get("identified_dish", "unknown")
+
+        # Find matching menu item
+        matched_item = None
+        for item in all_items:
+            if item["name"].lower() == identified_name.lower():
+                matched_item = item
+                break
+
+        # Fuzzy match if exact match fails
+        if not matched_item and identified_name != "unknown":
+            for item in all_items:
+                if identified_name.lower() in item["name"].lower() or item["name"].lower() in identified_name.lower():
+                    matched_item = item
+                    break
+
+        if not matched_item:
+            return {
+                "success": False,
+                "message": "Could not identify this dish from our menu. Try a clearer photo!",
+                "ai_description": result.get("description", ""),
+                "confidence": result.get("confidence", "low")
+            }
+
+        # Get nutrition data
+        nutrition = await db.nutrition_info.find_one({"menu_item_id": matched_item["id"]}, {"_id": 0})
+        if not nutrition:
+            try:
+                nutrition = await generate_nutrition_for_item(matched_item)
+            except Exception:
+                nutrition = None
+
+        return {
+            "success": True,
+            "matched_item": {
+                "id": matched_item["id"],
+                "name": matched_item["name"],
+                "description": matched_item.get("description", ""),
+                "category": matched_item.get("category", ""),
+                "price_inr": matched_item.get("price_inr"),
+                "price_aud": matched_item.get("price_aud"),
+                "image_url": matched_item.get("image_url"),
+                "is_veg": matched_item.get("is_veg", True),
+                "no_onion_garlic": matched_item.get("no_onion_garlic", False),
+                "fasting_friendly": matched_item.get("fasting_friendly", False)
+            },
+            "nutrition": nutrition,
+            "confidence": result.get("confidence", "medium"),
+            "ai_description": result.get("description", "")
+        }
+
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse scan result: {response_text[:200]}")
+        raise HTTPException(status_code=500, detail="Failed to parse AI response")
+    except Exception as e:
+        logger.error(f"Scan dish error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to scan dish: {str(e)}")
+
+
 # ===================== NUTRITION INFO API =====================
 
 @api_router.get("/nutrition/{item_id}")
