@@ -34,13 +34,15 @@ import {
   Table2,
   Upload,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRightLeft
 } from "lucide-react";
 import { api, API_URL, fetchCentersFromDB } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 import FreezeControl from "@/components/FreezeControl";
 import SalesGridEditor from "@/components/SalesGridEditor";
+import BankReconciliation from "@/components/BankReconciliation";
 import * as XLSX from "xlsx";
 
 // Check if center is international (non-India) — replaces hardcoded PB-PERTH check
@@ -1027,6 +1029,10 @@ export default function SalesExpenses() {
             Upload Excel
           </TabsTrigger>
           <TabsTrigger value="expense-entry" data-testid="tab-expense-entry">Expense Entry</TabsTrigger>
+          <TabsTrigger value="bank-reconciliation" data-testid="tab-bank-reconciliation" className="text-amber-600">
+            <ArrowRightLeft className="w-4 h-4 mr-1" />
+            Bank Reconciliation
+          </TabsTrigger>
           <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
           {session?.is_super_admin && (
             <TabsTrigger value="expenses" data-testid="tab-expenses">Expense List (Admin)</TabsTrigger>
@@ -1080,6 +1086,15 @@ export default function SalesExpenses() {
         {/* Expense Entry Tab */}
         <TabsContent value="expense-entry">
           <ExpenseEntry session={session} selectedCenter={selectedCenter} centersList={centers} />
+        </TabsContent>
+
+        {/* Bank Statement Reconciliation Tab */}
+        <TabsContent value="bank-reconciliation">
+          <BankReconciliation 
+            session={session} 
+            selectedCenter={selectedCenter !== "all" ? selectedCenter : ""} 
+            centersList={centers}
+          />
         </TabsContent>
 
         {/* Freeze Control Tab - Super Admin Only */}

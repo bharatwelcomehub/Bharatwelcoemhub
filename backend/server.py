@@ -2230,6 +2230,10 @@ app.include_router(comm_router)
 
 # Document Management
 from routes.documents import router as doc_router, set_db as set_doc_db, set_verify_token as set_doc_verify_token, set_verify_token_async as set_doc_verify_token_async
+
+from routes.bank_reconciliation import router as recon_router, init_db as init_recon_db
+init_recon_db(db)
+app.include_router(recon_router)
 set_doc_db(db)
 set_doc_verify_token(verify_token)
 set_doc_verify_token_async(verify_token_async)

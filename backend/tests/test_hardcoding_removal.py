@@ -8,7 +8,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://gst-transparency.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://bank-reconcile-26.preview.emergentagent.com')
 
 # Super Admin credentials
 SUPER_ADMIN_CENTER = "PB-MGT"

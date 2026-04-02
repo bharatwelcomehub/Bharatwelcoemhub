@@ -14,7 +14,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://gst-transparency.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://bank-reconcile-26.preview.emergentagent.com')
 
 # Test credentials (READ-ONLY - do not modify production data)
 SUPER_ADMIN_CENTER = "PB-MGT"

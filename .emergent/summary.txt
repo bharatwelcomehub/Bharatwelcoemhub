@@ -1,39 +1,39 @@
 <analysis>**original_problem_statement**: 
-Internal management system for Purnabramha, a restaurant franchise. Core architectural philosophy is MASTER-DATA-FIRST, ROLE-BASED, NO-HARDCODING. 
-The current specific requirement is to update the Revenue/Profit Share tab on the Center Accounts page to display a clear, step-by-step mathematical breakdown of the financial summary calculation (Total Sale - 5% GST - Commissions = Net Sale) to eliminate any ambiguity (shanka kushanka) for the franchise owners.
+Add a new Bank Statement vs Expense Reconciliation feature under the Expense Upload section inside the Sales Dashboard. It must allow users to upload a bank statement, parse debit transactions, match them against previously recorded expenses (exact amount, 1-2 days tolerance), and suggest Unrecorded Expenses with categories mapped strictly from the Category Master. It must maintain an audit trail and strictly *never* auto-delete or overwrite existing expense entries.
 
 PRODUCT REQUIREMENTS:
-- Explicit mathematical breakdown on the Revenue/Profit Share UI.
-- Consistent application of GST rules based on region (e.g., 5% on sales in India).
+- File upload parsing (Excel/CSV) for bank statements.
+- Matching logic to detect missing expenses.
+- Category auto-suggestion using keywords from Category Master.
+- UI flow with Add as Expense, Edit Details, Ignore actions.
+- Reconciliation Log/Audit Trail generation.
+- Monthly Reconciliation Summary and Report Export.
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
 **what currently exists?** 
 A React/FastAPI/MongoDB franchise management application. 
-- Payslip PDFs now include dynamic logos, selectable signatures, and master-data-driven employee lists.
-- Franchise Exits fully handle multi-party digital signatures (Franchisor, Exit Manager, Franchisee Directors) pulled from Master Data.
-- MIS Dashboard and Center Accounts correctly calculate and render accurate commissions (fetching from  using  and ).
-- PIB Reports accurately deduct and display the 5% GST on sales.
-- A newly generated standalone HTML User Manual exists at .
+- Center Accounts correctly show step-by-step mathematical breakdown for Revenue/Profit Share, handling India GST accurately without altering base Payouts.
+- Standalone Role-Based User Manuals (HTML) exist and are linked in the Dashboard sidebar.
+- Backend startup is highly optimized (heavy DB cleanup moved to background tasks) and features a root-level  endpoint to pass Kubernetes deployment checks seamlessly.
+- Boilerplate files for Bank Reconciliation have just been created.
 
 **Last working item**:
-    - **Last item agent was working**: Adding a step-by-step financial calculation breakdown (Total Sale - GST - Commission = Net Sale) to the Revenue/Profit Share tab UI on the Center Accounts page. The agent just executed bash commands to inspect  (around line 1052).
+    - **Last item agent was working**: Setting up the architectural skeleton for the new Bank Statement vs Expense Reconciliation feature. The agent created , registered it in , and created .
     - **Status**: IN PROGRESS
     - **Agent Testing Done**: N
-    - **Which testing method agent to use?**: screenshot tool (to verify frontend rendering of the breakdown).
+    - **Which testing method agent to use?**: both (Backend first via curl/python-c for parsing/matching logic, then testing subagent for full E2E flow once UI is built).
     - **User Testing Done**: N
 
-**All Pending/In progress Issue list**:
-  Issue 1: Revenue/Profit Share UI Breakdown (P0)
-     - Attempted fixes: Investigated  lines containing the Revenue/Profit Share tab content. No code changes made yet.
-     - Next debug checklist: Edit  to render the step-by-step math (Total Sales -> less 5% GST -> less Commissions -> Net Sale) pulling from . Ensure the display is clear and matches the PIB report logic.
-     - Why fix this issue and what will be achieved with the fix? Provides full transparency to Franchise Owners, eliminating doubts about how their payout/MG is calculated.
-     - Status: IN PROGRESS
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: None
+**All Pending/In progress Issue list**: None. All previous bugs (Expense dropdowns, deployment timeouts, missing GST breakdown) have been resolved.
 
-**In progress Task List**: None
+**In progress Task List**:
+  Task 1: Bank Statement vs Expense Reconciliation Feature (P0)
+     - Where to resume: You have empty skeleton files ( and ). Start by building the backend endpoints to handle file upload, parse bank statements (using  or ), and implement the matching logic against the  collection. Concurrently, build the UI to handle the 4-step user flow (Upload -> Match -> Action -> Summary). Finally, integrate it as a Tab inside .
+     - What will be achieved with this? Detection of unrecorded expenses, preventing revenue leakage without mutating historical data.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: None.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -47,20 +47,13 @@ A React/FastAPI/MongoDB franchise management application.
     - (P2) Menu card PDF generation per center
 
 **Completed work in this session**
-- Payslip UI & PDF Generation Updates with dynamic logo and signatures (DONE)
-- Franchise list 404 bug fix in  (DONE)
-- Master Data Franchise sync fix resolving field mapping mismatch (DONE)
-- Edit & Delete options for Payout Summary payments (DONE)
-- MG Payout Month Range filter + Export to Excel/PDF (DONE)
-- Exit Agreement Signature Logic update (Franchisor + Exit Manager + Franchisee Directors) (DONE)
-- Exit Agreement Signature Migration for existing records without recreation (DONE)
-- MIS Commission Display bug fixed by pointing to accurate DB fields ( + ) (DONE)
-- ZIP file download bug fixed by using  instead of  for binary responses (DONE)
-- PIB Financial Summary PDF updated to explicitly deduct and show 5% GST (DONE)
-- Created full standalone HTML User Manual for intra.purnabramha.com (DONE)
+- Revenue/Profit Share UI step-by-step mathematical breakdown & India GST handling (DONE)
+- Fixed Expense Entry Dropdowns bug (Category/Mode showing empty for custom DB values) (DONE)
+- 4 Role-Based HTML User Manuals with Dashboard UI integration (DONE)
+- Fixed Production Deployment Kubernetes Health Check timeout (moved heavy startup DB operations to  and added root  endpoint) (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-None
+None.
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: None
@@ -71,48 +64,45 @@ None
 
 
 **Key Technical Concepts**
-- **ReportLab PDF Generation**: Complex document assembly parsing dynamic data, signatures, and math logic.
-- **Data Migrations**: Using MongoDB  updates to inject new schemas into existing documents without destroying backward compatibility.
+- **FastAPI BackgroundTasks**: Used to unblock the main event loop during application startup (crucial for MongoDB queries passing deployment health checks).
+- **Reconciliation/Matching Logic**: Fuzzy matching, date variance (1-2 days tolerance), and amount exact matching to correlate independent datasets (Bank statement vs App DB).
 
 **key DB schema**
-  - : Tracked status and  block containing , , and .
-  - : Actual uploaded commission data mapping directly to  and .
+  - : Master category table (MUST be the only source for category suggestions).
+  - : Existing recorded expenses.
+  -  (To be created per PRD).
+  -  (To be created per PRD).
+  -  (To be created per PRD).
 
 **changes in tech stack**
-  - None, but utilized  () via bash for local PDF text extraction to verify ReportLab generation.
+  - Added dependency requirement conceptually for parsing Excel/CSV if not already present (e.g., ,  - verify before using).
 
 **All files of reference** 
-  -  (Currently requires edits for P0 issue)
+  -  (WIP)
+  -  (WIP)
+  -  (Needs to host the new component under Expense Upload tabs)
   - 
-  -  (Newly created file)
 
 **Areas that need refactoring**:
-- PDF Generation logic inside  is getting quite large. It may benefit from being moved to a dedicated generator utility similar to .
+- PDF Generation logic inside  needs extraction into a dedicated utility file.
 
 **key api endpoints**
-- 
-- 
-- 
+-  (Moved to root level for Kubernetes probes)
+-  (To be built)
 
 **Critical Info for New Agent** 
-- In the Purnabramha logic, GST for India (usually 5% on food) is treated as a deduction off the Total Sale when calculating Net Revenue. 
-- When calculating Net Sale/Profit, mathematical transparency on the frontend is highly demanded by the user.
+- **CRITICAL RECONCILIATION RULES**: Do NOT modify or overwrite existing expense records. This module is strictly additive (detects missing transactions and logs them). Categories for new expenses MUST be drawn strictly from  (Category Master) - no auto-creating custom categories.
+- **Health Check Safety**: The backend previously failed Kubernetes deployments because heavy DB operations during startup blocked the event loop. If you add heavy DB init logic for Bank Reconciliation, ensure it runs inside  or asynchronously *after* startup so  responds immediately.
 
 **documents and test reports created in this job** 
-  - 
+  -  (Updated with UI fixes, manuals, deployment fix, and new task)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User**: I SHOULD HAVE RANGE OF MONTHS AND SUMMRY AMOUNTS AND MG PAYS AS IS WITH EXPORT FACILITY AS EXCEL AND pdf... (Resolved)
-2. **User**: from revenue start date to current month (Resolved)
-3. **User**: Update Exit Agreement Signature Logic... allow either Sandeep/Jayanti, Exit Manager, Franchisee Directors... (Resolved)
-4. **User**: Update Existing Franchise Exit Agreements... Do not recreate exit records. (Resolved)
-5. **User**: hope the data which we have instered for exit intitted franchsie will not be deleted... (Resolved - Agent confirmed it's safe)
-6. **User**: documents are not getting updated as per the signature block can u please update the exsisitng document... (Resolved)
-7. **User**: I HAVE LOADED ALL THE DATTA FOR COMMISION FOR THANE BRANCH... BUT I M UNABLE TO SEE IT HERE... (Resolved)
-8. **User**: 1ST IMAGE IS FOR ZIP FOLDER IS NOT GETING DONWLOADED 2ND IMAGE IS FOR DEC 2023 WHEN I LOAD PRIVIOUS DATE SALE... IS STILL 0 (Resolved)
-9. **User**: the calculation for PIIB report is correct but just display gst amount got deducted 5%... (Resolved)
-10. **User**: Create a full HTML User Manual for intra.purnabramha.com. I need this as a BEAUTIFUL, COLOURFUL... HTML file (Resolved)
-- **Pending HUMAN message**: can u show the total calculation of finanatila summary i mean add the gst calculation total sale minun 5% and - commisison = net sale and all that here as display also so that there will not be any shanka kushanka (IN PROGRESS).
+1. **User**: what is happening why intra.purnabramha is not working twice i did the deployment (Resolved - routing issue identified).
+2. **User**: email sent joib id sent relink link done still not working no response on email (Resolved - guided to Discord).
+3. **User**: Go to Discord NOW... once click onnlink what should we do (Resolved - gave exact discord posting instructions).
+4. **User**: Use deployment agent to identify the issues... WARNING: Backend not responding to /api/health after 25 attempts... (Resolved - fixed heavy startup loops and added root /health endpoint).
+5. **User**: Add a new reconciliation feature under the Expense Upload section inside the Sales Dashboard. CRITICAL RULES... (IN PROGRESS - Skeleton files created, pending implementation).
 
 **Project Health Check:**
 Broken: None.
@@ -122,7 +112,7 @@ Mocked: WhatsApp Notifications.
 - Emergent Object Storage — uses Emergent integrations library
 
 **Testing status**
-  - Testing agent used after significant changes: NO (relied on bash testing / screenshot tool heavily in this session).
+  - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
@@ -132,12 +122,14 @@ Mocked: WhatsApp Notifications.
 - Test Franchise Owner: Center , mobile , OTP .
 
 **What agent forgot to execute**
-The agent acknowledged the user's latest request (to display a step-by-step financial math breakdown in the Revenue/Profit Share tab) and executed bash commands to find the relevant code in , but has not yet implemented the code changes.
+The agent generated the initial component and route files for Bank Statement vs Expense Reconciliation but hasn't implemented any code inside them. 
 
 **Debugging checklist for current issue**
-    Issue: Display clear financial math breakdown on the Revenue/Profit Share tab UI.
-
-    Frontend files to check: 
-    -  (Around line 1052 inside the  TabsContent block)
+    Issue: Implement Bank Reconciliation Feature.
     
-    Variables to map: Use , , , and . Render them as a clear, vertically stacked math equation UI.</analysis>
+    Backend files to build:
+    - : Need  upload logic for files, parsing utility, matching algorithm against , and category suggestion algorithm using .
+    
+    Frontend files to build:
+    - : Build stepper UI (Upload -> Matched/Unrecorded Tables -> Summary).
+    - : Import  and insert it as a tab in the Expense Upload section.</analysis>
