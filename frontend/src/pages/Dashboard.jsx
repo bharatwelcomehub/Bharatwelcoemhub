@@ -37,6 +37,7 @@ import {
   Ban,
   Cog,
   FileCheck2,
+  BookOpen,
 } from "lucide-react";
 
 // Import pages
@@ -67,6 +68,7 @@ import MenuManagement from "@/pages/MenuManagement";
 import POSBilling from "@/pages/POSBilling";
 import BillingConfiguration from "@/pages/BillingConfiguration";
 import DocumentManagement from "@/pages/DocumentManagement";
+import UserManuals from "@/pages/UserManuals";
 
 // Menu categories structure
 const menuCategories = [
@@ -127,6 +129,7 @@ const menuCategories = [
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
       { path: "/master-data", icon: Database, label: "Master Data", forMGT: true },
+      { path: "/user-manuals", icon: BookOpen, label: "User Manuals", forMGT: true },
     ]
   },
   {
@@ -456,6 +459,7 @@ export default function Dashboard() {
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
             <Route path="/master-data" element={<MasterDataManagement />} />
+            <Route path="/user-manuals" element={<UserManuals />} />
             <Route path="/menu-management" element={<MenuManagement />} />
             <Route path="/franchise-dashboard" element={<FranchiseOwnerDashboard />} />
             <Route path="/pos-billing" element={<POSBilling />} />

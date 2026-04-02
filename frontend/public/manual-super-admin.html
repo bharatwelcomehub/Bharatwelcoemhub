@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purnabramha IntraPB - Super Admin Manual</title>
+<style>
+:root{--maroon:#7B1E2A;--deep-red:#9B2335;--saffron:#D4A843;--gold:#C9A84C;--cream:#FFF8F0;--dark:#1a1a2e;--text:#2D2D2D;--text-light:#5A5A5A;--border:#E8DDD0;--green:#2D8B55;--blue:#2E5090;--orange:#C06520;--purple:#6B3FA0}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--cream);color:var(--text);line-height:1.7}
+.cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--maroon) 0%,#4a0e18 100%);color:#fff;text-align:center;padding:2rem;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.cover h1{font-size:3rem;font-weight:800;letter-spacing:-1px;margin-bottom:.5rem;position:relative}
+.cover .subtitle{font-size:1.3rem;color:var(--saffron);font-weight:600;margin-bottom:.3rem;position:relative}
+.cover .role-badge{display:inline-block;background:var(--saffron);color:var(--maroon);padding:.5rem 2rem;border-radius:50px;font-weight:700;font-size:1rem;margin-top:1rem;position:relative}
+.gold-line{width:80px;height:3px;background:var(--saffron);margin:1rem auto;border-radius:2px}
+.main{max-width:900px;margin:0 auto;padding:2rem 1.5rem}
+.section{background:#fff;border-radius:16px;margin-bottom:1.5rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border);overflow:hidden}
+.section-head{padding:1.2rem 1.5rem;background:linear-gradient(135deg,var(--maroon),#4a0e18);color:#fff;display:flex;align-items:center;gap:.8rem}
+.section-head .num{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;flex-shrink:0}
+.section-head h2{font-size:1.15rem;font-weight:700}
+.section-head .path{font-size:.75rem;opacity:.7;margin-top:2px}
+.section-body{padding:1.5rem}
+.step{display:flex;gap:1rem;margin-bottom:1.2rem;align-items:flex-start}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--maroon);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0;margin-top:2px}
+.step-content{flex:1}
+.step-content h4{font-size:.95rem;font-weight:700;color:var(--maroon);margin-bottom:.3rem}
+.step-content p{font-size:.88rem;color:var(--text-light)}
+.box{padding:1rem 1.2rem;border-radius:10px;margin:.8rem 0;font-size:.85rem;line-height:1.5}
+.box-info{background:#EEF4FF;border-left:4px solid var(--blue);color:#1a3060}
+.box-warn{background:#FFF3E6;border-left:4px solid #E67E22;color:#7a3a10}
+.box-tip{background:#F3EEFF;border-left:4px solid var(--purple);color:#3a1f60}
+.box-success{background:#E8F8EE;border-left:4px solid var(--green);color:#1a5535}
+.box strong{display:block;margin-bottom:.3rem;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.8rem;margin:1rem 0}
+.feature-card{background:var(--cream);border-radius:10px;padding:1rem;text-align:center;border:1px solid var(--border)}
+.feature-card .icon{font-size:1.5rem;margin-bottom:.4rem}
+.feature-card h4{font-size:.82rem;font-weight:700;color:var(--text)}
+.feature-card p{font-size:.72rem;color:var(--text-light);margin-top:.2rem}
+ul{list-style:none;padding:0}
+ul li{padding:.3rem 0 .3rem 1.2rem;position:relative;font-size:.88rem;color:var(--text)}
+ul li::before{content:'';position:absolute;left:0;top:.65rem;width:6px;height:6px;border-radius:50%;background:var(--saffron)}
+.toc{background:#fff;border-radius:16px;padding:2rem;margin-bottom:2rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border)}
+.toc h3{color:var(--maroon);font-size:1.2rem;margin-bottom:1rem;font-weight:800}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem}
+.toc-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-radius:8px;font-size:.85rem;color:var(--text);text-decoration:none;transition:all .15s}
+.toc-item:hover{background:rgba(123,30,42,.05);color:var(--maroon)}
+.toc-item .tnum{width:24px;height:24px;border-radius:6px;background:var(--maroon);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.footer{text-align:center;padding:3rem 1rem;color:var(--text-light);font-size:.85rem;border-top:2px solid var(--border);margin-top:2rem}
+.footer .brand{color:var(--maroon);font-weight:800;font-size:1.1rem}
+@media print{.cover{min-height:auto;padding:2rem;page-break-after:always}.section{break-inside:avoid}}
+@media(max-width:600px){.cover h1{font-size:2rem}.main{padding:1rem}.feature-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <h1>Purnabramha IntraPB</h1>
+  <div class="gold-line"></div>
+  <div class="subtitle">User Manual</div>
+  <div class="role-badge">SUPER ADMIN</div>
+  <p style="margin-top:1.5rem;opacity:.7;font-size:.9rem;position:relative">Complete system administration guide for intra.purnabramha.com</p>
+  <p style="margin-top:.5rem;opacity:.5;font-size:.8rem;position:relative">Version 2.0 | April 2026</p>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- Table of Contents -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <div class="toc-grid">
+      <a class="toc-item" href="#login"><span class="tnum">1</span> Login &amp; Authentication</a>
+      <a class="toc-item" href="#dashboard"><span class="tnum">2</span> Dashboard Overview</a>
+      <a class="toc-item" href="#centers"><span class="tnum">3</span> Center Management</a>
+      <a class="toc-item" href="#managers"><span class="tnum">4</span> Manager Management</a>
+      <a class="toc-item" href="#roles"><span class="tnum">5</span> Role Management</a>
+      <a class="toc-item" href="#master"><span class="tnum">6</span> Master Data Sync</a>
+      <a class="toc-item" href="#attendance"><span class="tnum">7</span> Attendance Module</a>
+      <a class="toc-item" href="#sales"><span class="tnum">8</span> Sales &amp; Cash</a>
+      <a class="toc-item" href="#expenses"><span class="tnum">9</span> Expense Management</a>
+      <a class="toc-item" href="#accounts"><span class="tnum">10</span> Center Accounts</a>
+      <a class="toc-item" href="#mis"><span class="tnum">11</span> MIS Dashboard</a>
+      <a class="toc-item" href="#hr"><span class="tnum">12</span> HR &amp; Payroll</a>
+      <a class="toc-item" href="#franchise"><span class="tnum">13</span> Franchise Management</a>
+      <a class="toc-item" href="#exit"><span class="tnum">14</span> Franchise Exit</a>
+      <a class="toc-item" href="#documents"><span class="tnum">15</span> Document Management</a>
+      <a class="toc-item" href="#freeze"><span class="tnum">16</span> Freeze Control</a>
+      <a class="toc-item" href="#pos"><span class="tnum">17</span> POS / Billing</a>
+      <a class="toc-item" href="#operations"><span class="tnum">18</span> Operations &amp; Recipes</a>
+    </div>
+  </div>
+
+  <!-- Your Access -->
+  <div class="box box-info" style="margin-bottom:1.5rem">
+    <strong>Super Admin Access</strong>
+    As Super Admin, you have <b>unrestricted access</b> to every module, every center, and every configuration setting. You can manage users, assign roles, sync master data, freeze/unfreeze dates, and oversee all financial data across all branches.
+  </div>
+
+  <!-- 1. Login -->
+  <div class="section" id="login">
+    <div class="section-head">
+      <div class="num">1</div>
+      <div><h2>Login &amp; Authentication</h2><div class="path">intra.purnabramha.com/login</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Select Your Center</h4><p>Open the portal. From the dropdown, select <b>PB-MGT</b> (Management center).</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Enter Mobile Number</h4><p>Enter your registered Super Admin mobile number (e.g., 97413XXXXX or 99608XXXXX).</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Click "Send OTP"</h4><p>An OTP will be sent to your registered email address.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Enter OTP &amp; Verify</h4><p>Enter the 6-digit OTP and click <b>Verify</b>. You will be redirected to the dashboard.</p></div></div>
+      <div class="box box-tip"><strong>Tip</strong>OTP is sent to the email linked with your mobile number in the system. Check your inbox if you don't see it immediately.</div>
+    </div>
+  </div>
+
+  <!-- 2. Dashboard -->
+  <div class="section" id="dashboard">
+    <div class="section-head">
+      <div class="num">2</div>
+      <div><h2>Dashboard Overview</h2><div class="path">Sidebar Navigation</div></div>
+    </div>
+    <div class="section-body">
+      <p>After login, you see the full sidebar with all modules:</p>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="icon">📅</div><h4>Attendance</h4><p>India &amp; International</p></div>
+        <div class="feature-card"><div class="icon">₹</div><h4>Sales &amp; Cash</h4><p>Daily entries &amp; reports</p></div>
+        <div class="feature-card"><div class="icon">📊</div><h4>Accounts</h4><p>Center Accounts, MIS</p></div>
+        <div class="feature-card"><div class="icon">👥</div><h4>HR Management</h4><p>Employees, Salary, Payslips</p></div>
+        <div class="feature-card"><div class="icon">⚙️</div><h4>Management</h4><p>Centers, Managers, Roles</p></div>
+        <div class="feature-card"><div class="icon">🏪</div><h4>Franchise</h4><p>Management &amp; Exit</p></div>
+        <div class="feature-card"><div class="icon">🍽️</div><h4>Operations</h4><p>Booking, Recipes, Guru</p></div>
+        <div class="feature-card"><div class="icon">🧾</div><h4>Billing / POS</h4><p>POS &amp; Menu Config</p></div>
+      </div>
+      <div class="box box-info"><strong>Center Switching</strong>You can view data for <b>any center</b> by changing the center selector at the top of each page. Select "All Centers" where available for a consolidated view.</div>
+    </div>
+  </div>
+
+  <!-- 3. Centers -->
+  <div class="section" id="centers">
+    <div class="section-head">
+      <div class="num">3</div>
+      <div><h2>Center Management</h2><div class="path">Management &gt; Centers</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View All Centers</h4><p>Navigate to <b>Management &gt; Centers</b>. See a list of all active centers with their codes, names, and regions (India / International).</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Add New Center</h4><p>Click <b>"Add Center"</b>. Fill in the center code (e.g., PB-NEW), name, address, phone, and region. Click Save.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Edit Center Details</h4><p>Click the pencil icon on any center row to update its information.</p></div></div>
+      <div class="box box-warn"><strong>Important</strong>Center codes must be unique and follow the PB-XXX format. Once created, center codes cannot be changed as they are referenced across all modules.</div>
+    </div>
+  </div>
+
+  <!-- 4. Managers -->
+  <div class="section" id="managers">
+    <div class="section-head">
+      <div class="num">4</div>
+      <div><h2>Manager Management</h2><div class="path">Management &gt; Managers</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View All Managers</h4><p>See a list of all registered managers with their center assignments and roles.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Add New Manager</h4><p>Click <b>"Add Manager"</b>. Provide: Name, Mobile Number, Email, Assigned Center, and Role Key (e.g., center_manager, accountant).</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Assign Roles</h4><p>Each manager can be assigned specific role permissions (attendance, sales_cash, hr, accounting, franchise, operations, billing). Use Role Management for fine-grained control.</p></div></div>
+      <div class="box box-tip"><strong>Tip</strong>A manager's mobile number is their login credential. Make sure it's correct to allow them to receive OTPs.</div>
+    </div>
+  </div>
+
+  <!-- 5. Roles -->
+  <div class="section" id="roles">
+    <div class="section-head">
+      <div class="num">5</div>
+      <div><h2>Role Management</h2><div class="path">Management &gt; Role Management</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Navigate to Role Management</h4><p>Go to <b>Management &gt; Role Management</b>. You'll see a list of all managers with their current role assignments.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Edit Role Permissions</h4><p>Click on a manager to expand their role toggles. Enable/Disable access modules: <b>Attendance, Sales & Cash, HR, Accounting, Franchise, Operations, Billing</b>.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Save Changes</h4><p>After toggling the required permissions, click <b>Save</b>. The manager's sidebar will update on their next login.</p></div></div>
+      <div class="box box-info"><strong>Role Keys</strong>
+        <b>center_manager</b> = Day-to-day center operations (attendance, sales, HR)<br>
+        <b>accountant</b> = Financial access (accounts, MIS, loans, sales view)<br>
+        <b>franchise_owner</b> = View-only franchise dashboard<br>
+        <b>admin</b> = Extended admin access
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Master Data -->
+  <div class="section" id="master">
+    <div class="section-head">
+      <div class="num">6</div>
+      <div><h2>Master Data Sync</h2><div class="path">Management &gt; Master Data</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open Master Data</h4><p>Navigate to <b>Management &gt; Master Data</b>. This is the single source of truth for centers, employees, and franchise data.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Upload Excel Sheet</h4><p>Click <b>"Upload Master Data"</b>. Select the master Excel file containing employee lists, center details, and franchise information.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Confirm Sync</h4><p>Review the changes detected. Click <b>Confirm Sync</b> to update all collections. Existing data is preserved — only new/changed records are updated.</p></div></div>
+      <div class="box box-warn"><strong>Warning</strong>Master Data sync updates employees, centers, and franchise mappings across the entire system. Always verify the Excel file before uploading. Existing roles and special configurations are NOT overwritten.</div>
+    </div>
+  </div>
+
+  <!-- 7. Attendance -->
+  <div class="section" id="attendance">
+    <div class="section-head">
+      <div class="num">7</div>
+      <div><h2>Attendance Module</h2><div class="path">Attendance &gt; India Centers / International</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Select Center &amp; Month</h4><p>Choose a center from the dropdown and select the month/year.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>View Attendance Grid</h4><p>A calendar grid shows each employee's daily status: Present (P), Absent (A), Half-day (H), Week Off (WO), Leave (L).</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Mark Attendance</h4><p>Click on any cell to cycle through status options. Changes auto-save.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Attendance Dashboard</h4><p>Go to <b>Attendance Dashboard</b> for consolidated attendance analytics, absenteeism trends, and center comparisons.</p></div></div>
+      <div class="box box-tip"><strong>International Centers</strong>International centers (e.g., PB-PERTH) have a separate attendance module under <b>Attendance &gt; International</b> with timezone-aware tracking.</div>
+    </div>
+  </div>
+
+  <!-- 8. Sales & Cash -->
+  <div class="section" id="sales">
+    <div class="section-head">
+      <div class="num">8</div>
+      <div><h2>Sales &amp; Cash</h2><div class="path">Sales &amp; Cash &gt; Sales Dashboard</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Overview Tab</h4><p>View total sales, cash sales, online sales, total expenses, GST payable, guest count, and bills for the selected month/center.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Sales Entry</h4><p>Click <b>"Sales Entry"</b> tab. Enter daily sales figures: cash, card, Swiggy, Zomato, and other online platforms.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Grid Update</h4><p>Use the <b>"Grid Update"</b> tab for a spreadsheet-style bulk entry of sales data across dates.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Upload Excel</h4><p>Upload sales data via Excel file in the <b>"Upload Excel"</b> tab.</p></div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-content"><h4>Download Report</h4><p>Click <b>"Download Excel"</b> at the top to export all sales data for the selected month.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 9. Expenses -->
+  <div class="section" id="expenses">
+    <div class="section-head">
+      <div class="num">9</div>
+      <div><h2>Expense Management</h2><div class="path">Sales &amp; Cash &gt; Sales Dashboard &gt; Expense Entry</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open Expense Entry</h4><p>Go to Sales Dashboard and click the <b>"Expense Entry"</b> tab.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Select Date</h4><p>Pick a <b>single date</b> or switch to <b>Range mode</b> to view expenses across a period.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Add New Expense</h4><p>Fill in Description, Amount, select Category (Expense Type) and Payment Mode. Click <b>"Add Expense"</b>.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Batch Entry</h4><p>Click <b>"Add 3 More Entries"</b> to add multiple expenses at once. Fill all rows and click <b>"Save All"</b>.</p></div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-content"><h4>Edit Existing</h4><p>All fields in the expense table are editable inline. Change any value and click <b>"Save All"</b> at the top.</p></div></div>
+      <div class="step"><div class="step-num">6</div><div class="step-content"><h4>Attach Bills &amp; Invoices</h4><p>Click the paperclip icon to upload a PDF/image bill. Group multiple expenses under one invoice using the link icon.</p></div></div>
+      <div class="box box-info"><strong>Expense Heads</strong>Manage expense categories from <b>Sales &amp; Cash &gt; Expense Heads</b>. Add, edit, or deactivate expense types.</div>
+    </div>
+  </div>
+
+  <!-- 10. Center Accounts -->
+  <div class="section" id="accounts">
+    <div class="section-head">
+      <div class="num">10</div>
+      <div><h2>Center Accounts</h2><div class="path">Accounts &gt; Center Accounts</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Select Center &amp; Month</h4><p>Choose a center and month, then click <b>Refresh</b> to load the financial summary.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Financial Summary Tab</h4><p>View KPIs: Total Sales, Net Revenue, Commissions, GST, and the full financial breakdown.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Revenue/Profit Share Tab</h4><p>View the step-by-step calculation:<br><b>Total Sales - 5% GST - Commissions = Net Revenue</b><br>Then see the Franchise Owner vs Purnabramha split (e.g., 15/85).<br>For India: 18% GST on revenue share is shown for reference but NOT added to Purnabramha's total.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Commission Upload</h4><p>Upload monthly commission data (Swiggy, Zomato, Card charges) via the Commission tab.</p></div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-content"><h4>Payout Summary &amp; MG Payout</h4><p>Track Minimum Guarantee payouts. Use FROM/TO month range, export as Excel or PDF.</p></div></div>
+      <div class="step"><div class="step-num">6</div><div class="step-content"><h4>Generate PDFs</h4><p>Click <b>"Generate PIB Report"</b> or <b>"Generate GST Summary"</b> to create official financial documents.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 11. MIS -->
+  <div class="section" id="mis">
+    <div class="section-head">
+      <div class="num">11</div>
+      <div><h2>MIS Dashboard</h2><div class="path">Accounts &gt; MIS Dashboard</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Select Month Range</h4><p>Choose a date range to see consolidated financial analytics across all centers.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>View KPIs</h4><p>Total Revenue, Total Expenses, Net Profit, Commission breakdowns, and center-wise comparisons.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Export Data</h4><p>Export MIS reports as Excel or PDF for board presentations.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 12. HR -->
+  <div class="section" id="hr">
+    <div class="section-head">
+      <div class="num">12</div>
+      <div><h2>HR &amp; Payroll</h2><div class="path">HR Management</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Employees</h4><p>View, add, edit employee records. Manage transfers between centers via <b>Transfers</b> module.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Salary Processing</h4><p>Go to <b>Salary</b>. Select center and month. Review salary calculations based on attendance and base pay.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Generate Payslips</h4><p>Go to <b>Payslips</b>. Select the center, month, employee, signatory, and logo preference. Click <b>"Generate PDF"</b> to create a professional payslip.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>HR Letters</h4><p>Generate offer letters, experience letters, and other HR documents from the <b>HR Letters</b> tab.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 13. Franchise -->
+  <div class="section" id="franchise">
+    <div class="section-head">
+      <div class="num">13</div>
+      <div><h2>Franchise Management</h2><div class="path">Franchise &gt; Franchise Management</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View Franchises</h4><p>See all franchise agreements with center mappings, directors, revenue share percentages, and MG details.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Edit Franchise</h4><p>Update franchise details: revenue share %, GST applicability, director information, MG amounts.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Link Franchise to Center</h4><p>Ensure each franchise is correctly linked to its operating center(s).</p></div></div>
+    </div>
+  </div>
+
+  <!-- 14. Exit -->
+  <div class="section" id="exit">
+    <div class="section-head">
+      <div class="num">14</div>
+      <div><h2>Franchise Exit &amp; Closure</h2><div class="path">Franchise &gt; Exit &amp; Closure</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Initiate Exit</h4><p>Click <b>"Initiate Exit"</b>. Select the franchise and provide exit reason and effective date.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Signature Collection</h4><p>The exit agreement requires signatures from: <b>Franchisor Signatories</b> (Sandeep/Jayanti), <b>Exit Manager</b>, and <b>Franchisee Directors</b> (auto-populated from franchise data).</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Generate Agreement PDF</h4><p>Once all parties have signed, generate the official exit agreement document.</p></div></div>
+      <div class="box box-warn"><strong>Important</strong>Exit agreement data is permanent. Once signatures are collected, the record should not be modified. Use the migration endpoint only if upgrading from old signature format.</div>
+    </div>
+  </div>
+
+  <!-- 15. Documents -->
+  <div class="section" id="documents">
+    <div class="section-head">
+      <div class="num">15</div>
+      <div><h2>Document Management</h2><div class="path">Franchise &gt; Documents</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Upload Documents</h4><p>Upload franchise agreements, lease documents, compliance certificates, and other legal files.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Organize by Franchise</h4><p>Documents are organized by franchise code. Select a franchise to view all associated documents.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Download / View</h4><p>Click on any document to view or download it.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 16. Freeze Control -->
+  <div class="section" id="freeze">
+    <div class="section-head">
+      <div class="num">16</div>
+      <div><h2>Freeze Control</h2><div class="path">Sales &amp; Cash &gt; Sales Dashboard &gt; Freeze Control</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open Freeze Control</h4><p>Go to Sales Dashboard and click the <b>"Freeze Control"</b> tab.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Auto Freeze</h4><p>Previous day's data is automatically frozen at midnight. Center managers cannot edit frozen dates.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Admin Freeze/Unfreeze</h4><p>As Super Admin, you can manually <b>freeze</b> or <b>unfreeze</b> any date for any center. This overrides auto-freeze.</p></div></div>
+      <div class="box box-success"><strong>Best Practice</strong>Freeze the month-end data after all entries are verified. This prevents accidental modifications to finalized data.</div>
+    </div>
+  </div>
+
+  <!-- 17. POS -->
+  <div class="section" id="pos">
+    <div class="section-head">
+      <div class="num">17</div>
+      <div><h2>POS / Billing</h2><div class="path">Billing / POS</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>POS Billing</h4><p>Access the Point of Sale system for live billing. Create orders, add items, apply discounts, and generate bills.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Menu Management</h4><p>Add, edit, or deactivate menu items. Set prices, categories, and availability per center.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Configuration</h4><p>Configure billing settings: tax rates, discount rules, table management, and print templates.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 18. Operations -->
+  <div class="section" id="operations">
+    <div class="section-head">
+      <div class="num">18</div>
+      <div><h2>Operations &amp; Recipes</h2><div class="path">Operations</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Booking Intelligence</h4><p>Track and analyze reservations, walk-ins, and booking patterns across centers.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Bhojan Guru (Recipe Admin)</h4><p>Manage the recipe database. Add ingredients, preparation steps, and standard portions for each dish.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Guest Response</h4><p>Track customer feedback, complaints, and response metrics.</p></div></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="brand">Purnabramha</div>
+    <p style="margin-top:.5rem">IntraPB Super Admin Manual | Version 2.0 | April 2026</p>
+    <p style="margin-top:.3rem;font-size:.75rem;opacity:.6">For support, contact the IT team. This document is confidential and intended for authorized personnel only.</p>
+  </div>
+
+</div>
+</body>
+</html>

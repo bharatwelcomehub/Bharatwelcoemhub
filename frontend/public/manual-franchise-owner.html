@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purnabramha IntraPB - Franchise Owner Manual</title>
+<style>
+:root{--primary:#6B3FA0;--primary-dark:#3a1f60;--saffron:#D4A843;--cream:#FFF8F0;--text:#2D2D2D;--text-light:#5A5A5A;--border:#E8DDD0;--maroon:#7B1E2A;--blue:#2E5090;--green:#2D8B55;--orange:#C06520}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--cream);color:var(--text);line-height:1.7}
+.cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);color:#fff;text-align:center;padding:2rem;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.cover h1{font-size:3rem;font-weight:800;letter-spacing:-1px;margin-bottom:.5rem;position:relative}
+.cover .subtitle{font-size:1.3rem;color:var(--saffron);font-weight:600;margin-bottom:.3rem;position:relative}
+.cover .role-badge{display:inline-block;background:var(--saffron);color:var(--primary-dark);padding:.5rem 2rem;border-radius:50px;font-weight:700;font-size:1rem;margin-top:1rem;position:relative}
+.gold-line{width:80px;height:3px;background:var(--saffron);margin:1rem auto;border-radius:2px}
+.main{max-width:900px;margin:0 auto;padding:2rem 1.5rem}
+.section{background:#fff;border-radius:16px;margin-bottom:1.5rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border);overflow:hidden}
+.section-head{padding:1.2rem 1.5rem;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;display:flex;align-items:center;gap:.8rem}
+.section-head .num{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;flex-shrink:0}
+.section-head h2{font-size:1.15rem;font-weight:700}
+.section-head .path{font-size:.75rem;opacity:.7;margin-top:2px}
+.section-body{padding:1.5rem}
+.step{display:flex;gap:1rem;margin-bottom:1.2rem;align-items:flex-start}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0;margin-top:2px}
+.step-content{flex:1}
+.step-content h4{font-size:.95rem;font-weight:700;color:var(--primary-dark);margin-bottom:.3rem}
+.step-content p{font-size:.88rem;color:var(--text-light)}
+.box{padding:1rem 1.2rem;border-radius:10px;margin:.8rem 0;font-size:.85rem;line-height:1.5}
+.box-info{background:#EEF4FF;border-left:4px solid var(--blue);color:#1a3060}
+.box-warn{background:#FFF3E6;border-left:4px solid #E67E22;color:#7a3a10}
+.box-tip{background:#F3EEFF;border-left:4px solid var(--primary);color:var(--primary-dark)}
+.box-success{background:#E8F8EE;border-left:4px solid var(--green);color:#1a5535}
+.box strong{display:block;margin-bottom:.3rem;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem;margin:1rem 0}
+.feature-card{background:var(--cream);border-radius:10px;padding:1rem;text-align:center;border:1px solid var(--border)}
+.feature-card .icon{font-size:1.5rem;margin-bottom:.4rem}
+.feature-card h4{font-size:.82rem;font-weight:700;color:var(--text)}
+.feature-card p{font-size:.72rem;color:var(--text-light);margin-top:.2rem}
+ul{list-style:none;padding:0}
+ul li{padding:.3rem 0 .3rem 1.2rem;position:relative;font-size:.88rem;color:var(--text)}
+ul li::before{content:'';position:absolute;left:0;top:.65rem;width:6px;height:6px;border-radius:50%;background:var(--saffron)}
+.calc-box{background:#FFFDF5;border:2px solid var(--saffron);border-radius:12px;padding:1.5rem;margin:1rem 0}
+.calc-box h4{color:var(--primary-dark);font-size:1rem;margin-bottom:1rem;font-weight:700}
+.calc-row{display:flex;justify-content:space-between;padding:.4rem 0;font-size:.9rem;border-bottom:1px dashed #E8DDD0}
+.calc-row:last-child{border-bottom:none}
+.calc-row.total{font-weight:800;font-size:1rem;border-top:2px solid var(--primary);padding-top:.8rem;margin-top:.5rem;color:var(--primary-dark)}
+.calc-row.deduct{color:#C0392B}
+.toc{background:#fff;border-radius:16px;padding:2rem;margin-bottom:2rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border)}
+.toc h3{color:var(--primary-dark);font-size:1.2rem;margin-bottom:1rem;font-weight:800}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem}
+.toc-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-radius:8px;font-size:.85rem;color:var(--text);text-decoration:none;transition:all .15s}
+.toc-item:hover{background:rgba(107,63,160,.05);color:var(--primary-dark)}
+.toc-item .tnum{width:24px;height:24px;border-radius:6px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.footer{text-align:center;padding:3rem 1rem;color:var(--text-light);font-size:.85rem;border-top:2px solid var(--border);margin-top:2rem}
+.footer .brand{color:var(--maroon);font-weight:800;font-size:1.1rem}
+@media print{.cover{min-height:auto;padding:2rem;page-break-after:always}.section{break-inside:avoid}}
+@media(max-width:600px){.cover h1{font-size:2rem}.main{padding:1rem}.feature-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <h1>Purnabramha IntraPB</h1>
+  <div class="gold-line"></div>
+  <div class="subtitle">User Manual</div>
+  <div class="role-badge">FRANCHISE OWNER</div>
+  <p style="margin-top:1.5rem;opacity:.7;font-size:.9rem;position:relative">Your guide to monitoring franchise performance</p>
+  <p style="margin-top:.5rem;opacity:.5;font-size:.8rem;position:relative">Version 2.0 | April 2026</p>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <div class="toc-grid">
+      <a class="toc-item" href="#login"><span class="tnum">1</span> Login &amp; Authentication</a>
+      <a class="toc-item" href="#dashboard"><span class="tnum">2</span> Owner Dashboard</a>
+      <a class="toc-item" href="#sales"><span class="tnum">3</span> Sales Overview</a>
+      <a class="toc-item" href="#expenses"><span class="tnum">4</span> Expense Summary</a>
+      <a class="toc-item" href="#revenue"><span class="tnum">5</span> Revenue Share Breakdown</a>
+      <a class="toc-item" href="#franchise"><span class="tnum">6</span> Franchise Information</a>
+      <a class="toc-item" href="#documents"><span class="tnum">7</span> Documents &amp; Agreements</a>
+      <a class="toc-item" href="#exit"><span class="tnum">8</span> Exit &amp; Closure</a>
+    </div>
+  </div>
+
+  <!-- Access -->
+  <div class="box box-tip" style="margin-bottom:1.5rem">
+    <strong>Your Access</strong>
+    As a Franchise Owner, you have <b>view-only access</b> to your franchise center's performance data. You can see sales summaries, expense totals, revenue share calculations, and download your franchise documents. You cannot edit any data.
+  </div>
+
+  <div class="feature-grid" style="margin-bottom:1.5rem">
+    <div class="feature-card"><div class="icon">📊</div><h4>Performance Dashboard</h4><p>Your center's KPIs</p></div>
+    <div class="feature-card"><div class="icon">💰</div><h4>Revenue Share</h4><p>Clear calculation breakdown</p></div>
+    <div class="feature-card"><div class="icon">📄</div><h4>Documents</h4><p>Agreements &amp; reports</p></div>
+  </div>
+
+  <!-- 1. Login -->
+  <div class="section" id="login">
+    <div class="section-head">
+      <div class="num">1</div>
+      <div><h2>Login &amp; Authentication</h2><div class="path">intra.purnabramha.com/login</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open the Portal</h4><p>Visit <b>intra.purnabramha.com</b> in your browser (works on mobile and desktop).</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Select Your Center</h4><p>From the dropdown, select your franchise center (e.g., <b>PB-HSR</b> for HSR Layout).</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Enter Mobile Number</h4><p>Enter the mobile number registered as Franchise Owner.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Receive &amp; Enter OTP</h4><p>Click <b>Send OTP</b>. Check your registered email for the 6-digit code. Enter it and click <b>Verify</b>.</p></div></div>
+      <div class="box box-info"><strong>First Time?</strong>Your mobile number and email must be registered in the system by the Purnabramha team. If you cannot login, contact your franchise manager or Purnabramha head office.</div>
+    </div>
+  </div>
+
+  <!-- 2. Dashboard -->
+  <div class="section" id="dashboard">
+    <div class="section-head">
+      <div class="num">2</div>
+      <div><h2>Owner Dashboard</h2><div class="path">Franchise &gt; Owner Dashboard</div></div>
+    </div>
+    <div class="section-body">
+      <p>After login, you land on the <b>Owner Dashboard</b> — your central hub for monitoring franchise performance.</p>
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Monthly Summary</h4><p>At the top, see key numbers for the selected month: <b>Total Sales, Total Expenses, Net Revenue, Your Share</b>.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Month Navigation</h4><p>Use the <b>month picker</b> to switch between months. Data loads automatically.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Sections</h4><p>The dashboard has multiple sections you can scroll through:</p>
+        <ul>
+          <li><b>Sales Overview</b> — Daily/monthly sales breakdown</li>
+          <li><b>Expense Summary</b> — Category-wise expenses</li>
+          <li><b>Revenue Share</b> — Your share calculation</li>
+          <li><b>Franchise Details</b> — Your franchise agreement info</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- 3. Sales -->
+  <div class="section" id="sales">
+    <div class="section-head">
+      <div class="num">3</div>
+      <div><h2>Sales Overview</h2><div class="path">Owner Dashboard &gt; Sales Section</div></div>
+    </div>
+    <div class="section-body">
+      <p>See how your center performed:</p>
+      <ul>
+        <li><b>Total Sales</b> — Combined revenue from all channels</li>
+        <li><b>Cash Sales</b> — Walk-in cash payments</li>
+        <li><b>Card Sales</b> — POS card transactions</li>
+        <li><b>Swiggy / Zomato</b> — Online delivery platform orders</li>
+        <li><b>Guest Count</b> — Total diners served</li>
+        <li><b>Average Bill Value</b> — Sales per bill</li>
+      </ul>
+      <div class="box box-info"><strong>Note</strong>Sales data is entered daily by the Center Manager. You see the aggregated monthly view. For any discrepancies, contact the Purnabramha accounts team.</div>
+    </div>
+  </div>
+
+  <!-- 4. Expenses -->
+  <div class="section" id="expenses">
+    <div class="section-head">
+      <div class="num">4</div>
+      <div><h2>Expense Summary</h2><div class="path">Owner Dashboard &gt; Expenses Section</div></div>
+    </div>
+    <div class="section-body">
+      <p>View monthly expenses broken down by category:</p>
+      <ul>
+        <li><b>Grocery / Raw Materials</b> — Food ingredients, vegetables, dairy</li>
+        <li><b>Rent</b> — Shop rent, staff room rent</li>
+        <li><b>Utilities</b> — Electricity, water, gas cylinders</li>
+        <li><b>Staff Expenses</b> — Salary advances, travel, uniforms</li>
+        <li><b>Maintenance</b> — Repairs, equipment maintenance</li>
+        <li><b>Other</b> — Miscellaneous operational costs</li>
+      </ul>
+      <div class="box box-tip"><strong>Transparency</strong>Every expense entry has a <b>category</b>, <b>payment mode</b>, and optional <b>bill attachment</b>. You can request the accounts team to share detailed expense reports.</div>
+    </div>
+  </div>
+
+  <!-- 5. Revenue Share -->
+  <div class="section" id="revenue">
+    <div class="section-head">
+      <div class="num">5</div>
+      <div><h2>Revenue Share Breakdown</h2><div class="path">Owner Dashboard &gt; Revenue Share</div></div>
+    </div>
+    <div class="section-body">
+      <p>This is the most important section — it shows <b>exactly how your share is calculated</b>, step by step:</p>
+
+      <div class="calc-box">
+        <h4>How Your Revenue Share is Calculated</h4>
+        <div class="calc-row"><span>Total Sales (all channels)</span><span>Rs. X,XX,XXX</span></div>
+        <div class="calc-row deduct"><span>Less: GST on Sales (5%)</span><span>- Rs. XX,XXX</span></div>
+        <div class="calc-row deduct"><span>Less: Commissions (Swiggy, Zomato, Cards)</span><span>- Rs. XX,XXX</span></div>
+        <div class="calc-row total"><span>= Net Revenue</span><span>Rs. X,XX,XXX</span></div>
+      </div>
+
+      <div class="calc-box">
+        <h4>Revenue Split</h4>
+        <div class="calc-row" style="color:var(--primary);font-weight:600"><span>Your Share (Franchise Owner) — 15%</span><span>Rs. X,XX,XXX</span></div>
+        <div class="calc-row"><span>Purnabramha (Franchisor) — 85%</span><span>Rs. X,XX,XXX</span></div>
+      </div>
+
+      <div class="box box-info"><strong>Understanding the Numbers</strong>
+        <b>Total Sales</b> = Everything your center earned from all sources<br>
+        <b>5% GST</b> = Government tax deducted from sales (India)<br>
+        <b>Commissions</b> = Fees charged by Swiggy, Zomato, card processing<br>
+        <b>Net Revenue</b> = What remains after above deductions<br>
+        <b>Your Share</b> = Your percentage of the Net Revenue (per your franchise agreement)
+      </div>
+
+      <div class="box box-tip"><strong>GST on Revenue Share</strong>
+        For India: 18% GST (CGST 9% + SGST 9%) is applicable on revenue share. This is shown for reference but <b>not added</b> to Purnabramha's total payable amount.<br>
+        Your revenue share percentage is defined in your franchise agreement (typically 15%).
+      </div>
+
+      <div class="box box-warn"><strong>Questions about your share?</strong>If any number doesn't look right, contact the Purnabramha accounts team with the specific month and center. They can provide detailed commission statements and expense breakdowns.</div>
+    </div>
+  </div>
+
+  <!-- 6. Franchise Info -->
+  <div class="section" id="franchise">
+    <div class="section-head">
+      <div class="num">6</div>
+      <div><h2>Franchise Information</h2><div class="path">Owner Dashboard &gt; Franchise Details</div></div>
+    </div>
+    <div class="section-body">
+      <p>View your franchise agreement details:</p>
+      <ul>
+        <li><b>Franchise Code</b> — Your unique franchise identifier</li>
+        <li><b>Center Code</b> — Your operating center(s)</li>
+        <li><b>Revenue Share %</b> — Your agreed share percentage</li>
+        <li><b>Directors</b> — Listed directors on the franchise agreement</li>
+        <li><b>MG (Minimum Guarantee)</b> — If applicable, the monthly minimum guarantee amount</li>
+        <li><b>Agreement Period</b> — Start and end dates of your franchise agreement</li>
+      </ul>
+      <div class="box box-info"><strong>Note</strong>Franchise information is managed by the Purnabramha team. If any details are incorrect, contact the head office for correction.</div>
+    </div>
+  </div>
+
+  <!-- 7. Documents -->
+  <div class="section" id="documents">
+    <div class="section-head">
+      <div class="num">7</div>
+      <div><h2>Documents &amp; Agreements</h2><div class="path">Franchise &gt; Owner Dashboard &gt; Documents</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View Documents</h4><p>Access all documents related to your franchise: agreements, amendments, compliance certificates, and financial reports.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Download</h4><p>Click on any document to download it. Documents are stored securely and available anytime.</p></div></div>
+      <div class="box box-tip"><strong>Keep Records</strong>Download and keep copies of all important documents for your records. The portal stores them securely but it's good practice to have local backups.</div>
+    </div>
+  </div>
+
+  <!-- 8. Exit -->
+  <div class="section" id="exit">
+    <div class="section-head">
+      <div class="num">8</div>
+      <div><h2>Exit &amp; Closure</h2><div class="path">Franchise &gt; Exit &amp; Closure</div></div>
+    </div>
+    <div class="section-body">
+      <p>If an exit process has been initiated for your franchise:</p>
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View Exit Status</h4><p>See the current status of your exit process: Initiated, In Progress, Signature Pending, Completed.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Digital Signature</h4><p>When required, you will be asked to provide your digital signature for the exit agreement. All franchise directors must sign.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Download Exit Agreement</h4><p>Once all parties have signed, download the final exit agreement PDF for your records.</p></div></div>
+      <div class="box box-warn"><strong>Important</strong>Exit agreements require signatures from: Purnabramha Franchisor (Sandeep Gadhwal / Jayanti Kathale), Exit Manager, and all Franchisee Directors. The process cannot proceed without all signatures.</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="brand">Purnabramha</div>
+    <p style="margin-top:.5rem">IntraPB Franchise Owner Manual | Version 2.0 | April 2026</p>
+    <p style="margin-top:.3rem;font-size:.75rem;opacity:.6">For support, contact your franchise manager or call the Purnabramha head office.</p>
+  </div>
+
+</div>
+</body>
+</html>

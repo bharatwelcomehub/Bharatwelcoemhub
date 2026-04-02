@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purnabramha IntraPB - Accountant Manual</title>
+<style>
+:root{--primary:#C06520;--primary-dark:#7a3a10;--saffron:#D4A843;--cream:#FFF8F0;--text:#2D2D2D;--text-light:#5A5A5A;--border:#E8DDD0;--maroon:#7B1E2A;--blue:#2E5090;--green:#2D8B55;--purple:#6B3FA0}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--cream);color:var(--text);line-height:1.7}
+.cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);color:#fff;text-align:center;padding:2rem;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.cover h1{font-size:3rem;font-weight:800;letter-spacing:-1px;margin-bottom:.5rem;position:relative}
+.cover .subtitle{font-size:1.3rem;color:var(--saffron);font-weight:600;margin-bottom:.3rem;position:relative}
+.cover .role-badge{display:inline-block;background:var(--saffron);color:var(--primary-dark);padding:.5rem 2rem;border-radius:50px;font-weight:700;font-size:1rem;margin-top:1rem;position:relative}
+.gold-line{width:80px;height:3px;background:var(--saffron);margin:1rem auto;border-radius:2px}
+.main{max-width:900px;margin:0 auto;padding:2rem 1.5rem}
+.section{background:#fff;border-radius:16px;margin-bottom:1.5rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border);overflow:hidden}
+.section-head{padding:1.2rem 1.5rem;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;display:flex;align-items:center;gap:.8rem}
+.section-head .num{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;flex-shrink:0}
+.section-head h2{font-size:1.15rem;font-weight:700}
+.section-head .path{font-size:.75rem;opacity:.7;margin-top:2px}
+.section-body{padding:1.5rem}
+.step{display:flex;gap:1rem;margin-bottom:1.2rem;align-items:flex-start}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0;margin-top:2px}
+.step-content{flex:1}
+.step-content h4{font-size:.95rem;font-weight:700;color:var(--primary-dark);margin-bottom:.3rem}
+.step-content p{font-size:.88rem;color:var(--text-light)}
+.box{padding:1rem 1.2rem;border-radius:10px;margin:.8rem 0;font-size:.85rem;line-height:1.5}
+.box-info{background:#EEF4FF;border-left:4px solid var(--blue);color:#1a3060}
+.box-warn{background:#FFF3E6;border-left:4px solid #E67E22;color:#7a3a10}
+.box-tip{background:#FFF8EE;border-left:4px solid var(--primary);color:var(--primary-dark)}
+.box-success{background:#E8F8EE;border-left:4px solid var(--green);color:#1a5535}
+.box strong{display:block;margin-bottom:.3rem;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.8rem;margin:1rem 0}
+.feature-card{background:var(--cream);border-radius:10px;padding:1rem;text-align:center;border:1px solid var(--border)}
+.feature-card .icon{font-size:1.5rem;margin-bottom:.4rem}
+.feature-card h4{font-size:.82rem;font-weight:700;color:var(--text)}
+.feature-card p{font-size:.72rem;color:var(--text-light);margin-top:.2rem}
+ul{list-style:none;padding:0}
+ul li{padding:.3rem 0 .3rem 1.2rem;position:relative;font-size:.88rem;color:var(--text)}
+ul li::before{content:'';position:absolute;left:0;top:.65rem;width:6px;height:6px;border-radius:50%;background:var(--saffron)}
+.toc{background:#fff;border-radius:16px;padding:2rem;margin-bottom:2rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border)}
+.toc h3{color:var(--primary-dark);font-size:1.2rem;margin-bottom:1rem;font-weight:800}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem}
+.toc-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-radius:8px;font-size:.85rem;color:var(--text);text-decoration:none;transition:all .15s}
+.toc-item:hover{background:rgba(192,101,32,.05);color:var(--primary-dark)}
+.toc-item .tnum{width:24px;height:24px;border-radius:6px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.calc-box{background:#FFFDF5;border:2px solid var(--saffron);border-radius:12px;padding:1.5rem;margin:1rem 0}
+.calc-box h4{color:var(--primary-dark);font-size:1rem;margin-bottom:1rem;font-weight:700}
+.calc-row{display:flex;justify-content:space-between;padding:.4rem 0;font-size:.9rem;border-bottom:1px dashed #E8DDD0}
+.calc-row:last-child{border-bottom:none}
+.calc-row.total{font-weight:800;font-size:1rem;border-top:2px solid var(--primary);padding-top:.8rem;margin-top:.5rem;color:var(--primary-dark)}
+.calc-row.deduct{color:#C0392B}
+.footer{text-align:center;padding:3rem 1rem;color:var(--text-light);font-size:.85rem;border-top:2px solid var(--border);margin-top:2rem}
+.footer .brand{color:var(--maroon);font-weight:800;font-size:1.1rem}
+@media print{.cover{min-height:auto;padding:2rem;page-break-after:always}.section{break-inside:avoid}}
+@media(max-width:600px){.cover h1{font-size:2rem}.main{padding:1rem}.feature-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <h1>Purnabramha IntraPB</h1>
+  <div class="gold-line"></div>
+  <div class="subtitle">User Manual</div>
+  <div class="role-badge">ACCOUNTANT</div>
+  <p style="margin-top:1.5rem;opacity:.7;font-size:.9rem;position:relative">Financial operations &amp; reporting guide</p>
+  <p style="margin-top:.5rem;opacity:.5;font-size:.8rem;position:relative">Version 2.0 | April 2026</p>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <div class="toc-grid">
+      <a class="toc-item" href="#login"><span class="tnum">1</span> Login &amp; Authentication</a>
+      <a class="toc-item" href="#dashboard"><span class="tnum">2</span> Your Dashboard</a>
+      <a class="toc-item" href="#center-accounts"><span class="tnum">3</span> Center Accounts</a>
+      <a class="toc-item" href="#revenue-share"><span class="tnum">4</span> Revenue / Profit Share</a>
+      <a class="toc-item" href="#commissions"><span class="tnum">5</span> Commission Upload</a>
+      <a class="toc-item" href="#payout"><span class="tnum">6</span> Payout Summary &amp; MG</a>
+      <a class="toc-item" href="#mis"><span class="tnum">7</span> MIS Dashboard</a>
+      <a class="toc-item" href="#loans"><span class="tnum">8</span> Loan Entries</a>
+      <a class="toc-item" href="#sales-view"><span class="tnum">9</span> Sales Data (Read Access)</a>
+      <a class="toc-item" href="#pdfs"><span class="tnum">10</span> PDF Reports</a>
+    </div>
+  </div>
+
+  <!-- Access -->
+  <div class="box box-tip" style="margin-bottom:1.5rem">
+    <strong>Your Access</strong>
+    As an Accountant, you have access to <b>financial modules across all centers</b>: Center Accounts, MIS Dashboard, Loan Entries, Commission Tracking, and read-only access to Sales &amp; Cash data for all centers.
+  </div>
+
+  <div class="feature-grid" style="margin-bottom:1.5rem">
+    <div class="feature-card"><div class="icon">📊</div><h4>Center Accounts</h4><p>Financial summaries &amp; PDFs</p></div>
+    <div class="feature-card"><div class="icon">📈</div><h4>MIS Dashboard</h4><p>Analytics across centers</p></div>
+    <div class="feature-card"><div class="icon">💰</div><h4>Payout &amp; MG</h4><p>Payout tracking &amp; exports</p></div>
+    <div class="feature-card"><div class="icon">₹</div><h4>Sales (View)</h4><p>All centers read access</p></div>
+  </div>
+
+  <!-- 1. Login -->
+  <div class="section" id="login">
+    <div class="section-head">
+      <div class="num">1</div>
+      <div><h2>Login &amp; Authentication</h2><div class="path">intra.purnabramha.com/login</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Select Your Center</h4><p>Select your assigned center from the dropdown (usually <b>PB-MGT</b> for Accounts team).</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Enter Mobile &amp; OTP</h4><p>Enter your registered mobile number, click <b>Send OTP</b>, then enter the 6-digit code from your email.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Verify</h4><p>Click <b>Verify</b> to access your dashboard.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 2. Dashboard -->
+  <div class="section" id="dashboard">
+    <div class="section-head">
+      <div class="num">2</div>
+      <div><h2>Your Dashboard</h2><div class="path">Sidebar Navigation</div></div>
+    </div>
+    <div class="section-body">
+      <p>Your sidebar includes:</p>
+      <ul>
+        <li><b>Accounts</b> — Center Accounts, Loan Entries, MIS Dashboard</li>
+        <li><b>Sales &amp; Cash</b> — Read-only access to sales data for ALL centers</li>
+      </ul>
+      <div class="box box-info"><strong>All Centers Access</strong>Unlike Center Managers, you can view sales and financial data for <b>all centers</b> by using the center dropdown or selecting "All Centers".</div>
+    </div>
+  </div>
+
+  <!-- 3. Center Accounts -->
+  <div class="section" id="center-accounts">
+    <div class="section-head">
+      <div class="num">3</div>
+      <div><h2>Center Accounts</h2><div class="path">Accounts &gt; Center Accounts</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Select Center &amp; Month</h4><p>Choose a center from the dropdown and pick the month. Click <b>Refresh</b>.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>View Financial Summary</h4><p>The <b>Financial Summary</b> tab shows KPIs:</p>
+        <ul>
+          <li>Total Sales (all channels combined)</li>
+          <li>Net Revenue (after GST and commissions)</li>
+          <li>Total Commissions (Swiggy, Zomato, Card charges)</li>
+          <li>Total Expenses</li>
+          <li>GST calculations</li>
+        </ul>
+      </div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Navigate Tabs</h4><p>Use the tabs at the top: Financial Summary, Revenue/Profit Share, Commission, Payout Summary, MG Payout.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 4. Revenue Share -->
+  <div class="section" id="revenue-share">
+    <div class="section-head">
+      <div class="num">4</div>
+      <div><h2>Revenue / Profit Share</h2><div class="path">Center Accounts &gt; Revenue/Profit Share Tab</div></div>
+    </div>
+    <div class="section-body">
+      <p>This tab shows the complete financial calculation breakdown — step by step:</p>
+
+      <div class="calc-box">
+        <h4>India Revenue Calculation (Example)</h4>
+        <div class="calc-row"><span>Total Sales</span><span>Rs. 7,83,480</span></div>
+        <div class="calc-row deduct"><span>Less: GST on Sales (5%)</span><span>- Rs. 39,174</span></div>
+        <div class="calc-row deduct"><span>Less: Total Commissions</span><span>- Rs. 25,000</span></div>
+        <div class="calc-row total"><span>= Net Revenue (Base for Split)</span><span>Rs. 7,19,306</span></div>
+      </div>
+
+      <div class="calc-box">
+        <h4>Revenue Share Split (15/85)</h4>
+        <div class="calc-row"><span>Franchise Owner (15%)</span><span>Rs. 1,07,896</span></div>
+        <div class="calc-row"><span>Purnabramha (85%)</span><span>Rs. 6,11,410</span></div>
+        <div class="calc-row" style="font-size:.82rem;color:var(--primary)"><span>Revenue Share GST (18%) — for reference only</span><span>Rs. 1,10,054</span></div>
+        <div class="calc-row total"><span>Purnabramha Total Payable</span><span>Rs. 6,11,410</span></div>
+      </div>
+
+      <div class="box box-info"><strong>Key Points</strong>
+        <b>India:</b> 18% GST (CGST 9% + SGST 9%) on Revenue Share is shown for reference but NOT added to Purnabramha's total payable.<br>
+        <b>Australia:</b> 10% GST is applied on Profit Share and IS added to total payable.
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Commission Upload -->
+  <div class="section" id="commissions">
+    <div class="section-head">
+      <div class="num">5</div>
+      <div><h2>Commission Upload</h2><div class="path">Center Accounts &gt; Commission Tab</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open Commission Tab</h4><p>In Center Accounts, click the <b>Commission</b> tab after selecting center and month.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Upload Commission Files</h4><p>Upload the monthly commission statements from platforms:</p>
+        <ul>
+          <li><b>Swiggy Commission</b> — Upload Swiggy settlement report</li>
+          <li><b>Zomato Commission</b> — Upload Zomato settlement report</li>
+          <li><b>Card/Bank Charges</b> — Upload POS transaction charges</li>
+          <li><b>Other Deductions</b> — Any additional platform deductions</li>
+        </ul>
+      </div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Verify Totals</h4><p>After upload, verify the commission totals match the platform statements. The system auto-calculates GST on commissions and other deductions.</p></div></div>
+      <div class="box box-warn"><strong>Important</strong>Commission data directly affects the Revenue Share calculation and MIS Dashboard figures. Double-check before uploading.</div>
+    </div>
+  </div>
+
+  <!-- 6. Payout -->
+  <div class="section" id="payout">
+    <div class="section-head">
+      <div class="num">6</div>
+      <div><h2>Payout Summary &amp; MG Payout</h2><div class="path">Center Accounts &gt; Payout Summary / MG Payout</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Payout Summary</h4><p>Track all payouts made to franchise owners. View, <b>edit</b>, or <b>delete</b> payment records.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>MG Payout Tab</h4><p>Track Minimum Guarantee (MG) payouts. Use the <b>FROM</b> and <b>TO</b> month range picker to filter records.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Export Data</h4><p>Click <b>"Export as Excel"</b> or <b>"Export as PDF"</b> to download payout data for the selected period.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 7. MIS -->
+  <div class="section" id="mis">
+    <div class="section-head">
+      <div class="num">7</div>
+      <div><h2>MIS Dashboard</h2><div class="path">Accounts &gt; MIS Dashboard</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Select Date Range</h4><p>Choose a month or custom date range to generate the MIS overview.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>View Analytics</h4><p>Consolidated view of all centers: Total Revenue, Total Expenses, Commission breakdowns, Profitability metrics.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Center Comparison</h4><p>Compare performance metrics across centers side by side.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Export</h4><p>Export the full MIS report as Excel or PDF for management review.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 8. Loans -->
+  <div class="section" id="loans">
+    <div class="section-head">
+      <div class="num">8</div>
+      <div><h2>Loan Entries</h2><div class="path">Accounts &gt; Loan Entries</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View Loans</h4><p>Track all inter-center loans, staff loans, and EMI payments.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Add Loan Entry</h4><p>Record new loan disbursements with amount, interest rate, and repayment schedule.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Track Repayments</h4><p>Monitor loan repayment progress and outstanding balances.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 9. Sales View -->
+  <div class="section" id="sales-view">
+    <div class="section-head">
+      <div class="num">9</div>
+      <div><h2>Sales Data (Read Access)</h2><div class="path">Sales &amp; Cash &gt; Sales Dashboard</div></div>
+    </div>
+    <div class="section-body">
+      <p>As an Accountant, you have <b>read-only access</b> to Sales &amp; Cash for all centers:</p>
+      <ul>
+        <li>View daily sales figures across all centers</li>
+        <li>View expense entries and summaries</li>
+        <li>Download Excel reports</li>
+        <li>View payment breakdowns</li>
+      </ul>
+      <div class="box box-info"><strong>Note</strong>You can <b>view</b> but not <b>edit</b> sales and expense data unless you have additional permissions. For corrections, coordinate with the Center Manager or Super Admin.</div>
+    </div>
+  </div>
+
+  <!-- 10. PDFs -->
+  <div class="section" id="pdfs">
+    <div class="section-head">
+      <div class="num">10</div>
+      <div><h2>PDF Reports</h2><div class="path">Center Accounts</div></div>
+    </div>
+    <div class="section-body">
+      <p>Generate official financial documents from Center Accounts:</p>
+      <ul>
+        <li><b>PIB Report</b> — Profit &amp; Income Before tax report with full financial breakdown including 5% GST deduction display</li>
+        <li><b>GST Summary</b> — Monthly GST calculation summary for filing</li>
+        <li><b>Revenue Share Invoice</b> — Franchise owner's share calculation</li>
+        <li><b>MG Payout Report</b> — Minimum Guarantee payout history (Excel/PDF)</li>
+      </ul>
+      <div class="box box-success"><strong>Tip</strong>Generate all reports for a month AFTER commission data is uploaded and verified. This ensures accurate figures in all documents.</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="brand">Purnabramha</div>
+    <p style="margin-top:.5rem">IntraPB Accountant Manual | Version 2.0 | April 2026</p>
+    <p style="margin-top:.3rem;font-size:.75rem;opacity:.6">For support, contact the Super Admin or IT team.</p>
+  </div>
+
+</div>
+</body>
+</html>

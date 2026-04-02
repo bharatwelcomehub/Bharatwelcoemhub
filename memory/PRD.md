@@ -25,39 +25,34 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-02] Role-Based User Manuals + Download Page
+- Created 4 standalone HTML manuals, each with unique color theme:
+  - `manual-super-admin.html` (Maroon) — 18 sections covering all modules
+  - `manual-center-manager.html` (Green) — 8 sections: attendance, sales, expenses, HR
+  - `manual-accountant.html` (Orange) — 10 sections: accounts, revenue share, MIS, loans
+  - `manual-franchise-owner.html` (Purple) — 8 sections: dashboard, revenue breakdown, documents
+- Added User Manuals page (`/user-manuals`) with View/Download buttons per role
+- Added sidebar link under Management > User Manuals
+- Files: `/app/frontend/public/manual-*.html`, `/app/frontend/src/pages/UserManuals.jsx`
+
 ### [2026-04-02] Expense Category/Mode Dropdown Fix
-- Fixed bug where saved expense_type and payment_mode values not showing in inline Select dropdowns
-- Root cause: Saved custom values (e.g., "REPAIR & MAINTAINANCE", "ONLINE NEFT / IMPS") didn't exist in master lists
-- Fix: Merged master list + all saved values from current expenses using useMemo → allExpenseTypes / allPaymentModes
-- File: `/app/frontend/src/components/ExpenseEntry.jsx`
+- Fixed: saved custom expense_type/payment_mode values not showing in dropdowns
+- Root cause: Custom values not in master list caused empty Select
+- Fix: `allExpenseTypes` / `allPaymentModes` via useMemo merge in ExpenseEntry.jsx
 
 ### [2026-04-02] Revenue/Profit Share Financial Breakdown + GST Changes
-- Added India-specific step-by-step calculation breakdown on Revenue/Profit Share tab:
-  Total Sales → Less 5% GST → Less Commissions → = Net Revenue
-- 18% GST (CGST 9% + SGST 9%) on Revenue Share shown as informational display (not added to total)
-- Removed GST component from Purnabramha's 85% share total for India (Total Payable = Base Amount)
-- For outside India (Australia): 10% GST still applied to Profit Share as before
-- Backend: `center_accounts.py` — India always calculates GST for display but `total_with_gst = base_amount`
-- Frontend: `CenterAccounts.jsx` — India breakdown section, Purnabramha card shows GST as info note
+- India step-by-step calculation: Total Sales → Less 5% GST → Less Commissions → = Net Revenue
+- 18% GST on Revenue Share shown as info note (not added to Purnabramha's 85% total)
+- For Australia: 10% GST still applied to Profit Share
+- Backend: `center_accounts.py`, Frontend: `CenterAccounts.jsx`
 
-### [2026-04-01] User Manual
-- Created full standalone HTML User Manual at `/app/frontend/public/user-manual.html`
-
-### [2026-04-01] PIB Report GST Display
-- PIB Financial Summary PDF updated to explicitly deduct and show 5% GST on sales
-
-### [2026-04-01] Exit Agreement Signature Migration
-- Backend migration endpoint for signature block updates
-- Directors auto-pull from Franchise Management
-
-### [2026-04-01] Exit Agreement Signature Logic Overhaul
-- Franchisor Signatories: Select Sandeep/Jayanti
-- Exit Manager, Franchisee Directors auto-populated
-
-### [2026-03-30] MG Payout Month Range + Export, Edit/Delete Payments, Payslips, Bug Fixes
+### [2026-04-01] User Manual, PIB GST, Exit Signatures, MG Payout, Payslips, Bug Fixes
+- Full standalone HTML User Manual, PIB 5% GST display, Exit Agreement signatures
+- MG Payout month range + Export, Edit/Delete payments, Payslip generation
+- Commission display fix, ZIP download fix, Franchise list fix
 
 ### Earlier
-- Commission parsers, Dual-file upload, 4-Card UI, Franchise Owner Dashboard RBAC, PIB/GST/Commission PDFs
+- Commission parsers, Dual-file upload, 4-Card UI, RBAC, all base modules
 
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
@@ -68,4 +63,4 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - Code freeze preparation audit
 
 ## Refactoring Needed
-- PDF Generation logic in `center_accounts.py` should be moved to a dedicated generator utility
+- PDF Generation logic in `center_accounts.py` → dedicated generator utility

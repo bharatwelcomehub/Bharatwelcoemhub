@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purnabramha IntraPB - Center Manager Manual</title>
+<style>
+:root{--primary:#2D8B55;--primary-dark:#1a5535;--saffron:#D4A843;--cream:#FFF8F0;--text:#2D2D2D;--text-light:#5A5A5A;--border:#E8DDD0;--maroon:#7B1E2A;--blue:#2E5090;--orange:#C06520;--purple:#6B3FA0}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--cream);color:var(--text);line-height:1.7}
+.cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);color:#fff;text-align:center;padding:2rem;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.cover h1{font-size:3rem;font-weight:800;letter-spacing:-1px;margin-bottom:.5rem;position:relative}
+.cover .subtitle{font-size:1.3rem;color:var(--saffron);font-weight:600;margin-bottom:.3rem;position:relative}
+.cover .role-badge{display:inline-block;background:var(--saffron);color:var(--primary-dark);padding:.5rem 2rem;border-radius:50px;font-weight:700;font-size:1rem;margin-top:1rem;position:relative}
+.gold-line{width:80px;height:3px;background:var(--saffron);margin:1rem auto;border-radius:2px}
+.main{max-width:900px;margin:0 auto;padding:2rem 1.5rem}
+.section{background:#fff;border-radius:16px;margin-bottom:1.5rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border);overflow:hidden}
+.section-head{padding:1.2rem 1.5rem;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;display:flex;align-items:center;gap:.8rem}
+.section-head .num{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;flex-shrink:0}
+.section-head h2{font-size:1.15rem;font-weight:700}
+.section-head .path{font-size:.75rem;opacity:.7;margin-top:2px}
+.section-body{padding:1.5rem}
+.step{display:flex;gap:1rem;margin-bottom:1.2rem;align-items:flex-start}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0;margin-top:2px}
+.step-content{flex:1}
+.step-content h4{font-size:.95rem;font-weight:700;color:var(--primary-dark);margin-bottom:.3rem}
+.step-content p{font-size:.88rem;color:var(--text-light)}
+.box{padding:1rem 1.2rem;border-radius:10px;margin:.8rem 0;font-size:.85rem;line-height:1.5}
+.box-info{background:#EEF4FF;border-left:4px solid var(--blue);color:#1a3060}
+.box-warn{background:#FFF3E6;border-left:4px solid #E67E22;color:#7a3a10}
+.box-tip{background:#E8F8EE;border-left:4px solid var(--primary);color:var(--primary-dark)}
+.box-danger{background:#FFE8E8;border-left:4px solid #C0392B;color:#6B1A1A}
+.box strong{display:block;margin-bottom:.3rem;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.8rem;margin:1rem 0}
+.feature-card{background:var(--cream);border-radius:10px;padding:1rem;text-align:center;border:1px solid var(--border)}
+.feature-card .icon{font-size:1.5rem;margin-bottom:.4rem}
+.feature-card h4{font-size:.82rem;font-weight:700;color:var(--text)}
+.feature-card p{font-size:.72rem;color:var(--text-light);margin-top:.2rem}
+ul{list-style:none;padding:0}
+ul li{padding:.3rem 0 .3rem 1.2rem;position:relative;font-size:.88rem;color:var(--text)}
+ul li::before{content:'';position:absolute;left:0;top:.65rem;width:6px;height:6px;border-radius:50%;background:var(--saffron)}
+.toc{background:#fff;border-radius:16px;padding:2rem;margin-bottom:2rem;box-shadow:0 2px 12px rgba(0,0,0,.04);border:1px solid var(--border)}
+.toc h3{color:var(--primary-dark);font-size:1.2rem;margin-bottom:1rem;font-weight:800}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.5rem}
+.toc-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-radius:8px;font-size:.85rem;color:var(--text);text-decoration:none;transition:all .15s}
+.toc-item:hover{background:rgba(45,139,85,.05);color:var(--primary-dark)}
+.toc-item .tnum{width:24px;height:24px;border-radius:6px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.footer{text-align:center;padding:3rem 1rem;color:var(--text-light);font-size:.85rem;border-top:2px solid var(--border);margin-top:2rem}
+.footer .brand{color:var(--maroon);font-weight:800;font-size:1.1rem}
+@media print{.cover{min-height:auto;padding:2rem;page-break-after:always}.section{break-inside:avoid}}
+@media(max-width:600px){.cover h1{font-size:2rem}.main{padding:1rem}.feature-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <h1>Purnabramha IntraPB</h1>
+  <div class="gold-line"></div>
+  <div class="subtitle">User Manual</div>
+  <div class="role-badge">CENTER MANAGER</div>
+  <p style="margin-top:1.5rem;opacity:.7;font-size:.9rem;position:relative">Day-to-day operations guide for center managers</p>
+  <p style="margin-top:.5rem;opacity:.5;font-size:.8rem;position:relative">Version 2.0 | April 2026</p>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <div class="toc-grid">
+      <a class="toc-item" href="#login"><span class="tnum">1</span> Login &amp; Authentication</a>
+      <a class="toc-item" href="#dashboard"><span class="tnum">2</span> Your Dashboard</a>
+      <a class="toc-item" href="#attendance"><span class="tnum">3</span> Attendance Management</a>
+      <a class="toc-item" href="#sales"><span class="tnum">4</span> Daily Sales Entry</a>
+      <a class="toc-item" href="#expenses"><span class="tnum">5</span> Daily Expense Entry</a>
+      <a class="toc-item" href="#employees"><span class="tnum">6</span> Employee Management</a>
+      <a class="toc-item" href="#salary"><span class="tnum">7</span> Salary &amp; Payslips</a>
+      <a class="toc-item" href="#freeze"><span class="tnum">8</span> Freeze &amp; Data Lock</a>
+    </div>
+  </div>
+
+  <!-- Access Overview -->
+  <div class="box box-tip" style="margin-bottom:1.5rem">
+    <strong>Your Access</strong>
+    As a Center Manager, you manage <b>your assigned center's</b> daily operations: attendance marking, sales entry, expense recording, and employee management. You can only see and edit data for your center.
+  </div>
+
+  <div class="feature-grid" style="margin-bottom:1.5rem">
+    <div class="feature-card"><div class="icon">📅</div><h4>Attendance</h4><p>Mark daily attendance</p></div>
+    <div class="feature-card"><div class="icon">₹</div><h4>Sales Entry</h4><p>Record daily sales</p></div>
+    <div class="feature-card"><div class="icon">🧾</div><h4>Expenses</h4><p>Log daily expenses</p></div>
+    <div class="feature-card"><div class="icon">👥</div><h4>HR</h4><p>Employees &amp; Salary</p></div>
+  </div>
+
+  <!-- 1. Login -->
+  <div class="section" id="login">
+    <div class="section-head">
+      <div class="num">1</div>
+      <div><h2>Login &amp; Authentication</h2><div class="path">intra.purnabramha.com/login</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open the Portal</h4><p>Visit <b>intra.purnabramha.com</b> in your browser.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Select Your Center</h4><p>From the dropdown, select your assigned center (e.g., <b>PB-TH</b> for Thane, <b>PB-HSR</b> for HSR Layout).</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Enter Mobile Number</h4><p>Enter your registered mobile number.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Click "Send OTP"</h4><p>An OTP will be sent to your registered email.</p></div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-content"><h4>Enter OTP &amp; Verify</h4><p>Enter the 6-digit OTP from your email and click <b>Verify</b>.</p></div></div>
+      <div class="box box-warn"><strong>Important</strong>You can only login with the center assigned to you. If you need access to a different center, contact your Super Admin.</div>
+    </div>
+  </div>
+
+  <!-- 2. Dashboard -->
+  <div class="section" id="dashboard">
+    <div class="section-head">
+      <div class="num">2</div>
+      <div><h2>Your Dashboard</h2><div class="path">After Login</div></div>
+    </div>
+    <div class="section-body">
+      <p>After login, your sidebar shows only the modules assigned to you:</p>
+      <ul>
+        <li><b>Attendance</b> — Mark daily attendance for your center's employees</li>
+        <li><b>Sales &amp; Cash</b> — Enter daily sales, expenses, and view reports</li>
+        <li><b>HR Management</b> — View employees, salary details, and generate payslips</li>
+      </ul>
+      <div class="box box-info"><strong>Note</strong>You will only see data for your assigned center. To view other centers or access Accounts/Franchise modules, additional permissions are needed from Super Admin.</div>
+    </div>
+  </div>
+
+  <!-- 3. Attendance -->
+  <div class="section" id="attendance">
+    <div class="section-head">
+      <div class="num">3</div>
+      <div><h2>Attendance Management</h2><div class="path">Attendance &gt; India Centers</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open Attendance</h4><p>Click <b>Attendance &gt; India Centers</b> in the sidebar. Your center is pre-selected.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Select Month</h4><p>Use the month picker to select the current month (default) or view previous months.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Mark Attendance</h4><p>You see a calendar grid with all employees listed on the left. Click on any cell to mark:</p>
+        <ul>
+          <li><b>P</b> = Present (Full day)</li>
+          <li><b>A</b> = Absent</li>
+          <li><b>H</b> = Half Day</li>
+          <li><b>WO</b> = Week Off</li>
+          <li><b>L</b> = Leave</li>
+        </ul>
+      </div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Auto-Save</h4><p>Each click auto-saves the attendance status. No separate save button needed.</p></div></div>
+      <div class="box box-warn"><strong>Daily Task</strong>Mark attendance for <b>today</b> before end of day. Previous day's attendance gets auto-frozen at midnight and cannot be edited without Super Admin intervention.</div>
+    </div>
+  </div>
+
+  <!-- 4. Sales Entry -->
+  <div class="section" id="sales">
+    <div class="section-head">
+      <div class="num">4</div>
+      <div><h2>Daily Sales Entry</h2><div class="path">Sales &amp; Cash &gt; Sales Dashboard &gt; Sales Entry</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open Sales Dashboard</h4><p>Click <b>Sales &amp; Cash &gt; Sales Dashboard</b>.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Go to Sales Entry Tab</h4><p>Click the <b>"Sales Entry"</b> tab.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Select Today's Date</h4><p>The date defaults to today. Ensure it's correct before entering data.</p></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Enter Sales Data</h4><p>Fill in all sales fields:</p>
+        <ul>
+          <li><b>Cash Sales</b> — Total cash collected</li>
+          <li><b>Card Sales</b> — POS card transactions</li>
+          <li><b>Swiggy</b> — Swiggy online orders</li>
+          <li><b>Zomato</b> — Zomato online orders</li>
+          <li><b>Other Online</b> — Any other platforms</li>
+          <li><b>Total Guests</b> — Number of guests served</li>
+          <li><b>Total Bills</b> — Number of bills generated</li>
+        </ul>
+      </div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-content"><h4>Save</h4><p>Click <b>"Save"</b>. The Overview tab will update with the latest figures.</p></div></div>
+      <div class="box box-tip"><strong>Alternative: Grid Update</strong>For faster entry across multiple dates, use the <b>"Grid Update"</b> tab which shows a spreadsheet-like view of the entire month.</div>
+    </div>
+  </div>
+
+  <!-- 5. Expenses -->
+  <div class="section" id="expenses">
+    <div class="section-head">
+      <div class="num">5</div>
+      <div><h2>Daily Expense Entry</h2><div class="path">Sales &amp; Cash &gt; Sales Dashboard &gt; Expense Entry</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>Open Expense Entry</h4><p>Go to Sales Dashboard and click the <b>"Expense Entry"</b> tab.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Select Date</h4><p>Default is today. You can switch to <b>Range mode</b> to view all expenses in a period.</p></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-content"><h4>Add New Expense</h4><p>Fill in the fields at the top:</p>
+        <ul>
+          <li><b>Description</b> — What was purchased (e.g., "Vegetables from vendor")</li>
+          <li><b>Amount</b> — Total cost</li>
+          <li><b>Category</b> — Select from dropdown (GROCERY, DAIRY PRODUCTS, PAV, CYLINDER, etc.)</li>
+          <li><b>Payment Mode</b> — CASH, UPI, CARD, BANK TRANSFER, etc.</li>
+        </ul>
+        <p>Click <b>"Add Expense"</b>.</p>
+      </div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-content"><h4>Batch Entry (Multiple Items)</h4><p>Click <b>"Add 3 More Entries"</b> to add multiple rows. Fill all rows and click <b>"Save All"</b>.</p></div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-content"><h4>Edit Existing Expenses</h4><p>All rows in the table are editable. Change any field (description, amount, category, mode) and click <b>"Save All"</b>.</p></div></div>
+      <div class="step"><div class="step-num">6</div><div class="step-content"><h4>Attach Bills</h4><p>Click the <b>paperclip icon</b> on any expense to upload a bill photo or PDF. Supported: JPG, PNG, WEBP (5MB), PDF (10MB).</p></div></div>
+      <div class="step"><div class="step-num">7</div><div class="step-content"><h4>Group Under Invoice</h4><p>Select multiple expenses using checkboxes, then click <b>"Group Selected"</b> to link them under one common invoice.</p></div></div>
+      <div class="box box-danger"><strong>Frozen Dates</strong>Previous day's expenses are <b>automatically frozen</b> at midnight. You cannot edit frozen data. If corrections are needed, contact Super Admin to unfreeze.</div>
+    </div>
+  </div>
+
+  <!-- 6. Employees -->
+  <div class="section" id="employees">
+    <div class="section-head">
+      <div class="num">6</div>
+      <div><h2>Employee Management</h2><div class="path">HR Management &gt; Employees</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View Employees</h4><p>Click <b>HR Management &gt; Employees</b>. You see all employees assigned to your center.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>View Employee Details</h4><p>Click on any employee to see their full profile: name, designation, salary details, contact info, and joining date.</p></div></div>
+      <div class="box box-info"><strong>Note</strong>Employee data is managed centrally via Master Data sync. If you need to add/edit employees, contact the Super Admin or HR team.</div>
+    </div>
+  </div>
+
+  <!-- 7. Salary -->
+  <div class="section" id="salary">
+    <div class="section-head">
+      <div class="num">7</div>
+      <div><h2>Salary &amp; Payslips</h2><div class="path">HR Management &gt; Salary / Payslips</div></div>
+    </div>
+    <div class="section-body">
+      <div class="step"><div class="step-num">1</div><div class="step-content"><h4>View Salary Summary</h4><p>Go to <b>HR Management &gt; Salary</b>. Select your center and month to see salary calculations.</p></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-content"><h4>Generate Payslip</h4><p>Go to <b>HR Management &gt; Payslips</b>. Select:</p>
+        <ul>
+          <li><b>Center</b> — Your center (pre-selected)</li>
+          <li><b>Month</b> — Salary month</li>
+          <li><b>Employee</b> — Select the employee</li>
+          <li><b>Signatory</b> — Select who signs the payslip</li>
+          <li><b>Logo</b> — Choose logo variant</li>
+        </ul>
+        <p>Click <b>"Generate PDF"</b> to download the payslip.</p>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- 8. Freeze -->
+  <div class="section" id="freeze">
+    <div class="section-head">
+      <div class="num">8</div>
+      <div><h2>Freeze &amp; Data Lock</h2><div class="path">Understanding Data Protection</div></div>
+    </div>
+    <div class="section-body">
+      <p>The system automatically protects finalized data:</p>
+      <ul>
+        <li><b>Auto Freeze</b> — Previous day's sales and expenses are locked at midnight</li>
+        <li><b>Admin Freeze</b> — Super Admin can manually lock any date</li>
+        <li><b>Frozen data</b> appears with a lock icon and cannot be edited</li>
+        <li><b>To correct frozen data</b> — Contact your Super Admin to temporarily unfreeze the date</li>
+      </ul>
+      <div class="box box-tip"><strong>Best Practice</strong>Enter all sales and expenses <b>on the same day</b> to avoid data lock issues. Set a daily routine: End of day = Enter data.</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="brand">Purnabramha</div>
+    <p style="margin-top:.5rem">IntraPB Center Manager Manual | Version 2.0 | April 2026</p>
+    <p style="margin-top:.3rem;font-size:.75rem;opacity:.6">For support, contact your Super Admin or the IT team.</p>
+  </div>
+
+</div>
+</body>
+</html>
