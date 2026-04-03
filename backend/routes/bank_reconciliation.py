@@ -203,72 +203,76 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
     try:
         with pdfplumber.open(io.BytesIO(file_content)) as pdf:
             all_text = ""
+            # Process all pages for ANZ statements
             for page in pdf.pages:
-                all_text += page.extract_text() or ""
+                page_text = page.extract_text() or ""
+                all_text += page_text + "\n"
         
-        # Try to detect the statement year from the PDF text (look for statement period)
-        # Pattern like "20 JAN 2026 - 20 FEB 2026" or just "2026"
+        # Try to detect the statement year
         year_match = re.search(r'\b(202[4-9]|20[3-9]\d)\b', all_text)
         year_hint = int(year_match.group()) if year_match else datetime.now().year
         
-        # Skip patterns - entries to exclude
+        # Skip patterns
         skip_patterns = [
             'OPENING BALANCE', 'CLOSING BALANCE', 'BALANCE BROUGHT FORWARD',
-            'BALANCE CARRIED FORWARD', 'STATEMENT PERIOD', 'ACCOUNT NUMBER'
+            'BALANCE CARRIED FORWARD', 'STATEMENT PERIOD', 'ACCOUNT NUMBER',
+            'INTERIM STATEMENT', 'TRANSACTION DESCRIPTION'
         ]
         
-        # Parse line by line looking for transaction patterns
         lines = all_text.split('\n')
         
         for line in lines:
             line = line.strip()
-            if not line:
+            if not line or len(line) < 10:
                 continue
             
-            # Skip header/summary lines
             if any(skip in line.upper() for skip in skip_patterns):
                 continue
             
-            # Pattern for ANZ statements: "20 JAN VISA DEBIT PURCHASE CARD 2481... $90.54"
-            # Look for date at start (e.g., "20 JAN", "21 FEB")
-            date_match = re.match(r'^(\d{1,2}\s+[A-Z]{3})\s+(.+)', line, re.IGNORECASE)
+            # Pattern 1: "20 JAN DESCRIPTION... $90.54" or "04 MAR DESCRIPTION 90.54"
+            # Match date at start: DD MMM or DD/MM format
+            date_match = re.match(r'^(\d{1,2}\s+[A-Z]{3}|\d{1,2}/\d{1,2})\s+(.+)', line, re.IGNORECASE)
             if not date_match:
                 continue
             
             date_str = date_match.group(1).upper()
             rest = date_match.group(2)
             
-            # Parse the date
             parsed_date = parse_date(date_str, year_hint)
             if not parsed_date:
                 continue
             
-            # Try to extract amount (look for currency patterns at end)
-            # Pattern: description followed by amount like "1,234.56" or "$1,234.56"
+            # Extract amount - look for number pattern (with or without $)
+            # ANZ format may have amount without $ sign
             amount_match = re.search(r'[\$]?\s*([\d,]+\.\d{2})\s*$', rest)
             if not amount_match:
+                # Try to find amount anywhere in the line
+                amount_match = re.search(r'([\d,]+\.\d{2})', rest)
+                if not amount_match:
+                    continue
+            
+            amount = parse_amount(amount_match.group(1))
+            if amount == 0 or amount > 1000000:  # Skip invalid amounts
                 continue
             
-            amount_str = amount_match.group(1)
-            amount = parse_amount(amount_str)
-            if amount == 0:
+            # Get narration
+            narration = rest[:amount_match.start()].strip() if amount_match.start() > 0 else rest
+            narration = re.sub(r'[\d,]+\.\d{2}', '', narration).strip()  # Remove any remaining amounts
+            
+            if len(narration) < 3:
                 continue
             
-            # Get narration (everything before the amount)
-            narration = rest[:amount_match.start()].strip()
-            
-            # Skip if narration is too short (likely a parsing error)
-            if len(narration) < 5:
-                continue
-            
-            # Determine if debit or credit based on keywords
+            # Skip credits based on keywords
             is_credit = any(kw in narration.upper() for kw in [
                 'TRANSFER FROM', 'DEPOSIT', 'CREDIT', 'REFUND', 'INTEREST PAID',
-                'TAX REFUND', 'REVERSAL', 'REBATE'
+                'TAX REFUND', 'REVERSAL', 'REBATE', 'FROM ANZ', 'FROM AMEX'
             ])
             
             if is_credit:
-                # Skip credits (deposits) - we only want debits (expenses)
+                continue
+            
+            # Skip if narration looks like header/footer
+            if any(kw in narration.upper() for kw in ['TELEPHONE', 'ENQUIRIES', 'PAGE', 'ACCOUNT TYPE']):
                 continue
             
             transactions.append({
