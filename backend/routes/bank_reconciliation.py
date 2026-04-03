@@ -562,28 +562,38 @@ async def upload_bank_statement(
     token: str = Form(""),
 ):
     """Upload and parse a bank statement, then run reconciliation"""
+    print(f"[BANK_RECON] Upload request: center={center}, month={month}, token_present={bool(token)}", flush=True)
     logger.info(f"Upload request: center={center}, month={month}, token_present={bool(token)}")
     
     session = await _get_session(token)
     if not session:
+        print(f"[BANK_RECON] Auth failed - token empty or invalid", flush=True)
         logger.warning(f"Authentication failed for token: {token[:10] if token else 'empty'}...")
         return {"detail": "Authentication required"}
 
     content = await file.read()
+    print(f"[BANK_RECON] Received file: {file.filename}, size={len(content)} bytes", flush=True)
     logger.info(f"Received file: {file.filename}, size={len(content)} bytes")
     
     if len(content) > 10 * 1024 * 1024:
         return {"detail": "File too large (max 10MB)"}
+    
+    if len(content) == 0:
+        print(f"[BANK_RECON] ERROR: File is empty!", flush=True)
+        return {"detail": "File is empty. Please select a valid file."}
 
     # Parse bank statement
     try:
         transactions = await parse_bank_statement(content, file.filename)
+        print(f"[BANK_RECON] Parsed {len(transactions)} transactions from {file.filename}", flush=True)
         logger.info(f"Parsed {len(transactions)} transactions from {file.filename}")
     except Exception as e:
+        print(f"[BANK_RECON] ERROR parsing: {e}", flush=True)
         logger.error(f"Error parsing bank statement: {e}", exc_info=True)
         return {"detail": f"Error parsing file: {str(e)}"}
     
     if not transactions:
+        print(f"[BANK_RECON] WARNING: No transactions parsed from {file.filename} (size={len(content)} bytes)", flush=True)
         logger.warning(f"No transactions parsed from {file.filename} (size={len(content)} bytes)")
         return {"detail": "Could not parse any transactions from the file. Ensure it has Date, Narration, and Debit columns."}
 
