@@ -2354,6 +2354,249 @@ async def upload_sales_data(
         raise HTTPException(500, f"Upload error: {str(e)}")
 
 
+@router.post("/upload-custom-format")
+async def upload_custom_format_data(
+    token: str = Form(...),
+    center: str = Form(...),
+    from_year: int = Form(...),
+    file: UploadFile = File(...)
+):
+    """
+    Upload sales data from custom Excel format (like SN DAILY-SALE N CASH SUMMERY).
+    Auto-detects monthly sheets and imports data from specified year onwards.
+    """
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    user_center = session.get("center", "")
+    is_super_admin = session.get("is_super_admin", False)
+    is_admin = session.get("is_admin", False)
+    
+    if not is_super_admin and not is_admin and user_center != center:
+        raise HTTPException(403, f"You can only upload data for your center: {user_center}")
+    
+    try:
+        from openpyxl import load_workbook
+        from io import BytesIO
+        import re
+        
+        content = await file.read()
+        wb = load_workbook(BytesIO(content), data_only=True)
+        
+        results = {
+            "sales": {"imported": 0, "deleted": 0, "errors": [], "sheets_processed": []},
+        }
+        
+        # Month name to number mapping
+        month_map = {
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'june': 6,
+            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+        }
+        
+        all_dates_to_delete = set()
+        all_sales_records = {}  # Use dict to dedupe by center_date key
+        
+        for sheet_name in wb.sheetnames:
+            # Try to parse sheet name for month/year (e.g., "FEB 26", "JAN.19", "MAR 2017")
+            sheet_lower = sheet_name.lower().strip()
+            
+            # Pattern: "MMM YY" or "MMM.YY" or "MMM YYYY" or "MMMM.YYYY"
+            match = re.match(r'([a-z]+)[\s\.\-]*(\d{2,4})', sheet_lower)
+            if not match:
+                continue
+            
+            month_str = match.group(1)
+            year_str = match.group(2)
+            
+            if month_str not in month_map:
+                continue
+            
+            month_num = month_map[month_str]
+            
+            # Convert 2-digit year to 4-digit
+            if len(year_str) == 2:
+                year_num = int(year_str)
+                if year_num >= 0 and year_num <= 30:
+                    year_num += 2000
+                else:
+                    year_num += 1900
+            else:
+                year_num = int(year_str)
+            
+            # Filter by from_year
+            if year_num < from_year:
+                continue
+            
+            logger.info(f"Processing sheet: {sheet_name} -> {month_num}/{year_num}")
+            results["sales"]["sheets_processed"].append(sheet_name)
+            
+            ws = wb[sheet_name]
+            
+            # Find header row by looking for "DATE" column
+            header_row_idx = None
+            col_map = {}
+            
+            for row_idx, row in enumerate(ws.iter_rows(max_row=10, values_only=True), start=1):
+                row_lower = [str(c).lower().strip() if c else "" for c in row]
+                if "date" in row_lower:
+                    header_row_idx = row_idx
+                    for col_idx, cell in enumerate(row):
+                        if cell:
+                            col_map[str(cell).lower().strip()] = col_idx
+                    break
+            
+            if header_row_idx is None:
+                results["sales"]["errors"].append(f"Sheet '{sheet_name}': Could not find DATE header")
+                continue
+            
+            # Map custom columns to standard columns
+            def find_col(keywords):
+                for kw in keywords:
+                    for col_name, idx in col_map.items():
+                        if kw in col_name:
+                            return idx
+                return None
+            
+            date_col = find_col(['date'])
+            opening_col = find_col(['opening balance', 'opening bal'])
+            petty_col = find_col(['petty cash', 'petty'])
+            cash_receipts_col = find_col(['cash receipts', 'cash receipt', 'withdrawal'])
+            total_sale_col = find_col(['total sale', 'sale of the day', 'total'])
+            card_col = find_col(['card', 'idfc', 'card idfc'])
+            bharat_pay_col = find_col(['bharat pay', 'bharatpay', 'upi'])
+            swiggy_col = find_col(['swiggy'])
+            zomato_col = find_col(['zomato'])
+            online_col = find_col(['online', 'other online'])
+            guests_col = find_col(['guest', 'pax', 'no of guest', 'number of guest'])
+            bills_col = find_col(['bill', 'no of bill', 'number of bill'])
+            
+            if date_col is None:
+                results["sales"]["errors"].append(f"Sheet '{sheet_name}': No DATE column found")
+                continue
+            
+            # Process data rows
+            for row_idx, row in enumerate(ws.iter_rows(min_row=header_row_idx + 1, values_only=True), start=header_row_idx + 1):
+                if not row or not row[date_col]:
+                    continue
+                
+                try:
+                    # Parse date
+                    date_val = row[date_col]
+                    if isinstance(date_val, datetime):
+                        date_str = date_val.strftime("%Y-%m-%d")
+                    elif isinstance(date_val, (int, float)):
+                        # Excel serial date
+                        continue
+                    else:
+                        date_str = str(date_val).strip()
+                        if not date_str or date_str.lower() in ['date', 'none', '']:
+                            continue
+                        try:
+                            datetime.strptime(date_str, "%Y-%m-%d")
+                        except:
+                            continue
+                    
+                    # Check if date is within year filter
+                    date_year = int(date_str[:4])
+                    if date_year < from_year:
+                        continue
+                    
+                    all_dates_to_delete.add(date_str)
+                    
+                    def get_val(col_idx, default=0):
+                        if col_idx is None:
+                            return default
+                        try:
+                            val = row[col_idx] if col_idx < len(row) else None
+                            if val is None or str(val).strip() == '':
+                                return default
+                            # Handle formulas that show as strings
+                            if isinstance(val, str) and val.startswith('='):
+                                return default
+                            return float(val)
+                        except:
+                            return default
+                    
+                    record = {
+                        "center": center,
+                        "date": date_str,
+                        "opening_balance": get_val(opening_col),
+                        "petty_cash_opening": get_val(petty_col),
+                        "cash_receipts": get_val(cash_receipts_col),
+                        "total_sale": get_val(total_sale_col),
+                        "card_idfc": get_val(card_col),
+                        "bharat_pay": get_val(bharat_pay_col),
+                        "swiggy": get_val(swiggy_col),
+                        "zomato": get_val(zomato_col),
+                        "doordash": 0,
+                        "online_other": get_val(online_col),
+                        "num_guests": int(get_val(guests_col)),
+                        "num_bills": int(get_val(bills_col)),
+                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        "uploaded_by": session.get("managerName", "")
+                    }
+                    
+                    # Calculate derived fields
+                    total_online = (record["card_idfc"] + record["bharat_pay"] + 
+                                  record["swiggy"] + record["zomato"] + 
+                                  record["doordash"] + record["online_other"])
+                    record["total_online_sale"] = total_online
+                    record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
+                    record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                    
+                    if record["num_guests"] > 0:
+                        record["avg_per_pax"] = round(record["total_sale"] / record["num_guests"], 2)
+                    if record["num_bills"] > 0:
+                        record["avg_per_bill"] = round(record["total_sale"] / record["num_bills"], 2)
+                    
+                    all_sales_records[f"{center}_{date_str}"] = record
+                    
+                except Exception as e:
+                    results["sales"]["errors"].append(f"Sheet '{sheet_name}' Row {row_idx}: {str(e)}")
+        
+        # Delete existing records for those dates
+        if all_dates_to_delete:
+            delete_result = await db.daily_sales.delete_many({
+                "center": center,
+                "date": {"$in": list(all_dates_to_delete)}
+            })
+            results["sales"]["deleted"] = delete_result.deleted_count
+        
+        # Insert new records (use values from dict to avoid duplicates)
+        records_to_insert = list(all_sales_records.values())
+        if records_to_insert:
+            await db.daily_sales.insert_many(records_to_insert)
+            results["sales"]["imported"] = len(records_to_insert)
+        
+        # Log the upload
+        await db.upload_logs.insert_one({
+            "center": center,
+            "uploaded_by": session.get("managerName", ""),
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "file_name": file.filename,
+            "upload_type": "custom_format",
+            "from_year": from_year,
+            "results": results
+        })
+        
+        return {
+            "success": True,
+            "message": f"Custom format upload completed for center {center}",
+            "results": results,
+            "sheets_processed": results["sales"]["sheets_processed"],
+            "warning": f"Data from {from_year} onwards has been imported. Existing data for those dates was replaced."
+        }
+        
+    except Exception as e:
+        logger.error(f"Custom format upload error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Upload error: {str(e)}")
+
+
 @router.post("/toggle-upload-permission")
 async def toggle_upload_permission(data: dict):
     """

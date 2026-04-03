@@ -116,6 +116,14 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
   const [uploadCenter, setUploadCenter] = useState(selectedCenter !== "all" ? selectedCenter : "");
   const [uploadResult, setUploadResult] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  
+  // Custom format states
+  const [uploadMode, setUploadMode] = useState("template"); // "template" or "custom"
+  const [fromYear, setFromYear] = useState(new Date().getFullYear() - 1);
+  const [customFile, setCustomFile] = useState(null);
+  const [customUploading, setCustomUploading] = useState(false);
+  const [customResult, setCustomResult] = useState(null);
+  const [showCustomConfirm, setShowCustomConfirm] = useState(false);
 
   const userCenter = session?.center || "";
   const isSuperAdmin = session?.is_super_admin;
@@ -215,6 +223,72 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
     }
   };
 
+  // Handle custom format file selection
+  const handleCustomFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+        toast.error("Please select an Excel file (.xlsx or .xls)");
+        return;
+      }
+      setCustomFile(file);
+      setCustomResult(null);
+    }
+  };
+
+  // Handle custom format upload
+  const handleCustomUpload = async () => {
+    const targetCenter = canSelectCenter ? uploadCenter : userCenter;
+    
+    if (!targetCenter) {
+      toast.error("Please select a center");
+      return;
+    }
+    
+    if (!customFile) {
+      toast.error("Please select a file");
+      return;
+    }
+
+    if (!fromYear || fromYear < 2015 || fromYear > 2030) {
+      toast.error("Please enter a valid year (2015-2030)");
+      return;
+    }
+
+    setShowCustomConfirm(false);
+    setCustomUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('token', session?.token);
+      formData.append('center', targetCenter);
+      formData.append('from_year', fromYear.toString());
+      formData.append('file', customFile);
+      
+      const res = await fetch(`${API_URL}/sales/upload-custom-format`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || "Upload failed");
+      }
+      
+      setCustomResult(data);
+      toast.success(data.message);
+      setCustomFile(null);
+      
+      if (onUploadComplete) onUploadComplete();
+      
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setCustomUploading(false);
+    }
+  };
+
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -224,80 +298,242 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Instructions */}
-        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-          <h3 className="font-semibold text-blue-400 mb-2">How to Upload:</h3>
-          <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-            <li>Download the Excel template using the button below</li>
-            <li>Fill in your sales and expense data (Sheet 1: Sales, Sheet 2: Expenses)</li>
-            <li>Select your center and upload the file</li>
-            <li className="text-amber-400 font-medium">Warning: Existing data for uploaded dates will be REPLACED</li>
-          </ol>
-        </div>
-
-        {/* Download Template */}
-        <div>
-          <Button onClick={handleDownloadTemplate} variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Download Template
-          </Button>
-        </div>
-
-        {/* Center Selection */}
-        <div className="space-y-2">
-          <Label>Center *</Label>
-          {canSelectCenter ? (
-            <Input
-              value={uploadCenter}
-              onChange={(e) => setUploadCenter(e.target.value.toUpperCase())}
-              placeholder="Enter center code"
-              className="max-w-xs"
-            />
-          ) : (
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-muted-foreground" />
-              <span className="font-medium">{userCenter}</span>
-              <span className="text-xs text-muted-foreground">(Your center)</span>
-            </div>
-          )}
-        </div>
-
-        {/* File Upload */}
-        <div className="space-y-2">
-          <Label>Excel File *</Label>
-          <Input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileSelect}
-            className="max-w-md"
-          />
-          {selectedFile && (
-            <p className="text-sm text-green-500">Selected: {selectedFile.name}</p>
-          )}
-        </div>
-
-        {/* Upload Button */}
-        <div className="flex gap-3">
-          <Button 
-            onClick={() => setShowConfirm(true)} 
-            disabled={!selectedFile || uploading || (!canSelectCenter && !userCenter)}
-            className="bg-green-600 hover:bg-green-700"
+        {/* Upload Mode Tabs */}
+        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+          <button
+            onClick={() => setUploadMode("template")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              uploadMode === "template" 
+                ? "bg-primary text-primary-foreground" 
+                : "hover:bg-muted-foreground/10"
+            }`}
           >
-            {uploading ? (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Data
-              </>
-            )}
-          </Button>
+            Template Format
+          </button>
+          <button
+            onClick={() => setUploadMode("custom")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              uploadMode === "custom" 
+                ? "bg-primary text-primary-foreground" 
+                : "hover:bg-muted-foreground/10"
+            }`}
+          >
+            Custom Format (Bulk Import)
+          </button>
         </div>
 
-        {/* Confirmation Dialog */}
+        {uploadMode === "template" ? (
+          <>
+            {/* Instructions */}
+            <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <h3 className="font-semibold text-blue-400 mb-2">How to Upload (Template):</h3>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                <li>Download the Excel template using the button below</li>
+                <li>Fill in your sales and expense data (Sheet 1: Sales, Sheet 2: Expenses)</li>
+                <li>Select your center and upload the file</li>
+                <li className="text-amber-400 font-medium">Warning: Existing data for uploaded dates will be REPLACED</li>
+              </ol>
+            </div>
+
+            {/* Download Template */}
+            <div>
+              <Button onClick={handleDownloadTemplate} variant="outline" className="gap-2">
+                <Download className="w-4 h-4" />
+                Download Template
+              </Button>
+            </div>
+
+            {/* Center Selection */}
+            <div className="space-y-2">
+              <Label>Center *</Label>
+              {canSelectCenter ? (
+                <Input
+                  value={uploadCenter}
+                  onChange={(e) => setUploadCenter(e.target.value.toUpperCase())}
+                  placeholder="Enter center code"
+                  className="max-w-xs"
+                />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">{userCenter}</span>
+                  <span className="text-xs text-muted-foreground">(Your center)</span>
+                </div>
+              )}
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label>Excel File *</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileSelect}
+                className="max-w-md"
+              />
+              {selectedFile && (
+                <p className="text-sm text-green-500">Selected: {selectedFile.name}</p>
+              )}
+            </div>
+
+            {/* Upload Button */}
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => setShowConfirm(true)} 
+                disabled={!selectedFile || uploading || (!canSelectCenter && !userCenter)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {uploading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Data
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Upload Result */}
+            {uploadResult && (
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2">
+                <h3 className="font-semibold text-green-400 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5" />
+                  Upload Complete
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="font-medium">Sales Data:</p>
+                    <p>Imported: {uploadResult.results?.sales?.imported || 0} records</p>
+                    <p>Deleted: {uploadResult.results?.sales?.deleted || 0} records</p>
+                  </div>
+                  <div>
+                    <p className="font-medium">Expenses:</p>
+                    <p>Imported: {uploadResult.results?.expenses?.imported || 0} records</p>
+                    <p>Deleted: {uploadResult.results?.expenses?.deleted || 0} records</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Custom Format Instructions */}
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <h3 className="font-semibold text-amber-400 mb-2">Bulk Import from Custom Format:</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                <li>Upload your existing Excel file with monthly sheets (e.g., "FEB 26", "JAN 25", "MAR 2024")</li>
+                <li>System auto-detects columns: DATE, OPENING BALANCE, CASH RECEIPTS, TOTAL SALE, CARD/IDFC, BHARAT PAY, SWIGGY, ZOMATO, ONLINE</li>
+                <li>Select the year from which you want to import data</li>
+                <li className="text-amber-400 font-medium">Warning: Existing data for imported dates will be REPLACED</li>
+              </ul>
+            </div>
+
+            {/* Center Selection */}
+            <div className="space-y-2">
+              <Label>Center *</Label>
+              {canSelectCenter ? (
+                <Input
+                  value={uploadCenter}
+                  onChange={(e) => setUploadCenter(e.target.value.toUpperCase())}
+                  placeholder="Enter center code"
+                  className="max-w-xs"
+                />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">{userCenter}</span>
+                  <span className="text-xs text-muted-foreground">(Your center)</span>
+                </div>
+              )}
+            </div>
+
+            {/* Year Filter */}
+            <div className="space-y-2">
+              <Label>Import data from year *</Label>
+              <Input
+                type="number"
+                min="2015"
+                max="2030"
+                value={fromYear}
+                onChange={(e) => setFromYear(parseInt(e.target.value) || 2024)}
+                placeholder="e.g., 2023"
+                className="max-w-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Only data from {fromYear} onwards will be imported
+              </p>
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label>Excel File (Custom Format) *</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleCustomFileSelect}
+                className="max-w-md"
+              />
+              {customFile && (
+                <p className="text-sm text-green-500">Selected: {customFile.name}</p>
+              )}
+            </div>
+
+            {/* Upload Button */}
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => setShowCustomConfirm(true)} 
+                disabled={!customFile || customUploading || (!canSelectCenter && !userCenter)}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                {customUploading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import Data
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Custom Upload Result */}
+            {customResult && (
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2">
+                <h3 className="font-semibold text-green-400 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5" />
+                  Import Complete
+                </h3>
+                <div className="text-sm space-y-2">
+                  <p><strong>Sales Records Imported:</strong> {customResult.results?.sales?.imported || 0}</p>
+                  <p><strong>Existing Records Replaced:</strong> {customResult.results?.sales?.deleted || 0}</p>
+                  {customResult.sheets_processed?.length > 0 && (
+                    <div>
+                      <p className="font-medium">Sheets Processed:</p>
+                      <p className="text-muted-foreground">{customResult.sheets_processed.join(", ")}</p>
+                    </div>
+                  )}
+                  {customResult.results?.sales?.errors?.length > 0 && (
+                    <div className="mt-2 p-2 bg-red-500/10 rounded text-xs text-red-400">
+                      <p className="font-medium">Errors:</p>
+                      {customResult.results.sales.errors.slice(0, 5).map((err, i) => (
+                        <p key={i}>{err}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Confirmation Dialog for Template Upload */}
         {showConfirm && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-card border border-border rounded-lg p-6 max-w-md m-4">
@@ -327,32 +563,34 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
           </div>
         )}
 
-        {/* Upload Result */}
-        {uploadResult && (
-          <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2">
-            <h3 className="font-semibold text-green-400 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5" />
-              Upload Complete
-            </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="font-medium">Sales Data:</p>
-                <p>Imported: {uploadResult.results?.sales?.imported || 0} records</p>
-                <p>Deleted: {uploadResult.results?.sales?.deleted || 0} records</p>
+        {/* Confirmation Dialog for Custom Format Upload */}
+        {showCustomConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg p-6 max-w-md m-4">
+              <div className="flex items-start gap-3 mb-4">
+                <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-lg">Confirm Bulk Import</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    This will import sales data from all monthly sheets (from {fromYear} onwards) 
+                    and <strong className="text-red-500">REPLACE</strong> existing data for those dates.
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium">Expenses:</p>
-                <p>Imported: {uploadResult.results?.expenses?.imported || 0} records</p>
-                <p>Deleted: {uploadResult.results?.expenses?.deleted || 0} records</p>
+              <div className="bg-amber-500/10 p-3 rounded mb-4 text-sm">
+                <p><strong>Center:</strong> {canSelectCenter ? uploadCenter : userCenter}</p>
+                <p><strong>From Year:</strong> {fromYear}</p>
+                <p><strong>File:</strong> {customFile?.name}</p>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setShowCustomConfirm(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCustomUpload} className="bg-amber-600 hover:bg-amber-700">
+                  Yes, Import Data
+                </Button>
               </div>
             </div>
-            {(uploadResult.results?.sales?.errors?.length > 0 || uploadResult.results?.expenses?.errors?.length > 0) && (
-              <div className="mt-2 p-2 bg-red-500/10 rounded text-xs text-red-400">
-                <p className="font-medium">Errors:</p>
-                {uploadResult.results?.sales?.errors?.map((e, i) => <p key={i}>{e}</p>)}
-                {uploadResult.results?.expenses?.errors?.map((e, i) => <p key={`e${i}`}>{e}</p>)}
-              </div>
-            )}
           </div>
         )}
       </CardContent>
