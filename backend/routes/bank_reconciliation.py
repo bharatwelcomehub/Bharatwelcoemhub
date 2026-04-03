@@ -156,13 +156,15 @@ def parse_amount(val):
         return 0.0
 
 
-def parse_date(val):
+def parse_date(val, year_hint=None):
     """Parse date from various formats"""
     if val is None:
         return None
     if isinstance(val, datetime):
         return val.strftime("%Y-%m-%d")
     s = str(val).strip()
+    
+    # Standard formats with year
     formats = [
         "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y",
         "%d-%b-%Y", "%d %b %Y", "%d-%B-%Y",
@@ -173,41 +175,173 @@ def parse_date(val):
             return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
+    
+    # Handle formats without year (e.g., "20 JAN", "21 FEB")
+    short_formats = ["%d %b", "%d-%b", "%d %B", "%d-%B"]
+    for fmt in short_formats:
+        try:
+            parsed = datetime.strptime(s, fmt)
+            # Use year hint if provided, otherwise current year
+            year = year_hint or datetime.now().year
+            return parsed.replace(year=year).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    
     return None
+
+
+async def parse_pdf_bank_statement(file_content: bytes, filename: str):
+    """Parse PDF bank statement (for Australian banks like ANZ)"""
+    transactions = []
+    
+    try:
+        import pdfplumber
+    except ImportError:
+        logger.error("pdfplumber not installed. Cannot parse PDF bank statements.")
+        return transactions
+    
+    try:
+        with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+            all_text = ""
+            for page in pdf.pages:
+                all_text += page.extract_text() or ""
+        
+        # Try to detect the statement year from the PDF text (look for statement period)
+        # Pattern like "20 JAN 2026 - 20 FEB 2026" or just "2026"
+        year_match = re.search(r'\b(202[4-9]|20[3-9]\d)\b', all_text)
+        year_hint = int(year_match.group()) if year_match else datetime.now().year
+        
+        # Skip patterns - entries to exclude
+        skip_patterns = [
+            'OPENING BALANCE', 'CLOSING BALANCE', 'BALANCE BROUGHT FORWARD',
+            'BALANCE CARRIED FORWARD', 'STATEMENT PERIOD', 'ACCOUNT NUMBER'
+        ]
+        
+        # Parse line by line looking for transaction patterns
+        lines = all_text.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Skip header/summary lines
+            if any(skip in line.upper() for skip in skip_patterns):
+                continue
+            
+            # Pattern for ANZ statements: "20 JAN VISA DEBIT PURCHASE CARD 2481... $90.54"
+            # Look for date at start (e.g., "20 JAN", "21 FEB")
+            date_match = re.match(r'^(\d{1,2}\s+[A-Z]{3})\s+(.+)', line, re.IGNORECASE)
+            if not date_match:
+                continue
+            
+            date_str = date_match.group(1).upper()
+            rest = date_match.group(2)
+            
+            # Parse the date
+            parsed_date = parse_date(date_str, year_hint)
+            if not parsed_date:
+                continue
+            
+            # Try to extract amount (look for currency patterns at end)
+            # Pattern: description followed by amount like "1,234.56" or "$1,234.56"
+            amount_match = re.search(r'[\$]?\s*([\d,]+\.\d{2})\s*$', rest)
+            if not amount_match:
+                continue
+            
+            amount_str = amount_match.group(1)
+            amount = parse_amount(amount_str)
+            if amount == 0:
+                continue
+            
+            # Get narration (everything before the amount)
+            narration = rest[:amount_match.start()].strip()
+            
+            # Skip if narration is too short (likely a parsing error)
+            if len(narration) < 5:
+                continue
+            
+            # Determine if debit or credit based on keywords
+            is_credit = any(kw in narration.upper() for kw in [
+                'TRANSFER FROM', 'DEPOSIT', 'CREDIT', 'REFUND', 'INTEREST PAID',
+                'TAX REFUND', 'REVERSAL', 'REBATE'
+            ])
+            
+            if is_credit:
+                # Skip credits (deposits) - we only want debits (expenses)
+                continue
+            
+            transactions.append({
+                "transaction_id": str(uuid.uuid4())[:12],
+                "transaction_date": parsed_date,
+                "narration": narration,
+                "debit_amount": amount,
+                "credit_amount": 0.0,
+                "reference_number": "",
+                "balance": None,
+            })
+        
+        logger.info(f"PDF parsing extracted {len(transactions)} debit transactions from {filename}")
+        
+    except Exception as e:
+        logger.error(f"Error parsing PDF bank statement: {e}")
+    
+    return transactions
 
 
 def detect_columns(headers):
     """Auto-detect column mappings from headers"""
     mapping = {"date": None, "narration": None, "debit": None, "credit": None, "reference": None, "balance": None}
 
-    headers_upper = [str(h).upper().strip() for h in headers]
+    headers_upper = [str(h).upper().strip() if h else "" for h in headers]
 
-    date_keywords = ["DATE", "TXN DATE", "TRANSACTION DATE", "VALUE DATE", "POSTING DATE"]
-    narr_keywords = ["NARRATION", "DESCRIPTION", "PARTICULARS", "REMARKS", "DETAILS", "TRANSACTION DETAILS"]
-    debit_keywords = ["DEBIT", "WITHDRAWAL", "DR", "DEBIT AMOUNT", "WITHDRAWALS"]
-    credit_keywords = ["CREDIT", "DEPOSIT", "CR", "CREDIT AMOUNT", "DEPOSITS"]
-    ref_keywords = ["REFERENCE", "REF NO", "CHQ NO", "CHEQUE NO", "UTR", "REFERENCE NO"]
+    date_keywords = ["TRANSACTION DATE", "TXN DATE", "DATE", "VALUE DATE", "POSTING DATE", "TXN DT"]
+    narr_keywords = ["NARRATION", "DESCRIPTION", "PARTICULARS", "REMARKS", "DETAILS", "TRANSACTION DETAILS", "TRANSACTION DESCRIPTION"]
+    debit_keywords = ["DEBIT", "WITHDRAWAL", "DR", "DEBIT AMOUNT", "WITHDRAWALS", "DR AMOUNT", "DEBIT/WITHDRAWAL"]
+    credit_keywords = ["CREDIT", "DEPOSIT", "CR", "CREDIT AMOUNT", "DEPOSITS", "CR AMOUNT", "CREDIT/DEPOSIT"]
+    ref_keywords = ["REFERENCE", "REF NO", "CHQ NO", "CHEQUE NO", "UTR", "REFERENCE NO", "CHEQUE NO."]
     bal_keywords = ["BALANCE", "CLOSING BALANCE", "RUNNING BALANCE"]
 
     for i, h in enumerate(headers_upper):
-        if not mapping["date"] and any(k in h for k in date_keywords):
-            mapping["date"] = i
-        elif not mapping["narration"] and any(k in h for k in narr_keywords):
-            mapping["narration"] = i
-        elif not mapping["debit"] and any(k in h for k in debit_keywords):
-            mapping["debit"] = i
-        elif not mapping["credit"] and any(k in h for k in credit_keywords):
-            mapping["credit"] = i
-        elif not mapping["reference"] and any(k in h for k in ref_keywords):
-            mapping["reference"] = i
-        elif not mapping["balance"] and any(k in h for k in bal_keywords):
-            mapping["balance"] = i
+        if not h:
+            continue
+        # Check for exact or partial matches
+        if not mapping["date"]:
+            for k in date_keywords:
+                if k in h or h == k:
+                    mapping["date"] = i
+                    break
+        if not mapping["narration"]:
+            for k in narr_keywords:
+                if k in h or h == k:
+                    mapping["narration"] = i
+                    break
+        if not mapping["debit"]:
+            for k in debit_keywords:
+                if k in h or h == k:
+                    mapping["debit"] = i
+                    break
+        if not mapping["credit"]:
+            for k in credit_keywords:
+                if k in h or h == k:
+                    mapping["credit"] = i
+                    break
+        if not mapping["reference"]:
+            for k in ref_keywords:
+                if k in h or h == k:
+                    mapping["reference"] = i
+                    break
+        if not mapping["balance"]:
+            for k in bal_keywords:
+                if k in h or h == k:
+                    mapping["balance"] = i
+                    break
 
     return mapping
 
 
 async def parse_bank_statement(file_content: bytes, filename: str):
-    """Parse bank statement from Excel or CSV"""
+    """Parse bank statement from Excel, CSV, or PDF"""
     transactions = []
 
     if filename.lower().endswith((".xlsx", ".xls")):
@@ -223,17 +357,25 @@ async def parse_bank_statement(file_content: bytes, filename: str):
         if len(rows) < 2:
             return transactions
 
-        # Find header row (first row with date-like header)
-        header_idx = 0
-        for i, row in enumerate(rows[:10]):
+        # Find header row - search first 50 rows for date-like header (bank statements often have info at top)
+        header_idx = None
+        header_keywords = ["TRANSACTION DATE", "TXN DATE", "VALUE DATE", "PARTICULARS", "NARRATION", "DESCRIPTION", "DEBIT", "WITHDRAWAL"]
+        for i, row in enumerate(rows[:50]):
             row_str = " ".join(str(c).upper() for c in row if c)
-            if any(k in row_str for k in ["DATE", "NARRATION", "DESCRIPTION", "DEBIT", "WITHDRAWAL"]):
+            matches = sum(1 for k in header_keywords if k in row_str)
+            if matches >= 2:  # Need at least 2 matches (date + narration or date + debit)
                 header_idx = i
                 break
+
+        if header_idx is None:
+            logger.warning(f"Could not find header row in Excel file: {filename}")
+            return transactions
 
         headers = rows[header_idx]
         mapping = detect_columns(headers)
         data_rows = rows[header_idx + 1:]
+        logger.info(f"Excel parsing - Header at row {header_idx}: {headers}")
+        logger.info(f"Column mapping: {mapping}")
 
     elif filename.lower().endswith(".csv"):
         text = file_content.decode("utf-8", errors="ignore")
@@ -243,20 +385,31 @@ async def parse_bank_statement(file_content: bytes, filename: str):
         if len(rows) < 2:
             return transactions
 
-        header_idx = 0
-        for i, row in enumerate(rows[:10]):
+        header_idx = None
+        header_keywords = ["TRANSACTION DATE", "TXN DATE", "VALUE DATE", "PARTICULARS", "NARRATION", "DESCRIPTION", "DEBIT", "WITHDRAWAL"]
+        for i, row in enumerate(rows[:50]):
             row_str = " ".join(str(c).upper() for c in row if c)
-            if any(k in row_str for k in ["DATE", "NARRATION", "DESCRIPTION", "DEBIT", "WITHDRAWAL"]):
+            matches = sum(1 for k in header_keywords if k in row_str)
+            if matches >= 2:
                 header_idx = i
                 break
+
+        if header_idx is None:
+            return transactions
 
         headers = rows[header_idx]
         mapping = detect_columns(headers)
         data_rows = rows[header_idx + 1:]
+
+    elif filename.lower().endswith(".pdf"):
+        # Parse PDF bank statement (for Australia)
+        transactions = await parse_pdf_bank_statement(file_content, filename)
+        return transactions
     else:
         return transactions
 
     if mapping["date"] is None or (mapping["debit"] is None and mapping["credit"] is None):
+        logger.warning(f"Missing required columns. Mapping: {mapping}")
         return transactions
 
     for row in data_rows:

@@ -241,10 +241,10 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
               <Input value={bankAccount} onChange={e => setBankAccount(e.target.value)} placeholder="e.g., HDFC 1234" className="h-9 text-sm" data-testid="recon-bank" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Bank Statement (Excel/CSV)</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Bank Statement (Excel/CSV/PDF)</label>
               <Input
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept=".xlsx,.xls,.csv,.pdf"
                 onChange={e => setFile(e.target.files?.[0] || null)}
                 className="h-9 text-sm"
                 data-testid="recon-file"

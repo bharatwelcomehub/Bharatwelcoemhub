@@ -26,7 +26,10 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 ## What's Been Implemented (Latest first)
 
 ### [2026-04-02] Bank Statement vs Expense Reconciliation Feature
-- **Full Feature Implementation**: Upload bank statements (Excel/CSV), parse debit transactions, match against recorded expenses
+- **Full Feature Implementation**: Upload bank statements (Excel/CSV/PDF), parse debit transactions, match against recorded expenses
+- **File Format Support**: 
+  - India Excel/CSV: Auto-detects columns (Transaction Date, Particulars, Debit) even with 20+ header rows
+  - Australia PDF: Parses ANZ-style statements with "DD MMM Description $Amount" format
 - **Matching Logic**: Exact date+amount match, Fuzzy date (±2 days) + exact amount match
 - **Category Suggestions**: Auto-suggests categories from `expense_heads` (Category Master) using keyword mapping
 - **Actions**: Add as Expense (validates category in master), Ignore, Export CSV report
@@ -35,7 +38,7 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Critical Rules Followed**: Never auto-deletes existing expenses, categories strictly from Category Master
 - Files: `/app/backend/routes/bank_reconciliation.py`, `/app/frontend/src/components/BankReconciliation.jsx`
 - Collections: `bank_statement_uploads`, `bank_transactions`, `expense_reconciliation_log`
-- Test coverage: 100% (23/23 backend tests passed)
+- Dependencies: `pdfplumber` added for PDF parsing
 
 ### [2026-04-02] Role-Based User Manuals + Download Page
 - Created 4 standalone HTML manuals, each with unique color theme:
