@@ -559,19 +559,30 @@ async def upload_bank_statement(
     center: str = Form(...),
     month: str = Form(...),
     bank_account: str = Form(""),
-    token: str = Form(...),
+    token: str = Form(""),
 ):
     """Upload and parse a bank statement, then run reconciliation"""
+    logger.info(f"Upload request: center={center}, month={month}, token_present={bool(token)}")
+    
     session = await _get_session(token)
     if not session:
+        logger.warning(f"Authentication failed for token: {token[:10] if token else 'empty'}...")
         return {"detail": "Authentication required"}
 
     content = await file.read()
+    logger.info(f"Received file: {file.filename}, size={len(content)} bytes")
+    
     if len(content) > 10 * 1024 * 1024:
         return {"detail": "File too large (max 10MB)"}
 
     # Parse bank statement
-    transactions = await parse_bank_statement(content, file.filename)
+    try:
+        transactions = await parse_bank_statement(content, file.filename)
+        logger.info(f"Parsed {len(transactions)} transactions from {file.filename}")
+    except Exception as e:
+        logger.error(f"Error parsing bank statement: {e}")
+        return {"detail": f"Error parsing file: {str(e)}"}
+    
     if not transactions:
         return {"detail": "Could not parse any transactions from the file. Ensure it has Date, Narration, and Debit columns."}
 
