@@ -426,7 +426,7 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
               <h3 className="font-semibold text-amber-400 mb-2">Bulk Import from Custom Format:</h3>
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>Upload your existing Excel file with monthly sheets (e.g., "FEB 26", "JAN 25", "MAR 2024")</li>
-                <li>System auto-detects columns: DATE, OPENING BALANCE, CASH RECEIPTS, TOTAL SALE, CARD/IDFC, BHARAT PAY, SWIGGY, ZOMATO, ONLINE</li>
+                <li>System auto-detects columns: DATE, OPENING BALANCE, CASH RECEIPTS, TOTAL SALE, CARD/IDFC/EFTPOS, BHARAT PAY/UPI, SWIGGY, ZOMATO, DOORDASH, ONLINE/PICKUP</li>
                 <li>Select the year from which you want to import data</li>
                 <li className="text-amber-400 font-medium">Warning: Existing data for imported dates will be REPLACED</li>
               </ul>

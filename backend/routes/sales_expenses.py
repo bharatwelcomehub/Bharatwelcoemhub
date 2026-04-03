@@ -2465,13 +2465,14 @@ async def upload_custom_format_data(
             petty_col = find_col(['petty cash', 'petty'])
             cash_receipts_col = find_col(['cash receipts', 'cash receipt', 'withdrawal'])
             total_sale_col = find_col(['total sale', 'sale of the day', 'total'])
-            card_col = find_col(['card', 'idfc', 'card idfc'])
+            card_col = find_col(['card', 'idfc', 'card idfc', 'eftpos'])
             bharat_pay_col = find_col(['bharat pay', 'bharatpay', 'upi'])
             swiggy_col = find_col(['swiggy'])
             zomato_col = find_col(['zomato'])
-            online_col = find_col(['online', 'other online'])
-            guests_col = find_col(['guest', 'pax', 'no of guest', 'number of guest'])
-            bills_col = find_col(['bill', 'no of bill', 'number of bill'])
+            doordash_col = find_col(['doordash', 'door dash', 'dd'])
+            online_col = find_col(['online', 'other online', 'pickup'])
+            guests_col = find_col(['guest', 'pax', 'no of guest', 'number of guest', 'covers'])
+            bills_col = find_col(['bill', 'no of bill', 'number of bill', 'transactions'])
             
             if date_col is None:
                 results["sales"]["errors"].append(f"Sheet '{sheet_name}': No DATE column found")
@@ -2531,7 +2532,7 @@ async def upload_custom_format_data(
                         "bharat_pay": get_val(bharat_pay_col),
                         "swiggy": get_val(swiggy_col),
                         "zomato": get_val(zomato_col),
-                        "doordash": 0,
+                        "doordash": get_val(doordash_col),
                         "online_other": get_val(online_col),
                         "num_guests": int(get_val(guests_col)),
                         "num_bills": int(get_val(bills_col)),
