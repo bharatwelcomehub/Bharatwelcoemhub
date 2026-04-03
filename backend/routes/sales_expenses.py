@@ -2363,7 +2363,7 @@ async def upload_custom_format_data(
 ):
     """
     Upload sales data from custom Excel format (like SN DAILY-SALE N CASH SUMMERY).
-    Auto-detects monthly sheets and imports data from specified year onwards.
+    Looks for 'DAILY SALE' sheet or monthly sheets with sales data.
     """
     session = verify_token(token)
     if not session:
@@ -2388,71 +2388,41 @@ async def upload_custom_format_data(
             "sales": {"imported": 0, "deleted": 0, "errors": [], "sheets_processed": []},
         }
         
-        # Month name to number mapping
-        month_map = {
-            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
-            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'june': 6,
-            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
-        }
-        
         all_dates_to_delete = set()
         all_sales_records = {}  # Use dict to dedupe by center_date key
         
+        # First, try to find a "DAILY SALE" or "CASH SUMMERY" sheet
+        daily_sale_sheet = None
         for sheet_name in wb.sheetnames:
-            # Try to parse sheet name for month/year (e.g., "FEB 26", "JAN.19", "MAR 2017")
-            sheet_lower = sheet_name.lower().strip()
+            if 'DAILY SALE' in sheet_name.upper() or 'CASH SUMM' in sheet_name.upper():
+                daily_sale_sheet = sheet_name
+                break
+        
+        if daily_sale_sheet:
+            # Process the DAILY SALE sheet
+            logger.info(f"Found daily sale sheet: {daily_sale_sheet}")
+            results["sales"]["sheets_processed"].append(daily_sale_sheet)
             
-            # Pattern: "MMM YY" or "MMM.YY" or "MMM YYYY" or "MMMM.YYYY"
-            match = re.match(r'([a-z]+)[\s\.\-]*(\d{2,4})', sheet_lower)
-            if not match:
-                continue
+            ws = wb[daily_sale_sheet]
             
-            month_str = match.group(1)
-            year_str = match.group(2)
+            # Find the header rows - this sheet has 2 header rows
+            # Row 1: DATE, DEPOSITED IN BANK, CASH RECEIPTS, TOTAL SALE...
+            # Row 2: OPENING BALANCE, PETTY CASH, SALE OF THE DAY, CARD IDFC, BHARAT PAY, SWIGGY...
             
-            if month_str not in month_map:
-                continue
+            # Combine headers from first 2 rows
+            row1 = list(ws.iter_rows(min_row=1, max_row=1, values_only=True))[0]
+            row2 = list(ws.iter_rows(min_row=2, max_row=2, values_only=True))[0]
             
-            month_num = month_map[month_str]
-            
-            # Convert 2-digit year to 4-digit
-            if len(year_str) == 2:
-                year_num = int(year_str)
-                if year_num >= 0 and year_num <= 30:
-                    year_num += 2000
-                else:
-                    year_num += 1900
-            else:
-                year_num = int(year_str)
-            
-            # Filter by from_year
-            if year_num < from_year:
-                continue
-            
-            logger.info(f"Processing sheet: {sheet_name} -> {month_num}/{year_num}")
-            results["sales"]["sheets_processed"].append(sheet_name)
-            
-            ws = wb[sheet_name]
-            
-            # Find header row by looking for "DATE" column
-            header_row_idx = None
+            # Build column mapping
             col_map = {}
+            for i, (h1, h2) in enumerate(zip(row1, row2)):
+                header = str(h2 or h1 or '').upper().strip()
+                if header:
+                    col_map[header] = i
             
-            for row_idx, row in enumerate(ws.iter_rows(max_row=10, values_only=True), start=1):
-                row_lower = [str(c).lower().strip() if c else "" for c in row]
-                if "date" in row_lower:
-                    header_row_idx = row_idx
-                    for col_idx, cell in enumerate(row):
-                        if cell:
-                            col_map[str(cell).lower().strip()] = col_idx
-                    break
+            logger.info(f"Column map: {col_map}")
             
-            if header_row_idx is None:
-                results["sales"]["errors"].append(f"Sheet '{sheet_name}': Could not find DATE header")
-                continue
-            
-            # Map custom columns to standard columns
+            # Map to our field names
             def find_col(keywords):
                 for kw in keywords:
                     for col_name, idx in col_map.items():
@@ -2460,48 +2430,33 @@ async def upload_custom_format_data(
                             return idx
                 return None
             
-            date_col = find_col(['date'])
-            opening_col = find_col(['opening balance', 'opening bal'])
-            petty_col = find_col(['petty cash', 'petty'])
-            cash_receipts_col = find_col(['cash receipts', 'cash receipt', 'withdrawal'])
-            total_sale_col = find_col(['total sale', 'sale of the day', 'total'])
-            card_col = find_col(['card', 'idfc', 'card idfc', 'eftpos'])
-            bharat_pay_col = find_col(['bharat pay', 'bharatpay', 'upi'])
-            swiggy_col = find_col(['swiggy'])
-            zomato_col = find_col(['zomato'])
-            doordash_col = find_col(['doordash', 'door dash', 'dd'])
-            online_col = find_col(['online', 'other online', 'pickup'])
-            guests_col = find_col(['guest', 'pax', 'no of guest', 'number of guest', 'covers'])
-            bills_col = find_col(['bill', 'no of bill', 'number of bill', 'transactions'])
+            # Date is always first column
+            date_col = 0
+            opening_col = find_col(['OPENING BALANCE', 'OPENING BAL'])
+            petty_col = find_col(['PETTY CASH'])
+            cash_receipts_col = find_col(['CASH RECEIPTS', 'CASH RECEIPT', 'DEPOSITED IN BANK'])
+            total_sale_col = find_col(['TOTAL SALE OF THE DAY', 'TOTAL SALE'])
+            card_col = find_col(['CARD', 'IDFC', 'EFTPOS'])
+            bharat_pay_col = find_col(['BHARAT PAY', 'UPI', 'PAYTM'])
+            swiggy_col = find_col(['SWIGGY'])
+            zomato_col = find_col(['ZOMATO'])
+            doordash_col = find_col(['DOORDASH', 'DOOR DASH'])
+            online_col = find_col(['ONLINE', 'TOTAL ONLINE'])
             
-            if date_col is None:
-                results["sales"]["errors"].append(f"Sheet '{sheet_name}': No DATE column found")
-                continue
-            
-            # Process data rows
-            for row_idx, row in enumerate(ws.iter_rows(min_row=header_row_idx + 1, values_only=True), start=header_row_idx + 1):
+            # Process data rows (starting from row 4, since row 3 is usually empty)
+            for row_idx, row in enumerate(ws.iter_rows(min_row=3, values_only=True), start=3):
                 if not row or not row[date_col]:
                     continue
                 
                 try:
-                    # Parse date
                     date_val = row[date_col]
                     if isinstance(date_val, datetime):
                         date_str = date_val.strftime("%Y-%m-%d")
-                    elif isinstance(date_val, (int, float)):
-                        # Excel serial date
-                        continue
+                        date_year = date_val.year
                     else:
-                        date_str = str(date_val).strip()
-                        if not date_str or date_str.lower() in ['date', 'none', '']:
-                            continue
-                        try:
-                            datetime.strptime(date_str, "%Y-%m-%d")
-                        except:
-                            continue
+                        continue
                     
-                    # Check if date is within year filter
-                    date_year = int(date_str[:4])
+                    # Filter by from_year
                     if date_year < from_year:
                         continue
                     
@@ -2514,12 +2469,15 @@ async def upload_custom_format_data(
                             val = row[col_idx] if col_idx < len(row) else None
                             if val is None or str(val).strip() == '':
                                 return default
-                            # Handle formulas that show as strings
-                            if isinstance(val, str) and val.startswith('='):
+                            if isinstance(val, str) and (val.startswith('=') or val.startswith('#')):
                                 return default
                             return float(val)
                         except:
                             return default
+                    
+                    total_sale = get_val(total_sale_col)
+                    if total_sale <= 0:
+                        continue  # Skip rows with no sale
                     
                     record = {
                         "center": center,
@@ -2527,15 +2485,15 @@ async def upload_custom_format_data(
                         "opening_balance": get_val(opening_col),
                         "petty_cash_opening": get_val(petty_col),
                         "cash_receipts": get_val(cash_receipts_col),
-                        "total_sale": get_val(total_sale_col),
+                        "total_sale": total_sale,
                         "card_idfc": get_val(card_col),
                         "bharat_pay": get_val(bharat_pay_col),
                         "swiggy": get_val(swiggy_col),
                         "zomato": get_val(zomato_col),
                         "doordash": get_val(doordash_col),
                         "online_other": get_val(online_col),
-                        "num_guests": int(get_val(guests_col)),
-                        "num_bills": int(get_val(bills_col)),
+                        "num_guests": 0,
+                        "num_bills": 0,
                         "uploaded_at": datetime.now(timezone.utc).isoformat(),
                         "uploaded_by": session.get("managerName", "")
                     }
@@ -2548,15 +2506,177 @@ async def upload_custom_format_data(
                     record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
                     record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
                     
-                    if record["num_guests"] > 0:
-                        record["avg_per_pax"] = round(record["total_sale"] / record["num_guests"], 2)
-                    if record["num_bills"] > 0:
-                        record["avg_per_bill"] = round(record["total_sale"] / record["num_bills"], 2)
-                    
                     all_sales_records[f"{center}_{date_str}"] = record
                     
                 except Exception as e:
-                    results["sales"]["errors"].append(f"Sheet '{sheet_name}' Row {row_idx}: {str(e)}")
+                    results["sales"]["errors"].append(f"Row {row_idx}: {str(e)}")
+        
+        # If no daily sale sheet was found or processed, try monthly sheets
+        if not daily_sale_sheet or len(all_sales_records) == 0:
+            # Fall back to looking for monthly sheets with sales data
+            month_map = {
+                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+            }
+        
+            for sheet_name in wb.sheetnames:
+                # Try to parse sheet name for month/year (e.g., "FEB 26", "JAN.19", "MAR 2017")
+                sheet_lower = sheet_name.lower().strip()
+                
+                # Pattern: "MMM YY" or "MMM.YY" or "MMM YYYY" or "MMMM.YYYY"
+                match = re.match(r'([a-z]+)[\s\.\-]*(\d{2,4})', sheet_lower)
+                if not match:
+                    continue
+                
+                month_str = match.group(1)
+                year_str = match.group(2)
+                
+                if month_str not in month_map:
+                    continue
+                
+                month_num = month_map[month_str]
+                
+                # Convert 2-digit year to 4-digit
+                if len(year_str) == 2:
+                    year_num = int(year_str)
+                    if year_num >= 0 and year_num <= 30:
+                        year_num += 2000
+                    else:
+                        year_num += 1900
+                else:
+                    year_num = int(year_str)
+                
+                # Filter by from_year
+                if year_num < from_year:
+                    continue
+                
+                logger.info(f"Processing sheet: {sheet_name} -> {month_num}/{year_num}")
+                results["sales"]["sheets_processed"].append(sheet_name)
+                
+                ws = wb[sheet_name]
+                
+                # Find header row by looking for "DATE" column
+                header_row_idx = None
+                col_map = {}
+                
+                for row_idx, row in enumerate(ws.iter_rows(max_row=10, values_only=True), start=1):
+                    row_lower = [str(c).lower().strip() if c else "" for c in row]
+                    if "date" in row_lower:
+                        header_row_idx = row_idx
+                        for col_idx, cell in enumerate(row):
+                            if cell:
+                                col_map[str(cell).lower().strip()] = col_idx
+                        break
+                
+                if header_row_idx is None:
+                    results["sales"]["errors"].append(f"Sheet '{sheet_name}': Could not find DATE header")
+                    continue
+                
+                # Map custom columns to standard columns
+                def find_col(keywords):
+                    for kw in keywords:
+                        for col_name, idx in col_map.items():
+                            if kw in col_name:
+                                return idx
+                    return None
+                
+                date_col = find_col(['date'])
+                opening_col = find_col(['opening balance', 'opening bal'])
+                petty_col = find_col(['petty cash', 'petty'])
+                cash_receipts_col = find_col(['cash receipts', 'cash receipt', 'withdrawal'])
+                total_sale_col = find_col(['total sale', 'sale of the day', 'total'])
+                card_col = find_col(['card', 'idfc', 'card idfc', 'eftpos'])
+                bharat_pay_col = find_col(['bharat pay', 'bharatpay', 'upi'])
+                swiggy_col = find_col(['swiggy'])
+                zomato_col = find_col(['zomato'])
+                doordash_col = find_col(['doordash', 'door dash', 'dd'])
+                online_col = find_col(['online', 'other online', 'pickup'])
+                guests_col = find_col(['guest', 'pax', 'no of guest', 'number of guest', 'covers'])
+                bills_col = find_col(['bill', 'no of bill', 'number of bill', 'transactions'])
+                
+                if date_col is None:
+                    results["sales"]["errors"].append(f"Sheet '{sheet_name}': No DATE column found")
+                    continue
+                
+                # Process data rows
+                for row_idx, row in enumerate(ws.iter_rows(min_row=header_row_idx + 1, values_only=True), start=header_row_idx + 1):
+                    if not row or not row[date_col]:
+                        continue
+                    
+                    try:
+                        # Parse date
+                        date_val = row[date_col]
+                        if isinstance(date_val, datetime):
+                            date_str = date_val.strftime("%Y-%m-%d")
+                        elif isinstance(date_val, (int, float)):
+                            # Excel serial date
+                            continue
+                        else:
+                            date_str = str(date_val).strip()
+                            if not date_str or date_str.lower() in ['date', 'none', '']:
+                                continue
+                            try:
+                                datetime.strptime(date_str, "%Y-%m-%d")
+                            except Exception:
+                                continue
+                        
+                        # Check if date is within year filter
+                        date_year = int(date_str[:4])
+                        if date_year < from_year:
+                            continue
+                        
+                        all_dates_to_delete.add(date_str)
+                        
+                        def get_val(col_idx, default=0):
+                            if col_idx is None:
+                                return default
+                            try:
+                                val = row[col_idx] if col_idx < len(row) else None
+                                if val is None or str(val).strip() == '':
+                                    return default
+                                # Handle formulas that show as strings
+                                if isinstance(val, str) and val.startswith('='):
+                                    return default
+                                return float(val)
+                            except Exception:
+                                return default
+                        
+                        record = {
+                            "center": center,
+                            "date": date_str,
+                            "opening_balance": get_val(opening_col),
+                            "petty_cash_opening": get_val(petty_col),
+                            "cash_receipts": get_val(cash_receipts_col),
+                            "total_sale": get_val(total_sale_col),
+                            "card_idfc": get_val(card_col),
+                            "bharat_pay": get_val(bharat_pay_col),
+                            "swiggy": get_val(swiggy_col),
+                            "zomato": get_val(zomato_col),
+                            "doordash": get_val(doordash_col),
+                            "online_other": get_val(online_col),
+                            "num_guests": int(get_val(guests_col)),
+                            "num_bills": int(get_val(bills_col)),
+                            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                            "uploaded_by": session.get("managerName", "")
+                        }
+                        
+                        # Calculate derived fields
+                        total_online = (record["card_idfc"] + record["bharat_pay"] + 
+                                      record["swiggy"] + record["zomato"] + 
+                                      record["doordash"] + record["online_other"])
+                        record["total_online_sale"] = total_online
+                        record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
+                        record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                        
+                        if record["num_guests"] > 0:
+                            record["avg_per_pax"] = round(record["total_sale"] / record["num_guests"], 2)
+                        if record["num_bills"] > 0:
+                            record["avg_per_bill"] = round(record["total_sale"] / record["num_bills"], 2)
+                        
+                        all_sales_records[f"{center}_{date_str}"] = record
+                        
+                    except Exception as e:
+                        results["sales"]["errors"].append(f"Sheet '{sheet_name}' Row {row_idx}: {str(e)}")
         
         # Delete existing records for those dates
         if all_dates_to_delete:
