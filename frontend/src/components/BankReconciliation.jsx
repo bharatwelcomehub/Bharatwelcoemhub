@@ -62,46 +62,45 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
     if (!center) return toast.error("Please select a center");
     if (!month) return toast.error("Please select a month");
     
-    // Validate file size
+    // Validate file
     if (file.size === 0) {
       return toast.error("File appears to be empty. Please select a valid file.");
     }
-    if (file.size > 10 * 1024 * 1024) {
-      return toast.error("File too large. Maximum size is 10MB.");
-    }
-    
-    console.log("Uploading file:", file.name, "size:", file.size, "bytes");
 
     setUploading(true);
     try {
+      // Read file as ArrayBuffer first to ensure content is captured
+      const fileContent = await file.arrayBuffer();
+      const blob = new Blob([fileContent], { type: file.type || 'application/octet-stream' });
+      
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", blob, file.name);
       formData.append("center", center);
       formData.append("month", month);
-      formData.append("bank_account", bankAccount);
+      formData.append("bank_account", bankAccount || "");
       formData.append("token", session?.token || "");
-      
-      console.log("Sending request with token:", session?.token ? "present" : "missing");
 
-      const res = await api.post("/bank-reconciliation/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/bank-reconciliation/upload`, {
+        method: 'POST',
+        body: formData,
       });
       
-      console.log("Upload response:", res.data);
+      const data = await res.json();
 
-      if (res.data.success) {
-        setUploadId(res.data.upload_id);
-        setSummary(res.data.summary);
-        setMatched(res.data.matched || []);
-        setUnrecorded(res.data.unrecorded || []);
+      if (data.success) {
+        setUploadId(data.upload_id);
+        setSummary(data.summary);
+        setMatched(data.matched || []);
+        setUnrecorded(data.unrecorded || []);
         setAdded([]);
         setIgnored([]);
-        toast.success(`Reconciliation complete: ${res.data.summary.matched_count} matched, ${res.data.summary.unrecorded_count} unrecorded`);
+        toast.success(`Reconciliation complete: ${data.summary.matched_count} matched, ${data.summary.unrecorded_count} unrecorded`);
       } else {
-        toast.error(res.data.detail || "Upload failed");
+        toast.error(data.detail || "Upload failed");
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Upload failed");
+      console.error("Upload error:", err);
+      toast.error(err.message || "Upload failed");
     } finally {
       setUploading(false);
     }
