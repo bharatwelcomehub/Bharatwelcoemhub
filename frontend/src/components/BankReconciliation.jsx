@@ -68,7 +68,10 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
     }
     
     // Warn for large files
-    if (file.size > 5 * 1024 * 1024) {
+    const isPDF = file.name.toLowerCase().endsWith('.pdf');
+    if (file.size > 3 * 1024 * 1024 && isPDF) {
+      toast.info("Large PDF detected. This may take 15-30 seconds to process...");
+    } else if (file.size > 5 * 1024 * 1024) {
       toast.info("Large file detected. Processing may take a moment...");
     }
 
