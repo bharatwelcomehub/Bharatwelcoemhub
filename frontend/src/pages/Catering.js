@@ -173,66 +173,95 @@ const Catering = () => {
   };
 
   const generateWhatsAppMessage = () => {
-    let message = `🎊 *PURNABRAMHA CATERING INQUIRY*\n\n`;
-    message += `📍 *Center:* ${currentCenter?.displayName}\n`;
-    message += `👤 *Name:* ${name}\n`;
-    message += `📞 *Phone:* ${phone}\n`;
-    message += `🏠 *Address:* ${address}\n`;
+    let message = ``;
+    message += `═══════════════════════\n`;
+    message += `     *P U R N A B R A M H A*\n`;
+    message += `  _World's First Intelligent Restaurant_\n`;
+    message += `    _Chain Powered by A.AI Technology_\n`;
+    message += `═══════════════════════\n\n`;
+    message += `✦  *PREMIUM CATERING SERVICE*  ✦\n\n`;
+    message += `───── Guest Details ─────\n`;
+    message += `  *Name:*  ${name}\n`;
+    message += `  *Phone:*  ${phone}\n`;
+    message += `  *Venue:*  ${address}\n`;
     if (needsDelivery) {
-      message += `🚚 *Delivery:* Required\n`;
-      message += `📍 *Maps:* ${generateGoogleMapsLink()}\n`;
+      message += `  *Delivery:*  Required\n`;
+      message += `  *Map:*  ${generateGoogleMapsLink()}\n`;
     }
-    message += `\n📅 *Event Date:* ${eventDate}\n`;
-    message += `⏰ *Event Time:* ${eventTime}\n`;
-    message += `👥 *Guests:* ${guestCount}\n`;
-    message += `🎉 *Celebration:* ${bookingRules.catering.celebrationTypes.find(c => c.id === celebrationType)?.label || 'Not specified'}\n`;
+    message += `\n───── Event Information ─────\n`;
+    message += `  *Center:*  ${currentCenter?.displayName}\n`;
+    message += `  *Date:*  ${eventDate}\n`;
+    message += `  *Time:*  ${eventTime}\n`;
+    message += `  *Guests:*  ${guestCount} persons\n`;
+    message += `  *Occasion:*  ${bookingRules.catering.celebrationTypes.find(c => c.id === celebrationType)?.label || 'Not specified'}\n`;
     
-    message += `\n━━━━━━━━━━━━━━━\n`;
-    message += `*📋 PACKAGE: ${currentPackage?.name}*\n`;
-    message += `_${currentPackage?.description}_\n`;
-    message += `💰 Rate: ${formatPrice(currentPackage?.pricePerPerson || 0)}/person\n\n`;
+    message += `\n═══════════════════════\n`;
+    message += `  *${currentPackage?.name.toUpperCase()}*\n`;
+    message += `  _${currentPackage?.description}_\n`;
+    message += `  Rate: ${formatPrice(currentPackage?.pricePerPerson || 0)} per person\n`;
+    message += `═══════════════════════\n\n`;
 
-    message += `*🍽️ MENU SELECTIONS:*\n`;
+    message += `✦  *CURATED MENU*  ✦\n\n`;
 
     const categoryLabels = {
-      starters: '🥟 Starters',
-      mains: '🍲 Main Course',
-      special: '⭐ Special Bhaji',
-      desserts: '🍮 Desserts',
-      roti: '🫓 Roti/Bhakari',
-      rice: '🍚 Rice',
-      drinks: '🥤 Drinks',
-      sides: '🥗 Sides',
-      chutney: '🌶️ Chutney'
+      starters: '  Starters',
+      mains: '  Main Course',
+      special: '  Special Bhaji',
+      desserts: '  Desserts',
+      roti: '  Roti & Bhakari',
+      rice: '  Rice',
+      drinks: '  Beverages',
+      sides: '  Sides',
+      chutney: '  Chutney'
     };
 
     Object.entries(menuSelections).forEach(([category, items]) => {
       if (items.length > 0) {
         const categoryOptions = menuOptions[category === 'mains' ? 'simpleBhaji' : category === 'special' ? 'specialBhaji' : category];
         const itemNames = items.map(id => categoryOptions?.find(opt => opt.id === id)?.name || id);
-        message += `${categoryLabels[category] || category}: ${itemNames.join(', ')}\n`;
+        message += `${categoryLabels[category] || category}\n`;
+        itemNames.forEach(n => { message += `    • ${n}\n`; });
+        message += `\n`;
       }
     });
 
     // Add addon services to message
     if (needsCrockery || needsStaff) {
-      message += `\n*🛎️ ADDON SERVICES:*\n`;
+      message += `───── Premium Add-ons ─────\n\n`;
       if (needsCrockery) {
-        message += `🍽️ Crockery & Cutlery: ${crockeryHours} hour(s) @ ${formatPrice(isAustralia ? addonPricing.crockery.australia : addonPricing.crockery.india)}/hr = ${formatPrice(crockeryTotal)}\n`;
-        message += `   _(Plates, Bowls, Spoons, Serving Dishes - Return by 9 AM next day)_\n`;
+        message += `  Crockery & Cutlery\n`;
+        message += `    ${crockeryHours} hour(s) @ ${formatPrice(isAustralia ? addonPricing.crockery.australia : addonPricing.crockery.india)}/hr\n`;
+        message += `    Total: ${formatPrice(crockeryTotal)}\n`;
+        message += `    _Return by 9 AM next morning_\n\n`;
       }
       if (needsStaff) {
-        message += `👨‍🍳 Service Staff: ${staffCount} person(s) × ${staffHours} hour(s) = ${formatPrice(staffTotal)}\n`;
+        message += `  Service Staff\n`;
+        message += `    ${staffCount} person(s) × ${staffHours} hour(s)\n`;
+        message += `    Total: ${formatPrice(staffTotal)}\n\n`;
       }
     }
 
-    message += `\n━━━━━━━━━━━━━━━\n`;
-    message += `*💰 COST BREAKDOWN:*\n`;
-    message += `Food (${guestCount} × ${formatPrice(currentPackage?.pricePerPerson || 0)}): ${formatPrice(foodTotal)}\n`;
-    if (needsCrockery) message += `Crockery Rental: ${formatPrice(crockeryTotal)}\n`;
-    if (needsStaff) message += `Service Staff: ${formatPrice(staffTotal)}\n`;
-    message += `\n*ESTIMATED TOTAL: ${formatPrice(estimatedTotal)}*\n`;
-    message += `\n⚠️ _Final quote will be confirmed after discussion. Prices may vary based on customization._`;
+    message += `═══════════════════════\n`;
+    message += `       *COST SUMMARY*\n`;
+    message += `═══════════════════════\n\n`;
+    message += `  Food (${guestCount} × ${formatPrice(currentPackage?.pricePerPerson || 0)})\n`;
+    message += `  ─────────────  ${formatPrice(foodTotal)}\n`;
+    if (needsCrockery) {
+      message += `  Crockery Rental\n`;
+      message += `  ─────────────  ${formatPrice(crockeryTotal)}\n`;
+    }
+    if (needsStaff) {
+      message += `  Service Staff\n`;
+      message += `  ─────────────  ${formatPrice(staffTotal)}\n`;
+    }
+    message += `\n  ✦ *ESTIMATED TOTAL: ${formatPrice(estimatedTotal)}* ✦\n`;
+    message += `\n═══════════════════════\n`;
+    message += `  _Final pricing confirmed after_\n`;
+    message += `  _personal consultation. Customization_\n`;
+    message += `  _options available._\n`;
+    message += `═══════════════════════\n`;
+    message += `\n  _Purnabramha — Authentic Maharashtrian_\n`;
+    message += `  _Cuisine Since 2012_\n`;
 
     return encodeURIComponent(message);
   };
@@ -850,68 +879,75 @@ const Catering = () => {
             </div>
           </div>
         ) : (
-          /* Review Section */
+          /* Review Section - Premium */
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-2xl mx-auto"
           >
-            <Card className="border-amber-200 shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white rounded-t-lg">
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-6 w-6" />
-                  Review Your Inquiry
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
+            <Card className="border-0 shadow-2xl overflow-hidden">
+              {/* Premium Header */}
+              <div className="bg-gradient-to-r from-[#3a0f0f] via-[#5c1e1e] to-[#3a0f0f] p-6 text-center">
+                <p className="text-amber-400 text-xs tracking-[0.3em] uppercase mb-1">Purnabramha</p>
+                <h2 className="text-2xl font-playfair font-bold text-white mb-1">Premium Catering</h2>
+                <p className="text-amber-300/70 text-xs italic">World's First Intelligent Restaurant Chain</p>
+                <div className="w-16 h-0.5 bg-amber-400 mx-auto mt-3" />
+              </div>
+
+              <CardContent className="pt-6 space-y-5 bg-gradient-to-b from-amber-50/50 to-white">
+                {/* Guest & Event Info */}
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Center</p>
-                    <p className="font-semibold">{currentCenter?.displayName}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Guest</p>
+                    <p className="font-semibold text-[#5c1e1e]">{name}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{phone}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Event Date</p>
-                    <p className="font-semibold">{eventDate} at {eventTime}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Event</p>
+                    <p className="font-semibold text-[#5c1e1e]">{eventDate}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{eventTime} • {guestCount} guests</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Name</p>
-                    <p className="font-semibold">{name}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Center</p>
+                    <p className="font-semibold text-[#5c1e1e]">{currentCenter?.displayName}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Guests</p>
-                    <p className="font-semibold">{guestCount}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Package</p>
+                    <p className="font-semibold text-[#5c1e1e]">{currentPackage?.name}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{formatPrice(currentPackage?.pricePerPerson || 0)}/person</p>
                   </div>
-                  <div className="col-span-2">
-                    <p className="text-gray-500">Address</p>
-                    <p className="font-semibold">{address}</p>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <p className="font-semibold mb-2">Package: {currentPackage?.name}</p>
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Estimated Total:</span>
-                    <span className="text-[#5c1e1e]">{formatPrice(estimatedTotal)}</span>
+                  <div className="col-span-2 bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Venue</p>
+                    <p className="font-semibold text-[#5c1e1e]">{address}</p>
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-4">
+                {/* Total */}
+                <div className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] rounded-xl p-4 text-center">
+                  <p className="text-amber-300 text-xs uppercase tracking-wider mb-1">Estimated Total</p>
+                  <p className="text-3xl font-bold text-white">{formatPrice(estimatedTotal)}</p>
+                  <p className="text-amber-200/60 text-xs mt-1">Final pricing after consultation</p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
                   <Button
                     variant="outline"
                     onClick={() => setShowReview(false)}
-                    className="flex-1"
+                    className="flex-1 border-amber-300 text-[#5c1e1e] hover:bg-amber-50"
                   >
                     Edit Inquiry
                   </Button>
                   <Button
                     onClick={confirmBooking}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    className="flex-1 bg-green-600 hover:bg-green-700 shadow-lg"
                     data-testid="catering-confirm-btn"
                   >
                     <MessageCircle className="h-5 w-5 mr-2" />
-                    Confirm & Send
+                    Send via WhatsApp
                   </Button>
                 </div>
+
+                <p className="text-center text-[10px] text-gray-400 italic">Powered by A.AI Technology</p>
               </CardContent>
             </Card>
           </motion.div>

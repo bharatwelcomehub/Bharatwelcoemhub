@@ -163,22 +163,30 @@ const Tiffin = () => {
   }, [lunchSelections, brunchSelections, unlimitedBreakfast, lunchBoxOptions, heavyBrunchItems, drinkAddons, pricing, isAustralia, breakfastPricing]);
 
   const generateWhatsAppMessage = () => {
-    let message = `🍱 *PURNABRAMHA TIFFIN BOOKING*\n\n`;
-    message += `📍 *Center:* ${currentCenter?.displayName}\n`;
-    message += `👤 *Name:* ${name}\n`;
-    message += `📞 *Mobile:* ${mobile}\n`;
-    message += `📅 *Week:* ${currentWeekData?.label}\n\n`;
+    let message = ``;
+    message += `═══════════════════════\n`;
+    message += `     *P U R N A B R A M H A*\n`;
+    message += `  _World's First Intelligent Restaurant_\n`;
+    message += `    _Chain Powered by A.AI Technology_\n`;
+    message += `═══════════════════════\n\n`;
+    message += `✦  *TIFFIN SERVICE ORDER*  ✦\n\n`;
+    message += `───── Customer Details ─────\n\n`;
+    message += `  *Name:*    ${name}\n`;
+    message += `  *Mobile:*  ${mobile}\n`;
+    message += `  *Center:*  ${currentCenter?.displayName}\n`;
+    message += `  *Week:*    ${currentWeekData?.label}\n\n`;
 
     if (Object.keys(lunchSelections).length > 0) {
-      message += `*🍱 LUNCH BOX ORDERS:*\n`;
+      message += `───── Lunch Box Orders ─────\n\n`;
       currentWeekData?.days.forEach(day => {
         const selection = lunchSelections[day.date];
         if (selection?.included && selection?.lunchBox) {
           const lunchBox = lunchBoxOptions.find(l => l.id === selection.lunchBox);
-          message += `• ${day.name} (${day.displayDate}): ${lunchBox?.name} @ ${selection.pickupTime || defaultPickupTime}\n`;
+          message += `  ${day.name} (${day.displayDate})\n`;
+          message += `    • ${lunchBox?.name} @ ${selection.pickupTime || defaultPickupTime}\n`;
         }
       });
-      message += `_Lunch Total: ${formatPrice(calculateTotals.lunchTotal)}_\n\n`;
+      message += `\n  Lunch Subtotal: ${formatPrice(calculateTotals.lunchTotal)}\n\n`;
     }
 
     const hasBrunch = Object.values(brunchSelections).some(items => 
@@ -186,7 +194,7 @@ const Tiffin = () => {
     );
     
     if (hasBrunch) {
-      message += `*🥞 HEAVY BRUNCH ORDERS:*\n`;
+      message += `───── Heavy Brunch Orders ─────\n\n`;
       currentWeekData?.days.forEach(day => {
         const items = brunchSelections[day.date];
         if (items) {
@@ -197,29 +205,35 @@ const Tiffin = () => {
               let addons = [];
               if (s.buttermilk) addons.push('Buttermilk');
               if (s.kokum) addons.push('Kokum');
-              return `${item?.name} x${s.qty}${addons.length ? ` + ${addons.join(', ')}` : ''}`;
+              return `${item?.name} × ${s.qty}${addons.length ? ` + ${addons.join(', ')}` : ''}`;
             });
           if (dayItems.length > 0) {
-            message += `• ${day.name}: ${dayItems.join(', ')}\n`;
+            message += `  ${day.name}\n`;
+            dayItems.forEach(di => { message += `    • ${di}\n`; });
           }
         }
       });
-      message += `_Brunch Total: ${formatPrice(calculateTotals.brunchTotal)}_\n\n`;
+      message += `\n  Brunch Subtotal: ${formatPrice(calculateTotals.brunchTotal)}\n\n`;
     }
 
     if (unlimitedBreakfast.enabled) {
-      message += `*☀️ UNLIMITED BREAKFAST:*\n`;
-      message += `• Date: ${unlimitedBreakfast.date}\n`;
-      message += `• Guests: ${unlimitedBreakfast.guests}\n`;
-      message += `• Price: ${formatPrice(calculateTotals.breakfastTotal)}\n\n`;
+      message += `───── Unlimited Breakfast ─────\n\n`;
+      message += `  Date:    ${unlimitedBreakfast.date}\n`;
+      message += `  Guests:  ${unlimitedBreakfast.guests}\n`;
+      message += `  Price:   ${formatPrice(calculateTotals.breakfastTotal)}\n\n`;
     }
 
-    message += `━━━━━━━━━━━━━━━\n`;
+    message += `═══════════════════════\n`;
+    message += `         *TOTAL*\n`;
+    message += `═══════════════════════\n\n`;
     if (!isAustralia && calculateTotals.gst > 0) {
-      message += `Subtotal: ${formatPrice(calculateTotals.subtotal)}\n`;
-      message += `GST (5%): ${formatPrice(calculateTotals.gst)}\n`;
+      message += `  Subtotal:  ${formatPrice(calculateTotals.subtotal)}\n`;
+      message += `  GST (5%):  ${formatPrice(calculateTotals.gst)}\n\n`;
     }
-    message += `*GRAND TOTAL: ${formatPrice(calculateTotals.grandTotal)}*\n`;
+    message += `  ✦ *GRAND TOTAL: ${formatPrice(calculateTotals.grandTotal)}* ✦\n`;
+    message += `\n═══════════════════════\n`;
+    message += `  _Purnabramha — Authentic Maharashtrian_\n`;
+    message += `  _Cuisine Since 2012_\n`;
 
     return encodeURIComponent(message);
   };
@@ -655,83 +669,95 @@ const Tiffin = () => {
             </div>
           </div>
         ) : (
-          /* Review Section */
+          /* Review Section - Premium */
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-2xl mx-auto"
           >
-            <Card className="border-amber-200 shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white rounded-t-lg">
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-6 w-6" />
-                  Review Your Order
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
+            <Card className="border-0 shadow-2xl overflow-hidden">
+              {/* Premium Header */}
+              <div className="bg-gradient-to-r from-[#3a0f0f] via-[#5c1e1e] to-[#3a0f0f] p-6 text-center">
+                <p className="text-amber-400 text-xs tracking-[0.3em] uppercase mb-1">Purnabramha</p>
+                <h2 className="text-2xl font-playfair font-bold text-white mb-1">Tiffin Service</h2>
+                <p className="text-amber-300/70 text-xs italic">World's First Intelligent Restaurant Chain</p>
+                <div className="w-16 h-0.5 bg-amber-400 mx-auto mt-3" />
+              </div>
+
+              <CardContent className="pt-6 space-y-5 bg-gradient-to-b from-amber-50/50 to-white">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Center</p>
-                    <p className="font-semibold">{currentCenter?.displayName}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Customer</p>
+                    <p className="font-semibold text-[#5c1e1e]">{name}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{mobile}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Week</p>
-                    <p className="font-semibold">{currentWeekData?.label}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Center</p>
+                    <p className="font-semibold text-[#5c1e1e]">{currentCenter?.displayName}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Name</p>
-                    <p className="font-semibold">{name}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Mobile</p>
-                    <p className="font-semibold">{mobile}</p>
+                  <div className="col-span-2 bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Week</p>
+                    <p className="font-semibold text-[#5c1e1e]">{currentWeekData?.label}</p>
                   </div>
                 </div>
 
-                <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span>Lunch Total:</span>
-                    <span>{formatPrice(calculateTotals.lunchTotal)}</span>
+                {/* Order Breakdown */}
+                <div className="space-y-3">
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Lunch Orders</span>
+                      <span className="font-semibold text-[#5c1e1e]">{formatPrice(calculateTotals.lunchTotal)}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Brunch Total:</span>
-                    <span>{formatPrice(calculateTotals.brunchTotal)}</span>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Brunch Orders</span>
+                      <span className="font-semibold text-[#5c1e1e]">{formatPrice(calculateTotals.brunchTotal)}</span>
+                    </div>
                   </div>
                   {unlimitedBreakfast.enabled && (
-                    <div className="flex justify-between text-orange-600">
-                      <span>Unlimited Breakfast ({unlimitedBreakfast.guests} guests):</span>
-                      <span>{formatPrice(calculateTotals.breakfastTotal)}</span>
+                    <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Unlimited Breakfast ({unlimitedBreakfast.guests} guests)</span>
+                        <span className="font-semibold text-orange-600">{formatPrice(calculateTotals.breakfastTotal)}</span>
+                      </div>
                     </div>
                   )}
                   {!isAustralia && calculateTotals.gst > 0 && (
-                    <div className="flex justify-between text-gray-500">
-                      <span>GST (5%):</span>
-                      <span>{formatPrice(calculateTotals.gst)}</span>
+                    <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-500">GST (5%)</span>
+                        <span className="text-gray-500">{formatPrice(calculateTotals.gst)}</span>
+                      </div>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                    <span>Grand Total:</span>
-                    <span className="text-[#5c1e1e]">{formatPrice(calculateTotals.grandTotal)}</span>
-                  </div>
                 </div>
 
-                <div className="flex gap-4 pt-4">
+                {/* Grand Total */}
+                <div className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] rounded-xl p-4 text-center">
+                  <p className="text-amber-300 text-xs uppercase tracking-wider mb-1">Grand Total</p>
+                  <p className="text-3xl font-bold text-white">{formatPrice(calculateTotals.grandTotal)}</p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
                   <Button
                     variant="outline"
                     onClick={() => setShowReview(false)}
-                    className="flex-1"
+                    className="flex-1 border-amber-300 text-[#5c1e1e] hover:bg-amber-50"
                   >
                     Edit Order
                   </Button>
                   <Button
                     onClick={confirmBooking}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    className="flex-1 bg-green-600 hover:bg-green-700 shadow-lg"
                     data-testid="tiffin-confirm-btn"
                   >
                     <MessageCircle className="h-5 w-5 mr-2" />
-                    Confirm & Send
+                    Send via WhatsApp
                   </Button>
                 </div>
+
+                <p className="text-center text-[10px] text-gray-400 italic">Powered by A.AI Technology</p>
               </CardContent>
             </Card>
           </motion.div>

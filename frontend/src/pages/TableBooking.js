@@ -144,30 +144,46 @@ const TableBooking = () => {
     const timeSlotLabel = bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label || '';
     const celebrationLabel = bookingRules.tableBooking.celebrationOptions.find(c => c.id === celebration)?.label || '';
     
-    let message = `🪔 *PURNABRAMHA TABLE BOOKING*\n\n`;
-    message += `📍 *Center:* ${currentCenter?.displayName}\n`;
-    message += `📅 *Date:* ${bookingDate}\n`;
-    message += `⏰ *Time:* ${timeSlotLabel}\n`;
-    message += `🍽️ *Service:* ${serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}\n`;
-    message += `👥 *Guests:* ${guestCount}\n`;
-    message += `🎉 *Celebration:* ${celebrationLabel}\n\n`;
-    message += `👤 *Name:* ${name}\n`;
-    message += `📞 *Phone:* ${phone}\n`;
-    if (email) message += `📧 *Email:* ${email}\n`;
+    let message = ``;
+    message += `═══════════════════════\n`;
+    message += `     *P U R N A B R A M H A*\n`;
+    message += `  _World's First Intelligent Restaurant_\n`;
+    message += `    _Chain Powered by A.AI Technology_\n`;
+    message += `═══════════════════════\n\n`;
+    message += `✦  *TABLE RESERVATION*  ✦\n\n`;
+    message += `───── Reservation Details ─────\n\n`;
+    message += `  *Center:*    ${currentCenter?.displayName}\n`;
+    message += `  *Date:*      ${bookingDate}\n`;
+    message += `  *Time:*      ${timeSlotLabel}\n`;
+    message += `  *Service:*   ${serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}\n`;
+    message += `  *Guests:*    ${guestCount}\n`;
+    if (celebration !== 'none') {
+      message += `  *Occasion:*  ${celebrationLabel}\n`;
+    }
+    message += `\n───── Guest Information ─────\n\n`;
+    message += `  *Name:*   ${name}\n`;
+    message += `  *Phone:*  ${phone}\n`;
+    if (email) message += `  *Email:*  ${email}\n`;
     
     if (cartItemCount > 0) {
-      message += `\n🛒 *Pre-Order Items:*\n`;
+      message += `\n───── Pre-Order Menu ─────\n\n`;
       Object.entries(cart).forEach(([id, item]) => {
-        message += `• ${item.name} x${item.qty} = ${formatPrice(item.price * item.qty)}\n`;
+        message += `    • ${item.name} × ${item.qty}  —  ${formatPrice(item.price * item.qty)}\n`;
       });
-      message += `\n💰 *Order Total:* ${formatPrice(cartTotal)}\n`;
+      message += `\n  ✦ *Order Total: ${formatPrice(cartTotal)}* ✦\n`;
     }
     
     if (specialRequests) {
-      message += `\n📝 *Special Requests:*\n${specialRequests}\n`;
+      message += `\n───── Special Requests ─────\n\n`;
+      message += `  ${specialRequests}\n`;
     }
     
-    message += `\n⚠️ _Booking confirmation pending Center Manager's reply._`;
+    message += `\n═══════════════════════\n`;
+    message += `  _Booking confirmation pending_\n`;
+    message += `  _Center Manager's approval._\n`;
+    message += `═══════════════════════\n`;
+    message += `\n  _Purnabramha — Authentic Maharashtrian_\n`;
+    message += `  _Cuisine Since 2012_\n`;
     
     return encodeURIComponent(message);
   };
@@ -555,93 +571,90 @@ const TableBooking = () => {
             </div>
           </div>
         ) : (
-          /* Review Section */
+          /* Review Section - Premium */
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-2xl mx-auto"
           >
-            <Card className="border-amber-200 shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] text-white rounded-t-lg">
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <CheckCircle className="h-6 w-6" />
-                  Review Your Booking
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
+            <Card className="border-0 shadow-2xl overflow-hidden">
+              {/* Premium Header */}
+              <div className="bg-gradient-to-r from-[#3a0f0f] via-[#5c1e1e] to-[#3a0f0f] p-6 text-center">
+                <p className="text-amber-400 text-xs tracking-[0.3em] uppercase mb-1">Purnabramha</p>
+                <h2 className="text-2xl font-playfair font-bold text-white mb-1">Table Reservation</h2>
+                <p className="text-amber-300/70 text-xs italic">World's First Intelligent Restaurant Chain</p>
+                <div className="w-16 h-0.5 bg-amber-400 mx-auto mt-3" />
+              </div>
+
+              <CardContent className="pt-6 space-y-5 bg-gradient-to-b from-amber-50/50 to-white">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Center</p>
-                    <p className="font-semibold">{currentCenter?.displayName}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Center</p>
+                    <p className="font-semibold text-[#5c1e1e]">{currentCenter?.displayName}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Date & Time</p>
-                    <p className="font-semibold">
-                      {bookingDate} • {bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label}
-                    </p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Date & Time</p>
+                    <p className="font-semibold text-[#5c1e1e]">{bookingDate}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Service</p>
-                    <p className="font-semibold">{serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Service</p>
+                    <p className="font-semibold text-[#5c1e1e]">{serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{guestCount} guests</p>
                   </div>
-                  <div>
-                    <p className="text-gray-500">Guests</p>
-                    <p className="font-semibold">{guestCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Name</p>
-                    <p className="font-semibold">{name}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Phone</p>
-                    <p className="font-semibold">{phone}</p>
+                  <div className="bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                    <p className="text-amber-600 text-xs uppercase tracking-wider mb-1">Guest</p>
+                    <p className="font-semibold text-[#5c1e1e]">{name}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">{phone}</p>
                   </div>
                 </div>
 
                 {cartItemCount > 0 && (
-                  <div className="border-t border-amber-200 pt-4">
-                    <p className="font-semibold mb-2">Pre-Order Items:</p>
+                  <div className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] rounded-xl p-4">
+                    <p className="text-amber-300 text-xs uppercase tracking-wider mb-2">Pre-Order Items</p>
                     <div className="space-y-1">
                       {Object.entries(cart).map(([id, item]) => (
-                        <div key={id} className="flex justify-between text-sm">
-                          <span>{item.name} x{item.qty}</span>
+                        <div key={id} className="flex justify-between text-sm text-white/90">
+                          <span>{item.name} × {item.qty}</span>
                           <span>{formatPrice(item.price * item.qty)}</span>
                         </div>
                       ))}
-                      <div className="flex justify-between font-bold pt-2 border-t">
-                        <span>Total:</span>
+                      <div className="flex justify-between font-bold text-lg pt-2 border-t border-white/20 text-white">
+                        <span>Total</span>
                         <span>{formatPrice(cartTotal)}</span>
                       </div>
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-4 pt-4">
+                <div className="flex gap-3 pt-2">
                   <Button
                     variant="outline"
                     onClick={() => setShowReview(false)}
-                    className="flex-1"
+                    className="flex-1 border-amber-300 text-[#5c1e1e] hover:bg-amber-50"
                     data-testid="edit-booking-btn"
                   >
-                    Edit Order
+                    Edit Booking
                   </Button>
                   <Button
                     onClick={confirmBooking}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    className="flex-1 bg-green-600 hover:bg-green-700 shadow-lg"
                     data-testid="confirm-booking-btn"
                   >
                     <MessageCircle className="h-5 w-5 mr-2" />
-                    Confirm & Send
+                    Send via WhatsApp
                   </Button>
                 </div>
 
                 <Button
                   variant="ghost"
                   onClick={resetForm}
-                  className="w-full text-gray-500"
+                  className="w-full text-gray-400 hover:text-gray-600"
                 >
                   Reset Form
                 </Button>
+
+                <p className="text-center text-[10px] text-gray-400 italic">Powered by A.AI Technology</p>
               </CardContent>
             </Card>
           </motion.div>
