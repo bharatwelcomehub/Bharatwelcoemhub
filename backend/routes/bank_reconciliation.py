@@ -191,7 +191,7 @@ def parse_date(val, year_hint=None):
 
 
 async def parse_pdf_bank_statement(file_content: bytes, filename: str):
-    """Parse PDF bank statement (for Australian banks like ANZ)"""
+    """Parse PDF bank statement using table extraction (for Australian banks like ANZ)"""
     transactions = []
     
     try:
@@ -202,17 +202,187 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
     
     try:
         with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+            # Try to detect the statement year from first page text
+            first_page_text = pdf.pages[0].extract_text() or ""
+            year_match = re.search(r'\b(202[4-9]|20[3-9]\d)\b', first_page_text)
+            year_hint = int(year_match.group()) if year_match else datetime.now().year
+            
+            logger.info(f"PDF parsing: {len(pdf.pages)} pages, year hint: {year_hint}")
+            
+            # Column name mapping - normalize ANZ headers to expected names
+            column_mapping = {
+                # Date column variations
+                'date': 'date',
+                'transaction date': 'date',
+                'trans date': 'date',
+                'value date': 'date',
+                
+                # Narration/Description column variations
+                'narration': 'narration',
+                'description': 'narration',
+                'details': 'narration',
+                'transaction details': 'narration',
+                'transaction description': 'narration',
+                'particulars': 'narration',
+                
+                # Debit column variations
+                'debit': 'debit',
+                'debit amount': 'debit',
+                'withdrawal': 'debit',
+                'withdrawals': 'debit',
+                'money out': 'debit',
+                'dr': 'debit',
+                
+                # Credit column variations (to identify and skip)
+                'credit': 'credit',
+                'credit amount': 'credit',
+                'deposit': 'credit',
+                'deposits': 'credit',
+                'money in': 'credit',
+                'cr': 'credit',
+                
+                # Balance column
+                'balance': 'balance',
+                'running balance': 'balance',
+            }
+            
+            all_rows = []
+            header_found = False
+            col_indices = {}
+            
+            # Extract tables from all pages
+            for page_num, page in enumerate(pdf.pages):
+                tables = page.extract_tables()
+                
+                for table in tables:
+                    if not table:
+                        continue
+                    
+                    for row in table:
+                        if not row or all(cell is None or str(cell).strip() == '' for cell in row):
+                            continue
+                        
+                        # Clean row data
+                        cleaned_row = [str(cell).strip() if cell else '' for cell in row]
+                        
+                        # Check if this is a header row
+                        if not header_found:
+                            row_lower = [c.lower() for c in cleaned_row]
+                            
+                            # Look for header keywords
+                            for i, cell in enumerate(row_lower):
+                                normalized = column_mapping.get(cell)
+                                if normalized:
+                                    col_indices[normalized] = i
+                            
+                            # If we found at least date and (debit or description), this is the header
+                            if 'date' in col_indices and ('debit' in col_indices or 'narration' in col_indices):
+                                header_found = True
+                                logger.info(f"Found header row on page {page_num + 1}: {col_indices}")
+                                continue
+                        
+                        # Process data rows
+                        if header_found:
+                            all_rows.append(cleaned_row)
+            
+            # If no table found, fall back to text extraction
+            if not header_found or not all_rows:
+                logger.info("No tables found, falling back to text extraction")
+                return await parse_pdf_text_fallback(file_content, filename, year_hint)
+            
+            # Process extracted rows
+            logger.info(f"Processing {len(all_rows)} rows from tables")
+            
+            skip_patterns = [
+                'OPENING BALANCE', 'CLOSING BALANCE', 'BALANCE BROUGHT FORWARD',
+                'BALANCE CARRIED FORWARD', 'STATEMENT PERIOD', 'ACCOUNT NUMBER',
+                'INTERIM STATEMENT', 'TOTAL'
+            ]
+            
+            for row in all_rows:
+                try:
+                    # Get date
+                    date_idx = col_indices.get('date')
+                    if date_idx is None or date_idx >= len(row):
+                        continue
+                    
+                    date_val = row[date_idx]
+                    if not date_val:
+                        continue
+                    
+                    # Skip summary rows
+                    row_text = ' '.join(row).upper()
+                    if any(skip in row_text for skip in skip_patterns):
+                        continue
+                    
+                    # Parse date
+                    parsed_date = parse_date(date_val, year_hint)
+                    if not parsed_date:
+                        continue
+                    
+                    # Get narration/description
+                    narration_idx = col_indices.get('narration')
+                    narration = row[narration_idx] if narration_idx is not None and narration_idx < len(row) else ''
+                    
+                    # Get debit amount
+                    debit_idx = col_indices.get('debit')
+                    debit_val = row[debit_idx] if debit_idx is not None and debit_idx < len(row) else ''
+                    debit_amount = parse_amount(debit_val) if debit_val else 0
+                    
+                    # Get credit amount (to skip credit transactions)
+                    credit_idx = col_indices.get('credit')
+                    credit_val = row[credit_idx] if credit_idx is not None and credit_idx < len(row) else ''
+                    credit_amount = parse_amount(credit_val) if credit_val else 0
+                    
+                    # Skip if no debit or if it's a credit transaction
+                    if debit_amount <= 0:
+                        continue
+                    
+                    # Skip credits based on narration keywords
+                    if narration and any(kw in narration.upper() for kw in [
+                        'TRANSFER FROM', 'DEPOSIT', 'CREDIT', 'REFUND', 'INTEREST PAID',
+                        'TAX REFUND', 'REVERSAL', 'REBATE'
+                    ]):
+                        continue
+                    
+                    if not narration or len(narration) < 3:
+                        narration = "Transaction"
+                    
+                    transactions.append({
+                        "transaction_id": str(uuid.uuid4())[:12],
+                        "transaction_date": parsed_date,
+                        "narration": narration,
+                        "debit_amount": debit_amount,
+                        "credit_amount": credit_amount,
+                        "reference_number": "",
+                        "balance": None,
+                    })
+                    
+                except Exception as e:
+                    logger.debug(f"Error parsing row: {e}")
+                    continue
+        
+        logger.info(f"PDF table extraction: {len(transactions)} debit transactions from {filename}")
+        
+    except Exception as e:
+        logger.error(f"Error parsing PDF bank statement: {e}")
+    
+    return transactions
+
+
+async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint: int):
+    """Fallback text-based PDF parsing when table extraction fails"""
+    transactions = []
+    
+    try:
+        import pdfplumber
+        
+        with pdfplumber.open(io.BytesIO(file_content)) as pdf:
             all_text = ""
-            # Process all pages for ANZ statements
             for page in pdf.pages:
                 page_text = page.extract_text() or ""
                 all_text += page_text + "\n"
         
-        # Try to detect the statement year
-        year_match = re.search(r'\b(202[4-9]|20[3-9]\d)\b', all_text)
-        year_hint = int(year_match.group()) if year_match else datetime.now().year
-        
-        # Skip patterns
         skip_patterns = [
             'OPENING BALANCE', 'CLOSING BALANCE', 'BALANCE BROUGHT FORWARD',
             'BALANCE CARRIED FORWARD', 'STATEMENT PERIOD', 'ACCOUNT NUMBER',
@@ -229,8 +399,7 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
             if any(skip in line.upper() for skip in skip_patterns):
                 continue
             
-            # Pattern 1: "20 JAN DESCRIPTION... $90.54" or "04 MAR DESCRIPTION 90.54"
-            # Match date at start: DD MMM or DD/MM format
+            # Pattern: "20 JAN DESCRIPTION... $90.54" or "04 MAR DESCRIPTION 90.54"
             date_match = re.match(r'^(\d{1,2}\s+[A-Z]{3}|\d{1,2}/\d{1,2})\s+(.+)', line, re.IGNORECASE)
             if not date_match:
                 continue
@@ -242,27 +411,24 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
             if not parsed_date:
                 continue
             
-            # Extract amount - look for number pattern (with or without $)
-            # ANZ format may have amount without $ sign
+            # Extract amount
             amount_match = re.search(r'[\$]?\s*([\d,]+\.\d{2})\s*$', rest)
             if not amount_match:
-                # Try to find amount anywhere in the line
                 amount_match = re.search(r'([\d,]+\.\d{2})', rest)
                 if not amount_match:
                     continue
             
             amount = parse_amount(amount_match.group(1))
-            if amount == 0 or amount > 1000000:  # Skip invalid amounts
+            if amount == 0 or amount > 1000000:
                 continue
             
-            # Get narration
             narration = rest[:amount_match.start()].strip() if amount_match.start() > 0 else rest
-            narration = re.sub(r'[\d,]+\.\d{2}', '', narration).strip()  # Remove any remaining amounts
+            narration = re.sub(r'[\d,]+\.\d{2}', '', narration).strip()
             
             if len(narration) < 3:
                 continue
             
-            # Skip credits based on keywords
+            # Skip credits
             is_credit = any(kw in narration.upper() for kw in [
                 'TRANSFER FROM', 'DEPOSIT', 'CREDIT', 'REFUND', 'INTEREST PAID',
                 'TAX REFUND', 'REVERSAL', 'REBATE', 'FROM ANZ', 'FROM AMEX'
@@ -271,7 +437,6 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
             if is_credit:
                 continue
             
-            # Skip if narration looks like header/footer
             if any(kw in narration.upper() for kw in ['TELEPHONE', 'ENQUIRIES', 'PAGE', 'ACCOUNT TYPE']):
                 continue
             
@@ -285,10 +450,12 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
                 "balance": None,
             })
         
-        logger.info(f"PDF parsing extracted {len(transactions)} debit transactions from {filename}")
+        logger.info(f"PDF text fallback: {len(transactions)} debit transactions from {filename}")
         
     except Exception as e:
-        logger.error(f"Error parsing PDF bank statement: {e}")
+        logger.error(f"Error in PDF text fallback: {e}")
+    
+    return transactions
     
     return transactions
 
