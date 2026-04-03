@@ -408,7 +408,9 @@ async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint:
         skip_patterns = [
             'OPENING BALANCE', 'CLOSING BALANCE', 'BALANCE BROUGHT FORWARD',
             'BALANCE CARRIED FORWARD', 'STATEMENT PERIOD', 'ACCOUNT NUMBER',
-            'INTERIM STATEMENT', 'TRANSACTION DESCRIPTION'
+            'INTERIM STATEMENT', 'TRANSACTION DESCRIPTION', 'TRANSACTION DETAILS',
+            'WITHDRAWALS ($)', 'DEPOSITS ($)', 'BALANCE ($)', 'NEED TO GET IN TOUCH',
+            'WELCOME TO YOUR', 'ACCOUNT DETAILS', 'TOTAL DEPOSITS', 'TOTAL WITHDRAWALS'
         ]
         
         lines = all_text.split('\n')
@@ -418,10 +420,14 @@ async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint:
             if not line or len(line) < 10:
                 continue
             
-            if any(skip in line.upper() for skip in skip_patterns):
+            # Skip header/summary lines
+            line_upper = line.upper()
+            if any(skip in line_upper for skip in skip_patterns):
                 continue
             
-            # Pattern: "20 JAN DESCRIPTION... $90.54" or "04 MAR DESCRIPTION 90.54"
+            # Pattern 1: "21 JAN DESCRIPTION... 6.61 blank 8,951.07" (ANZ format with blank)
+            # Pattern 2: "20 FEB DESCRIPTION... $90.54" (older format)
+            # Match date at start: DD MMM or DD/MM format
             date_match = re.match(r'^(\d{1,2}\s+[A-Z]{3}|\d{1,2}/\d{1,2})\s+(.+)', line, re.IGNORECASE)
             if not date_match:
                 continue
@@ -433,34 +439,53 @@ async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint:
             if not parsed_date:
                 continue
             
-            # Extract amount
-            amount_match = re.search(r'[\$]?\s*([\d,]+\.\d{2})\s*$', rest)
-            if not amount_match:
-                amount_match = re.search(r'([\d,]+\.\d{2})', rest)
-                if not amount_match:
-                    continue
+            # For ANZ format: look for withdrawal amount (number followed by "blank")
+            # Pattern: "description 6.61 blank 8,951.07" -> withdrawal is 6.61
+            withdrawal_match = re.search(r'([\d,]+\.\d{2})\s+blank\s+[\d,]+\.\d{2}', rest, re.IGNORECASE)
             
-            amount = parse_amount(amount_match.group(1))
+            if withdrawal_match:
+                # ANZ format with "blank" markers
+                amount = parse_amount(withdrawal_match.group(1))
+                narration = rest[:withdrawal_match.start()].strip()
+            else:
+                # Standard format: amount at end
+                amount_match = re.search(r'[\$]?\s*([\d,]+\.\d{2})\s*$', rest)
+                if not amount_match:
+                    amount_match = re.search(r'([\d,]+\.\d{2})', rest)
+                    if not amount_match:
+                        continue
+                
+                amount = parse_amount(amount_match.group(1))
+                narration = rest[:amount_match.start()].strip() if amount_match.start() > 0 else rest
+                narration = re.sub(r'[\d,]+\.\d{2}', '', narration).strip()
+            
             if amount == 0 or amount > 1000000:
                 continue
-            
-            narration = rest[:amount_match.start()].strip() if amount_match.start() > 0 else rest
-            narration = re.sub(r'[\d,]+\.\d{2}', '', narration).strip()
             
             if len(narration) < 3:
                 continue
             
-            # Skip credits
+            # Skip credits based on narration keywords
             is_credit = any(kw in narration.upper() for kw in [
-                'TRANSFER FROM', 'DEPOSIT', 'CREDIT', 'REFUND', 'INTEREST PAID',
-                'TAX REFUND', 'REVERSAL', 'REBATE', 'FROM ANZ', 'FROM AMEX'
+                'TRANSFER FROM', 'FROM ANZ', 'FROM AMEX', 'FROM 273',
+                'DEPOSIT', 'CREDIT', 'REFUND', 'INTEREST PAID',
+                'TAX REFUND', 'REVERSAL', 'REBATE'
             ])
+            
+            # Also check if it's clearly a deposit (in ANZ format, deposits have "blank" before the amount)
+            deposit_match = re.search(r'blank\s+([\d,]+\.\d{2})\s+[\d,]+\.\d{2}', rest, re.IGNORECASE)
+            if deposit_match:
+                is_credit = True
             
             if is_credit:
                 continue
             
-            if any(kw in narration.upper() for kw in ['TELEPHONE', 'ENQUIRIES', 'PAGE', 'ACCOUNT TYPE']):
+            # Skip header/footer text
+            if any(kw in narration.upper() for kw in ['TELEPHONE', 'ENQUIRIES', 'PAGE', 'ACCOUNT TYPE', 'EFFECTIVE DATE']):
                 continue
+            
+            # Clean up narration - remove "EFFECTIVE DATE" suffix
+            narration = re.sub(r'\s*EFFECTIVE DATE.*$', '', narration, flags=re.IGNORECASE).strip()
             
             transactions.append({
                 "transaction_id": str(uuid.uuid4())[:12],
