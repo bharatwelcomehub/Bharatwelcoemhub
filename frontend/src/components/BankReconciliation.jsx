@@ -66,6 +66,11 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
     if (file.size === 0) {
       return toast.error("File appears to be empty. Please select a valid file.");
     }
+    
+    // Warn for large files
+    if (file.size > 5 * 1024 * 1024) {
+      toast.info("Large file detected. Processing may take a moment...");
+    }
 
     setUploading(true);
     try {
@@ -80,11 +85,17 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
       formData.append("bank_account", bankAccount || "");
       formData.append("token", session?.token || "");
 
+      // Use AbortController for timeout (2 minutes for large PDFs)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/bank-reconciliation/upload`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
       
+      clearTimeout(timeoutId);
       const data = await res.json();
 
       if (data.success) {
@@ -100,7 +111,11 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
       }
     } catch (err) {
       console.error("Upload error:", err);
-      toast.error(err.message || "Upload failed");
+      if (err.name === 'AbortError') {
+        toast.error("Upload timed out. Please try with a smaller file or try again.");
+      } else {
+        toast.error(err.message || "Upload failed. Please check your connection and try again.");
+      }
     } finally {
       setUploading(false);
     }
