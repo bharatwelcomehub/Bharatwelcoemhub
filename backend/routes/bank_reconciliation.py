@@ -580,10 +580,11 @@ async def upload_bank_statement(
         transactions = await parse_bank_statement(content, file.filename)
         logger.info(f"Parsed {len(transactions)} transactions from {file.filename}")
     except Exception as e:
-        logger.error(f"Error parsing bank statement: {e}")
+        logger.error(f"Error parsing bank statement: {e}", exc_info=True)
         return {"detail": f"Error parsing file: {str(e)}"}
     
     if not transactions:
+        logger.warning(f"No transactions parsed from {file.filename} (size={len(content)} bytes)")
         return {"detail": "Could not parse any transactions from the file. Ensure it has Date, Narration, and Debit columns."}
 
     # Run matching

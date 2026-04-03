@@ -61,6 +61,16 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
     if (!file) return toast.error("Please select a bank statement file");
     if (!center) return toast.error("Please select a center");
     if (!month) return toast.error("Please select a month");
+    
+    // Validate file size
+    if (file.size === 0) {
+      return toast.error("File appears to be empty. Please select a valid file.");
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return toast.error("File too large. Maximum size is 10MB.");
+    }
+    
+    console.log("Uploading file:", file.name, "size:", file.size, "bytes");
 
     setUploading(true);
     try {
@@ -70,10 +80,14 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
       formData.append("month", month);
       formData.append("bank_account", bankAccount);
       formData.append("token", session?.token || "");
+      
+      console.log("Sending request with token:", session?.token ? "present" : "missing");
 
       const res = await api.post("/bank-reconciliation/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      
+      console.log("Upload response:", res.data);
 
       if (res.data.success) {
         setUploadId(res.data.upload_id);
