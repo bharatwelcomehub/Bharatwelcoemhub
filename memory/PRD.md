@@ -171,3 +171,5 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 ## UI/UX Updates
 - [x] Premium WhatsApp Messages (Apr 2026) — All 3 services (Catering, Table Booking, Tiffin) now send elegantly formatted WhatsApp messages with ═══ dividers, clean spacing, and branded header: "PURNABRAMHA — World's First Intelligent Restaurant Chain Powered by A.AI Technology"
 - [x] Premium Review Screens (Apr 2026) — On-screen review cards across all services feature dark premium headers with gold accents, card-based layouts, and "Powered by A.AI Technology" footer
+- [x] Tiffin Lunch Combo Descriptions (Apr 2026) — Updated Roti Combo, Bhakari Combo, Sp. Thali Box with detailed contents
+- [x] Tiffin Heavy Brunch Enhancements (Apr 2026) — Added menu images, descriptions, and savings badges showing discount vs dine-in pricing

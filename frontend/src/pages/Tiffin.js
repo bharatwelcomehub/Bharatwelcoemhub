@@ -506,16 +506,27 @@ const Tiffin = () => {
                                 onValueChange={(v) => updateLunchSelection(day.date, 'lunchBox', v)}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select" />
+                                  <SelectValue placeholder="Select combo" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {lunchBoxOptions.map(opt => (
                                     <SelectItem key={opt.id} value={opt.id}>
-                                      {opt.name} - {formatPrice(opt.price)}
+                                      <span className="font-medium">{opt.name}</span> — {formatPrice(opt.price)}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {/* Show selected combo description */}
+                              {lunchSelections[day.date]?.lunchBox && (
+                                <div className="mt-2 p-2.5 bg-amber-50 rounded-lg border border-amber-100">
+                                  <p className="text-xs font-semibold text-[#5c1e1e] mb-0.5">
+                                    {lunchBoxOptions.find(o => o.id === lunchSelections[day.date]?.lunchBox)?.name}
+                                  </p>
+                                  <p className="text-xs text-amber-700">
+                                    {lunchBoxOptions.find(o => o.id === lunchSelections[day.date]?.lunchBox)?.description}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                             <div>
                               <Label>Pickup Time</Label>
@@ -551,59 +562,83 @@ const Tiffin = () => {
                       <Utensils className="h-5 w-5" />
                       Heavy Brunch (Mon-Fri)
                     </CardTitle>
+                    <p className="text-xs text-amber-700 mt-1">Tiffin-exclusive pricing — save more than dine-in!</p>
                   </CardHeader>
                   <CardContent className="pt-6 space-y-6">
                     {currentWeekData.days.map(day => (
                       <div key={day.date} className="border-b border-amber-100 pb-4 last:border-0">
                         <h4 className="font-semibold text-[#5c1e1e] mb-3">{day.name} ({day.displayDate})</h4>
-                        <div className="space-y-2">
-                          {heavyBrunchItems.map(item => (
-                            <div key={item.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-amber-50">
-                              <div className="flex-1">
-                                <span className="font-medium">{item.name}</span>
-                                <span className="text-sm text-[#5c1e1e] ml-2">{formatPrice(item.price)}</span>
+                        <div className="space-y-3">
+                          {heavyBrunchItems.map(item => {
+                            const saving = item.menuPrice ? (item.menuPrice - item.price) : 0;
+                            const savingPct = item.menuPrice ? Math.round((saving / item.menuPrice) * 100) : 0;
+                            return (
+                              <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-all">
+                                {/* Item Image */}
+                                <BrunchItemImage name={item.name} />
+                                {/* Item Details */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-[#5c1e1e]">{item.name}</span>
+                                    {saving > 0 && (
+                                      <Badge className="bg-green-100 text-green-700 border-green-300 text-[10px] px-1.5 py-0" variant="outline">
+                                        Save {formatPrice(saving)}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {item.description && (
+                                    <p className="text-xs text-gray-500 mt-0.5 truncate">{item.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-sm font-bold text-[#5c1e1e]">{formatPrice(item.price)}</span>
+                                    {item.menuPrice && (
+                                      <span className="text-xs text-gray-400 line-through">{formatPrice(item.menuPrice)}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Controls */}
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <div className="flex items-center gap-1">
+                                    <Checkbox
+                                      id={`${day.date}-${item.id}-buttermilk`}
+                                      checked={brunchSelections[day.date]?.[item.id]?.buttermilk || false}
+                                      onCheckedChange={(checked) => updateBrunchSelection(day.date, item.id, 'buttermilk', checked)}
+                                      disabled={!brunchSelections[day.date]?.[item.id]?.qty}
+                                    />
+                                    <label htmlFor={`${day.date}-${item.id}-buttermilk`} className="text-xs">+Buttermilk</label>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Checkbox
+                                      id={`${day.date}-${item.id}-kokum`}
+                                      checked={brunchSelections[day.date]?.[item.id]?.kokum || false}
+                                      onCheckedChange={(checked) => updateBrunchSelection(day.date, item.id, 'kokum', checked)}
+                                      disabled={!brunchSelections[day.date]?.[item.id]?.qty}
+                                    />
+                                    <label htmlFor={`${day.date}-${item.id}-kokum`} className="text-xs">+Kokum</label>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => updateBrunchSelection(day.date, item.id, 'qty', Math.max(0, (brunchSelections[day.date]?.[item.id]?.qty || 0) - 1))}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <span className="w-6 text-center font-semibold">{brunchSelections[day.date]?.[item.id]?.qty || 0}</span>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => updateBrunchSelection(day.date, item.id, 'qty', (brunchSelections[day.date]?.[item.id]?.qty || 0) + 1)}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1">
-                                  <Checkbox
-                                    id={`${day.date}-${item.id}-buttermilk`}
-                                    checked={brunchSelections[day.date]?.[item.id]?.buttermilk || false}
-                                    onCheckedChange={(checked) => updateBrunchSelection(day.date, item.id, 'buttermilk', checked)}
-                                    disabled={!brunchSelections[day.date]?.[item.id]?.qty}
-                                  />
-                                  <label htmlFor={`${day.date}-${item.id}-buttermilk`} className="text-xs">+Buttermilk</label>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Checkbox
-                                    id={`${day.date}-${item.id}-kokum`}
-                                    checked={brunchSelections[day.date]?.[item.id]?.kokum || false}
-                                    onCheckedChange={(checked) => updateBrunchSelection(day.date, item.id, 'kokum', checked)}
-                                    disabled={!brunchSelections[day.date]?.[item.id]?.qty}
-                                  />
-                                  <label htmlFor={`${day.date}-${item.id}-kokum`} className="text-xs">+Kokum</label>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => updateBrunchSelection(day.date, item.id, 'qty', Math.max(0, (brunchSelections[day.date]?.[item.id]?.qty || 0) - 1))}
-                                  >
-                                    <Minus className="h-3 w-3" />
-                                  </Button>
-                                  <span className="w-6 text-center">{brunchSelections[day.date]?.[item.id]?.qty || 0}</span>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => updateBrunchSelection(day.date, item.id, 'qty', (brunchSelections[day.date]?.[item.id]?.qty || 0) + 1)}
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -763,6 +798,48 @@ const Tiffin = () => {
           </motion.div>
         )}
       </div>
+    </div>
+  );
+};
+
+// Brunch Item Image with menu item matching
+const BRUNCH_IMAGE_MAP = {
+  'Thalipith': { fallbackColor: 'from-amber-200 to-amber-400', initials: 'TP' },
+  'Misal Pav': { fallbackColor: 'from-red-200 to-red-400', initials: 'MP' },
+  'Shrikhanda Puri Bhaji': { fallbackColor: 'from-yellow-200 to-amber-300', initials: 'SP' },
+  'Aloo Paratha': { fallbackColor: 'from-amber-100 to-yellow-300', initials: 'AP' },
+  'Sabudana Khichadi': { fallbackColor: 'from-green-100 to-green-300', initials: 'SK' }
+};
+
+const BrunchItemImage = ({ name }) => {
+  const [menuImage, setMenuImage] = useState(null);
+  const fallback = BRUNCH_IMAGE_MAP[name] || { fallbackColor: 'from-gray-200 to-gray-400', initials: name.substring(0, 2).toUpperCase() };
+
+  useEffect(() => {
+    const API = process.env.REACT_APP_BACKEND_URL;
+    fetch(`${API}/api/menu`)
+      .then(res => res.json())
+      .then(items => {
+        const match = items.find(i => i.name.toLowerCase().includes(name.toLowerCase()) && i.image_url);
+        if (match) setMenuImage(match.image_url);
+      })
+      .catch(() => {});
+  }, [name]);
+
+  if (menuImage) {
+    return (
+      <img
+        src={menuImage}
+        alt={name}
+        className="w-14 h-14 rounded-lg object-cover border-2 border-amber-100 flex-shrink-0"
+        onError={(e) => { e.target.style.display = 'none'; }}
+      />
+    );
+  }
+
+  return (
+    <div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${fallback.fallbackColor} flex items-center justify-center flex-shrink-0 border-2 border-white shadow-sm`}>
+      <span className="text-white font-bold text-sm drop-shadow">{fallback.initials}</span>
     </div>
   );
 };

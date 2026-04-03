@@ -24,18 +24,18 @@
   },
   "heavyBrunchItems": {
     "india": [
-      { "id": "hb-1", "name": "Thalipith", "price": 199, "isVeg": true },
-      { "id": "hb-2", "name": "Misal Pav", "price": 199, "isVeg": true },
-      { "id": "hb-3", "name": "Shrikhanda Puri Bhaji", "price": 249, "isVeg": true },
-      { "id": "hb-4", "name": "Aloo Paratha", "price": 149, "isVeg": true },
-      { "id": "hb-5", "name": "Sabudana Khichadi", "price": 169, "isVeg": true }
+      { "id": "hb-1", "name": "Thalipith", "price": 199, "menuPrice": 249, "isVeg": true, "description": "2 pc multi-grain thalipith with butter, curd & green chutney" },
+      { "id": "hb-2", "name": "Misal Pav", "price": 199, "menuPrice": 249, "isVeg": true, "description": "Spicy sprouted moth curry with farsan, pav & onion-lemon" },
+      { "id": "hb-3", "name": "Shrikhanda Puri Bhaji", "price": 249, "menuPrice": 349, "isVeg": true, "description": "Sweet saffron shrikhand with hot puris & aloo bhaji" },
+      { "id": "hb-4", "name": "Aloo Paratha", "price": 149, "menuPrice": 199, "isVeg": true, "description": "2 stuffed aloo parathas with curd, pickle & butter" },
+      { "id": "hb-5", "name": "Sabudana Khichadi", "price": 169, "menuPrice": 229, "isVeg": true, "description": "Fasting special with peanuts, potato & green chillies" }
     ],
     "australia": [
-      { "id": "hb-1", "name": "Thalipith", "price": 14.99, "isVeg": true },
-      { "id": "hb-2", "name": "Misal Pav", "price": 14.99, "isVeg": true },
-      { "id": "hb-3", "name": "Shrikhanda Puri Bhaji", "price": 17.99, "isVeg": true },
-      { "id": "hb-4", "name": "Aloo Paratha", "price": 9.99, "isVeg": true },
-      { "id": "hb-5", "name": "Sabudana Khichadi", "price": 12.99, "isVeg": true }
+      { "id": "hb-1", "name": "Thalipith", "price": 14.99, "menuPrice": 19.99, "isVeg": true, "description": "2 pc multi-grain thalipith with butter, curd & green chutney" },
+      { "id": "hb-2", "name": "Misal Pav", "price": 14.99, "menuPrice": 19.99, "isVeg": true, "description": "Spicy sprouted moth curry with farsan, pav & onion-lemon" },
+      { "id": "hb-3", "name": "Shrikhanda Puri Bhaji", "price": 17.99, "menuPrice": 24.99, "isVeg": true, "description": "Sweet saffron shrikhand with hot puris & aloo bhaji" },
+      { "id": "hb-4", "name": "Aloo Paratha", "price": 9.99, "menuPrice": 14.99, "isVeg": true, "description": "2 stuffed aloo parathas with curd, pickle & butter" },
+      { "id": "hb-5", "name": "Sabudana Khichadi", "price": 12.99, "menuPrice": 17.99, "isVeg": true, "description": "Fasting special with peanuts, potato & green chillies" }
     ]
   },
   "drinkAddons": {
@@ -50,14 +50,14 @@
   },
   "lunchBoxOptions": {
     "india": [
-      { "id": "lb-1", "name": "Roti Combo", "description": "2 Rotis + Bhaji + Rice + Dal", "price": 180 },
-      { "id": "lb-2", "name": "Bhakari Combo", "description": "2 Bhakaris + Bhaji + Rice", "price": 200 },
-      { "id": "lb-3", "name": "Special Thali Box", "description": "Full Thali in tiffin format", "price": 280 }
+      { "id": "lb-1", "name": "Roti Combo", "description": "3 Chapati, Day Sp. Bhaji, Dal, Pickle, Salad", "price": 180 },
+      { "id": "lb-2", "name": "Bhakari Combo", "description": "2 Jowar Bhakari, Bharali Vangi, Day Sp. Bhaji, Thecha, Onion", "price": 200 },
+      { "id": "lb-3", "name": "Special Thali Box", "description": "2 Chapati, Day Sp. Bhaji, Dal, Rice, Salad, Pickle, Day Sp. Sweet", "price": 280 }
     ],
     "australia": [
-      { "id": "lb-1", "name": "Roti Combo", "description": "2 Rotis + Bhaji + Rice + Dal", "price": 18.99 },
-      { "id": "lb-2", "name": "Bhakari Combo", "description": "2 Bhakaris + Bhaji + Rice", "price": 21.99 },
-      { "id": "lb-3", "name": "Special Thali Box", "description": "Full Thali in tiffin format", "price": 28.99 }
+      { "id": "lb-1", "name": "Roti Combo", "description": "3 Chapati, Day Sp. Bhaji, Dal, Pickle, Salad", "price": 18.99 },
+      { "id": "lb-2", "name": "Bhakari Combo", "description": "2 Jowar Bhakari, Bharali Vangi, Day Sp. Bhaji, Thecha, Onion", "price": 21.99 },
+      { "id": "lb-3", "name": "Special Thali Box", "description": "2 Chapati, Day Sp. Bhaji, Dal, Rice, Salad, Pickle, Day Sp. Sweet", "price": 28.99 }
     ]
   },
   "blackoutDates": {
