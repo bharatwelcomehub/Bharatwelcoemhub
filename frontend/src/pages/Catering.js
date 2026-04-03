@@ -126,7 +126,10 @@ const Catering = () => {
       if (current.includes(itemId)) {
         return { ...prev, [category]: current.filter(id => id !== itemId) };
       }
-      const maxAllowed = currentPackage?.requirements[category] || 0;
+      // Map plural category keys to singular requirement keys
+      const requirementKeyMap = { desserts: 'dessert', drinks: 'drink', sides: 'side' };
+      const reqKey = requirementKeyMap[category] || category;
+      const maxAllowed = currentPackage?.requirements[reqKey] || 0;
       if (current.length >= maxAllowed) {
         toast.error(`Maximum ${maxAllowed} ${category} allowed for this package`);
         return prev;
@@ -149,9 +152,12 @@ const Catering = () => {
     
     const requirements = currentPackage.requirements;
     const errors = [];
+    // Map singular requirement keys to plural category keys used in menuSelections
+    const categoryKeyMap = { dessert: 'desserts', drink: 'drinks', side: 'sides' };
 
-    Object.entries(requirements).forEach(([category, required]) => {
+    Object.entries(requirements).forEach(([reqKey, required]) => {
       if (required > 0) {
+        const category = categoryKeyMap[reqKey] || reqKey;
         const selected = getSelectedCount(category);
         if (selected < required) {
           errors.push(`${category}: ${selected}/${required}`);

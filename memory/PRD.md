@@ -164,3 +164,6 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [ ] Push notifications
 - [ ] Order history dashboard
 - [ ] Multi-language support
+
+## Bug Fixes
+- [x] Catering page: Desserts, Drinks, Sides selection was blocked ("Maximum 0 allowed") due to singular/plural key mismatch between package requirements JSON and frontend category keys (Apr 2026)
