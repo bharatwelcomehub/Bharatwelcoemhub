@@ -209,6 +209,11 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
             
             logger.info(f"PDF parsing: {len(pdf.pages)} pages, year hint: {year_hint}")
             
+            # Debug: Log raw text from first page to understand PDF structure
+            logger.info(f"=== DEBUG: First page raw text (first 1000 chars) ===")
+            logger.info(first_page_text[:1000] if first_page_text else "(empty)")
+            logger.info(f"=== END DEBUG ===")
+            
             # Column name mapping - normalize ANZ headers to expected names
             column_mapping = {
                 # Date column variations
@@ -250,9 +255,24 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
             header_found = False
             col_indices = {}
             
+            # Table extraction settings for PDFs without visible grid lines (like ANZ)
+            table_settings = {
+                "vertical_strategy": "text",
+                "horizontal_strategy": "text",
+                "snap_tolerance": 3,
+                "join_tolerance": 3,
+            }
+            
             # Extract tables from all pages
             for page_num, page in enumerate(pdf.pages):
-                tables = page.extract_tables()
+                # Try with custom settings first
+                tables = page.extract_tables(table_settings=table_settings)
+                
+                # If no tables found, try default settings
+                if not tables:
+                    tables = page.extract_tables()
+                
+                logger.debug(f"Page {page_num + 1}: Found {len(tables) if tables else 0} tables")
                 
                 for table in tables:
                     if not table:
@@ -284,6 +304,8 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
                         # Process data rows
                         if header_found:
                             all_rows.append(cleaned_row)
+            
+            logger.info(f"Table extraction: header_found={header_found}, rows_collected={len(all_rows)}")
             
             # If no table found, fall back to text extraction
             if not header_found or not all_rows:

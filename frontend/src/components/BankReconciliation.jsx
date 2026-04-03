@@ -88,9 +88,9 @@ export default function BankReconciliation({ session, selectedCenter, centersLis
       formData.append("bank_account", bankAccount || "");
       formData.append("token", session?.token || "");
 
-      // Use AbortController for timeout (2 minutes for large PDFs)
+      // Use AbortController for timeout (5 minutes for large PDFs)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      const timeoutId = setTimeout(() => controller.abort(), 300000);
 
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/bank-reconciliation/upload`, {
         method: 'POST',
