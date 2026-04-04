@@ -965,11 +965,9 @@ export default function CenterAccounts() {
                                     ) : (
                                       <>
                                         <span>{row.opening_wc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                                        {idx === 0 && (
-                                          <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => { setWcEditingMonth(row.month); setWcEditValue(row.opening_wc); }} data-testid={`wc-edit-btn-${row.month}`}>
-                                            <Pencil className="w-3 h-3 text-muted-foreground" />
-                                          </Button>
-                                        )}
+                                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => { setWcEditingMonth(row.month); setWcEditValue(row.opening_wc); }} data-testid={`wc-edit-btn-${row.month}`}>
+                                          <Pencil className="w-3 h-3 text-muted-foreground" />
+                                        </Button>
                                       </>
                                     )}
                                   </div>
