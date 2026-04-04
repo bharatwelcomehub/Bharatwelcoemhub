@@ -138,14 +138,17 @@ def calculate_mg(total_investment: float, setup_costs: dict, franchise_fee: floa
 
 async def calculate_working_capital_standing(db_ref, center_code: str, up_to_month: str, country: str = "India"):
     """
-    Calculate dynamic Working Capital standing as of a given month.
+    Calculate Working Capital month-by-month like the WC Assessment Excel.
     
-    WC Available = Initial Security Deposit + Cumulative P&L - Loans Outstanding
-    where P&L = Sales - Expenses - Commissions - GST (from center opening to up_to_month)
+    Opening WC = Previous month's Closing WC (or Initial Deposit for first month)
+    This Month P&L = Sales - (Expenses + Commissions + GST)
+    Closing WC = Opening WC + This Month P&L
+    When WC goes to 0 → deficit becomes loan for that month
+    Diff from Initial = Closing WC - Initial Deposit
     
     Business Rules:
     - WC < 50% of Initial → Revenue Share & MG both CLOSED
-    - WC < Initial → Profits refill WC first before any share is paid
+    - WC < Initial → Profits refill WC first
     - WC >= Initial → Normal revenue share / profit share applies
     """
     # Get franchise for initial WC (security deposit)
@@ -160,136 +163,150 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
             if franchise:
                 initial_wc = float(franchise.get("working_capital", 0) or 0)
     
-    # Parse up_to_month → end_date for queries (include the full selected month)
     year, month = map(int, up_to_month.split("-"))
+    month_start = f"{year}-{month:02d}-01"
     if month == 12:
         end_date = f"{year + 1}-01-01"
     else:
         end_date = f"{year}-{month + 1:02d}-01"
     
-    # 1. Cumulative Sales (from all time up to end of selected month)
-    sales_pipeline = [
-        {"$match": {"center": center_code, "date": {"$lt": end_date}}},
-        {"$group": {
-            "_id": None,
-            "total_sale": {"$sum": {"$ifNull": ["$total_sale", 0]}},
-        }}
-    ]
-    sales_agg = await db_ref.daily_sales.aggregate(sales_pipeline).to_list(1)
-    cumulative_sales = sales_agg[0]["total_sale"] if sales_agg else 0
+    gst_applicable = franchise.get("gst_applicable", False) if franchise else False
     
-    # 2. Cumulative Expenses
-    expenses_pipeline = [
-        {"$match": {"center": center_code, "date": {"$lt": end_date}}},
-        {"$group": {
-            "_id": None,
-            "total_expenses": {"$sum": {"$ifNull": ["$amount", 0]}}
-        }}
-    ]
-    expenses_agg = await db_ref.expenses.aggregate(expenses_pipeline).to_list(1)
-    cumulative_expenses = expenses_agg[0]["total_expenses"] if expenses_agg else 0
+    # ---- P&L UP TO PREVIOUS MONTH (for Opening WC) ----
+    prev_sales_agg = await db_ref.daily_sales.aggregate([
+        {"$match": {"center": center_code, "date": {"$lt": month_start}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_sale", 0]}}}}
+    ]).to_list(1)
+    prev_sales = prev_sales_agg[0]["total"] if prev_sales_agg else 0
     
-    # 3. Cumulative Commissions (separate in our system, but part of "Expenses" in WC Excel)
-    comm_pipeline = [
-        {"$match": {"center": center_code, "month": {"$lte": up_to_month}}},
-        {"$group": {
-            "_id": None,
-            "total_commission": {"$sum": {
-                "$cond": [
-                    {"$or": [
-                        {"$gt": ["$gst_tax_deductions", 0]},
-                        {"$gt": ["$other_deductions", 0]}
-                    ]},
-                    {"$add": [
-                        {"$ifNull": ["$gst_tax_deductions", 0]},
-                        {"$ifNull": ["$other_deductions", 0]}
-                    ]},
-                    {"$ifNull": ["$commission_amount", 0]}
-                ]
-            }}
-        }}
-    ]
-    comm_agg = await db_ref.monthly_commissions.aggregate(comm_pipeline).to_list(1)
-    cumulative_commissions = comm_agg[0]["total_commission"] if comm_agg else 0
+    prev_expenses_agg = await db_ref.expenses.aggregate([
+        {"$match": {"center": center_code, "date": {"$lt": month_start}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$amount", 0]}}}}
+    ]).to_list(1)
+    prev_expenses = prev_expenses_agg[0]["total"] if prev_expenses_agg else 0
     
-    # 4. GST on Sales (separate in our system, but part of "Expenses" in WC Excel)
+    # Previous months' commissions (months strictly before selected)
+    prev_comm_agg = await db_ref.monthly_commissions.aggregate([
+        {"$match": {"center": center_code, "month": {"$lt": up_to_month}}},
+        {"$group": {"_id": None, "total": {"$sum": {
+            "$cond": [
+                {"$or": [{"$gt": ["$gst_tax_deductions", 0]}, {"$gt": ["$other_deductions", 0]}]},
+                {"$add": [{"$ifNull": ["$gst_tax_deductions", 0]}, {"$ifNull": ["$other_deductions", 0]}]},
+                {"$ifNull": ["$commission_amount", 0]}
+            ]
+        }}}}
+    ]).to_list(1)
+    prev_commissions = prev_comm_agg[0]["total"] if prev_comm_agg else 0
+    
     if country == "Australia":
-        cumulative_gst = cumulative_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
+        prev_gst = prev_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
     else:
-        gst_applicable = franchise.get("gst_applicable", False) if franchise else False
-        cumulative_gst = cumulative_sales * INDIA_GST_ON_SALES if gst_applicable else 0
+        prev_gst = prev_sales * INDIA_GST_ON_SALES if gst_applicable else 0
     
-    # 5. Cumulative P&L = Sales - (Expenses + Commissions + GST)
-    # In Excel "Expenses" is inclusive of commissions/GST; in our system they are separate
-    cumulative_pnl = cumulative_sales - cumulative_expenses - cumulative_commissions - cumulative_gst
+    prev_pnl = prev_sales - prev_expenses - prev_commissions - prev_gst
+    opening_wc = initial_wc + prev_pnl
     
-    # 6. Loans Outstanding — only loans taken ON or BEFORE the selected month
+    # ---- THIS MONTH'S P&L ----
+    this_month_sales_agg = await db_ref.daily_sales.aggregate([
+        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_sale", 0]}}}}
+    ]).to_list(1)
+    this_month_sales = this_month_sales_agg[0]["total"] if this_month_sales_agg else 0
+    
+    this_month_expenses_agg = await db_ref.expenses.aggregate([
+        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$amount", 0]}}}}
+    ]).to_list(1)
+    this_month_expenses = this_month_expenses_agg[0]["total"] if this_month_expenses_agg else 0
+    
+    this_month_comm_agg = await db_ref.monthly_commissions.aggregate([
+        {"$match": {"center": center_code, "month": up_to_month}},
+        {"$group": {"_id": None, "total": {"$sum": {
+            "$cond": [
+                {"$or": [{"$gt": ["$gst_tax_deductions", 0]}, {"$gt": ["$other_deductions", 0]}]},
+                {"$add": [{"$ifNull": ["$gst_tax_deductions", 0]}, {"$ifNull": ["$other_deductions", 0]}]},
+                {"$ifNull": ["$commission_amount", 0]}
+            ]
+        }}}}
+    ]).to_list(1)
+    this_month_commissions = this_month_comm_agg[0]["total"] if this_month_comm_agg else 0
+    
+    if country == "Australia":
+        this_month_gst = this_month_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
+    else:
+        this_month_gst = this_month_sales * INDIA_GST_ON_SALES if gst_applicable else 0
+    
+    this_month_pnl = this_month_sales - this_month_expenses - this_month_commissions - this_month_gst
+    
+    # ---- CLOSING WC & LOAN LOGIC ----
+    closing_wc = opening_wc + this_month_pnl
+    
+    # Loan logic: if closing WC goes below 0, the deficit becomes a loan
+    loan_from_wc_deficit = 0
+    if closing_wc < 0:
+        loan_from_wc_deficit = abs(closing_wc)
+        closing_wc = 0
+    
+    diff_from_initial = closing_wc - initial_wc
+    
+    # ---- LOANS OUTSTANDING (from loan_entries collection, taken on or before selected month) ----
     loan_query = {
         "center": center_code,
         "status": {"$ne": "fully_repaid"},
         "loan_date": {"$lte": end_date}
     }
     loan_entries = await db_ref.loan_entries.find(loan_query, {"_id": 0}).to_list(100)
-    
     total_loans_outstanding = sum(
         (loan.get("amount", 0) - loan.get("total_repaid", 0))
         for loan in loan_entries
     )
     
-    # 7. Available Working Capital
-    available_capital = initial_wc + cumulative_pnl - total_loans_outstanding
+    # Total effective loan = recorded loans + WC deficit overflow
+    total_effective_loans = total_loans_outstanding + loan_from_wc_deficit
     
-    # 8. WC Utilised & percentage
-    wc_utilised = max(0, initial_wc - available_capital) if initial_wc > 0 else 0
-    wc_percentage = (available_capital / initial_wc * 100) if initial_wc > 0 else 100
+    # ---- WC GATING ----
+    # Available capital for gating = closing WC minus loans
+    available_capital = closing_wc - total_loans_outstanding
+    wc_percentage = (closing_wc / initial_wc * 100) if initial_wc > 0 else 100
+    wc_utilised = max(0, initial_wc - closing_wc) if initial_wc > 0 else 0
     
-    # 9. Revenue Share / MG gating based on WC
-    # WC < 50% of Initial → CLOSED (both MG and Rev Share)
-    # WC < Initial → Profits refill WC first, then share starts
-    # WC >= Initial → Normal share applies
-    WC_THRESHOLD = 50  # 50% fixed for all
+    WC_THRESHOLD = 50
     revenue_share_active = True
-    wc_status = "healthy"  # healthy | restoring | closed
+    wc_status = "healthy"
     
     if initial_wc > 0:
         if wc_percentage < WC_THRESHOLD:
             revenue_share_active = False
             wc_status = "closed"
-        elif available_capital < initial_wc:
+        elif closing_wc < initial_wc:
             wc_status = "restoring"
-    
-    # Monthly breakdown for current month's P&L
-    month_start = f"{year}-{month:02d}-01"
-    current_month_sales_agg = await db_ref.daily_sales.aggregate([
-        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_sale", 0]}}}}
-    ]).to_list(1)
-    current_month_expenses_agg = await db_ref.expenses.aggregate([
-        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$amount", 0]}}}}
-    ]).to_list(1)
-    
-    current_month_sales = current_month_sales_agg[0]["total"] if current_month_sales_agg else 0
-    current_month_expenses = current_month_expenses_agg[0]["total"] if current_month_expenses_agg else 0
-    current_month_pnl = current_month_sales - current_month_expenses
     
     return {
         "initial_security_deposit": round(initial_wc, 2),
-        "cumulative_sales": round(cumulative_sales, 2),
-        "cumulative_expenses": round(cumulative_expenses, 2),
-        "cumulative_commissions": round(cumulative_commissions, 2),
-        "cumulative_gst": round(cumulative_gst, 2),
-        "cumulative_pnl": round(cumulative_pnl, 2),
+        # Month-by-month like the Excel
+        "opening_wc": round(opening_wc, 2),
+        "this_month_sales": round(this_month_sales, 2),
+        "this_month_expenses": round(this_month_expenses, 2),
+        "this_month_commissions": round(this_month_commissions, 2),
+        "this_month_gst": round(this_month_gst, 2),
+        "this_month_pnl": round(this_month_pnl, 2),
+        "closing_wc": round(closing_wc, 2),
+        "diff_from_initial": round(diff_from_initial, 2),
+        # Loan info
+        "loan_from_wc_deficit": round(loan_from_wc_deficit, 2),
         "loans_outstanding": round(total_loans_outstanding, 2),
+        "total_effective_loans": round(total_effective_loans, 2),
+        # Gating
         "available_capital": round(available_capital, 2),
         "wc_utilised": round(wc_utilised, 2),
         "wc_percentage": round(wc_percentage, 2),
         "wc_status": wc_status,
         "revenue_share_active": revenue_share_active,
         "wc_threshold": WC_THRESHOLD,
-        "current_month_pnl": round(current_month_pnl, 2),
-        "current_month_sales": round(current_month_sales, 2),
-        "current_month_expenses": round(current_month_expenses, 2),
+        # Keep backward compat
+        "current_month_pnl": round(this_month_pnl, 2),
+        "current_month_sales": round(this_month_sales, 2),
+        "current_month_expenses": round(this_month_expenses, 2),
     }
 
 
@@ -743,9 +760,8 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "total_commissions_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),
             "net_revenue": round(net_revenue_for_share, 2),
             "working_capital": round(working_capital, 2),
-            "cumulative_pnl": wc_standing["cumulative_pnl"],
             "loans_outstanding": round(total_loans_outstanding, 2),
-            "working_capital_available": wc_standing["available_capital"],
+            "working_capital_available": wc_standing["closing_wc"],
             "wc_standing": wc_standing
         },
         "share_calculation": {
@@ -1148,18 +1164,23 @@ async def generate_pib_report(req: PIBGenerateRequest):
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
     fin_data.append(["", ""])
     
-    # Working Capital Section with full utilisation details
+    # Working Capital Section - Month by Month like Excel
     fin_data.append(["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"])
     wc_st = fin.get("wc_standing", {})
     if wc_st:
-        if wc_st.get("cumulative_pnl", 0) != 0:
-            pnl_label = "Cumulative P&L Impact" if wc_st["cumulative_pnl"] >= 0 else "Cumulative P&L Deficit"
-            fin_data.append([pnl_label, f"{currency} {wc_st['cumulative_pnl']:,.2f}"])
-        if wc_st.get("wc_utilised", 0) > 0:
-            fin_data.append(["WC Utilised", f"({currency} {wc_st['wc_utilised']:,.2f})"])
+        fin_data.append(["Opening WC", f"{currency} {wc_st.get('opening_wc', 0):,.2f}"])
+        pnl = wc_st.get("this_month_pnl", 0)
+        fin_data.append(["This Month P&L", f"{currency} {pnl:,.2f}"])
+        fin_data.append(["Closing WC (BAL.)", f"{currency} {wc_st.get('closing_wc', 0):,.2f}"])
+        fin_data.append(["Diff from Initial", f"{currency} {wc_st.get('diff_from_initial', 0):,.2f}"])
+        
+        if wc_st.get("loan_from_wc_deficit", 0) > 0:
+            fin_data.append(["Loan from WC Deficit (this month)", f"{currency} {wc_st['loan_from_wc_deficit']:,.2f}"])
         if wc_st.get("loans_outstanding", 0) > 0:
-            fin_data.append(["Less: Loans Outstanding", f"({currency} {wc_st['loans_outstanding']:,.2f})"])
-        fin_data.append(["Available Working Capital", f"{currency} {wc_st['available_capital']:,.2f}"])
+            fin_data.append(["Recorded Loans Outstanding", f"({currency} {wc_st['loans_outstanding']:,.2f})"])
+        if wc_st.get("total_effective_loans", 0) > 0:
+            fin_data.append(["Total Effective Loans", f"{currency} {wc_st['total_effective_loans']:,.2f}"])
+        
         wc_pct = wc_st.get("wc_percentage", 100)
         wc_status = wc_st.get("wc_status", "healthy")
         status_label = "HEALTHY" if wc_status == "healthy" else "RESTORING" if wc_status == "restoring" else "CLOSED (Below 50%)"

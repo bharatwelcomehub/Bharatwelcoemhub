@@ -830,63 +830,79 @@ export default function CenterAccounts() {
                 </div>
               )}
 
-              {/* Working Capital Utilisation Card */}
+              {/* Working Capital Assessment Card - Month by Month like Excel */}
               {accountSummary.financial_summary.wc_standing && accountSummary.financial_summary.working_capital > 0 && (
                 <Card data-testid="wc-utilisation-card">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Working Capital Utilisation</CardTitle>
-                    <CardDescription>Standing as of {accountSummary.period} (from center opening)</CardDescription>
+                    <CardTitle className="text-lg">Working Capital Assessment</CardTitle>
+                    <CardDescription>Monthly standing for {accountSummary.period}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div className="p-3 bg-gray-50 rounded-lg text-center">
-                        <p className="text-xs text-gray-500">Initial WC</p>
-                        <p className="text-sm font-semibold">{formatCurrency(accountSummary.financial_summary.wc_standing.initial_security_deposit, accountSummary.country)}</p>
+                    {(() => { const wc = accountSummary.financial_summary.wc_standing; return (
+                    <div className="space-y-4">
+                      {/* Row 1: Opening → P&L → Closing like Excel */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="p-3 bg-blue-50 rounded-lg text-center border border-blue-200">
+                          <p className="text-xs text-gray-500">Opening WC</p>
+                          <p className="text-sm font-semibold text-blue-700">{formatCurrency(wc.opening_wc, accountSummary.country)}</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg text-center">
+                          <p className="text-xs text-gray-500">This Month P&L</p>
+                          <p className={`text-sm font-semibold ${wc.this_month_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {wc.this_month_pnl >= 0 ? '+' : ''}{formatCurrency(wc.this_month_pnl, accountSummary.country)}
+                          </p>
+                          <p className="text-[10px] text-gray-400">Sale {formatCurrency(wc.this_month_sales, accountSummary.country)} - Exp {formatCurrency(wc.this_month_expenses, accountSummary.country)}</p>
+                        </div>
+                        <div className={`p-3 rounded-lg text-center border ${wc.closing_wc >= wc.initial_security_deposit ? 'bg-green-50 border-green-200' : wc.closing_wc > 0 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
+                          <p className="text-xs text-gray-500">Closing WC (BAL.)</p>
+                          <p className={`text-sm font-bold ${wc.closing_wc >= wc.initial_security_deposit ? 'text-green-700' : wc.closing_wc > 0 ? 'text-amber-700' : 'text-red-700'}`}>
+                            {formatCurrency(wc.closing_wc, accountSummary.country)}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg text-center">
+                          <p className="text-xs text-gray-500">Diff from Initial</p>
+                          <p className={`text-sm font-semibold ${wc.diff_from_initial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {wc.diff_from_initial >= 0 ? '+' : ''}{formatCurrency(wc.diff_from_initial, accountSummary.country)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="p-3 bg-gray-50 rounded-lg text-center">
-                        <p className="text-xs text-gray-500">Cumulative P&L</p>
-                        <p className={`text-sm font-semibold ${accountSummary.financial_summary.wc_standing.cumulative_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(accountSummary.financial_summary.wc_standing.cumulative_pnl, accountSummary.country)}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-gray-50 rounded-lg text-center">
-                        <p className="text-xs text-gray-500">WC Utilised</p>
-                        <p className="text-sm font-semibold text-orange-600">{formatCurrency(accountSummary.financial_summary.wc_standing.wc_utilised, accountSummary.country)}</p>
-                      </div>
-                      <div className={`p-3 rounded-lg text-center ${accountSummary.financial_summary.working_capital_available >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                        <p className="text-xs text-gray-500">Available Capital</p>
-                        <p className={`text-sm font-bold ${accountSummary.financial_summary.working_capital_available >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                          {formatCurrency(accountSummary.financial_summary.working_capital_available, accountSummary.country)}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-gray-50 rounded-lg text-center">
-                        <p className="text-xs text-gray-500">WC Status</p>
-                        <p className={`text-sm font-bold ${
-                          accountSummary.financial_summary.wc_standing.wc_status === 'healthy' ? 'text-green-600' :
-                          accountSummary.financial_summary.wc_standing.wc_status === 'restoring' ? 'text-amber-600' : 'text-red-600'
-                        }`}>
-                          {accountSummary.financial_summary.wc_standing.wc_percentage?.toFixed(0)}%
-                          {accountSummary.financial_summary.wc_standing.wc_status === 'closed' && ' (CLOSED)'}
-                        </p>
+
+                      {/* Row 2: Loans */}
+                      {(wc.loan_from_wc_deficit > 0 || wc.loans_outstanding > 0) && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t">
+                          {wc.loan_from_wc_deficit > 0 && (
+                            <div className="p-3 bg-red-50 rounded-lg text-center border border-red-200">
+                              <p className="text-xs text-gray-500">Loan from WC Deficit (this month)</p>
+                              <p className="text-sm font-semibold text-red-700">{formatCurrency(wc.loan_from_wc_deficit, accountSummary.country)}</p>
+                            </div>
+                          )}
+                          <div className="p-3 bg-gray-50 rounded-lg text-center">
+                            <p className="text-xs text-gray-500">Recorded Loans Outstanding</p>
+                            <p className="text-sm font-semibold text-red-600">{formatCurrency(wc.loans_outstanding, accountSummary.country)}</p>
+                          </div>
+                          <div className="p-3 bg-red-50 rounded-lg text-center border border-red-200">
+                            <p className="text-xs text-gray-500">Total Effective Loans</p>
+                            <p className="text-sm font-bold text-red-700">{formatCurrency(wc.total_effective_loans, accountSummary.country)}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Progress bar */}
+                      <div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full ${wc.wc_percentage >= 100 ? 'bg-green-500' : wc.wc_percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                            style={{ width: `${Math.min(100, Math.max(0, wc.wc_percentage))}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>0%</span>
+                          <span className="text-red-400">50% (Rev Share Threshold)</span>
+                          <span>100% ({formatCurrency(wc.initial_security_deposit, accountSummary.country)})</span>
+                        </div>
                       </div>
                     </div>
-                    {/* Progress bar */}
-                    <div className="mt-3">
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div
-                          className={`h-2.5 rounded-full ${
-                            accountSummary.financial_summary.wc_standing.wc_percentage >= 100 ? 'bg-green-500' :
-                            accountSummary.financial_summary.wc_standing.wc_percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${Math.min(100, Math.max(0, accountSummary.financial_summary.wc_standing.wc_percentage))}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-400 mt-1">
-                        <span>0%</span>
-                        <span className="text-red-400">50% (Threshold)</span>
-                        <span>100% (Initial)</span>
-                      </div>
-                    </div>
+                    ); })()}
                   </CardContent>
                 </Card>
               )}
@@ -925,35 +941,40 @@ export default function CenterAccounts() {
                     <div className="space-y-2">
                       <h4 className="font-medium text-gray-600">Working Capital</h4>
                       <div className="flex justify-between text-sm">
-                        <span>Security Deposit</span>
+                        <span>Security Deposit (Initial)</span>
                         <span className="font-medium">{formatCurrency(accountSummary.financial_summary.working_capital, accountSummary.country)}</span>
                       </div>
-                      {/* Cumulative P&L Impact */}
-                      {accountSummary.financial_summary.wc_standing && accountSummary.financial_summary.wc_standing.cumulative_pnl !== 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span>{accountSummary.financial_summary.wc_standing.cumulative_pnl >= 0 ? "Cumulative P&L Surplus" : "Cumulative P&L Deficit"}</span>
-                          <span className={accountSummary.financial_summary.wc_standing.cumulative_pnl >= 0 ? "text-green-600" : "text-red-600"}>
-                            {accountSummary.financial_summary.wc_standing.cumulative_pnl >= 0 ? "+" : ""}{formatCurrency(accountSummary.financial_summary.wc_standing.cumulative_pnl, accountSummary.country)}
-                          </span>
-                        </div>
-                      )}
-                      {accountSummary.financial_summary.loans_outstanding > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span>Loans Outstanding</span>
-                          <span className="text-red-600">-{formatCurrency(accountSummary.financial_summary.loans_outstanding, accountSummary.country)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-sm font-semibold pt-1 border-t border-gray-200">
-                        <span>Available Working Capital</span>
-                        <span className={accountSummary.financial_summary.working_capital_available >= 0 ? "text-green-600" : "text-red-600"} data-testid="available-wc">
-                          {formatCurrency(accountSummary.financial_summary.working_capital_available, accountSummary.country)}
-                        </span>
-                      </div>
-                      {/* Current Month P&L */}
                       {accountSummary.financial_summary.wc_standing && (
-                        <div className="text-xs text-gray-500 pt-1">
-                          This month: Sales {formatCurrency(accountSummary.financial_summary.wc_standing.current_month_sales, accountSummary.country)} - Expenses {formatCurrency(accountSummary.financial_summary.wc_standing.current_month_expenses, accountSummary.country)} = <span className={accountSummary.financial_summary.wc_standing.current_month_pnl >= 0 ? "text-green-600" : "text-red-600"}>{formatCurrency(accountSummary.financial_summary.wc_standing.current_month_pnl, accountSummary.country)}</span>
-                        </div>
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span>Opening WC</span>
+                            <span className="font-medium">{formatCurrency(accountSummary.financial_summary.wc_standing.opening_wc, accountSummary.country)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>This Month P&L</span>
+                            <span className={accountSummary.financial_summary.wc_standing.this_month_pnl >= 0 ? "text-green-600" : "text-red-600"}>
+                              {accountSummary.financial_summary.wc_standing.this_month_pnl >= 0 ? "+" : ""}{formatCurrency(accountSummary.financial_summary.wc_standing.this_month_pnl, accountSummary.country)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm font-semibold pt-1 border-t border-gray-200">
+                            <span>Closing WC (BAL.)</span>
+                            <span className={accountSummary.financial_summary.wc_standing.closing_wc >= accountSummary.financial_summary.working_capital ? "text-green-600" : accountSummary.financial_summary.wc_standing.closing_wc > 0 ? "text-amber-600" : "text-red-600"} data-testid="available-wc">
+                              {formatCurrency(accountSummary.financial_summary.wc_standing.closing_wc, accountSummary.country)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>Diff from Initial</span>
+                            <span className={accountSummary.financial_summary.wc_standing.diff_from_initial >= 0 ? "text-green-600" : "text-red-600"}>
+                              {formatCurrency(accountSummary.financial_summary.wc_standing.diff_from_initial, accountSummary.country)}
+                            </span>
+                          </div>
+                          {accountSummary.financial_summary.wc_standing.total_effective_loans > 0 && (
+                            <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
+                              <span>Total Loans</span>
+                              <span className="text-red-600">{formatCurrency(accountSummary.financial_summary.wc_standing.total_effective_loans, accountSummary.country)}</span>
+                            </div>
+                          )}
+                        </>
                       )}
                       {/* MG (Minimum Guarantee) */}
                       {accountSummary.mg_calculation && (
@@ -1392,24 +1413,26 @@ export default function CenterAccounts() {
                     {/* Working Capital Standing */}
                     {accountSummary.financial_summary.wc_standing && (
                       <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                        <h4 className="font-medium text-amber-800 mb-2">Working Capital Standing (as of {accountSummary.period})</h4>
+                        <h4 className="font-medium text-amber-800 mb-2">Working Capital Standing ({accountSummary.period})</h4>
                         <div className="grid grid-cols-2 gap-2 text-sm">
-                          <span className="text-gray-600">Security Deposit:</span>
+                          <span className="text-gray-600">Initial Deposit:</span>
                           <span className="text-right font-medium">{formatCurrency(accountSummary.financial_summary.wc_standing.initial_security_deposit, accountSummary.country)}</span>
-                          <span className="text-gray-600">Cumulative P&L:</span>
-                          <span className={`text-right font-medium ${accountSummary.financial_summary.wc_standing.cumulative_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(accountSummary.financial_summary.wc_standing.cumulative_pnl, accountSummary.country)}
+                          <span className="text-gray-600">Opening WC:</span>
+                          <span className="text-right font-medium">{formatCurrency(accountSummary.financial_summary.wc_standing.opening_wc, accountSummary.country)}</span>
+                          <span className="text-gray-600">This Month P&L:</span>
+                          <span className={`text-right font-medium ${accountSummary.financial_summary.wc_standing.this_month_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(accountSummary.financial_summary.wc_standing.this_month_pnl, accountSummary.country)}
                           </span>
-                          {accountSummary.financial_summary.loans_outstanding > 0 && (
+                          <span className="text-gray-700 font-semibold border-t pt-1">Closing WC:</span>
+                          <span className={`text-right font-bold border-t pt-1 ${accountSummary.financial_summary.wc_standing.closing_wc >= accountSummary.financial_summary.wc_standing.initial_security_deposit ? 'text-green-700' : accountSummary.financial_summary.wc_standing.closing_wc > 0 ? 'text-amber-700' : 'text-red-700'}`}>
+                            {formatCurrency(accountSummary.financial_summary.wc_standing.closing_wc, accountSummary.country)}
+                          </span>
+                          {accountSummary.financial_summary.wc_standing.total_effective_loans > 0 && (
                             <>
-                              <span className="text-gray-600">Loans Outstanding:</span>
-                              <span className="text-right font-medium text-red-600">-{formatCurrency(accountSummary.financial_summary.loans_outstanding, accountSummary.country)}</span>
+                              <span className="text-gray-600">Total Loans:</span>
+                              <span className="text-right font-medium text-red-600">{formatCurrency(accountSummary.financial_summary.wc_standing.total_effective_loans, accountSummary.country)}</span>
                             </>
                           )}
-                          <span className="text-gray-700 font-semibold border-t pt-1">Available Capital:</span>
-                          <span className={`text-right font-bold border-t pt-1 ${accountSummary.financial_summary.working_capital_available >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            {formatCurrency(accountSummary.financial_summary.working_capital_available, accountSummary.country)}
-                          </span>
                         </div>
                       </div>
                     )}
@@ -1642,30 +1665,36 @@ export default function CenterAccounts() {
               {accountSummary.financial_summary.wc_standing && (
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Working Capital Standing (as of {accountSummary.period})</CardTitle>
-                    <CardDescription>Dynamic working capital based on cumulative P&L from opening</CardDescription>
+                    <CardTitle className="text-lg">Working Capital Standing ({accountSummary.period})</CardTitle>
+                    <CardDescription>Monthly WC assessment: Opening + P&L = Closing</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-3 bg-gray-50 rounded-lg text-center">
-                        <p className="text-xs text-gray-500">Security Deposit</p>
-                        <p className="text-lg font-semibold">{formatCurrency(accountSummary.financial_summary.wc_standing.initial_security_deposit, accountSummary.country)}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="p-3 bg-blue-50 rounded-lg text-center border border-blue-200">
+                        <p className="text-xs text-gray-500">Opening WC</p>
+                        <p className="text-lg font-semibold text-blue-700">{formatCurrency(accountSummary.financial_summary.wc_standing.opening_wc, accountSummary.country)}</p>
                       </div>
                       <div className="p-3 bg-gray-50 rounded-lg text-center">
-                        <p className="text-xs text-gray-500">Cumulative P&L</p>
-                        <p className={`text-lg font-semibold ${accountSummary.financial_summary.wc_standing.cumulative_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(accountSummary.financial_summary.wc_standing.cumulative_pnl, accountSummary.country)}
+                        <p className="text-xs text-gray-500">This Month P&L</p>
+                        <p className={`text-lg font-semibold ${accountSummary.financial_summary.wc_standing.this_month_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {accountSummary.financial_summary.wc_standing.this_month_pnl >= 0 ? '+' : ''}{formatCurrency(accountSummary.financial_summary.wc_standing.this_month_pnl, accountSummary.country)}
+                        </p>
+                      </div>
+                      <div className={`p-3 rounded-lg text-center border ${accountSummary.financial_summary.wc_standing.closing_wc >= accountSummary.financial_summary.wc_standing.initial_security_deposit ? 'bg-green-50 border-green-200' : accountSummary.financial_summary.wc_standing.closing_wc > 0 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
+                        <p className="text-xs text-gray-500">Closing WC</p>
+                        <p className={`text-lg font-bold ${accountSummary.financial_summary.wc_standing.closing_wc >= accountSummary.financial_summary.wc_standing.initial_security_deposit ? 'text-green-700' : accountSummary.financial_summary.wc_standing.closing_wc > 0 ? 'text-amber-700' : 'text-red-700'}`} data-testid="payout-available-wc">
+                          {formatCurrency(accountSummary.financial_summary.wc_standing.closing_wc, accountSummary.country)}
                         </p>
                       </div>
                       <div className="p-3 bg-gray-50 rounded-lg text-center">
-                        <p className="text-xs text-gray-500">Loans Outstanding</p>
-                        <p className="text-lg font-semibold text-red-600">{formatCurrency(accountSummary.financial_summary.loans_outstanding, accountSummary.country)}</p>
-                      </div>
-                      <div className={`p-3 rounded-lg text-center ${accountSummary.financial_summary.working_capital_available >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                        <p className="text-xs text-gray-500">Available Capital</p>
-                        <p className={`text-lg font-bold ${accountSummary.financial_summary.working_capital_available >= 0 ? 'text-green-700' : 'text-red-700'}`} data-testid="payout-available-wc">
-                          {formatCurrency(accountSummary.financial_summary.working_capital_available, accountSummary.country)}
+                        <p className="text-xs text-gray-500">Diff from Initial</p>
+                        <p className={`text-lg font-semibold ${accountSummary.financial_summary.wc_standing.diff_from_initial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(accountSummary.financial_summary.wc_standing.diff_from_initial, accountSummary.country)}
                         </p>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg text-center">
+                        <p className="text-xs text-gray-500">Total Loans</p>
+                        <p className="text-lg font-semibold text-red-600">{formatCurrency(accountSummary.financial_summary.wc_standing.total_effective_loans, accountSummary.country)}</p>
                       </div>
                     </div>
                   </CardContent>

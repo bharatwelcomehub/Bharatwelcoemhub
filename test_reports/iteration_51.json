@@ -1,0 +1,103 @@
+{
+  "summary": "Tested Working Capital month-by-month calculation feature. Backend: 10/10 tests passed (100%). Frontend: All WC Assessment UI elements verified - Overview tab shows 4-column layout, MG & Payout tab shows 5-column WC Standing grid. All calculations match expected formulas.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_wc_month_by_month.py",
+    "/app/test_reports/pytest/pytest_wc_month_by_month.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: calculate_working_capital_standing() correctly calculates Opening WC = Initial + cumulative P&L from previous months",
+    "VERIFIED: This Month P&L = Sales - Expenses - Commissions - GST",
+    "VERIFIED: Closing WC = Opening WC + This Month P&L (capped at 0 if negative)",
+    "VERIFIED: Diff from Initial = Closing WC - Initial Security Deposit",
+    "VERIFIED: Loan from WC Deficit captures negative closing overflow",
+    "VERIFIED: Total Effective Loans = loans_outstanding + loan_from_wc_deficit",
+    "VERIFIED: WC Status thresholds: healthy (>=100%), restoring (50-100%), closed (<50%)",
+    "VERIFIED: Frontend Overview tab shows 4-column WC Assessment card (Opening, P&L, Closing, Diff)",
+    "VERIFIED: Frontend MG & Payout tab shows 5-column WC Standing grid (Opening, P&L, Closing, Diff, Total Loans)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_wc_month_by_month.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (All UI elements verified)"
+  },
+  "test_credentials": {
+    "super_admin": {
+      "mobile": "9741399190",
+      "center": "PB-MGT",
+      "otp": "123456"
+    }
+  },
+  "seed_data_creation": "None - used existing PB-HSR center with franchise FR-TEST-INDIA (WC=900000)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "WC month-by-month calculation verified. PB-HSR March 2026 shows: Opening WC=5170507.56, This Month P&L=21650.00, Closing WC=5192157.56, Diff from Initial=4292157.56, Status=healthy (576.91%). All formulas verified via backend tests.",
+  "features_tested": {
+    "backend_api": {
+      "wc_standing_fields": "PASSED - All required fields present: opening_wc, this_month_pnl, closing_wc, diff_from_initial, loan_from_wc_deficit, total_effective_loans, wc_status",
+      "closing_wc_formula": "PASSED - closing_wc = opening_wc + this_month_pnl (verified)",
+      "opening_wc_formula": "PASSED - opening_wc = initial_deposit + cumulative_prev_pnl",
+      "diff_from_initial_formula": "PASSED - diff_from_initial = closing_wc - initial_security_deposit",
+      "total_effective_loans_formula": "PASSED - total_effective_loans = loans_outstanding + loan_from_wc_deficit",
+      "wc_status_thresholds": "PASSED - healthy/restoring/closed based on percentage",
+      "pnl_components": "PASSED - this_month_pnl = sales - expenses - commissions - gst"
+    },
+    "frontend_overview_tab": {
+      "wc_assessment_card": "PASSED - Working Capital Assessment card visible",
+      "opening_wc_display": "PASSED - Shows Rs. 51,70,507.56",
+      "this_month_pnl_display": "PASSED - Shows +Rs. 21,650.00 with breakdown",
+      "closing_wc_display": "PASSED - Shows Rs. 51,92,157.56",
+      "diff_from_initial_display": "PASSED - Shows +Rs. 42,92,157.56",
+      "progress_bar": "PASSED - Shows 50% threshold and 100% markers"
+    },
+    "frontend_mg_payout_tab": {
+      "wc_standing_card": "PASSED - Working Capital Standing card visible",
+      "five_column_grid": "PASSED - All 5 columns present (Opening, P&L, Closing, Diff, Total Loans)",
+      "opening_wc_column": "PASSED - Rs. 51,70,507.56",
+      "pnl_column": "PASSED - +Rs. 21,650.00",
+      "closing_wc_column": "PASSED - Rs. 51,92,157.56",
+      "diff_column": "PASSED - Rs. 42,92,157.56",
+      "total_loans_column": "PASSED - Rs. 0.00"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/send_otp": "PASSED",
+    "POST /api/verify_otp": "PASSED",
+    "POST /api/center-accounts/summary": "PASSED - Returns complete wc_standing object"
+  },
+  "wc_calculation_verification": {
+    "test_center": "PB-HSR",
+    "test_month": "2026-03",
+    "initial_security_deposit": 900000,
+    "opening_wc": 5170507.56,
+    "this_month_sales": 27000,
+    "this_month_expenses": 4000,
+    "this_month_commissions": 0,
+    "this_month_gst": 1350,
+    "this_month_pnl": 21650,
+    "closing_wc": 5192157.56,
+    "diff_from_initial": 4292157.56,
+    "loan_from_wc_deficit": 0,
+    "loans_outstanding": 0,
+    "total_effective_loans": 0,
+    "wc_percentage": 576.91,
+    "wc_status": "healthy",
+    "revenue_share_active": true,
+    "formula_verification": {
+      "closing_wc_check": "5170507.56 + 21650 = 5192157.56 ✓",
+      "diff_check": "5192157.56 - 900000 = 4292157.56 ✓",
+      "pnl_check": "27000 - 4000 - 0 - 1350 = 21650 ✓"
+    }
+  }
+}
