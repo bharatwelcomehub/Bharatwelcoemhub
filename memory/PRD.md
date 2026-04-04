@@ -25,6 +25,14 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-04] ANZ PDF Parsing Fix — Table-to-Text Fallback
+- **Bug Fix**: ANZ Bank PDF (JAN-FEB 2026) was returning 0 transactions
+- **Root Cause**: Table extraction found partial headers (date+narration, no debit column), blocking text fallback
+- **Fix**: Added fallback in `parse_pdf_bank_statement()` — if table parsing yields 0 transactions, automatically uses text parser
+- **Result**: 111 debit transactions parsed correctly, total $33,182.40 matches PDF summary
+- **Also fixed**: Removed duplicate `return transactions` in `parse_pdf_text_fallback()`
+- File: `/app/backend/routes/bank_reconciliation.py`
+
 ### [2026-04-02] Bank Statement vs Expense Reconciliation Feature
 - **Full Feature Implementation**: Upload bank statements (Excel/CSV/PDF), parse debit transactions, match against recorded expenses
 - **File Format Support**: 
