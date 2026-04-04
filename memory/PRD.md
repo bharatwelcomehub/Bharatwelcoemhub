@@ -30,8 +30,19 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Root Cause**: Table extraction found partial headers (date+narration, no debit column), blocking text fallback
 - **Fix**: Added fallback in `parse_pdf_bank_statement()` — if table parsing yields 0 transactions, automatically uses text parser
 - **Result**: 111 debit transactions parsed correctly, total $33,182.40 matches PDF summary
-- **Also fixed**: Removed duplicate `return transactions` in `parse_pdf_text_fallback()`
 - File: `/app/backend/routes/bank_reconciliation.py`
+
+### [2026-04-04] Opening Balance & Petty Cash Formula Fix
+- **Bug Fix**: Opening Balance and Petty Cash Opening were wrong for all centers
+- **Root Cause #1**: `update_petty_cash_for_expense()` used wrong formula (`petty_opening - cash_expense` instead of `petty_opening + cash_receipts - cash_expense`), also didn't update `closing_balance`
+- **Root Cause #2**: Frontend used stale stored `opening_balance` instead of always using previous day's closing
+- **Fixes Applied**:
+  1. `update_petty_cash_for_expense()` now uses `calculate_totals()` for consistent recalculation of all derived fields
+  2. Frontend `SalesDataEntry.jsx` always uses previous day's closing as today's opening
+  3. Frontend `SalesGridEditor.jsx` chains opening balances after loading grid data
+  4. New `POST /api/sales/daily/recalculate` endpoint to fix historical data (chains balances for a center+month)
+  5. "Fix Balances" button added to Sales Dashboard header
+- Files: `/app/backend/routes/sales_expenses.py`, `/app/frontend/src/components/SalesDataEntry.jsx`, `/app/frontend/src/components/SalesGridEditor.jsx`, `/app/frontend/src/pages/SalesExpenses.jsx`
 
 ### [2026-04-02] Bank Statement vs Expense Reconciliation Feature
 - **Full Feature Implementation**: Upload bank statements (Excel/CSV/PDF), parse debit transactions, match against recorded expenses
