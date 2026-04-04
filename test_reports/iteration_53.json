@@ -1,0 +1,96 @@
+{
+  "summary": "Tested WC Table and WC Override features. Backend: 12/12 tests passed (100%). Frontend: WC table displays correctly with all required columns, Edit Initial WC works, first month WC override works, SalesGridEditor shows Opening Bal/Deposited/Cash Rcpt columns.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_wc_table_override.py",
+    "/app/test_reports/pytest/pytest_wc_table_override.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: POST /api/center-accounts/wc-table returns month-by-month WC data",
+    "VERIFIED: P/L formula is correct: P/L = Sale - Expenses (simple subtraction)",
+    "VERIFIED: Closing WC formula: closing_wc = opening_wc + pnl",
+    "VERIFIED: Diff from initial formula: diff_from_initial = closing_wc - initial_wc",
+    "VERIFIED: WC chaining works: opening WC of month N = closing WC of month N-1",
+    "VERIFIED: POST /api/center-accounts/wc-override sets initial WC (no month param)",
+    "VERIFIED: POST /api/center-accounts/wc-override sets month-specific opening WC override",
+    "VERIFIED: WC table UI shows all required columns: MONTH, SALE, EXPENSES, P/L, WORKING CAPITAL, BAL. WC., DIFF.OF WC.",
+    "VERIFIED: Edit Initial WC button works and shows success toast",
+    "VERIFIED: First month pencil icon allows editing opening WC override",
+    "VERIFIED: SalesGridEditor has Opening Bal column (editable for 1st day only per code)",
+    "VERIFIED: SalesGridEditor has Deposited and Cash Rcpt columns"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_wc_table_override.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (WC table, Edit Initial WC, month override, SalesGridEditor columns verified)"
+  },
+  "test_credentials": {
+    "super_admin": {
+      "mobile": "9741399190",
+      "center": "PB-MGT",
+      "otp": "123456"
+    }
+  },
+  "seed_data_creation": "None - used existing PB-HSR center data (12 months of WC data)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "WC Table and WC Override features verified working. PB-HSR has 12 months of WC data (Apr 2025 - Mar 2026). Initial WC is 900000. The wc-table endpoint returns month-by-month data with simple P/L = Sale - Expenses formula. The wc-override endpoint allows setting initial WC or month-specific opening WC override. SalesGridEditor has Opening Bal, Deposited, and Cash Rcpt columns.",
+  "features_tested": {
+    "backend_api": {
+      "wc_table_endpoint": "PASSED - POST /api/center-accounts/wc-table returns month-by-month data",
+      "wc_table_columns": "PASSED - Returns month, sale, expenses, pnl, opening_wc, closing_wc, diff_from_initial",
+      "wc_table_pnl_formula": "PASSED - P/L = Sale - Expenses (verified)",
+      "wc_table_closing_formula": "PASSED - closing_wc = opening_wc + pnl (verified)",
+      "wc_table_diff_formula": "PASSED - diff_from_initial = closing_wc - initial_wc (verified)",
+      "wc_table_chaining": "PASSED - opening WC of month N = closing WC of month N-1",
+      "wc_table_auth": "PASSED - Returns 401 for invalid token",
+      "wc_override_initial": "PASSED - Sets initial WC when no month param",
+      "wc_override_month": "PASSED - Sets month-specific opening WC override",
+      "wc_override_value_required": "PASSED - Returns 400 when value missing",
+      "wc_override_auth": "PASSED - Returns 401 for invalid token"
+    },
+    "frontend_ui": {
+      "wc_table_display": "PASSED - WC table shows on Center Accounts page under Overview tab",
+      "wc_table_columns": "PASSED - Shows MONTH, SALE, EXPENSES, P/L, WORKING CAPITAL, BAL. WC., DIFF.OF WC.",
+      "edit_initial_wc_button": "PASSED - Edit button next to Initial WC value works",
+      "edit_initial_wc_save": "PASSED - Shows success toast 'Initial WC set for PB-HSR: 950000.0'",
+      "first_month_edit_icon": "PASSED - Pencil icon on first row allows editing opening WC",
+      "first_month_override_save": "PASSED - Shows success toast 'WC opening override set for PB-HSR 2025-04: 850000.0'",
+      "sales_grid_opening_bal": "PASSED - Opening Bal column visible in SalesGridEditor",
+      "sales_grid_deposited": "PASSED - Deposited column visible in SalesGridEditor",
+      "sales_grid_cash_rcpt": "PASSED - Cash Rcpt column visible in SalesGridEditor"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/send_otp": "PASSED",
+    "POST /api/verify_otp": "PASSED",
+    "POST /api/center-accounts/wc-table": "PASSED - Returns 12 months of WC data for PB-HSR",
+    "POST /api/center-accounts/wc-override": "PASSED - Sets initial WC and month-specific overrides"
+  },
+  "wc_table_verification": {
+    "test_center": "PB-HSR",
+    "initial_wc": 900000,
+    "months_returned": 12,
+    "date_range": "Apr 2025 - Mar 2026",
+    "formula_verification": {
+      "pnl": "sale - expenses (simple subtraction, no GST/commissions)",
+      "closing_wc": "opening_wc + pnl (can go negative)",
+      "diff_from_initial": "closing_wc - initial_wc"
+    }
+  },
+  "navigation_path": {
+    "wc_table": "Login > Accounts > Center Accounts > Select center > Overview tab > Working Capital Assessment section",
+    "sales_grid": "Login > Sales & Cash > Sales Dashboard > Select center > Grid Update tab"
+  }
+}

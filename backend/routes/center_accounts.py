@@ -310,6 +310,175 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     }
 
 
+# =======================================
+# WC TABLE ENDPOINT - Excel-like month-by-month view
+# P/L = Sale - Expenses (simple, no GST/Commission)
+# =======================================
+
+@router.post("/wc-table")
+async def get_wc_table(req: dict = Body(...)):
+    """
+    Return Working Capital Assessment as a month-by-month table
+    matching the Excel format exactly:
+    MONTH | SALE | EXPENSES | P/L | WORKING CAPITAL (Opening) | BAL. WC. (Closing) | DIFF.OF WC.
+    
+    Formula: P/L = Sale - Expenses (simple subtraction)
+    Opening WC = Previous month's Closing WC (or Initial Deposit for first month)
+    Closing WC = Opening WC + P/L (can go negative)
+    """
+    token = req.get("token")
+    center = req.get("center", "").upper()
+    
+    session = await check_access(token)
+    
+    # Get franchise for initial WC
+    franchise = await get_franchise_for_center(center)
+    initial_wc = float(franchise.get("working_capital", 0) or 0) if franchise else 0
+    
+    # Check for manual WC override
+    wc_override = await db.wc_overrides.find_one(
+        {"center": center},
+        {"_id": 0}
+    )
+    if wc_override and wc_override.get("initial_wc") is not None:
+        initial_wc = float(wc_override["initial_wc"])
+    
+    # Get all months that have sales data for this center
+    sales_months = await db.daily_sales.aggregate([
+        {"$match": {"center": center, "date": {"$regex": r"^\d{4}-\d{2}"}}},
+        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
+        {"$group": {"_id": "$month", "total_sale": {"$sum": {"$ifNull": ["$total_sale", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(100)
+    
+    # Get all months that have expense data
+    expense_months = await db.expenses.aggregate([
+        {"$match": {"center": center}},
+        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
+        {"$group": {"_id": "$month", "total_expense": {"$sum": {"$ifNull": ["$amount", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(100)
+    
+    # Merge into a dict keyed by month
+    month_data = {}
+    for s in sales_months:
+        m = s["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0}
+        month_data[m]["sale"] = s["total_sale"]
+    
+    for e in expense_months:
+        m = e["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0}
+        month_data[m]["expenses"] = e["total_expense"]
+    
+    if not month_data:
+        return {"success": True, "rows": [], "initial_wc": initial_wc, "center": center}
+    
+    # Sort months chronologically
+    sorted_months = sorted(month_data.keys())
+    
+    # Check for month-level WC overrides
+    month_overrides = {}
+    override_docs = await db.wc_overrides.find(
+        {"center": center, "month": {"$exists": True}},
+        {"_id": 0}
+    ).to_list(100)
+    for od in override_docs:
+        if od.get("month") and od.get("opening_wc_override") is not None:
+            month_overrides[od["month"]] = float(od["opening_wc_override"])
+    
+    # Build table rows
+    rows = []
+    prev_closing = initial_wc
+    
+    for month in sorted_months:
+        d = month_data[month]
+        sale = round(d["sale"], 2)
+        expenses = round(d["expenses"], 2)
+        pnl = round(sale - expenses, 2)
+        
+        # Check if this month has a manual override for opening WC
+        if month in month_overrides:
+            opening_wc = month_overrides[month]
+        else:
+            opening_wc = round(prev_closing, 2)
+        
+        closing_wc = round(opening_wc + pnl, 2)
+        diff_from_initial = round(closing_wc - initial_wc, 2)
+        
+        rows.append({
+            "month": month,
+            "sale": sale,
+            "expenses": expenses,
+            "pnl": pnl,
+            "opening_wc": opening_wc,
+            "closing_wc": closing_wc,
+            "diff_from_initial": diff_from_initial,
+            "has_override": month in month_overrides
+        })
+        
+        prev_closing = closing_wc
+    
+    return {
+        "success": True,
+        "rows": rows,
+        "initial_wc": initial_wc,
+        "center": center
+    }
+
+
+@router.post("/wc-override")
+async def set_wc_override(req: dict = Body(...)):
+    """
+    Set/update WC opening override for a specific center and month.
+    This allows the admin to manually reset the WC opening for any month.
+    If month is not provided, sets the initial WC value.
+    """
+    token = req.get("token")
+    center = req.get("center", "").upper()
+    month = req.get("month")  # YYYY-MM or None for initial
+    value = req.get("value")
+    
+    session = await check_access(token)
+    
+    if value is None:
+        raise HTTPException(400, "Value is required")
+    
+    value = float(value)
+    
+    if month:
+        # Override opening WC for a specific month
+        await db.wc_overrides.update_one(
+            {"center": center, "month": month},
+            {"$set": {
+                "center": center,
+                "month": month,
+                "opening_wc_override": value,
+                "updated_by": session.get("mobile", "unknown"),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        logger.info(f"WC override set for {center} month {month}: {value}")
+        return {"success": True, "message": f"WC opening override set for {center} {month}: {value}"}
+    else:
+        # Override initial WC
+        await db.wc_overrides.update_one(
+            {"center": center, "month": {"$exists": False}},
+            {"$set": {
+                "center": center,
+                "initial_wc": value,
+                "updated_by": session.get("mobile", "unknown"),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        logger.info(f"Initial WC override set for {center}: {value}")
+        return {"success": True, "message": f"Initial WC set for {center}: {value}"}
+
+
 # Colors for PDF
 BRAND_MAROON = colors.HexColor("#800020")
 BRAND_GOLD = colors.HexColor("#C9A227")

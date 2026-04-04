@@ -13,7 +13,8 @@ import {
   Building2, DollarSign, TrendingUp, TrendingDown, FileText, Upload, 
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
-  IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil
+  IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
+  Check, X
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -113,6 +114,14 @@ export default function CenterAccounts() {
   const [auditReport, setAuditReport] = useState(null);
   const [exportBatches, setExportBatches] = useState(null);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // WC Table state
+  const [wcTableData, setWcTableData] = useState(null);
+  const [wcLoading, setWcLoading] = useState(false);
+  const [wcEditingMonth, setWcEditingMonth] = useState(null);
+  const [wcEditValue, setWcEditValue] = useState('');
+  const [wcEditingInitial, setWcEditingInitial] = useState(false);
+  const [wcInitialValue, setWcInitialValue] = useState('');
 
   // Fetch centers
   const fetchCenters = useCallback(async () => {
@@ -231,6 +240,51 @@ export default function CenterAccounts() {
     }
   }, [token, selectedCenter, payoutFromMonth, payoutToMonth]);
 
+  // Fetch WC table data
+  const fetchWcTable = useCallback(async () => {
+    if (!token || !selectedCenter) return;
+    setWcLoading(true);
+    try {
+      const res = await fetch(`${API}/api/center-accounts/wc-table`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center: selectedCenter })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWcTableData(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch WC table');
+    } finally {
+      setWcLoading(false);
+    }
+  }, [token, selectedCenter]);
+
+  // Save WC override (initial or month-level)
+  const saveWcOverride = async (month, value) => {
+    try {
+      const body = { token, center: selectedCenter, value: parseFloat(value) };
+      if (month) body.month = month;
+      const res = await fetch(`${API}/api/center-accounts/wc-override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        setWcEditingMonth(null);
+        setWcEditingInitial(false);
+        fetchWcTable();
+      } else {
+        toast.error(data.detail || 'Failed to save override');
+      }
+    } catch (error) {
+      toast.error('Failed to save WC override');
+    }
+  };
+
   useEffect(() => {
     fetchCenters();
     fetchLinkageStatus();
@@ -241,8 +295,9 @@ export default function CenterAccounts() {
       fetchAccountSummary();
       fetchCommissions();
       fetchPayoutSummary();
+      fetchWcTable();
     }
-  }, [selectedCenter, selectedMonth, fetchAccountSummary, fetchCommissions, fetchPayoutSummary]);
+  }, [selectedCenter, selectedMonth, fetchAccountSummary, fetchCommissions, fetchPayoutSummary, fetchWcTable]);
 
   // Upload and parse commission Excel
   const handleUploadCommission = async () => {
@@ -813,182 +868,127 @@ export default function CenterAccounts() {
                     <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                     <div>
                       <p className="font-semibold text-red-800">Revenue Share & MG CLOSED</p>
-                      <p className="text-sm text-red-700">Working Capital is below 50% of Security Deposit. All profits will be used to refill Working Capital first. Revenue Share and Minimum Guarantee are suspended until WC is restored.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {accountSummary.financial_summary.wc_standing?.wc_status === "restoring" && (
-                <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg" data-testid="wc-restoring-banner">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                    <div>
-                      <p className="font-semibold text-amber-800">Working Capital Being Restored</p>
-                      <p className="text-sm text-amber-700">WC is below initial deposit. Profits are first restoring Working Capital. Revenue Share resumes once WC is fully restored to initial amount.</p>
+                      <p className="text-sm text-red-700">Working Capital is below 50% of Security Deposit.</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Working Capital Assessment Card - Month by Month like Excel */}
-              {accountSummary.financial_summary.wc_standing && accountSummary.financial_summary.working_capital > 0 && (
-                <Card data-testid="wc-utilisation-card">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Working Capital Assessment</CardTitle>
-                    <CardDescription>Monthly standing for {accountSummary.period}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {(() => { const wc = accountSummary.financial_summary.wc_standing; return (
-                    <div className="space-y-4">
-                      {/* Row 1: Opening → P&L → Closing like Excel */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="p-3 bg-blue-50 rounded-lg text-center border border-blue-200">
-                          <p className="text-xs text-gray-500">Opening WC</p>
-                          <p className="text-sm font-semibold text-blue-700">{formatCurrency(wc.opening_wc, accountSummary.country)}</p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg text-center">
-                          <p className="text-xs text-gray-500">This Month P&L</p>
-                          <p className={`text-sm font-semibold ${wc.this_month_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {wc.this_month_pnl >= 0 ? '+' : ''}{formatCurrency(wc.this_month_pnl, accountSummary.country)}
-                          </p>
-                          <p className="text-[10px] text-gray-400">Sale {formatCurrency(wc.this_month_sales, accountSummary.country)} - Exp {formatCurrency(wc.this_month_expenses, accountSummary.country)}</p>
-                        </div>
-                        <div className={`p-3 rounded-lg text-center border ${wc.closing_wc >= wc.initial_security_deposit ? 'bg-green-50 border-green-200' : wc.closing_wc > 0 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
-                          <p className="text-xs text-gray-500">Closing WC (BAL.)</p>
-                          <p className={`text-sm font-bold ${wc.closing_wc >= wc.initial_security_deposit ? 'text-green-700' : wc.closing_wc > 0 ? 'text-amber-700' : 'text-red-700'}`}>
-                            {formatCurrency(wc.closing_wc, accountSummary.country)}
-                          </p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg text-center">
-                          <p className="text-xs text-gray-500">Diff from Initial</p>
-                          <p className={`text-sm font-semibold ${wc.diff_from_initial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {wc.diff_from_initial >= 0 ? '+' : ''}{formatCurrency(wc.diff_from_initial, accountSummary.country)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Row 2: Loans */}
-                      {(wc.loan_from_wc_deficit > 0 || wc.loans_outstanding > 0) && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t">
-                          {wc.loan_from_wc_deficit > 0 && (
-                            <div className="p-3 bg-red-50 rounded-lg text-center border border-red-200">
-                              <p className="text-xs text-gray-500">Loan from WC Deficit (this month)</p>
-                              <p className="text-sm font-semibold text-red-700">{formatCurrency(wc.loan_from_wc_deficit, accountSummary.country)}</p>
-                            </div>
-                          )}
-                          <div className="p-3 bg-gray-50 rounded-lg text-center">
-                            <p className="text-xs text-gray-500">Recorded Loans Outstanding</p>
-                            <p className="text-sm font-semibold text-red-600">{formatCurrency(wc.loans_outstanding, accountSummary.country)}</p>
-                          </div>
-                          <div className="p-3 bg-red-50 rounded-lg text-center border border-red-200">
-                            <p className="text-xs text-gray-500">Total Effective Loans</p>
-                            <p className="text-sm font-bold text-red-700">{formatCurrency(wc.total_effective_loans, accountSummary.country)}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Progress bar */}
-                      <div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div
-                            className={`h-2.5 rounded-full ${wc.wc_percentage >= 100 ? 'bg-green-500' : wc.wc_percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
-                            style={{ width: `${Math.min(100, Math.max(0, wc.wc_percentage))}%` }}
+              {/* Working Capital Assessment Table - Excel Format */}
+              <Card data-testid="wc-table-card">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Wallet className="w-5 h-5" />
+                      Working Capital Assessment — {selectedCenter}
+                    </CardTitle>
+                    <Button variant="outline" size="sm" onClick={fetchWcTable} disabled={wcLoading} className="gap-1">
+                      <RefreshCw className={`w-4 h-4 ${wcLoading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                  {wcTableData && (
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                      <span>Initial WC: <strong className="text-foreground">{formatCurrency(wcTableData.initial_wc, accountSummary?.country)}</strong></span>
+                      {wcEditingInitial ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            value={wcInitialValue}
+                            onChange={(e) => setWcInitialValue(e.target.value)}
+                            className="w-32 h-7 text-xs"
+                            data-testid="wc-initial-input"
                           />
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => saveWcOverride(null, wcInitialValue)}>
+                            <Check className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWcEditingInitial(false)}>
+                            <X className="w-4 h-4 text-red-600" />
+                          </Button>
                         </div>
-                        <div className="flex justify-between text-xs text-gray-400 mt-1">
-                          <span>0%</span>
-                          <span className="text-red-400">50% (Rev Share Threshold)</span>
-                          <span>100% ({formatCurrency(wc.initial_security_deposit, accountSummary.country)})</span>
-                        </div>
-                      </div>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" onClick={() => { setWcEditingInitial(true); setWcInitialValue(wcTableData.initial_wc || 0); }} data-testid="edit-initial-wc-btn">
+                          <Pencil className="w-3 h-3" /> Edit
+                        </Button>
+                      )}
                     </div>
-                    ); })()}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Financial Summary */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Financial Summary</CardTitle>
+                  )}
                 </CardHeader>
-                <CardContent>
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-gray-600">Revenue</h4>
-                      <div className="flex justify-between text-sm">
-                        <span>Total Sales</span>
-                        <span className="font-medium">{formatCurrency(accountSummary.financial_summary.total_sales, accountSummary.country)}</span>
-                      </div>
+                <CardContent className="p-0">
+                  {wcLoading ? (
+                    <div className="text-center py-8 text-muted-foreground">Loading WC data...</div>
+                  ) : wcTableData && wcTableData.rows?.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse" data-testid="wc-assessment-table">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground border-b">MONTH</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">SALE</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">EXPENSES</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">P/L</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-blue-50">WORKING CAPITAL</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-green-50">BAL. WC.</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">DIFF.OF WC.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {wcTableData.rows.map((row, idx) => {
+                            const isEditing = wcEditingMonth === row.month;
+                            const monthLabel = new Date(row.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                            return (
+                              <tr key={row.month} className={`border-b hover:bg-muted/30 ${row.has_override ? 'bg-yellow-50/30' : ''}`} data-testid={`wc-row-${row.month}`}>
+                                <td className="px-3 py-2 font-medium text-xs">{monthLabel}</td>
+                                <td className="px-3 py-2 text-right font-mono text-xs">{row.sale.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td className="px-3 py-2 text-right font-mono text-xs text-red-600">{row.expenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td className={`px-3 py-2 text-right font-mono text-xs font-semibold ${row.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {row.pnl.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className="px-3 py-2 text-right font-mono text-xs bg-blue-50/50">
+                                  <div className="flex items-center justify-end gap-1">
+                                    {isEditing ? (
+                                      <>
+                                        <Input
+                                          type="number"
+                                          value={wcEditValue}
+                                          onChange={(e) => setWcEditValue(e.target.value)}
+                                          className="w-28 h-6 text-xs text-right"
+                                          autoFocus
+                                          data-testid={`wc-edit-input-${row.month}`}
+                                        />
+                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => saveWcOverride(row.month, wcEditValue)}>
+                                          <Check className="w-3 h-3 text-green-600" />
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setWcEditingMonth(null)}>
+                                          <X className="w-3 h-3 text-red-600" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>{row.opening_wc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        {idx === 0 && (
+                                          <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => { setWcEditingMonth(row.month); setWcEditValue(row.opening_wc); }} data-testid={`wc-edit-btn-${row.month}`}>
+                                            <Pencil className="w-3 h-3 text-muted-foreground" />
+                                          </Button>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className={`px-3 py-2 text-right font-mono text-xs font-bold bg-green-50/50 ${row.closing_wc >= 0 ? '' : 'text-red-600'}`}>
+                                  {row.closing_wc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className={`px-3 py-2 text-right font-mono text-xs ${row.diff_from_initial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {row.diff_from_initial.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-gray-600">Deductions</h4>
-                      <div className="flex justify-between text-sm">
-                        <span>Expenses</span>
-                        <span className="text-red-600">-{formatCurrency(accountSummary.financial_summary.total_expenses, accountSummary.country)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Commissions</span>
-                        <span className="text-red-600">-{formatCurrency(accountSummary.financial_summary.total_commissions, accountSummary.country)}</span>
-                      </div>
-                      {accountSummary.financial_summary.sales_gst > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span>GST on Sales ({accountSummary.financial_summary.sales_gst_rate || '5%'})</span>
-                          <span className="text-red-600">-{formatCurrency(accountSummary.financial_summary.sales_gst, accountSummary.country)}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-gray-600">Working Capital</h4>
-                      <div className="flex justify-between text-sm">
-                        <span>Security Deposit (Initial)</span>
-                        <span className="font-medium">{formatCurrency(accountSummary.financial_summary.working_capital, accountSummary.country)}</span>
-                      </div>
-                      {accountSummary.financial_summary.wc_standing && (
-                        <>
-                          <div className="flex justify-between text-sm">
-                            <span>Opening WC</span>
-                            <span className="font-medium">{formatCurrency(accountSummary.financial_summary.wc_standing.opening_wc, accountSummary.country)}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span>This Month P&L</span>
-                            <span className={accountSummary.financial_summary.wc_standing.this_month_pnl >= 0 ? "text-green-600" : "text-red-600"}>
-                              {accountSummary.financial_summary.wc_standing.this_month_pnl >= 0 ? "+" : ""}{formatCurrency(accountSummary.financial_summary.wc_standing.this_month_pnl, accountSummary.country)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm font-semibold pt-1 border-t border-gray-200">
-                            <span>Closing WC (BAL.)</span>
-                            <span className={accountSummary.financial_summary.wc_standing.closing_wc >= accountSummary.financial_summary.working_capital ? "text-green-600" : accountSummary.financial_summary.wc_standing.closing_wc > 0 ? "text-amber-600" : "text-red-600"} data-testid="available-wc">
-                              {formatCurrency(accountSummary.financial_summary.wc_standing.closing_wc, accountSummary.country)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span>Diff from Initial</span>
-                            <span className={accountSummary.financial_summary.wc_standing.diff_from_initial >= 0 ? "text-green-600" : "text-red-600"}>
-                              {formatCurrency(accountSummary.financial_summary.wc_standing.diff_from_initial, accountSummary.country)}
-                            </span>
-                          </div>
-                          {accountSummary.financial_summary.wc_standing.total_effective_loans > 0 && (
-                            <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
-                              <span>Total Loans</span>
-                              <span className="text-red-600">{formatCurrency(accountSummary.financial_summary.wc_standing.total_effective_loans, accountSummary.country)}</span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {/* MG (Minimum Guarantee) */}
-                      {accountSummary.mg_calculation && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="flex justify-between text-sm font-medium">
-                            <span>Minimum Guarantee (MG)</span>
-                            <span className="text-purple-600">{formatCurrency(accountSummary.mg_calculation.monthly_mg, accountSummary.country)}</span>
-                          </div>
-                          <p className="text-xs text-gray-400 italic">EMI on Net Investment @ 15% for 7 years</p>
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-400 italic">Standing as of {accountSummary.period}</p>
-                    </div>
-                  </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground">No WC data for this center</div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

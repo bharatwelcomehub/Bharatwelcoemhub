@@ -58,7 +58,12 @@ const EDITABLE_FIELDS = [
   { key: 'due_amount', label: 'Due', type: 'number' },
   { key: 'num_guests', label: 'Guests', type: 'integer' },
   { key: 'num_bills', label: 'Bills', type: 'integer' },
+  { key: 'deposited_in_bank', label: 'Deposited', type: 'number' },
+  { key: 'cash_receipts', label: 'Cash Rcpt', type: 'number' },
 ];
+
+// Special field: opening_balance is editable ONLY for day 1 of the month
+const OPENING_BALANCE_FIELD = { key: 'opening_balance', label: 'Opening Bal', type: 'number' };
 
 // Calculated fields (auto-computed, shown in grid)
 const CALCULATED_FIELDS = [
@@ -731,6 +736,9 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
                 <tr>
                   <th className="px-2 py-2 text-left font-medium text-muted-foreground border-b w-24">Date</th>
                   <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b w-10">Status</th>
+                  <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b bg-green-50" title="Editable on 1st day only">
+                    {OPENING_BALANCE_FIELD.label}
+                  </th>
                   {EDITABLE_FIELDS.map(field => (
                     <th 
                       key={field.key} 
@@ -755,6 +763,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
                 {gridData.map((row, rowIndex) => {
                   const status = frozenStatus[row.date];
                   const isModified = modifiedRows.has(rowIndex);
+                  const isFirstDay = rowIndex === 0; // 1st day of month
                   
                   return (
                     <tr 
@@ -775,6 +784,14 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
                           <Lock className="w-3 h-3 text-amber-500 inline" title="Frozen" />
                         )}
                       </td>
+                      {/* Opening Balance: editable only for 1st day */}
+                      {isFirstDay ? (
+                        renderCell(row, OPENING_BALANCE_FIELD, rowIndex, -1)
+                      ) : (
+                        <td className="px-2 py-1 text-right bg-gray-50 text-gray-600 font-mono text-xs">
+                          {typeof row.opening_balance === 'number' ? Math.round(row.opening_balance).toLocaleString() : row.opening_balance || 0}
+                        </td>
+                      )}
                       {EDITABLE_FIELDS.map((field, fieldIndex) => 
                         renderCell(row, field, rowIndex, fieldIndex)
                       )}
@@ -790,7 +807,11 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         )}
 
         {/* Legend */}
-        <div className="p-3 bg-muted/50 border-t flex items-center gap-6 text-xs">
+        <div className="p-3 bg-muted/50 border-t flex items-center gap-6 text-xs flex-wrap">
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-green-50 border"></div>
+            <span>Opening Bal (1st day editable)</span>
+          </div>
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 bg-blue-50 border"></div>
             <span>Editable</span>
@@ -802,14 +823,6 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 bg-yellow-50 border"></div>
             <span>Modified (unsaved)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Lock className="w-3 h-3 text-amber-500" />
-            <span>Frozen</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Unlock className="w-3 h-3 text-green-500" />
-            <span>Editable</span>
           </div>
         </div>
       </CardContent>
