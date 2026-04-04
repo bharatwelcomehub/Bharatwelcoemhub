@@ -25,6 +25,15 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-04] Full Historical Balance Recalculation Fix (P0)
+- **Bug Fix**: `/api/sales/daily/recalculate` now recalculates ALL records for a center from first to last day (not just one month)
+- **Root Cause**: Single-month recalculation couldn't fix cascading errors from historical data corruption — each month pulled the wrong closing from the prior month
+- **Fix**: Endpoint fetches all `daily_sales` records with valid YYYY-MM-DD dates, iterates chronologically, chains `opening_balance = prev_closing_balance`, uses `bulk_write(ReplaceOne)` for batch efficiency
+- **Invalid Data Handling**: Records with malformed dates (e.g., "Monday,July" from Excel import) are filtered out via regex
+- **Verified**: 0 chain breaks across 364 records for PB-HSR (2025-04-01 to 2026-03-31)
+- **Frontend**: Button renamed "Fix All Balances", no longer sends month parameter, shows record count + date range in toast
+- Files: `/app/backend/routes/sales_expenses.py`, `/app/frontend/src/pages/SalesExpenses.jsx`
+
 ### [2026-04-04] ANZ PDF Parsing Fix — Table-to-Text Fallback
 - **Bug Fix**: ANZ Bank PDF (JAN-FEB 2026) was returning 0 transactions
 - **Root Cause**: Table extraction found partial headers (date+narration, no debit column), blocking text fallback
