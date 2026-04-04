@@ -1,0 +1,98 @@
+{
+  "summary": "Tested Working Capital calculation feature. Backend: 8/8 tests passed (100%). Frontend: All Working Capital sections verified in Overview, Revenue/Profit Share, and MG & Payout tabs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Center Accounts - PB-TH",
+        "issues": ["Center shows 'not linked to franchise' warning - this is expected behavior for unlinked centers, but may affect WC calculation if franchise working_capital is 0"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_working_capital.py",
+    "/app/test_reports/pytest/pytest_working_capital.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: POST /api/center-accounts/summary returns wc_standing in financial_summary",
+    "VERIFIED: wc_standing contains all required fields: initial_security_deposit, cumulative_sales, cumulative_expenses, cumulative_commissions, cumulative_gst, cumulative_pnl, loans_outstanding, available_capital, current_month_pnl",
+    "VERIFIED: WC formula: available_capital = initial_security_deposit + cumulative_pnl - loans_outstanding",
+    "VERIFIED: P&L formula: cumulative_pnl = cumulative_sales - cumulative_expenses - cumulative_commissions - cumulative_gst",
+    "VERIFIED: Frontend Overview tab shows Working Capital section with Security Deposit, Cumulative P&L, Available Working Capital",
+    "VERIFIED: Frontend Revenue/Profit Share tab shows Working Capital Standing card",
+    "VERIFIED: Frontend MG & Payout tab shows Working Capital Standing card with 4-column grid (Security Deposit, Cumulative P&L, Loans Outstanding, Available Capital)",
+    "VERIFIED: data-testid='available-wc' and data-testid='payout-available-wc' elements present and showing correct values"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_working_capital.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "super_admin": {
+      "mobile": "9741399190",
+      "center": "PB-MGT",
+      "otp": "123456"
+    }
+  },
+  "seed_data_creation": "None - used existing PB-TH center data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Working Capital calculation feature fully tested. Backend endpoint POST /api/center-accounts/summary returns wc_standing with all required fields. Frontend displays WC in 3 tabs: Overview (Financial Summary section), Revenue/Profit Share (Working Capital Standing card), MG & Payout (4-column grid card). Test file: /app/backend/tests/test_working_capital.py",
+  "features_tested": {
+    "backend_wc_standing": {
+      "endpoint_returns_wc_standing": "PASSED - wc_standing present in financial_summary",
+      "required_fields_present": "PASSED - All 9 required fields present",
+      "wc_formula_correct": "PASSED - available_capital = initial_security_deposit + cumulative_pnl - loans_outstanding",
+      "pnl_formula_correct": "PASSED - cumulative_pnl = sales - expenses - commissions - gst",
+      "positive_pnl_center": "PASSED - PB-TH shows positive cumulative P&L",
+      "negative_pnl_center": "PASSED - PB-KAL endpoint works correctly",
+      "working_capital_available_field": "PASSED - financial_summary.working_capital_available matches wc_standing.available_capital",
+      "current_month_pnl": "PASSED - current_month_pnl = current_month_sales - current_month_expenses"
+    },
+    "frontend_overview_tab": {
+      "security_deposit_shown": "PASSED",
+      "cumulative_pnl_shown": "PASSED",
+      "available_working_capital_shown": "PASSED",
+      "data_testid_available_wc": "PASSED - Shows Rs. 1,10,85,036.18"
+    },
+    "frontend_revenue_share_tab": {
+      "working_capital_standing_card": "PASSED",
+      "available_capital_shown": "PASSED"
+    },
+    "frontend_mg_payout_tab": {
+      "working_capital_standing_card": "PASSED",
+      "security_deposit_column": "PASSED",
+      "cumulative_pnl_column": "PASSED",
+      "loans_outstanding_column": "PASSED",
+      "available_capital_column": "PASSED",
+      "data_testid_payout_available_wc": "PASSED - Shows Rs. 1,10,85,036.18"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/send_otp": "PASSED",
+    "POST /api/verify_otp": "PASSED",
+    "POST /api/center-accounts/summary": "PASSED - Returns wc_standing with all required fields"
+  },
+  "mocked_apis": {
+    "none": "No APIs mocked - all endpoints fully functional"
+  },
+  "wc_calculation_verified": {
+    "formula": "WC Available = Initial Security Deposit + Cumulative P&L - Loans Outstanding",
+    "pnl_formula": "Cumulative P&L = Sales - Expenses - Commissions - GST",
+    "test_center": "PB-TH",
+    "test_month": "2026-03",
+    "sample_values": {
+      "cumulative_pnl": "Rs. 1,10,85,036.18 (positive)",
+      "available_capital": "Rs. 1,10,85,036.18"
+    }
+  }
+}

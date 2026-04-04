@@ -135,6 +135,134 @@ def calculate_mg(total_investment: float, setup_costs: dict, franchise_fee: floa
         "tenure_years": MG_TENURE_YEARS
     }
 
+
+async def calculate_working_capital_standing(db_ref, center_code: str, up_to_month: str, country: str = "India"):
+    """
+    Calculate dynamic Working Capital standing as of a given month.
+    
+    WC Available = Initial Security Deposit + Cumulative P&L - Loans Outstanding
+    where P&L = Sales - Expenses - Commissions - GST (from center opening to up_to_month)
+    """
+    # Get franchise for initial WC (security deposit)
+    center = await db_ref.centers.find_one({"code": center_code}, {"_id": 0})
+    franchise = None
+    initial_wc = 0
+    
+    if center:
+        fc = center.get("franchise_code")
+        if fc:
+            franchise = await db_ref.franchises.find_one({"franchise_code": fc}, {"_id": 0})
+            if franchise:
+                initial_wc = float(franchise.get("working_capital", 0) or 0)
+    
+    # Parse up_to_month → end_date for queries (include the full selected month)
+    year, month = map(int, up_to_month.split("-"))
+    if month == 12:
+        end_date = f"{year + 1}-01-01"
+    else:
+        end_date = f"{year}-{month + 1:02d}-01"
+    
+    # 1. Cumulative Sales (from all time up to end of selected month)
+    sales_pipeline = [
+        {"$match": {"center": center_code, "date": {"$lt": end_date}}},
+        {"$group": {
+            "_id": None,
+            "total_sale": {"$sum": {"$ifNull": ["$total_sale", 0]}},
+        }}
+    ]
+    sales_agg = await db_ref.daily_sales.aggregate(sales_pipeline).to_list(1)
+    cumulative_sales = sales_agg[0]["total_sale"] if sales_agg else 0
+    
+    # 2. Cumulative Expenses
+    expenses_pipeline = [
+        {"$match": {"center": center_code, "date": {"$lt": end_date}}},
+        {"$group": {
+            "_id": None,
+            "total_expenses": {"$sum": {"$ifNull": ["$amount", 0]}}
+        }}
+    ]
+    expenses_agg = await db_ref.expenses.aggregate(expenses_pipeline).to_list(1)
+    cumulative_expenses = expenses_agg[0]["total_expenses"] if expenses_agg else 0
+    
+    # 3. Cumulative Commissions (from monthly_commissions)
+    # All months up to and including selected month
+    comm_pipeline = [
+        {"$match": {"center": center_code, "month": {"$lte": up_to_month}}},
+        {"$group": {
+            "_id": None,
+            "total_commission": {"$sum": {
+                "$cond": [
+                    {"$or": [
+                        {"$gt": ["$gst_tax_deductions", 0]},
+                        {"$gt": ["$other_deductions", 0]}
+                    ]},
+                    {"$add": [
+                        {"$ifNull": ["$gst_tax_deductions", 0]},
+                        {"$ifNull": ["$other_deductions", 0]}
+                    ]},
+                    {"$ifNull": ["$commission_amount", 0]}
+                ]
+            }}
+        }}
+    ]
+    comm_agg = await db_ref.monthly_commissions.aggregate(comm_pipeline).to_list(1)
+    cumulative_commissions = comm_agg[0]["total_commission"] if comm_agg else 0
+    
+    # 4. GST on Sales
+    if country == "Australia":
+        cumulative_gst = cumulative_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
+    else:
+        # India - check if GST is applicable
+        gst_applicable = franchise.get("gst_applicable", False) if franchise else False
+        cumulative_gst = cumulative_sales * INDIA_GST_ON_SALES if gst_applicable else 0
+    
+    # 5. Cumulative P&L
+    cumulative_pnl = cumulative_sales - cumulative_expenses - cumulative_commissions - cumulative_gst
+    
+    # 6. Loans Outstanding (active loans as of selected month)
+    loan_entries = await db_ref.loan_entries.find({
+        "center": center_code,
+        "status": {"$ne": "fully_repaid"}
+    }, {"_id": 0}).to_list(100)
+    
+    total_loans_outstanding = sum(
+        (loan.get("amount", 0) - loan.get("total_repaid", 0))
+        for loan in loan_entries
+    )
+    
+    # 7. Available Working Capital
+    available_capital = initial_wc + cumulative_pnl - total_loans_outstanding
+    
+    # Monthly breakdown for current month's P&L only (for display)
+    month_start = f"{year}-{month:02d}-01"
+    current_month_sales_agg = await db_ref.daily_sales.aggregate([
+        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_sale", 0]}}}}
+    ]).to_list(1)
+    current_month_expenses_agg = await db_ref.expenses.aggregate([
+        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$amount", 0]}}}}
+    ]).to_list(1)
+    
+    current_month_sales = current_month_sales_agg[0]["total"] if current_month_sales_agg else 0
+    current_month_expenses = current_month_expenses_agg[0]["total"] if current_month_expenses_agg else 0
+    current_month_pnl = current_month_sales - current_month_expenses
+    
+    return {
+        "initial_security_deposit": round(initial_wc, 2),
+        "cumulative_sales": round(cumulative_sales, 2),
+        "cumulative_expenses": round(cumulative_expenses, 2),
+        "cumulative_commissions": round(cumulative_commissions, 2),
+        "cumulative_gst": round(cumulative_gst, 2),
+        "cumulative_pnl": round(cumulative_pnl, 2),
+        "loans_outstanding": round(total_loans_outstanding, 2),
+        "available_capital": round(available_capital, 2),
+        "current_month_pnl": round(current_month_pnl, 2),
+        "current_month_sales": round(current_month_sales, 2),
+        "current_month_expenses": round(current_month_expenses, 2),
+    }
+
+
 # Colors for PDF
 BRAND_MAROON = colors.HexColor("#800020")
 BRAND_GOLD = colors.HexColor("#C9A227")
@@ -499,21 +627,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             payable_type = "minimum_guarantee"
             payable_amount = monthly_mg
     
-    # Working Capital - DO NOT touch/calculate
-    # Working capital is security deposit, only show initial amount
-    # Usage will be handled as separate LOAN entries
-    working_capital = franchise.get("working_capital", 0) if franchise else 0
-    
-    # Get loan summary for this center
-    loan_entries = await db.loan_entries.find({
-        "center": req.center,
-        "status": {"$ne": "fully_repaid"}
-    }, {"_id": 0}).to_list(100)
-    
-    total_loans_outstanding = sum(
-        (loan.get("amount", 0) - loan.get("total_repaid", 0)) 
-        for loan in loan_entries
-    )
+    # Working Capital - Dynamic calculation based on cumulative P&L
+    wc_standing = await calculate_working_capital_standing(db, req.center, req.month, country)
+    working_capital = wc_standing["initial_security_deposit"]
+    total_loans_outstanding = wc_standing["loans_outstanding"]
     
     # ==========================================
     # 5. Build Response
@@ -568,8 +685,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "total_commissions_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),
             "net_revenue": round(net_revenue_for_share, 2),
             "working_capital": round(working_capital, 2),
+            "cumulative_pnl": wc_standing["cumulative_pnl"],
             "loans_outstanding": round(total_loans_outstanding, 2),
-            "working_capital_available": round(working_capital - total_loans_outstanding, 2)
+            "working_capital_available": wc_standing["available_capital"],
+            "wc_standing": wc_standing
         },
         "share_calculation": {
             "type": share_type,
@@ -965,6 +1084,14 @@ async def generate_pib_report(req: PIBGenerateRequest):
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
     fin_data.append(["", ""])
     fin_data.append(["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"])
+    wc_st = fin.get("wc_standing", {})
+    if wc_st:
+        if wc_st.get("cumulative_pnl", 0) != 0:
+            pnl_label = "Cumulative P&L Impact" if wc_st["cumulative_pnl"] >= 0 else "Cumulative P&L Deficit"
+            fin_data.append([pnl_label, f"{currency} {wc_st['cumulative_pnl']:,.2f}"])
+        if wc_st.get("loans_outstanding", 0) > 0:
+            fin_data.append(["Less: Loans Outstanding", f"({currency} {wc_st['loans_outstanding']:,.2f})"])
+        fin_data.append(["Available Working Capital", f"{currency} {wc_st['available_capital']:,.2f}"])
     
     net_revenue_row_idx = len(fin_data) - 3  # NET REVENUE row index
     
