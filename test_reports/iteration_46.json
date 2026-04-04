@@ -1,0 +1,77 @@
+{
+  "summary": "ANZ PDF parsing fix verified. The fallback to text-based parsing when table extraction yields 0 results is working correctly. Backend tests: 3/3 passed (100%).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_anz_pdf_parsing.py",
+    "/app/test_reports/pytest/pytest_anz_pdf_parsing.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: parse_pdf_bank_statement() now falls back to parse_pdf_text_fallback() when table extraction yields 0 transactions (line 391-392)",
+    "VERIFIED: parse_pdf_text_fallback() correctly parses ANZ format with 'blank' markers for withdrawal amounts",
+    "VERIFIED: 111 debit transactions parsed from ANZ PDF (expected ~111)",
+    "VERIFIED: Total debits $33,182.40 matches PDF summary",
+    "VERIFIED: All transaction dates correctly parsed with year hint (Jan-Feb 2026)",
+    "VERIFIED: Duplicate 'return transactions' statement was cleaned up in parse_pdf_text_fallback()"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_anz_pdf_parsing.py"
+  ],
+  "success_rate": {
+    "backend": "100% (3/3 tests passed)",
+    "frontend": "N/A (backend only testing requested)"
+  },
+  "test_credentials": {
+    "super_admin": {
+      "mobile": "9741399190",
+      "center": "PB-MGT",
+      "otp": "123456"
+    }
+  },
+  "seed_data_creation": "None - used external ANZ PDF from customer-assets URL",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ANZ PDF parsing fix verified. The fix adds fallback to text-based parsing in parse_pdf_bank_statement() when table extraction returns 0 transactions. Test file: /app/backend/tests/test_anz_pdf_parsing.py. ANZ PDF URL: https://customer-assets.emergentagent.com/job_2c10de5f-98eb-4599-94c4-76d674650f81/artifacts/rm7t0unc_ANZ%20STATEMENT%20-%20JAN%20TO%20FEB%202026.pdf",
+  "features_tested": {
+    "anz_pdf_parsing": {
+      "table_extraction_fallback": "PASSED - Falls back to text parsing when table extraction yields 0",
+      "transaction_count": "PASSED - 111 debit transactions parsed (expected ~111)",
+      "total_debits": "PASSED - $33,182.40 total (matches PDF summary)",
+      "date_parsing": "PASSED - All 111 transactions have valid Jan-Feb 2026 dates",
+      "year_hint_detection": "PASSED - Year 2026 correctly detected from PDF text"
+    },
+    "auth_flow": {
+      "send_otp": "PASSED - OTP sent successfully",
+      "verify_otp": "PASSED - Token received"
+    },
+    "upload_endpoint": {
+      "file_upload": "PASSED - PDF file accepted",
+      "form_data": "PASSED - center, month, bank_account, token accepted",
+      "response_structure": "PASSED - Returns success, upload_id, summary, matched, unrecorded"
+    }
+  },
+  "api_endpoints_tested": {
+    "GET /api/health": "PASSED - Backend healthy",
+    "POST /api/send_otp": "PASSED - OTP sent",
+    "POST /api/verify_otp": "PASSED - Token received",
+    "POST /api/bank-reconciliation/upload": "PASSED - ANZ PDF parsed with 111 transactions"
+  },
+  "mocked_apis": {
+    "none": "No APIs mocked - all endpoints fully functional"
+  },
+  "bug_fix_verification": {
+    "issue": "ANZ Bank PDF parsing was returning 0 transactions",
+    "root_cause": "Table extraction failed for ANZ PDFs (no visible grid lines)",
+    "fix_applied": "Added fallback to parse_pdf_text_fallback() when table extraction yields 0 results",
+    "fix_location": "/app/backend/routes/bank_reconciliation.py lines 391-392",
+    "verification_result": "PASSED - 111 transactions now parsed correctly"
+  }
+}

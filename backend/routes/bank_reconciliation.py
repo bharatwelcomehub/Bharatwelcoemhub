@@ -386,6 +386,11 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
         
         logger.info(f"PDF table extraction: {len(transactions)} debit transactions from {filename}")
         
+        # If table extraction found 0 transactions, fall back to text parsing
+        if not transactions:
+            logger.info("Table extraction yielded 0 transactions, falling back to text parser")
+            return await parse_pdf_text_fallback(file_content, filename, year_hint)
+        
     except Exception as e:
         logger.error(f"Error parsing PDF bank statement: {e}")
     
@@ -501,8 +506,6 @@ async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint:
         
     except Exception as e:
         logger.error(f"Error in PDF text fallback: {e}")
-    
-    return transactions
     
     return transactions
 
