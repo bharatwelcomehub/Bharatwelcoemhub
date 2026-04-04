@@ -32,12 +32,16 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Result**: 111 debit transactions parsed correctly, total $33,182.40 matches PDF summary
 - File: `/app/backend/routes/bank_reconciliation.py`
 
-### [2026-04-04] Dynamic Working Capital Calculation
+### [2026-04-04] Dynamic Working Capital Calculation with Gating Rules
 - **Feature**: Working Capital now dynamically reflects cumulative P&L from center opening to selected month
 - **Formula**: Available WC = Initial Security Deposit + Cumulative P&L - Loans Outstanding
 - **P&L**: Sales - Expenses - Commissions - GST (tracks profitable months restoring WC)
-- **Display**: WC standing shown in Overview, Revenue/Profit Share, and MG & Payout tabs
-- **Negative WC**: When capital is exhausted, shows negative balance (loans created manually)
+- **Gating Rules**:
+  - WC < 50% of Initial → Both Revenue Share & MG CLOSED (all profits refill WC)
+  - WC < Initial → Profits refill WC first, then share resumes at 100%
+  - WC >= Initial → Normal revenue/profit share applies
+- **Loan Date Filtering**: Only loans taken on/before selected month are counted
+- **Display**: WC Utilisation card with 5-column grid + progress bar on Overview, banners on Revenue/Profit Share & MG tabs, PIB report updated
 - Files: `/app/backend/routes/center_accounts.py`, `/app/frontend/src/pages/CenterAccounts.jsx`
 
 ### [2026-04-04] Opening Balance & Petty Cash Formula Fix
