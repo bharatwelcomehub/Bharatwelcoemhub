@@ -173,3 +173,19 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [x] Premium Review Screens (Apr 2026) — On-screen review cards across all services feature dark premium headers with gold accents, card-based layouts, and "Powered by A.AI Technology" footer
 - [x] Tiffin Lunch Combo Descriptions (Apr 2026) — Updated Roti Combo, Bhakari Combo, Sp. Thali Box with detailed contents
 - [x] Tiffin Heavy Brunch Enhancements (Apr 2026) — Added menu images, descriptions, and savings badges showing discount vs dine-in pricing
+- [x] **White Pearl + Golden Glossy Theme** (Apr 2026) — Complete UI overhaul across all pages:
+  - Dark brown navigation header (#3D2314) with golden glossy gradient text
+  - Light cream/pearl page backgrounds (#FDFBF7)
+  - Gold-glossy CTA buttons with hover effects
+  - Pearl-surface cards with subtle gold borders
+  - Gold shimmer text for headings
+  - Consistent luxury aesthetic across Home, Menu, Tiffin, Admin, Profile, and all other pages
+  - Mobile responsive with dark brown mobile menu
+  - Footer with white background and gold accents
+
+## Design Guidelines
+See `/app/design_guidelines.json` for full theme specifications including:
+- Color palette (Pearl White, Gold, Dark Brown)
+- Typography (Cormorant Garamond headings, Outfit body)
+- CSS utility classes (nav-gold-text, gold-glossy, pearl-surface, text-gold-shimmer)
+- Component styling rules
