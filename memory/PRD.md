@@ -25,6 +25,15 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-04] Sales Grid Columns Match Excel + Delete Data + Editable Balances
+- **Grid Columns**: Now match Excel "Sale's Cash Summery" exactly — 22 columns total:
+  - Day 1 editable (green): Opening Bal, Petty Cash Opening
+  - Editable (blue): Deposited, Cash Rcpt, Total Sale, Card, UPI, Swiggy, Zomato, Doordash, Online, Due, Cash Expense, Guests, Bills
+  - Calculated (gray): Online Total, Cash Sale, Closing Bal, To Deposit, Petty Close
+- **Delete Data**: New "Delete Data" button + dialog to delete sales records for a month or month range. Backend: `POST /api/sales/daily/delete-range`
+- **Single Day Entry**: Opening Balance, Petty Cash Opening, and Cash Expense are all now editable (were read-only)
+- Files: `SalesGridEditor.jsx`, `SalesDataEntry.jsx`, `SalesExpenses.jsx`, `sales_expenses.py`
+
 ### [2026-04-04] WC Assessment Redesign — Excel-Format Table (P0)
 - **Redesign**: Replaced old WC cards/progress bars/financial summary with a clean Excel-like table
 - **Columns**: MONTH | SALE | EXPENSES | P/L | WORKING CAPITAL (Opening) | BAL. WC. (Closing) | DIFF.OF WC.
