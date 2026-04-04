@@ -109,6 +109,26 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         month: selectedMonth
       });
 
+      // Also fetch previous month's last day for opening balance carry-forward
+      const [yr, mo] = selectedMonth.split("-").map(Number);
+      const prevMonth = mo === 1 ? `${yr - 1}-12` : `${yr}-${String(mo - 1).padStart(2, "0")}`;
+      let prevMonthClosing = 0;
+      let prevMonthPettyCashClosing = 0;
+      try {
+        const prevRes = await api.post("/sales/daily", {
+          token: session.token,
+          center: centerCode,
+          month: prevMonth
+        });
+        const prevSales = (prevRes.data.sales || []).sort((a, b) => b.date.localeCompare(a.date));
+        if (prevSales.length > 0) {
+          prevMonthClosing = prevSales[0].closing_balance || 0;
+          prevMonthPettyCashClosing = prevSales[0].petty_cash_closing || 0;
+        }
+      } catch (e) {
+        console.log("Could not fetch previous month data for opening balance");
+      }
+
       const salesData = res.data.sales || [];
       const allDates = generateMonthDates();
       
@@ -168,20 +188,23 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         };
       });
 
-      // Chain opening balances: each day's opening = previous day's closing
+      // Chain opening balances: first row uses previous month's closing, rest chain from previous day
+      // Set first row's opening from previous month's last day closing
+      if (grid.length > 0 && prevMonthClosing !== undefined) {
+        grid[0].opening_balance = prevMonthClosing;
+        grid[0].petty_cash_opening = prevMonthPettyCashClosing;
+        grid[0] = { ...calculateRow(grid[0]), _isNew: grid[0]._isNew, _original: grid[0]._original };
+      }
       for (let i = 1; i < grid.length; i++) {
         const prevRow = grid[i - 1];
-        if (!grid[i]._isNew || prevRow.closing_balance) {
-          // Always use previous day's closing as today's opening for display consistency
-          if (prevRow.closing_balance !== undefined && prevRow.closing_balance !== null) {
-            grid[i].opening_balance = prevRow.closing_balance;
-          }
-          if (prevRow.petty_cash_closing !== undefined && prevRow.petty_cash_closing !== null) {
-            grid[i].petty_cash_opening = prevRow.petty_cash_closing;
-          }
-          // Recalculate this row with corrected opening
-          grid[i] = { ...calculateRow(grid[i]), _isNew: grid[i]._isNew, _original: grid[i]._original };
+        if (prevRow.closing_balance !== undefined && prevRow.closing_balance !== null) {
+          grid[i].opening_balance = prevRow.closing_balance;
         }
+        if (prevRow.petty_cash_closing !== undefined && prevRow.petty_cash_closing !== null) {
+          grid[i].petty_cash_opening = prevRow.petty_cash_closing;
+        }
+        // Recalculate this row with corrected opening
+        grid[i] = { ...calculateRow(grid[i]), _isNew: grid[i]._isNew, _original: grid[i]._original };
       }
 
       setGridData(grid);
