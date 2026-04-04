@@ -38,16 +38,14 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Fix**: `SalesGridEditor.fetchGridData()` now fetches previous month's last day's closing_balance and uses it as the first row's opening
 - File: `/app/frontend/src/components/SalesGridEditor.jsx`
 
-### [2026-04-04] Dynamic Working Capital Calculation with Gating Rules
-- **Feature**: Working Capital now dynamically reflects cumulative P&L from center opening to selected month
-- **Formula**: Available WC = Initial Security Deposit + Cumulative P&L - Loans Outstanding
-- **P&L**: Sales - Expenses - Commissions - GST (tracks profitable months restoring WC)
-- **Gating Rules**:
-  - WC < 50% of Initial → Both Revenue Share & MG CLOSED (all profits refill WC)
-  - WC < Initial → Profits refill WC first, then share resumes at 100%
-  - WC >= Initial → Normal revenue/profit share applies
-- **Loan Date Filtering**: Only loans taken on/before selected month are counted
-- **Display**: WC Utilisation card with 5-column grid + progress bar on Overview, banners on Revenue/Profit Share & MG tabs, PIB report updated
+### [2026-04-04] Month-by-Month Working Capital Assessment (like Excel)
+- **Feature**: WC now calculated month-by-month matching the WC Assessment Excel format
+- **Display**: Opening WC → This Month P&L → Closing WC (BAL.) → Diff from Initial
+- **Formula**: Opening WC = Initial Deposit + Cumulative P&L from previous months; This Month P&L = Sales - (Expenses + Commissions + GST); Closing WC = Opening + P&L
+- **Loan Logic**: When Closing WC goes below 0, deficit becomes loan entry; WC capped at 0
+- **Gating**: WC < 50% of Initial → Revenue Share & MG CLOSED; WC < Initial → Profits refill WC first
+- **Loan Date Filter**: Only loans taken on/before selected month are counted
+- **Displayed in**: Overview tab (WC Assessment card), Revenue/Profit Share tab, MG & Payout tab (5-column grid), PIB report
 - Files: `/app/backend/routes/center_accounts.py`, `/app/frontend/src/pages/CenterAccounts.jsx`
 
 ### [2026-04-04] Opening Balance & Petty Cash Formula Fix
