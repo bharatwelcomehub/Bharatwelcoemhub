@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { PieChart as RechartsPie, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line } from "recharts";
 import { 
   IndianRupee, 
   TrendingUp, 
@@ -129,7 +130,14 @@ function SalesUploadTab({ session, selectedCenter, onUploadComplete }) {
 
   const userCenter = session?.center || "";
   const isSuperAdmin = session?.is_super_admin;
-  const canSelectCenter = isSuperAdmin || session?.is_admin;
+  const isAdmin = session?.is_admin;
+  const isAccounting = session?.roles?.accounting;
+  const canSelectCenter = isSuperAdmin || isAdmin;
+  const canSeeBankRecon = isSuperAdmin || isAdmin || isAccounting;
+  
+  // Grid visibility (super admin controlled)
+  const [gridHidden, setGridHidden] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // Download template
   const handleDownloadTemplate = async () => {
@@ -740,12 +748,21 @@ export default function SalesExpenses() {
   const [deleteToMonth, setDeleteToMonth] = useState('');
   const [deleting, setDeleting] = useState(false);
   
+  // Grid visibility state (super admin controlled per center)
+  const [gridHidden, setGridHidden] = useState(false);
+  
   // Check if user has admin access - recalculate on every render
   // NEW: Accounting role also has access to ALL centers for Sales & Cash
   const hasAllCentersAccess = session?.is_super_admin === true || 
                               session?.is_admin === true ||
                               session?.roles?.view_all_centers === true ||
                               session?.roles?.accounting === true;
+  
+  // Role-based access flags
+  const isSuperAdmin = session?.is_super_admin;
+  const isAdmin = session?.is_admin;
+  const isAccounting = session?.roles?.accounting;
+  const canSeeBankRecon = isSuperAdmin || isAdmin || isAccounting;
 
   // Fetch centers list
   useEffect(() => {
@@ -761,6 +778,34 @@ export default function SalesExpenses() {
     };
     fetchCenters();
   }, []);
+
+  // Fetch center settings (grid visibility)
+  useEffect(() => {
+    const fetchSettings = async () => {
+      if (!session?.token || !selectedCenter || selectedCenter === 'all') return;
+      try {
+        const res = await api.post("/sales/settings/get", { token: session.token, center: selectedCenter });
+        if (res.data.settings) {
+          setGridHidden(res.data.settings.grid_hidden || false);
+        }
+      } catch (err) { console.error("Settings fetch error:", err); }
+    };
+    fetchSettings();
+  }, [session?.token, selectedCenter]);
+
+  const toggleGridVisibility = async () => {
+    if (!isSuperAdmin) return;
+    const newVal = !gridHidden;
+    try {
+      await api.post("/sales/settings/update", { 
+        token: session.token, center: selectedCenter, 
+        updates: { grid_hidden: newVal } 
+      });
+      setGridHidden(newVal);
+      toast.success(newVal ? "Grid Update hidden for this center" : "Grid Update shown for this center");
+    } catch (err) { toast.error("Failed to update setting"); }
+  };
+
 
   // Fetch monthly summary
   const fetchMonthlySummary = async () => {
@@ -1274,30 +1319,46 @@ export default function SalesExpenses() {
             Download Excel
           </Button>
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={recalculateBalances}
-            disabled={recalculating || loading || selectedCenter === "all"}
-            title="Recalculate opening/closing balances for all days in this month"
-            data-testid="recalculate-btn"
-          >
-            <Calculator className={`w-4 h-4 mr-1 ${recalculating ? 'animate-spin' : ''}`} />
-            {recalculating ? "Fixing All..." : "Fix All Balances"}
-          </Button>
+          {!gridHidden && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={recalculateBalances}
+                disabled={recalculating || loading || selectedCenter === "all"}
+                title="Recalculate opening/closing balances for all days"
+                data-testid="recalculate-btn"
+              >
+                <Calculator className={`w-4 h-4 mr-1 ${recalculating ? 'animate-spin' : ''}`} />
+                {recalculating ? "Fixing All..." : "Fix All Balances"}
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setDeleteFromMonth(selectedMonth); setDeleteToMonth(''); setShowDeleteDialog(true); }}
+                disabled={loading || selectedCenter === "all"}
+                className="text-red-600 hover:bg-red-50 border-red-200"
+                title="Delete daily sales data for a month or range"
+                data-testid="delete-range-btn"
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Delete Data
+              </Button>
+            </>
+          )}
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setDeleteFromMonth(selectedMonth); setDeleteToMonth(''); setShowDeleteDialog(true); }}
-            disabled={loading || selectedCenter === "all"}
-            className="text-red-600 hover:bg-red-50 border-red-200"
-            title="Delete daily sales data for a month or range"
-            data-testid="delete-range-btn"
-          >
-            <Trash2 className="w-4 h-4 mr-1" />
-            Delete Data
-          </Button>
+          {isSuperAdmin && selectedCenter && selectedCenter !== 'all' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleGridVisibility}
+              className={gridHidden ? "text-green-600 border-green-200" : "text-orange-600 border-orange-200"}
+              data-testid="toggle-grid-btn"
+            >
+              {gridHidden ? "Show Grid" : "Hide Grid"}
+            </Button>
+          )}
           
           <Button
             variant="outline"
@@ -1314,7 +1375,7 @@ export default function SalesExpenses() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryCards.map((card, idx) => (
-          <Card key={idx} className="bg-card border-border" data-testid={`summary-card-${idx}`}>
+          <Card key={idx} className="bg-gradient-to-br from-white to-slate-50/50 border-slate-200/60 shadow-sm hover:shadow-md transition-shadow" data-testid={`summary-card-${idx}`}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -1334,7 +1395,7 @@ export default function SalesExpenses() {
       {monthlySummary && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {statsCards.map((card, idx) => (
-            <Card key={idx} className="bg-card border-border" data-testid={`stats-card-${idx}`}>
+            <Card key={idx} className="bg-gradient-to-br from-white to-slate-50/50 border-slate-200/60 shadow-sm hover:shadow-md transition-shadow" data-testid={`stats-card-${idx}`}>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1359,31 +1420,32 @@ export default function SalesExpenses() {
         <TabsList className="bg-muted flex-wrap">
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
           <TabsTrigger value="sales-entry" data-testid="tab-sales-entry">Sales Entry</TabsTrigger>
-          <TabsTrigger value="grid-update" data-testid="tab-grid-update" className="text-blue-600">
-            <Table2 className="w-4 h-4 mr-1" />
-            Grid Update
-          </TabsTrigger>
+          {!gridHidden && (
+            <TabsTrigger value="grid-update" data-testid="tab-grid-update" className="text-blue-600">
+              <Table2 className="w-4 h-4 mr-1" />
+              Grid Update
+            </TabsTrigger>
+          )}
           <TabsTrigger value="upload" data-testid="tab-upload" className="text-green-600">
             <Upload className="w-4 h-4 mr-1" />
             Upload Excel
           </TabsTrigger>
           <TabsTrigger value="expense-entry" data-testid="tab-expense-entry">Expense Entry</TabsTrigger>
-          <TabsTrigger value="bank-reconciliation" data-testid="tab-bank-reconciliation" className="text-amber-600">
-            <ArrowRightLeft className="w-4 h-4 mr-1" />
-            Bank Reconciliation
-          </TabsTrigger>
-          <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
-          {session?.is_super_admin && (
-            <TabsTrigger value="expenses" data-testid="tab-expenses">Expense List (Admin)</TabsTrigger>
+          {canSeeBankRecon && (
+            <TabsTrigger value="bank-reconciliation" data-testid="tab-bank-reconciliation" className="text-amber-600">
+              <ArrowRightLeft className="w-4 h-4 mr-1" />
+              Bank Reconciliation
+            </TabsTrigger>
           )}
+          <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
           <TabsTrigger value="breakdown" data-testid="tab-breakdown">Payment Breakdown</TabsTrigger>
-          {session?.is_super_admin && (
+          {isSuperAdmin && (
             <TabsTrigger value="freeze-control" data-testid="tab-freeze-control" className="text-red-500">
               <Shield className="w-4 h-4 mr-1" />
               Freeze Control
             </TabsTrigger>
           )}
-          {session?.is_super_admin && (
+          {isSuperAdmin && (
             <TabsTrigger value="upload-settings" data-testid="tab-upload-settings" className="text-amber-600">
               <Settings className="w-4 h-4 mr-1" />
               Upload Settings
@@ -1396,15 +1458,17 @@ export default function SalesExpenses() {
           <SalesDataEntry session={session} selectedCenter={selectedCenter} centersList={centers} />
         </TabsContent>
 
-        {/* Grid Update Tab */}
-        <TabsContent value="grid-update">
-          <SalesGridEditor 
-            session={session} 
-            selectedCenter={selectedCenter} 
-            selectedMonth={selectedMonth}
-            centersList={centers}
-          />
-        </TabsContent>
+        {/* Grid Update Tab - hidden when super admin disables it */}
+        {!gridHidden && (
+          <TabsContent value="grid-update">
+            <SalesGridEditor 
+              session={session} 
+              selectedCenter={selectedCenter} 
+              selectedMonth={selectedMonth}
+              centersList={centers}
+            />
+          </TabsContent>
+        )}
 
         {/* Upload Excel Tab */}
         <TabsContent value="upload">
@@ -1427,14 +1491,16 @@ export default function SalesExpenses() {
           <ExpenseEntry session={session} selectedCenter={selectedCenter} centersList={centers} />
         </TabsContent>
 
-        {/* Bank Statement Reconciliation Tab */}
-        <TabsContent value="bank-reconciliation">
-          <BankReconciliation 
-            session={session} 
-            selectedCenter={selectedCenter !== "all" ? selectedCenter : ""} 
-            centersList={centers}
-          />
-        </TabsContent>
+        {/* Bank Statement Reconciliation Tab - Super Admin + Admin + Accounting */}
+        {canSeeBankRecon && (
+          <TabsContent value="bank-reconciliation">
+            <BankReconciliation 
+              session={session} 
+              selectedCenter={selectedCenter !== "all" ? selectedCenter : ""} 
+              centersList={centers}
+            />
+          </TabsContent>
+        )}
 
         {/* Freeze Control Tab - Super Admin Only */}
         {session?.is_super_admin && (
@@ -1443,98 +1509,96 @@ export default function SalesExpenses() {
           </TabsContent>
         )}
 
-        {/* Overview Tab */}
+        {/* Overview Tab - with Graphs */}
         <TabsContent value="overview" className="space-y-4">
+          {/* Summary Cards - Glossy */}
+          {monthlySummary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/60 shadow-sm backdrop-blur-sm" data-testid="overview-total-sale">
+                <p className="text-xs text-blue-600 font-medium">Total Sale</p>
+                <p className="text-xl font-bold text-blue-800">{formatCurrency(monthlySummary.total_sale, currentCurrency)}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 border border-green-200/60 shadow-sm backdrop-blur-sm" data-testid="overview-cash-sale">
+                <p className="text-xs text-green-600 font-medium">Cash Sale</p>
+                <p className="text-xl font-bold text-green-800">{formatCurrency(monthlySummary.total_cash_sale, currentCurrency)}</p>
+                <p className="text-xs text-green-500">{monthlySummary.total_sale > 0 ? ((monthlySummary.total_cash_sale / monthlySummary.total_sale) * 100).toFixed(1) : 0}%</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200/60 shadow-sm backdrop-blur-sm" data-testid="overview-online-sale">
+                <p className="text-xs text-purple-600 font-medium">Online Sale</p>
+                <p className="text-xl font-bold text-purple-800">{formatCurrency(monthlySummary.total_online_sale, currentCurrency)}</p>
+                <p className="text-xs text-purple-500">{monthlySummary.total_sale > 0 ? ((monthlySummary.total_online_sale / monthlySummary.total_sale) * 100).toFixed(1) : 0}%</p>
+              </div>
+              <div className={`p-4 rounded-xl border shadow-sm backdrop-blur-sm ${
+                (monthlySummary.total_sale - (monthlySummary.total_expenses || 0)) >= 0 
+                  ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/60' 
+                  : 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60'
+              }`} data-testid="overview-net-profit">
+                <p className="text-xs font-medium text-gray-600">Net P/L</p>
+                <p className={`text-xl font-bold ${(monthlySummary.total_sale - (monthlySummary.total_expenses || 0)) >= 0 ? 'text-emerald-800' : 'text-red-800'}`}>
+                  {formatCurrency((monthlySummary.total_sale || 0) - (monthlySummary.total_expenses || 0), currentCurrency)}
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Online Payment Breakdown */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-primary" />
-                  Online Payment Breakdown
-                </CardTitle>
+            {/* Payment Split Pie Chart */}
+            <Card className="bg-gradient-to-br from-white to-slate-50/50 border-slate-200/60 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Payment Split</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {onlineBreakdown.map((item, idx) => {
-                    const total = onlineBreakdown.reduce((a, b) => a + b.value, 0);
-                    const percentage = total > 0 ? (item.value / total) * 100 : 0;
-                    return (
-                      <div key={idx} className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">{item.name}</span>
-                          <span className="font-medium">{formatCurrency(item.value, currentCurrency)}</span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full ${item.color} transition-all duration-500`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                {monthlySummary?.total_sale > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <RechartsPie>
+                      <Pie
+                        data={[
+                          { name: 'Cash', value: monthlySummary.total_cash_sale || 0 },
+                          ...onlineBreakdown.filter(i => i.value > 0)
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={90}
+                        innerRadius={50}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {[{ color: '#22c55e' }, ...onlineBreakdown.filter(i => i.value > 0).map(i => ({ color: i.color.replace('bg-', '#').replace('blue-500', '3b82f6').replace('indigo-500', '6366f1').replace('orange-500', 'f97316').replace('red-500', 'ef4444') }))].map((entry, idx) => (
+                          <Cell key={idx} fill={['#22c55e', '#3b82f6', '#6366f1', '#f97316', '#ef4444', '#8b5cf6'][idx] || '#94a3b8'} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(val) => formatCurrency(val, currentCurrency)} />
+                    </RechartsPie>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No data</p>
+                )}
               </CardContent>
             </Card>
 
-            {/* Expense by Category */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <PieChart className="w-5 h-5 text-primary" />
-                  Expenses by Category
-                </CardTitle>
+            {/* Expenses by Category */}
+            <Card className="bg-gradient-to-br from-white to-slate-50/50 border-slate-200/60 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Expenses by Category</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {Object.entries(expenseByType).length > 0 ? (
-                    Object.entries(expenseByType)
-                      .sort((a, b) => b[1] - a[1])
-                      .slice(0, 8)
-                      .map(([type, amount], idx) => (
-                        <div key={idx} className="flex justify-between items-center py-2 border-b border-border last:border-0">
-                          <span className="text-sm text-muted-foreground truncate max-w-[60%]">{type}</span>
-                          <span className="font-medium text-sm">{formatCurrency(amount, currentCurrency)}</span>
-                        </div>
-                      ))
-                  ) : (
-                    <p className="text-center text-muted-foreground py-4">No expense data</p>
-                  )}
-                </div>
+                {Object.entries(expenseByType).length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={Object.entries(expenseByType).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([type, amount]) => ({ name: type.length > 12 ? type.slice(0, 12) + '...' : type, amount }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" fontSize={10} />
+                      <YAxis fontSize={10} />
+                      <Tooltip formatter={(val) => formatCurrency(val, currentCurrency)} />
+                      <Bar dataKey="amount" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No expense data</p>
+                )}
               </CardContent>
             </Card>
           </div>
-
-          {/* Net Summary */}
-          {monthlySummary && (
-            <Card className="bg-card border-border">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Net Profit (Sales - Expenses)</p>
-                    <p className={`text-3xl font-bold ${
-                      (monthlySummary.total_sale - (monthlySummary.total_expenses || 0)) >= 0 
-                        ? 'text-green-500' 
-                        : 'text-red-500'
-                    }`}>
-                      {formatCurrency((monthlySummary.total_sale || 0) - (monthlySummary.total_expenses || 0), currentCurrency)}
-                    </p>
-                  </div>
-                  <div className={`p-4 rounded-full ${
-                    (monthlySummary.total_sale - (monthlySummary.total_expenses || 0)) >= 0 
-                      ? 'bg-green-500/10' 
-                      : 'bg-red-500/10'
-                  }`}>
-                    {(monthlySummary.total_sale - (monthlySummary.total_expenses || 0)) >= 0 
-                      ? <ArrowUpRight className="w-8 h-8 text-green-500" />
-                      : <ArrowDownRight className="w-8 h-8 text-red-500" />
-                    }
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         {/* Daily Report Tab */}
@@ -1684,149 +1748,100 @@ export default function SalesExpenses() {
           </Card>
         </TabsContent>
 
-        {/* Expenses Tab */}
-        {/* Expense List Tab - Admin Only */}
-        {session?.is_super_admin && (
-        <TabsContent value="expenses">
-          <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">Expense Records - {selectedMonth}</CardTitle>
-              <div className="flex items-center gap-3">
-                <Select value={selectedCenter} onValueChange={setSelectedCenter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="All Centers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Centers</SelectItem>
-                    {centers.map(c => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={fetchExpenses}
-                  disabled={loading}
-                >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
-                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Center</th>
-                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Description</th>
-                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Category</th>
-                      <th className="text-left py-3 px-2 font-medium text-muted-foreground">Mode</th>
-                      <th className="text-right py-3 px-2 font-medium text-muted-foreground">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {expenses.length > 0 ? (
-                      expenses.slice(0, 50).map((exp, idx) => (
-                        <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
-                          <td className="py-3 px-2">{formatDateDisplay(exp.date)}</td>
-                          <td className="py-3 px-2 text-xs">{exp.center}</td>
-                          <td className="py-3 px-2 max-w-[200px] truncate">{exp.description}</td>
-                          <td className="py-3 px-2 text-xs">
-                            <span className="px-2 py-1 rounded-full bg-muted">{exp.expense_type}</span>
-                          </td>
-                          <td className="py-3 px-2 text-xs">{exp.payment_mode}</td>
-                          <td className="text-right py-3 px-2 font-medium">{formatCurrency(exp.amount, currentCurrency)}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8 text-muted-foreground">
-                          No expenses recorded for selected period
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-                {expenses.length > 50 && (
-                  <p className="text-center text-muted-foreground py-4 text-sm">
-                    Showing 50 of {expenses.length} records
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        )}
-
-        {/* Payment Breakdown Tab */}
+        {/* Payment Breakdown Tab - with % and Charts */}
         <TabsContent value="breakdown">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Cash vs Online */}
-            <Card className="bg-card border-border">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Cash vs Online with % */}
+            <Card className="bg-gradient-to-br from-white to-slate-50/50 border-slate-200/60 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Cash vs Online Sales</CardTitle>
+                <CardTitle className="text-base">Cash vs Online Sales</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">Cash Sales</span>
-                      <span className="font-bold text-green-500">{formatCurrency(monthlySummary?.total_cash_sale, currentCurrency)}</span>
-                    </div>
-                    <div className="h-4 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-green-500"
-                        style={{ 
-                          width: `${monthlySummary?.total_sale > 0 
-                            ? (monthlySummary.total_cash_sale / monthlySummary.total_sale) * 100 
-                            : 0}%` 
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">Online Sales</span>
-                      <span className="font-bold text-purple-500">{formatCurrency(monthlySummary?.total_online_sale, currentCurrency)}</span>
-                    </div>
-                    <div className="h-4 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-purple-500"
-                        style={{ 
-                          width: `${monthlySummary?.total_sale > 0 
-                            ? (monthlySummary.total_online_sale / monthlySummary.total_sale) * 100 
-                            : 0}%` 
-                        }}
-                      />
-                    </div>
-                  </div>
+                <div className="space-y-5">
+                  {(() => {
+                    const ts = monthlySummary?.total_sale || 0;
+                    const cs = monthlySummary?.total_cash_sale || 0;
+                    const os = monthlySummary?.total_online_sale || 0;
+                    const cashPct = ts > 0 ? ((cs / ts) * 100).toFixed(1) : '0.0';
+                    const onlinePct = ts > 0 ? ((os / ts) * 100).toFixed(1) : '0.0';
+                    return (
+                      <>
+                        <div>
+                          <div className="flex justify-between mb-1 text-sm">
+                            <span className="text-muted-foreground">Cash Sales</span>
+                            <span className="font-bold text-green-600">{formatCurrency(cs, currentCurrency)} ({cashPct}%)</span>
+                          </div>
+                          <div className="h-4 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${cashPct}%` }} />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1 text-sm">
+                            <span className="text-muted-foreground">Online Sales</span>
+                            <span className="font-bold text-purple-600">{formatCurrency(os, currentCurrency)} ({onlinePct}%)</span>
+                          </div>
+                          <div className="h-4 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${onlinePct}%` }} />
+                          </div>
+                        </div>
+                        <div className="text-xs text-center text-muted-foreground pt-2 border-t">
+                          Total: {formatCurrency(ts, currentCurrency)}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Detailed Online Breakdown */}
-            <Card className="bg-card border-border">
+            {/* Online Breakdown with % and Donut Chart */}
+            <Card className="bg-gradient-to-br from-white to-slate-50/50 border-slate-200/60 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Online Payment Details</CardTitle>
+                <CardTitle className="text-base">Online Payment Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {onlineBreakdown.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                        <span>{item.name}</span>
+                {monthlySummary?.total_online_sale > 0 ? (
+                  <div className="flex items-center gap-4">
+                    <ResponsiveContainer width="45%" height={200}>
+                      <RechartsPie>
+                        <Pie
+                          data={onlineBreakdown.filter(i => i.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          innerRadius={40}
+                          dataKey="value"
+                        >
+                          {onlineBreakdown.filter(i => i.value > 0).map((_, idx) => (
+                            <Cell key={idx} fill={['#3b82f6', '#6366f1', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'][idx] || '#94a3b8'} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(val) => formatCurrency(val, currentCurrency)} />
+                      </RechartsPie>
+                    </ResponsiveContainer>
+                    <div className="flex-1 space-y-2">
+                      {onlineBreakdown.map((item, idx) => {
+                        const ts = monthlySummary?.total_sale || 1;
+                        const pct = ((item.value / ts) * 100).toFixed(1);
+                        return (
+                          <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-border/50 last:border-0">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ['#3b82f6', '#6366f1', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'][idx] || '#94a3b8' }} />
+                              <span className="text-muted-foreground">{item.name}</span>
+                            </div>
+                            <span className="font-medium">{formatCurrency(item.value, currentCurrency)} <span className="text-xs text-muted-foreground">({pct}%)</span></span>
+                          </div>
+                        );
+                      })}
+                      <div className="flex justify-between text-sm font-bold pt-2 border-t">
+                        <span>Total Online</span>
+                        <span className="text-purple-600">{formatCurrency(monthlySummary?.total_online_sale, currentCurrency)}</span>
                       </div>
-                      <span className="font-medium">{formatCurrency(item.value, currentCurrency)}</span>
                     </div>
-                  ))}
-                  <div className="flex items-center justify-between pt-2 font-bold">
-                    <span>Total Online</span>
-                    <span className="text-purple-500">{formatCurrency(monthlySummary?.total_online_sale, currentCurrency)}</span>
                   </div>
-                </div>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No online payment data</p>
+                )}
               </CardContent>
             </Card>
           </div>

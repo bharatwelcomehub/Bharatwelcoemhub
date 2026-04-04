@@ -309,6 +309,9 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
 
   // Handle input change
   const handleChange = (field, value) => {
+    if (field === 'opening_balance' || field === 'petty_cash_opening') {
+      return; // Auto-calculated from previous day
+    }
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -531,16 +534,24 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : (
           <>
-            {/* SECTION 1: Opening Balances - Editable */}
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <h3 className="text-sm font-semibold text-green-700 mb-3">Opening Balances</h3>
+            {/* SECTION 1: Opening Balances (Auto-calculated) */}
+            <div className="p-4 bg-gray-50 rounded-lg border">
+              <h3 className="text-sm font-semibold text-gray-600 mb-3">Opening Balances (Auto from Previous Day)</h3>
               <div className="grid grid-cols-2 gap-4">
-                {renderEditableField("Opening Balance", "opening_balance", currencySymbol, "number")}
-                {renderEditableField("Petty Cash Opening", "petty_cash_opening", currencySymbol, "number")}
+                <ReadOnlyField 
+                  label="Opening Balance" 
+                  value={formData.opening_balance}
+                  prefix={currencySymbol}
+                />
+                <ReadOnlyField 
+                  label="Petty Cash Opening" 
+                  value={formData.petty_cash_opening}
+                  prefix={currencySymbol}
+                />
               </div>
               {previousDayData && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Auto-filled from previous day. Edit to override.
+                  From previous day's closing balance
                 </p>
               )}
             </div>
@@ -655,8 +666,8 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
             </div>
 
             {/* SECTION 5: Cash Flow */}
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <h3 className="text-sm font-semibold text-green-700 mb-3">Cash Flow</h3>
+            <div className="p-4 bg-gray-50 rounded-lg border">
+              <h3 className="text-sm font-semibold text-gray-600 mb-3">Cash Flow</h3>
               <div className="grid grid-cols-3 gap-4">
                 {renderEditableField("Deposited in Bank", "deposited_in_bank", currencySymbol)}
                 {renderEditableField("Cash Receipts (Withdrawal)", "cash_receipts", currencySymbol)}
@@ -683,6 +694,11 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
                 <ReadOnlyField 
                   label="To Deposit in Bank" 
                   value={calculated.to_deposit_in_bank}
+                  prefix={currencySymbol}
+                />
+                <ReadOnlyField 
+                  label="GST (5%)" 
+                  value={calculated.gst_amount}
                   prefix={currencySymbol}
                 />
               </div>

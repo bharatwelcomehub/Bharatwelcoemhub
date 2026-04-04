@@ -3,7 +3,7 @@
 # Daily Sales and Cash Summary Management
 # =======================================
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -567,6 +567,37 @@ async def delete_daily_sales_range(req: DeleteRangeRequest):
         "message": f"Deleted {result.deleted_count} records for {center} ({from_month} to {to_month})",
         "deleted": result.deleted_count
     }
+
+
+
+# =======================================
+# ADMIN SETTINGS ENDPOINTS
+# =======================================
+
+@router.post("/settings/get")
+async def get_center_settings(req: dict = Body(...)):
+    session = await get_session(req.get("token"))
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    center = req.get("center", "").upper()
+    settings = await db.center_settings.find_one({"center": center}, {"_id": 0})
+    return {"success": True, "settings": settings or {"center": center, "grid_hidden": False}}
+
+@router.post("/settings/update")
+async def update_center_settings(req: dict = Body(...)):
+    session = await get_session(req.get("token"))
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    if not session.get("is_super_admin"):
+        raise HTTPException(403, "Super admin only")
+    center = req.get("center", "").upper()
+    updates = req.get("updates", {})
+    await db.center_settings.update_one(
+        {"center": center},
+        {"$set": {**updates, "center": center, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    return {"success": True, "message": "Settings updated"}
 
 
 
@@ -2556,7 +2587,8 @@ async def upload_custom_format_data(
             date_col = 0
             opening_col = find_col(['OPENING BALANCE', 'OPENING BAL'])
             petty_col = find_col(['PETTY CASH'])
-            cash_receipts_col = find_col(['CASH RECEIPTS', 'CASH RECEIPT', 'DEPOSITED IN BANK'])
+            cash_receipts_col = find_col(['CASH RECEIPTS', 'CASH RECEIPT', 'WITHDRAWAL'])
+            deposited_col = find_col(['DEPOSITED IN BANK', 'DEPOSITED', 'DEPOSIT'])
             total_sale_col = find_col(['TOTAL SALE OF THE DAY', 'TOTAL SALE'])
             card_col = find_col(['CARD', 'IDFC', 'EFTPOS'])
             bharat_pay_col = find_col(['BHARAT PAY', 'UPI', 'PAYTM'])
@@ -2564,6 +2596,8 @@ async def upload_custom_format_data(
             zomato_col = find_col(['ZOMATO'])
             doordash_col = find_col(['DOORDASH', 'DOOR DASH'])
             online_col = find_col(['ONLINE', 'TOTAL ONLINE'])
+            cash_expense_col = find_col(['CASH EXPAN', 'CASH EXPENSE', 'CASH EXP'])
+            due_col = find_col(['DUE AMOUNT', 'DUE'])
             
             # Process data rows (starting from row 4, since row 3 is usually empty)
             for row_idx, row in enumerate(ws.iter_rows(min_row=3, values_only=True), start=3):
@@ -2606,6 +2640,7 @@ async def upload_custom_format_data(
                         "date": date_str,
                         "opening_balance": get_val(opening_col),
                         "petty_cash_opening": get_val(petty_col),
+                        "deposited_in_bank": get_val(deposited_col),
                         "cash_receipts": get_val(cash_receipts_col),
                         "total_sale": total_sale,
                         "card_idfc": get_val(card_col),
@@ -2614,6 +2649,8 @@ async def upload_custom_format_data(
                         "zomato": get_val(zomato_col),
                         "doordash": get_val(doordash_col),
                         "online_other": get_val(online_col),
+                        "cash_expense": get_val(cash_expense_col),
+                        "due_amount": get_val(due_col),
                         "num_guests": 0,
                         "num_bills": 0,
                         "uploaded_at": datetime.now(timezone.utc).isoformat(),
@@ -2627,6 +2664,16 @@ async def upload_custom_format_data(
                     record["total_online_sale"] = total_online
                     record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
                     record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                    
+                    # Calculate closing balance + petty cash closing
+                    ob = record["opening_balance"]
+                    cr = record["cash_receipts"]
+                    dep = record["deposited_in_bank"]
+                    ce = record["cash_expense"]
+                    record["closing_balance"] = (record["total_sale"] + ob + cr) - (dep + total_online + ce)
+                    pco = record["petty_cash_opening"]
+                    record["petty_cash_closing"] = pco + cr - ce
+                    record["to_deposit_in_bank"] = record["closing_balance"] - record["petty_cash_closing"]
                     
                     all_sales_records[f"{center}_{date_str}"] = record
                     
@@ -2706,6 +2753,7 @@ async def upload_custom_format_data(
                 opening_col = find_col(['opening balance', 'opening bal'])
                 petty_col = find_col(['petty cash', 'petty'])
                 cash_receipts_col = find_col(['cash receipts', 'cash receipt', 'withdrawal'])
+                deposited_col = find_col(['deposited in bank', 'deposited', 'deposit'])
                 total_sale_col = find_col(['total sale', 'sale of the day', 'total'])
                 card_col = find_col(['card', 'idfc', 'card idfc', 'eftpos'])
                 bharat_pay_col = find_col(['bharat pay', 'bharatpay', 'upi'])
@@ -2715,6 +2763,8 @@ async def upload_custom_format_data(
                 online_col = find_col(['online', 'other online', 'pickup'])
                 guests_col = find_col(['guest', 'pax', 'no of guest', 'number of guest', 'covers'])
                 bills_col = find_col(['bill', 'no of bill', 'number of bill', 'transactions'])
+                cash_expense_col = find_col(['cash expan', 'cash expense', 'cash exp'])
+                due_col = find_col(['due amount', 'due'])
                 
                 if date_col is None:
                     results["sales"]["errors"].append(f"Sheet '{sheet_name}': No DATE column found")
@@ -2768,6 +2818,7 @@ async def upload_custom_format_data(
                             "date": date_str,
                             "opening_balance": get_val(opening_col),
                             "petty_cash_opening": get_val(petty_col),
+                            "deposited_in_bank": get_val(deposited_col),
                             "cash_receipts": get_val(cash_receipts_col),
                             "total_sale": get_val(total_sale_col),
                             "card_idfc": get_val(card_col),
@@ -2776,6 +2827,8 @@ async def upload_custom_format_data(
                             "zomato": get_val(zomato_col),
                             "doordash": get_val(doordash_col),
                             "online_other": get_val(online_col),
+                            "cash_expense": get_val(cash_expense_col),
+                            "due_amount": get_val(due_col),
                             "num_guests": int(get_val(guests_col)),
                             "num_bills": int(get_val(bills_col)),
                             "uploaded_at": datetime.now(timezone.utc).isoformat(),
@@ -2789,6 +2842,16 @@ async def upload_custom_format_data(
                         record["total_online_sale"] = total_online
                         record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
                         record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                        
+                        # Calculate closing balance + petty cash closing
+                        ob = record["opening_balance"]
+                        cr = record["cash_receipts"]
+                        dep = record["deposited_in_bank"]
+                        ce = record["cash_expense"]
+                        record["closing_balance"] = (record["total_sale"] + ob + cr) - (dep + total_online + ce)
+                        pco = record["petty_cash_opening"]
+                        record["petty_cash_closing"] = pco + cr - ce
+                        record["to_deposit_in_bank"] = record["closing_balance"] - record["petty_cash_closing"]
                         
                         if record["num_guests"] > 0:
                             record["avg_per_pax"] = round(record["total_sale"] / record["num_guests"], 2)
