@@ -32,6 +32,12 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Result**: 111 debit transactions parsed correctly, total $33,182.40 matches PDF summary
 - File: `/app/backend/routes/bank_reconciliation.py`
 
+### [2026-04-04] Grid Closing Balance Carry-Forward Fix
+- **Bug Fix**: First day of month wasn't getting opening balance from previous month's last day closing
+- **Root Cause**: Grid chaining only worked within-month; didn't fetch previous month's last closing
+- **Fix**: `SalesGridEditor.fetchGridData()` now fetches previous month's last day's closing_balance and uses it as the first row's opening
+- File: `/app/frontend/src/components/SalesGridEditor.jsx`
+
 ### [2026-04-04] Dynamic Working Capital Calculation with Gating Rules
 - **Feature**: Working Capital now dynamically reflects cumulative P&L from center opening to selected month
 - **Formula**: Available WC = Initial Security Deposit + Cumulative P&L - Loans Outstanding
