@@ -32,6 +32,14 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Result**: 111 debit transactions parsed correctly, total $33,182.40 matches PDF summary
 - File: `/app/backend/routes/bank_reconciliation.py`
 
+### [2026-04-04] Dynamic Working Capital Calculation
+- **Feature**: Working Capital now dynamically reflects cumulative P&L from center opening to selected month
+- **Formula**: Available WC = Initial Security Deposit + Cumulative P&L - Loans Outstanding
+- **P&L**: Sales - Expenses - Commissions - GST (tracks profitable months restoring WC)
+- **Display**: WC standing shown in Overview, Revenue/Profit Share, and MG & Payout tabs
+- **Negative WC**: When capital is exhausted, shows negative balance (loans created manually)
+- Files: `/app/backend/routes/center_accounts.py`, `/app/frontend/src/pages/CenterAccounts.jsx`
+
 ### [2026-04-04] Opening Balance & Petty Cash Formula Fix
 - **Bug Fix**: Opening Balance and Petty Cash Opening were wrong for all centers
 - **Root Cause #1**: `update_petty_cash_for_expense()` used wrong formula (`petty_opening - cash_expense` instead of `petty_opening + cash_receipts - cash_expense`), also didn't update `closing_balance`
