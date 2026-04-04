@@ -25,6 +25,17 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-04] 11 Changes — Access Control, Charts, Glossy UI, Bug Fixes
+- **Bug Fix**: Upload parsing now saves `deposited_in_bank`, `cash_expense`, `due_amount` from Excel bulk import (was missing)
+- **Access Control**: Bank Reconciliation → super admin + admin + accounting only. Freeze Control + Upload Settings → super admin only. Expense List (Admin) tab → removed entirely.
+- **Grid Visibility**: Super admin can hide/show Grid Update tab per center via "Hide Grid"/"Show Grid" button. Fix All Balances and Delete Data buttons hidden when grid is hidden. Settings stored in `center_settings` collection.
+- **Single Day Entry**: Opening Balance, Petty Cash Opening back to auto-calculated (read-only). Cash Expense editable. GST (5%) shown in Closing Summary.
+- **Payment Breakdown**: Added % of total sale for each payment method. Added donut chart for online breakdown (Recharts).
+- **Overview**: Added glossy summary cards with %, payment split pie chart, expense bar chart.
+- **Glossy Styling**: Gradient backgrounds, shadows, hover effects on summary cards across all screens.
+- New backend endpoints: `POST /api/sales/settings/get`, `POST /api/sales/settings/update`
+- Files: `sales_expenses.py`, `SalesExpenses.jsx`, `SalesDataEntry.jsx`, `index.css`
+
 ### [2026-04-04] Sales Grid Columns Match Excel + Delete Data + Editable Balances
 - **Grid Columns**: Now match Excel "Sale's Cash Summery" exactly — 22 columns total:
   - Day 1 editable (green): Opening Bal, Petty Cash Opening
