@@ -25,6 +25,24 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-04] WC Assessment Redesign — Excel-Format Table (P0)
+- **Redesign**: Replaced old WC cards/progress bars/financial summary with a clean Excel-like table
+- **Columns**: MONTH | SALE | EXPENSES | P/L | WORKING CAPITAL (Opening) | BAL. WC. (Closing) | DIFF.OF WC.
+- **Formula**: P/L = Sale - Expenses (simple subtraction, NO GST/Commission deduction — matching user's Excel)
+- **WC can go negative** (removed old cap-at-0 + loan conversion logic)
+- **Edit Features**: 
+  - Edit Initial WC value (button next to header)
+  - Edit Opening WC for first month (pencil icon on first row)
+  - Overrides stored in `wc_overrides` collection
+- **New Endpoints**: `POST /api/center-accounts/wc-table`, `POST /api/center-accounts/wc-override`
+- Files: `/app/backend/routes/center_accounts.py`, `/app/frontend/src/pages/CenterAccounts.jsx`
+
+### [2026-04-04] Opening Balance Editable for 1st Day of Month
+- **Enhancement**: Added `opening_balance` column to SalesGridEditor, editable ONLY for the 1st row (day 1 of month)
+- **Also added**: `deposited_in_bank` and `cash_receipts` columns to the editable grid
+- **Purpose**: Users can manually correct the opening balance before running "Fix All Balances"
+- File: `/app/frontend/src/components/SalesGridEditor.jsx`
+
 ### [2026-04-04] Full Historical Balance Recalculation Fix (P0)
 - **Bug Fix**: `/api/sales/daily/recalculate` now recalculates ALL records for a center from first to last day (not just one month)
 - **Root Cause**: Single-month recalculation couldn't fix cascading errors from historical data corruption — each month pulled the wrong closing from the prior month
@@ -47,15 +65,9 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Fix**: `SalesGridEditor.fetchGridData()` now fetches previous month's last day's closing_balance and uses it as the first row's opening
 - File: `/app/frontend/src/components/SalesGridEditor.jsx`
 
-### [2026-04-04] Month-by-Month Working Capital Assessment (like Excel)
-- **Feature**: WC now calculated month-by-month matching the WC Assessment Excel format
-- **Display**: Opening WC → This Month P&L → Closing WC (BAL.) → Diff from Initial
-- **Formula**: Opening WC = Initial Deposit + Cumulative P&L from previous months; This Month P&L = Sales - (Expenses + Commissions + GST); Closing WC = Opening + P&L
-- **Loan Logic**: When Closing WC goes below 0, deficit becomes loan entry; WC capped at 0
-- **Gating**: WC < 50% of Initial → Revenue Share & MG CLOSED; WC < Initial → Profits refill WC first
-- **Loan Date Filter**: Only loans taken on/before selected month are counted
-- **Displayed in**: Overview tab (WC Assessment card), Revenue/Profit Share tab, MG & Payout tab (5-column grid), PIB report
-- Files: `/app/backend/routes/center_accounts.py`, `/app/frontend/src/pages/CenterAccounts.jsx`
+### [2026-04-04] Month-by-Month Working Capital Assessment (SUPERSEDED)
+- **REPLACED** by the Excel-format WC table above. Old card-based UI and loan logic removed.
+- Old formula used P&L = Sales - Expenses - Commissions - GST (now simplified to P/L = Sale - Expenses)
 
 ### [2026-04-04] Opening Balance & Petty Cash Formula Fix
 - **Bug Fix**: Opening Balance and Petty Cash Opening were wrong for all centers
