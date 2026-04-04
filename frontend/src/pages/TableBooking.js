@@ -144,46 +144,27 @@ const TableBooking = () => {
     const timeSlotLabel = bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label || '';
     const celebrationLabel = bookingRules.tableBooking.celebrationOptions.find(c => c.id === celebration)?.label || '';
     
-    let message = ``;
-    message += `═══════════════════════\n`;
-    message += `     *P U R N A B R A M H A*\n`;
-    message += `  _World's First Intelligent Restaurant_\n`;
-    message += `    _Chain Powered by A.AI Technology_\n`;
-    message += `═══════════════════════\n\n`;
-    message += `✦  *TABLE RESERVATION*  ✦\n\n`;
-    message += `───── Reservation Details ─────\n\n`;
-    message += `  *Center:*    ${currentCenter?.displayName}\n`;
-    message += `  *Date:*      ${bookingDate}\n`;
-    message += `  *Time:*      ${timeSlotLabel}\n`;
-    message += `  *Service:*   ${serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}\n`;
-    message += `  *Guests:*    ${guestCount}\n`;
-    if (celebration !== 'none') {
-      message += `  *Occasion:*  ${celebrationLabel}\n`;
-    }
-    message += `\n───── Guest Information ─────\n\n`;
-    message += `  *Name:*   ${name}\n`;
-    message += `  *Phone:*  ${phone}\n`;
-    if (email) message += `  *Email:*  ${email}\n`;
+    let message = `🪔 *PURNABRAMHA TABLE BOOKING* 🪔\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `📍 ${currentCenter?.displayName}\n`;
+    message += `📅 ${bookingDate} ⏰ ${timeSlotLabel}\n`;
+    message += `🍽️ ${serviceType === 'dine-in' ? 'Dine In' : 'Pickup'} | 👥 ${guestCount} guests\n`;
+    if (celebration !== 'none') message += `🎉 ${celebrationLabel}\n`;
+    message += `\n👤 *${name}* | 📞 ${phone}\n`;
+    if (email) message += `📧 ${email}\n`;
     
     if (cartItemCount > 0) {
-      message += `\n───── Pre-Order Menu ─────\n\n`;
+      message += `\n🛒 *Pre-Order:*\n`;
       Object.entries(cart).forEach(([id, item]) => {
-        message += `    • ${item.name} × ${item.qty}  —  ${formatPrice(item.price * item.qty)}\n`;
+        message += `• ${item.name} ×${item.qty} — ${formatPrice(item.price * item.qty)}\n`;
       });
-      message += `\n  ✦ *Order Total: ${formatPrice(cartTotal)}* ✦\n`;
+      message += `💰 *Total: ${formatPrice(cartTotal)}*\n`;
     }
     
-    if (specialRequests) {
-      message += `\n───── Special Requests ─────\n\n`;
-      message += `  ${specialRequests}\n`;
-    }
+    if (specialRequests) message += `\n📝 ${specialRequests}\n`;
     
-    message += `\n═══════════════════════\n`;
-    message += `  _Booking confirmation pending_\n`;
-    message += `  _Center Manager's approval._\n`;
-    message += `═══════════════════════\n`;
-    message += `\n  _Purnabramha — Authentic Maharashtrian_\n`;
-    message += `  _Cuisine Since 2012_\n`;
+    message += `\n✨ _Powered by A.AI Technology_ 🤖\n`;
+    message += `_Confirmation pending manager's reply_`;
     
     return encodeURIComponent(message);
   };

@@ -173,95 +173,41 @@ const Catering = () => {
   };
 
   const generateWhatsAppMessage = () => {
-    let message = ``;
-    message += `═══════════════════════\n`;
-    message += `     *P U R N A B R A M H A*\n`;
-    message += `  _World's First Intelligent Restaurant_\n`;
-    message += `    _Chain Powered by A.AI Technology_\n`;
-    message += `═══════════════════════\n\n`;
-    message += `✦  *PREMIUM CATERING SERVICE*  ✦\n\n`;
-    message += `───── Guest Details ─────\n`;
-    message += `  *Name:*  ${name}\n`;
-    message += `  *Phone:*  ${phone}\n`;
-    message += `  *Venue:*  ${address}\n`;
-    if (needsDelivery) {
-      message += `  *Delivery:*  Required\n`;
-      message += `  *Map:*  ${generateGoogleMapsLink()}\n`;
-    }
-    message += `\n───── Event Information ─────\n`;
-    message += `  *Center:*  ${currentCenter?.displayName}\n`;
-    message += `  *Date:*  ${eventDate}\n`;
-    message += `  *Time:*  ${eventTime}\n`;
-    message += `  *Guests:*  ${guestCount} persons\n`;
-    message += `  *Occasion:*  ${bookingRules.catering.celebrationTypes.find(c => c.id === celebrationType)?.label || 'Not specified'}\n`;
+    let message = `🪔 *PURNABRAMHA CATERING* 🪔\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `👤 *${name}* | 📞 ${phone}\n`;
+    message += `📍 ${currentCenter?.displayName}\n`;
+    message += `🏠 ${address}\n`;
+    if (needsDelivery) message += `🚚 Delivery Required | 📍 ${generateGoogleMapsLink()}\n`;
+    message += `\n📅 ${eventDate} ⏰ ${eventTime}\n`;
+    message += `👥 ${guestCount} guests | 🎉 ${bookingRules.catering.celebrationTypes.find(c => c.id === celebrationType)?.label || '-'}\n`;
     
-    message += `\n═══════════════════════\n`;
-    message += `  *${currentPackage?.name.toUpperCase()}*\n`;
-    message += `  _${currentPackage?.description}_\n`;
-    message += `  Rate: ${formatPrice(currentPackage?.pricePerPerson || 0)} per person\n`;
-    message += `═══════════════════════\n\n`;
+    message += `\n🍽️ *${currentPackage?.name}* — ${formatPrice(currentPackage?.pricePerPerson || 0)}/person\n`;
+    message += `━━━━━━━━━━━━━━━━\n`;
 
-    message += `✦  *CURATED MENU*  ✦\n\n`;
-
-    const categoryLabels = {
-      starters: '  Starters',
-      mains: '  Main Course',
-      special: '  Special Bhaji',
-      desserts: '  Desserts',
-      roti: '  Roti & Bhakari',
-      rice: '  Rice',
-      drinks: '  Beverages',
-      sides: '  Sides',
-      chutney: '  Chutney'
-    };
+    const emojis = { starters: '🥟', mains: '🍛', special: '⭐', desserts: '🍮', roti: '🫓', rice: '🍚', drinks: '🥤', sides: '🥗', chutney: '🌶️' };
 
     Object.entries(menuSelections).forEach(([category, items]) => {
       if (items.length > 0) {
-        const categoryOptions = menuOptions[category === 'mains' ? 'simpleBhaji' : category === 'special' ? 'specialBhaji' : category];
-        const itemNames = items.map(id => categoryOptions?.find(opt => opt.id === id)?.name || id);
-        message += `${categoryLabels[category] || category}\n`;
-        itemNames.forEach(n => { message += `    • ${n}\n`; });
-        message += `\n`;
+        const opts = menuOptions[category === 'mains' ? 'simpleBhaji' : category === 'special' ? 'specialBhaji' : category];
+        const names = items.map(id => opts?.find(o => o.id === id)?.name || id);
+        message += `${emojis[category] || '•'} ${names.join(', ')}\n`;
       }
     });
 
-    // Add addon services to message
     if (needsCrockery || needsStaff) {
-      message += `───── Premium Add-ons ─────\n\n`;
-      if (needsCrockery) {
-        message += `  Crockery & Cutlery\n`;
-        message += `    ${crockeryHours} hour(s) @ ${formatPrice(isAustralia ? addonPricing.crockery.australia : addonPricing.crockery.india)}/hr\n`;
-        message += `    Total: ${formatPrice(crockeryTotal)}\n`;
-        message += `    _Return by 9 AM next morning_\n\n`;
-      }
-      if (needsStaff) {
-        message += `  Service Staff\n`;
-        message += `    ${staffCount} person(s) × ${staffHours} hour(s)\n`;
-        message += `    Total: ${formatPrice(staffTotal)}\n\n`;
-      }
+      message += `\n🛎️ *Add-ons:*\n`;
+      if (needsCrockery) message += `🍽️ Crockery ${crockeryHours}hr = ${formatPrice(crockeryTotal)}\n`;
+      if (needsStaff) message += `👨‍🍳 Staff ${staffCount}×${staffHours}hr = ${formatPrice(staffTotal)}\n`;
     }
 
-    message += `═══════════════════════\n`;
-    message += `       *COST SUMMARY*\n`;
-    message += `═══════════════════════\n\n`;
-    message += `  Food (${guestCount} × ${formatPrice(currentPackage?.pricePerPerson || 0)})\n`;
-    message += `  ─────────────  ${formatPrice(foodTotal)}\n`;
-    if (needsCrockery) {
-      message += `  Crockery Rental\n`;
-      message += `  ─────────────  ${formatPrice(crockeryTotal)}\n`;
-    }
-    if (needsStaff) {
-      message += `  Service Staff\n`;
-      message += `  ─────────────  ${formatPrice(staffTotal)}\n`;
-    }
-    message += `\n  ✦ *ESTIMATED TOTAL: ${formatPrice(estimatedTotal)}* ✦\n`;
-    message += `\n═══════════════════════\n`;
-    message += `  _Final pricing confirmed after_\n`;
-    message += `  _personal consultation. Customization_\n`;
-    message += `  _options available._\n`;
-    message += `═══════════════════════\n`;
-    message += `\n  _Purnabramha — Authentic Maharashtrian_\n`;
-    message += `  _Cuisine Since 2012_\n`;
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    message += `💰 Food: ${formatPrice(foodTotal)}\n`;
+    if (needsCrockery) message += `🍽️ Crockery: ${formatPrice(crockeryTotal)}\n`;
+    if (needsStaff) message += `👨‍🍳 Staff: ${formatPrice(staffTotal)}\n`;
+    message += `\n✨ *TOTAL: ${formatPrice(estimatedTotal)}* ✨\n`;
+    message += `\n_Powered by A.AI Technology_ 🤖\n`;
+    message += `_Final quote after consultation_`;
 
     return encodeURIComponent(message);
   };

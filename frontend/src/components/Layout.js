@@ -30,7 +30,6 @@ const Layout = ({ children }) => {
     { name: 'About', path: '/about' },
   ];
 
-  // City links for SEO internal linking
   const cityLinks = [
     { name: 'Perth', path: '/locations' },
     { name: 'Pune', path: '/locations' },
@@ -41,36 +40,32 @@ const Layout = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* SEO Schema JSON-LD */}
+    <div className="min-h-screen flex flex-col bg-[#0A0505]">
       <SEOSchema />
-      
-      {/* Location Permission Banner */}
       <LocationBanner />
       <NearestCenterBanner />
       
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-orange-900/10">
+      {/* Luxury Dark Header */}
+      <header className="sticky top-0 z-50 bg-[#0A0505]/85 backdrop-blur-2xl border-b border-[#D4AF37]/10">
         <nav className="container mx-auto px-4 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <Link to="/" className="flex items-center gap-2" data-testid="logo-link">
-              <img 
-                src="/logo.png" 
-                alt="Purnabramha" 
-                className="h-12 w-auto object-contain"
-              />
-            </Link>
+            <a
+              href="/"
+              className="flex items-center gap-3"
+              data-testid="logo-link"
+              onClick={(e) => { e.preventDefault(); navigate('/'); }}
+            >
+              <img src="/logo.png" alt="Purnabramha" className="h-12 w-auto object-contain" />
+            </a>
 
-            <div className="hidden lg:flex items-center gap-1 xl:gap-2">
+            <div className="hidden lg:flex items-center gap-0.5">
               {navLinks.map(link => (
                 <a
                   key={link.path}
                   href={link.path}
-                  className="text-xs xl:text-sm font-manrope font-medium text-foreground hover:text-primary transition-colors px-2 py-1 rounded-md hover:bg-primary/5 whitespace-nowrap cursor-pointer"
+                  className="text-xs xl:text-sm font-body font-medium text-[#A89F95] hover:text-[#D4AF37] transition-colors px-2.5 py-1.5 whitespace-nowrap cursor-pointer tracking-wide"
                   data-testid={`nav-${link.name.toLowerCase().replace(' ', '-')}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate(link.path);
-                  }}
+                  onClick={(e) => { e.preventDefault(); navigate(link.path); }}
                 >
                   {link.name}
                 </a>
@@ -83,15 +78,16 @@ const Layout = ({ children }) => {
                   <Button
                     variant="ghost"
                     onClick={() => navigate('/profile')}
+                    className="text-[#A89F95] hover:text-[#D4AF37] hover:bg-[#D4AF37]/5"
                     data-testid="profile-button"
                   >
-                    <User className="h-5 w-5 mr-2" />
+                    <User className="h-4 w-4 mr-2" />
                     {user.name}
                   </Button>
                   <Button
                     variant="outline"
                     onClick={logout}
-                    className="rounded-full"
+                    className="border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-none text-xs tracking-widest uppercase"
                     data-testid="logout-button"
                   >
                     Logout
@@ -100,17 +96,17 @@ const Layout = ({ children }) => {
               ) : (
                 <Button
                   onClick={() => setAuthDialogOpen(true)}
-                  className="hidden lg:inline-flex rounded-full bg-primary hover:bg-primary/90"
+                  className="hidden lg:inline-flex bg-[#D4AF37] hover:bg-[#F3D060] text-black rounded-none px-6 text-xs tracking-widest uppercase font-semibold"
                   data-testid="login-button"
                 >
-                  Login / Sign Up
+                  Login
                 </Button>
               )}
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden"
+                className="lg:hidden text-[#D4AF37]"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 data-testid="mobile-menu-button"
               >
@@ -121,16 +117,16 @@ const Layout = ({ children }) => {
 
           {mobileMenuOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -20 }}
+              initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="lg:hidden py-4 border-t border-orange-900/10"
+              className="lg:hidden py-4 border-t border-[#D4AF37]/10"
               data-testid="mobile-menu"
             >
               {navLinks.map(link => (
                 <a
                   key={link.path}
                   href={link.path}
-                  className="block py-3 text-sm font-manrope font-medium text-foreground hover:text-primary cursor-pointer"
+                  className="block py-3 text-sm font-body font-medium text-[#A89F95] hover:text-[#D4AF37] cursor-pointer tracking-wide"
                   onClick={(e) => {
                     e.preventDefault();
                     setMobileMenuOpen(false);
@@ -142,33 +138,11 @@ const Layout = ({ children }) => {
               ))}
               {user ? (
                 <>
-                  <button
-                    onClick={() => {
-                      navigate('/profile');
-                      setMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-left py-3 text-sm font-manrope font-medium text-foreground hover:text-primary"
-                  >
-                    Profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      logout();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-left py-3 text-sm font-manrope font-medium text-foreground hover:text-primary"
-                  >
-                    Logout
-                  </button>
+                  <button onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }} className="block w-full text-left py-3 text-sm text-[#A89F95] hover:text-[#D4AF37]">Profile</button>
+                  <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="block w-full text-left py-3 text-sm text-[#A89F95] hover:text-[#D4AF37]">Logout</button>
                 </>
               ) : (
-                <Button
-                  onClick={() => {
-                    setAuthDialogOpen(true);
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full mt-3 rounded-full bg-primary"
-                >
+                <Button onClick={() => { setAuthDialogOpen(true); setMobileMenuOpen(false); }} className="w-full mt-3 bg-[#D4AF37] hover:bg-[#F3D060] text-black rounded-none tracking-widest uppercase text-xs">
                   Login / Sign Up
                 </Button>
               )}
@@ -179,22 +153,17 @@ const Layout = ({ children }) => {
 
       <main className="flex-1">{children}</main>
 
-      {/* SEO FAQ Section */}
       <SEOFAQ />
 
-      <footer className="bg-[hsl(20,60%,15%)] text-[hsl(40,50%,85%)]">
-        {/* SEO Internal Links */}
-        <div className="bg-[hsl(20,50%,12%)] py-4">
+      {/* Luxury Dark Footer */}
+      <footer className="bg-[#0A0505] border-t border-[#D4AF37]/10">
+        {/* City Links */}
+        <div className="bg-[#080404] py-4 border-b border-[#2A151A]">
           <div className="container mx-auto px-4 lg:px-8">
-            <p className="text-xs text-[hsl(40,30%,50%)] mb-2">Find Maharashtrian Food Near You:</p>
+            <p className="text-xs text-[#A89F95]/50 mb-2 tracking-wider uppercase">Find Maharashtrian Food Near You</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
               {cityLinks.map((city) => (
-                <Link
-                  key={city.name}
-                  to={city.path}
-                  className="text-xs text-[hsl(38,70%,55%)] hover:text-[hsl(38,80%,65%)] transition-colors"
-                  title={`Maharashtrian Food in ${city.name}`}
-                >
+                <Link key={city.name} to={city.path} className="text-xs text-[#D4AF37]/60 hover:text-[#D4AF37] transition-colors">
                   Maharashtrian Food in {city.name}
                 </Link>
               ))}
@@ -202,47 +171,48 @@ const Layout = ({ children }) => {
           </div>
         </div>
         
-        <div className="container mx-auto px-4 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="container mx-auto px-4 lg:px-8 py-16">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             <div>
-              <img src="/logo.png" alt="Purnabramha" className="h-16 w-auto mb-4" />
-              <p className="text-sm text-[hsl(40,30%,70%)] font-manrope">
-                The Largest Maharashtrian Restaurant - Authentic cuisine across India, USA, Australia & Japan.
+              <img src="/logo.png" alt="Purnabramha" className="h-14 w-auto mb-5" />
+              <p className="text-sm text-[#A89F95]/70 font-body leading-relaxed mb-4">
+                World's First Intelligent Restaurant Chain Powered by A.AI Technology
+              </p>
+              <p className="text-xs text-[#A89F95]/40 font-body">
+                Authentic Maharashtrian cuisine across India, USA, Australia & Japan.
               </p>
             </div>
             <div>
-              <h4 className="font-manrope font-semibold mb-4 text-[hsl(38,70%,55%)]">Quick Links</h4>
-              <div className="space-y-2">
-                <Link to="/menu" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
-                  Our Menu
-                </Link>
-                <Link to="/locations" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
-                  Locations
-                </Link>
-                <Link to="/catering" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
-                  Catering Services
-                </Link>
-                <Link to="/franchise" className="block text-sm text-[hsl(40,30%,70%)] hover:text-[hsl(38,70%,55%)] transition-colors">
-                  Franchise
-                </Link>
+              <h4 className="font-heading text-lg text-[#D4AF37] mb-6 tracking-wide">Quick Links</h4>
+              <div className="space-y-3">
+                {[{n:'Our Menu',p:'/menu'},{n:'Locations',p:'/locations'},{n:'Catering',p:'/catering'},{n:'Franchise',p:'/franchise'}].map(l => (
+                  <Link key={l.p} to={l.p} className="block text-sm text-[#A89F95]/70 hover:text-[#D4AF37] transition-colors font-body">
+                    {l.n}
+                  </Link>
+                ))}
               </div>
             </div>
             <div>
-              <h4 className="font-manrope font-semibold mb-4 text-[hsl(38,70%,55%)]">Contact</h4>
-              <div className="space-y-2 text-sm text-[hsl(40,30%,70%)]">
+              <h4 className="font-heading text-lg text-[#D4AF37] mb-6 tracking-wide">Contact</h4>
+              <div className="space-y-3 text-sm text-[#A89F95]/70 font-body">
                 <div className="flex items-center">
-                  <Phone className="h-4 w-4 mr-2 text-[hsl(38,70%,55%)]" />
+                  <Phone className="h-4 w-4 mr-3 text-[#D4AF37]/60" />
                   +91 81056 45499
                 </div>
                 <div className="flex items-center">
-                  <MapPin className="h-4 w-4 mr-2 text-[hsl(38,70%,55%)]" />
+                  <MapPin className="h-4 w-4 mr-3 text-[#D4AF37]/60" />
                   India | USA | Australia | Japan
                 </div>
               </div>
             </div>
           </div>
-          <div className="border-t border-[hsl(40,30%,25%)] mt-8 pt-8 text-center text-sm text-[hsl(40,20%,50%)]">
-            <p>© 2025 Purnabramha. All rights reserved. Powered by Manaswini Foods Private Limited</p>
+          <div className="border-t border-[#2A151A] mt-12 pt-8 text-center">
+            <p className="text-xs text-[#A89F95]/30 font-body tracking-wider">
+              © 2025 Purnabramha. All rights reserved. Powered by Manaswini Foods Private Limited
+            </p>
+            <p className="text-[10px] text-[#D4AF37]/20 mt-2 tracking-[0.15em] uppercase">
+              Powered by A.AI Technology
+            </p>
           </div>
         </div>
       </footer>

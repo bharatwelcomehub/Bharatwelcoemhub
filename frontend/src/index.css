@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Manrope:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,7 @@
 
 body {
     margin: 0;
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
@@ -17,34 +17,26 @@ code {
 
 @layer base {
     :root {
-        /* Purnabramha Brand Colors - Dark Brown & Gold */
-        --background: 30 20% 97%;
-        --foreground: 20 50% 12%;
-        --card: 0 0% 100%;
-        --card-foreground: 20 50% 12%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 20 50% 12%;
-        /* Primary: Gold/Bronze from logo */
-        --primary: 38 70% 45%;
-        --primary-foreground: 0 0% 100%;
-        /* Secondary: Dark Brown from logo */
-        --secondary: 20 60% 15%;
-        --secondary-foreground: 40 50% 85%;
-        --muted: 30 15% 94%;
-        --muted-foreground: 20 10% 45%;
-        /* Accent: Warm Gold */
-        --accent: 45 80% 50%;
-        --accent-foreground: 20 60% 15%;
-        --destructive: 0 84.2% 60.2%;
+        --background: 0 47% 3%;
+        --foreground: 40 25% 97%;
+        --card: 350 30% 5%;
+        --card-foreground: 40 25% 97%;
+        --popover: 350 30% 5%;
+        --popover-foreground: 40 25% 97%;
+        --primary: 43 60% 52%;
+        --primary-foreground: 0 0% 0%;
+        --secondary: 350 35% 9%;
+        --secondary-foreground: 40 25% 97%;
+        --muted: 350 25% 10%;
+        --muted-foreground: 35 15% 60%;
+        --accent: 350 55% 28%;
+        --accent-foreground: 40 25% 97%;
+        --destructive: 0 84% 60%;
         --destructive-foreground: 0 0% 98%;
-        --border: 30 30% 88%;
-        --input: 30 15% 92%;
-        --ring: 38 70% 45%;
-        --radius: 0.5rem;
-        /* Custom brand colors */
-        --brand-brown: 20 60% 15%;
-        --brand-gold: 38 70% 45%;
-        --brand-cream: 40 50% 95%;
+        --border: 345 25% 13%;
+        --input: 350 30% 7%;
+        --ring: 43 60% 52%;
+        --radius: 0rem;
     }
 }
 
@@ -61,30 +53,56 @@ code {
     [data-debug-wrapper="true"] {
         display: contents !important;
     }
-
     [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
+        margin-left: inherit; margin-right: inherit;
+        margin-top: inherit; margin-bottom: inherit;
+        padding-left: inherit; padding-right: inherit;
+        padding-top: inherit; padding-bottom: inherit;
+        column-gap: inherit; row-gap: inherit; gap: inherit;
+        border-left-width: inherit; border-right-width: inherit;
+        border-top-width: inherit; border-bottom-width: inherit;
     }
 }
 
+.font-heading {
+    font-family: 'Cormorant Garamond', serif;
+}
+
+.font-body {
+    font-family: 'Outfit', sans-serif;
+}
+
 .font-playfair {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Cormorant Garamond', serif;
 }
 
 .font-manrope {
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Outfit', sans-serif;
+}
+
+/* Luxury gold text shimmer */
+.text-gold-shimmer {
+    background: linear-gradient(135deg, #D4AF37 0%, #F3D060 50%, #D4AF37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Glass morphism for premium cards */
+.glass-surface {
+    background: rgba(20, 10, 11, 0.8);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(212, 175, 55, 0.08);
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0A0505; }
+::-webkit-scrollbar-thumb { background: #2A151A; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #D4AF37; }
+
+/* Selection color */
+::selection {
+    background: rgba(212, 175, 55, 0.3);
+    color: #FDFBF7;
 }

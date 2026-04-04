@@ -163,77 +163,52 @@ const Tiffin = () => {
   }, [lunchSelections, brunchSelections, unlimitedBreakfast, lunchBoxOptions, heavyBrunchItems, drinkAddons, pricing, isAustralia, breakfastPricing]);
 
   const generateWhatsAppMessage = () => {
-    let message = ``;
-    message += `═══════════════════════\n`;
-    message += `     *P U R N A B R A M H A*\n`;
-    message += `  _World's First Intelligent Restaurant_\n`;
-    message += `    _Chain Powered by A.AI Technology_\n`;
-    message += `═══════════════════════\n\n`;
-    message += `✦  *TIFFIN SERVICE ORDER*  ✦\n\n`;
-    message += `───── Customer Details ─────\n\n`;
-    message += `  *Name:*    ${name}\n`;
-    message += `  *Mobile:*  ${mobile}\n`;
-    message += `  *Center:*  ${currentCenter?.displayName}\n`;
-    message += `  *Week:*    ${currentWeekData?.label}\n\n`;
+    let message = `🍱 *PURNABRAMHA TIFFIN* 🍱\n`;
+    message += `━━━━━━━━━━━━━━━━\n\n`;
+    message += `👤 *${name}* | 📞 ${mobile}\n`;
+    message += `📍 ${currentCenter?.displayName}\n`;
+    message += `📅 ${currentWeekData?.label}\n`;
 
     if (Object.keys(lunchSelections).length > 0) {
-      message += `───── Lunch Box Orders ─────\n\n`;
+      message += `\n🍱 *Lunch Box:*\n`;
       currentWeekData?.days.forEach(day => {
-        const selection = lunchSelections[day.date];
-        if (selection?.included && selection?.lunchBox) {
-          const lunchBox = lunchBoxOptions.find(l => l.id === selection.lunchBox);
-          message += `  ${day.name} (${day.displayDate})\n`;
-          message += `    • ${lunchBox?.name} @ ${selection.pickupTime || defaultPickupTime}\n`;
+        const sel = lunchSelections[day.date];
+        if (sel?.included && sel?.lunchBox) {
+          const lb = lunchBoxOptions.find(l => l.id === sel.lunchBox);
+          message += `• ${day.name} — ${lb?.name} ⏰ ${sel.pickupTime || defaultPickupTime}\n`;
         }
       });
-      message += `\n  Lunch Subtotal: ${formatPrice(calculateTotals.lunchTotal)}\n\n`;
+      message += `💰 Lunch: ${formatPrice(calculateTotals.lunchTotal)}\n`;
     }
 
-    const hasBrunch = Object.values(brunchSelections).some(items => 
-      Object.values(items || {}).some(s => s?.qty > 0)
-    );
-    
+    const hasBrunch = Object.values(brunchSelections).some(items => Object.values(items || {}).some(s => s?.qty > 0));
     if (hasBrunch) {
-      message += `───── Heavy Brunch Orders ─────\n\n`;
+      message += `\n🥞 *Brunch:*\n`;
       currentWeekData?.days.forEach(day => {
         const items = brunchSelections[day.date];
         if (items) {
-          const dayItems = Object.entries(items)
-            .filter(([_, s]) => s?.qty > 0)
-            .map(([itemId, s]) => {
-              const item = heavyBrunchItems.find(h => h.id === itemId);
-              let addons = [];
-              if (s.buttermilk) addons.push('Buttermilk');
-              if (s.kokum) addons.push('Kokum');
-              return `${item?.name} × ${s.qty}${addons.length ? ` + ${addons.join(', ')}` : ''}`;
-            });
-          if (dayItems.length > 0) {
-            message += `  ${day.name}\n`;
-            dayItems.forEach(di => { message += `    • ${di}\n`; });
-          }
+          const dayItems = Object.entries(items).filter(([_, s]) => s?.qty > 0).map(([itemId, s]) => {
+            const item = heavyBrunchItems.find(h => h.id === itemId);
+            let addons = [];
+            if (s.buttermilk) addons.push('🥛');
+            if (s.kokum) addons.push('🫙');
+            return `${item?.name} ×${s.qty}${addons.length ? ' +' + addons.join('') : ''}`;
+          });
+          if (dayItems.length > 0) message += `• ${day.name} — ${dayItems.join(', ')}\n`;
         }
       });
-      message += `\n  Brunch Subtotal: ${formatPrice(calculateTotals.brunchTotal)}\n\n`;
+      message += `💰 Brunch: ${formatPrice(calculateTotals.brunchTotal)}\n`;
     }
 
     if (unlimitedBreakfast.enabled) {
-      message += `───── Unlimited Breakfast ─────\n\n`;
-      message += `  Date:    ${unlimitedBreakfast.date}\n`;
-      message += `  Guests:  ${unlimitedBreakfast.guests}\n`;
-      message += `  Price:   ${formatPrice(calculateTotals.breakfastTotal)}\n\n`;
+      message += `\n☀️ *Breakfast:* ${unlimitedBreakfast.date} | ${unlimitedBreakfast.guests} guests\n`;
+      message += `💰 ${formatPrice(calculateTotals.breakfastTotal)}\n`;
     }
 
-    message += `═══════════════════════\n`;
-    message += `         *TOTAL*\n`;
-    message += `═══════════════════════\n\n`;
-    if (!isAustralia && calculateTotals.gst > 0) {
-      message += `  Subtotal:  ${formatPrice(calculateTotals.subtotal)}\n`;
-      message += `  GST (5%):  ${formatPrice(calculateTotals.gst)}\n\n`;
-    }
-    message += `  ✦ *GRAND TOTAL: ${formatPrice(calculateTotals.grandTotal)}* ✦\n`;
-    message += `\n═══════════════════════\n`;
-    message += `  _Purnabramha — Authentic Maharashtrian_\n`;
-    message += `  _Cuisine Since 2012_\n`;
+    message += `\n━━━━━━━━━━━━━━━━\n`;
+    if (!isAustralia && calculateTotals.gst > 0) message += `Subtotal: ${formatPrice(calculateTotals.subtotal)} + GST: ${formatPrice(calculateTotals.gst)}\n`;
+    message += `✨ *TOTAL: ${formatPrice(calculateTotals.grandTotal)}* ✨\n`;
+    message += `\n_Powered by A.AI Technology_ 🤖`;
 
     return encodeURIComponent(message);
   };
