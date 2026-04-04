@@ -168,6 +168,22 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         };
       });
 
+      // Chain opening balances: each day's opening = previous day's closing
+      for (let i = 1; i < grid.length; i++) {
+        const prevRow = grid[i - 1];
+        if (!grid[i]._isNew || prevRow.closing_balance) {
+          // Always use previous day's closing as today's opening for display consistency
+          if (prevRow.closing_balance !== undefined && prevRow.closing_balance !== null) {
+            grid[i].opening_balance = prevRow.closing_balance;
+          }
+          if (prevRow.petty_cash_closing !== undefined && prevRow.petty_cash_closing !== null) {
+            grid[i].petty_cash_opening = prevRow.petty_cash_closing;
+          }
+          // Recalculate this row with corrected opening
+          grid[i] = { ...calculateRow(grid[i]), _isNew: grid[i]._isNew, _original: grid[i]._original };
+        }
+      }
+
       setGridData(grid);
       setModifiedRows(new Set());
     } catch (err) {
@@ -596,7 +612,6 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
             autoFocus
             className="w-full h-7 px-2 text-xs text-right border-2 border-blue-500 outline-none"
             style={{ minWidth: '60px' }}
-          />
           />
         </td>
       );

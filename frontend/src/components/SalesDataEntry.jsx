@@ -246,8 +246,9 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
         const recordTotalSale = record.total_sale || ((record.sale_pbm || 0) + (record.sale_other || 0));
         
         setFormData({
-          opening_balance: record.opening_balance || prevData?.closing_balance || 0,
-          petty_cash_opening: record.petty_cash_opening || prevData?.petty_cash_closing || 0,
+          // ALWAYS prefer previous day's closing as today's opening (avoids stale stored values)
+          opening_balance: prevData ? prevData.closing_balance : (record.opening_balance || 0),
+          petty_cash_opening: prevData ? prevData.petty_cash_closing : (record.petty_cash_opening || 0),
           total_sale: recordTotalSale || 0,
           card_idfc: record.card_idfc || 0,
           bharat_pay: record.bharat_pay || 0,

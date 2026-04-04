@@ -35,7 +35,8 @@ import {
   Upload,
   Settings,
   AlertTriangle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Calculator
 } from "lucide-react";
 import { api, API_URL, fetchCentersFromDB } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
@@ -903,6 +904,36 @@ export default function SalesExpenses() {
   // Note: Removed the retry useEffect that was causing flickering
   // The API interceptor already handles retries for failed requests
 
+  // Recalculate opening/closing balances for the selected center and month
+  const [recalculating, setRecalculating] = useState(false);
+  const recalculateBalances = async () => {
+    if (!session?.token || !selectedMonth) return;
+    const center = (selectedCenter && selectedCenter !== "all") ? selectedCenter : session?.center;
+    if (!center) {
+      toast.error("Please select a specific center to recalculate");
+      return;
+    }
+    setRecalculating(true);
+    try {
+      const res = await api.post("/sales/daily/recalculate", {
+        token: session.token,
+        center,
+        month: selectedMonth
+      });
+      if (res.data.success) {
+        toast.success(res.data.message);
+        fetchMonthlySummary();
+      } else {
+        toast.error("Recalculation failed");
+      }
+    } catch (err) {
+      console.error("Recalculate error:", err);
+      toast.error("Failed to recalculate balances");
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   // Download Monthly Excel Report
   const downloadMonthlyExcel = async () => {
     if (!session?.token) {
@@ -1196,6 +1227,18 @@ export default function SalesExpenses() {
           >
             <Download className="w-4 h-4 mr-2" />
             Download Excel
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={recalculateBalances}
+            disabled={recalculating || loading || selectedCenter === "all"}
+            title="Recalculate opening/closing balances for all days in this month"
+            data-testid="recalculate-btn"
+          >
+            <Calculator className={`w-4 h-4 mr-1 ${recalculating ? 'animate-spin' : ''}`} />
+            {recalculating ? "Fixing..." : "Fix Balances"}
           </Button>
           
           <Button

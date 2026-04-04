@@ -420,33 +420,114 @@ async def can_edit_date(session: dict, center: str, date_str: str, record_type: 
 
 async def update_petty_cash_for_expense(center: str, date: str, amount: float, is_add: bool = True):
     """
-    Update the petty_cash_closing in daily_sales when a CASH expense is added/removed.
-    CASH expenses reduce petty cash (petty cash is the fund for handling cash expenses).
+    Update cash_expense, petty_cash_closing, closing_balance, and to_deposit_in_bank
+    in daily_sales when a CASH expense is added/removed.
+    Uses calculate_totals() to ensure all derived fields stay consistent.
     """
     daily_record = await db.daily_sales.find_one({"center": center, "date": date})
     
     if daily_record:
         current_cash_expense = daily_record.get("cash_expense", 0)
-        petty_opening = daily_record.get("petty_cash_opening", 0)
         
         if is_add:
-            # Adding expense - increase cash_expense, decrease petty cash
             new_cash_expense = current_cash_expense + amount
         else:
-            # Removing expense - decrease cash_expense, increase petty cash
             new_cash_expense = max(0, current_cash_expense - amount)
         
-        # Petty cash closing = opening - total cash expenses
-        new_petty_closing = petty_opening - new_cash_expense
+        # Update cash_expense and recalculate ALL derived fields consistently
+        daily_record["cash_expense"] = new_cash_expense
+        daily_record = calculate_totals(daily_record)
         
         await db.daily_sales.update_one(
             {"center": center, "date": date},
             {"$set": {
                 "cash_expense": new_cash_expense,
-                "petty_cash_closing": new_petty_closing
+                "petty_cash_closing": daily_record["petty_cash_closing"],
+                "closing_balance": daily_record["closing_balance"],
+                "to_deposit_in_bank": daily_record.get("to_deposit_in_bank", 0)
             }}
         )
-        logger.info(f"Updated petty cash for {center} on {date}: cash_expense={new_cash_expense}, petty_cash_closing={new_petty_closing}")
+        logger.info(f"Updated petty cash for {center} on {date}: cash_expense={new_cash_expense}, petty_cash_closing={daily_record['petty_cash_closing']}, closing_balance={daily_record['closing_balance']}")
+
+
+class RecalculateRequest(BaseModel):
+    token: str
+    center: str
+    month: str  # YYYY-MM
+
+@router.post("/daily/recalculate")
+async def recalculate_month_balances(req: RecalculateRequest):
+    """
+    Recalculate and chain opening/closing balances for all days in a month.
+    Each day's opening_balance = previous day's closing_balance.
+    Each day's petty_cash_opening = previous day's petty_cash_closing.
+    This fixes any stale/corrupted data from formula bugs.
+    """
+    session = await get_session(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    center = req.center.upper()
+    
+    # Get all records for the month sorted by date
+    records = await db.daily_sales.find(
+        {"center": center, "date": {"$regex": f"^{req.month}"}},
+        {"_id": 0}
+    ).sort("date", 1).to_list(31)
+    
+    if not records:
+        return {"success": True, "message": "No records found for this month", "updated": 0}
+    
+    # Get the previous month's last record for the first day's opening
+    year, mon = req.month.split("-")
+    if int(mon) == 1:
+        prev_month = f"{int(year) - 1}-12"
+    else:
+        prev_month = f"{year}-{int(mon) - 1:02d}"
+    
+    prev_record = await db.daily_sales.find(
+        {"center": center, "date": {"$regex": f"^{prev_month}"}},
+    ).sort("date", -1).limit(1).to_list(1)
+    
+    prev_closing = prev_record[0].get("closing_balance", 0) if prev_record else 0
+    prev_petty_closing = prev_record[0].get("petty_cash_closing", 0) if prev_record else 0
+    
+    updated_count = 0
+    for record in records:
+        # Set opening from previous day's closing
+        record["opening_balance"] = prev_closing
+        record["petty_cash_opening"] = prev_petty_closing
+        
+        # Recalculate all derived fields
+        record = calculate_totals(record)
+        
+        # Save back
+        await db.daily_sales.update_one(
+            {"center": center, "date": record["date"]},
+            {"$set": {
+                "opening_balance": record["opening_balance"],
+                "petty_cash_opening": record["petty_cash_opening"],
+                "total_online_sale": record.get("total_online_sale", 0),
+                "total_cash_sale": record.get("total_cash_sale", 0),
+                "closing_balance": record["closing_balance"],
+                "petty_cash_closing": record["petty_cash_closing"],
+                "to_deposit_in_bank": record.get("to_deposit_in_bank", 0),
+            }}
+        )
+        
+        # Use this day's closing as next day's opening
+        prev_closing = record["closing_balance"]
+        prev_petty_closing = record["petty_cash_closing"]
+        updated_count += 1
+    
+    logger.info(f"Recalculated balances for {center} {req.month}: {updated_count} records updated")
+    
+    return {
+        "success": True,
+        "message": f"Recalculated {updated_count} records for {center} in {req.month}",
+        "updated": updated_count
+    }
+
 
 # =======================================
 # DAILY SALES ENDPOINTS
