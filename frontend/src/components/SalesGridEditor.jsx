@@ -46,30 +46,36 @@ const isDateFrozen = (dateStr) => {
   return recordDate < today;
 };
 
-// Editable fields configuration - SIMPLIFIED
+// Editable fields configuration - matches Excel "Sale's Cash Summery" columns
 const EDITABLE_FIELDS = [
+  { key: 'deposited_in_bank', label: 'Deposited', type: 'number' },
+  { key: 'cash_receipts', label: 'Cash Rcpt', type: 'number' },
   { key: 'total_sale', label: 'Total Sale', type: 'number' },
+  { key: 'card_idfc', label: 'Card', type: 'number' },
+  { key: 'bharat_pay', label: 'UPI', type: 'number' },
   { key: 'swiggy', label: 'Swiggy', type: 'number' },
   { key: 'zomato', label: 'Zomato', type: 'number' },
   { key: 'doordash', label: 'Doordash', type: 'number' },
-  { key: 'card_idfc', label: 'Card', type: 'number' },
-  { key: 'bharat_pay', label: 'UPI', type: 'number' },
-  { key: 'online_other', label: 'Takeaway', type: 'number' },
+  { key: 'online_other', label: 'Online', type: 'number' },
   { key: 'due_amount', label: 'Due', type: 'number' },
+  { key: 'cash_expense', label: 'Cash Exp', type: 'number' },
   { key: 'num_guests', label: 'Guests', type: 'integer' },
   { key: 'num_bills', label: 'Bills', type: 'integer' },
-  { key: 'deposited_in_bank', label: 'Deposited', type: 'number' },
-  { key: 'cash_receipts', label: 'Cash Rcpt', type: 'number' },
 ];
 
-// Special field: opening_balance is editable ONLY for day 1 of the month
-const OPENING_BALANCE_FIELD = { key: 'opening_balance', label: 'Opening Bal', type: 'number' };
+// Special fields: editable ONLY for day 1 of the month (green bg)
+const DAY1_FIELDS = [
+  { key: 'opening_balance', label: 'Opening Bal', type: 'number' },
+  { key: 'petty_cash_opening', label: 'Petty Open', type: 'number' },
+];
 
-// Calculated fields (auto-computed, shown in grid)
+// Calculated fields (auto-computed, shown in grid as gray/locked)
 const CALCULATED_FIELDS = [
-  { key: 'total_online_sale', label: 'Online', computed: true },
+  { key: 'total_online_sale', label: 'Online Total', computed: true },
   { key: 'total_cash_sale', label: 'Cash Sale', computed: true },
   { key: 'closing_balance', label: 'Closing Bal', computed: true },
+  { key: 'to_deposit_in_bank', label: 'To Deposit', computed: true },
+  { key: 'petty_cash_closing', label: 'Petty Close', computed: true },
 ];
 
 export default function SalesGridEditor({ session, selectedCenter, selectedMonth, centersList = [] }) {
@@ -241,10 +247,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     cash_expense: 0
   });
 
-  // Calculate derived fields for a row using CORRECT FORMULAS
-  // 1. Total Online = Card + UPI + Swiggy + Zomato + Doordash + Takeaway
-  // 2. Cash Sale = Total Sale - Total Online
-  // 3. Closing Balance = (Total Sale + Opening + Cash Receipts) - (Deposited + Online + Cash Expense)
+  // Calculate derived fields for a row matching Excel formulas exactly
   const calculateRow = (row) => {
     const total_sale = parseFloat(row.total_sale) || 0;
     const swiggy = parseFloat(row.swiggy) || 0;
@@ -257,21 +260,21 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     const cash_receipts = parseFloat(row.cash_receipts) || 0;
     const deposited_in_bank = parseFloat(row.deposited_in_bank) || 0;
     const cash_expense = parseFloat(row.cash_expense) || 0;
+    const petty_cash_opening = parseFloat(row.petty_cash_opening) || 0;
 
-    // Total Online = Card + UPI + Swiggy + Zomato + Doordash + Takeaway
     const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + doordash + online_other;
-    
-    // Cash Sale = Total Sale - Total Online
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
-    
-    // Closing Balance = (Total Sale + Opening + Cash Receipts) - (Deposited + Online + Cash Expense)
     const closing_balance = (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense);
+    const petty_cash_closing = petty_cash_opening + cash_receipts - cash_expense;
+    const to_deposit_in_bank = closing_balance - petty_cash_closing;
 
     return {
       ...row,
       total_online_sale,
       total_cash_sale,
-      closing_balance
+      closing_balance,
+      petty_cash_closing,
+      to_deposit_in_bank,
     };
   };
 
@@ -561,7 +564,6 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
             sale_pbm: parseFloat(row.total_sale) || 0,
             sale_other: 0,
             total_sale: parseFloat(row.total_sale) || 0,
-            // Non-cash payment channels
             swiggy: parseFloat(row.swiggy) || 0,
             zomato: parseFloat(row.zomato) || 0,
             doordash: parseFloat(row.doordash) || 0,
@@ -569,11 +571,14 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
             bharat_pay: parseFloat(row.bharat_pay) || 0,
             online_other: parseFloat(row.online_other) || 0,
             due_amount: parseFloat(row.due_amount) || 0,
+            cash_expense: parseFloat(row.cash_expense) || 0,
             num_guests: parseInt(row.num_guests) || 0,
             num_bills: parseInt(row.num_bills) || 0,
             total_online_sale: row.total_online_sale || 0,
             total_cash_sale: row.total_cash_sale || 0,
-            closing_balance: row.closing_balance || 0
+            closing_balance: row.closing_balance || 0,
+            petty_cash_closing: row.petty_cash_closing || 0,
+            to_deposit_in_bank: row.to_deposit_in_bank || 0,
           };
 
           if (row._isNew) {
@@ -736,9 +741,15 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
                 <tr>
                   <th className="px-2 py-2 text-left font-medium text-muted-foreground border-b w-24">Date</th>
                   <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b w-10">Status</th>
-                  <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b bg-green-50" title="Editable on 1st day only">
-                    {OPENING_BALANCE_FIELD.label}
-                  </th>
+                  {DAY1_FIELDS.map(field => (
+                    <th 
+                      key={field.key} 
+                      className="px-2 py-2 text-right font-medium text-muted-foreground border-b bg-green-50"
+                      title="Editable on 1st day only"
+                    >
+                      {field.label}
+                    </th>
+                  ))}
                   {EDITABLE_FIELDS.map(field => (
                     <th 
                       key={field.key} 
@@ -763,7 +774,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
                 {gridData.map((row, rowIndex) => {
                   const status = frozenStatus[row.date];
                   const isModified = modifiedRows.has(rowIndex);
-                  const isFirstDay = rowIndex === 0; // 1st day of month
+                  const isFirstDay = rowIndex === 0;
                   
                   return (
                     <tr 
@@ -784,14 +795,16 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
                           <Lock className="w-3 h-3 text-amber-500 inline" title="Frozen" />
                         )}
                       </td>
-                      {/* Opening Balance: editable only for 1st day */}
-                      {isFirstDay ? (
-                        renderCell(row, OPENING_BALANCE_FIELD, rowIndex, -1)
-                      ) : (
-                        <td className="px-2 py-1 text-right bg-gray-50 text-gray-600 font-mono text-xs">
-                          {typeof row.opening_balance === 'number' ? Math.round(row.opening_balance).toLocaleString() : row.opening_balance || 0}
-                        </td>
-                      )}
+                      {/* Day 1 fields: editable for 1st day, read-only for rest */}
+                      {DAY1_FIELDS.map((field) => (
+                        isFirstDay ? (
+                          renderCell(row, field, rowIndex, -1)
+                        ) : (
+                          <td key={field.key} className="px-2 py-1 text-right bg-gray-50 text-gray-600 font-mono text-xs">
+                            {typeof row[field.key] === 'number' ? Math.round(row[field.key]).toLocaleString() : row[field.key] || 0}
+                          </td>
+                        )
+                      ))}
                       {EDITABLE_FIELDS.map((field, fieldIndex) => 
                         renderCell(row, field, rowIndex, fieldIndex)
                       )}

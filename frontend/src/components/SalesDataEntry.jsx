@@ -83,27 +83,25 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
   
   // Form state - User editable fields
   const [formData, setFormData] = useState({
-    // AUTO-FILLED from previous day (read-only)
     opening_balance: 0,
     petty_cash_opening: 0,
     
     // USER ENTERS these
-    total_sale: 0,           // Total sale of the day
-    card_idfc: 0,            // Credit/Debit Card
-    bharat_pay: 0,           // Bharat Pay / UPI
-    swiggy: 0,               // Swiggy
-    zomato: 0,               // Zomato
-    doordash: 0,             // Doordash (NEW)
-    online_other: 0,         // Other online/Takeaway/Pickups
-    due_amount: 0,           // Due Amount
+    total_sale: 0,
+    card_idfc: 0,
+    bharat_pay: 0,
+    swiggy: 0,
+    zomato: 0,
+    doordash: 0,
+    online_other: 0,
+    due_amount: 0,
     
-    // Guest & Bill tracking
-    num_guests: 0,           // Number of guests (pax)
-    num_bills: 0,            // Number of bills (excluding Swiggy/Zomato)
+    num_guests: 0,
+    num_bills: 0,
     
-    // Other fields
     deposited_in_bank: 0,
-    cash_receipts: 0,        // Withdrawal from bank / Cash Receipts
+    cash_receipts: 0,
+    cash_expense: 0,
     notes: ""
   });
 
@@ -146,8 +144,8 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
     const avg_per_pax = num_guests > 0 ? total_sale / num_guests : 0;
     const avg_per_bill = num_bills > 0 ? total_sale / num_bills : 0;
     
-    // Cash expense from expenses entered separately
-    const cash_expense = existingRecord?.cash_expense || 0;
+    // Cash expense - now editable
+    const cash_expense = parseFloat(formData.cash_expense) || 0;
     
     // Opening & Cash Receipts
     const opening_balance = parseFloat(formData.opening_balance) || 0;
@@ -261,6 +259,7 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
           num_bills: record.num_bills || 0,
           deposited_in_bank: record.deposited_in_bank || 0,
           cash_receipts: record.cash_receipts || 0,
+          cash_expense: record.cash_expense || 0,
           notes: record.notes || ""
         });
       } else {
@@ -281,6 +280,7 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
           num_bills: 0,
           deposited_in_bank: 0,
           cash_receipts: 0,
+          cash_expense: 0,
           notes: ""
         });
       }
@@ -309,11 +309,6 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
 
   // Handle input change
   const handleChange = (field, value) => {
-    // Prevent changing auto-calculated fields
-    if (field === 'opening_balance' || field === 'petty_cash_opening') {
-      return; // These are read-only
-    }
-    
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -355,12 +350,14 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
         num_guests: parseInt(formData.num_guests) || 0,
         num_bills: parseInt(formData.num_bills) || 0,
         notes: formData.notes || "",
+        cash_expense: parseFloat(formData.cash_expense) || 0,
         // Calculated fields
         total_sale: calculated.total_sale,
         total_online_sale: calculated.total_online_sale,
         total_cash_sale: calculated.total_cash_sale,
         closing_balance: calculated.closing_balance,
         petty_cash_closing: calculated.petty_cash_closing,
+        to_deposit_in_bank: calculated.to_deposit_in_bank,
         gst_amount: calculated.gst_amount,
         avg_per_pax: calculated.avg_per_pax,
         avg_per_bill: calculated.avg_per_bill
@@ -534,24 +531,16 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : (
           <>
-            {/* SECTION 1: Opening Balances (Auto-filled, Read-only) */}
-            <div className="p-4 bg-gray-50 rounded-lg border">
-              <h3 className="text-sm font-semibold text-gray-600 mb-3">Opening Balances (Auto from Previous Day)</h3>
+            {/* SECTION 1: Opening Balances - Editable */}
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <h3 className="text-sm font-semibold text-green-700 mb-3">Opening Balances</h3>
               <div className="grid grid-cols-2 gap-4">
-                <ReadOnlyField 
-                  label="Opening Balance" 
-                  value={formData.opening_balance}
-                  prefix={currencySymbol}
-                />
-                <ReadOnlyField 
-                  label="Petty Cash Opening" 
-                  value={formData.petty_cash_opening}
-                  prefix={currencySymbol}
-                />
+                {renderEditableField("Opening Balance", "opening_balance", currencySymbol, "number")}
+                {renderEditableField("Petty Cash Opening", "petty_cash_opening", currencySymbol, "number")}
               </div>
               {previousDayData && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  From previous day's closing balance
+                  Auto-filled from previous day. Edit to override.
                 </p>
               )}
             </div>
@@ -668,24 +657,17 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
             {/* SECTION 5: Cash Flow */}
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <h3 className="text-sm font-semibold text-green-700 mb-3">Cash Flow</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 {renderEditableField("Deposited in Bank", "deposited_in_bank", currencySymbol)}
                 {renderEditableField("Cash Receipts (Withdrawal)", "cash_receipts", currencySymbol)}
+                {renderEditableField("Cash Expense", "cash_expense", currencySymbol)}
               </div>
             </div>
 
             {/* SECTION 6: Closing Summary (Auto-calculated) */}
             <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
               <h3 className="text-sm font-semibold text-orange-700 mb-3">Closing Summary (Auto-calculated)</h3>
-              <p className="text-xs text-orange-600 mb-3">
-                Closing Balance = (Total Sale + Opening + Cash Receipts) - (Deposited + Online Sale + Cash Expense)
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <ReadOnlyField 
-                  label="Cash Expense (from Expenses)" 
-                  value={calculated.cash_expense}
-                  prefix={currencySymbol}
-                />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <ReadOnlyField 
                   label="Closing Balance" 
                   value={calculated.closing_balance}
@@ -697,10 +679,7 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
                   value={calculated.petty_cash_closing}
                   prefix={currencySymbol}
                   highlight={true}
-                  info="Opening Petty + Cash Receipts - Cash Expense"
                 />
-              </div>
-              <div className="grid grid-cols-1 gap-4 mt-3">
                 <ReadOnlyField 
                   label="To Deposit in Bank" 
                   value={calculated.to_deposit_in_bank}

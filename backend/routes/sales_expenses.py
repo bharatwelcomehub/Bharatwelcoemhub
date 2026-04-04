@@ -525,6 +525,51 @@ async def recalculate_month_balances(req: RecalculateRequest):
     }
 
 
+class DeleteRangeRequest(BaseModel):
+    token: str
+    center: str
+    from_month: str  # YYYY-MM
+    to_month: str = ""  # YYYY-MM (optional, defaults to from_month)
+
+@router.post("/daily/delete-range")
+async def delete_daily_sales_range(req: DeleteRangeRequest):
+    """
+    Delete daily_sales records for a center within a month range.
+    Available to managers and super admin.
+    """
+    session = await get_session(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    center = req.center.upper()
+    from_month = req.from_month
+    to_month = req.to_month or from_month
+    
+    # Build date filter
+    if from_month == to_month:
+        date_filter = {"$regex": f"^{from_month}"}
+    else:
+        date_filter = {"$gte": f"{from_month}-01", "$lte": f"{to_month}-31"}
+    
+    # Count before deleting
+    count = await db.daily_sales.count_documents({"center": center, "date": date_filter})
+    
+    if count == 0:
+        return {"success": True, "message": "No records found in this range", "deleted": 0}
+    
+    # Delete
+    result = await db.daily_sales.delete_many({"center": center, "date": date_filter})
+    
+    logger.info(f"Deleted {result.deleted_count} daily_sales records for {center} from {from_month} to {to_month}")
+    
+    return {
+        "success": True,
+        "message": f"Deleted {result.deleted_count} records for {center} ({from_month} to {to_month})",
+        "deleted": result.deleted_count
+    }
+
+
+
 # =======================================
 # DAILY SALES ENDPOINTS
 # =======================================

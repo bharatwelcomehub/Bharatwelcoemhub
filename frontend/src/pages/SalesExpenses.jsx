@@ -36,7 +36,8 @@ import {
   Settings,
   AlertTriangle,
   ArrowRightLeft,
-  Calculator
+  Calculator,
+  Trash2
 } from "lucide-react";
 import { api, API_URL, fetchCentersFromDB } from "@/lib/api";
 import SalesDataEntry from "@/components/SalesDataEntry";
@@ -733,6 +734,12 @@ export default function SalesExpenses() {
   const [unlockReason, setUnlockReason] = useState("");
   const [showUnlockRequestsPanel, setShowUnlockRequestsPanel] = useState(false);
   
+  // Delete Month Range state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteFromMonth, setDeleteFromMonth] = useState('');
+  const [deleteToMonth, setDeleteToMonth] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  
   // Check if user has admin access - recalculate on every render
   // NEW: Accounting role also has access to ALL centers for Sales & Cash
   const hasAllCentersAccess = session?.is_super_admin === true || 
@@ -932,6 +939,45 @@ export default function SalesExpenses() {
       setRecalculating(false);
     }
   };
+
+  // Delete sales data for a month range
+  const handleDeleteRange = async () => {
+    if (!session?.token || !deleteFromMonth) return;
+    const center = (selectedCenter && selectedCenter !== "all") ? selectedCenter : session?.center;
+    if (!center) {
+      toast.error("Please select a specific center");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to DELETE all daily sales data for ${center} from ${deleteFromMonth} to ${deleteToMonth || deleteFromMonth}?\n\nThis action CANNOT be undone!`
+    );
+    if (!confirmed) return;
+    
+    setDeleting(true);
+    try {
+      const res = await api.post("/sales/daily/delete-range", {
+        token: session.token,
+        center,
+        from_month: deleteFromMonth,
+        to_month: deleteToMonth || deleteFromMonth
+      });
+      if (res.data.success) {
+        toast.success(res.data.message);
+        setShowDeleteDialog(false);
+        setDeleteFromMonth('');
+        setDeleteToMonth('');
+        fetchMonthlySummary();
+      } else {
+        toast.error("Delete failed");
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      toast.error(err.response?.data?.detail || "Failed to delete records");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
 
   // Download Monthly Excel Report
   const downloadMonthlyExcel = async () => {
@@ -1238,6 +1284,19 @@ export default function SalesExpenses() {
           >
             <Calculator className={`w-4 h-4 mr-1 ${recalculating ? 'animate-spin' : ''}`} />
             {recalculating ? "Fixing All..." : "Fix All Balances"}
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setDeleteFromMonth(selectedMonth); setDeleteToMonth(''); setShowDeleteDialog(true); }}
+            disabled={loading || selectedCenter === "all"}
+            className="text-red-600 hover:bg-red-50 border-red-200"
+            title="Delete daily sales data for a month or range"
+            data-testid="delete-range-btn"
+          >
+            <Trash2 className="w-4 h-4 mr-1" />
+            Delete Data
           </Button>
           
           <Button
@@ -1827,6 +1886,55 @@ export default function SalesExpenses() {
                 disabled={!unlockReason.trim()}
               >
                 Submit Request
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Month Range Dialog */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" data-testid="delete-dialog-overlay">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl" data-testid="delete-dialog">
+            <h3 className="text-lg font-bold text-red-700 mb-4 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" />
+              Delete Sales Data
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will permanently delete all daily sales records for the selected center and month range. 
+              <strong className="text-red-600"> This cannot be undone.</strong>
+            </p>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm">From Month *</Label>
+                <Input 
+                  type="month" 
+                  value={deleteFromMonth} 
+                  onChange={(e) => setDeleteFromMonth(e.target.value)}
+                  data-testid="delete-from-month"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">To Month (optional, defaults to From Month)</Label>
+                <Input 
+                  type="month" 
+                  value={deleteToMonth} 
+                  onChange={(e) => setDeleteToMonth(e.target.value)}
+                  data-testid="delete-to-month"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)} data-testid="delete-cancel-btn">
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteRange} 
+                disabled={deleting || !deleteFromMonth}
+                data-testid="delete-confirm-btn"
+              >
+                {deleting ? "Deleting..." : "Delete Records"}
               </Button>
             </div>
           </div>
