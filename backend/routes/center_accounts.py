@@ -189,40 +189,11 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     expenses_agg = await db_ref.expenses.aggregate(expenses_pipeline).to_list(1)
     cumulative_expenses = expenses_agg[0]["total_expenses"] if expenses_agg else 0
     
-    # 3. Cumulative Commissions (from monthly_commissions)
-    comm_pipeline = [
-        {"$match": {"center": center_code, "month": {"$lte": up_to_month}}},
-        {"$group": {
-            "_id": None,
-            "total_commission": {"$sum": {
-                "$cond": [
-                    {"$or": [
-                        {"$gt": ["$gst_tax_deductions", 0]},
-                        {"$gt": ["$other_deductions", 0]}
-                    ]},
-                    {"$add": [
-                        {"$ifNull": ["$gst_tax_deductions", 0]},
-                        {"$ifNull": ["$other_deductions", 0]}
-                    ]},
-                    {"$ifNull": ["$commission_amount", 0]}
-                ]
-            }}
-        }}
-    ]
-    comm_agg = await db_ref.monthly_commissions.aggregate(comm_pipeline).to_list(1)
-    cumulative_commissions = comm_agg[0]["total_commission"] if comm_agg else 0
+    # 3. Cumulative P&L for Working Capital = ONLY Sales - Expenses
+    # Per the actual WC Assessment spreadsheet: commissions and GST are NOT part of WC P&L
+    cumulative_pnl = cumulative_sales - cumulative_expenses
     
-    # 4. GST on Sales
-    if country == "Australia":
-        cumulative_gst = cumulative_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
-    else:
-        gst_applicable = franchise.get("gst_applicable", False) if franchise else False
-        cumulative_gst = cumulative_sales * INDIA_GST_ON_SALES if gst_applicable else 0
-    
-    # 5. Cumulative P&L
-    cumulative_pnl = cumulative_sales - cumulative_expenses - cumulative_commissions - cumulative_gst
-    
-    # 6. Loans Outstanding — only loans taken ON or BEFORE the selected month
+    # 4. Loans Outstanding — only loans taken ON or BEFORE the selected month
     loan_query = {
         "center": center_code,
         "status": {"$ne": "fully_repaid"},
@@ -276,8 +247,6 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         "initial_security_deposit": round(initial_wc, 2),
         "cumulative_sales": round(cumulative_sales, 2),
         "cumulative_expenses": round(cumulative_expenses, 2),
-        "cumulative_commissions": round(cumulative_commissions, 2),
-        "cumulative_gst": round(cumulative_gst, 2),
         "cumulative_pnl": round(cumulative_pnl, 2),
         "loans_outstanding": round(total_loans_outstanding, 2),
         "available_capital": round(available_capital, 2),
