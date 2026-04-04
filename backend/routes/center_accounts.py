@@ -142,6 +142,11 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     
     WC Available = Initial Security Deposit + Cumulative P&L - Loans Outstanding
     where P&L = Sales - Expenses - Commissions - GST (from center opening to up_to_month)
+    
+    Business Rules:
+    - WC < 50% of Initial → Revenue Share & MG both CLOSED
+    - WC < Initial → Profits refill WC first before any share is paid
+    - WC >= Initial → Normal revenue share / profit share applies
     """
     # Get franchise for initial WC (security deposit)
     center = await db_ref.centers.find_one({"code": center_code}, {"_id": 0})
@@ -185,7 +190,6 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     cumulative_expenses = expenses_agg[0]["total_expenses"] if expenses_agg else 0
     
     # 3. Cumulative Commissions (from monthly_commissions)
-    # All months up to and including selected month
     comm_pipeline = [
         {"$match": {"center": center_code, "month": {"$lte": up_to_month}}},
         {"$group": {
@@ -212,18 +216,19 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     if country == "Australia":
         cumulative_gst = cumulative_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
     else:
-        # India - check if GST is applicable
         gst_applicable = franchise.get("gst_applicable", False) if franchise else False
         cumulative_gst = cumulative_sales * INDIA_GST_ON_SALES if gst_applicable else 0
     
     # 5. Cumulative P&L
     cumulative_pnl = cumulative_sales - cumulative_expenses - cumulative_commissions - cumulative_gst
     
-    # 6. Loans Outstanding (active loans as of selected month)
-    loan_entries = await db_ref.loan_entries.find({
+    # 6. Loans Outstanding — only loans taken ON or BEFORE the selected month
+    loan_query = {
         "center": center_code,
-        "status": {"$ne": "fully_repaid"}
-    }, {"_id": 0}).to_list(100)
+        "status": {"$ne": "fully_repaid"},
+        "loan_date": {"$lte": end_date}
+    }
+    loan_entries = await db_ref.loan_entries.find(loan_query, {"_id": 0}).to_list(100)
     
     total_loans_outstanding = sum(
         (loan.get("amount", 0) - loan.get("total_repaid", 0))
@@ -233,7 +238,26 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     # 7. Available Working Capital
     available_capital = initial_wc + cumulative_pnl - total_loans_outstanding
     
-    # Monthly breakdown for current month's P&L only (for display)
+    # 8. WC Utilised & percentage
+    wc_utilised = max(0, initial_wc - available_capital) if initial_wc > 0 else 0
+    wc_percentage = (available_capital / initial_wc * 100) if initial_wc > 0 else 100
+    
+    # 9. Revenue Share / MG gating based on WC
+    # WC < 50% of Initial → CLOSED (both MG and Rev Share)
+    # WC < Initial → Profits refill WC first, then share starts
+    # WC >= Initial → Normal share applies
+    WC_THRESHOLD = 50  # 50% fixed for all
+    revenue_share_active = True
+    wc_status = "healthy"  # healthy | restoring | closed
+    
+    if initial_wc > 0:
+        if wc_percentage < WC_THRESHOLD:
+            revenue_share_active = False
+            wc_status = "closed"
+        elif available_capital < initial_wc:
+            wc_status = "restoring"
+    
+    # Monthly breakdown for current month's P&L
     month_start = f"{year}-{month:02d}-01"
     current_month_sales_agg = await db_ref.daily_sales.aggregate([
         {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
@@ -257,6 +281,11 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         "cumulative_pnl": round(cumulative_pnl, 2),
         "loans_outstanding": round(total_loans_outstanding, 2),
         "available_capital": round(available_capital, 2),
+        "wc_utilised": round(wc_utilised, 2),
+        "wc_percentage": round(wc_percentage, 2),
+        "wc_status": wc_status,
+        "revenue_share_active": revenue_share_active,
+        "wc_threshold": WC_THRESHOLD,
         "current_month_pnl": round(current_month_pnl, 2),
         "current_month_sales": round(current_month_sales, 2),
         "current_month_expenses": round(current_month_expenses, 2),
@@ -395,6 +424,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     center = await get_center_details(req.center)
     country = get_country_from_center(center)
     franchise = await get_franchise_for_center(req.center)
+    
+    # Store initial WC from franchise for gating logic
+    initial_wc_from_franchise = float(franchise.get("working_capital", 0) or 0) if franchise else 0
     
     # Parse month
     try:
@@ -593,6 +625,31 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
     
     # ==========================================
+    # Working Capital Standing (must be calculated BEFORE share/MG)
+    # ==========================================
+    wc_standing = await calculate_working_capital_standing(db, req.center, req.month, country)
+    working_capital = wc_standing["initial_security_deposit"]
+    total_loans_outstanding = wc_standing["loans_outstanding"]
+    wc_revenue_share_active = wc_standing["revenue_share_active"]
+    wc_status = wc_standing["wc_status"]
+    
+    # Apply WC gating: if WC < 50% of initial, CLOSE both Revenue Share and MG
+    if not wc_revenue_share_active and initial_wc_from_franchise > 0:
+        # Override share amounts to 0
+        franchise_owner_share = 0
+        purnabramha_share = 0
+        if country == "India":
+            purnabramha_share_with_tax = {
+                "base_amount": 0,
+                "gst_amount": 0,
+                "cgst": 0,
+                "sgst": 0,
+                "total_with_gst": 0
+            }
+        else:
+            purnabramha_share_with_tax = {"base_amount": 0, "gst": 0, "total": 0}
+    
+    # ==========================================
     # Calculate MG (Minimum Guarantee)
     # ==========================================
     mg_data = None
@@ -627,10 +684,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             payable_type = "minimum_guarantee"
             payable_amount = monthly_mg
     
-    # Working Capital - Dynamic calculation based on cumulative P&L
-    wc_standing = await calculate_working_capital_standing(db, req.center, req.month, country)
-    working_capital = wc_standing["initial_security_deposit"]
-    total_loans_outstanding = wc_standing["loans_outstanding"]
+    # Apply WC gating to MG as well: if WC < 50%, MG is also CLOSED
+    if not wc_revenue_share_active and initial_wc_from_franchise > 0:
+        payable_type = "wc_closed"
+        payable_amount = 0
     
     # ==========================================
     # 5. Build Response
@@ -692,9 +749,11 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         },
         "share_calculation": {
             "type": share_type,
-            "net_profit_or_sales": round(net_revenue_for_share, 2),  # India: Net Revenue (sales - commissions - GST), Australia: Net Profit (sales - expenses - commissions)
-            "total_sales": round(total_sale, 2),  # Show total sales separately
-            "total_deductions": round(total_commission + (gst_on_sales if country == "India" else total_expenses + total_commission), 2),  # India: Commissions + GST, Australia: Commissions + Expenses
+            "net_profit_or_sales": round(net_revenue_for_share, 2),
+            "total_sales": round(total_sale, 2),
+            "total_deductions": round(total_commission + (gst_on_sales if country == "India" else total_expenses + total_commission), 2),
+            "wc_gated": not wc_revenue_share_active,
+            "wc_status": wc_status,
             "franchise_owner": {
                 "percentage": franchise_owner_percentage,
                 "amount": round(franchise_owner_share, 2)
@@ -712,13 +771,17 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # MG (Minimum Guarantee) calculation
         "mg_calculation": mg_data,
         # Payout determination: MG vs Franchise Owner's Revenue Share
-        # This shows what the FRANCHISE OWNER receives (either MG or their Revenue Share)
         "payout": {
-            "type": payable_type,  # "minimum_guarantee" or "revenue_share"
+            "type": payable_type,
             "amount": round(payable_amount, 2),
             "mg_amount": round(mg_data.get("monthly_mg", 0), 2) if mg_data else 0,
-            "revenue_share_amount": round(franchise_owner_share, 2),  # Franchise Owner's share
-            "reason": f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(franchise_owner_share, 2)})" if payable_type == "minimum_guarantee" else f"Revenue Share ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
+            "revenue_share_amount": round(franchise_owner_share, 2),
+            "wc_gated": not wc_revenue_share_active,
+            "reason": (
+                "Working Capital below 50% - Revenue Share & MG CLOSED" if payable_type == "wc_closed"
+                else f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(franchise_owner_share, 2)})" if payable_type == "minimum_guarantee"
+                else f"Revenue Share ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
+            )
         },
         "tax_rules": {
             "country": country,
@@ -1083,15 +1146,27 @@ async def generate_pib_report(req: PIBGenerateRequest):
     
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
     fin_data.append(["", ""])
+    
+    # Working Capital Section with full utilisation details
     fin_data.append(["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"])
     wc_st = fin.get("wc_standing", {})
     if wc_st:
         if wc_st.get("cumulative_pnl", 0) != 0:
             pnl_label = "Cumulative P&L Impact" if wc_st["cumulative_pnl"] >= 0 else "Cumulative P&L Deficit"
             fin_data.append([pnl_label, f"{currency} {wc_st['cumulative_pnl']:,.2f}"])
+        if wc_st.get("wc_utilised", 0) > 0:
+            fin_data.append(["WC Utilised", f"({currency} {wc_st['wc_utilised']:,.2f})"])
         if wc_st.get("loans_outstanding", 0) > 0:
             fin_data.append(["Less: Loans Outstanding", f"({currency} {wc_st['loans_outstanding']:,.2f})"])
         fin_data.append(["Available Working Capital", f"{currency} {wc_st['available_capital']:,.2f}"])
+        wc_pct = wc_st.get("wc_percentage", 100)
+        wc_status = wc_st.get("wc_status", "healthy")
+        status_label = "HEALTHY" if wc_status == "healthy" else "RESTORING" if wc_status == "restoring" else "CLOSED (Below 50%)"
+        fin_data.append(["WC Status", f"{wc_pct:.0f}% - {status_label}"])
+        
+        if not wc_st.get("revenue_share_active", True) and fin.get("working_capital", 0) > 0:
+            fin_data.append(["", ""])
+            fin_data.append(["*** REVENUE SHARE & MG: CLOSED ***", "WC below 50% threshold"])
     
     net_revenue_row_idx = len(fin_data) - 3  # NET REVENUE row index
     
@@ -1114,7 +1189,17 @@ async def generate_pib_report(req: PIBGenerateRequest):
     # Revenue/Profit Share Calculation - 80/20 Split
     share = summary["share_calculation"]
     base_label = "Net Revenue" if share['type'] == 'profit_share' else "Total Sales"
-    story.append(Paragraph(f"5. {share['type'].upper().replace('_', ' ')} CALCULATION (80/20 SPLIT)", styles['PIBSection']))
+    
+    # Add WC gating notice if applicable
+    wc_gated = share.get("wc_gated", False)
+    section_title = f"5. {share['type'].upper().replace('_', ' ')} CALCULATION"
+    if wc_gated:
+        section_title += " (*** CLOSED - WC BELOW 50% ***)"
+    else:
+        split = f"{share['franchise_owner']['percentage']}/{share['purnabramha']['percentage']}"
+        section_title += f" ({split} SPLIT)"
+    
+    story.append(Paragraph(section_title, styles['PIBSection']))
     
     share_data = [
         ["Description", "Percentage", "Amount"],
@@ -1151,7 +1236,43 @@ async def generate_pib_report(req: PIBGenerateRequest):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     story.append(share_table)
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 15))
+    
+    # Payout Summary section in PIB
+    payout = summary.get("payout", {})
+    if payout:
+        story.append(Paragraph("PAYOUT DETERMINATION", styles['PIBSection']))
+        payout_data = [
+            ["Description", "Amount"],
+            ["MG (Minimum Guarantee)", f"{currency} {payout.get('mg_amount', 0):,.2f}"],
+            ["Franchise Owner Revenue Share", f"{currency} {payout.get('revenue_share_amount', 0):,.2f}"],
+            ["", ""],
+        ]
+        if payout.get("wc_gated"):
+            payout_data.append(["PAYABLE (WC CLOSED)", f"{currency} 0.00"])
+            payout_data.append(["Reason", "Working Capital below 50% - Both MG & Revenue Share CLOSED"])
+        else:
+            payout_data.append([f"PAYABLE ({payout.get('type', 'revenue_share').replace('_', ' ').upper()})", f"{currency} {payout.get('amount', 0):,.2f}"])
+            payout_data.append(["Reason", payout.get("reason", "")])
+        
+        payout_table = Table(payout_data, colWidths=[280, 170])
+        payout_style = [
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, -2), (-1, -2), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, 0), BRAND_NAVY),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]
+        if payout.get("wc_gated"):
+            payout_style.append(('BACKGROUND', (0, -2), (-1, -2), colors.HexColor("#ffcdd2")))
+        else:
+            payout_style.append(('BACKGROUND', (0, -2), (-1, -2), BRAND_GOLD))
+        payout_table.setStyle(TableStyle(payout_style))
+        story.append(payout_table)
+        story.append(Spacer(1, 20))
     
     # Tax Rules Note
     story.append(Paragraph("6. TAX RULES APPLIED", styles['PIBSection']))
