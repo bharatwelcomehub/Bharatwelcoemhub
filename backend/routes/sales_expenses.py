@@ -453,15 +453,14 @@ async def update_petty_cash_for_expense(center: str, date: str, amount: float, i
 class RecalculateRequest(BaseModel):
     token: str
     center: str
-    month: str  # YYYY-MM
+    month: str = ""  # YYYY-MM (optional, kept for backward compat — ignored, full history is always recalculated)
 
 @router.post("/daily/recalculate")
 async def recalculate_month_balances(req: RecalculateRequest):
     """
-    Recalculate and chain opening/closing balances for all days in a month.
-    Each day's opening_balance = previous day's closing_balance.
-    Each day's petty_cash_opening = previous day's petty_cash_closing.
-    This fixes any stale/corrupted data from formula bugs.
+    Recalculate and chain opening/closing balances for ALL days of a center,
+    from the very first recorded day to the last.
+    This fixes cascading historical balance corruption.
     """
     session = await get_session(req.token)
     if not session:
@@ -469,30 +468,22 @@ async def recalculate_month_balances(req: RecalculateRequest):
     
     center = req.center.upper()
     
-    # Get all records for the month sorted by date
+    # Fetch ALL records with valid YYYY-MM-DD dates for this center, sorted chronologically
     records = await db.daily_sales.find(
-        {"center": center, "date": {"$regex": f"^{req.month}"}},
+        {"center": center, "date": {"$regex": r"^\d{4}-\d{2}-\d{2}$"}},
         {"_id": 0}
-    ).sort("date", 1).to_list(31)
+    ).sort("date", 1).to_list(None)
     
     if not records:
-        return {"success": True, "message": "No records found for this month", "updated": 0}
+        return {"success": True, "message": "No records found for this center", "updated": 0}
     
-    # Get the previous month's last record for the first day's opening
-    year, mon = req.month.split("-")
-    if int(mon) == 1:
-        prev_month = f"{int(year) - 1}-12"
-    else:
-        prev_month = f"{year}-{int(mon) - 1:02d}"
+    # For the very first record, preserve its existing opening_balance
+    prev_closing = records[0].get("opening_balance", 0)
+    prev_petty_closing = records[0].get("petty_cash_opening", 0)
     
-    prev_record = await db.daily_sales.find(
-        {"center": center, "date": {"$regex": f"^{prev_month}"}},
-    ).sort("date", -1).limit(1).to_list(1)
+    from pymongo import ReplaceOne
+    bulk_ops = []
     
-    prev_closing = prev_record[0].get("closing_balance", 0) if prev_record else 0
-    prev_petty_closing = prev_record[0].get("petty_cash_closing", 0) if prev_record else 0
-    
-    updated_count = 0
     for record in records:
         # Set opening from previous day's closing
         record["opening_balance"] = prev_closing
@@ -501,31 +492,36 @@ async def recalculate_month_balances(req: RecalculateRequest):
         # Recalculate all derived fields
         record = calculate_totals(record)
         
-        # Save back
-        await db.daily_sales.update_one(
-            {"center": center, "date": record["date"]},
-            {"$set": {
-                "opening_balance": record["opening_balance"],
-                "petty_cash_opening": record["petty_cash_opening"],
-                "total_online_sale": record.get("total_online_sale", 0),
-                "total_cash_sale": record.get("total_cash_sale", 0),
-                "closing_balance": record["closing_balance"],
-                "petty_cash_closing": record["petty_cash_closing"],
-                "to_deposit_in_bank": record.get("to_deposit_in_bank", 0),
-            }}
+        # Queue bulk update
+        bulk_ops.append(
+            ReplaceOne(
+                {"center": center, "date": record["date"]},
+                record,
+                upsert=False
+            )
         )
         
         # Use this day's closing as next day's opening
         prev_closing = record["closing_balance"]
         prev_petty_closing = record["petty_cash_closing"]
-        updated_count += 1
     
-    logger.info(f"Recalculated balances for {center} {req.month}: {updated_count} records updated")
+    # Execute all updates in one batch
+    if bulk_ops:
+        result = await db.daily_sales.bulk_write(bulk_ops)
+        updated_count = result.modified_count
+    else:
+        updated_count = 0
+    
+    first_date = records[0]["date"]
+    last_date = records[-1]["date"]
+    logger.info(f"Recalculated full history for {center}: {len(records)} records from {first_date} to {last_date}, {updated_count} modified")
     
     return {
         "success": True,
-        "message": f"Recalculated {updated_count} records for {center} in {req.month}",
-        "updated": updated_count
+        "message": f"Recalculated {len(records)} records for {center} ({first_date} to {last_date})",
+        "updated": updated_count,
+        "total_records": len(records),
+        "date_range": {"from": first_date, "to": last_date}
     }
 
 

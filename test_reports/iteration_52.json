@@ -1,0 +1,90 @@
+{
+  "summary": "Tested the historical daily sales balance cascading fix. Backend: 15/15 tests passed (100%). Frontend: Fix All Balances button works correctly, shows success toast with record count and date range. The recalculate endpoint now processes ALL records for a center chronologically, chaining opening_balance = prev_closing_balance across all days.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_recalculate_cascade.py",
+    "/app/test_reports/pytest/pytest_recalculate_cascade.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: /api/sales/daily/recalculate fetches ALL records with valid YYYY-MM-DD dates using regex filter",
+    "VERIFIED: Records are sorted chronologically and chained: opening_balance = prev_closing_balance",
+    "VERIFIED: petty_cash_opening = prev petty_cash_closing chaining works correctly",
+    "VERIFIED: calculate_totals() is called for each record to recalculate derived fields",
+    "VERIFIED: bulk_write(ReplaceOne) is used for efficient batch updates",
+    "VERIFIED: Invalid date records (e.g., 'Monday,July') are excluded by regex filter",
+    "VERIFIED: Response includes total_records, date_range (from/to), updated count",
+    "VERIFIED: month parameter is accepted but ignored (backward compatibility)",
+    "VERIFIED: Frontend 'Fix All Balances' button triggers recalculation and shows success toast",
+    "VERIFIED: Closing balance formula: (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_recalculate_cascade.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (Fix All Balances button and toast verified)"
+  },
+  "test_credentials": {
+    "super_admin": {
+      "mobile": "9741399190",
+      "center": "PB-MGT",
+      "otp": "123456"
+    }
+  },
+  "seed_data_creation": "None - used existing PB-HSR center data (364 valid records)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Balance cascading fix verified. PB-HSR has 364 valid records spanning 2025-04-01 to 2026-03-31. The recalculate endpoint now processes full history instead of single month. Chain integrity verified: 0 breaks in opening_balance chain, 0 breaks in petty_cash chain.",
+  "features_tested": {
+    "backend_api": {
+      "endpoint_exists": "PASSED - POST /api/sales/daily/recalculate accepts token and center",
+      "auth_required": "PASSED - Returns 401 for invalid token",
+      "center_required": "PASSED - Returns 422 for missing center",
+      "full_history_recalculation": "PASSED - PB-HSR: 364 records from 2025-04-01 to 2026-03-31",
+      "month_param_ignored": "PASSED - month parameter accepted but full history still processed",
+      "empty_center_handled": "PASSED - Returns success with 0 updated for nonexistent center",
+      "chain_integrity": "PASSED - 0 breaks in opening_balance = prev_closing_balance chain",
+      "petty_cash_chain": "PASSED - 0 breaks in petty_cash_opening = prev_petty_cash_closing chain",
+      "closing_balance_formula": "PASSED - Formula verified for sample records",
+      "response_format": "PASSED - Includes success, total_records, date_range, updated"
+    },
+    "frontend_ui": {
+      "fix_all_balances_button": "PASSED - Button visible with data-testid='recalculate-btn'",
+      "button_disabled_for_all_centers": "PASSED - Button disabled when 'All Centers' selected",
+      "button_enabled_for_specific_center": "PASSED - Button enabled when specific center selected",
+      "success_toast": "PASSED - Shows 'Fixed 364 records (2025-04-01 to 2026-03-31)'",
+      "no_month_param_sent": "PASSED - Frontend no longer sends month parameter"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/send_otp": "PASSED",
+    "POST /api/verify_otp": "PASSED",
+    "POST /api/sales/daily/recalculate": "PASSED - Full history recalculation working",
+    "POST /api/sales/daily": "PASSED - Used to verify chain integrity"
+  },
+  "recalculation_verification": {
+    "test_center": "PB-HSR",
+    "total_records": 364,
+    "date_range": {
+      "from": "2025-04-01",
+      "to": "2026-03-31"
+    },
+    "chain_breaks_opening_balance": 0,
+    "chain_breaks_petty_cash": 0,
+    "formula_verification": {
+      "closing_balance": "(total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense)",
+      "petty_cash_closing": "petty_cash_opening + cash_receipts - cash_expense",
+      "to_deposit_in_bank": "closing_balance - petty_cash_closing"
+    },
+    "invalid_date_handling": "Records with non YYYY-MM-DD format excluded by regex filter"
+  }
+}

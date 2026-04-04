@@ -907,7 +907,7 @@ export default function SalesExpenses() {
   // Recalculate opening/closing balances for the selected center and month
   const [recalculating, setRecalculating] = useState(false);
   const recalculateBalances = async () => {
-    if (!session?.token || !selectedMonth) return;
+    if (!session?.token) return;
     const center = (selectedCenter && selectedCenter !== "all") ? selectedCenter : session?.center;
     if (!center) {
       toast.error("Please select a specific center to recalculate");
@@ -917,11 +917,10 @@ export default function SalesExpenses() {
     try {
       const res = await api.post("/sales/daily/recalculate", {
         token: session.token,
-        center,
-        month: selectedMonth
+        center
       });
       if (res.data.success) {
-        toast.success(res.data.message);
+        toast.success(`Fixed ${res.data.total_records || res.data.updated} records (${res.data.date_range?.from || ''} to ${res.data.date_range?.to || ''})`);
         fetchMonthlySummary();
       } else {
         toast.error("Recalculation failed");
@@ -1238,7 +1237,7 @@ export default function SalesExpenses() {
             data-testid="recalculate-btn"
           >
             <Calculator className={`w-4 h-4 mr-1 ${recalculating ? 'animate-spin' : ''}`} />
-            {recalculating ? "Fixing..." : "Fix Balances"}
+            {recalculating ? "Fixing All..." : "Fix All Balances"}
           </Button>
           
           <Button
