@@ -822,26 +822,26 @@ const Admin = () => {
   // Login Screen
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[hsl(30,20%,97%)] to-white flex items-center justify-center px-4">
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
-          <Card className="border-[hsl(30,30%,88%)]">
+          <Card className="pearl-surface border-[#E8DFD0] rounded-none">
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <Lock className="h-8 w-8 text-primary" />
+              <div className="mx-auto w-16 h-16 bg-[#B8962E]/10 rounded-full flex items-center justify-center mb-4 border border-[#B8962E]/20">
+                <Lock className="h-8 w-8 text-[#B8962E]" />
               </div>
-              <CardTitle className="font-playfair text-2xl">Admin Login</CardTitle>
-              <p className="text-sm text-foreground/60 font-manrope">
+              <CardTitle className="font-heading text-2xl text-[#2D1810]">Admin Login</CardTitle>
+              <p className="text-sm text-[#5C4A3A] font-body">
                 Enter your credentials to access the admin panel
               </p>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="text-[#5C4A3A]">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -849,11 +849,12 @@ const Admin = () => {
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
                     placeholder="admin@purnabramha.com"
                     required
+                    className="rounded-none border-[#E8DFD0] focus-visible:ring-[#B8962E]"
                     data-testid="admin-email-input"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password" className="text-[#5C4A3A]">Password</Label>
                   <Input
                     id="password"
                     type="password"
@@ -861,12 +862,13 @@ const Admin = () => {
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     placeholder="Enter password"
                     required
+                    className="rounded-none border-[#E8DFD0] focus-visible:ring-[#B8962E]"
                     data-testid="admin-password-input"
                   />
                 </div>
                 <Button
                   type="submit"
-                  className="w-full rounded-full bg-primary"
+                  className="w-full rounded-none gold-glossy text-[#3D2314] font-bold"
                   disabled={loginLoading}
                   data-testid="admin-login-btn"
                 >
@@ -874,9 +876,9 @@ const Admin = () => {
                   {loginLoading ? 'Logging in...' : 'Login'}
                 </Button>
               </form>
-              <div className="mt-4 p-3 bg-[hsl(45,80%,95%)] rounded-lg">
-                <p className="text-xs text-foreground/60 font-manrope">
-                  <strong>Admin Credentials:</strong><br />
+              <div className="mt-4 p-3 bg-[#F8F5F0] border border-[#E8DFD0] rounded-none">
+                <p className="text-xs text-[#5C4A3A] font-body">
+                  <strong className="text-[#2D1810]">Admin Credentials:</strong><br />
                   Email: PBadmin@purnabramha.com<br />
                   Password: PB22052012
                 </p>
@@ -889,7 +891,7 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[hsl(30,20%,97%)] to-white">
+    <div className="min-h-screen bg-[#FDFBF7]">
       <div className="container mx-auto px-4 lg:px-8 py-8 lg:py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -897,42 +899,42 @@ const Admin = () => {
           className="mb-6 flex items-center justify-between"
         >
           <div>
-            <h1 className="font-playfair text-3xl lg:text-4xl font-bold text-foreground mb-2">
+            <h1 className="font-heading text-3xl lg:text-4xl font-medium text-[#2D1810] mb-2">
               Admin Dashboard
             </h1>
-            <p className="text-foreground/70 font-manrope">
+            <p className="text-[#5C4A3A] font-body">
               Manage your restaurant menu, locations, and content
             </p>
           </div>
-          <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none">
             <LogOut className="h-4 w-4" />
             Logout
           </Button>
         </motion.div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 bg-white border border-[hsl(30,30%,88%)] flex-wrap">
-            <TabsTrigger value="banner" className="flex items-center gap-2">
+          <TabsList className="mb-6 bg-white border border-[#E8DFD0] flex-wrap p-1 rounded-none">
+            <TabsTrigger value="banner" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <Home className="h-4 w-4" />
               Home Banner
             </TabsTrigger>
-            <TabsTrigger value="festival" className="flex items-center gap-2">
+            <TabsTrigger value="festival" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <Sparkles className="h-4 w-4" />
               Festivals
             </TabsTrigger>
-            <TabsTrigger value="menu" className="flex items-center gap-2">
+            <TabsTrigger value="menu" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <UtensilsCrossed className="h-4 w-4" />
               Menu ({menuItems.length})
             </TabsTrigger>
-            <TabsTrigger value="tiffin" className="flex items-center gap-2">
+            <TabsTrigger value="tiffin" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <UtensilsCrossed className="h-4 w-4" />
               Tiffin ({tiffinItems.length})
             </TabsTrigger>
-            <TabsTrigger value="locations" className="flex items-center gap-2">
+            <TabsTrigger value="locations" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <MapPin className="h-4 w-4" />
               Locations ({locations.length})
             </TabsTrigger>
-            <TabsTrigger value="videos" className="flex items-center gap-2">
+            <TabsTrigger value="videos" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <Video className="h-4 w-4" />
               Videos ({videos.length})
             </TabsTrigger>

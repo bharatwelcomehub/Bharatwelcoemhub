@@ -62,7 +62,7 @@ const Home = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0A0505]">
+    <div className="min-h-screen bg-[#FDFBF7]">
       <SEOHead page="home" />
       
       {/* Festival Banner */}
@@ -71,37 +71,37 @@ const Home = () => {
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="relative overflow-hidden py-3"
-          style={{ background: `linear-gradient(135deg, ${festivalTheme.primary_color}20, ${festivalTheme.secondary_color}30, ${festivalTheme.accent_color}20)` }}
+          style={{ background: `linear-gradient(135deg, ${festivalTheme.primary_color}15, ${festivalTheme.secondary_color}20, ${festivalTheme.accent_color}15)` }}
         >
           <div className="container mx-auto px-4 text-center">
-            <span className="font-heading text-lg text-[#D4AF37] tracking-wide">{festivalTheme.name}</span>
-            {festivalTheme.greeting_text && <span className="text-[#FDFBF7]/70 mx-3">|</span>}
-            {festivalTheme.greeting_text && <span className="text-[#FDFBF7]/70 text-sm">{festivalTheme.greeting_text}</span>}
+            <span className="font-heading text-lg text-[#B8962E] tracking-wide">{festivalTheme.name}</span>
+            {festivalTheme.greeting_text && <span className="text-[#5C4A3A]/70 mx-3">|</span>}
+            {festivalTheme.greeting_text && <span className="text-[#5C4A3A]/70 text-sm">{festivalTheme.greeting_text}</span>}
           </div>
         </motion.div>
       )}
 
-      {/* HERO — Cinematic Full-Screen */}
-      <section className="relative h-screen min-h-[700px] overflow-hidden" data-testid="hero-section">
+      {/* HERO — Elegant Light Theme */}
+      <section className="relative min-h-[90vh] overflow-hidden" data-testid="hero-section">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(https://images.pexels.com/photos/16046683/pexels-photo-16046683.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940)` }} />
-          <div className="absolute inset-0 bg-black/65" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0A0505] via-transparent to-[#0A0505]/40" />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260)` }} />
+          <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-white/60" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#FDFBF7] via-transparent to-transparent" />
         </div>
 
-        {/* Gold ambient glow */}
-        <motion.div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full bg-[#D4AF37]/5 blur-[120px]" animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.5, 0.3] }} transition={{ duration: 6, repeat: Infinity }} />
+        {/* Subtle gold ambient */}
+        <motion.div className="absolute top-1/3 right-1/4 w-96 h-96 rounded-full bg-[#D4AF37]/5 blur-[100px]" animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }} transition={{ duration: 8, repeat: Infinity }} />
 
-        <div className="relative z-10 h-full flex items-center">
+        <div className="relative z-10 h-full flex items-center min-h-[90vh]">
           <div className="container mx-auto px-6 lg:px-12">
             <div className="max-w-3xl">
               <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
-                className="text-xs tracking-[0.3em] uppercase text-[#D4AF37] font-body font-bold mb-6">
+                className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-6">
                 World's First Intelligent Restaurant Chain
               </motion.p>
 
               <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
-                className="text-5xl md:text-6xl lg:text-7xl font-heading font-medium text-[#FDFBF7] mb-6 tracking-tight leading-[0.95]"
+                className="text-5xl md:text-6xl lg:text-7xl font-heading font-medium text-[#2D1810] mb-6 tracking-tight leading-[0.95]"
                 data-testid="hero-title">
                 Authentic<br />
                 <span className="text-gold-shimmer">Maharashtrian</span><br />
@@ -109,18 +109,18 @@ const Home = () => {
               </motion.h1>
 
               <motion.p initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4 }}
-                className="text-lg text-[#A89F95] mb-10 font-body leading-relaxed max-w-xl">
+                className="text-lg text-[#5C4A3A] mb-10 font-body leading-relaxed max-w-xl">
                 Experience the richness of traditional recipes passed down through generations. Pure vegetarian, pure love.
               </motion.p>
 
               <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.6 }} className="flex flex-wrap gap-4">
                 <Link to="/table-booking">
-                  <Button size="lg" className="bg-[#D4AF37] hover:bg-[#F3D060] text-black px-8 py-6 text-sm rounded-none tracking-widest uppercase font-semibold group" data-testid="book-table-cta">
+                  <Button size="lg" className="gold-glossy text-white px-8 py-6 text-sm rounded-none tracking-widest uppercase font-semibold group border-0" data-testid="book-table-cta">
                     <Calendar className="mr-2 h-4 w-4" /> Reserve Table <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
                 <Link to="/pickup">
-                  <Button size="lg" variant="outline" className="border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/10 px-8 py-6 text-sm rounded-none tracking-widest uppercase" data-testid="order-now-cta">
+                  <Button size="lg" variant="outline" className="border border-[#B8962E]/40 text-[#B8962E] hover:bg-[#B8962E]/10 px-8 py-6 text-sm rounded-none tracking-widest uppercase" data-testid="order-now-cta">
                     <ShoppingBag className="mr-2 h-4 w-4" /> Order Pickup
                   </Button>
                 </Link>
@@ -131,10 +131,10 @@ const Home = () => {
                 {stats.map((s, i) => (
                   <div key={i}>
                     <div className="flex items-center gap-2 mb-1">
-                      <s.icon className="h-4 w-4 text-[#D4AF37]/60" />
-                      <span className="text-3xl font-heading font-medium text-[#FDFBF7]">{s.value}</span>
+                      <s.icon className="h-4 w-4 text-[#B8962E]/60" />
+                      <span className="text-3xl font-heading font-medium text-[#2D1810]">{s.value}</span>
                     </div>
-                    <span className="text-[#A89F95]/60 text-xs tracking-wider uppercase font-body">{s.label}</span>
+                    <span className="text-[#7A6F65] text-xs tracking-wider uppercase font-body">{s.label}</span>
                   </div>
                 ))}
               </motion.div>
@@ -143,7 +143,7 @@ const Home = () => {
         </div>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5 }} className="absolute bottom-8 left-1/2 -translate-x-1/2">
-          <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 2, repeat: Infinity }} className="flex flex-col items-center text-[#A89F95]/40">
+          <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 2, repeat: Infinity }} className="flex flex-col items-center text-[#7A6F65]/60">
             <span className="text-[10px] tracking-[0.2em] uppercase mb-2">Scroll</span>
             <ChevronRight className="h-4 w-4 rotate-90" />
           </motion.div>
@@ -151,11 +151,11 @@ const Home = () => {
       </section>
 
       {/* Services */}
-      <section className="py-24 bg-[#0A0505]">
+      <section className="py-24 bg-[#FDFBF7]">
         <div className="container mx-auto px-6 lg:px-12">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <p className="text-xs tracking-[0.3em] uppercase text-[#D4AF37] font-body font-bold mb-4">Our Services</p>
-            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#FDFBF7] tracking-tight">
+            <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-4">Our Services</p>
+            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#2D1810] tracking-tight">
               How Would You Like to <span className="text-gold-shimmer">Dine?</span>
             </h2>
           </motion.div>
@@ -164,11 +164,11 @@ const Home = () => {
             {services.map((s, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
                 <Link to={s.link}>
-                  <div className="group p-8 bg-[#140A0B] border border-[#2A151A] hover:border-[#D4AF37]/30 transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full">
-                    <s.icon className="h-8 w-8 text-[#D4AF37] mb-6 group-hover:scale-110 transition-transform" />
-                    <h3 className="text-xl font-heading font-medium text-[#FDFBF7] mb-2">{s.title}</h3>
-                    <p className="text-sm text-[#A89F95] mb-6 font-body">{s.description}</p>
-                    <span className="text-xs tracking-[0.2em] uppercase text-[#D4AF37] font-body font-semibold group-hover:tracking-[0.3em] transition-all">
+                  <div className="group p-8 pearl-surface hover:border-[#B8962E]/30 transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full">
+                    <s.icon className="h-8 w-8 text-[#B8962E] mb-6 group-hover:scale-110 transition-transform" />
+                    <h3 className="text-xl font-heading font-medium text-[#2D1810] mb-2">{s.title}</h3>
+                    <p className="text-sm text-[#5C4A3A] mb-6 font-body">{s.description}</p>
+                    <span className="text-xs tracking-[0.2em] uppercase text-[#B8962E] font-body font-semibold group-hover:tracking-[0.3em] transition-all">
                       {s.cta} <ArrowRight className="inline h-3 w-3 ml-1 group-hover:translate-x-1 transition-transform" />
                     </span>
                   </div>
@@ -180,11 +180,11 @@ const Home = () => {
       </section>
 
       {/* Featured Dishes */}
-      <section className="py-24 bg-[#080404]">
+      <section className="py-24 bg-[#F8F5F0]">
         <div className="container mx-auto px-6 lg:px-12">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <p className="text-xs tracking-[0.3em] uppercase text-[#D4AF37] font-body font-bold mb-4">Signature Menu</p>
-            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#FDFBF7] tracking-tight">
+            <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-4">Signature Menu</p>
+            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#2D1810] tracking-tight">
               Crafted with <span className="text-gold-shimmer">Heritage</span>
             </h2>
           </motion.div>
@@ -192,16 +192,16 @@ const Home = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {featuredDishes.map((dish, i) => (
               <motion.div key={dish.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="group">
-                <div className="bg-[#140A0B] border border-[#2A151A] overflow-hidden hover:border-[#D4AF37]/20 transition-all">
+                <div className="bg-white border border-[#E8DFD0] overflow-hidden hover:border-[#B8962E]/30 transition-all hover:shadow-lg">
                   <div className="relative h-52 overflow-hidden">
                     <img src={dish.image} alt={dish.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#140A0B] via-transparent to-transparent" />
-                    <span className="absolute top-4 right-4 text-[10px] tracking-[0.15em] uppercase bg-[#D4AF37] text-black px-3 py-1 font-semibold">{dish.tag}</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
+                    <span className="absolute top-4 right-4 text-[10px] tracking-[0.15em] uppercase bg-[#B8962E] text-white px-3 py-1 font-semibold">{dish.tag}</span>
                   </div>
                   <div className="p-6">
-                    <h3 className="text-lg font-heading font-medium text-[#FDFBF7] mb-1">{dish.name}</h3>
-                    <p className="text-xs text-[#A89F95] mb-3 font-body">{dish.description}</p>
-                    <p className="text-xl font-heading font-medium text-[#D4AF37]">&#8377;{dish.price}</p>
+                    <h3 className="text-lg font-heading font-medium text-[#2D1810] mb-1">{dish.name}</h3>
+                    <p className="text-xs text-[#7A6F65] mb-3 font-body">{dish.description}</p>
+                    <p className="text-xl font-heading font-medium text-[#B8962E]">&#8377;{dish.price}</p>
                   </div>
                 </div>
               </motion.div>
@@ -210,7 +210,7 @@ const Home = () => {
 
           <div className="text-center mt-12">
             <Link to="/menu">
-              <Button size="lg" className="bg-[#D4AF37] hover:bg-[#F3D060] text-black rounded-none px-8 py-6 text-xs tracking-widest uppercase font-semibold">
+              <Button size="lg" className="gold-glossy text-white rounded-none px-8 py-6 text-xs tracking-widest uppercase font-semibold border-0">
                 View Full Menu <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
@@ -219,15 +219,15 @@ const Home = () => {
       </section>
 
       {/* Special Offer Banner */}
-      <section className="py-16 bg-gradient-to-r from-[#140A0B] via-[#1A0D0E] to-[#140A0B] border-y border-[#D4AF37]/10">
+      <section className="py-16 bg-gradient-to-r from-[#B8962E]/5 via-[#D4AF37]/10 to-[#B8962E]/5 border-y border-[#B8962E]/10">
         <div className="container mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
-            <p className="text-xs tracking-[0.3em] uppercase text-[#D4AF37] font-body font-bold mb-3">Exclusive Offer</p>
-            <h3 className="text-3xl md:text-4xl font-heading font-medium text-[#FDFBF7] mb-2">Unlimited Breakfast Buffet</h3>
-            <p className="text-[#A89F95] font-body">Every Saturday & Sunday &bull; 8 AM - 11 AM &bull; Only &#8377;299/person</p>
+            <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-3">Exclusive Offer</p>
+            <h3 className="text-3xl md:text-4xl font-heading font-medium text-[#2D1810] mb-2">Unlimited Breakfast Buffet</h3>
+            <p className="text-[#5C4A3A] font-body">Every Saturday & Sunday &bull; 8 AM - 11 AM &bull; Only &#8377;299/person</p>
           </div>
           <Link to="/tiffin">
-            <Button size="lg" className="bg-[#D4AF37] hover:bg-[#F3D060] text-black rounded-none px-8 py-6 text-xs tracking-widest uppercase font-semibold">
+            <Button size="lg" className="gold-glossy text-white rounded-none px-8 py-6 text-xs tracking-widest uppercase font-semibold border-0">
               Book Now <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>
@@ -235,11 +235,11 @@ const Home = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="py-24 bg-[#0A0505]">
+      <section className="py-24 bg-[#FDFBF7]">
         <div className="container mx-auto px-6 lg:px-12">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <p className="text-xs tracking-[0.3em] uppercase text-[#D4AF37] font-body font-bold mb-4">Testimonials</p>
-            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#FDFBF7] tracking-tight">
+            <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-4">Testimonials</p>
+            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#2D1810] tracking-tight">
               What Our <span className="text-gold-shimmer">Guests</span> Say
             </h2>
           </motion.div>
@@ -250,17 +250,17 @@ const Home = () => {
                 <div className="flex justify-center mb-4">
                   {[...Array(testimonials[currentSlide].rating)].map((_, i) => <Star key={i} className="h-5 w-5 text-[#D4AF37] fill-[#D4AF37]" />)}
                 </div>
-                <p className="text-2xl md:text-3xl text-[#FDFBF7]/80 font-heading font-light italic mb-6 leading-relaxed">
+                <p className="text-2xl md:text-3xl text-[#2D1810]/80 font-heading font-light italic mb-6 leading-relaxed">
                   "{testimonials[currentSlide].text}"
                 </p>
-                <p className="font-body font-semibold text-[#D4AF37] text-sm tracking-wider">{testimonials[currentSlide].name}</p>
-                <p className="text-xs text-[#A89F95]/50 font-body">{testimonials[currentSlide].location}</p>
+                <p className="font-body font-semibold text-[#B8962E] text-sm tracking-wider">{testimonials[currentSlide].name}</p>
+                <p className="text-xs text-[#7A6F65] font-body">{testimonials[currentSlide].location}</p>
               </motion.div>
             </AnimatePresence>
 
             <div className="flex justify-center gap-2 mt-8">
               {testimonials.map((_, i) => (
-                <button key={i} onClick={() => setCurrentSlide(i)} className={`h-1 transition-all ${currentSlide === i ? 'bg-[#D4AF37] w-8' : 'bg-[#2A151A] w-4'}`} />
+                <button key={i} onClick={() => setCurrentSlide(i)} className={`h-1 transition-all ${currentSlide === i ? 'bg-[#B8962E] w-8' : 'bg-[#E8DFD0] w-4'}`} />
               ))}
             </div>
           </div>
@@ -268,11 +268,11 @@ const Home = () => {
       </section>
 
       {/* Locations */}
-      <section className="py-24 bg-[#080404]">
+      <section className="py-24 bg-[#F8F5F0]">
         <div className="container mx-auto px-6 lg:px-12">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <p className="text-xs tracking-[0.3em] uppercase text-[#D4AF37] font-body font-bold mb-4">Visit Us</p>
-            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#FDFBF7] tracking-tight">
+            <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-4">Visit Us</p>
+            <h2 className="text-4xl md:text-5xl font-heading font-medium text-[#2D1810] tracking-tight">
               Find Us <span className="text-gold-shimmer">Near You</span>
             </h2>
           </motion.div>
@@ -285,11 +285,11 @@ const Home = () => {
               { city: "Perth", area: "Australia", phone: "+61 401 832 922" }
             ].map((loc, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
-                <div className="p-8 bg-[#140A0B] border border-[#2A151A] hover:border-[#D4AF37]/20 transition-all">
-                  <MapPin className="h-6 w-6 text-[#D4AF37] mb-4" />
-                  <h3 className="text-xl font-heading font-medium text-[#FDFBF7] mb-1">{loc.city}</h3>
-                  <p className="text-sm text-[#A89F95] mb-3 font-body">{loc.area}</p>
-                  <a href={`tel:${loc.phone.replace(/\s/g, '')}`} className="flex items-center text-[#D4AF37]/70 hover:text-[#D4AF37] text-sm font-body">
+                <div className="p-8 pearl-surface hover:border-[#B8962E]/30 transition-all">
+                  <MapPin className="h-6 w-6 text-[#B8962E] mb-4" />
+                  <h3 className="text-xl font-heading font-medium text-[#2D1810] mb-1">{loc.city}</h3>
+                  <p className="text-sm text-[#5C4A3A] mb-3 font-body">{loc.area}</p>
+                  <a href={`tel:${loc.phone.replace(/\s/g, '')}`} className="flex items-center text-[#B8962E]/70 hover:text-[#B8962E] text-sm font-body">
                     <Phone className="h-3 w-3 mr-2" /> {loc.phone}
                   </a>
                 </div>
@@ -300,26 +300,26 @@ const Home = () => {
       </section>
 
       {/* Final CTA */}
-      <section className="py-24 bg-gradient-to-b from-[#0A0505] to-[#140A0B] border-t border-[#D4AF37]/10">
+      <section className="py-24 bg-gradient-to-b from-[#F8F5F0] to-[#FDFBF7] border-t border-[#B8962E]/10">
         <div className="container mx-auto px-6 lg:px-12 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <p className="text-xs tracking-[0.3em] uppercase text-[#D4AF37] font-body font-bold mb-6">Experience Purnabramha</p>
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-heading font-medium text-[#FDFBF7] mb-8 tracking-tight leading-tight">
+            <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-6">Experience Purnabramha</p>
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-heading font-medium text-[#2D1810] mb-8 tracking-tight leading-tight">
               Ready to Experience<br /><span className="text-gold-shimmer">Authentic Maharashtra?</span>
             </h2>
             <div className="flex flex-wrap justify-center gap-4">
               <Link to="/table-booking">
-                <Button size="lg" className="bg-[#D4AF37] hover:bg-[#F3D060] text-black rounded-none px-8 py-6 text-xs tracking-widest uppercase font-semibold">
+                <Button size="lg" className="gold-glossy text-white rounded-none px-8 py-6 text-xs tracking-widest uppercase font-semibold border-0">
                   <Calendar className="mr-2 h-4 w-4" /> Reserve Table
                 </Button>
               </Link>
               <Link to="/pickup">
-                <Button size="lg" variant="outline" className="border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-none px-8 py-6 text-xs tracking-widest uppercase">
+                <Button size="lg" variant="outline" className="border border-[#B8962E]/40 text-[#B8962E] hover:bg-[#B8962E]/10 rounded-none px-8 py-6 text-xs tracking-widest uppercase">
                   <ShoppingBag className="mr-2 h-4 w-4" /> Order Pickup
                 </Button>
               </Link>
               <Link to="/tiffin">
-                <Button size="lg" variant="outline" className="border border-[#D4AF37]/20 text-[#D4AF37]/70 hover:bg-[#D4AF37]/10 rounded-none px-8 py-6 text-xs tracking-widest uppercase">
+                <Button size="lg" variant="outline" className="border border-[#B8962E]/20 text-[#B8962E]/70 hover:bg-[#B8962E]/10 rounded-none px-8 py-6 text-xs tracking-widest uppercase">
                   <Coffee className="mr-2 h-4 w-4" /> Tiffin Service
                 </Button>
               </Link>

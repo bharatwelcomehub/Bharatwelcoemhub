@@ -1,21 +1,26 @@
 {
-  "theme": "dark",
-  "archetype": "Archetype 5: Jewel & Luxury",
+  "theme": "white-pearl-luxury",
+  "archetype": "White Pearl + Golden Glossy Luxury with Dark Brown Header",
   "brand_identity": {
     "name": "Purnabramha",
     "tagline": "World's First Intelligent Restaurant Chain Powered by A.AI Technology",
-    "vibe": "Ultra-premium, mysterious, cinematic, regal Maharashtrian heritage mixed with futuristic intelligence."
+    "vibe": "Elegant, sophisticated, bright luxury Maharashtrian heritage with warm golden accents on a pristine white canvas. Dark brown navigation bar with golden glossy text."
   },
   "colors": {
-    "background": "#0A0505",
-    "surface": "#140A0B",
-    "surface_elevated": "#1A0D0E",
-    "primary": "#D4AF37",
-    "primary_hover": "#F3D060",
-    "text_primary": "#FDFBF7",
-    "text_secondary": "#A89F95",
-    "border": "#2A151A",
-    "accent_red": "#8B1E28"
+    "background": "#FDFBF7",
+    "background_secondary": "#F8F5F0",
+    "surface": "#FFFFFF",
+    "surface_elevated": "#FDFBF7",
+    "primary": "#B8962E",
+    "primary_hover": "#D4AF37",
+    "primary_light": "#F3D060",
+    "header_bg": "#3D2314",
+    "text_primary": "#2D1810",
+    "text_secondary": "#5C4A3A",
+    "text_muted": "#7A6F65",
+    "border": "rgba(184, 150, 46, 0.12)",
+    "border_subtle": "#E8DFD0",
+    "accent_gold": "#D4AF37"
   },
   "typography": {
     "headings": "Cormorant Garamond",
@@ -25,13 +30,16 @@
       "light": "300",
       "regular": "400",
       "medium": "500",
+      "semibold": "600",
       "bold": "700"
     },
     "rules": {
-      "h1": "text-5xl md:text-6xl lg:text-7xl tracking-tighter leading-none font-medium",
-      "h2": "text-3xl md:text-4xl lg:text-5xl tracking-tight font-medium",
-      "h3": "text-2xl md:text-3xl tracking-tight font-medium",
-      "overline": "text-xs tracking-[0.2em] uppercase font-bold text-[#D4AF37]"
+      "h1": "text-5xl md:text-6xl lg:text-7xl tracking-tight leading-none font-medium text-[#2D1810]",
+      "h2": "text-3xl md:text-4xl lg:text-5xl tracking-tight font-medium text-[#2D1810]",
+      "h3": "text-2xl md:text-3xl tracking-tight font-medium text-[#2D1810]",
+      "overline": "text-xs tracking-[0.2em] uppercase font-bold text-[#B8962E]",
+      "body": "text-[#5C4A3A] font-body",
+      "muted": "text-[#7A6F65] font-body"
     }
   },
   "spacing_and_layout": {
@@ -39,66 +47,58 @@
     "container_padding": "px-6 md:px-12 lg:px-24",
     "grid_gap": "gap-8 md:gap-12",
     "border_radius": "rounded-none",
-    "surface_styles": "Use 1px subtle borders (border-[#2A151A]) with flat backgrounds. Avoid heavy drop shadows; rely on lighting, texture, and contrast."
+    "surface_styles": "Use pearl-surface class for cards. Subtle gold borders with warm pearl backgrounds. Light shadows with golden tints."
   },
   "components": {
-    "header": "Crystal Glassmorphism: bg-[#0A0505]/80 backdrop-blur-2xl border-b border-white/5. z-50 fixed w-full.",
-    "buttons": "Square edges (rounded-none). Primary button: bg-[#D4AF37] text-black hover:bg-[#F3D060] transition-colors. Secondary: border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10.",
-    "cards": "Flat design with 1px border. Deep wine/charcoal background (#140A0B). Interactive cards should slightly lift (-translate-y-1) and brighten border on hover. Internal padding must be generous (p-8).",
-    "inputs": "Shadcn UI customized: bg-[#1A0D0E] border-[#2A151A] rounded-none focus-visible:ring-[#D4AF37] text-[#FDFBF7]."
+    "header": "Dark brown solid: bg-[#3D2314]. Golden glossy text using nav-gold-text class. Sticky top-0 z-50.",
+    "buttons_primary": "gold-glossy class: Gradient from #D4AF37 to #B8962E. Dark brown text. rounded-none.",
+    "buttons_secondary": "border border-[#B8962E]/30 text-[#B8962E] hover:bg-[#B8962E]/10 rounded-none.",
+    "cards": "pearl-surface class: White to cream gradient bg, subtle gold border, light shadow with gold tint.",
+    "inputs": "Shadcn UI customized: bg-white border-[#E8DFD0] rounded-none focus-visible:ring-[#B8962E] text-[#2D1810]."
+  },
+  "css_utility_classes": {
+    "pearl_surface": "bg-gradient-to-br from-white via-[#FDFBF7] to-[#F8F5F0] border border-[#B8962E]/12 shadow-[0_2px_16px_rgba(184,150,46,0.06)]",
+    "gold_glossy": "bg-gradient-to-b from-[#D4AF37] via-[#B8962E] to-[#A07D1A] text-[#3D2314] shadow-[0_2px_8px_rgba(184,150,46,0.35)]",
+    "nav_gold_text": "Golden glossy gradient text for dark header navigation. Uses background-clip: text.",
+    "text_gold_shimmer": "Animated gold gradient text. Use for headings emphasis."
   },
   "animations": {
-    "hero": "Slow fade and scale-up on load (1.05 to 1.0).",
-    "scroll": "Staggered reveal for menu items and bento grids using Framer Motion.",
-    "hover": "Image scale-up within overflow-hidden containers (1.05x).",
+    "hero": "Elegant fade and scale-up on load.",
+    "scroll": "Staggered reveal for menu items using Framer Motion.",
+    "hover": "Subtle lift (-translate-y-1) and border color transition.",
     "page_transition": "Smooth fade in."
   },
   "media": {
     "hero_background": {
-      "url": "https://images.pexels.com/photos/16046683/pexels-photo-16046683.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Dark luxury restaurant interior for the main hero."
+      "description": "Light, elegant restaurant interiors or food photography with warm lighting."
     },
     "hero_food": {
-      "url": "https://images.pexels.com/photos/28674557/pexels-photo-28674557.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Premium creamy dal on dark background for featured dishes."
-    },
-    "menu_thali_1": {
-      "url": "https://images.pexels.com/photos/5775684/pexels-photo-5775684.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Authentic Indian Thali."
-    },
-    "menu_thali_2": {
-      "url": "https://images.pexels.com/photos/29148133/pexels-photo-29148133.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Exquisite Indian thali."
-    },
-    "catering_event": {
-      "url": "https://images.unsplash.com/photo-1767050190883-29d644fa5b99?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjYXRlcmluZyUyMGRhcmt8ZW58MHx8fHwxNzc1MzA2NzkwfDA&ixlib=rb-4.1.0&q=85",
-      "description": "Luxurious candlelit dinner setup."
-    },
-    "about_chef": {
-      "url": "https://images.pexels.com/photos/30874866/pexels-photo-30874866.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Black and white focused chef in dramatic lighting."
-    },
-    "tech_ai_bg": {
-      "url": "https://images.unsplash.com/photo-1755406932330-81b981deb41c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGdvbGRlbiUyMG5vZGVzJTIwZGFya3xlbnwwfHx8fDE3NzUzMDY3OTh8MA&ixlib=rb-4.1.0&q=85",
-      "description": "Abstract golden nodes for the A.AI technology section."
-    },
-    "logo_placeholder": {
-      "url": "https://images.unsplash.com/photo-1740538064249-7a97e0da3a18?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwcmVzdGF1cmFudCUyMGxvZ28lMjBnb2xkfGVufDB8fHx8MTc3NTMwNjc5OHww&ixlib=rb-4.1.0&q=85",
-      "description": "Elegant restaurant logo placeholder on glass."
+      "description": "Premium Maharashtrian dishes on light backgrounds with golden garnish."
     }
   },
+  "color_mapping_dark_to_light": {
+    "bg-[#0A0505]": "bg-[#FDFBF7]",
+    "bg-[#080404]": "bg-[#F8F5F0]",
+    "bg-[#140A0B]": "bg-white or pearl-surface",
+    "bg-[#1A0D0E]": "bg-[#F8F5F0]",
+    "text-[#FDFBF7]": "text-[#2D1810]",
+    "text-[#A89F95]": "text-[#5C4A3A] or text-[#7A6F65]",
+    "border-[#2A151A]": "border-[#E8DFD0] or border-[#B8962E]/12",
+    "text-[#D4AF37]": "text-[#B8962E]",
+    "hover:bg-[#D4AF37]/10": "hover:bg-[#B8962E]/10"
+  },
   "instructions_to_main_agent": [
-    "Strictly use the defined color palette to override Tailwind's default configuration in tailwind.config.js.",
-    "Implement @phosphor-icons/react for high-end duotone icons.",
-    "For the hero section, use a heavy black overlay (bg-black/50 or darker) over the background image to ensure text legibility. Never use raw image without scrim.",
-    "Use Framer Motion for revealing elements on scroll, avoiding overly bouncy animations. Keep them smooth, slow, and cinematic.",
-    "Ensure the A.AI feature is highlighted using the tech_ai_bg combined with gold textual accents.",
-    "All headings must use Cormorant Garamond, tightly tracked (tracking-tight), and body text should use Outfit.",
-    "Do NOT use typical card shadows (shadow-md). Rely strictly on 1px borders of #2A151A and flat surface colors.",
-    "Include an infinite scrolling marquee using react-fast-marquee with the text 'WORLD'S FIRST INTELLIGENT RESTAURANT CHAIN • PURE VEGETARIAN • POWERED BY A.AI'. Use an outline style or subtle gold text on a deep background.",
-    "Apply 'data-testid' to all interactive elements (buttons, links, inputs) for robust testing.",
-    "Use Shadcn UI for complex interactives (Forms, Tabs, Modals) but customize their styling heavily to remove the 'Vercel default' look. Ensure border-radius is removed (rounded-none).",
-    "Nutrition modal must use Shadcn Dialog, stylized with the dark theme.",
-    "Images should never look 'pasted on'. Use subtle borders or inset shadows, and keep them contained within the grid layout."
+    "Header uses dark brown (#3D2314) background with golden glossy text (nav-gold-text class).",
+    "Replace all dark backgrounds (#0A0505, #080404, #140A0B) with light pearl backgrounds (#FDFBF7, #F8F5F0, white).",
+    "Replace dark text (#FDFBF7) with dark brown (#2D1810).",
+    "Replace muted text (#A89F95) with warm brown (#5C4A3A or #7A6F65).",
+    "Replace dark borders (#2A151A) with soft gold-tinted borders (#E8DFD0 or rgba(184,150,46,0.12)).",
+    "Use gold-glossy class for primary CTA buttons with dark brown text.",
+    "Use pearl-surface class for card containers.",
+    "Keep the text-gold-shimmer class for heading accents.",
+    "All inputs/selects: white bg, warm border, gold focus ring.",
+    "Ensure sufficient contrast - dark text on light backgrounds.",
+    "Apply 'data-testid' to all interactive elements for robust testing.",
+    "Maintain Cormorant Garamond for headings, Outfit for body text."
   ]
 }

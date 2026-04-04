@@ -15,10 +15,9 @@ const Menu = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedItem, setSelectedItem] = useState(null); // For modal
+  const [selectedItem, setSelectedItem] = useState(null);
   const [nutritionData, setNutritionData] = useState(null);
   const [nutritionLoading, setNutritionLoading] = useState(false);
-  // Scan Dish state
   const [scanModalOpen, setScanModalOpen] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanResult, setScanResult] = useState(null);
@@ -48,13 +47,8 @@ const Menu = () => {
     { value: 'Sides', label: 'Sides' }
   ];
 
-  useEffect(() => {
-    fetchMenu();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('purnabramha_country', selectedCountry);
-  }, [selectedCountry]);
+  useEffect(() => { fetchMenu(); }, []);
+  useEffect(() => { localStorage.setItem('purnabramha_country', selectedCountry); }, [selectedCountry]);
 
   const fetchMenu = async () => {
     try {
@@ -86,17 +80,12 @@ const Menu = () => {
     fetchNutrition(item.id);
   };
 
-  // Scan Dish functions
   const handleFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    // Preview
     const reader = new FileReader();
     reader.onload = (ev) => setScanPreview(ev.target.result);
     reader.readAsDataURL(file);
-
-    // Convert to base64 and scan
     const base64Reader = new FileReader();
     base64Reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1];
@@ -109,9 +98,7 @@ const Menu = () => {
     setScanLoading(true);
     setScanResult(null);
     try {
-      const response = await axios.post(`${API}/scan-dish`, {
-        image_base64: imageBase64
-      });
+      const response = await axios.post(`${API}/scan-dish`, { image_base64: imageBase64 });
       setScanResult(response.data);
       if (response.data.success) {
         toast.success(`Identified: ${response.data.matched_item.name}`);
@@ -133,16 +120,8 @@ const Menu = () => {
     setScanLoading(false);
   };
 
-  const getPrice = (item) => {
-    if (selectedCountry === 'Australia') {
-      return item.price_aud;
-    }
-    return item.price_inr;
-  };
-
-  const getCurrencySymbol = () => {
-    return selectedCountry === 'Australia' ? '$' : '₹';
-  };
+  const getPrice = (item) => selectedCountry === 'Australia' ? item.price_aud : item.price_inr;
+  const getCurrencySymbol = () => selectedCountry === 'Australia' ? '$' : '₹';
 
   const filteredItems = (selectedCategory === 'all'
     ? menuItems
@@ -154,67 +133,62 @@ const Menu = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-cream to-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-foreground/70 font-manrope">Loading menu...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#B8962E] mx-auto mb-4"></div>
+          <p className="text-[#7A6F65] font-body">Loading menu...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cream to-white">
+    <div className="min-h-screen bg-[#FDFBF7]">
       <SEOHead page="menu" />
-      <div className="container mx-auto px-4 lg:px-8 py-12 lg:py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <h1 className="font-playfair text-4xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight">
-            Our Menu
+      <div className="container mx-auto px-6 lg:px-12 py-16 lg:py-24">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+          <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-4">Signature Menu</p>
+          <h1 className="font-heading text-5xl md:text-6xl lg:text-7xl font-medium text-[#2D1810] mb-4 tracking-tight">
+            Our <span className="text-gold-shimmer">Menu</span>
           </h1>
-          <p className="text-lg text-foreground/70 font-manrope max-w-2xl mx-auto mb-6">
+          <p className="text-lg text-[#5C4A3A] font-body max-w-2xl mx-auto mb-8">
             Explore our authentic Maharashtrian delicacies
           </p>
 
           {/* Country Selector */}
-          <div className="flex items-center justify-center gap-2 mb-4" data-testid="country-selector">
-            <Globe className="h-5 w-5 text-primary" />
-            <span className="text-sm text-foreground/70 font-manrope">Select Region:</span>
+          <div className="flex items-center justify-center gap-3 mb-4" data-testid="country-selector">
+            <Globe className="h-5 w-5 text-[#B8962E]/60" />
+            <span className="text-sm text-[#5C4A3A] font-body">Region:</span>
             <div className="flex gap-2">
               <Button
-                variant={selectedCountry === 'India' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedCountry('India')}
-                className={`rounded-full ${selectedCountry === 'India' ? 'bg-primary' : ''}`}
+                className={`rounded-none text-xs tracking-wider ${selectedCountry === 'India' ? 'bg-[#B8962E] text-white hover:bg-[#D4AF37]' : 'bg-white border border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/30 hover:text-[#B8962E]'}`}
                 data-testid="country-india-btn"
               >
-                🇮🇳 India (₹)
+                India (₹)
               </Button>
               <Button
-                variant={selectedCountry === 'Australia' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedCountry('Australia')}
-                className={`rounded-full ${selectedCountry === 'Australia' ? 'bg-primary' : ''}`}
+                className={`rounded-none text-xs tracking-wider ${selectedCountry === 'Australia' ? 'bg-[#B8962E] text-white hover:bg-[#D4AF37]' : 'bg-white border border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/30 hover:text-[#B8962E]'}`}
                 data-testid="country-australia-btn"
               >
-                🇦🇺 Australia ($)
+                Australia ($)
               </Button>
             </div>
           </div>
         </motion.div>
 
         {/* Category Tabs */}
-        <div className="mb-8 overflow-x-auto">
+        <div className="mb-10 overflow-x-auto">
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
             <TabsList className="flex flex-wrap justify-center gap-2 h-auto bg-transparent p-0" data-testid="menu-category-tabs">
               {categories.map(cat => (
                 <TabsTrigger
                   key={cat.value}
                   value={cat.value}
-                  className="rounded-full px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-white whitespace-nowrap"
+                  className="rounded-none px-4 py-2 text-xs tracking-wider font-body border border-[#E8DFD0] bg-white text-[#5C4A3A] data-[state=active]:bg-[#B8962E] data-[state=active]:text-white data-[state=active]:border-[#B8962E] whitespace-nowrap transition-all hover:border-[#B8962E]/30"
                   data-testid={`category-${cat.value.replace(/[^a-zA-Z0-9]/g, '-')}`}
                 >
                   {cat.label}
@@ -225,89 +199,71 @@ const Menu = () => {
         </div>
 
         {/* Menu Items Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map((item, index) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03 }}
-              className="bg-white rounded-xl overflow-hidden border border-orange-900/10 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              className="bg-white border border-[#E8DFD0] overflow-hidden hover:border-[#B8962E]/30 transition-all cursor-pointer group hover:shadow-lg"
               data-testid={`menu-item-${index}`}
               onClick={() => handleItemClick(item)}
             >
-              <div className="h-48 overflow-hidden relative bg-gradient-to-br from-amber-50 to-orange-50">
+              <div className="h-48 overflow-hidden relative bg-[#F8F5F0]">
                 {item.image_url ? (
                   <>
                     <img
                       src={item.image_url}
                       alt={`${item.name} - Maharashtrian dish at Purnabramha`}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                     />
                     <div className="hidden w-full h-full items-center justify-center flex-col">
-                      <Leaf className="h-12 w-12 text-green-300 mb-2" />
-                      <span className="text-green-600 text-sm">Pure Veg</span>
+                      <Leaf className="h-12 w-12 text-[#B8962E]/30 mb-2" />
+                      <span className="text-[#B8962E]/50 text-sm font-body">Pure Veg</span>
                     </div>
-                    <div className="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full opacity-0 hover:opacity-100 transition-opacity">
-                      <ZoomIn className="h-4 w-4" />
-                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
                   </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center flex-col">
-                    <Leaf className="h-12 w-12 text-green-300 mb-2" />
-                    <span className="text-green-600 text-sm font-medium">Pure Veg</span>
+                    <Leaf className="h-12 w-12 text-[#B8962E]/30 mb-2" />
+                    <span className="text-[#B8962E]/50 text-sm font-body font-medium">Pure Veg</span>
                   </div>
                 )}
               </div>
-              <div className="p-5">
+              <div className="p-6">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
-                    <h3 className="font-playfair text-lg font-semibold text-foreground mb-1 leading-tight">
-                      {item.name}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {item.is_veg && (
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
-                          Veg
-                        </Badge>
-                      )}
+                    <h3 className="font-heading text-lg font-medium text-[#2D1810] mb-1 leading-tight">{item.name}</h3>
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {item.no_onion_garlic && (
-                        <Badge className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5" data-testid="badge-no-onion-garlic">
+                        <Badge className="bg-orange-100 text-orange-600 border border-orange-200 text-[10px] font-bold px-2 py-0" data-testid="badge-no-onion-garlic">
                           No Onion/Garlic
                         </Badge>
                       )}
                       {item.fasting_friendly && (
-                        <Badge className="bg-purple-600 text-white text-xs font-bold px-2 py-0.5" data-testid="badge-fasting-friendly">
+                        <Badge className="bg-purple-100 text-purple-600 border border-purple-200 text-[10px] font-bold px-2 py-0" data-testid="badge-fasting-friendly">
                           Fasting Friendly
                         </Badge>
                       )}
-                      <Badge variant="outline" className="text-xs text-foreground/50 border-foreground/20">
-                        {item.category}
-                      </Badge>
+                      <span className="text-[10px] text-[#7A6F65] font-body tracking-wider uppercase">{item.category}</span>
                     </div>
                   </div>
                   <div className="text-right ml-3">
-                    <p className="font-manrope text-xl font-bold text-primary">
+                    <p className="font-heading text-xl font-medium text-[#B8962E]">
                       {getCurrencySymbol()}{getPrice(item)}
                     </p>
                   </div>
                 </div>
-                <p className="text-foreground/60 font-manrope text-sm mb-4 leading-relaxed line-clamp-2">
-                  {item.description}
-                </p>
+                <p className="text-[#5C4A3A]/70 font-body text-sm mb-3 leading-relaxed line-clamp-2">{item.description}</p>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-green-600">
-                    <Leaf className="h-4 w-4" />
-                    <span className="text-xs">Pure Veg</span>
+                  <div className="flex items-center gap-1 text-[#B8962E]/40">
+                    <Leaf className="h-3 w-3" />
+                    <span className="text-[10px] font-body tracking-wider uppercase">Pure Veg</span>
                   </div>
                   {!item.is_available && (
-                    <Badge variant="outline" className="text-red-500 border-red-200">
-                      Currently Unavailable
-                    </Badge>
+                    <span className="text-[10px] text-red-500/70 font-body tracking-wider uppercase">Unavailable</span>
                   )}
                 </div>
               </div>
@@ -322,112 +278,70 @@ const Menu = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+              className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
               onClick={() => { setSelectedItem(null); setNutritionData(null); }}
             >
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
+                className="bg-white border border-[#E8DFD0] max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Close button */}
                 <button
                   onClick={() => { setSelectedItem(null); setNutritionData(null); }}
-                  className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg"
+                  className="absolute top-4 right-4 z-10 bg-white border border-[#E8DFD0] text-[#5C4A3A] hover:text-[#2D1810] p-2"
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5" />
                 </button>
 
-                {/* Image */}
-                <div className="h-64 md:h-80 bg-gradient-to-br from-amber-100 to-orange-100 relative">
+                <div className="h-64 md:h-72 bg-[#F8F5F0] relative">
                   {selectedItem.image_url ? (
-                    <img
-                      src={selectedItem.image_url}
-                      alt={`${selectedItem.name} - Authentic Maharashtrian dish`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
+                    <img src={selectedItem.image_url} alt={selectedItem.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center flex-col">
-                      <Leaf className="h-20 w-20 text-green-300 mb-3" />
-                      <span className="text-green-600 text-lg font-medium">Pure Vegetarian</span>
+                      <Leaf className="h-20 w-20 text-[#B8962E]/20 mb-3" />
+                      <span className="text-[#B8962E]/40 text-lg font-body font-medium">Pure Vegetarian</span>
                     </div>
                   )}
-                  {/* Veg badge overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
                   <div className="absolute top-4 left-4 flex flex-wrap gap-2">
-                    <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
-                      <Leaf className="h-4 w-4" />
-                      Pure Veg
-                    </div>
+                    <span className="bg-[#B8962E] text-white px-3 py-1 text-[10px] tracking-wider uppercase font-semibold flex items-center gap-1">
+                      <Leaf className="h-3 w-3" /> Pure Veg
+                    </span>
                     {selectedItem.no_onion_garlic && (
-                      <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold" data-testid="modal-badge-no-onion-garlic">
-                        No Onion/Garlic
-                      </div>
+                      <span className="bg-orange-500 text-white px-3 py-1 text-[10px] font-bold" data-testid="modal-badge-no-onion-garlic">No Onion/Garlic</span>
                     )}
                     {selectedItem.fasting_friendly && (
-                      <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-bold" data-testid="modal-badge-fasting">
-                        Fasting Friendly
-                      </div>
+                      <span className="bg-purple-500 text-white px-3 py-1 text-[10px] font-bold" data-testid="modal-badge-fasting">Fasting Friendly</span>
                     )}
                   </div>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 20rem)' }}>
+                <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 18rem)' }}>
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h2 className="font-playfair text-2xl md:text-3xl font-bold text-[#5c1e1e] mb-2">
-                        {selectedItem.name}
-                      </h2>
+                      <h2 className="font-heading text-2xl md:text-3xl font-medium text-[#2D1810] mb-2">{selectedItem.name}</h2>
                       <div className="flex flex-wrap gap-1">
-                        <Badge variant="outline" className="text-sm">
-                          {selectedItem.category}
-                        </Badge>
-                        {selectedItem.no_onion_garlic && (
-                          <Badge className="bg-orange-500 text-white text-sm font-bold">
-                            No Onion/Garlic
-                          </Badge>
-                        )}
-                        {selectedItem.fasting_friendly && (
-                          <Badge className="bg-purple-600 text-white text-sm font-bold">
-                            Fasting Friendly
-                          </Badge>
-                        )}
+                        <span className="text-xs text-[#7A6F65] border border-[#E8DFD0] px-2 py-0.5 font-body">{selectedItem.category}</span>
                       </div>
                     </div>
                     <div className="text-right ml-3">
-                      <p className="text-3xl font-bold text-[#5c1e1e]">
-                        {getCurrencySymbol()}{getPrice(selectedItem)}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {selectedCountry === 'Australia' ? 'AUD' : 'INR'}
-                      </p>
+                      <p className="text-3xl font-heading font-medium text-[#B8962E]">{getCurrencySymbol()}{getPrice(selectedItem)}</p>
+                      <p className="text-xs text-[#7A6F65] font-body">{selectedCountry === 'Australia' ? 'AUD' : 'INR'}</p>
                     </div>
                   </div>
-
-                  <p className="text-gray-600 text-base leading-relaxed mb-5">
+                  <p className="text-[#5C4A3A] text-sm font-body leading-relaxed mb-5">
                     {selectedItem.description || 'Authentic Maharashtrian delicacy prepared with traditional recipes and fresh ingredients.'}
                   </p>
-
-                  {/* Nutrition Section */}
                   <NutritionPanel data={nutritionData} loading={nutritionLoading} />
-
                   <div className="flex gap-3 mt-5">
                     <Link to="/pickup" className="flex-1">
-                      <Button className="w-full bg-[#5c1e1e] hover:bg-[#8b2c2c] rounded-full py-6">
-                        <ShoppingBag className="mr-2 h-5 w-5" />
-                        Order for Pickup
+                      <Button className="w-full gold-glossy text-white rounded-none py-6 text-xs tracking-widest uppercase font-semibold border-0" data-testid="modal-order-btn">
+                        <ShoppingBag className="mr-2 h-4 w-4" /> Order for Pickup
                       </Button>
                     </Link>
-                    <Button
-                      variant="outline"
-                      className="rounded-full py-6 px-6"
-                      onClick={() => { setSelectedItem(null); setNutritionData(null); }}
-                    >
+                    <Button variant="outline" className="border-[#E8DFD0] text-[#5C4A3A] hover:text-[#2D1810] hover:border-[#B8962E]/30 rounded-none py-6 px-6" onClick={() => { setSelectedItem(null); setNutritionData(null); }}>
                       Close
                     </Button>
                   </div>
@@ -439,33 +353,28 @@ const Menu = () => {
 
         {filteredItems.length === 0 && (
           <div className="text-center py-20">
-            <p className="text-lg text-foreground/70 font-manrope">
-              No items found in this category for {selectedCountry}
-            </p>
-            <p className="text-sm text-foreground/50 font-manrope mt-2">
-              Try switching to a different region or category
-            </p>
+            <p className="text-lg text-[#5C4A3A] font-body">No items found in this category for {selectedCountry}</p>
+            <p className="text-sm text-[#7A6F65] font-body mt-2">Try switching to a different region or category</p>
           </div>
         )}
 
         {/* Order CTA */}
-        <div className="text-center mt-12 p-8 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl">
-          <h3 className="text-2xl font-bold text-[#5c1e1e] mb-3">
-            Ready to Order?
+        <div className="text-center mt-16 p-12 pearl-surface">
+          <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-4">Ready to Order?</p>
+          <h3 className="text-3xl md:text-4xl font-heading font-medium text-[#2D1810] mb-3 tracking-tight">
+            Experience <span className="text-gold-shimmer">Authentic Flavor</span>
           </h3>
-          <p className="text-gray-600 mb-6">
+          <p className="text-[#5C4A3A] mb-8 font-body">
             Place your order via WhatsApp and pick up fresh from your nearest center
           </p>
           <Link to="/pickup">
-            <Button className="bg-[#5c1e1e] hover:bg-[#8b2c2c] rounded-full px-8 py-6 text-lg">
-              <ShoppingBag className="mr-2 h-5 w-5" />
-              Order for Pickup
+            <Button className="gold-glossy text-white rounded-none px-8 py-6 text-xs tracking-widest uppercase font-semibold border-0">
+              <ShoppingBag className="mr-2 h-4 w-4" /> Order for Pickup
             </Button>
           </Link>
         </div>
 
-        {/* Menu item count */}
-        <div className="text-center mt-8 text-sm text-foreground/50 font-manrope">
+        <div className="text-center mt-8 text-sm text-[#7A6F65] font-body">
           Showing {filteredItems.length} items {selectedCategory !== 'all' && `in ${selectedCategory}`}
         </div>
       </div>
@@ -473,34 +382,18 @@ const Menu = () => {
       {/* Floating Scan Dish Button */}
       <button
         onClick={() => setScanModalOpen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-[#5c1e1e] hover:bg-[#8b2c2c] text-white rounded-full p-4 shadow-2xl transition-all hover:scale-110 active:scale-95 group"
+        className="fixed bottom-6 right-6 z-50 gold-glossy text-white p-4 transition-all hover:scale-110 active:scale-95 group shadow-lg"
         data-testid="scan-dish-btn"
         title="Scan a dish photo"
       >
         <Camera className="h-7 w-7" />
-        <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-[#5c1e1e] text-white text-sm px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+        <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-white border border-[#E8DFD0] text-[#2D1810] text-sm px-3 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
           Scan Dish
         </span>
       </button>
 
-      {/* Hidden file inputs */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
-        onChange={handleFileSelect}
-        data-testid="scan-file-input"
-      />
-      <input
-        type="file"
-        ref={cameraInputRef}
-        accept="image/jpeg,image/png,image/webp"
-        capture="environment"
-        className="hidden"
-        onChange={handleFileSelect}
-        data-testid="scan-camera-input"
-      />
+      <input type="file" ref={fileInputRef} accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileSelect} data-testid="scan-file-input" />
+      <input type="file" ref={cameraInputRef} accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={handleFileSelect} data-testid="scan-camera-input" />
 
       {/* Scan Dish Modal */}
       <AnimatePresence>
@@ -509,70 +402,66 @@ const Menu = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+            className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={(e) => { if (e.target === e.currentTarget) closeScanModal(); }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+              className="bg-white border border-[#E8DFD0] max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-[#5c1e1e] to-[#8b2c2c] p-5 rounded-t-2xl flex items-center justify-between">
+              <div className="bg-[#F8F5F0] border-b border-[#B8962E]/20 p-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <ScanLine className="h-6 w-6 text-white" />
-                  <h2 className="text-xl font-bold text-white font-playfair">Scan Your Dish</h2>
+                  <ScanLine className="h-5 w-5 text-[#B8962E]" />
+                  <h2 className="text-lg font-heading font-medium text-[#2D1810]">Scan Your Dish</h2>
                 </div>
-                <button onClick={closeScanModal} className="text-white/80 hover:text-white p-1">
+                <button onClick={closeScanModal} className="text-[#5C4A3A] hover:text-[#2D1810] p-1">
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
               <div className="p-5">
-                {/* Upload Area */}
                 {!scanPreview && !scanLoading && !scanResult && (
                   <div className="space-y-4">
-                    <p className="text-gray-600 text-sm text-center mb-4">
+                    <p className="text-[#5C4A3A] text-sm text-center mb-4 font-body">
                       Take a photo or upload an image of any dish to get instant nutrition info
                     </p>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => cameraInputRef.current?.click()}
-                        className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-[#5c1e1e]/30 rounded-xl hover:border-[#5c1e1e] hover:bg-amber-50 transition-all"
+                        className="flex flex-col items-center gap-3 p-6 border border-dashed border-[#B8962E]/30 hover:border-[#B8962E] hover:bg-[#B8962E]/5 transition-all"
                         data-testid="scan-camera-btn"
                       >
-                        <Camera className="h-10 w-10 text-[#5c1e1e]" />
-                        <span className="text-sm font-medium text-[#5c1e1e]">Take Photo</span>
+                        <Camera className="h-10 w-10 text-[#B8962E]" />
+                        <span className="text-sm font-body font-medium text-[#B8962E]">Take Photo</span>
                       </button>
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-[#5c1e1e]/30 rounded-xl hover:border-[#5c1e1e] hover:bg-amber-50 transition-all"
+                        className="flex flex-col items-center gap-3 p-6 border border-dashed border-[#B8962E]/30 hover:border-[#B8962E] hover:bg-[#B8962E]/5 transition-all"
                         data-testid="scan-upload-btn"
                       >
-                        <Upload className="h-10 w-10 text-[#5c1e1e]" />
-                        <span className="text-sm font-medium text-[#5c1e1e]">Upload Image</span>
+                        <Upload className="h-10 w-10 text-[#B8962E]" />
+                        <span className="text-sm font-body font-medium text-[#B8962E]">Upload Image</span>
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* Loading */}
                 {scanLoading && (
                   <div className="text-center py-8" data-testid="scan-loading">
                     {scanPreview && (
-                      <img src={scanPreview} alt="Scanning..." className="w-48 h-48 object-cover rounded-xl mx-auto mb-4 border-2 border-amber-200" />
+                      <img src={scanPreview} alt="Scanning..." className="w-48 h-48 object-cover mx-auto mb-4 border border-[#B8962E]/30" />
                     )}
                     <div className="flex items-center justify-center gap-3">
-                      <Loader2 className="h-6 w-6 text-[#5c1e1e] animate-spin" />
-                      <span className="text-[#5c1e1e] font-medium">Identifying dish...</span>
+                      <Loader2 className="h-6 w-6 text-[#B8962E] animate-spin" />
+                      <span className="text-[#B8962E] font-body font-medium">Identifying dish...</span>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">AI is analyzing your photo</p>
+                    <p className="text-xs text-[#7A6F65] mt-2 font-body">AI is analyzing your photo</p>
                   </div>
                 )}
 
-                {/* Scan Result */}
                 {scanResult && !scanLoading && (
                   <ScanResultPanel
                     result={scanResult}
@@ -592,25 +481,20 @@ const Menu = () => {
   );
 };
 
-// Scan Result Panel Component
 const ScanResultPanel = ({ result, preview, getCurrencySymbol, getPrice, onRetry, onClose }) => {
   if (!result.success) {
     return (
       <div className="text-center py-4" data-testid="scan-no-match">
-        {preview && (
-          <img src={preview} alt="Scanned" className="w-40 h-40 object-cover rounded-xl mx-auto mb-4 border-2 border-gray-200" />
-        )}
-        <div className="bg-red-50 rounded-xl p-4 mb-4">
-          <p className="text-red-700 font-medium">{result.message}</p>
-          {result.ai_description && (
-            <p className="text-sm text-gray-500 mt-2">AI saw: {result.ai_description}</p>
-          )}
+        {preview && <img src={preview} alt="Scanned" className="w-40 h-40 object-cover mx-auto mb-4 border border-[#E8DFD0]" />}
+        <div className="bg-red-50 border border-red-200 p-4 mb-4">
+          <p className="text-red-600 font-body font-medium">{result.message}</p>
+          {result.ai_description && <p className="text-sm text-[#7A6F65] mt-2 font-body">AI saw: {result.ai_description}</p>}
         </div>
         <div className="flex gap-3">
-          <Button onClick={onRetry} variant="outline" className="flex-1 rounded-full">
+          <Button onClick={onRetry} variant="outline" className="flex-1 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none">
             <Camera className="mr-2 h-4 w-4" /> Try Again
           </Button>
-          <Button onClick={onClose} variant="ghost" className="rounded-full">Close</Button>
+          <Button onClick={onClose} variant="ghost" className="text-[#5C4A3A] hover:text-[#2D1810] rounded-none">Close</Button>
         </div>
       </div>
     );
@@ -621,48 +505,33 @@ const ScanResultPanel = ({ result, preview, getCurrencySymbol, getPrice, onRetry
 
   return (
     <div className="space-y-4" data-testid="scan-result-success">
-      {/* Matched Dish Header */}
       <div className="flex gap-4 items-start">
-        {preview && (
-          <img src={preview} alt="Your photo" className="w-24 h-24 object-cover rounded-xl border-2 border-amber-200 flex-shrink-0" />
-        )}
+        {preview && <img src={preview} alt="Your photo" className="w-24 h-24 object-cover border border-[#B8962E]/30 flex-shrink-0" />}
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <Badge className={`text-xs ${result.confidence === 'high' ? 'bg-green-500' : result.confidence === 'medium' ? 'bg-amber-500' : 'bg-red-500'} text-white`}>
+            <Badge className={`text-[10px] ${result.confidence === 'high' ? 'bg-green-100 text-green-600 border-green-200' : result.confidence === 'medium' ? 'bg-amber-100 text-amber-600 border-amber-200' : 'bg-red-100 text-red-600 border-red-200'}`}>
               {result.confidence} match
             </Badge>
           </div>
-          <h3 className="font-playfair text-xl font-bold text-[#5c1e1e]">{item.name}</h3>
+          <h3 className="font-heading text-xl font-medium text-[#2D1810]">{item.name}</h3>
           <div className="flex flex-wrap gap-1 mt-1">
-            <Badge variant="outline" className="text-xs">{item.category}</Badge>
-            {item.is_veg && <Badge className="bg-green-100 text-green-700 text-xs border-green-200" variant="outline">Veg</Badge>}
-            {item.no_onion_garlic && <Badge className="bg-orange-500 text-white text-xs font-bold">No Onion/Garlic</Badge>}
-            {item.fasting_friendly && <Badge className="bg-purple-600 text-white text-xs font-bold">Fasting Friendly</Badge>}
+            <span className="text-[10px] text-[#7A6F65] border border-[#E8DFD0] px-2 py-0.5 font-body">{item.category}</span>
+            {item.no_onion_garlic && <Badge className="bg-orange-100 text-orange-600 border-orange-200 text-[10px] font-bold">No Onion/Garlic</Badge>}
+            {item.fasting_friendly && <Badge className="bg-purple-100 text-purple-600 border-purple-200 text-[10px] font-bold">Fasting Friendly</Badge>}
           </div>
-          <p className="text-2xl font-bold text-[#5c1e1e] mt-2">{getCurrencySymbol()}{getPrice(item)}</p>
+          <p className="text-2xl font-heading font-medium text-[#B8962E] mt-2">{getCurrencySymbol()}{getPrice(item)}</p>
         </div>
       </div>
-
-      {item.description && (
-        <p className="text-sm text-gray-600">{item.description}</p>
-      )}
-
-      {result.ai_description && (
-        <p className="text-xs text-gray-400 italic">AI observation: {result.ai_description}</p>
-      )}
-
-      {/* Nutrition Data */}
+      {item.description && <p className="text-sm text-[#5C4A3A] font-body">{item.description}</p>}
+      {result.ai_description && <p className="text-xs text-[#7A6F65] italic font-body">AI observation: {result.ai_description}</p>}
       {nutrition && <NutritionPanel data={nutrition} loading={false} />}
-
-      {/* Action Buttons */}
       <div className="flex gap-3 pt-2">
         <Link to="/pickup" className="flex-1">
-          <Button className="w-full bg-[#5c1e1e] hover:bg-[#8b2c2c] rounded-full py-5" data-testid="scan-order-btn">
-            <ShoppingBag className="mr-2 h-5 w-5" />
-            Order for Pickup
+          <Button className="w-full gold-glossy text-white rounded-none py-5 text-xs tracking-widest uppercase font-semibold border-0" data-testid="scan-order-btn">
+            <ShoppingBag className="mr-2 h-4 w-4" /> Order for Pickup
           </Button>
         </Link>
-        <Button onClick={onRetry} variant="outline" className="rounded-full py-5" data-testid="scan-retry-btn">
+        <Button onClick={onRetry} variant="outline" className="border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none py-5" data-testid="scan-retry-btn">
           <Camera className="mr-2 h-4 w-4" /> Scan Another
         </Button>
       </div>
@@ -670,19 +539,17 @@ const ScanResultPanel = ({ result, preview, getCurrencySymbol, getPrice, onRetry
   );
 };
 
-// Nutrition Panel Component
 const NutritionPanel = ({ data, loading }) => {
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-200" data-testid="nutrition-loading">
+      <div className="bg-[#F8F5F0] border border-[#E8DFD0] p-5" data-testid="nutrition-loading">
         <div className="flex items-center justify-center gap-3 py-6">
-          <Loader2 className="h-6 w-6 text-[#5c1e1e] animate-spin" />
-          <span className="text-[#5c1e1e] font-medium">Analyzing nutrition...</span>
+          <Loader2 className="h-6 w-6 text-[#B8962E] animate-spin" />
+          <span className="text-[#B8962E] font-body font-medium">Analyzing nutrition...</span>
         </div>
       </div>
     );
   }
-
   if (!data) return null;
 
   const totalMacros = data.protein + data.carbs + data.fats;
@@ -692,99 +559,81 @@ const NutritionPanel = ({ data, loading }) => {
 
   return (
     <div className="space-y-4" data-testid="nutrition-panel">
-      {/* Macro Summary */}
-      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-200">
+      <div className="bg-[#F8F5F0] border border-[#E8DFD0] p-5">
         <div className="flex items-center gap-2 mb-3">
-          <Flame className="h-5 w-5 text-orange-600" />
-          <h3 className="font-bold text-[#5c1e1e] text-lg">Nutrition Facts</h3>
-          <span className="text-xs text-gray-500 ml-auto">{data.serving_size}</span>
+          <Flame className="h-5 w-5 text-[#B8962E]" />
+          <h3 className="font-heading font-medium text-[#2D1810] text-lg">Nutrition Facts</h3>
+          <span className="text-xs text-[#7A6F65] ml-auto font-body">{data.serving_size}</span>
         </div>
-
-        {/* Calories Highlight */}
-        <div className="text-center mb-4 py-3 bg-white/70 rounded-lg">
-          <p className="text-4xl font-bold text-[#5c1e1e]">{data.calories}</p>
-          <p className="text-sm text-gray-600 font-medium">Calories per serving</p>
+        <div className="text-center mb-4 py-3 bg-white border border-[#E8DFD0]">
+          <p className="text-4xl font-heading font-medium text-[#B8962E]">{data.calories}</p>
+          <p className="text-sm text-[#5C4A3A] font-body">Calories per serving</p>
         </div>
-
-        {/* Macro Bars */}
         <div className="grid grid-cols-4 gap-3 mb-3">
-          <MacroCard icon={<Dumbbell className="h-4 w-4" />} label="Protein" value={`${data.protein}g`} color="text-blue-700" bg="bg-blue-100" />
-          <MacroCard icon={<Wheat className="h-4 w-4" />} label="Carbs" value={`${data.carbs}g`} color="text-amber-700" bg="bg-amber-100" />
-          <MacroCard icon={<Droplets className="h-4 w-4" />} label="Fats" value={`${data.fats}g`} color="text-red-700" bg="bg-red-100" />
-          <MacroCard icon={<Leaf className="h-4 w-4" />} label="Fiber" value={`${data.fiber}g`} color="text-green-700" bg="bg-green-100" />
+          <MacroCard icon={<Dumbbell className="h-4 w-4" />} label="Protein" value={`${data.protein}g`} color="text-blue-600" bg="bg-blue-50 border border-blue-100" />
+          <MacroCard icon={<Wheat className="h-4 w-4" />} label="Carbs" value={`${data.carbs}g`} color="text-amber-600" bg="bg-amber-50 border border-amber-100" />
+          <MacroCard icon={<Droplets className="h-4 w-4" />} label="Fats" value={`${data.fats}g`} color="text-red-500" bg="bg-red-50 border border-red-100" />
+          <MacroCard icon={<Leaf className="h-4 w-4" />} label="Fiber" value={`${data.fiber}g`} color="text-green-600" bg="bg-green-50 border border-green-100" />
         </div>
-
-        {/* Visual Macro Bar */}
-        <div className="h-3 rounded-full overflow-hidden flex bg-gray-200">
-          <div className="bg-blue-500 transition-all" style={{ width: `${proteinPct}%` }} title={`Protein ${proteinPct.toFixed(0)}%`} />
-          <div className="bg-amber-500 transition-all" style={{ width: `${carbsPct}%` }} title={`Carbs ${carbsPct.toFixed(0)}%`} />
-          <div className="bg-red-400 transition-all" style={{ width: `${fatsPct}%` }} title={`Fats ${fatsPct.toFixed(0)}%`} />
+        <div className="h-2 overflow-hidden flex bg-white border border-[#E8DFD0]">
+          <div className="bg-blue-500 transition-all" style={{ width: `${proteinPct}%` }} />
+          <div className="bg-amber-500 transition-all" style={{ width: `${carbsPct}%` }} />
+          <div className="bg-red-400 transition-all" style={{ width: `${fatsPct}%` }} />
         </div>
-        <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />Protein {proteinPct.toFixed(0)}%</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Carbs {carbsPct.toFixed(0)}%</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />Fats {fatsPct.toFixed(0)}%</span>
+        <div className="flex justify-between text-[10px] text-[#7A6F65] mt-1 font-body">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-500 inline-block" />Protein {proteinPct.toFixed(0)}%</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 inline-block" />Carbs {carbsPct.toFixed(0)}%</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 inline-block" />Fats {fatsPct.toFixed(0)}%</span>
         </div>
       </div>
 
-      {/* Health Benefits & Ayurvedic */}
       <div className="grid md:grid-cols-2 gap-3">
         {data.health_benefits?.length > 0 && (
-          <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+          <div className="bg-green-50 border border-green-200 p-4">
             <div className="flex items-center gap-2 mb-2">
               <Heart className="h-4 w-4 text-green-600" />
-              <h4 className="font-bold text-green-800 text-sm">Health Benefits</h4>
+              <h4 className="font-body font-semibold text-green-700 text-sm">Health Benefits</h4>
             </div>
             <ul className="space-y-1">
               {data.health_benefits.map((benefit, i) => (
-                <li key={i} className="text-xs text-green-700 flex items-start gap-1.5">
-                  <span className="text-green-500 mt-0.5">&#x2713;</span>
-                  {benefit}
+                <li key={i} className="text-xs text-green-600 flex items-start gap-1.5 font-body">
+                  <span className="text-green-600 mt-0.5">&#x2713;</span>{benefit}
                 </li>
               ))}
             </ul>
           </div>
         )}
-
         {data.ayurvedic_benefits && (
-          <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+          <div className="bg-purple-50 border border-purple-200 p-4">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="h-4 w-4 text-purple-600" />
-              <h4 className="font-bold text-purple-800 text-sm">Ayurvedic Wisdom</h4>
+              <h4 className="font-body font-semibold text-purple-700 text-sm">Ayurvedic Wisdom</h4>
             </div>
-            <p className="text-xs text-purple-700 leading-relaxed">{data.ayurvedic_benefits}</p>
+            <p className="text-xs text-purple-600 leading-relaxed font-body">{data.ayurvedic_benefits}</p>
           </div>
         )}
       </div>
 
-      {/* Dietary Tags & Allergens */}
       <div className="flex flex-wrap gap-2">
         {data.dietary_tags?.map((tag, i) => (
-          <Badge key={i} className="bg-teal-100 text-teal-800 border-teal-300 text-xs" variant="outline">
-            {tag}
-          </Badge>
+          <Badge key={i} className="bg-teal-50 text-teal-600 border-teal-200 text-xs font-body" variant="outline">{tag}</Badge>
         ))}
         {data.allergens?.length > 0 && data.allergens.map((allergen, i) => (
-          <Badge key={`a-${i}`} className="bg-red-50 text-red-700 border-red-200 text-xs" variant="outline">
-            <AlertTriangle className="h-3 w-3 mr-1" />
-            {allergen}
+          <Badge key={`a-${i}`} className="bg-red-50 text-red-500 border-red-200 text-xs font-body" variant="outline">
+            <AlertTriangle className="h-3 w-3 mr-1" />{allergen}
           </Badge>
         ))}
       </div>
-
-      {/* Disclaimer */}
-      <p className="text-[10px] text-gray-400 italic text-center">
-        * Nutritional values are AI-estimated for general guidance. Actual values may vary based on preparation.
-      </p>
+      <p className="text-[10px] text-[#7A6F65] italic text-center font-body">* Nutritional values are AI-estimated for general guidance. Actual values may vary.</p>
     </div>
   );
 };
 
 const MacroCard = ({ icon, label, value, color, bg }) => (
-  <div className={`${bg} rounded-lg p-2 text-center`}>
+  <div className={`${bg} p-2 text-center`}>
     <div className={`${color} flex justify-center mb-1`}>{icon}</div>
-    <p className={`text-lg font-bold ${color}`}>{value}</p>
-    <p className="text-[10px] text-gray-600">{label}</p>
+    <p className={`text-lg font-heading font-medium ${color}`}>{value}</p>
+    <p className="text-[10px] text-[#7A6F65] font-body">{label}</p>
   </div>
 );
 
