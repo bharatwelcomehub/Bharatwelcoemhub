@@ -321,8 +321,7 @@ async def get_wc_table(req: dict = Body(...)):
     """
     Working Capital Assessment:
     - P/L = Total Sales - (Total Expenses + Total Commission)
-    - If P/L negative: deduct from WC
-    - If P/L positive: WC unchanged (profit doesn't auto-add)
+    - Closing WC = Opening WC + P/L (both profits and losses apply)
     - Manual top-ups increase WC (with audit trail)
     - Revenue Share stops if WC <= 50% of initial
     """
@@ -434,9 +433,8 @@ async def get_wc_table(req: dict = Body(...)):
         
         opening_wc = round(current_wc, 2)
         
-        # Apply P/L: only deduct losses, don't auto-add profits
-        if pnl < 0:
-            current_wc = round(current_wc + pnl, 2)  # deduct loss
+        # Apply P/L: both profits and losses affect WC
+        current_wc = round(current_wc + pnl, 2)
         
         # Apply any manual top-ups for this month
         topup_amount = round(topup_by_month.get(month, 0), 2)
