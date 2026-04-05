@@ -743,6 +743,192 @@ async def update_tiffin_config(config: TiffinConfig, credentials: HTTPAuthorizat
     await db.tiffin_config.update_one({}, {"$set": config_dict}, upsert=True)
     return {"message": "Tiffin config updated"}
 
+
+# ===================== CATERING ADMIN API =====================
+
+class CateringPackage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str  # Classic, Premium, Special Feast, Royal Feast
+    description: str
+    price_per_person_inr: float
+    price_per_person_aud: float
+    is_popular: bool = False
+    requirements: dict  # {"starters": 1, "mains": 2, ...}
+    is_active: bool = True
+    display_order: int = 0
+
+class CateringMenuItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = ""
+    category: str  # starters, specialBhaji, simpleBhaji, desserts, roti, rice, drinks, sides, chutney
+    image_url: Optional[str] = ""
+    is_veg: bool = True
+    is_available: bool = True
+
+# Get catering packages (public)
+@api_router.get("/catering-packages")
+async def get_catering_packages():
+    packages = await db.catering_packages.find({"is_active": True}, {"_id": 0}).to_list(100)
+    if not packages:
+        # Return data from JSON file as fallback
+        json_path = Path(__file__).parent.parent / 'frontend' / 'src' / 'config' / 'catering-packages.json'
+        if json_path.exists():
+            with open(json_path) as f:
+                data = json.load(f)
+                return {"packages": data.get("packages", {}), "menuOptions": data.get("menuOptions", {})}
+        return {"packages": {}, "menuOptions": {}}
+    
+    menu_items = await db.catering_menu_items.find({"is_available": True}, {"_id": 0}).to_list(500)
+    
+    # Organize packages by region
+    india_packages = [p for p in packages if 'inr' in str(p.get('price_per_person_inr', 0)) or p.get('price_per_person_inr')]
+    australia_packages = [p for p in packages if p.get('price_per_person_aud')]
+    
+    # Organize menu items by category
+    menu_options = {}
+    for item in menu_items:
+        cat = item['category']
+        if cat not in menu_options:
+            menu_options[cat] = []
+        menu_options[cat].append(item)
+    
+    return {
+        "packages": {"india": packages, "australia": packages},
+        "menuOptions": menu_options
+    }
+
+# Get all catering packages (admin)
+@api_router.get("/admin/catering-packages")
+async def get_admin_catering_packages(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    packages = await db.catering_packages.find({}, {"_id": 0}).to_list(100)
+    return packages
+
+# Create catering package
+@api_router.post("/admin/catering-packages")
+async def create_catering_package(package: CateringPackage, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    package_dict = package.model_dump()
+    await db.catering_packages.insert_one({**package_dict})
+    return {"message": "Package created", "package": package_dict}
+
+# Update catering package
+@api_router.put("/admin/catering-packages/{package_id}")
+async def update_catering_package(package_id: str, package: CateringPackage, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    package_dict = package.model_dump()
+    package_dict['id'] = package_id
+    result = await db.catering_packages.update_one({"id": package_id}, {"$set": package_dict})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Package not found")
+    return {"message": "Package updated"}
+
+# Delete catering package
+@api_router.delete("/admin/catering-packages/{package_id}")
+async def delete_catering_package(package_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = await db.catering_packages.delete_one({"id": package_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Package not found")
+    return {"message": "Package deleted"}
+
+# Get all catering menu items (admin)
+@api_router.get("/admin/catering-menu")
+async def get_admin_catering_menu(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    items = await db.catering_menu_items.find({}, {"_id": 0}).to_list(500)
+    return items
+
+# Create catering menu item
+@api_router.post("/admin/catering-menu")
+async def create_catering_menu_item(item: CateringMenuItem, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    item_dict = item.model_dump()
+    await db.catering_menu_items.insert_one({**item_dict})
+    return {"message": "Item created", "item": item_dict}
+
+# Update catering menu item
+@api_router.put("/admin/catering-menu/{item_id}")
+async def update_catering_menu_item(item_id: str, item: CateringMenuItem, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    item_dict = item.model_dump()
+    item_dict['id'] = item_id
+    result = await db.catering_menu_items.update_one({"id": item_id}, {"$set": item_dict})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Item updated"}
+
+# Delete catering menu item
+@api_router.delete("/admin/catering-menu/{item_id}")
+async def delete_catering_menu_item(item_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    result = await db.catering_menu_items.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Item deleted"}
+
+# Seed catering data from JSON
+@api_router.post("/admin/catering-seed")
+async def seed_catering_data(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    json_path = Path(__file__).parent.parent / 'frontend' / 'src' / 'config' / 'catering-packages.json'
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail="Catering config file not found")
+    
+    with open(json_path) as f:
+        data = json.load(f)
+    
+    # Seed packages
+    packages_seeded = 0
+    for region, packages in data.get("packages", {}).items():
+        for pkg in packages:
+            existing = await db.catering_packages.find_one({"name": pkg['name'], "price_per_person_inr" if region == 'india' else "price_per_person_aud": pkg['pricePerPerson']})
+            if not existing:
+                catering_pkg = {
+                    "id": str(uuid.uuid4()),
+                    "name": pkg['name'],
+                    "description": pkg.get('description', ''),
+                    "price_per_person_inr": pkg['pricePerPerson'] if region == 'india' else 0,
+                    "price_per_person_aud": pkg['pricePerPerson'] if region == 'australia' else 0,
+                    "is_popular": pkg.get('isPopular', False),
+                    "requirements": pkg.get('requirements', {}),
+                    "is_active": True,
+                    "display_order": int(pkg['id'].split('-')[1]) if '-' in pkg['id'] else 0
+                }
+                await db.catering_packages.insert_one(catering_pkg)
+                packages_seeded += 1
+    
+    # Seed menu items
+    items_seeded = 0
+    for category, items in data.get("menuOptions", {}).items():
+        for item in items:
+            existing = await db.catering_menu_items.find_one({"name": item['name'], "category": category})
+            if not existing:
+                menu_item = {
+                    "id": str(uuid.uuid4()),
+                    "name": item['name'],
+                    "description": "",
+                    "category": category,
+                    "image_url": "",
+                    "is_veg": item.get('isVeg', True),
+                    "is_available": True
+                }
+                await db.catering_menu_items.insert_one(menu_item)
+                items_seeded += 1
+    
+    return {"message": f"Seeded {packages_seeded} packages and {items_seeded} menu items"}
+
 # ===================== FESTIVAL THEME API =====================
 
 class FestivalTheme(BaseModel):

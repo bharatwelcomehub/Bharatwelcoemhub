@@ -118,6 +118,44 @@ const Admin = () => {
     { id: 'drink_addon', label: 'Drink Add-ons' }
   ];
 
+  // Catering state
+  const [cateringPackages, setCateringPackages] = useState([]);
+  const [cateringMenuItems, setCateringMenuItems] = useState([]);
+  const [cateringPackageDialogOpen, setCateringPackageDialogOpen] = useState(false);
+  const [cateringItemDialogOpen, setCateringItemDialogOpen] = useState(false);
+  const [editingCateringPackage, setEditingCateringPackage] = useState(null);
+  const [editingCateringItem, setEditingCateringItem] = useState(null);
+  const [cateringPackageForm, setCateringPackageForm] = useState({
+    name: '',
+    description: '',
+    price_per_person_inr: '',
+    price_per_person_aud: '',
+    is_popular: false,
+    requirements: { starters: 0, mains: 0, special: 0, roti: 0, rice: 0, side: 0, dessert: 0, drink: 0, chutney: 0 },
+    is_active: true,
+    display_order: 0
+  });
+  const [cateringItemForm, setCateringItemForm] = useState({
+    name: '',
+    description: '',
+    category: 'starters',
+    image_url: '',
+    is_veg: true,
+    is_available: true
+  });
+
+  const cateringCategories = [
+    { id: 'starters', label: 'Starters' },
+    { id: 'specialBhaji', label: 'Special Bhaji' },
+    { id: 'simpleBhaji', label: 'Simple Bhaji / Mains' },
+    { id: 'desserts', label: 'Desserts' },
+    { id: 'roti', label: 'Roti / Breads' },
+    { id: 'rice', label: 'Rice' },
+    { id: 'drinks', label: 'Drinks' },
+    { id: 'sides', label: 'Sides' },
+    { id: 'chutney', label: 'Chutney' }
+  ];
+
   // Festival themes state
   const [festivalThemes, setFestivalThemes] = useState([]);
   const [festivalDialogOpen, setFestivalDialogOpen] = useState(false);
@@ -158,6 +196,8 @@ const Admin = () => {
       fetchTiffinItems();
       fetchTiffinConfig();
       fetchFestivalThemes();
+      fetchCateringPackages();
+      fetchCateringMenuItems();
     }
   }, [token]);
 
@@ -175,6 +215,8 @@ const Admin = () => {
         fetchTiffinItems();
         fetchTiffinConfig();
         fetchFestivalThemes();
+        fetchCateringPackages();
+        fetchCateringMenuItems();
       }, 100);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
@@ -714,6 +756,164 @@ const Admin = () => {
     }
   };
 
+  // ===================== CATERING CRUD FUNCTIONS =====================
+  
+  const fetchCateringPackages = async () => {
+    const currentToken = getToken();
+    if (!currentToken) return;
+    try {
+      const response = await axios.get(`${API}/admin/catering-packages`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      setCateringPackages(response.data);
+    } catch (error) {
+      console.error('Failed to fetch catering packages:', error);
+    }
+  };
+
+  const fetchCateringMenuItems = async () => {
+    const currentToken = getToken();
+    if (!currentToken) return;
+    try {
+      const response = await axios.get(`${API}/admin/catering-menu`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      setCateringMenuItems(response.data);
+    } catch (error) {
+      console.error('Failed to fetch catering menu items:', error);
+    }
+  };
+
+  const handleCateringPackageSubmit = async (e) => {
+    e.preventDefault();
+    const currentToken = getToken();
+    try {
+      const payload = {
+        ...cateringPackageForm,
+        price_per_person_inr: parseFloat(cateringPackageForm.price_per_person_inr) || 0,
+        price_per_person_aud: parseFloat(cateringPackageForm.price_per_person_aud) || 0
+      };
+      
+      if (editingCateringPackage) {
+        await axios.put(
+          `${API}/admin/catering-packages/${editingCateringPackage.id}`,
+          payload,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Package updated!');
+      } else {
+        await axios.post(
+          `${API}/admin/catering-packages`,
+          payload,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Package created!');
+      }
+      setCateringPackageDialogOpen(false);
+      resetCateringPackageForm();
+      fetchCateringPackages();
+    } catch (error) {
+      toast.error('Operation failed');
+    }
+  };
+
+  const handleDeleteCateringPackage = async (id) => {
+    if (!window.confirm('Delete this package?')) return;
+    const currentToken = getToken();
+    try {
+      await axios.delete(`${API}/admin/catering-packages/${id}`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Package deleted');
+      fetchCateringPackages();
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
+  };
+
+  const resetCateringPackageForm = () => {
+    setEditingCateringPackage(null);
+    setCateringPackageForm({
+      name: '',
+      description: '',
+      price_per_person_inr: '',
+      price_per_person_aud: '',
+      is_popular: false,
+      requirements: { starters: 0, mains: 0, special: 0, roti: 0, rice: 0, side: 0, dessert: 0, drink: 0, chutney: 0 },
+      is_active: true,
+      display_order: 0
+    });
+  };
+
+  const handleCateringItemSubmit = async (e) => {
+    e.preventDefault();
+    const currentToken = getToken();
+    try {
+      if (editingCateringItem) {
+        await axios.put(
+          `${API}/admin/catering-menu/${editingCateringItem.id}`,
+          cateringItemForm,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Item updated!');
+      } else {
+        await axios.post(
+          `${API}/admin/catering-menu`,
+          cateringItemForm,
+          { headers: { Authorization: `Bearer ${currentToken}` } }
+        );
+        toast.success('Item created!');
+      }
+      setCateringItemDialogOpen(false);
+      resetCateringItemForm();
+      fetchCateringMenuItems();
+    } catch (error) {
+      toast.error('Operation failed');
+    }
+  };
+
+  const handleDeleteCateringItem = async (id) => {
+    if (!window.confirm('Delete this item?')) return;
+    const currentToken = getToken();
+    try {
+      await axios.delete(`${API}/admin/catering-menu/${id}`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Item deleted');
+      fetchCateringMenuItems();
+    } catch (error) {
+      toast.error('Failed to delete');
+    }
+  };
+
+  const resetCateringItemForm = () => {
+    setEditingCateringItem(null);
+    setCateringItemForm({
+      name: '',
+      description: '',
+      category: 'starters',
+      image_url: '',
+      is_veg: true,
+      is_available: true
+    });
+  };
+
+  const handleSeedCateringData = async () => {
+    const currentToken = getToken();
+    try {
+      const response = await axios.post(
+        `${API}/admin/catering-seed`,
+        {},
+        { headers: { Authorization: `Bearer ${currentToken}` } }
+      );
+      toast.success(response.data.message);
+      fetchCateringPackages();
+      fetchCateringMenuItems();
+    } catch (error) {
+      toast.error('Failed to seed data');
+    }
+  };
+
   // Festival Theme CRUD functions
   const fetchFestivalThemes = async () => {
     const currentToken = getToken();
@@ -929,6 +1129,10 @@ const Admin = () => {
             <TabsTrigger value="tiffin" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <UtensilsCrossed className="h-4 w-4" />
               Tiffin ({tiffinItems.length})
+            </TabsTrigger>
+            <TabsTrigger value="catering" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+              <UtensilsCrossed className="h-4 w-4" />
+              Catering ({cateringPackages.length})
             </TabsTrigger>
             <TabsTrigger value="locations" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
               <MapPin className="h-4 w-4" />
@@ -1513,6 +1717,169 @@ const Admin = () => {
                                       <Edit className="h-4 w-4" />
                                     </Button>
                                     <Button variant="ghost" size="icon" onClick={() => handleDeleteTiffinItem(item.id)} className="text-red-500">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          {/* CATERING TAB */}
+          <TabsContent value="catering">
+            <div className="space-y-6">
+              {/* Seed Data Button */}
+              {cateringPackages.length === 0 && cateringMenuItems.length === 0 && (
+                <Card className="border-amber-200 bg-amber-50">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-sm text-amber-800 mb-4">
+                      No catering data found. Would you like to import from the default configuration?
+                    </p>
+                    <Button onClick={handleSeedCateringData} className="bg-amber-600 hover:bg-amber-700">
+                      Import Default Catering Menu
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Catering Packages */}
+              <div className="flex justify-between items-center">
+                <h2 className="font-heading text-xl font-semibold text-[#2D1810]">Catering Packages</h2>
+                <Button
+                  onClick={() => { resetCateringPackageForm(); setCateringPackageDialogOpen(true); }}
+                  className="gold-glossy text-[#3D2314] font-bold rounded-none"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Package
+                </Button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {cateringPackages.map(pkg => (
+                  <Card key={pkg.id} className="pearl-surface border-[#E8DFD0] rounded-none">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center justify-between font-heading text-[#2D1810]">
+                        {pkg.name}
+                        {pkg.is_popular && <Badge className="bg-[#B8962E] text-white">Popular</Badge>}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm">
+                      <p className="text-[#5C4A3A] mb-2">{pkg.description}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                        <div className="bg-[#F8F5F0] p-2 rounded-none">
+                          <span className="text-[#7A6F65]">₹ INR</span>
+                          <p className="font-semibold text-[#B8962E]">₹{pkg.price_per_person_inr}/person</p>
+                        </div>
+                        <div className="bg-[#F8F5F0] p-2 rounded-none">
+                          <span className="text-[#7A6F65]">$ AUD</span>
+                          <p className="font-semibold text-[#B8962E]">${pkg.price_per_person_aud}/person</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E] rounded-none"
+                          onClick={() => {
+                            setEditingCateringPackage(pkg);
+                            setCateringPackageForm({
+                              ...pkg,
+                              price_per_person_inr: pkg.price_per_person_inr?.toString() || '',
+                              price_per_person_aud: pkg.price_per_person_aud?.toString() || ''
+                            });
+                            setCateringPackageDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 rounded-none"
+                          onClick={() => handleDeleteCateringPackage(pkg.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Catering Menu Items */}
+              <div className="flex justify-between items-center mt-8">
+                <h2 className="font-heading text-xl font-semibold text-[#2D1810]">Catering Menu Items</h2>
+                <Button
+                  onClick={() => { resetCateringItemForm(); setCateringItemDialogOpen(true); }}
+                  className="gold-glossy text-[#3D2314] font-bold rounded-none"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Menu Item
+                </Button>
+              </div>
+
+              {cateringCategories.map(cat => {
+                const items = cateringMenuItems.filter(i => i.category === cat.id);
+                return (
+                  <Card key={cat.id} className="pearl-surface border-[#E8DFD0] rounded-none">
+                    <CardHeader className="pb-2 bg-[#F8F5F0] border-b border-[#E8DFD0]">
+                      <CardTitle className="text-lg font-heading text-[#2D1810]">{cat.label} ({items.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      {items.length === 0 ? (
+                        <p className="text-sm text-[#7A6F65]">No items yet. Click "Add Menu Item" to add.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-[#5C4A3A]">Image</TableHead>
+                              <TableHead className="text-[#5C4A3A]">Name</TableHead>
+                              <TableHead className="text-[#5C4A3A]">Description</TableHead>
+                              <TableHead className="text-[#5C4A3A]">Status</TableHead>
+                              <TableHead className="text-[#5C4A3A]">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {items.map(item => (
+                              <TableRow key={item.id}>
+                                <TableCell>
+                                  {item.image_url ? (
+                                    <img src={item.image_url} alt={item.name} className="w-10 h-10 object-cover rounded-none border border-[#E8DFD0]" />
+                                  ) : (
+                                    <div className="w-10 h-10 bg-[#F8F5F0] rounded-none flex items-center justify-center border border-[#E8DFD0]">
+                                      <ImageIcon className="h-5 w-5 text-[#B8962E]/50" />
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-medium text-[#2D1810]">{item.name}</TableCell>
+                                <TableCell className="text-[#5C4A3A] max-w-xs truncate">{item.description || '-'}</TableCell>
+                                <TableCell>
+                                  <Badge variant={item.is_available ? 'default' : 'secondary'} className={item.is_available ? 'bg-green-100 text-green-800' : ''}>
+                                    {item.is_available ? 'Active' : 'Inactive'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        setEditingCateringItem(item);
+                                        setCateringItemForm(item);
+                                        setCateringItemDialogOpen(true);
+                                      }}
+                                    >
+                                      <Edit className="h-4 w-4 text-[#5C4A3A]" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteCateringItem(item.id)} className="text-red-500">
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </div>
@@ -2226,6 +2593,202 @@ const Admin = () => {
                 </Button>
                 <Button type="submit" className="bg-amber-600 hover:bg-amber-700" data-testid="save-tiffin-btn">
                   {editingTiffinItem ? 'Update' : 'Add Item'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Catering Package Dialog */}
+        <Dialog open={cateringPackageDialogOpen} onOpenChange={setCateringPackageDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-[#2D1810]">
+                {editingCateringPackage ? 'Edit Package' : 'Add Catering Package'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleCateringPackageSubmit} className="space-y-4">
+              <div>
+                <Label className="text-[#5C4A3A]">Package Name *</Label>
+                <Input
+                  value={cateringPackageForm.name}
+                  onChange={(e) => setCateringPackageForm({ ...cateringPackageForm, name: e.target.value })}
+                  placeholder="e.g., Classic, Premium"
+                  required
+                  className="border-[#E8DFD0] rounded-none"
+                />
+              </div>
+              <div>
+                <Label className="text-[#5C4A3A]">Description</Label>
+                <Textarea
+                  value={cateringPackageForm.description}
+                  onChange={(e) => setCateringPackageForm({ ...cateringPackageForm, description: e.target.value })}
+                  placeholder="Brief description"
+                  rows={2}
+                  className="border-[#E8DFD0] rounded-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-[#5C4A3A]">Price per Person (₹ INR)</Label>
+                  <Input
+                    type="number"
+                    value={cateringPackageForm.price_per_person_inr}
+                    onChange={(e) => setCateringPackageForm({ ...cateringPackageForm, price_per_person_inr: e.target.value })}
+                    placeholder="e.g., 450"
+                    className="border-[#E8DFD0] rounded-none"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[#5C4A3A]">Price per Person ($ AUD)</Label>
+                  <Input
+                    type="number"
+                    value={cateringPackageForm.price_per_person_aud}
+                    onChange={(e) => setCateringPackageForm({ ...cateringPackageForm, price_per_person_aud: e.target.value })}
+                    placeholder="e.g., 35"
+                    className="border-[#E8DFD0] rounded-none"
+                  />
+                </div>
+              </div>
+              <div className="bg-[#F8F5F0] p-4 rounded-none border border-[#E8DFD0]">
+                <Label className="text-[#5C4A3A] text-sm mb-2 block">Menu Requirements (items per category)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.keys(cateringPackageForm.requirements || {}).map(key => (
+                    <div key={key}>
+                      <Label className="text-xs text-[#7A6F65] capitalize">{key}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={cateringPackageForm.requirements[key]}
+                        onChange={(e) => setCateringPackageForm({
+                          ...cateringPackageForm,
+                          requirements: { ...cateringPackageForm.requirements, [key]: parseInt(e.target.value) || 0 }
+                        })}
+                        className="border-[#E8DFD0] rounded-none h-8 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cateringPackageForm.is_popular}
+                  onChange={(e) => setCateringPackageForm({ ...cateringPackageForm, is_popular: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-sm text-[#5C4A3A]">Mark as Popular</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cateringPackageForm.is_active}
+                  onChange={(e) => setCateringPackageForm({ ...cateringPackageForm, is_active: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-sm text-[#5C4A3A]">Active</span>
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setCateringPackageDialogOpen(false)} className="rounded-none">
+                  Cancel
+                </Button>
+                <Button type="submit" className="gold-glossy text-[#3D2314] font-bold rounded-none">
+                  {editingCateringPackage ? 'Update' : 'Add Package'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Catering Menu Item Dialog */}
+        <Dialog open={cateringItemDialogOpen} onOpenChange={setCateringItemDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-[#2D1810]">
+                {editingCateringItem ? 'Edit Menu Item' : 'Add Catering Menu Item'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleCateringItemSubmit} className="space-y-4">
+              <div>
+                <Label className="text-[#5C4A3A]">Item Name *</Label>
+                <Input
+                  value={cateringItemForm.name}
+                  onChange={(e) => setCateringItemForm({ ...cateringItemForm, name: e.target.value })}
+                  placeholder="e.g., Kothimbir Vadi"
+                  required
+                  className="border-[#E8DFD0] rounded-none"
+                />
+              </div>
+              <div>
+                <Label className="text-[#5C4A3A]">Description</Label>
+                <Textarea
+                  value={cateringItemForm.description}
+                  onChange={(e) => setCateringItemForm({ ...cateringItemForm, description: e.target.value })}
+                  placeholder="Brief description (optional)"
+                  rows={2}
+                  className="border-[#E8DFD0] rounded-none"
+                />
+              </div>
+              <div>
+                <Label className="text-[#5C4A3A]">Category *</Label>
+                <Select
+                  value={cateringItemForm.category}
+                  onValueChange={(value) => setCateringItemForm({ ...cateringItemForm, category: value })}
+                >
+                  <SelectTrigger className="border-[#E8DFD0] rounded-none">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cateringCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[#5C4A3A]">Image URL (optional)</Label>
+                <Input
+                  type="url"
+                  value={cateringItemForm.image_url}
+                  onChange={(e) => setCateringItemForm({ ...cateringItemForm, image_url: e.target.value })}
+                  placeholder="https://lh3.googleusercontent.com/d/..."
+                  className="border-[#E8DFD0] rounded-none"
+                />
+              </div>
+              {cateringItemForm.image_url && (
+                <div className="rounded-none overflow-hidden border border-[#E8DFD0]">
+                  <img 
+                    src={cateringItemForm.image_url} 
+                    alt="Preview" 
+                    className="w-full h-24 object-cover"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/200x100?text=Invalid+URL'; }}
+                  />
+                </div>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cateringItemForm.is_veg}
+                  onChange={(e) => setCateringItemForm({ ...cateringItemForm, is_veg: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-sm text-[#5C4A3A]">Vegetarian</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cateringItemForm.is_available}
+                  onChange={(e) => setCateringItemForm({ ...cateringItemForm, is_available: e.target.checked })}
+                  className="rounded"
+                />
+                <span className="text-sm text-[#5C4A3A]">Available for ordering</span>
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setCateringItemDialogOpen(false)} className="rounded-none">
+                  Cancel
+                </Button>
+                <Button type="submit" className="gold-glossy text-[#3D2314] font-bold rounded-none">
+                  {editingCateringItem ? 'Update' : 'Add Item'}
                 </Button>
               </div>
             </form>

@@ -16,8 +16,12 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 const Home = () => {
   const [festivalTheme, setFestivalTheme] = useState(null);
+  const [heroImage, setHeroImage] = useState(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const { currentCity } = useSEO();
+  
+  // Default hero image fallback
+  const defaultHeroImage = "https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260";
 
   const featuredDishes = [
     { id: 1, name: "Kaju Curry", description: "Rich cashew curry with aromatic spices", price: "479", image: "https://lh3.googleusercontent.com/d/1rYkehXEPrE9I4jf1QnaICJscFd3Vso2v", tag: "Bestseller" },
@@ -56,6 +60,19 @@ const Home = () => {
     fetchFestival();
   }, []);
 
+  // Fetch active hero image from database
+  useEffect(() => {
+    const fetchHeroImage = async () => {
+      try {
+        const res = await axios.get(`${API}/api/hero-image`);
+        if (res.data) setHeroImage(res.data);
+      } catch (e) {
+        console.log('Using default hero image');
+      }
+    };
+    fetchHeroImage();
+  }, []);
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentSlide((p) => (p + 1) % testimonials.length), 5000);
     return () => clearInterval(timer);
@@ -84,7 +101,7 @@ const Home = () => {
       {/* HERO — Elegant Light Theme */}
       <section className="relative min-h-[90vh] overflow-hidden" data-testid="hero-section">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260)` }} />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${heroImage?.image_url || defaultHeroImage})` }} />
           <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-white/60" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#FDFBF7] via-transparent to-transparent" />
         </div>
