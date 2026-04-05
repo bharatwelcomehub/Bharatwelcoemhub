@@ -72,16 +72,18 @@ const formatCurrency = (value, intl = false) => {
   const sym = intl ? "$" : "₹";
   if (value === null || value === undefined) return `${sym}0`;
   const abs = Math.abs(value);
-  if (abs >= 10000000) return `${sym}${(abs / 10000000).toFixed(2)}Cr`;
-  if (abs >= 100000) return `${sym}${(abs / 100000).toFixed(2)}L`;
-  if (abs >= 1000) return `${sym}${(abs / 1000).toFixed(1)}K`;
-  return `${sym}${abs.toFixed(0)}`;
+  const sign = value < 0 ? '-' : '';
+  if (abs >= 10000000) return `${sign}${sym}${(abs / 10000000).toFixed(2)}Cr`;
+  if (abs >= 100000) return `${sign}${sym}${(abs / 100000).toFixed(2)}L`;
+  if (abs >= 1000) return `${sign}${sym}${(abs / 1000).toFixed(1)}K`;
+  return `${sign}${sym}${abs.toFixed(0)}`;
 };
 
 const formatFullCurrency = (value, intl = false) => {
   const sym = intl ? "$" : "₹";
   if (value === null || value === undefined) return `${sym}0`;
-  return `${sym}${Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  const sign = value < 0 ? '-' : '';
+  return `${sign}${sym}${Math.abs(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 };
 
 // Custom tooltip for charts

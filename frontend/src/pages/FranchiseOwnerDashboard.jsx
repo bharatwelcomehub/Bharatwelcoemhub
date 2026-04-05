@@ -217,6 +217,33 @@ export default function FranchiseOwnerDashboard() {
     toast.success("Report exported");
   };
 
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const handleDownloadPDF = async () => {
+    if (!overview?.summary) { toast.error("No data to export"); return; }
+    setPdfLoading(true);
+    try {
+      const res = await api.post("/mis/franchise-pdf", {
+        token: session.token, period, center: selectedCenter,
+        custom_start: customStart || undefined, custom_end: customEnd || undefined,
+        franchise_info: franchiseInfo || {},
+        revenue_share_pct: franchiseInfo?.revenue_share_percentage || 0,
+      }, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Franchise_Report_${selectedCenter}_${period}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("PDF report downloaded");
+    } catch (err) {
+      toast.error("PDF generation failed: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   const centerObj = centersList.find(c => c.code === selectedCenter);
   const isIntl = centerObj?.is_india_center === false || centerObj?.country === "Australia";
   const sm = overview?.summary;
@@ -313,6 +340,10 @@ export default function FranchiseOwnerDashboard() {
               </Select>
             )}
 
+            <Button variant="outline" size="sm" className="bg-amber-600/90 border-amber-500 text-white h-9 hover:bg-amber-500" onClick={handleDownloadPDF} disabled={pdfLoading || loading} data-testid="fo-download-pdf-btn">
+              <FileText className={`w-4 h-4 mr-1 ${pdfLoading ? 'animate-pulse' : ''}`} />
+              {pdfLoading ? "..." : "PDF"}
+            </Button>
             <Button variant="outline" size="sm" className="bg-slate-800/80 border-slate-600 text-white h-9" onClick={handleExportReport}>
               <Download className="w-4 h-4 mr-1" /> Export
             </Button>

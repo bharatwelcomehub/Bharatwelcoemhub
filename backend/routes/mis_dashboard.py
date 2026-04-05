@@ -1014,19 +1014,21 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
     def fmt(val):
         if val is None:
             return f"{sym}0"
-        return f"{sym}{abs(val):,.2f}"
+        sign = "-" if val < 0 else ""
+        return f"{sign}{sym}{abs(val):,.2f}"
 
     def fmt_short(val):
         if val is None:
             return f"{sym}0"
+        sign = "-" if val < 0 else ""
         av = abs(val)
         if av >= 10000000:
-            return f"{sym}{av/10000000:.2f}Cr"
+            return f"{sign}{sym}{av/10000000:.2f}Cr"
         if av >= 100000:
-            return f"{sym}{av/100000:.2f}L"
+            return f"{sign}{sym}{av/100000:.2f}L"
         if av >= 1000:
-            return f"{sym}{av/1000:.1f}K"
-        return f"{sym}{av:,.0f}"
+            return f"{sign}{sym}{av/1000:.1f}K"
+        return f"{sign}{sym}{av:,.0f}"
 
     elements = []
 
@@ -1075,7 +1077,10 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
         ["Cash Sales", fmt(s.get("total_cash_sales")), ""],
         ["Online Sales", fmt(s.get("total_online_sales")), ""],
         ["Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
+        ["Commissions", fmt(s.get("total_commissions")), ""],
         ["GST", fmt(s.get("total_gst")), ""],
+        ["Net Profit", fmt(s.get("profit")), f"{changes.get('profit_change', 0):+.1f}%"],
+        ["Working Capital", fmt(wc_data.get("available_working_capital", 0) if wc_data else 0), f"as of {wc_data.get('up_to_month', '')}"],
         ["Total Guests", f"{s.get('total_guests', 0):,}", ""],
         ["Total Bills", f"{s.get('total_bills', 0):,}", ""],
         ["Avg per Guest", fmt(s.get("avg_per_guest")), ""],
@@ -1103,7 +1108,7 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
     centers = overview_data.get("centers", [])
     if centers:
         elements.append(Paragraph("Center Performance", section_style))
-        center_header = ["Center", "Sales", "Expenses", "GST"]
+        center_header = ["Center", "Sales", "Expenses", "GST", "Commission", "Profit"]
         center_rows = [center_header]
         for c in centers:
             center_rows.append([
@@ -1111,9 +1116,11 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
                 fmt(c.get("sales")),
                 fmt(c.get("expenses")),
                 fmt(c.get("gst")),
+                fmt(c.get("commissions", 0)),
+                fmt(c.get("profit", 0)),
             ])
 
-        ct = Table(center_rows, colWidths=[100, 120, 120, 100])
+        ct = Table(center_rows, colWidths=[80, 90, 90, 80, 80, 80])
         ct_style = [
             ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1181,33 +1188,32 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
     elements.append(Paragraph("Working Capital", section_style))
     
     initial_wc = wc_data.get("initial_working_capital", 0) if wc_data else 0
-    total_loans = wc_data.get("total_loans", 0) if wc_data else 0
-    total_repaid = wc_data.get("total_repaid", 0) if wc_data else 0
     available_wc = wc_data.get("available_working_capital", 0) if wc_data else 0
-    total_outstanding = wc_data.get("total_outstanding", 0) if wc_data else 0
+    total_loans_val = wc_data.get("total_outstanding", 0) if wc_data else 0
+    up_to_month = wc_data.get("up_to_month", "") if wc_data else ""
     
     elements.append(Paragraph(
         f"Initial WC: <b>{fmt(initial_wc)}</b> &nbsp;|&nbsp; "
-        f"Loans: <b>{fmt(total_loans)}</b> &nbsp;|&nbsp; "
-        f"Repaid: <b>{fmt(total_repaid)}</b> &nbsp;|&nbsp; "
-        f"Available: <b>{fmt(available_wc)}</b>",
+        f"Current WC: <b>{fmt(available_wc)}</b> &nbsp;|&nbsp; "
+        f"Loans Outstanding: <b>{fmt(total_loans_val)}</b> &nbsp;|&nbsp; "
+        f"As of: <b>{up_to_month}</b>",
         normal_style
     ))
     elements.append(Spacer(1, 6))
 
     wc_centers = wc_data.get("centers", []) if wc_data else []
     if wc_centers:
-        wc_header = ["Center", "Franchise", "Initial WC", "Loans", "Repaid", "Outstanding", "Available"]
+        wc_header = ["Center", "Franchise", "Initial WC", "Current WC", "This Month P/L", "Loans", "Status"]
         wc_rows = [wc_header]
         for c in wc_centers:
             wc_rows.append([
                 c.get("center", ""),
                 c.get("franchise_name", ""),
                 fmt(c.get("initial_wc")),
-                fmt(c.get("total_loans")),
-                fmt(c.get("total_repaid")),
-                fmt(c.get("outstanding")),
-                fmt(c.get("available_wc")),
+                fmt(c.get("current_wc", c.get("available_wc"))),
+                fmt(c.get("this_month_pnl", 0)),
+                fmt(c.get("loans_outstanding", 0)),
+                c.get("wc_status", "healthy").capitalize(),
             ])
 
         wt = Table(wc_rows, colWidths=[60, 90, 65, 65, 65, 65, 65])
@@ -1225,9 +1231,9 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
             ('LEFTPADDING', (0, 0), (-1, -1), 5),
         ]))
         elements.append(wt)
-    elif total_outstanding == 0:
+    elif available_wc >= initial_wc and initial_wc > 0:
         elements.append(Paragraph(
-            "Working capital is fully intact. No loans drawn against it.",
+            "Working capital is healthy and above initial deposit.",
             normal_style
         ))
     elements.append(Spacer(1, 10))
@@ -1319,3 +1325,206 @@ async def download_mis_pdf(data: dict):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+@router.post("/franchise-pdf")
+async def download_franchise_pdf(data: dict):
+    """Generate and return a branded Franchise Dashboard PDF report."""
+    token = data.get("token")
+    period = data.get("period", "current_month")
+    center = data.get("center", "all")
+    custom_start = data.get("custom_start")
+    custom_end = data.get("custom_end")
+    franchise_info = data.get("franchise_info", {})
+    revenue_share_pct = float(data.get("revenue_share_pct", 0))
+
+    session = await check_mis_access(token)
+
+    is_intl = False
+    if center != "all":
+        center_doc = await db.centers.find_one({"code": center}, {"_id": 0})
+        if center_doc and center_doc.get("is_india_center") is False:
+            is_intl = True
+
+    base_params = {"token": token, "period": period, "center": center,
+                   "custom_start": custom_start, "custom_end": custom_end}
+
+    overview_data = await get_mis_overview({**base_params})
+    expense_data = await get_expense_analysis({**base_params})
+    wc_data = await get_working_capital({**base_params})
+
+    # Build Franchise PDF using the shared builder but with franchise branding
+    pdf_buf = _build_franchise_pdf(overview_data, expense_data, wc_data, center,
+                                    franchise_info, revenue_share_pct, is_intl)
+
+    period_data = overview_data.get("period", {})
+    filename = f"Franchise_Report_{center}_{period_data.get('start', '')}_to_{period_data.get('end', '')}.pdf"
+
+    return StreamingResponse(
+        pdf_buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, franchise_info, revenue_share_pct, is_intl=False):
+    """Generate a branded Franchise Dashboard PDF."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm,
+                            topMargin=14*mm, bottomMargin=18*mm, title="Franchise Report")
+
+    styles = getSampleStyleSheet()
+    SAFFRON = colors.HexColor("#D97706")
+    DARK_BG = colors.HexColor("#1E293B")
+    HEADER_BG = colors.HexColor("#0F172A")
+    GREEN = colors.HexColor("#059669")
+    RED = colors.HexColor("#DC2626")
+    LIGHT_GRAY = colors.HexColor("#F1F5F9")
+    MID_GRAY = colors.HexColor("#94A3B8")
+
+    title_style = ParagraphStyle("BrandTitle", parent=styles["Title"], fontSize=20,
+        textColor=DARK_BG, spaceAfter=2, fontName="Helvetica-Bold")
+    subtitle_style = ParagraphStyle("SubTitle", parent=styles["Normal"], fontSize=10,
+        textColor=MID_GRAY, spaceAfter=6, fontName="Helvetica")
+    section_style = ParagraphStyle("SectionHead", parent=styles["Heading2"], fontSize=13,
+        textColor=DARK_BG, spaceBefore=14, spaceAfter=6, fontName="Helvetica-Bold")
+    normal_style = ParagraphStyle("Body", parent=styles["Normal"], fontSize=9,
+        textColor=colors.HexColor("#334155"), fontName="Helvetica")
+    small_style = ParagraphStyle("Small", parent=styles["Normal"], fontSize=7.5,
+        textColor=MID_GRAY, fontName="Helvetica")
+
+    sym = "$" if is_intl else "\u20b9"
+
+    def fmt(val):
+        if val is None: return f"{sym}0"
+        sign = "-" if val < 0 else ""
+        return f"{sign}{sym}{abs(val):,.2f}"
+
+    elements = []
+
+    # Header
+    elements.append(Paragraph("Purnabramha - Franchise Dashboard", title_style))
+    period = overview_data.get("period", {})
+    franchise_name = franchise_info.get("franchise_name", center_code)
+    owner = franchise_info.get("owner_name", "")
+    elements.append(Paragraph(
+        f"{franchise_name} &nbsp;|&nbsp; {center_code} &nbsp;|&nbsp; {period.get('start', '')} to {period.get('end', '')}",
+        subtitle_style
+    ))
+    if owner:
+        elements.append(Paragraph(f"Franchise Owner: {owner} &nbsp;|&nbsp; Revenue Share: {revenue_share_pct}%", subtitle_style))
+    elements.append(HRFlowable(width="100%", thickness=1.5, color=SAFFRON, spaceAfter=10))
+
+    # Financial Summary
+    s = overview_data.get("summary", {})
+    changes = overview_data.get("changes", {})
+    profit = s.get("profit", 0)
+    net_revenue = profit * (revenue_share_pct / 100) if revenue_share_pct else 0
+    available_wc = wc_data.get("available_working_capital", 0) if wc_data else 0
+
+    elements.append(Paragraph("Financial Summary", section_style))
+    summary_rows = [
+        [Paragraph("<b>Metric</b>", normal_style), Paragraph("<b>Value</b>", normal_style), Paragraph("<b>vs Prev</b>", normal_style)],
+        ["Total Sales", fmt(s.get("total_sales")), f"{changes.get('sales_change', 0):+.1f}%"],
+        ["Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
+        ["Commissions", fmt(s.get("total_commissions")), ""],
+        ["GST", fmt(s.get("total_gst")), ""],
+        ["Net Profit", fmt(profit), f"{changes.get('profit_change', 0):+.1f}%"],
+        ["Working Capital", fmt(available_wc), f"as of {wc_data.get('up_to_month', '')}"],
+        [f"Revenue Share ({revenue_share_pct}%)", fmt(net_revenue), ""],
+        ["Avg per Bill", fmt(s.get("avg_per_bill")), ""],
+        ["Total Guests", f"{s.get('total_guests', 0):,}", ""],
+        ["Total Bills", f"{s.get('total_bills', 0):,}", ""],
+    ]
+
+    t = Table(summary_rows, colWidths=[180, 160, 120])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 10))
+
+    # Expense Breakdown
+    exp_types = expense_data.get("by_type", []) if expense_data else []
+    if exp_types:
+        elements.append(Paragraph("Expense Breakdown", section_style))
+        exp_rows = [[Paragraph("<b>Expense Head</b>", normal_style), Paragraph("<b>Amount</b>", normal_style),
+                     Paragraph("<b>% of Total</b>", normal_style), Paragraph("<b>Count</b>", normal_style)]]
+        for e in exp_types:
+            exp_rows.append([e.get("type", ""), fmt(e.get("amount")), f"{e.get('percentage', 0)}%", str(e.get("count", 0))])
+
+        et = Table(exp_rows, colWidths=[150, 120, 80, 60])
+        et.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(et)
+        elements.append(Spacer(1, 10))
+
+    # Working Capital Standing
+    wc_centers = wc_data.get("centers", []) if wc_data else []
+    if wc_centers:
+        elements.append(Paragraph("Working Capital Standing", section_style))
+        wc_rows = [["Center", "Initial WC", "Current WC", "This Month P/L", "Status"]]
+        for c in wc_centers:
+            wc_rows.append([
+                c.get("center", ""),
+                fmt(c.get("initial_wc")),
+                fmt(c.get("current_wc", c.get("available_wc"))),
+                fmt(c.get("this_month_pnl", 0)),
+                c.get("wc_status", "healthy").capitalize(),
+            ])
+        wt = Table(wc_rows, colWidths=[80, 100, 100, 100, 80])
+        wt.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(wt)
+        elements.append(Spacer(1, 10))
+
+    # Footer
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=MID_GRAY, spaceBefore=16))
+    generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
+    elements.append(Paragraph(
+        f"Generated on {generated_at} &nbsp;|&nbsp; Purnabramha Franchise Management System",
+        small_style
+    ))
+
+    doc.build(elements)
+    buf.seek(0)
+    return buf
