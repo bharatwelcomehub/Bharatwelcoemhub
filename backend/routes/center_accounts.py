@@ -138,18 +138,10 @@ def calculate_mg(total_investment: float, setup_costs: dict, franchise_fee: floa
 
 async def calculate_working_capital_standing(db_ref, center_code: str, up_to_month: str, country: str = "India"):
     """
-    Calculate Working Capital month-by-month like the WC Assessment Excel.
-    
-    Opening WC = Previous month's Closing WC (or Initial Deposit for first month)
-    This Month P&L = Sales - (Expenses + Commissions + GST)
-    Closing WC = Opening WC + This Month P&L
-    When WC goes to 0 → deficit becomes loan for that month
-    Diff from Initial = Closing WC - Initial Deposit
-    
-    Business Rules:
-    - WC < 50% of Initial → Revenue Share & MG both CLOSED
-    - WC < Initial → Profits refill WC first
-    - WC >= Initial → Normal revenue share / profit share applies
+    Calculate Working Capital standing for a specific month.
+    Uses the SAME logic as the WC Table: P/L = Sales - (Expenses + Commission).
+    Both profits and losses affect WC. No GST deduction in P/L.
+    Pulls initial WC from franchise's working_capital field in DB.
     """
     # Get franchise for initial WC (security deposit)
     center = await db_ref.centers.find_one({"code": center_code}, {"_id": 0})
@@ -163,113 +155,117 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
             if franchise:
                 initial_wc = float(franchise.get("working_capital", 0) or 0)
     
-    year, month = map(int, up_to_month.split("-"))
-    month_start = f"{year}-{month:02d}-01"
-    if month == 12:
-        end_date = f"{year + 1}-01-01"
-    else:
-        end_date = f"{year}-{month + 1:02d}-01"
+    # Check for initial WC override
+    wc_override = await db_ref.wc_overrides.find_one(
+        {"center": center_code, "month": {"$exists": False}},
+        {"_id": 0}
+    )
+    if wc_override and wc_override.get("initial_wc") is not None:
+        initial_wc = float(wc_override["initial_wc"])
     
-    gst_applicable = franchise.get("gst_applicable", False) if franchise else False
+    # Get monthly sales
+    sales_months = await db_ref.daily_sales.aggregate([
+        {"$match": {"center": center_code, "date": {"$regex": r"^\d{4}-\d{2}"}}},
+        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
+        {"$group": {"_id": "$month", "total_sale": {"$sum": {"$ifNull": ["$total_sale", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
     
-    # ---- P&L UP TO PREVIOUS MONTH (for Opening WC) ----
-    prev_sales_agg = await db_ref.daily_sales.aggregate([
-        {"$match": {"center": center_code, "date": {"$lt": month_start}}},
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_sale", 0]}}}}
-    ]).to_list(1)
-    prev_sales = prev_sales_agg[0]["total"] if prev_sales_agg else 0
+    # Get monthly expenses
+    expense_months = await db_ref.expenses.aggregate([
+        {"$match": {"center": center_code}},
+        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
+        {"$group": {"_id": "$month", "total_expense": {"$sum": {"$ifNull": ["$amount", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
     
-    prev_expenses_agg = await db_ref.expenses.aggregate([
-        {"$match": {"center": center_code, "date": {"$lt": month_start}}},
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$amount", 0]}}}}
-    ]).to_list(1)
-    prev_expenses = prev_expenses_agg[0]["total"] if prev_expenses_agg else 0
+    # Get monthly commissions
+    commission_months = await db_ref.monthly_commissions.aggregate([
+        {"$match": {"center": center_code}},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": {"$ifNull": ["$commission_amount", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
     
-    # Previous months' commissions (months strictly before selected)
-    prev_comm_agg = await db_ref.monthly_commissions.aggregate([
-        {"$match": {"center": center_code, "month": {"$lt": up_to_month}}},
-        {"$group": {"_id": None, "total": {"$sum": {
-            "$cond": [
-                {"$or": [{"$gt": ["$gst_tax_deductions", 0]}, {"$gt": ["$other_deductions", 0]}]},
-                {"$add": [{"$ifNull": ["$gst_tax_deductions", 0]}, {"$ifNull": ["$other_deductions", 0]}]},
-                {"$ifNull": ["$commission_amount", 0]}
-            ]
-        }}}}
-    ]).to_list(1)
-    prev_commissions = prev_comm_agg[0]["total"] if prev_comm_agg else 0
+    # Get manual WC top-ups
+    topups = await db_ref.wc_topups.find({"center": center_code}, {"_id": 0}).sort("date", 1).to_list(200)
+    topup_by_month = {}
+    for t in topups:
+        m = t.get("month") or t.get("date", "")[:7]
+        if m not in topup_by_month:
+            topup_by_month[m] = 0
+        topup_by_month[m] += float(t.get("amount", 0))
     
-    if country == "Australia":
-        prev_gst = prev_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
-    else:
-        prev_gst = prev_sales * INDIA_GST_ON_SALES if gst_applicable else 0
+    # Merge all months
+    month_data = {}
+    for s in sales_months:
+        m = s["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+        month_data[m]["sale"] = s["total_sale"]
+    for e in expense_months:
+        m = e["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+        month_data[m]["expenses"] = e["total_expense"]
+    for c in commission_months:
+        m = c["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+        month_data[m]["commission"] = c["total_commission"]
     
-    prev_pnl = prev_sales - prev_expenses - prev_commissions - prev_gst
-    opening_wc = initial_wc + prev_pnl
+    # Chain WC month-by-month up to the requested month (same logic as WC table)
+    sorted_months = sorted(m for m in month_data.keys() if m <= up_to_month)
     
-    # ---- THIS MONTH'S P&L ----
-    this_month_sales_agg = await db_ref.daily_sales.aggregate([
-        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_sale", 0]}}}}
-    ]).to_list(1)
-    this_month_sales = this_month_sales_agg[0]["total"] if this_month_sales_agg else 0
+    current_wc = initial_wc
+    this_month_pnl = 0
+    this_month_sales = 0
+    this_month_expenses = 0
+    this_month_commissions = 0
+    opening_wc = initial_wc
     
-    this_month_expenses_agg = await db_ref.expenses.aggregate([
-        {"$match": {"center": center_code, "date": {"$gte": month_start, "$lt": end_date}}},
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$amount", 0]}}}}
-    ]).to_list(1)
-    this_month_expenses = this_month_expenses_agg[0]["total"] if this_month_expenses_agg else 0
+    for month in sorted_months:
+        d = month_data[month]
+        sale = d["sale"]
+        expenses = d["expenses"]
+        commission = d["commission"]
+        pnl = sale - (expenses + commission)
+        
+        opening_wc_for_month = current_wc
+        current_wc = current_wc + pnl
+        
+        # Apply top-ups
+        topup_amount = topup_by_month.get(month, 0)
+        if topup_amount != 0:
+            current_wc += topup_amount
+        
+        if month == up_to_month:
+            opening_wc = opening_wc_for_month
+            this_month_pnl = pnl
+            this_month_sales = sale
+            this_month_expenses = expenses
+            this_month_commissions = commission
     
-    this_month_comm_agg = await db_ref.monthly_commissions.aggregate([
-        {"$match": {"center": center_code, "month": up_to_month}},
-        {"$group": {"_id": None, "total": {"$sum": {
-            "$cond": [
-                {"$or": [{"$gt": ["$gst_tax_deductions", 0]}, {"$gt": ["$other_deductions", 0]}]},
-                {"$add": [{"$ifNull": ["$gst_tax_deductions", 0]}, {"$ifNull": ["$other_deductions", 0]}]},
-                {"$ifNull": ["$commission_amount", 0]}
-            ]
-        }}}}
-    ]).to_list(1)
-    this_month_commissions = this_month_comm_agg[0]["total"] if this_month_comm_agg else 0
-    
-    if country == "Australia":
-        this_month_gst = this_month_sales * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
-    else:
-        this_month_gst = this_month_sales * INDIA_GST_ON_SALES if gst_applicable else 0
-    
-    this_month_pnl = this_month_sales - this_month_expenses - this_month_commissions - this_month_gst
-    
-    # ---- CLOSING WC & LOAN LOGIC ----
-    closing_wc = opening_wc + this_month_pnl
-    
-    # Loan logic: if closing WC goes below 0, the deficit becomes a loan
-    loan_from_wc_deficit = 0
-    if closing_wc < 0:
-        loan_from_wc_deficit = abs(closing_wc)
-        closing_wc = 0
-    
+    closing_wc = current_wc
     diff_from_initial = closing_wc - initial_wc
     
-    # ---- LOANS OUTSTANDING (from loan_entries collection, taken on or before selected month) ----
-    loan_query = {
-        "center": center_code,
-        "status": {"$ne": "fully_repaid"},
-        "loan_date": {"$lte": end_date}
-    }
-    loan_entries = await db_ref.loan_entries.find(loan_query, {"_id": 0}).to_list(100)
+    # Loans outstanding
+    year, mo = map(int, up_to_month.split("-"))
+    if mo == 12:
+        end_date = f"{year + 1}-01-01"
+    else:
+        end_date = f"{year}-{mo + 1:02d}-01"
+    
+    loan_entries = await db_ref.loan_entries.find(
+        {"center": center_code, "status": {"$ne": "fully_repaid"}, "loan_date": {"$lte": end_date}},
+        {"_id": 0}
+    ).to_list(100)
     total_loans_outstanding = sum(
         (loan.get("amount", 0) - loan.get("total_repaid", 0))
         for loan in loan_entries
     )
     
-    # Total effective loan = recorded loans + WC deficit overflow
-    total_effective_loans = total_loans_outstanding + loan_from_wc_deficit
-    
-    # ---- WC GATING ----
-    # Available capital for gating = closing WC minus loans
-    available_capital = closing_wc - total_loans_outstanding
+    # WC Gating
     wc_percentage = (closing_wc / initial_wc * 100) if initial_wc > 0 else 100
-    wc_utilised = max(0, initial_wc - closing_wc) if initial_wc > 0 else 0
-    
     WC_THRESHOLD = 50
     revenue_share_active = True
     wc_status = "healthy"
@@ -283,27 +279,23 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     
     return {
         "initial_security_deposit": round(initial_wc, 2),
-        # Month-by-month like the Excel
         "opening_wc": round(opening_wc, 2),
         "this_month_sales": round(this_month_sales, 2),
         "this_month_expenses": round(this_month_expenses, 2),
         "this_month_commissions": round(this_month_commissions, 2),
-        "this_month_gst": round(this_month_gst, 2),
+        "this_month_gst": 0,
         "this_month_pnl": round(this_month_pnl, 2),
         "closing_wc": round(closing_wc, 2),
         "diff_from_initial": round(diff_from_initial, 2),
-        # Loan info
-        "loan_from_wc_deficit": round(loan_from_wc_deficit, 2),
+        "loan_from_wc_deficit": 0,
         "loans_outstanding": round(total_loans_outstanding, 2),
-        "total_effective_loans": round(total_effective_loans, 2),
-        # Gating
-        "available_capital": round(available_capital, 2),
-        "wc_utilised": round(wc_utilised, 2),
+        "total_effective_loans": round(total_loans_outstanding, 2),
+        "available_capital": round(closing_wc - total_loans_outstanding, 2),
+        "wc_utilised": round(max(0, initial_wc - closing_wc), 2) if initial_wc > 0 else 0,
         "wc_percentage": round(wc_percentage, 2),
         "wc_status": wc_status,
         "revenue_share_active": revenue_share_active,
         "wc_threshold": WC_THRESHOLD,
-        # Keep backward compat
         "current_month_pnl": round(this_month_pnl, 2),
         "current_month_sales": round(this_month_sales, 2),
         "current_month_expenses": round(this_month_expenses, 2),
