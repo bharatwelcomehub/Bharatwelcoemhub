@@ -34,7 +34,7 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 - [x] **Canonical URLs** - Prevent duplicate content
 
 ### Admin Panel (`/admin`)
-- [x] **Home Banner** - Manage hero images
+- [x] **Home Banner** - Manage hero images (now fetched from DB on homepage)
 - [x] **Festivals** - 12-month festival theme management with:
   - Gudhi Padwa/Ugadi (March 21) - Maharashtra New Year
   - Makar Sankranti, Maha Shivaratri, Hanuman Jayanti, etc.
@@ -65,9 +65,16 @@ Full-fledged, production-ready web application for `app.purnabramha.com` with pi
 - [x] **Tiffin Management** - Full CRUD with:
   - Unlimited Breakfast Settings (price, description, timings, days)
   - Lunch Box Options management
-  - Heavy Brunch Items management
+  - Heavy Brunch Items management with image upload
   - Drink Add-ons management
   - Add/Edit/Delete tiffin items with dialog
+- [x] **Catering Management** (Apr 2026) - Full CRUD with:
+  - 8 Catering Packages (Classic, Premium, Special Feast, Royal Feast) with INR/AUD pricing
+  - 56 Menu Items across 9 categories (Starters, Special Bhaji, Simple Bhaji, Desserts, Roti, Rice, Drinks, Sides, Chutney)
+  - Image URL support for each menu item
+  - Requirements matrix per package (starters, mains, special, roti, rice, etc.)
+  - Import Default Catering Menu button to seed from JSON
+  - Edit/Delete functionality for all items
 - [x] **Locations** (8 centers) - Full CRUD
 - [x] **Videos** - Video/reels management
 
@@ -159,7 +166,6 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - `GET/POST/PUT /api/admin/locations` - Location CRUD
 
 ## Backlog
-- [ ] Tiffin Page Migration - Refactor Tiffin.js to use database APIs instead of hardcoded JSON
 - [ ] Payment Integration (Razorpay/Stripe)
 - [ ] Push notifications
 - [ ] Order history dashboard
@@ -167,6 +173,7 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 
 ## Bug Fixes
 - [x] Catering page: Desserts, Drinks, Sides selection was blocked ("Maximum 0 allowed") due to singular/plural key mismatch between package requirements JSON and frontend category keys (Apr 2026)
+- [x] Banner Set Active: Homepage now fetches hero image from database API `/api/hero-image` instead of hardcoded image, preventing theme reversion issues (Apr 2026)
 
 ## UI/UX Updates
 - [x] Premium WhatsApp Messages (Apr 2026) — All 3 services (Catering, Table Booking, Tiffin) now send elegantly formatted WhatsApp messages with ═══ dividers, clean spacing, and branded header: "PURNABRAMHA — World's First Intelligent Restaurant Chain Powered by A.AI Technology"
