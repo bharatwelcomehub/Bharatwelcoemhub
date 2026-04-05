@@ -614,29 +614,29 @@ export default function MISDashboard() {
               </p>
               <p className="text-xs text-slate-500 mt-1">Franchise deposit</p>
             </div>
+            <div className={`rounded-xl p-5 border ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'bg-white border-slate-200' : (workingCapital?.available_working_capital || 0) > 0 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
+              <p className="text-xs font-medium text-slate-500 mb-1">Current Working Capital</p>
+              <p className={`text-2xl font-bold ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'text-green-700' : (workingCapital?.available_working_capital || 0) > 0 ? 'text-amber-700' : 'text-red-700'}`} data-testid="total-working-capital">
+                {formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">As of {workingCapital?.up_to_month || 'current month'}</p>
+            </div>
             <div className="rounded-xl p-5 bg-white border border-slate-200">
-              <p className="text-xs font-medium text-slate-500 mb-1">Total Loans</p>
+              <p className="text-xs font-medium text-slate-500 mb-1">Total Loans Outstanding</p>
               <p className="text-2xl font-bold text-orange-600">
-                {formatFullCurrency(workingCapital?.total_loans || 0, isIntl)}
+                {formatFullCurrency(workingCapital?.total_outstanding || 0, isIntl)}
               </p>
               <p className="text-xs text-slate-500 mt-1">Drawn against WC</p>
             </div>
             <div className="rounded-xl p-5 bg-white border border-slate-200">
-              <p className="text-xs font-medium text-slate-500 mb-1">Total Repaid</p>
-              <p className="text-2xl font-bold text-teal-600">
-                {formatFullCurrency(workingCapital?.total_repaid || 0, isIntl)}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">Loan repayments</p>
-            </div>
-            <div className={`rounded-xl p-5 border ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'bg-white border-slate-200' : 'bg-orange-50 border-orange-200'}`}>
-              <p className="text-xs font-medium text-slate-400 mb-1">Available Working Capital</p>
-              <p className="text-2xl font-bold text-slate-900" data-testid="total-working-capital">
-                {formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl)}
+              <p className="text-xs font-medium text-slate-500 mb-1">WC vs Initial</p>
+              <p className={`text-2xl font-bold ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'text-green-600' : 'text-red-600'}`}>
+                {workingCapital?.initial_working_capital > 0 
+                  ? `${((workingCapital?.available_working_capital || 0) / workingCapital.initial_working_capital * 100).toFixed(0)}%`
+                  : 'N/A'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                {(workingCapital?.total_outstanding || 0) > 0
-                  ? `₹${(workingCapital?.total_outstanding || 0).toLocaleString()} outstanding`
-                  : 'Fully intact'}
+                {(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'Healthy' : 'Below initial deposit'}
               </p>
             </div>
           </div>
@@ -657,10 +657,10 @@ export default function MISDashboard() {
                         <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Center</th>
                         <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Franchise</th>
                         <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Initial WC</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Loans</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Repaid</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Outstanding</th>
-                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Available WC</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Current WC</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">This Month P/L</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Loans</th>
+                        <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-400 uppercase">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -669,13 +669,23 @@ export default function MISDashboard() {
                           <td className="px-4 py-2.5 text-slate-800 font-medium">{c.center}</td>
                           <td className="px-4 py-2.5 text-slate-400">{c.franchise_name}</td>
                           <td className="px-4 py-2.5 text-right text-slate-600">{formatCurrency(c.initial_wc, isIntl)}</td>
-                          <td className="px-4 py-2.5 text-right text-orange-600">{formatCurrency(c.total_loans, isIntl)}</td>
-                          <td className="px-4 py-2.5 text-right text-teal-600">{formatCurrency(c.total_repaid, isIntl)}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-600">
-                            {c.outstanding > 0 ? formatCurrency(c.outstanding, isIntl) : '-'}
+                          <td className={`px-4 py-2.5 text-right font-semibold ${c.current_wc >= c.initial_wc ? 'text-green-700' : c.current_wc > 0 ? 'text-amber-700' : 'text-red-700'}`}>
+                            {formatCurrency(c.current_wc || c.available_wc, isIntl)}
                           </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-900">
-                            {formatCurrency(c.available_wc, isIntl)}
+                          <td className={`px-4 py-2.5 text-right ${(c.this_month_pnl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(c.this_month_pnl || 0) >= 0 ? '+' : ''}{formatCurrency(c.this_month_pnl || 0, isIntl)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-orange-600">
+                            {c.loans_outstanding > 0 ? formatCurrency(c.loans_outstanding, isIntl) : '-'}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              c.wc_status === 'healthy' ? 'bg-green-100 text-green-700' :
+                              c.wc_status === 'restoring' ? 'bg-amber-100 text-amber-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {c.wc_status === 'healthy' ? 'Healthy' : c.wc_status === 'restoring' ? 'Restoring' : 'Stopped'}
+                            </span>
                           </td>
                         </tr>
                       ))}

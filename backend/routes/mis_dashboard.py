@@ -836,13 +836,20 @@ async def get_alert_settings(data: dict):
 
 @router.post("/working-capital")
 async def get_working_capital(data: dict):
-    """Get working capital: initial franchise deposit minus outstanding loans.
-    Working capital only changes when there are loan entries, not from daily sales.
+    """Get working capital using the same P/L logic as the WC Assessment table.
+    WC = Initial WC + cumulative (Sales - Expenses - Commissions) + Topups.
     Center-wise: each center shows WC from the franchise mapped to it."""
     token = data.get("token")
     center = data.get("center", "all")
+    period = data.get("period", "current_month")
+    custom_start = data.get("custom_start")
+    custom_end = data.get("custom_end")
     
     session = await check_mis_access(token)
+    
+    # Get the end date to determine which month to calculate WC up to
+    start_date, end_date = get_period_dates(period, custom_start, custom_end)
+    up_to_month = end_date[:7]  # "YYYY-MM"
     
     # Build list of centers to check
     if center == "all":
@@ -853,100 +860,64 @@ async def get_working_capital(data: dict):
     else:
         center_codes = [center]
     
-    # Get ALL franchise records
-    franchises = await db.franchises.find(
-        {}, {"_id": 0, "franchise_code": 1, "franchise_name": 1,
-             "working_capital": 1, "center": 1, "centers_mapped": 1,
-             "owner_name": 1, "name": 1}
-    ).to_list(100)
+    # Import the shared WC logic
+    from routes.center_accounts import calculate_working_capital_standing, get_franchise_for_center
     
-    # Build franchise lookup by franchise_code
-    franchise_by_code = {}
-    for f in franchises:
-        franchise_by_code[f.get("franchise_code", "")] = f
+    # Calculate WC for each center using the same logic as the WC table
+    centers_summary = []
+    total_initial_wc = 0
+    total_current_wc = 0
+    total_loans = 0
+    total_repaid = 0
     
-    # Build center → franchise map using the AUTHORITATIVE source:
-    # the centers collection's franchise_code field (set by Center Accounts linking)
-    center_franchise_map = {}
+    for cc in center_codes:
+        try:
+            wc_data = await calculate_working_capital_standing(db, cc, up_to_month)
+            initial_wc = wc_data.get("initial_security_deposit", 0)
+            closing_wc = wc_data.get("closing_wc", 0)
+            loans_outstanding = wc_data.get("loans_outstanding", 0)
+            
+            # Get franchise info for display
+            franchise = await get_franchise_for_center(cc)
+            franchise_name = franchise.get("franchise_name", franchise.get("name", "")) if franchise else ""
+            owner_name = franchise.get("owner_name", "") if franchise else ""
+            
+            total_initial_wc += initial_wc
+            total_current_wc += closing_wc
+            total_loans += wc_data.get("total_effective_loans", 0)
+            
+            centers_summary.append({
+                "center": cc,
+                "franchise_name": franchise_name,
+                "owner_name": owner_name,
+                "initial_wc": round(initial_wc, 2),
+                "current_wc": round(closing_wc, 2),
+                "this_month_pnl": round(wc_data.get("this_month_pnl", 0), 2),
+                "wc_percentage": round(wc_data.get("wc_percentage", 100), 2),
+                "wc_status": wc_data.get("wc_status", "healthy"),
+                "revenue_share_active": wc_data.get("revenue_share_active", True),
+                "loans_outstanding": round(loans_outstanding, 2),
+                "available_wc": round(closing_wc, 2),
+                # Legacy fields for backward compat
+                "total_loans": round(wc_data.get("total_effective_loans", 0), 2),
+                "total_repaid": 0,
+                "outstanding": round(loans_outstanding, 2),
+            })
+        except Exception as e:
+            logger.warning(f"MIS WC calc failed for {cc}: {e}")
     
-    # Strategy 1 (PRIMARY): Read franchise_code from centers collection
-    centers_with_fc = await db.centers.find(
-        {"franchise_code": {"$exists": True, "$ne": ""}},
-        {"_id": 0, "code": 1, "franchise_code": 1}
-    ).to_list(100)
-    for cdoc in centers_with_fc:
-        fc = cdoc.get("franchise_code", "")
-        if fc and fc in franchise_by_code:
-            center_franchise_map[cdoc["code"]] = franchise_by_code[fc]
-    
-    # Strategy 2 (FALLBACK): franchise.center or franchise.centers_mapped fields
-    for f in franchises:
-        fc_center = f.get("center", "")
-        if fc_center and fc_center not in center_franchise_map:
-            center_franchise_map[fc_center] = f
-        for mc in f.get("centers_mapped", []):
-            if mc not in center_franchise_map:
-                center_franchise_map[mc] = f
-    
-    # Get loan entries for relevant centers
+    # Get loan timeline for reference
     loan_query = {"center": {"$in": center_codes}} if center != "all" else {}
     loan_entries = await db.loan_entries.find(
         loan_query, {"_id": 0}
     ).sort("created_at", 1).to_list(500)
     
-    # Calculate per-center working capital
-    center_wc = {}
-    total_initial_wc = 0
-    total_loans = 0
-    total_repaid = 0
-    
-    # First, initialize center_wc from franchise mapping for each requested center
-    for cc in center_codes:
-        mapped_franchise = center_franchise_map.get(cc)
-        if mapped_franchise:
-            initial_wc = float(mapped_franchise.get("working_capital", 0) or 0)
-            center_wc[cc] = {
-                "center": cc,
-                "franchise_code": mapped_franchise.get("franchise_code", ""),
-                "franchise_name": mapped_franchise.get("franchise_name", mapped_franchise.get("name", "")),
-                "owner_name": mapped_franchise.get("owner_name", ""),
-                "initial_wc": initial_wc,
-                "total_loans": 0,
-                "total_repaid": 0,
-                "loans": []
-            }
-    
-    # Process loan entries and accumulate loans per center
     loan_timeline = []
     for le in loan_entries:
         c = le.get("center", "")
-        fc = le.get("franchise_code", "")
-        
-        # If center not yet in center_wc (franchise not directly mapped but has loans), add it
-        if c not in center_wc:
-            # Try to find initial WC from franchise record
-            mapped_franchise = center_franchise_map.get(c)
-            initial_wc_val = 0
-            if mapped_franchise:
-                initial_wc_val = float(mapped_franchise.get("working_capital", 0) or 0)
-            else:
-                initial_wc_val = float(le.get("working_capital_at_time", 0) or 0)
-            
-            center_wc[c] = {
-                "center": c,
-                "franchise_code": fc,
-                "franchise_name": le.get("franchise_name", ""),
-                "owner_name": "",
-                "initial_wc": initial_wc_val,
-                "total_loans": 0,
-                "total_repaid": 0,
-                "loans": []
-            }
-        
         amt = float(le.get("amount", 0) or 0)
         repaid = float(le.get("total_repaid", 0) or 0)
-        center_wc[c]["total_loans"] += amt
-        center_wc[c]["total_repaid"] += repaid
+        total_repaid += repaid
         
         loan_timeline.append({
             "date": le.get("loan_date", le.get("created_at", "")[:10] if le.get("created_at") else ""),
@@ -960,7 +931,6 @@ async def get_working_capital(data: dict):
             "status": le.get("status", "active")
         })
         
-        # Add repayments as separate timeline entries
         for rep in le.get("repayments", []):
             loan_timeline.append({
                 "date": rep.get("repayment_date", ""),
@@ -974,44 +944,21 @@ async def get_working_capital(data: dict):
                 "status": "repaid"
             })
     
-    # Sort timeline by date
     loan_timeline.sort(key=lambda x: x.get("date", ""))
     
-    # Calculate totals from center_wc
-    for c, data in center_wc.items():
-        total_initial_wc += data["initial_wc"]
-        total_loans += data["total_loans"]
-        total_repaid += data["total_repaid"]
-    
-    total_outstanding = total_loans - total_repaid
-    available_wc = total_initial_wc - total_outstanding
-    
-    # Build center summary
-    centers_summary = []
-    for c, data in center_wc.items():
-        outstanding = data["total_loans"] - data["total_repaid"]
-        centers_summary.append({
-            "center": c,
-            "franchise_name": data["franchise_name"],
-            "owner_name": data.get("owner_name", ""),
-            "initial_wc": data["initial_wc"],
-            "total_loans": data["total_loans"],
-            "total_repaid": data["total_repaid"],
-            "outstanding": round(outstanding, 2),
-            "available_wc": round(data["initial_wc"] - outstanding, 2)
-        })
+    total_outstanding = total_loans
     
     return {
         "initial_working_capital": round(total_initial_wc, 2),
+        "available_working_capital": round(total_current_wc, 2),
         "total_loans": round(total_loans, 2),
         "total_repaid": round(total_repaid, 2),
         "total_outstanding": round(total_outstanding, 2),
-        "available_working_capital": round(available_wc, 2),
+        "up_to_month": up_to_month,
         "centers": centers_summary,
         "loan_timeline": loan_timeline,
-        # Keep backward compatibility for PDF export
         "data": loan_timeline,
-        "total_working_capital": round(available_wc, 2)
+        "total_working_capital": round(total_current_wc, 2)
     }
 
 
