@@ -552,20 +552,23 @@ async def delete_daily_sales_range(req: DeleteRangeRequest):
         date_filter = {"$gte": f"{from_month}-01", "$lte": f"{to_month}-31"}
     
     # Count before deleting
-    count = await db.daily_sales.count_documents({"center": center, "date": date_filter})
+    sales_count = await db.daily_sales.count_documents({"center": center, "date": date_filter})
+    expense_count = await db.expenses.count_documents({"center": center, "date": date_filter})
     
-    if count == 0:
-        return {"success": True, "message": "No records found in this range", "deleted": 0}
+    if sales_count == 0 and expense_count == 0:
+        return {"success": True, "message": "No records found in this range", "deleted": 0, "expenses_deleted": 0}
     
-    # Delete
-    result = await db.daily_sales.delete_many({"center": center, "date": date_filter})
+    # Delete sales + expenses
+    sales_result = await db.daily_sales.delete_many({"center": center, "date": date_filter})
+    expense_result = await db.expenses.delete_many({"center": center, "date": date_filter})
     
-    logger.info(f"Deleted {result.deleted_count} daily_sales records for {center} from {from_month} to {to_month}")
+    logger.info(f"Deleted {sales_result.deleted_count} sales + {expense_result.deleted_count} expenses for {center} from {from_month} to {to_month}")
     
     return {
         "success": True,
-        "message": f"Deleted {result.deleted_count} records for {center} ({from_month} to {to_month})",
-        "deleted": result.deleted_count
+        "message": f"Deleted {sales_result.deleted_count} sales + {expense_result.deleted_count} expenses for {center} ({from_month} to {to_month})",
+        "deleted": sales_result.deleted_count,
+        "expenses_deleted": expense_result.deleted_count
     }
 
 
@@ -2533,9 +2536,13 @@ async def upload_custom_format_data(
         from openpyxl import load_workbook
         from io import BytesIO
         import re
+        import pandas as pd
         
         content = await file.read()
         wb = load_workbook(BytesIO(content), data_only=True)
+        
+        # Create pandas ExcelFile for expense sheet parsing
+        xls = pd.ExcelFile(BytesIO(content))
         
         results = {
             "sales": {"imported": 0, "deleted": 0, "errors": [], "sheets_processed": []},
@@ -2877,6 +2884,145 @@ async def upload_custom_format_data(
             await db.daily_sales.insert_many(records_to_insert)
             results["sales"]["imported"] = len(records_to_insert)
         
+        # =======================================
+        # PARSE EXPENSE SHEETS
+        # =======================================
+        expense_records = []
+        expense_sheets_processed = 0
+        
+        for sheet_name in xls.sheet_names:
+            try:
+                df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
+                if df.empty or len(df) < 2:
+                    continue
+                
+                # Check if this is an expense sheet by looking for EXPENCE/EXPENSE in header rows
+                is_expense_sheet = False
+                header_row_idx = 0
+                for idx in range(min(3, len(df))):
+                    row_vals = [str(v).strip().upper() for v in df.iloc[idx] if pd.notna(v)]
+                    if any('EXPENCE' in v or 'EXPENSE' in v for v in row_vals):
+                        is_expense_sheet = True
+                        header_row_idx = idx
+                        break
+                
+                if not is_expense_sheet:
+                    continue
+                
+                # Find column indices
+                headers = [str(v).strip().upper() if pd.notna(v) else '' for v in df.iloc[header_row_idx]]
+                
+                def find_exp_col(keywords):
+                    for kw in keywords:
+                        for ci, h in enumerate(headers):
+                            if kw.upper() in h:
+                                return ci
+                    return None
+                
+                date_col = find_exp_col(['DATE'])
+                desc_col = find_exp_col(['EXPENCE', 'EXPENSE'])
+                amount_col = find_exp_col(['AMOUNT'])
+                type_col = find_exp_col(['EXPANSE TYPE', 'TYPE'])
+                mode_col = find_exp_col(['PAYMENT MODE', 'CASH'])
+                
+                if desc_col is None or amount_col is None:
+                    continue
+                
+                # Parse expense rows
+                last_date = None
+                for row_idx in range(header_row_idx + 1, len(df)):
+                    row = df.iloc[row_idx]
+                    
+                    # Get amount
+                    try:
+                        amount = float(row.iloc[amount_col]) if pd.notna(row.iloc[amount_col]) else 0
+                    except (ValueError, TypeError):
+                        continue
+                    if amount <= 0:
+                        continue
+                    
+                    # Get description
+                    description = str(row.iloc[desc_col]).strip() if pd.notna(row.iloc[desc_col]) else ""
+                    if not description or description.lower() in ['nan', '', 'total', 'grand total']:
+                        continue
+                    
+                    # Get date
+                    date_val = row.iloc[date_col] if date_col is not None and pd.notna(row.iloc[date_col]) else None
+                    if date_val is not None:
+                        try:
+                            if isinstance(date_val, datetime):
+                                date_str = date_val.strftime("%Y-%m-%d")
+                            else:
+                                date_str_raw = str(date_val).strip()
+                                for fmt in ['%Y-%m-%d', '%d.%m.%Y', '%d/%m/%Y', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S']:
+                                    try:
+                                        date_str = datetime.strptime(date_str_raw.split(' ')[0], fmt).strftime("%Y-%m-%d")
+                                        break
+                                    except ValueError:
+                                        continue
+                                else:
+                                    date_str = None
+                        except Exception:
+                            date_str = None
+                        if date_str:
+                            last_date = date_str
+                    else:
+                        date_str = last_date
+                    
+                    if not date_str:
+                        continue
+                    
+                    # Skip if before from_year
+                    if date_str < f"{from_year}-01-01":
+                        continue
+                    
+                    # Get category/type
+                    expense_type = ""
+                    if type_col is not None and pd.notna(row.iloc[type_col]):
+                        expense_type = str(row.iloc[type_col]).strip()
+                    
+                    # Get payment mode
+                    payment_mode = "Cash"
+                    if mode_col is not None and pd.notna(row.iloc[mode_col]):
+                        payment_mode = str(row.iloc[mode_col]).strip()
+                    
+                    expense_records.append({
+                        "center": center,
+                        "date": date_str,
+                        "description": description,
+                        "amount": amount,
+                        "expense_type": expense_type,
+                        "payment_mode": payment_mode,
+                        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        "uploaded_by": session.get("managerName", ""),
+                        "source": f"bulk_import:{sheet_name}"
+                    })
+                
+                expense_sheets_processed += 1
+                
+            except Exception as e:
+                logger.warning(f"Error parsing expense sheet '{sheet_name}': {e}")
+                continue
+        
+        # Delete existing expenses for the date range, then insert
+        results["expenses"] = {"sheets_processed": expense_sheets_processed, "imported": 0, "deleted": 0}
+        if expense_records:
+            exp_dates = sorted(set(r["date"] for r in expense_records))
+            if exp_dates:
+                exp_from = exp_dates[0][:7]
+                exp_to = exp_dates[-1][:7]
+                if exp_from == exp_to:
+                    exp_date_filter = {"$regex": f"^{exp_from}"}
+                else:
+                    exp_date_filter = {"$gte": f"{exp_from}-01", "$lte": f"{exp_to}-31"}
+                exp_del = await db.expenses.delete_many({"center": center, "date": exp_date_filter, "source": {"$regex": "^bulk_import"}})
+                results["expenses"]["deleted"] = exp_del.deleted_count
+            
+            await db.expenses.insert_many(expense_records)
+            results["expenses"]["imported"] = len(expense_records)
+        
+        logger.info(f"Custom upload for {center}: {len(records_to_insert)} sales, {len(expense_records)} expenses from {expense_sheets_processed} expense sheets")
+        
         # Log the upload
         await db.upload_logs.insert_one({
             "center": center,
@@ -2893,6 +3039,7 @@ async def upload_custom_format_data(
             "message": f"Custom format upload completed for center {center}",
             "results": results,
             "sheets_processed": results["sales"]["sheets_processed"],
+            "expenses_imported": results["expenses"]["imported"],
             "warning": f"Data from {from_year} onwards has been imported. Existing data for those dates was replaced."
         }
         
