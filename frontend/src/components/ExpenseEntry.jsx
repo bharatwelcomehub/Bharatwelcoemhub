@@ -189,11 +189,21 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
 
   useEffect(() => {
     if (session?.token) {
-      console.log("ExpenseEntry: Session ready, fetching expenses...");
+      // In range mode, only fetch on explicit refresh button click (not on date picker change)
+      // Exception: center change should still trigger a fresh fetch
+      if (dateMode === "range") return;
       fetchExpenses();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, fromDate, toDate, dateMode, centerCode, session?.token]);
+  }, [selectedDate, dateMode, centerCode, session?.token]);
+
+  // When center changes in range mode, still re-fetch
+  useEffect(() => {
+    if (session?.token && dateMode === "range") {
+      fetchExpenses();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerCode]);
 
   // Note: Removed retry useEffect that was causing flickering
   // Empty expenses for new dates is expected
