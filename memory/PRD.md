@@ -25,6 +25,11 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-05] Bulk Upload Parses Expenses + Delete Cleans Both
+- **Bulk Import**: Custom format Excel upload now also parses expense sheets (sheets with EXPENCE/EXPENSE header). Extracts DATE, description, AMOUNT, TYPE, PAYMENT MODE. Saved to `expenses` collection with `source=bulk_import:{sheet_name}`.
+- **Delete Data**: Now deletes both `daily_sales` AND `expenses` for the center+month range. Response shows both counts.
+- Files: `/app/backend/routes/sales_expenses.py`
+
 ### [2026-04-04] 11 Changes — Access Control, Charts, Glossy UI, Bug Fixes
 - **Bug Fix**: Upload parsing now saves `deposited_in_bank`, `cash_expense`, `due_amount` from Excel bulk import (was missing)
 - **Access Control**: Bank Reconciliation → super admin + admin + accounting only. Freeze Control + Upload Settings → super admin only. Expense List (Admin) tab → removed entirely.
