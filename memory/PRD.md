@@ -25,6 +25,15 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-05] Working Capital Feature Rewrite (Complete)
+- **New P/L Formula**: P/L = Sales - (Expenses + Commission)
+- **Core Logic**: Losses deduct from WC. Profits do NOT auto-add to WC.
+- **Revenue Share Control**: Stops if WC falls to 50% or below of initial. Resumes when restored above threshold.
+- **Manual Top-up**: New `POST /api/center-accounts/wc-topup` endpoint with full audit log (date, amount, reason, user).
+- **Simplified UI**: 5 summary cards (Initial WC, Current WC, P/L, Rev Share Status, Last Top-up) + clean month table (Sale, Expenses, Commission, P/L, Opening WC, Top-up, Closing WC, Rev Share) + audit log toggle.
+- **Removed**: Old per-row WC edit/override logic. Month-by-month carry-forward. Loan conversion. Progress bars.
+- Files: `/app/backend/routes/center_accounts.py`, `/app/frontend/src/pages/CenterAccounts.jsx`
+
 ### [2026-04-05] Bulk Upload Parses Expenses + Delete Cleans Both
 - **Bulk Import**: Custom format Excel upload now also parses expense sheets (sheets with EXPENCE/EXPENSE header). Extracts DATE, description, AMOUNT, TYPE, PAYMENT MODE. Saved to `expenses` collection with `source=bulk_import:{sheet_name}`.
 - **Delete Data**: Now deletes both `daily_sales` AND `expenses` for the center+month range. Response shows both counts.
