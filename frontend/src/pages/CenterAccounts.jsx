@@ -1029,7 +1029,7 @@ export default function CenterAccounts() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
                   </CardTitle>
-                  <CardDescription>P/L = Sales - (Expenses + Commission). Losses deduct from WC. Profits don't auto-add.</CardDescription>
+                  <CardDescription>P/L = Sales - (Expenses + Commission). Both profits and losses affect WC.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   {wcLoading ? (

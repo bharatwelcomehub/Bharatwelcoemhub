@@ -143,17 +143,9 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     Both profits and losses affect WC. No GST deduction in P/L.
     Pulls initial WC from franchise's working_capital field in DB.
     """
-    # Get franchise for initial WC (security deposit)
-    center = await db_ref.centers.find_one({"code": center_code}, {"_id": 0})
-    franchise = None
-    initial_wc = 0
-    
-    if center:
-        fc = center.get("franchise_code")
-        if fc:
-            franchise = await db_ref.franchises.find_one({"franchise_code": fc}, {"_id": 0})
-            if franchise:
-                initial_wc = float(franchise.get("working_capital", 0) or 0)
+    # Use the same franchise lookup as WC table for consistency
+    franchise = await get_franchise_for_center(center_code)
+    initial_wc = float(franchise.get("working_capital", 0) or 0) if franchise else 0
     
     # Check for initial WC override
     wc_override = await db_ref.wc_overrides.find_one(
@@ -597,8 +589,6 @@ async def get_center_details(center_code: str):
 
 async def get_franchise_for_center(center_code: str):
     """Get linked franchise for a center"""
-    # Try to find franchise by center code mapping or name matching
-    # First check if center has franchise_code field
     center = await db.centers.find_one({"code": center_code}, {"_id": 0})
     if not center:
         return None
@@ -610,14 +600,27 @@ async def get_franchise_for_center(center_code: str):
         if franchise:
             return franchise
     
-    # Try to match by city/location
+    # Fallback: Try to match by city/location from center code or center city
     city = center.get("city", "").lower()
-    state = center.get("state", "").lower()
+    center_code_lower = center_code.lower()
     
-    # For Perth center, find Perth franchise
-    if "perth" in center_code.lower() or "perth" in city:
+    # Build search terms from center code (e.g., PB-TH → "th", PB-PERTH → "perth", PB-HSR → "hsr")
+    code_suffix = center_code.split("-")[-1].lower() if "-" in center_code else center_code_lower
+    
+    # Try matching franchise by city field
+    search_terms = [t for t in [city, code_suffix] if t and len(t) >= 2]
+    for term in search_terms:
         franchise = await db.franchises.find_one(
-            {"city": {"$regex": "perth", "$options": "i"}, "status": {"$ne": "Deleted"}},
+            {"city": {"$regex": term, "$options": "i"}, "status": {"$ne": "Deleted"}},
+            {"_id": 0}
+        )
+        if franchise:
+            return franchise
+    
+    # Try matching by franchise_name containing the center code suffix
+    for term in search_terms:
+        franchise = await db.franchises.find_one(
+            {"franchise_name": {"$regex": term, "$options": "i"}, "status": {"$ne": "Deleted"}},
             {"_id": 0}
         )
         if franchise:
