@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, Users, MapPin, Phone, MessageCircle, ChefHat, Leaf, Plus, Minus, ShoppingCart, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, Users, MapPin, Phone, MessageCircle, ChefHat, Leaf, Plus, Minus, ShoppingCart, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import axios from 'axios';
 
@@ -67,6 +68,31 @@ const TableBooking = () => {
   const showMenuSection = serviceType === 'pickup' || currentCenter?.country === 'Australia';
   const getMinDate = () => { const now = new Date(); now.setHours(now.getHours() + bookingRules.tableBooking.minAdvanceHours); return now.toISOString().split('T')[0]; };
   const getMaxDate = () => { const now = new Date(); now.setDate(now.getDate() + bookingRules.tableBooking.maxAdvanceDays); return now.toISOString().split('T')[0]; };
+
+  // Check if booking is less than 1 hour from now
+  const isUrgentBooking = useMemo(() => {
+    if (!bookingDate || !selectedTimeSlot) return false;
+    const timeSlot = bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot);
+    if (!timeSlot) return false;
+    
+    // Parse the time slot (e.g., "12:00 PM - 1:00 PM" or "12:00")
+    const timeStr = timeSlot.label.split(' - ')[0] || timeSlot.id;
+    const [hours, minutes] = timeStr.replace(/ (AM|PM)/i, '').split(':').map(Number);
+    const isPM = timeStr.toUpperCase().includes('PM');
+    
+    let bookingHour = hours;
+    if (isPM && hours !== 12) bookingHour += 12;
+    if (!isPM && hours === 12) bookingHour = 0;
+    
+    const bookingDateTime = new Date(bookingDate);
+    bookingDateTime.setHours(bookingHour, minutes || 0, 0, 0);
+    
+    const now = new Date();
+    const diffMs = bookingDateTime - now;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    
+    return diffHours > 0 && diffHours < 1;
+  }, [bookingDate, selectedTimeSlot]);
 
   const updateCart = (itemId, itemName, price, delta) => {
     setCart(prev => {
@@ -139,6 +165,56 @@ const TableBooking = () => {
       </section>
 
       <div className="container mx-auto px-6 lg:px-12 py-10">
+        {/* Important Booking Alert - Always Visible */}
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <Alert className="bg-red-50 border-2 border-red-500 rounded-none">
+            <AlertTriangle className="h-5 w-5 text-red-600" />
+            <AlertTitle className="text-red-700 font-heading font-semibold text-lg">
+              Important Booking Information
+            </AlertTitle>
+            <AlertDescription className="text-red-700 font-body mt-2 space-y-2">
+              <p className="font-semibold">
+                ⚠️ Sending a WhatsApp message does NOT confirm your booking.
+              </p>
+              <p>
+                Booking is confirmed <strong>ONLY</strong> after the Center Manager replies on WhatsApp. 
+                If the restaurant is full house or the manager is busy, bookings may not be accepted.
+              </p>
+            </AlertDescription>
+          </Alert>
+        </motion.div>
+
+        {/* Urgent Booking Alert - Only when booking is less than 1 hour away */}
+        {isUrgentBooking && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-6"
+          >
+            <Alert className="bg-orange-50 border-2 border-orange-500 rounded-none">
+              <AlertCircle className="h-5 w-5 text-orange-600 animate-pulse" />
+              <AlertTitle className="text-orange-700 font-heading font-semibold text-lg">
+                ⏰ Urgent Booking - Less Than 1 Hour Away!
+              </AlertTitle>
+              <AlertDescription className="text-orange-700 font-body mt-2 space-y-2">
+                <p className="font-semibold">
+                  For bookings less than 1 hour from current time, confirmation from Center Manager is MANDATORY.
+                </p>
+                <p>
+                  🚫 <strong>If you have NOT received a confirmation message, DO NOT visit the restaurant.</strong>
+                </p>
+                <p>
+                  No reply means the booking is NOT available for that time slot.
+                </p>
+              </AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
+
         {!showReview ? (
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
@@ -299,6 +375,31 @@ const TableBooking = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Important Alert Before Sending */}
+                <div className="bg-red-50 border-2 border-red-400 p-4">
+                  <div className="flex gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-red-700 font-body">
+                      <p className="font-bold mb-1">⚠️ Please Remember:</p>
+                      <p className="text-xs">Booking is confirmed ONLY after Center Manager replies. If you don't receive a confirmation, the booking is not accepted.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Urgent Booking Warning in Review */}
+                {isUrgentBooking && (
+                  <div className="bg-orange-50 border-2 border-orange-400 p-4">
+                    <div className="flex gap-3">
+                      <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5 animate-pulse" />
+                      <div className="text-sm text-orange-700 font-body">
+                        <p className="font-bold mb-1">⏰ URGENT - Less than 1 hour!</p>
+                        <p className="text-xs">Manager confirmation is MANDATORY. If no reply, DO NOT visit. No reply = booking NOT available.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-3 pt-2">
                   <Button variant="outline" onClick={() => setShowReview(false)} className="flex-1 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" data-testid="edit-booking-btn">Edit Booking</Button>
                   <Button onClick={confirmBooking} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-none" data-testid="confirm-booking-btn"><MessageCircle className="h-5 w-5 mr-2" /> Send via WhatsApp</Button>
