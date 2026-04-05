@@ -409,6 +409,17 @@ async def get_wc_table(req: dict = Body(...)):
     
     sorted_months = sorted(month_data.keys())
     
+    # Cap months at franchise effective end date (prevent endless future months)
+    effective_end = get_franchise_effective_end_month(franchise)
+    sorted_months = [m for m in sorted_months if m <= effective_end]
+    
+    if not sorted_months:
+        return {
+            "success": True, "rows": [], "initial_wc": initial_wc, "center": center,
+            "current_wc": initial_wc, "revenue_share_status": "active",
+            "last_topup": None, "topup_log": topups
+        }
+    
     # Build rows with new logic
     rows = []
     current_wc = initial_wc
@@ -476,7 +487,8 @@ async def get_wc_table(req: dict = Body(...)):
         "center": center,
         "revenue_share_status": final_status,
         "last_topup": last_topup,
-        "topup_log": topups
+        "topup_log": topups,
+        "effective_end_month": effective_end
     }
 
 
@@ -622,6 +634,47 @@ async def get_franchise_for_center(center_code: str):
             return franchise
     
     return None
+
+def get_franchise_effective_end_month(franchise: dict) -> str:
+    """
+    Calculate the effective end month for a franchise.
+    Returns YYYY-MM string representing the last valid month for data display.
+    Rules:
+    - Active franchise: cap at current month
+    - Closed/exited franchise: cap at earliest of (closure_date, agreement_end_date)
+    - Always cap at current month (never show future months)
+    """
+    now_month = datetime.now().strftime("%Y-%m")
+    
+    if not franchise:
+        return now_month
+    
+    candidates = [now_month]
+    
+    # Check closure_date
+    closure = franchise.get("closure_date")
+    if closure:
+        try:
+            if "T" in str(closure):
+                dt = datetime.fromisoformat(str(closure).replace("Z", "+00:00"))
+            else:
+                dt = datetime.strptime(str(closure)[:10], "%Y-%m-%d")
+            candidates.append(dt.strftime("%Y-%m"))
+        except:
+            pass
+    
+    # Check agreement_end_date
+    end_date = franchise.get("agreement_end_date")
+    if end_date:
+        try:
+            dt = datetime.strptime(str(end_date)[:10], "%Y-%m-%d")
+            candidates.append(dt.strftime("%Y-%m"))
+        except:
+            pass
+    
+    # Return the earliest valid end month (never exceed current month)
+    return min(candidates)
+
 
 def get_country_from_center(center: dict) -> str:
     """Determine country from center data"""
@@ -1970,6 +2023,11 @@ async def get_payout_summary(data: dict = Body(...)):
     
     if not to_month:
         to_month = datetime.now().strftime("%Y-%m")
+    
+    # Cap to_month at franchise effective end date (prevent endless future months)
+    effective_end = get_franchise_effective_end_month(franchise)
+    if to_month > effective_end:
+        to_month = effective_end
     
     # Generate list of months
     months = []

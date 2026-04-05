@@ -1,0 +1,77 @@
+{
+  "summary": "Tested 'Endless Future Dummy Months Generation' bug fix (Iteration 58). All 13 backend API tests passed. The fix correctly bounds month generation to franchise's effective end date: min(agreement_end_date, closure_date, current_month).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_endless_future_months_fix.py",
+    "/app/test_reports/pytest/pytest_endless_future_months_fix.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_endless_future_months_fix.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "N/A (backend only testing requested)"
+  },
+  "test_credentials": "Super Admin: Mobile 9741399190, OTP 123456, Center PB-MGT",
+  "seed_data_creation": "None - used existing test centers PB-HSR and PB-PERTH",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug fix for endless future months generation verified. The get_franchise_effective_end_month() helper function correctly calculates min(agreement_end_date, closure_date, current_month). Both /wc-table and /payout-summary endpoints now properly cap month generation. Test centers: PB-HSR (FR-TEST-INDIA, closure_date 2026-03-22) and PB-PERTH (FR-PERTH, closure_date 2026-03-22, agreement_end_date 2032-02-25) both have effective_end_month=2026-03.",
+  "features_tested": {
+    "wc_table_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Returns effective_end_month field in response",
+        "No rows beyond effective_end_month",
+        "Effective end respects closure_date (2026-03)",
+        "Row structure intact (month, sale, expenses, commission, pnl, opening_wc, topup, closing_wc)",
+        "Works for PB-PERTH center with both closure_date and agreement_end_date"
+      ],
+      "verified_values": {
+        "PB-HSR_effective_end": "2026-03",
+        "PB-HSR_rows_count": 12,
+        "PB-HSR_last_row_month": "2026-03",
+        "PB-PERTH_effective_end": "2026-03",
+        "PB-PERTH_rows_count": 6
+      }
+    },
+    "payout_summary_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Caps far-future to_month (2087-12) at effective end (2026-03)",
+        "Without to_month, defaults to effective end month (not infinite future)",
+        "monthly_data does not contain endless future months (only 16 months, not thousands)",
+        "Returns correct payable amounts structure",
+        "Works for PB-PERTH with far-future to_month"
+      ],
+      "verified_values": {
+        "requested_to_month": "2087-12",
+        "actual_to_month": "2026-03",
+        "monthly_data_count": 16
+      }
+    },
+    "helper_function_logic": {
+      "status": "PASSED",
+      "tests": [
+        "effective_end_month never exceeds current month",
+        "Auth required for wc-table (401 without token)",
+        "Auth required for payout-summary (401 without token)"
+      ]
+    }
+  },
+  "bug_fix_verification": {
+    "bug_description": "MIS Dashboard, Franchise Dashboard, and Working Capital screens were generating monthly records endlessly into the future (e.g., 2087) instead of respecting franchise agreement cutoff dates",
+    "fix_applied": "Added get_franchise_effective_end_month() helper that calculates min(agreement_end_date, closure_date, current_month). Applied to /wc-table (filters sorted_months) and /payout-summary (caps to_month)",
+    "verification_result": "PASSED - Far-future dates (2087-12) are now correctly capped at effective end month (2026-03)"
+  }
+}
