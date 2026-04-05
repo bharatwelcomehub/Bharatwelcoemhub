@@ -1113,32 +1113,33 @@ const Admin = () => {
         </motion.div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 bg-white border border-[#E8DFD0] flex-wrap p-1 rounded-none">
-            <TabsTrigger value="banner" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+          <TabsList className="mb-6 bg-white border border-[#E8DFD0] p-1 rounded-none flex flex-wrap gap-1 h-auto">
+            <TabsTrigger value="banner" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3">
               <Home className="h-4 w-4" />
-              Home Banner
+              <span className="hidden sm:inline">Home Banner</span>
+              <span className="sm:hidden">Banner</span>
             </TabsTrigger>
-            <TabsTrigger value="festival" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+            <TabsTrigger value="festival" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3">
               <Sparkles className="h-4 w-4" />
               Festivals
             </TabsTrigger>
-            <TabsTrigger value="menu" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+            <TabsTrigger value="menu" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3">
               <UtensilsCrossed className="h-4 w-4" />
               Menu ({menuItems.length})
             </TabsTrigger>
-            <TabsTrigger value="tiffin" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+            <TabsTrigger value="tiffin" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="tiffin-admin-tab">
               <UtensilsCrossed className="h-4 w-4" />
               Tiffin ({tiffinItems.length})
             </TabsTrigger>
-            <TabsTrigger value="catering" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+            <TabsTrigger value="catering" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="catering-admin-tab">
               <UtensilsCrossed className="h-4 w-4" />
               Catering ({cateringPackages.length})
             </TabsTrigger>
-            <TabsTrigger value="locations" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+            <TabsTrigger value="locations" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3">
               <MapPin className="h-4 w-4" />
               Locations ({locations.length})
             </TabsTrigger>
-            <TabsTrigger value="videos" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none">
+            <TabsTrigger value="videos" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3">
               <Video className="h-4 w-4" />
               Videos ({videos.length})
             </TabsTrigger>
