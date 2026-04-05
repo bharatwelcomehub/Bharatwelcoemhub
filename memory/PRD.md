@@ -170,5 +170,14 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 ## Completed in This Session
 - ✅ Bank Statement vs Expense Reconciliation Feature (P0) - DONE
 
+### [2026-04-05] Fix Endless Future Dummy Months Generation (P0)
+- **Bug Fix**: WC Table and Payout Summary endpoints were not bounded by franchise agreement dates
+- **Root Cause**: No date-bounding logic existed — month generation could extend indefinitely
+- **Fix**: Added `get_franchise_effective_end_month(franchise)` helper that calculates `min(agreement_end_date, closure_date, current_month)`
+- **Applied to**: `/api/center-accounts/wc-table` (filters sorted_months), `/api/center-accounts/payout-summary` (caps to_month)
+- **Result**: Far-future dates (e.g., 2087-12) are now correctly capped at franchise's effective end month
+- **Tested**: 13/13 backend tests passed (iteration_58)
+- Files: `/app/backend/routes/center_accounts.py`
+
 ## Refactoring Needed
 - PDF Generation logic in `center_accounts.py` → dedicated generator utility
