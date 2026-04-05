@@ -118,10 +118,13 @@ export default function CenterAccounts() {
   // WC Table state
   const [wcTableData, setWcTableData] = useState(null);
   const [wcLoading, setWcLoading] = useState(false);
-  const [wcEditingMonth, setWcEditingMonth] = useState(null);
-  const [wcEditValue, setWcEditValue] = useState('');
   const [wcEditingInitial, setWcEditingInitial] = useState(false);
   const [wcInitialValue, setWcInitialValue] = useState('');
+  const [showTopupDialog, setShowTopupDialog] = useState(false);
+  const [topupAmount, setTopupAmount] = useState('');
+  const [topupReason, setTopupReason] = useState('');
+  const [topupMonth, setTopupMonth] = useState('');
+  const [showTopupLog, setShowTopupLog] = useState(false);
 
   // Fetch centers
   const fetchCenters = useCallback(async () => {
@@ -261,11 +264,10 @@ export default function CenterAccounts() {
     }
   }, [token, selectedCenter]);
 
-  // Save WC override (initial or month-level)
+  // Save WC override (initial value only)
   const saveWcOverride = async (month, value) => {
     try {
       const body = { token, center: selectedCenter, value: parseFloat(value) };
-      if (month) body.month = month;
       const res = await fetch(`${API}/api/center-accounts/wc-override`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -274,14 +276,43 @@ export default function CenterAccounts() {
       const data = await res.json();
       if (data.success) {
         toast.success(data.message);
-        setWcEditingMonth(null);
         setWcEditingInitial(false);
         fetchWcTable();
       } else {
-        toast.error(data.detail || 'Failed to save override');
+        toast.error(data.detail || 'Failed to save');
       }
     } catch (error) {
       toast.error('Failed to save WC override');
+    }
+  };
+
+  // Add manual WC top-up
+  const addWcTopup = async () => {
+    if (!topupAmount) return;
+    try {
+      const res = await fetch(`${API}/api/center-accounts/wc-topup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          token, center: selectedCenter, 
+          amount: parseFloat(topupAmount),
+          reason: topupReason,
+          month: topupMonth
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message);
+        setShowTopupDialog(false);
+        setTopupAmount('');
+        setTopupReason('');
+        setTopupMonth('');
+        fetchWcTable();
+      } else {
+        toast.error(data.detail || 'Failed to add top-up');
+      }
+    } catch (error) {
+      toast.error('Failed to add WC top-up');
     }
   };
 
@@ -861,122 +892,191 @@ export default function CenterAccounts() {
                 </Card>
               </div>
 
-              {/* WC Gating Alert Banner */}
-              {accountSummary.financial_summary.wc_standing?.wc_status === "closed" && (
+              {/* WC Status Banner */}
+              {wcTableData?.revenue_share_status === "stopped" && (
                 <div className="p-4 bg-red-50 border-2 border-red-300 rounded-lg" data-testid="wc-closed-banner">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                     <div>
-                      <p className="font-semibold text-red-800">Revenue Share & MG CLOSED</p>
-                      <p className="text-sm text-red-700">Working Capital is below 50% of Security Deposit.</p>
+                      <p className="font-semibold text-red-800">Revenue Share / Profit Share STOPPED</p>
+                      <p className="text-sm text-red-700">Working Capital is at or below 50% of initial. Revenue Share will resume once WC is restored.</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Working Capital Assessment Table - Excel Format */}
+              {/* Working Capital Summary Cards */}
+              {wcTableData && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="wc-summary-cards">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/60 shadow-sm">
+                    <p className="text-xs text-blue-600 font-medium">Initial WC</p>
+                    <p className="text-lg font-bold text-blue-800">{formatCurrency(wcTableData.initial_wc, accountSummary?.country)}</p>
+                    {wcEditingInitial ? (
+                      <div className="flex gap-1 mt-1">
+                        <Input type="number" value={wcInitialValue} onChange={(e) => setWcInitialValue(e.target.value)} className="h-7 text-xs w-28" data-testid="wc-initial-input" />
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => saveWcOverride(null, wcInitialValue)}><Check className="w-3 h-3 text-green-600" /></Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWcEditingInitial(false)}><X className="w-3 h-3 text-red-600" /></Button>
+                      </div>
+                    ) : (
+                      <Button variant="ghost" size="sm" className="h-5 px-1 text-xs mt-1" onClick={() => { setWcEditingInitial(true); setWcInitialValue(wcTableData.initial_wc); }} data-testid="edit-initial-wc-btn">
+                        <Pencil className="w-3 h-3 mr-1" /> Edit
+                      </Button>
+                    )}
+                  </div>
+                  <div className={`p-4 rounded-xl border shadow-sm ${wcTableData.current_wc >= wcTableData.initial_wc ? 'bg-gradient-to-br from-green-50 to-green-100/50 border-green-200/60' : wcTableData.current_wc > wcTableData.initial_wc * 0.5 ? 'bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200/60' : 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60'}`}>
+                    <p className="text-xs font-medium text-gray-600">Current WC</p>
+                    <p className={`text-lg font-bold ${wcTableData.current_wc >= wcTableData.initial_wc ? 'text-green-800' : wcTableData.current_wc > wcTableData.initial_wc * 0.5 ? 'text-amber-800' : 'text-red-800'}`}>
+                      {formatCurrency(wcTableData.current_wc, accountSummary?.country)}
+                    </p>
+                    <p className="text-xs text-gray-500">{wcTableData.initial_wc > 0 ? ((wcTableData.current_wc / wcTableData.initial_wc) * 100).toFixed(0) : 0}% of initial</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-200/60 shadow-sm">
+                    <p className="text-xs font-medium text-gray-600">P/L This Month</p>
+                    {wcTableData.rows?.length > 0 && (() => {
+                      const last = wcTableData.rows[wcTableData.rows.length - 1];
+                      return <p className={`text-lg font-bold ${last.pnl >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(last.pnl, accountSummary?.country)}</p>;
+                    })()}
+                  </div>
+                  <div className={`p-4 rounded-xl border shadow-sm ${wcTableData.revenue_share_status === 'active' ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/60' : 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60'}`}>
+                    <p className="text-xs font-medium text-gray-600">Revenue Share</p>
+                    <p className={`text-lg font-bold ${wcTableData.revenue_share_status === 'active' ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {wcTableData.revenue_share_status === 'active' ? 'Active' : 'Stopped'}
+                    </p>
+                    <p className="text-xs text-gray-500">50% threshold</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200/60 shadow-sm">
+                    <p className="text-xs text-purple-600 font-medium">Last Top-up</p>
+                    {wcTableData.last_topup ? (
+                      <>
+                        <p className="text-lg font-bold text-purple-800">{formatCurrency(wcTableData.last_topup.amount, accountSummary?.country)}</p>
+                        <p className="text-xs text-purple-500 truncate">{wcTableData.last_topup.reason || 'No reason'}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-purple-400 mt-1">None</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* WC Actions */}
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={fetchWcTable} disabled={wcLoading} className="gap-1">
+                  <RefreshCw className={`w-4 h-4 ${wcLoading ? 'animate-spin' : ''}`} /> Refresh
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setShowTopupDialog(true); setTopupMonth(new Date().toISOString().slice(0, 7)); }} className="gap-1 text-purple-600 border-purple-200" data-testid="wc-topup-btn">
+                  <DollarSign className="w-4 h-4" /> Add Top-up / Adjustment
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowTopupLog(!showTopupLog)} className="gap-1 text-gray-500" data-testid="wc-log-btn">
+                  <FileText className="w-4 h-4" /> {showTopupLog ? 'Hide' : 'Show'} Audit Log
+                </Button>
+              </div>
+
+              {/* Top-up Audit Log */}
+              {showTopupLog && wcTableData?.topup_log?.length > 0 && (
+                <Card className="border-purple-200">
+                  <CardContent className="pt-4">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b"><th className="text-left py-1 px-2 text-xs text-muted-foreground">Date</th><th className="text-left py-1 px-2 text-xs text-muted-foreground">Month</th><th className="text-right py-1 px-2 text-xs text-muted-foreground">Amount</th><th className="text-left py-1 px-2 text-xs text-muted-foreground">Reason</th><th className="text-left py-1 px-2 text-xs text-muted-foreground">By</th></tr></thead>
+                      <tbody>
+                        {wcTableData.topup_log.map((t, i) => (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="py-1 px-2 text-xs">{new Date(t.date).toLocaleDateString()}</td>
+                            <td className="py-1 px-2 text-xs">{t.month}</td>
+                            <td className="py-1 px-2 text-xs text-right font-medium text-purple-600">{formatCurrency(t.amount, accountSummary?.country)}</td>
+                            <td className="py-1 px-2 text-xs">{t.reason || '-'}</td>
+                            <td className="py-1 px-2 text-xs">{t.added_by}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Top-up Dialog */}
+              {showTopupDialog && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <Card className="w-full max-w-md shadow-xl">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2"><DollarSign className="w-5 h-5 text-purple-600" /> WC Top-up / Adjustment</CardTitle>
+                      <CardDescription>Manual fund infusion or adjustment. This will be logged with audit trail.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium">Amount *</label>
+                        <Input type="number" value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} placeholder="Enter amount (negative to deduct)" data-testid="topup-amount" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Month</label>
+                        <Input type="month" value={topupMonth} onChange={(e) => setTopupMonth(e.target.value)} data-testid="topup-month" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Reason *</label>
+                        <Input value={topupReason} onChange={(e) => setTopupReason(e.target.value)} placeholder="e.g., Fund arrangement, Partner infusion" data-testid="topup-reason" />
+                      </div>
+                    </CardContent>
+                    <div className="flex justify-end gap-2 p-4 pt-0">
+                      <Button variant="outline" onClick={() => setShowTopupDialog(false)}>Cancel</Button>
+                      <Button onClick={addWcTopup} disabled={!topupAmount || !topupReason} data-testid="topup-confirm-btn">Add Top-up</Button>
+                    </div>
+                  </Card>
+                </div>
+              )}
+
+              {/* Working Capital Month-by-Month Table */}
               <Card data-testid="wc-table-card">
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Wallet className="w-5 h-5" />
-                      Working Capital Assessment — {selectedCenter}
-                    </CardTitle>
-                    <Button variant="outline" size="sm" onClick={fetchWcTable} disabled={wcLoading} className="gap-1">
-                      <RefreshCw className={`w-4 h-4 ${wcLoading ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
-                  </div>
-                  {wcTableData && (
-                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                      <span>Initial WC: <strong className="text-foreground">{formatCurrency(wcTableData.initial_wc, accountSummary?.country)}</strong></span>
-                      {wcEditingInitial ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            value={wcInitialValue}
-                            onChange={(e) => setWcInitialValue(e.target.value)}
-                            className="w-32 h-7 text-xs"
-                            data-testid="wc-initial-input"
-                          />
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => saveWcOverride(null, wcInitialValue)}>
-                            <Check className="w-4 h-4 text-green-600" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWcEditingInitial(false)}>
-                            <X className="w-4 h-4 text-red-600" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" onClick={() => { setWcEditingInitial(true); setWcInitialValue(wcTableData.initial_wc || 0); }} data-testid="edit-initial-wc-btn">
-                          <Pencil className="w-3 h-3" /> Edit
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
+                  </CardTitle>
+                  <CardDescription>P/L = Sales - (Expenses + Commission). Losses deduct from WC. Profits don't auto-add.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   {wcLoading ? (
-                    <div className="text-center py-8 text-muted-foreground">Loading WC data...</div>
-                  ) : wcTableData && wcTableData.rows?.length > 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">Loading...</div>
+                  ) : wcTableData?.rows?.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm border-collapse" data-testid="wc-assessment-table">
                         <thead className="bg-muted sticky top-0">
                           <tr>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground border-b">MONTH</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">SALE</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">EXPENSES</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground border-b">Month</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">Sale</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">Expenses</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">Commission</th>
                             <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">P/L</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-blue-50">WORKING CAPITAL</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-green-50">BAL. WC.</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">DIFF.OF WC.</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-blue-50">Opening WC</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-purple-50">Top-up</th>
+                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-green-50">Closing WC</th>
+                            <th className="px-3 py-2 text-center font-medium text-muted-foreground border-b">Rev Share</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {wcTableData.rows.map((row, idx) => {
-                            const isEditing = wcEditingMonth === row.month;
+                          {wcTableData.rows.map((row) => {
                             const monthLabel = new Date(row.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
                             return (
-                              <tr key={row.month} className={`border-b hover:bg-muted/30 ${row.has_override ? 'bg-yellow-50/30' : ''}`} data-testid={`wc-row-${row.month}`}>
+                              <tr key={row.month} className="border-b hover:bg-muted/30" data-testid={`wc-row-${row.month}`}>
                                 <td className="px-3 py-2 font-medium text-xs">{monthLabel}</td>
-                                <td className="px-3 py-2 text-right font-mono text-xs">{row.sale.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                                <td className="px-3 py-2 text-right font-mono text-xs text-red-600">{row.expenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                <td className="px-3 py-2 text-right font-mono text-xs">{row.sale.toLocaleString('en-IN')}</td>
+                                <td className="px-3 py-2 text-right font-mono text-xs text-red-600">{row.expenses.toLocaleString('en-IN')}</td>
+                                <td className="px-3 py-2 text-right font-mono text-xs text-orange-600">{row.commission.toLocaleString('en-IN')}</td>
                                 <td className={`px-3 py-2 text-right font-mono text-xs font-semibold ${row.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {row.pnl.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  {row.pnl.toLocaleString('en-IN')}
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono text-xs bg-blue-50/50">
-                                  <div className="flex items-center justify-end gap-1">
-                                    {isEditing ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          value={wcEditValue}
-                                          onChange={(e) => setWcEditValue(e.target.value)}
-                                          className="w-28 h-6 text-xs text-right"
-                                          autoFocus
-                                          data-testid={`wc-edit-input-${row.month}`}
-                                        />
-                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => saveWcOverride(row.month, wcEditValue)}>
-                                          <Check className="w-3 h-3 text-green-600" />
-                                        </Button>
-                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setWcEditingMonth(null)}>
-                                          <X className="w-3 h-3 text-red-600" />
-                                        </Button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span>{row.opening_wc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => { setWcEditingMonth(row.month); setWcEditValue(row.opening_wc); }} data-testid={`wc-edit-btn-${row.month}`}>
-                                          <Pencil className="w-3 h-3 text-muted-foreground" />
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
+                                <td className="px-3 py-2 text-right font-mono text-xs bg-blue-50/50">{row.opening_wc.toLocaleString('en-IN')}</td>
+                                <td className="px-3 py-2 text-right font-mono text-xs bg-purple-50/50">
+                                  {row.topup !== 0 ? <span className="text-purple-600 font-medium">+{row.topup.toLocaleString('en-IN')}</span> : '-'}
                                 </td>
-                                <td className={`px-3 py-2 text-right font-mono text-xs font-bold bg-green-50/50 ${row.closing_wc >= 0 ? '' : 'text-red-600'}`}>
-                                  {row.closing_wc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                <td className={`px-3 py-2 text-right font-mono text-xs font-bold bg-green-50/50 ${row.closing_wc < wcTableData.initial_wc * 0.5 ? 'text-red-600' : ''}`}>
+                                  {row.closing_wc.toLocaleString('en-IN')}
                                 </td>
-                                <td className={`px-3 py-2 text-right font-mono text-xs ${row.diff_from_initial >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {row.diff_from_initial.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                <td className="px-3 py-2 text-center">
+                                  {row.rev_share_status === 'active' ? (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+                                  ) : row.rev_share_status === 'restored' ? (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Restored</span>
+                                  ) : (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Stopped</span>
+                                  )}
                                 </td>
                               </tr>
                             );

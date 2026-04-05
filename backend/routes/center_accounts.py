@@ -311,20 +311,20 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
 
 
 # =======================================
-# WC TABLE ENDPOINT - Excel-like month-by-month view
-# P/L = Sale - Expenses (simple, no GST/Commission)
+# WC TABLE ENDPOINT - Simplified Working Capital Assessment
+# P/L = Sales - (Expenses + Commission)
+# Losses deduct from WC; Profits do NOT auto-add
 # =======================================
 
 @router.post("/wc-table")
 async def get_wc_table(req: dict = Body(...)):
     """
-    Return Working Capital Assessment as a month-by-month table
-    matching the Excel format exactly:
-    MONTH | SALE | EXPENSES | P/L | WORKING CAPITAL (Opening) | BAL. WC. (Closing) | DIFF.OF WC.
-    
-    Formula: P/L = Sale - Expenses (simple subtraction)
-    Opening WC = Previous month's Closing WC (or Initial Deposit for first month)
-    Closing WC = Opening WC + P/L (can go negative)
+    Working Capital Assessment:
+    - P/L = Total Sales - (Total Expenses + Total Commission)
+    - If P/L negative: deduct from WC
+    - If P/L positive: WC unchanged (profit doesn't auto-add)
+    - Manual top-ups increase WC (with audit trail)
+    - Revenue Share stops if WC <= 50% of initial
     """
     token = req.get("token")
     center = req.get("center", "").upper()
@@ -335,110 +335,197 @@ async def get_wc_table(req: dict = Body(...)):
     franchise = await get_franchise_for_center(center)
     initial_wc = float(franchise.get("working_capital", 0) or 0) if franchise else 0
     
-    # Check for manual WC override
+    # Check for initial WC override
     wc_override = await db.wc_overrides.find_one(
-        {"center": center},
+        {"center": center, "month": {"$exists": False}},
         {"_id": 0}
     )
     if wc_override and wc_override.get("initial_wc") is not None:
         initial_wc = float(wc_override["initial_wc"])
     
-    # Get all months that have sales data for this center
+    # Get monthly sales
     sales_months = await db.daily_sales.aggregate([
         {"$match": {"center": center, "date": {"$regex": r"^\d{4}-\d{2}"}}},
         {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
         {"$group": {"_id": "$month", "total_sale": {"$sum": {"$ifNull": ["$total_sale", 0]}}}},
         {"$sort": {"_id": 1}}
-    ]).to_list(100)
+    ]).to_list(200)
     
-    # Get all months that have expense data
+    # Get monthly expenses
     expense_months = await db.expenses.aggregate([
         {"$match": {"center": center}},
         {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
         {"$group": {"_id": "$month", "total_expense": {"$sum": {"$ifNull": ["$amount", 0]}}}},
         {"$sort": {"_id": 1}}
-    ]).to_list(100)
+    ]).to_list(200)
     
-    # Merge into a dict keyed by month
+    # Get monthly commissions
+    commission_months = await db.monthly_commissions.aggregate([
+        {"$match": {"center": center}},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": {"$ifNull": ["$commission_amount", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
+    
+    # Get manual WC top-ups (audit log)
+    topups = await db.wc_topups.find(
+        {"center": center},
+        {"_id": 0}
+    ).sort("date", 1).to_list(200)
+    
+    # Index top-ups by month
+    topup_by_month = {}
+    for t in topups:
+        m = t.get("month") or t.get("date", "")[:7]
+        if m not in topup_by_month:
+            topup_by_month[m] = 0
+        topup_by_month[m] += float(t.get("amount", 0))
+    
+    # Merge all months
     month_data = {}
     for s in sales_months:
         m = s["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
         month_data[m]["sale"] = s["total_sale"]
     
     for e in expense_months:
         m = e["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
         month_data[m]["expenses"] = e["total_expense"]
     
-    if not month_data:
-        return {"success": True, "rows": [], "initial_wc": initial_wc, "center": center}
+    for c in commission_months:
+        m = c["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+        month_data[m]["commission"] = c["total_commission"]
     
-    # Sort months chronologically
+    if not month_data:
+        return {
+            "success": True, "rows": [], "initial_wc": initial_wc, "center": center,
+            "current_wc": initial_wc, "revenue_share_status": "active",
+            "last_topup": None, "topup_log": topups
+        }
+    
     sorted_months = sorted(month_data.keys())
     
-    # Check for month-level WC overrides
-    month_overrides = {}
-    override_docs = await db.wc_overrides.find(
-        {"center": center, "month": {"$exists": True}},
-        {"_id": 0}
-    ).to_list(100)
-    for od in override_docs:
-        if od.get("month") and od.get("opening_wc_override") is not None:
-            month_overrides[od["month"]] = float(od["opening_wc_override"])
-    
-    # Build table rows
+    # Build rows with new logic
     rows = []
-    prev_closing = initial_wc
+    current_wc = initial_wc
+    revenue_share_stopped_since = None
     
     for month in sorted_months:
         d = month_data[month]
         sale = round(d["sale"], 2)
         expenses = round(d["expenses"], 2)
-        pnl = round(sale - expenses, 2)
+        commission = round(d["commission"], 2)
+        pnl = round(sale - (expenses + commission), 2)
         
-        # Check if this month has a manual override for opening WC
-        if month in month_overrides:
-            opening_wc = month_overrides[month]
+        opening_wc = round(current_wc, 2)
+        
+        # Apply P/L: only deduct losses, don't auto-add profits
+        if pnl < 0:
+            current_wc = round(current_wc + pnl, 2)  # deduct loss
+        
+        # Apply any manual top-ups for this month
+        topup_amount = round(topup_by_month.get(month, 0), 2)
+        if topup_amount != 0:
+            current_wc = round(current_wc + topup_amount, 2)
+        
+        closing_wc = round(current_wc, 2)
+        
+        # Revenue share status: stops if WC <= 50% of initial
+        threshold = initial_wc * 0.5
+        if closing_wc <= threshold and initial_wc > 0:
+            rev_share_status = "stopped"
+            if revenue_share_stopped_since is None:
+                revenue_share_stopped_since = month
+        elif revenue_share_stopped_since is not None and closing_wc > threshold:
+            rev_share_status = "restored"
+            revenue_share_stopped_since = None
         else:
-            opening_wc = round(prev_closing, 2)
-        
-        closing_wc = round(opening_wc + pnl, 2)
-        diff_from_initial = round(closing_wc - initial_wc, 2)
+            rev_share_status = "active"
         
         rows.append({
             "month": month,
             "sale": sale,
             "expenses": expenses,
+            "commission": commission,
             "pnl": pnl,
             "opening_wc": opening_wc,
+            "topup": topup_amount,
             "closing_wc": closing_wc,
-            "diff_from_initial": diff_from_initial,
-            "has_override": month in month_overrides
+            "diff_from_initial": round(closing_wc - initial_wc, 2),
+            "rev_share_status": rev_share_status
         })
-        
-        prev_closing = closing_wc
+    
+    # Get last topup for summary
+    last_topup = topups[-1] if topups else None
+    
+    # Current overall revenue share status
+    final_wc = rows[-1]["closing_wc"] if rows else initial_wc
+    final_status = "active"
+    if initial_wc > 0 and final_wc <= (initial_wc * 0.5):
+        final_status = "stopped"
     
     return {
         "success": True,
         "rows": rows,
         "initial_wc": initial_wc,
-        "center": center
+        "current_wc": final_wc,
+        "center": center,
+        "revenue_share_status": final_status,
+        "last_topup": last_topup,
+        "topup_log": topups
+    }
+
+
+@router.post("/wc-topup")
+async def add_wc_topup(req: dict = Body(...)):
+    """
+    Manual WC top-up / reset with audit log.
+    Used for fund infusions, adjustments, etc.
+    """
+    token = req.get("token")
+    center = req.get("center", "").upper()
+    amount = req.get("amount")
+    reason = req.get("reason", "")
+    month = req.get("month", "")  # YYYY-MM
+    
+    session = await check_access(token)
+    
+    if amount is None:
+        raise HTTPException(400, "Amount is required")
+    
+    amount = float(amount)
+    
+    topup_record = {
+        "center": center,
+        "amount": amount,
+        "reason": reason,
+        "month": month or datetime.now(timezone.utc).strftime("%Y-%m"),
+        "date": datetime.now(timezone.utc).isoformat(),
+        "added_by": session.get("managerName", session.get("mobile", "unknown")),
+        "mobile": session.get("mobile", ""),
+    }
+    
+    await db.wc_topups.insert_one(topup_record)
+    del topup_record["_id"]  # Remove ObjectId before response
+    
+    logger.info(f"WC top-up for {center}: {amount} ({reason}) by {topup_record['added_by']}")
+    
+    return {
+        "success": True,
+        "message": f"WC top-up of {amount} added for {center}",
+        "topup": topup_record
     }
 
 
 @router.post("/wc-override")
 async def set_wc_override(req: dict = Body(...)):
-    """
-    Set/update WC opening override for a specific center and month.
-    This allows the admin to manually reset the WC opening for any month.
-    If month is not provided, sets the initial WC value.
-    """
+    """Set/update initial WC value for a center."""
     token = req.get("token")
     center = req.get("center", "").upper()
-    month = req.get("month")  # YYYY-MM or None for initial
     value = req.get("value")
     
     session = await check_access(token)
@@ -448,35 +535,18 @@ async def set_wc_override(req: dict = Body(...)):
     
     value = float(value)
     
-    if month:
-        # Override opening WC for a specific month
-        await db.wc_overrides.update_one(
-            {"center": center, "month": month},
-            {"$set": {
-                "center": center,
-                "month": month,
-                "opening_wc_override": value,
-                "updated_by": session.get("mobile", "unknown"),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }},
-            upsert=True
-        )
-        logger.info(f"WC override set for {center} month {month}: {value}")
-        return {"success": True, "message": f"WC opening override set for {center} {month}: {value}"}
-    else:
-        # Override initial WC
-        await db.wc_overrides.update_one(
-            {"center": center, "month": {"$exists": False}},
-            {"$set": {
-                "center": center,
-                "initial_wc": value,
-                "updated_by": session.get("mobile", "unknown"),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }},
-            upsert=True
-        )
-        logger.info(f"Initial WC override set for {center}: {value}")
-        return {"success": True, "message": f"Initial WC set for {center}: {value}"}
+    await db.wc_overrides.update_one(
+        {"center": center, "month": {"$exists": False}},
+        {"$set": {
+            "center": center,
+            "initial_wc": value,
+            "updated_by": session.get("mobile", "unknown"),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    logger.info(f"Initial WC set for {center}: {value}")
+    return {"success": True, "message": f"Initial WC set for {center}: {value}"}
 
 
 # Colors for PDF
