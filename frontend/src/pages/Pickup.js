@@ -415,7 +415,7 @@ const Pickup = () => {
                     <MessageCircle className="h-5 w-5 mr-2" /> Confirm & Send
                   </Button>
                 </div>
-                <p className="text-center text-[10px] text-[#7A6F65] italic font-body">Powered by A.AI Technology</p>
+                <p className="text-center text-[10px] text-[#7A6F65] italic font-body">© Purnabramha</p>
               </div>
             </div>
           </motion.div>

@@ -122,7 +122,7 @@ const TableBooking = () => {
       message += `💰 *Total: ${formatPrice(cartTotal)}*\n`;
     }
     if (specialRequests) message += `\n📝 ${specialRequests}\n`;
-    message += `\n✨ _Powered by A.AI Technology_ 🤖\n_Confirmation pending manager's reply_`;
+    message += `\n_Confirmation pending manager's reply_`;
     return encodeURIComponent(message);
   };
 
@@ -405,7 +405,7 @@ const TableBooking = () => {
                   <Button onClick={confirmBooking} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-none" data-testid="confirm-booking-btn"><MessageCircle className="h-5 w-5 mr-2" /> Send via WhatsApp</Button>
                 </div>
                 <Button variant="ghost" onClick={resetForm} className="w-full text-[#7A6F65] hover:text-[#5C4A3A]">Reset Form</Button>
-                <p className="text-center text-[10px] text-[#7A6F65] italic font-body">Powered by A.AI Technology</p>
+                <p className="text-center text-[10px] text-[#7A6F65] italic font-body">© Purnabramha</p>
               </div>
             </div>
           </motion.div>

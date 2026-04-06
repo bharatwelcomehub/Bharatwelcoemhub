@@ -107,7 +107,7 @@ const Tiffin = () => {
     if (unlimitedBreakfast.enabled) { message += `\n*Breakfast:* ${unlimitedBreakfast.date} | ${unlimitedBreakfast.guests} guests\n${formatPrice(calculateTotals.breakfastTotal)}\n`; }
     message += `\n---\n`;
     if (!isAustralia && calculateTotals.gst > 0) message += `Subtotal: ${formatPrice(calculateTotals.subtotal)} + GST: ${formatPrice(calculateTotals.gst)}\n`;
-    message += `*TOTAL: ${formatPrice(calculateTotals.grandTotal)}*\n\n_Powered by A.AI Technology_`;
+    message += `*TOTAL: ${formatPrice(calculateTotals.grandTotal)}*`;
     return encodeURIComponent(message);
   };
 
@@ -357,7 +357,7 @@ const Tiffin = () => {
                   <Button variant="outline" onClick={() => setShowReview(false)} className="flex-1 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none">Edit Order</Button>
                   <Button onClick={confirmBooking} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-none" data-testid="tiffin-confirm-btn"><MessageCircle className="h-5 w-5 mr-2" /> Send via WhatsApp</Button>
                 </div>
-                <p className="text-center text-[10px] text-[#7A6F65] italic font-body">Powered by A.AI Technology</p>
+                <p className="text-center text-[10px] text-[#7A6F65] italic font-body">© Purnabramha</p>
               </div>
             </div>
           </motion.div>

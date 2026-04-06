@@ -176,7 +176,7 @@ const Layout = ({ children }) => {
             <div>
               <img src="/logo.png" alt="Purnabramha" className="h-14 w-auto mb-5" />
               <p className="text-sm text-[#7A6F65] font-body leading-relaxed mb-4">
-                World's First Intelligent Restaurant Chain Powered by A.AI Technology
+                World's First Intelligent Restaurant Chain
               </p>
               <p className="text-xs text-[#7A6F65]/60 font-body">
                 Authentic Maharashtrian cuisine across India, USA, Australia & Japan.
@@ -211,7 +211,7 @@ const Layout = ({ children }) => {
               &copy; 2025 Purnabramha. All rights reserved. Powered by Manaswini Foods Private Limited
             </p>
             <p className="text-[10px] text-[#B8962E]/30 mt-2 tracking-[0.15em] uppercase font-body">
-              Powered by A.AI Technology
+              © 2025 Purnabramha. All rights reserved.
             </p>
           </div>
         </div>
