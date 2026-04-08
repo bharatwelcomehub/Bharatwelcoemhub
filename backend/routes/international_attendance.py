@@ -562,6 +562,8 @@ async def get_week_attendance(req: WeekAttendanceRequest):
             "category": emp.get("category", "STAFF"),
             "role": emp.get("role", ""),
             "hourly_rate": hourly_rate,
+            "target_takehome_rate": float(emp.get("target_takehome_rate", 0) or 0),
+            "gross_hourly_rate": float(emp.get("gross_hourly_rate", 0) or 0),
             "hours": hours,
             "total_hours": round(total_hours, 2),
             "weekly_salary": round(weekly_salary, 2)

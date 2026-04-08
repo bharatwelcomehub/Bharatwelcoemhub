@@ -829,15 +829,58 @@ export default function InternationalAttendance() {
               </div>
             ) : monthlyReport ? (
               <>
+                {/* Monthly Summary Cards */}
+                <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+                  <CardContent className="pt-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 text-center">
+                      <div>
+                        <div className="text-xl font-bold text-slate-700" data-testid="summary-staff">{monthlyReport.summary.total_staff}</div>
+                        <div className="text-xs text-slate-500 flex items-center justify-center gap-1">
+                          <Users className="w-3 h-3" /> Staff
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-emerald-700" data-testid="summary-hours">{monthlyReport.summary.total_hours?.toFixed(1)}</div>
+                        <div className="text-xs text-emerald-600 flex items-center justify-center gap-1">
+                          <Clock className="w-3 h-3" /> Hours
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-blue-700" data-testid="summary-gross">{formatCurrency(monthlyReport.summary.total_gross)}</div>
+                        <div className="text-xs text-blue-600">Gross Pay</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-red-600" data-testid="summary-payg">{formatCurrency(monthlyReport.summary.total_payg)}</div>
+                        <div className="text-xs text-red-500">PAYG Tax</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-green-700" data-testid="summary-net">{formatCurrency(monthlyReport.summary.total_payroll)}</div>
+                        <div className="text-xs text-green-600 flex items-center justify-center gap-1">
+                          <DollarSign className="w-3 h-3" /> Net Pay
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-purple-700" data-testid="summary-super">{formatCurrency(monthlyReport.summary.total_super)}</div>
+                        <div className="text-xs text-purple-600">Super (11.5%)</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-amber-700" data-testid="summary-employer-cost">{formatCurrency(monthlyReport.summary.total_employer_cost)}</div>
+                        <div className="text-xs text-amber-600">Employer Cost</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Per-Employee Payroll Table */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg">
-                      Monthly Payroll - {monthlyReport.month_name} {monthlyReport.year}
+                      Employee Payroll - {monthlyReport.month_name} {monthlyReport.year}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm" data-testid="employee-payroll-table">
                         <thead className="bg-muted">
                           <tr>
                             <th className="text-left py-3 px-2 font-medium">Employee</th>
@@ -855,6 +898,7 @@ export default function InternationalAttendance() {
                             <th className="text-right py-3 px-2 font-medium bg-red-50">Medicare</th>
                             <th className="text-right py-3 px-2 font-medium bg-green-50">Net Pay</th>
                             <th className="text-right py-3 px-2 font-medium bg-purple-50">Super</th>
+                            <th className="text-right py-3 px-2 font-medium bg-amber-50">Employer Cost</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -875,6 +919,7 @@ export default function InternationalAttendance() {
                               <td className="py-2 px-2 text-right text-red-500 bg-red-50/30 text-xs">{formatCurrency(emp.medicare_levy || 0)}</td>
                               <td className="py-2 px-2 text-right font-bold text-green-600 bg-green-50/50">{formatCurrency(emp.net_pay || emp.total_salary || 0)}</td>
                               <td className="py-2 px-2 text-right text-purple-600 bg-purple-50/30 text-xs">{formatCurrency(emp.superannuation || 0)}</td>
+                              <td className="py-2 px-2 text-right font-bold text-amber-700 bg-amber-50/30">{formatCurrency(emp.employer_total_cost || 0)}</td>
                             </tr>
                           ))}
                           {/* Totals row */}
@@ -890,6 +935,7 @@ export default function InternationalAttendance() {
                               <td className="py-2 px-2 text-right text-red-500 bg-red-50/50">{formatCurrency(monthlyReport.totals.total_medicare)}</td>
                               <td className="py-2 px-2 text-right text-green-700 bg-green-50">{formatCurrency(monthlyReport.totals.total_net)}</td>
                               <td className="py-2 px-2 text-right text-purple-600 bg-purple-50">{formatCurrency(monthlyReport.totals.total_super)}</td>
+                              <td className="py-2 px-2 text-right text-amber-700 bg-amber-50">{formatCurrency(monthlyReport.totals.total_employer_cost)}</td>
                             </tr>
                           )}
                         </tbody>
@@ -898,47 +944,118 @@ export default function InternationalAttendance() {
                   </CardContent>
                 </Card>
 
-                {/* Monthly Summary */}
-                <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
-                  <CardContent className="pt-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 text-center">
-                      <div>
-                        <div className="text-xl font-bold text-slate-700">{monthlyReport.summary.total_staff}</div>
-                        <div className="text-xs text-slate-500 flex items-center justify-center gap-1">
-                          <Users className="w-3 h-3" /> Staff
-                        </div>
+                {/* Weekly Organization Cost Breakdown */}
+                {monthlyReport.weekly_totals && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-amber-600" />
+                        Weekly Organization Cost Breakdown
+                      </CardTitle>
+                      <CardDescription>What the organization pays each week (all employees combined)</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm" data-testid="weekly-org-cost-table">
+                          <thead>
+                            <tr className="bg-slate-800 text-white">
+                              <th className="text-left py-3 px-3 font-medium">Week</th>
+                              <th className="text-left py-3 px-3 font-medium">Period</th>
+                              <th className="text-right py-3 px-3 font-medium">Hours</th>
+                              <th className="text-right py-3 px-3 font-medium">Gross Pay</th>
+                              <th className="text-right py-3 px-3 font-medium">Net Pay</th>
+                              <th className="text-right py-3 px-3 font-medium">Super</th>
+                              <th className="text-right py-3 px-3 font-medium">Employer Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Array.from({ length: monthlyReport.weeks_in_month }, (_, i) => {
+                              const w = i + 1;
+                              const wt = monthlyReport.weekly_totals[w] || {};
+                              return (
+                                <tr key={w} className={`border-t ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                  <td className="py-2 px-3 font-medium">Week {w}</td>
+                                  <td className="py-2 px-3 text-xs text-muted-foreground">{monthlyReport.week_labels?.[w] || ''}</td>
+                                  <td className="py-2 px-3 text-right">{(wt.hours || 0).toFixed(1)}</td>
+                                  <td className="py-2 px-3 text-right text-blue-700">{formatCurrency(wt.gross || 0)}</td>
+                                  <td className="py-2 px-3 text-right text-green-700">{formatCurrency(wt.net || 0)}</td>
+                                  <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(wt.super || 0)}</td>
+                                  <td className="py-2 px-3 text-right font-bold text-amber-700">{formatCurrency(wt.employer_cost || 0)}</td>
+                                </tr>
+                              );
+                            })}
+                            {/* Monthly total row */}
+                            <tr className="border-t-2 border-gray-400 font-bold bg-amber-50">
+                              <td className="py-3 px-3" colSpan={2}>MONTHLY TOTAL</td>
+                              <td className="py-3 px-3 text-right">{monthlyReport.totals?.total_hours?.toFixed(1)}</td>
+                              <td className="py-3 px-3 text-right text-blue-800">{formatCurrency(monthlyReport.totals?.total_gross)}</td>
+                              <td className="py-3 px-3 text-right text-green-800">{formatCurrency(monthlyReport.totals?.total_net)}</td>
+                              <td className="py-3 px-3 text-right text-purple-700">{formatCurrency(monthlyReport.totals?.total_super)}</td>
+                              <td className="py-3 px-3 text-right text-amber-800 text-base">{formatCurrency(monthlyReport.totals?.total_employer_cost)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
-                      <div>
-                        <div className="text-xl font-bold text-emerald-700">{monthlyReport.summary.total_hours?.toFixed(1)}</div>
-                        <div className="text-xs text-emerald-600 flex items-center justify-center gap-1">
-                          <Clock className="w-3 h-3" /> Hours
-                        </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Per-Person Monthly Cost Card */}
+                {monthlyReport.employees.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="w-5 h-5 text-blue-600" />
+                        Per-Person Organization Cost
+                      </CardTitle>
+                      <CardDescription>Monthly cost to the organization per employee</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm" data-testid="per-person-cost-table">
+                          <thead>
+                            <tr className="bg-slate-800 text-white">
+                              <th className="text-left py-3 px-3 font-medium">Employee</th>
+                              <th className="text-right py-3 px-3 font-medium">Hours</th>
+                              <th className="text-right py-3 px-3 font-medium">Take-Home/Hr</th>
+                              <th className="text-right py-3 px-3 font-medium">Gross/Hr</th>
+                              <th className="text-right py-3 px-3 font-medium">Net Pay</th>
+                              <th className="text-right py-3 px-3 font-medium">Super</th>
+                              <th className="text-right py-3 px-3 font-medium">PAYG + Medicare</th>
+                              <th className="text-right py-3 px-3 font-medium">Employer Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {monthlyReport.employees.map((emp, idx) => (
+                              <tr key={emp.employee_id} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                <td className="py-2 px-3">
+                                  <div className="font-medium">{emp.employee_name}</div>
+                                  <div className="text-xs text-muted-foreground">{emp.category}</div>
+                                </td>
+                                <td className="py-2 px-3 text-right">{emp.total_hours?.toFixed(1)}</td>
+                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(emp.target_takehome_hourly || emp.hourly_rate)}</td>
+                                <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(emp.gross_hourly_rate || 0)}</td>
+                                <td className="py-2 px-3 text-right text-green-700 font-medium">{formatCurrency(emp.net_pay || 0)}</td>
+                                <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(emp.superannuation || 0)}</td>
+                                <td className="py-2 px-3 text-right text-red-500">{formatCurrency((emp.payg_tax || 0) + (emp.medicare_levy || 0))}</td>
+                                <td className="py-2 px-3 text-right font-bold text-amber-700 text-base">{formatCurrency(emp.employer_total_cost || 0)}</td>
+                              </tr>
+                            ))}
+                            <tr className="border-t-2 border-gray-400 font-bold bg-amber-50">
+                              <td className="py-3 px-3">TOTAL ({monthlyReport.employees.length} staff)</td>
+                              <td className="py-3 px-3 text-right">{monthlyReport.totals?.total_hours?.toFixed(1)}</td>
+                              <td className="py-3 px-3" colSpan={2}></td>
+                              <td className="py-3 px-3 text-right text-green-800">{formatCurrency(monthlyReport.totals?.total_net)}</td>
+                              <td className="py-3 px-3 text-right text-purple-700">{formatCurrency(monthlyReport.totals?.total_super)}</td>
+                              <td className="py-3 px-3 text-right text-red-600">{formatCurrency((monthlyReport.totals?.total_payg || 0) + (monthlyReport.totals?.total_medicare || 0))}</td>
+                              <td className="py-3 px-3 text-right text-amber-800 text-base">{formatCurrency(monthlyReport.totals?.total_employer_cost)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
-                      <div>
-                        <div className="text-xl font-bold text-blue-700">{formatCurrency(monthlyReport.summary.total_gross)}</div>
-                        <div className="text-xs text-blue-600">Gross Pay</div>
-                      </div>
-                      <div>
-                        <div className="text-xl font-bold text-red-600">{formatCurrency(monthlyReport.summary.total_payg)}</div>
-                        <div className="text-xs text-red-500">PAYG Tax</div>
-                      </div>
-                      <div>
-                        <div className="text-xl font-bold text-green-700">{formatCurrency(monthlyReport.summary.total_payroll)}</div>
-                        <div className="text-xs text-green-600 flex items-center justify-center gap-1">
-                          <DollarSign className="w-3 h-3" /> Net Pay
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xl font-bold text-purple-700">{formatCurrency(monthlyReport.summary.total_super)}</div>
-                        <div className="text-xs text-purple-600">Super (11.5%)</div>
-                      </div>
-                      <div>
-                        <div className="text-xl font-bold text-amber-700">{formatCurrency(monthlyReport.summary.total_employer_cost)}</div>
-                        <div className="text-xs text-amber-600">Employer Cost</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
               </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">

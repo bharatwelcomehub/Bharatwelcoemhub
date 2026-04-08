@@ -1,0 +1,97 @@
+{
+  "summary": "Tested Australian Reverse Payroll Organization Cost features (Iteration 60). All 12 backend API tests passed. Frontend UI verified: Weekly Attendance displays net/gross rates side-by-side, Monthly Summary shows 7 summary cards including Employer Cost, Employee Payroll table with Employer Cost column, Weekly Organization Cost Breakdown table, and Edit Rate dialog.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Edit Rate Dialog",
+        "issues": ["Minor: Missing aria-describedby for DialogContent (accessibility warning in console)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reverse_payroll_org_cost.py",
+    "/app/test_reports/pytest/pytest_reverse_payroll_org_cost.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_reverse_payroll_org_cost.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": "Super Admin: Mobile 9741399190, OTP 123456, Center PB-MGT",
+  "seed_data_creation": "None - used existing test center PB-PERTH with 8 employees",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Australian reverse payroll organization cost features fully tested. Backend endpoints verified: /week-data returns target_takehome_rate and gross_hourly_rate, /payroll-report returns weekly_totals, per-employee weekly_costs, employer_total_cost, and totals.total_employer_cost. Frontend verified: Weekly Attendance tab shows net/gross rates side-by-side with edit button, Monthly Summary tab shows 7 summary cards (Staff, Hours, Gross Pay, PAYG Tax, Net Pay, Super 11.5%, Employer Cost), Employee Payroll table with Employer Cost column, Weekly Organization Cost Breakdown table. Per-Person Organization Cost table only renders when employees have attendance data.",
+  "features_tested": {
+    "backend_week_data_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Returns target_takehome_rate for each employee",
+        "Returns gross_hourly_rate for each employee",
+        "gross_hourly_rate >= target_takehome_rate when rate > 0"
+      ]
+    },
+    "backend_payroll_report_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Returns weekly_totals with per-week org cost breakdown",
+        "weekly_totals contains hours, gross, net, super, employer_cost for each week",
+        "weekly_totals employer_cost = gross + super",
+        "Each employee has employer_total_cost field",
+        "Each employee has weekly_costs breakdown",
+        "totals.total_employer_cost exists",
+        "total_employer_cost = sum of employee employer_total_cost",
+        "total_employer_cost = total_gross + total_super"
+      ]
+    },
+    "backend_employees_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Returns target_takehome_rate and gross_hourly_rate for all employees"
+      ]
+    },
+    "backend_update_rate_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Endpoint exists and accepts rate update requests"
+      ]
+    },
+    "frontend_weekly_attendance_tab": {
+      "status": "PASSED",
+      "tests": [
+        "Displays net/gross rates side-by-side (e.g., $25/$29.91)",
+        "Shows 'net / gross' label below rates",
+        "Edit rate button (pencil icon) present for each employee"
+      ]
+    },
+    "frontend_monthly_summary_tab": {
+      "status": "PASSED",
+      "tests": [
+        "Shows 7 summary cards: Staff, Hours, Gross Pay, PAYG Tax, Net Pay, Super (11.5%), Employer Cost",
+        "Employee Payroll table has Employer Cost column",
+        "Weekly Organization Cost Breakdown table shows Week, Period, Hours, Gross Pay, Net Pay, Super, Employer Cost",
+        "Per-Person Organization Cost table renders when employees.length > 0"
+      ]
+    },
+    "frontend_edit_rate_dialog": {
+      "status": "PASSED",
+      "tests": [
+        "Dialog opens with 'Update Take-Home Hourly Rate' title",
+        "Shows employee name and category",
+        "Shows current take-home rate (green) and gross rate (blue)",
+        "Has input field for new rate",
+        "Has Cancel and Save Rate buttons"
+      ]
+    }
+  }
+}
