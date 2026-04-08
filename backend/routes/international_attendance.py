@@ -90,12 +90,18 @@ def center_code_variants(center: str) -> list:
     """Return both normalized and original variants for querying across collections."""
     original = center.upper().strip()
     normalized = original.rstrip("- ")
-    variants = [normalized]
+    variants = set([normalized])
     if original != normalized:
-        variants.append(original)
+        variants.add(original)
     if not normalized.endswith("-"):
-        variants.append(normalized + "-")
-    return list(set(variants))
+        variants.add(normalized + "-")
+    # Add PB- prefix variant if not present
+    if not normalized.startswith("PB-"):
+        variants.add("PB-" + normalized)
+    # Add variant without PB- prefix
+    if normalized.startswith("PB-"):
+        variants.add(normalized[3:])
+    return list(variants)
 
 async def check_international_access(session: dict, requested_center: str = None) -> dict:
     """Verify user has access to international attendance.
@@ -276,7 +282,7 @@ def reverse_calculate_gross_from_net(target_net_annual: float) -> dict:
     """
     if target_net_annual <= 0:
         return {
-            "gross_annual": 0, "payg_tax": 0, "medicare_levy": 0,
+            "gross_annual": 0, "payg_tax_annual": 0, "medicare_levy_annual": 0,
             "net_annual": 0, "super_annual": 0, "employer_cost_annual": 0
         }
     
@@ -463,6 +469,17 @@ async def get_international_employees(req: CenterRequest):
         else:
             hourly_rate = 0.0
         
+        # Target take-home rate (if set separately, otherwise use hourly_rate)
+        target_takehome = emp.get("target_takehome_rate")
+        if target_takehome is not None and target_takehome != "":
+            target_takehome = float(target_takehome)
+        else:
+            target_takehome = hourly_rate  # Default: hourly_rate IS the take-home
+        
+        # Calculate gross hourly rate from the take-home
+        gross_info = calculate_payroll_for_employee(target_takehome, 1) if target_takehome > 0 else {}
+        gross_hourly = gross_info.get("gross_hourly_rate", 0)
+        
         # Build clean employee record (exclude _id for JSON serialization)
         clean_emp = {
             "employee_id": emp_id,
@@ -471,6 +488,8 @@ async def get_international_employees(req: CenterRequest):
             "category": category,
             "role": emp.get("role") or emp.get("designation") or "",
             "hourly_rate": hourly_rate,
+            "target_takehome_rate": target_takehome,
+            "gross_hourly_rate": gross_hourly,
             "currentSalary": emp.get("currentSalary", 0),
             "mobile": emp.get("mobile", ""),
         }
@@ -1120,17 +1139,19 @@ async def update_hourly_rate(req: UpdateRateRequest):
     # Try multiple ID fields and center variants since employee docs may use different keys
     variants = center_code_variants(req.center)
     
+    update_fields = {"hourly_rate": req.new_rate, "target_takehome_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}
+    
     # First try employee_id field
     result = await db.employees.update_one(
         {"employee_id": req.employee_id, "center": {"$in": variants}},
-        {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": update_fields}
     )
     
     if result.modified_count == 0:
         # Try 'id' field
         result = await db.employees.update_one(
             {"id": req.employee_id, "center": {"$in": variants}},
-            {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
+            {"$set": update_fields}
         )
     
     if result.modified_count == 0:
@@ -1140,7 +1161,7 @@ async def update_hourly_rate(req: UpdateRateRequest):
             oid = ObjectId(req.employee_id)
             result = await db.employees.update_one(
                 {"_id": oid},
-                {"$set": {"hourly_rate": req.new_rate, "updated_at": datetime.now(timezone.utc).isoformat()}}
+                {"$set": update_fields}
             )
         except Exception:
             pass
@@ -1246,15 +1267,44 @@ async def get_payroll_report(req: PayrollReportRequest):
         "total_employer_cost": 0
     }
     
+    # Weekly totals
+    weekly_totals = {}
+    for w in range(1, weeks_in_month + 1):
+        weekly_totals[w] = {"hours": 0, "gross": 0, "net": 0, "super": 0, "employer_cost": 0}
+    
     for emp in monthly_data["employees"]:
         target_takehome_hourly = emp["hourly_rate"]
         total_hours = emp["total_hours"]
         
-        # Reverse calculate
+        # Reverse calculate for the full month
         payroll = calculate_payroll_for_employee(
             target_takehome_hourly, total_hours,
             pay_period_start, pay_period_end
         )
+        
+        # Calculate weekly cost breakdown
+        weekly_costs = {}
+        for w in range(1, weeks_in_month + 1):
+            wk_hours = emp["weeks"].get(w, 0)
+            if wk_hours > 0:
+                wk_payroll = calculate_payroll_for_employee(target_takehome_hourly, wk_hours)
+                weekly_costs[w] = {
+                    "hours": wk_hours,
+                    "gross": wk_payroll["gross_pay"],
+                    "net": wk_payroll["net_pay"],
+                    "payg": wk_payroll["payg_tax"],
+                    "medicare": wk_payroll["medicare_levy"],
+                    "super": wk_payroll["superannuation"],
+                    "employer_cost": wk_payroll["employer_total_cost"],
+                }
+                # Accumulate weekly totals
+                weekly_totals[w]["hours"] += wk_hours
+                weekly_totals[w]["gross"] += wk_payroll["gross_pay"]
+                weekly_totals[w]["net"] += wk_payroll["net_pay"]
+                weekly_totals[w]["super"] += wk_payroll["superannuation"]
+                weekly_totals[w]["employer_cost"] += wk_payroll["employer_total_cost"]
+            else:
+                weekly_costs[w] = {"hours": 0, "gross": 0, "net": 0, "payg": 0, "medicare": 0, "super": 0, "employer_cost": 0}
         
         emp_record = {
             **emp,
@@ -1267,6 +1317,7 @@ async def get_payroll_report(req: PayrollReportRequest):
             "net_pay": payroll["net_pay"],
             "superannuation": payroll["superannuation"],
             "employer_total_cost": payroll["employer_total_cost"],
+            "weekly_costs": weekly_costs,
             # Annualized for reference
             "annual_gross": payroll["annual_gross_salary"],
             "annual_net": payroll["annual_net"],
@@ -1285,6 +1336,11 @@ async def get_payroll_report(req: PayrollReportRequest):
     for k in totals:
         totals[k] = round(totals[k], 2)
     
+    # Round weekly totals
+    for w in weekly_totals:
+        for k in weekly_totals[w]:
+            weekly_totals[w][k] = round(weekly_totals[w][k], 2)
+    
     return {
         "success": True,
         "center": req.center,
@@ -1296,6 +1352,7 @@ async def get_payroll_report(req: PayrollReportRequest):
         "week_labels": week_labels,
         "employees": payroll_employees,
         "totals": totals,
+        "weekly_totals": weekly_totals,
         "rates": {
             "super_rate": f"{SUPER_GUARANTEE_RATE * 100:.1f}%",
             "medicare_rate": f"{MEDICARE_LEVY_RATE * 100:.1f}%",

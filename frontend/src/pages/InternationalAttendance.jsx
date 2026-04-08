@@ -726,16 +726,21 @@ export default function InternationalAttendance() {
                               </td>
                               <td className="py-2 px-2 text-right text-muted-foreground">
                                 <span className="inline-flex items-center gap-1">
-                                  {formatCurrency(emp.hourly_rate)}/hr
+                                  <span className="text-xs">
+                                    <span className="text-green-600 font-medium">${emp.target_takehome_rate || emp.hourly_rate}</span>
+                                    <span className="text-gray-400 mx-0.5">/</span>
+                                    <span className="text-blue-500">${emp.gross_hourly_rate?.toFixed(2) || '?'}</span>
+                                  </span>
                                   <button
                                     onClick={() => openEditRate(emp)}
                                     className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded p-0.5 transition-colors"
-                                    title="Edit hourly rate"
+                                    title="Edit take-home hourly rate"
                                     data-testid={`edit-rate-${emp.employee_id}`}
                                   >
                                     <Pencil className="w-3 h-3" />
                                   </button>
                                 </span>
+                                <div className="text-[9px] text-gray-400">net / gross</div>
                               </td>
                               <td className="py-2 px-2 text-right font-bold text-green-600">
                                 {weeklySalary > 0 ? formatCurrency(weeklySalary) : "-"}
@@ -1067,17 +1072,20 @@ export default function InternationalAttendance() {
         <Dialog open={editRateOpen} onOpenChange={setEditRateOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Update Hourly Rate</DialogTitle>
+              <DialogTitle>Update Take-Home Hourly Rate</DialogTitle>
             </DialogHeader>
             {editRateEmployee && (
               <div className="space-y-4 py-2">
                 <div className="text-sm space-y-1">
                   <div><span className="text-muted-foreground">Employee:</span> <span className="font-medium">{editRateEmployee.employee_name}</span></div>
                   <div><span className="text-muted-foreground">Category:</span> <span>{editRateEmployee.category}</span></div>
-                  <div><span className="text-muted-foreground">Current Rate:</span> <span className="font-medium">{formatCurrency(editRateEmployee.hourly_rate)}/hr</span></div>
+                  <div><span className="text-muted-foreground">Current Take-Home Rate:</span> <span className="font-medium text-green-600">{formatCurrency(editRateEmployee.hourly_rate)}/hr</span></div>
+                  {editRateEmployee.gross_hourly_rate > 0 && (
+                    <div><span className="text-muted-foreground">Current Gross Rate:</span> <span className="font-medium text-blue-600">${editRateEmployee.gross_hourly_rate?.toFixed(2)}/hr</span></div>
+                  )}
                 </div>
                 <div>
-                  <Label htmlFor="new-rate" className="text-sm font-medium">New Hourly Rate ($)</Label>
+                  <Label htmlFor="new-rate" className="text-sm font-medium">New Take-Home Hourly Rate ($)</Label>
                   <Input
                     id="new-rate"
                     type="number"
