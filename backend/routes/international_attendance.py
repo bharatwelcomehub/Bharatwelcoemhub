@@ -235,7 +235,7 @@ PAYG_BRACKETS_2025_26 = [
 ]
 
 MEDICARE_LEVY_RATE = 0.02  # 2% Medicare Levy
-SUPER_GUARANTEE_RATE = 0.115  # 11.5% SG for 2025-26
+SUPER_GUARANTEE_RATE = 0.12  # 12% SG for 2025-26
 ANNUAL_HOURS = 38 * 52  # 1,976 hours
 
 
@@ -267,8 +267,8 @@ def calculate_annual_payg_tax(gross_annual: float) -> float:
 
 
 def calculate_medicare_levy(gross_annual: float) -> float:
-    """Calculate Medicare Levy (2% of taxable income)."""
-    if gross_annual <= 26000:  # Phase-in threshold (approx)
+    """Calculate Medicare Levy (2% of taxable income above tax-free threshold)."""
+    if gross_annual <= 18200:  # No Medicare below tax-free threshold
         return 0
     return round(gross_annual * MEDICARE_LEVY_RATE, 2)
 
@@ -325,36 +325,60 @@ def calculate_payroll_for_employee(target_takehome_hourly: float, hours_worked: 
     """Full reverse payroll calculation for one employee.
     
     Given target take-home hourly rate and hours worked:
-    1. Annualize to find required gross salary
-    2. Calculate PAYG, Medicare, Super
-    3. Pro-rate back to the actual hours/period
-    """
-    # Step 1: Annualize target take-home
-    target_net_annual = target_takehome_hourly * ANNUAL_HOURS
+    1. Calculate weekly net = rate × hours
+    2. Annualize weekly net (× 52) to find tax bracket
+    3. Reverse calculate annual gross that yields this annual net
+    4. Derive weekly gross = annual gross / 52
+    5. Calculate PAYG, Medicare, Super for the period
     
-    # Step 2: Reverse calculate gross
+    This matches the Australian payroll template approach where
+    actual weekly earnings determine the tax bracket (not full-time equivalent).
+    """
+    if hours_worked <= 0 or target_takehome_hourly <= 0:
+        return {
+            "target_takehome_hourly": target_takehome_hourly,
+            "hours_worked": hours_worked,
+            "pay_period_start": pay_period_start,
+            "pay_period_end": pay_period_end,
+            "annual_gross_salary": 0, "annual_payg_tax": 0, "annual_medicare_levy": 0,
+            "annual_net": 0, "annual_super": 0, "annual_employer_cost": 0,
+            "gross_hourly_rate": target_takehome_hourly,  # When no hours, gross = net rate
+            "net_hourly_rate": target_takehome_hourly,
+            "gross_pay": 0, "payg_tax": 0, "medicare_levy": 0,
+            "total_deductions": 0, "net_pay": 0,
+            "superannuation": 0, "employer_total_cost": 0,
+            "super_rate_pct": round(SUPER_GUARANTEE_RATE * 100, 1),
+            "medicare_rate_pct": round(MEDICARE_LEVY_RATE * 100, 1),
+        }
+    
+    # Step 1: Weekly net = rate × hours
+    weekly_net = target_takehome_hourly * hours_worked
+    
+    # Step 2: Annualize weekly net (project as if this is every week)
+    target_net_annual = weekly_net * 52
+    
+    # Step 3: Reverse calculate gross annual
     annual = reverse_calculate_gross_from_net(target_net_annual)
     
-    # Step 3: Derive hourly rates
-    gross_hourly = round(annual["gross_annual"] / ANNUAL_HOURS, 4)
+    # Step 4: Weekly gross = annual gross / 52
+    weekly_gross = round(annual["gross_annual"] / 52, 2)
     
-    # Step 4: Pro-rate to actual hours worked
-    gross_pay = round(gross_hourly * hours_worked, 2)
+    # Step 5: Derive hourly gross rate
+    gross_hourly = round(weekly_gross / hours_worked, 4) if hours_worked > 0 else 0
     
-    # Pro-rate tax and medicare based on the ratio of hours to annual
-    ratio = hours_worked / ANNUAL_HOURS if ANNUAL_HOURS > 0 else 0
-    payg_tax = round(annual["payg_tax_annual"] * ratio, 2)
-    medicare_levy = round(annual["medicare_levy_annual"] * ratio, 2)
-    net_pay = round(gross_pay - payg_tax - medicare_levy, 2)
-    super_amount = round(gross_pay * SUPER_GUARANTEE_RATE, 2)
-    employer_total_cost = round(gross_pay + super_amount, 2)
+    # Step 6: Weekly tax (PAYG + Medicare combined) = annual total / 52
+    weekly_payg = round(annual["payg_tax_annual"] / 52, 2)
+    weekly_medicare = round(annual["medicare_levy_annual"] / 52, 2)
+    weekly_net_check = round(weekly_gross - weekly_payg - weekly_medicare, 2)
+    weekly_super = round(weekly_gross * SUPER_GUARANTEE_RATE, 2)
+    employer_total_cost = round(weekly_gross + weekly_super, 2)
     
     return {
         "target_takehome_hourly": target_takehome_hourly,
         "hours_worked": hours_worked,
         "pay_period_start": pay_period_start,
         "pay_period_end": pay_period_end,
-        # Annual (annualized)
+        # Annual (annualized from weekly)
         "annual_gross_salary": annual["gross_annual"],
         "annual_payg_tax": annual["payg_tax_annual"],
         "annual_medicare_levy": annual["medicare_levy_annual"],
@@ -364,13 +388,13 @@ def calculate_payroll_for_employee(target_takehome_hourly: float, hours_worked: 
         # Per hour
         "gross_hourly_rate": gross_hourly,
         "net_hourly_rate": target_takehome_hourly,
-        # For the period
-        "gross_pay": gross_pay,
-        "payg_tax": payg_tax,
-        "medicare_levy": medicare_levy,
-        "total_deductions": round(payg_tax + medicare_levy, 2),
-        "net_pay": net_pay,
-        "superannuation": super_amount,
+        # For the period (weekly)
+        "gross_pay": weekly_gross,
+        "payg_tax": weekly_payg,
+        "medicare_levy": weekly_medicare,
+        "total_deductions": round(weekly_payg + weekly_medicare, 2),
+        "net_pay": weekly_net_check,
+        "superannuation": weekly_super,
         "employer_total_cost": employer_total_cost,
         # Rates used
         "super_rate_pct": round(SUPER_GUARANTEE_RATE * 100, 1),
@@ -476,8 +500,8 @@ async def get_international_employees(req: CenterRequest):
         else:
             target_takehome = hourly_rate  # Default: hourly_rate IS the take-home
         
-        # Calculate gross hourly rate from the take-home
-        gross_info = calculate_payroll_for_employee(target_takehome, 1) if target_takehome > 0 else {}
+        # Calculate gross hourly rate from the take-home using standard 38hr week
+        gross_info = calculate_payroll_for_employee(target_takehome, 38) if target_takehome > 0 else {}
         gross_hourly = gross_info.get("gross_hourly_rate", 0)
         
         # Build clean employee record (exclude _id for JSON serialization)
@@ -974,6 +998,102 @@ class UpdateRateRequest(BaseModel):
     center: str
     employee_id: str
     new_rate: float
+
+
+@router.post("/export/payroll-summary-csv")
+async def export_payroll_summary_csv(req: MonthlyReportRequest):
+    """Export full monthly payroll summary with tax breakdown as CSV (matching template format)."""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
+
+    # Get full payroll report with reverse calculations
+    report = await get_payroll_report(PayrollReportRequest(
+        token=req.token, center=req.center, year=req.year, month=req.month
+    ))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    month_name = report["month_name"]
+    writer.writerow([f"Payroll Summary - {req.center}"])
+    writer.writerow([f"Month: {month_name} {report['year']}"])
+    writer.writerow([f"Super Rate: {report['rates']['super_rate']} | Medicare: {report['rates']['medicare_rate']}"])
+    writer.writerow([])
+
+    # Employee payroll breakdown
+    wk_count = report["weeks_in_month"]
+    wk_headers = [f"Wk{w} Hrs" for w in range(1, wk_count + 1)]
+    headers = (["Employee", "Category"] + wk_headers +
+               ["Total Hrs", "Rate/Hr (Net)", "Updated Rate/Hr (Gross)",
+                "Net Pay", "Estimated Gross", "PAYG Tax", "Medicare",
+                "Super Amount", "Employer Cost"])
+    writer.writerow(headers)
+
+    for emp in report["employees"]:
+        wk_vals = [emp["weeks"].get(w, 0) for w in range(1, wk_count + 1)]
+        row = ([emp["employee_name"], emp["category"]] + wk_vals +
+               [emp["total_hours"],
+                f"${emp['target_takehome_hourly']:.2f}",
+                f"${emp['gross_hourly_rate']:.2f}",
+                f"${emp['net_pay']:.2f}",
+                f"${emp['gross_pay']:.2f}",
+                f"${emp['payg_tax']:.2f}",
+                f"${emp['medicare_levy']:.2f}",
+                f"${emp['superannuation']:.2f}",
+                f"${emp['employer_total_cost']:.2f}"])
+        writer.writerow(row)
+
+    # Totals
+    t = report["totals"]
+    totals_row = (["TOTAL", ""] + [""] * wk_count +
+                  [t["total_hours"], "", "",
+                   f"${t['total_net']:.2f}",
+                   f"${t['total_gross']:.2f}",
+                   f"${t['total_payg']:.2f}",
+                   f"${t['total_medicare']:.2f}",
+                   f"${t['total_super']:.2f}",
+                   f"${t['total_employer_cost']:.2f}"])
+    writer.writerow(totals_row)
+
+    # Weekly org cost breakdown
+    writer.writerow([])
+    writer.writerow(["Weekly Organization Cost Breakdown"])
+    writer.writerow(["Week", "Period", "Hours", "Gross Pay", "Net Pay", "Super", "Employer Cost"])
+    for w in range(1, wk_count + 1):
+        wt = report["weekly_totals"].get(str(w)) or report["weekly_totals"].get(w, {})
+        label = report["week_labels"].get(str(w)) or report["week_labels"].get(w, "")
+        writer.writerow([
+            f"Week {w}", label,
+            wt.get("hours", 0),
+            f"${wt.get('gross', 0):.2f}",
+            f"${wt.get('net', 0):.2f}",
+            f"${wt.get('super', 0):.2f}",
+            f"${wt.get('employer_cost', 0):.2f}",
+        ])
+    writer.writerow([
+        "MONTHLY TOTAL", "",
+        t["total_hours"],
+        f"${t['total_gross']:.2f}",
+        f"${t['total_net']:.2f}",
+        f"${t['total_super']:.2f}",
+        f"${t['total_employer_cost']:.2f}",
+    ])
+
+    output.seek(0)
+    filename = f"{req.center}_Payroll_Summary_{month_name}_{report['year']}.csv"
+
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @router.post("/export/monthly-pdf")
@@ -1668,7 +1788,7 @@ async def generate_payslip_pdf(req: PayslipRequest):
     elements.append(Paragraph(
         "Formula: Target take-home hourly x 1,976 annual hrs = Target annual net. "
         "Reverse-calculate gross to yield that net after PAYG + Medicare. "
-        "Super (11.5%) is on top of gross, not deducted from net pay.",
+        "Super (12%) is on top of gross, not deducted from net pay.",
         small_style
     ))
     elements.append(Paragraph(

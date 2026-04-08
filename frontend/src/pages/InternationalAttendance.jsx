@@ -451,6 +451,36 @@ export default function InternationalAttendance() {
     }
   };
 
+  const exportPayrollCSV = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(`${API}/api/international-attendance/export/payroll-summary-csv`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: session.token,
+          center: selectedCenter,
+          year,
+          month
+        })
+      });
+
+      if (!res.ok) throw new Error("Failed to export CSV");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${selectedCenter}_Payroll_Summary_${MONTHS[month-1].label}_${year}.csv`;
+      a.click();
+      toast.success("Payroll CSV exported");
+    } catch (err) {
+      toast.error("Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Open edit rate modal
   const openEditRate = (emp) => {
     setEditRateEmployee(emp);
@@ -861,7 +891,7 @@ export default function InternationalAttendance() {
                       </div>
                       <div>
                         <div className="text-xl font-bold text-purple-700" data-testid="summary-super">{formatCurrency(monthlyReport.summary.total_super)}</div>
-                        <div className="text-xs text-purple-600">Super (11.5%)</div>
+                        <div className="text-xs text-purple-600">Super (12%)</div>
                       </div>
                       <div>
                         <div className="text-xl font-bold text-amber-700" data-testid="summary-employer-cost">{formatCurrency(monthlyReport.summary.total_employer_cost)}</div>
@@ -1056,6 +1086,18 @@ export default function InternationalAttendance() {
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Export Buttons for Monthly Summary */}
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <Button variant="outline" onClick={exportPayrollCSV} disabled={exporting} data-testid="export-payroll-csv-btn">
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    {exporting ? "Exporting..." : "Export CSV"}
+                  </Button>
+                  <Button variant="outline" onClick={exportMonthlyPDF} disabled={exporting} data-testid="export-payroll-pdf-btn">
+                    <FileText className="w-4 h-4 mr-2" />
+                    {exporting ? "Exporting..." : "Export PDF"}
+                  </Button>
+                </div>
               </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">

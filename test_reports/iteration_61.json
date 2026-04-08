@@ -1,0 +1,132 @@
+{
+  "summary": "Tested Australian Payroll Template Update (Iteration 61). All 15 backend API tests passed. Frontend UI verified: Super rate shows '12%' (not 11.5%), Medicare threshold is $18,200, reverse calculation uses weekly annualization (net × 52), CSV export endpoint works with Employee Payroll and Weekly Organization Cost Breakdown sections.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_payroll_template_update.py",
+    "/app/test_reports/pytest/pytest_payroll_template_update.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_payroll_template_update.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": "Super Admin: Mobile 9741399190, OTP 123456, Center PB-MGT",
+  "seed_data_creation": "None - used existing test center PB-PERTH with 8 employees",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Australian payroll template update fully tested. Key changes verified: (1) Super rate is 12% (SUPER_GUARANTEE_RATE = 0.12), (2) Medicare threshold is $18,200 (tax-free threshold), (3) Reverse calculation uses weekly annualization (weekly_net × 52 to get annual_net, then reverse-calculate gross), (4) CSV export endpoint /api/international-attendance/export/payroll-summary-csv returns valid CSV with Employee Payroll section and Weekly Organization Cost Breakdown section. Frontend shows 'Super (12%)' label in Monthly Summary tab, Export CSV and Export PDF buttons present.",
+  "features_tested": {
+    "super_rate_12_percent": {
+      "status": "PASSED",
+      "tests": [
+        "payroll-report returns rates.super_rate as '12.0%'",
+        "reverse-payroll-calculate returns super_rate_pct as 12.0",
+        "superannuation = gross_pay × 12%"
+      ],
+      "verified_values": {
+        "SUPER_GUARANTEE_RATE": "0.12 (12%)",
+        "super_rate_in_response": "12.0%"
+      }
+    },
+    "medicare_threshold_18200": {
+      "status": "PASSED",
+      "tests": [
+        "Medicare applies to income above $18,200 (tax-free threshold)",
+        "No Medicare for income below $18,200",
+        "Medicare rate is 2.0%"
+      ],
+      "verified_values": {
+        "threshold": "$18,200",
+        "rate": "2.0%"
+      }
+    },
+    "weekly_annualization": {
+      "status": "PASSED",
+      "tests": [
+        "$25/hr × 23hrs = $575 weekly net",
+        "$575 × 52 = $29,900 annual net",
+        "Reverse calculation gives ~$32,912 annual gross → ~$632.93 weekly gross",
+        "net_pay matches expected weekly net"
+      ],
+      "calculation_example": {
+        "target_takehome_hourly": 25.0,
+        "hours_worked": 23,
+        "weekly_net": 575,
+        "annual_net": 29900,
+        "annual_gross": 32912.2,
+        "weekly_gross": 632.93,
+        "gross_hourly_rate": 27.52
+      }
+    },
+    "csv_export_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Endpoint /api/international-attendance/export/payroll-summary-csv returns 200",
+        "Content-Type is text/csv",
+        "CSV contains 'Payroll Summary' header",
+        "CSV contains 'Employee' and 'Category' columns",
+        "CSV contains 'Weekly Organization Cost Breakdown' section",
+        "Filename includes center code and .csv extension"
+      ]
+    },
+    "frontend_monthly_summary": {
+      "status": "PASSED",
+      "tests": [
+        "Shows 'Super (12%)' label in summary cards (NOT 11.5%)",
+        "Export CSV button present with data-testid='export-payroll-csv-btn'",
+        "Export PDF button present with data-testid='export-payroll-pdf-btn'",
+        "Weekly Organization Cost Breakdown table displayed"
+      ]
+    },
+    "frontend_weekly_attendance": {
+      "status": "PASSED",
+      "tests": [
+        "Rate column shows net/gross format (e.g., '$25 / $29.91')",
+        "'net / gross' label displayed below rates",
+        "Edit rate buttons (pencil icons) present for all 8 employees",
+        "8 employees displayed for PB-PERTH center"
+      ],
+      "employee_rates_verified": [
+        "ASHA: $25 / $29.91",
+        "Amit Kumar: $27 / $32.85",
+        "MANISH: $0 / $0.00",
+        "Neha Singh: $29 / $35.79",
+        "Priya Verma: $32 / $40.20",
+        "RAJAN: $0 / $0.00",
+        "Raj Sharma: $28.5 / $35.06",
+        "Sneha Patel: $30 / $37.26"
+      ]
+    }
+  },
+  "payroll_calculation_verification": {
+    "description": "Verified reverse payroll calculation using weekly annualization method",
+    "formula": {
+      "step1": "weekly_net = target_takehome_hourly × hours_worked",
+      "step2": "annual_net = weekly_net × 52",
+      "step3": "Bisection method finds annual_gross where (gross - PAYG - Medicare) = annual_net",
+      "step4": "weekly_gross = annual_gross / 52",
+      "step5": "gross_hourly_rate = weekly_gross / hours_worked",
+      "step6": "superannuation = weekly_gross × 12%",
+      "step7": "employer_total_cost = weekly_gross + superannuation"
+    },
+    "tax_brackets_2025_26": [
+      {"range": "$0 - $18,200", "tax": "Nil"},
+      {"range": "$18,201 - $45,000", "tax": "16c for each $1 over $18,200"},
+      {"range": "$45,001 - $135,000", "tax": "$4,288 + 30c for each $1 over $45,000"},
+      {"range": "$135,001 - $190,000", "tax": "$31,288 + 37c for each $1 over $135,000"},
+      {"range": "$190,001+", "tax": "$51,638 + 45c for each $1 over $190,000"}
+    ]
+  }
+}
