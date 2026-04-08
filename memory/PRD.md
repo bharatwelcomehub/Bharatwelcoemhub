@@ -161,14 +161,26 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
+- (P1) Code freeze preparation audit
 - (P2) Image Upload for Recipes
 - (P2) Franchise Deal Simulator
 - (P2) 7-year retention deletion prompt
 - (P2) Menu card PDF generation per center
-- Code freeze preparation audit
+- (P2) PDF generation refactoring (center_accounts.py + mis_dashboard.py → dedicated utility)
 
 ## Completed in This Session
 - ✅ Bank Statement vs Expense Reconciliation Feature (P0) - DONE
+
+### [2026-04-08] Weekly/Monthly Organization Payroll Cost Breakdown (P0)
+- **Feature**: Added organizational cost visibility — admin can see per-person and total weekly/monthly costs
+- **Backend Fix**: `week-data` endpoint now returns `target_takehome_rate` and `gross_hourly_rate` per employee (was missing)
+- **Frontend Updates**: 
+  - Monthly Summary tab: Added "Employer Cost" column to Employee Payroll table
+  - New "Weekly Organization Cost Breakdown" table: per-week Hours, Gross Pay, Net Pay, Super, Employer Cost with Monthly Total row
+  - New "Per-Person Organization Cost" table: per-employee breakdown of Net Pay, Super, PAYG+Medicare, Employer Cost
+  - 7 summary KPI cards (Staff, Hours, Gross, PAYG, Net, Super, Employer Cost)
+- **Tested**: 12/12 backend + all frontend tests passed (iteration_60)
+- Files: `/app/backend/routes/international_attendance.py`, `/app/frontend/src/pages/InternationalAttendance.jsx`
 
 ### [2026-04-08] Australian Reverse Payroll Calculation (PB-PERTH)
 - **Feature**: Full reverse payroll engine — given target take-home hourly rate, calculates gross, PAYG tax, Medicare levy, superannuation, net pay, employer cost
