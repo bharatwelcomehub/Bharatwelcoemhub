@@ -1,0 +1,109 @@
+{
+  "summary": "Tested Australian reverse payroll calculation and international week numbering features. All 15 backend API tests passed. Features verified: reverse-payroll-calculate endpoint, payroll-report with correct week labels, payroll-report-pdf generation, superannuation calculation (ON TOP of gross), PAYG tax brackets, Medicare levy.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_australian_reverse_payroll.py",
+    "/app/test_reports/pytest/pytest_australian_reverse_payroll.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_australian_reverse_payroll.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "N/A (backend only testing requested)"
+  },
+  "test_credentials": "Super Admin: Mobile 9741399190, OTP 123456, Center PB-MGT",
+  "seed_data_creation": "None - used existing test center PERTH",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Australian reverse payroll calculation feature fully tested. Key endpoints: /api/international-attendance/reverse-payroll-calculate (takes target_takehome_hourly, returns gross, PAYG, Medicare, super), /api/international-attendance/payroll-report (returns week_labels with correct boundaries), /api/international-attendance/payroll-report-pdf (generates valid PDF). Week numbering: Week 1 = 1st-6th, Week 2 = 7th-13th, Week 3 = 14th-20th, Week 4 = 21st-27th, Week 5 = 28th-end.",
+  "features_tested": {
+    "reverse_payroll_calculate": {
+      "status": "PASSED",
+      "tests": [
+        "$20/hr target returns gross_hourly_rate > 20",
+        "PAYG tax calculated correctly",
+        "net_pay ≈ target × hours (within $0.01 tolerance)",
+        "Superannuation = gross_pay * 0.115 (ON TOP of gross)",
+        "Default hours = 38 when hours_worked = 0"
+      ],
+      "verified_values": {
+        "super_rate": "11.5%",
+        "medicare_rate": "2.0%",
+        "annual_hours_basis": 1976
+      }
+    },
+    "payroll_report": {
+      "status": "PASSED",
+      "tests": [
+        "April 2026 week labels: Week 1 = 1st-6th Apr, Week 2 = 7th-13th Apr, Week 3 = 14th-20th Apr, Week 4 = 21st-27th Apr, Week 5 = 28th-30th Apr",
+        "January 2026 week labels: Week 5 = 28th-31st Jan",
+        "Response structure includes: success, center, year, month, week_labels, employees, totals, rates"
+      ]
+    },
+    "payroll_report_pdf": {
+      "status": "PASSED",
+      "tests": [
+        "HTTP 200 response",
+        "Content-Type: application/pdf",
+        "PDF magic bytes (%PDF) present",
+        "Content-Disposition with .pdf filename"
+      ]
+    },
+    "week_date_logic": {
+      "status": "PASSED",
+      "tests": [
+        "Week 1 dates are within 1-6 range",
+        "Week 2 dates are within 7-13 range",
+        "Week 5 dates are 28th or later"
+      ]
+    },
+    "payg_tax_brackets": {
+      "status": "PASSED",
+      "tests": [
+        "Tax-free threshold ($18,200) respected",
+        "Higher income has PAYG tax > 0"
+      ]
+    },
+    "medicare_levy": {
+      "status": "PASSED",
+      "tests": [
+        "Medicare Levy = 2% of gross (above phase-in threshold)"
+      ]
+    },
+    "authentication": {
+      "status": "PASSED",
+      "tests": [
+        "reverse-payroll-calculate returns 401 without valid token",
+        "payroll-report returns 401 without valid token",
+        "payroll-report-pdf returns 401 without valid token"
+      ]
+    }
+  },
+  "feature_verification": {
+    "description": "Australian reverse payroll calculation for PB-PERTH with fixed international week numbering",
+    "key_formulas": {
+      "reverse_calculation": "Target take-home hourly × 1,976 annual hours = Target annual net. Bisection method finds gross that yields net after PAYG + Medicare.",
+      "superannuation": "Super = gross_pay × 11.5% (ON TOP of gross, not deducted from net)",
+      "net_pay": "Net = Gross - PAYG Tax - Medicare Levy",
+      "employer_cost": "Employer Total Cost = Gross + Superannuation"
+    },
+    "week_boundaries": {
+      "week_1": "1st - 6th",
+      "week_2": "7th - 13th",
+      "week_3": "14th - 20th",
+      "week_4": "21st - 27th",
+      "week_5": "28th - end of month"
+    }
+  }
+}

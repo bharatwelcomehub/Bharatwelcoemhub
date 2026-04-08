@@ -294,13 +294,13 @@ export default function InternationalAttendance() {
     }
   };
 
-  // Fetch monthly report
+  // Fetch monthly report (with payroll calculations)
   const fetchMonthlyReport = async () => {
     if (!selectedCenter || !session?.token) return;
     
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/international-attendance/monthly-report`, {
+      const res = await fetch(`${API}/api/international-attendance/payroll-report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -313,12 +313,23 @@ export default function InternationalAttendance() {
       const data = await res.json();
       
       if (data.success) {
+        // Map to expected format with backward compat
+        data.summary = {
+          total_staff: data.employees.length,
+          total_hours: data.totals.total_hours,
+          total_payroll: data.totals.total_net,
+          total_gross: data.totals.total_gross,
+          total_payg: data.totals.total_payg,
+          total_medicare: data.totals.total_medicare,
+          total_super: data.totals.total_super,
+          total_employer_cost: data.totals.total_employer_cost,
+        };
         setMonthlyReport(data);
       } else {
-        toast.error(data.detail || "Failed to load monthly report");
+        toast.error(data.detail || "Failed to load payroll report");
       }
     } catch (err) {
-      toast.error("Failed to load monthly report");
+      toast.error("Failed to load payroll report");
     } finally {
       setLoading(false);
     }
@@ -413,7 +424,7 @@ export default function InternationalAttendance() {
   const exportMonthlyPDF = async () => {
     setExporting(true);
     try {
-      const res = await fetch(`${API}/api/international-attendance/export/monthly-pdf`, {
+      const res = await fetch(`${API}/api/international-attendance/payroll-report-pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -430,9 +441,9 @@ export default function InternationalAttendance() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${selectedCenter}_Payroll_${MONTHS[month-1].label}_${year}.pdf`;
+      a.download = `PB-${selectedCenter}_Payroll_${MONTHS[month-1].label}_${year}.pdf`;
       a.click();
-      toast.success("PDF report exported");
+      toast.success("Payroll PDF report exported");
     } catch (err) {
       toast.error("Failed to export PDF");
     } finally {
@@ -827,28 +838,55 @@ export default function InternationalAttendance() {
                             <th className="text-left py-3 px-2 font-medium">Employee</th>
                             <th className="text-left py-3 px-2 font-medium">Category</th>
                             {Array.from({ length: monthlyReport.weeks_in_month }, (_, i) => (
-                              <th key={i} className="text-center py-3 px-2 font-medium">Week {i + 1}</th>
+                              <th key={i} className="text-center py-3 px-1 font-medium text-xs" title={monthlyReport.week_labels?.[i+1] || ''}>
+                                Wk {i + 1}<br/><span className="text-[10px] text-muted-foreground font-normal">{monthlyReport.week_labels?.[i+1] || ''}</span>
+                              </th>
                             ))}
-                            <th className="text-right py-3 px-2 font-medium">Total Hours</th>
-                            <th className="text-right py-3 px-2 font-medium">Rate</th>
-                            <th className="text-right py-3 px-2 font-medium">Total Salary</th>
+                            <th className="text-right py-3 px-2 font-medium">Hours</th>
+                            <th className="text-right py-3 px-2 font-medium">Net/Hr</th>
+                            <th className="text-right py-3 px-2 font-medium">Gross/Hr</th>
+                            <th className="text-right py-3 px-2 font-medium bg-blue-50">Gross Pay</th>
+                            <th className="text-right py-3 px-2 font-medium bg-red-50">PAYG Tax</th>
+                            <th className="text-right py-3 px-2 font-medium bg-red-50">Medicare</th>
+                            <th className="text-right py-3 px-2 font-medium bg-green-50">Net Pay</th>
+                            <th className="text-right py-3 px-2 font-medium bg-purple-50">Super</th>
                           </tr>
                         </thead>
                         <tbody>
                           {monthlyReport.employees.map((emp, idx) => (
                             <tr key={emp.employee_id} className={`border-t ${idx % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
                               <td className="py-2 px-2 font-medium">{emp.employee_name}</td>
-                              <td className="py-2 px-2 text-sm text-muted-foreground">{emp.category}</td>
+                              <td className="py-2 px-2 text-xs text-muted-foreground">{emp.category}</td>
                               {Array.from({ length: monthlyReport.weeks_in_month }, (_, i) => (
-                                <td key={i} className="py-2 px-2 text-center">
-                                  {emp.weeks[i + 1] || "-"}
+                                <td key={i} className="py-2 px-1 text-center text-xs">
+                                  {emp.weeks[i + 1] ? emp.weeks[i + 1].toFixed(1) : "-"}
                                 </td>
                               ))}
-                              <td className="py-2 px-2 text-right font-medium">{emp.total_hours}</td>
-                              <td className="py-2 px-2 text-right text-muted-foreground">{formatCurrency(emp.hourly_rate)}/hr</td>
-                              <td className="py-2 px-2 text-right font-bold text-green-600">{formatCurrency(emp.total_salary)}</td>
+                              <td className="py-2 px-2 text-right font-medium">{emp.total_hours?.toFixed(1)}</td>
+                              <td className="py-2 px-2 text-right text-muted-foreground text-xs">{formatCurrency(emp.target_takehome_hourly || emp.hourly_rate)}</td>
+                              <td className="py-2 px-2 text-right text-xs">{formatCurrency(emp.gross_hourly_rate || 0)}</td>
+                              <td className="py-2 px-2 text-right bg-blue-50/50">{formatCurrency(emp.gross_pay || 0)}</td>
+                              <td className="py-2 px-2 text-right text-red-600 bg-red-50/30 text-xs">{formatCurrency(emp.payg_tax || 0)}</td>
+                              <td className="py-2 px-2 text-right text-red-500 bg-red-50/30 text-xs">{formatCurrency(emp.medicare_levy || 0)}</td>
+                              <td className="py-2 px-2 text-right font-bold text-green-600 bg-green-50/50">{formatCurrency(emp.net_pay || emp.total_salary || 0)}</td>
+                              <td className="py-2 px-2 text-right text-purple-600 bg-purple-50/30 text-xs">{formatCurrency(emp.superannuation || 0)}</td>
                             </tr>
                           ))}
+                          {/* Totals row */}
+                          {monthlyReport.totals && (
+                            <tr className="border-t-2 border-gray-300 font-bold bg-amber-50">
+                              <td className="py-2 px-2" colSpan={2}>TOTALS</td>
+                              {Array.from({ length: monthlyReport.weeks_in_month }, (_, i) => <td key={i} className="py-2 px-1"></td>)}
+                              <td className="py-2 px-2 text-right">{monthlyReport.totals.total_hours?.toFixed(1)}</td>
+                              <td className="py-2 px-2"></td>
+                              <td className="py-2 px-2"></td>
+                              <td className="py-2 px-2 text-right bg-blue-50">{formatCurrency(monthlyReport.totals.total_gross)}</td>
+                              <td className="py-2 px-2 text-right text-red-600 bg-red-50/50">{formatCurrency(monthlyReport.totals.total_payg)}</td>
+                              <td className="py-2 px-2 text-right text-red-500 bg-red-50/50">{formatCurrency(monthlyReport.totals.total_medicare)}</td>
+                              <td className="py-2 px-2 text-right text-green-700 bg-green-50">{formatCurrency(monthlyReport.totals.total_net)}</td>
+                              <td className="py-2 px-2 text-right text-purple-600 bg-purple-50">{formatCurrency(monthlyReport.totals.total_super)}</td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -858,24 +896,40 @@ export default function InternationalAttendance() {
                 {/* Monthly Summary */}
                 <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
                   <CardContent className="pt-4">
-                    <div className="grid grid-cols-3 gap-6 text-center">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 text-center">
                       <div>
-                        <div className="text-3xl font-bold text-green-700">{monthlyReport.summary.total_staff}</div>
-                        <div className="text-sm text-green-600 flex items-center justify-center gap-1">
-                          <Users className="w-4 h-4" /> Total Staff
+                        <div className="text-xl font-bold text-slate-700">{monthlyReport.summary.total_staff}</div>
+                        <div className="text-xs text-slate-500 flex items-center justify-center gap-1">
+                          <Users className="w-3 h-3" /> Staff
                         </div>
                       </div>
                       <div>
-                        <div className="text-3xl font-bold text-emerald-700">{monthlyReport.summary.total_hours}</div>
-                        <div className="text-sm text-emerald-600 flex items-center justify-center gap-1">
-                          <Clock className="w-4 h-4" /> Total Hours
+                        <div className="text-xl font-bold text-emerald-700">{monthlyReport.summary.total_hours?.toFixed(1)}</div>
+                        <div className="text-xs text-emerald-600 flex items-center justify-center gap-1">
+                          <Clock className="w-3 h-3" /> Hours
                         </div>
                       </div>
                       <div>
-                        <div className="text-3xl font-bold text-teal-700">{formatCurrency(monthlyReport.summary.total_payroll)}</div>
-                        <div className="text-sm text-teal-600 flex items-center justify-center gap-1">
-                          <DollarSign className="w-4 h-4" /> Monthly Payroll
+                        <div className="text-xl font-bold text-blue-700">{formatCurrency(monthlyReport.summary.total_gross)}</div>
+                        <div className="text-xs text-blue-600">Gross Pay</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-red-600">{formatCurrency(monthlyReport.summary.total_payg)}</div>
+                        <div className="text-xs text-red-500">PAYG Tax</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-green-700">{formatCurrency(monthlyReport.summary.total_payroll)}</div>
+                        <div className="text-xs text-green-600 flex items-center justify-center gap-1">
+                          <DollarSign className="w-3 h-3" /> Net Pay
                         </div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-purple-700">{formatCurrency(monthlyReport.summary.total_super)}</div>
+                        <div className="text-xs text-purple-600">Super (11.5%)</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-amber-700">{formatCurrency(monthlyReport.summary.total_employer_cost)}</div>
+                        <div className="text-xs text-amber-600">Employer Cost</div>
                       </div>
                     </div>
                   </CardContent>

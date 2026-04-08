@@ -129,52 +129,248 @@ async def check_international_access(session: dict, requested_center: str = None
     return {"allowed": True, "is_admin": False, "user_center": user_center_doc.get("code", user_center)}
 
 def get_week_dates(year: int, month: int, week: int) -> List[str]:
-    """Get dates for a specific week of a month (Mon-Sun)"""
+    """Get dates for a specific week of a month (Mon-Sun).
+    Week boundaries: Week 1 = 1st-6th, Week 2 = 7th-13th, Week 3 = 14th-20th, etc.
+    Each week slot always has 7 entries (Mon-Sun) for the UI grid,
+    with None for dates outside the month.
+    """
     from calendar import monthrange
-    
-    # Get first day of month
-    first_day = datetime(year, month, 1)
-    
-    # Find first Monday of the month (or use 1st if it's Mon)
-    days_until_monday = (7 - first_day.weekday()) % 7
-    if days_until_monday == 0 and first_day.weekday() != 0:
-        days_until_monday = 7
-    
-    first_monday = first_day + timedelta(days=days_until_monday if first_day.weekday() != 0 else 0)
-    
-    # If week 1 and month doesn't start on Monday, include days from start
-    if week == 1 and first_day.weekday() != 0:
-        # Week 1 starts from 1st of month
-        week_start = first_day
-    else:
-        # Calculate start of requested week
-        week_start = first_monday + timedelta(weeks=week - 1)
-    
-    # Generate 7 days (Mon-Sun)
-    dates = []
     _, last_day = monthrange(year, month)
     
-    for i in range(7):
-        date = week_start + timedelta(days=i)
-        # Only include dates within the month
-        if date.month == month and date.day <= last_day:
-            dates.append(date.strftime("%Y-%m-%d"))
-        else:
-            dates.append(None)  # Outside month boundary
+    # Define week boundaries (day ranges)
+    week_boundaries = [
+        (1, 6),    # Week 1: 1st to 6th
+        (7, 13),   # Week 2: 7th to 13th
+        (14, 20),  # Week 3: 14th to 20th
+        (21, 27),  # Week 4: 21st to 27th
+        (28, last_day),  # Week 5: 28th to end
+    ]
+    
+    if week < 1 or week > len(week_boundaries):
+        return [None] * 7
+    
+    start_day, end_day = week_boundaries[week - 1]
+    end_day = min(end_day, last_day)
+    
+    # Find what day of the week the start_day falls on
+    start_date = datetime(year, month, start_day)
+    start_weekday = start_date.weekday()  # 0=Mon, 6=Sun
+    
+    # Build 7-slot array aligned to Mon-Sun
+    dates = [None] * 7
+    for day in range(start_day, end_day + 1):
+        dt = datetime(year, month, day)
+        weekday_idx = dt.weekday()  # 0=Mon, 6=Sun
+        dates[weekday_idx] = dt.strftime("%Y-%m-%d")
     
     return dates
 
 def get_week_number_from_date(date_str: str) -> int:
-    """Calculate which week of the month a date belongs to"""
+    """Calculate which week of the month a date belongs to.
+    Week 1 = 1st-6th, Week 2 = 7th-13th, etc.
+    """
     date = datetime.strptime(date_str, "%Y-%m-%d")
     day = date.day
-    return (day - 1) // 7 + 1
+    if day <= 6:
+        return 1
+    elif day <= 13:
+        return 2
+    elif day <= 20:
+        return 3
+    elif day <= 27:
+        return 4
+    else:
+        return 5
 
 def calculate_weeks_in_month(year: int, month: int) -> int:
-    """Calculate number of weeks in a month"""
+    """Calculate number of weeks in a month using our week boundary system."""
     from calendar import monthrange
     _, last_day = monthrange(year, month)
-    return (last_day - 1) // 7 + 1
+    if last_day <= 6:
+        return 1
+    elif last_day <= 13:
+        return 2
+    elif last_day <= 20:
+        return 3
+    elif last_day <= 27:
+        return 4
+    else:
+        return 5
+
+def get_week_label(year: int, month: int, week: int) -> str:
+    """Get a human-readable label for a week, e.g. '1st - 6th Apr'"""
+    from calendar import monthrange
+    _, last_day = monthrange(year, month)
+    boundaries = [(1,6),(7,13),(14,20),(21,27),(28,last_day)]
+    if week < 1 or week > len(boundaries):
+        return f"Week {week}"
+    s, e = boundaries[week - 1]
+    e = min(e, last_day)
+    month_abbr = datetime(year, month, 1).strftime("%b")
+    
+    def ordinal(n):
+        if 11 <= n <= 13:
+            return f"{n}th"
+        return f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n%10]}"
+    
+    return f"{ordinal(s)} - {ordinal(e)} {month_abbr}"
+
+# =======================================
+# AUSTRALIAN PAYROLL CALCULATION ENGINE
+# =======================================
+
+# 2025-26 Australian PAYG tax brackets (resident)
+PAYG_BRACKETS_2025_26 = [
+    (18200, 0, 0),          # 0 – $18,200: Nil
+    (45000, 0.16, 0),       # $18,201 – $45,000: 16c for each $1 over $18,200
+    (135000, 0.30, 4288),   # $45,001 – $135,000: $4,288 + 30c for each $1 over $45,000
+    (190000, 0.37, 31288),  # $135,001 – $190,000: $31,288 + 37c for each $1 over $135,000
+    (float('inf'), 0.45, 51638),  # $190,001+: $51,638 + 45c for each $1 over $190,000
+]
+
+MEDICARE_LEVY_RATE = 0.02  # 2% Medicare Levy
+SUPER_GUARANTEE_RATE = 0.115  # 11.5% SG for 2025-26
+ANNUAL_HOURS = 38 * 52  # 1,976 hours
+
+
+def calculate_annual_payg_tax(gross_annual: float) -> float:
+    """Calculate PAYG tax for a given gross annual income."""
+    if gross_annual <= 0:
+        return 0
+    
+    tax = 0
+    prev_threshold = 0
+    for threshold, rate, base_tax in PAYG_BRACKETS_2025_26:
+        if gross_annual <= threshold:
+            tax = base_tax + (gross_annual - prev_threshold) * rate if base_tax == 0 and rate > 0 else base_tax + (gross_annual - (prev_threshold)) * rate
+            # Correct calculation using bracket base
+            if threshold == 18200:
+                tax = 0
+            elif threshold == 45000:
+                tax = (gross_annual - 18200) * 0.16
+            elif threshold == 135000:
+                tax = 4288 + (gross_annual - 45000) * 0.30
+            elif threshold == 190000:
+                tax = 31288 + (gross_annual - 135000) * 0.37
+            else:
+                tax = 51638 + (gross_annual - 190000) * 0.45
+            break
+        prev_threshold = threshold
+    
+    return max(0, round(tax, 2))
+
+
+def calculate_medicare_levy(gross_annual: float) -> float:
+    """Calculate Medicare Levy (2% of taxable income)."""
+    if gross_annual <= 26000:  # Phase-in threshold (approx)
+        return 0
+    return round(gross_annual * MEDICARE_LEVY_RATE, 2)
+
+
+def reverse_calculate_gross_from_net(target_net_annual: float) -> dict:
+    """Given a target annual net (take-home), calculate the required gross annual salary.
+    Uses iterative bisection to find the gross that yields the desired net.
+    
+    Net = Gross - PAYG Tax - Medicare Levy
+    Super is ON TOP of gross, not deducted from net.
+    """
+    if target_net_annual <= 0:
+        return {
+            "gross_annual": 0, "payg_tax": 0, "medicare_levy": 0,
+            "net_annual": 0, "super_annual": 0, "employer_cost_annual": 0
+        }
+    
+    # Bisection method: find gross where (gross - tax - medicare) ≈ target_net
+    low = target_net_annual
+    high = target_net_annual * 2  # Generous upper bound
+    
+    for _ in range(100):  # Max iterations
+        mid = (low + high) / 2
+        tax = calculate_annual_payg_tax(mid)
+        medicare = calculate_medicare_levy(mid)
+        net = mid - tax - medicare
+        
+        if abs(net - target_net_annual) < 0.01:
+            break
+        elif net < target_net_annual:
+            low = mid
+        else:
+            high = mid
+    
+    gross_annual = round(mid, 2)
+    payg_tax = calculate_annual_payg_tax(gross_annual)
+    medicare = calculate_medicare_levy(gross_annual)
+    net_annual = round(gross_annual - payg_tax - medicare, 2)
+    super_annual = round(gross_annual * SUPER_GUARANTEE_RATE, 2)
+    employer_cost_annual = round(gross_annual + super_annual, 2)
+    
+    return {
+        "gross_annual": gross_annual,
+        "payg_tax_annual": payg_tax,
+        "medicare_levy_annual": medicare,
+        "net_annual": net_annual,
+        "super_annual": super_annual,
+        "employer_cost_annual": employer_cost_annual,
+    }
+
+
+def calculate_payroll_for_employee(target_takehome_hourly: float, hours_worked: float,
+                                     pay_period_start: str = "", pay_period_end: str = "") -> dict:
+    """Full reverse payroll calculation for one employee.
+    
+    Given target take-home hourly rate and hours worked:
+    1. Annualize to find required gross salary
+    2. Calculate PAYG, Medicare, Super
+    3. Pro-rate back to the actual hours/period
+    """
+    # Step 1: Annualize target take-home
+    target_net_annual = target_takehome_hourly * ANNUAL_HOURS
+    
+    # Step 2: Reverse calculate gross
+    annual = reverse_calculate_gross_from_net(target_net_annual)
+    
+    # Step 3: Derive hourly rates
+    gross_hourly = round(annual["gross_annual"] / ANNUAL_HOURS, 4)
+    
+    # Step 4: Pro-rate to actual hours worked
+    gross_pay = round(gross_hourly * hours_worked, 2)
+    
+    # Pro-rate tax and medicare based on the ratio of hours to annual
+    ratio = hours_worked / ANNUAL_HOURS if ANNUAL_HOURS > 0 else 0
+    payg_tax = round(annual["payg_tax_annual"] * ratio, 2)
+    medicare_levy = round(annual["medicare_levy_annual"] * ratio, 2)
+    net_pay = round(gross_pay - payg_tax - medicare_levy, 2)
+    super_amount = round(gross_pay * SUPER_GUARANTEE_RATE, 2)
+    employer_total_cost = round(gross_pay + super_amount, 2)
+    
+    return {
+        "target_takehome_hourly": target_takehome_hourly,
+        "hours_worked": hours_worked,
+        "pay_period_start": pay_period_start,
+        "pay_period_end": pay_period_end,
+        # Annual (annualized)
+        "annual_gross_salary": annual["gross_annual"],
+        "annual_payg_tax": annual["payg_tax_annual"],
+        "annual_medicare_levy": annual["medicare_levy_annual"],
+        "annual_net": annual["net_annual"],
+        "annual_super": annual["super_annual"],
+        "annual_employer_cost": annual["employer_cost_annual"],
+        # Per hour
+        "gross_hourly_rate": gross_hourly,
+        "net_hourly_rate": target_takehome_hourly,
+        # For the period
+        "gross_pay": gross_pay,
+        "payg_tax": payg_tax,
+        "medicare_levy": medicare_levy,
+        "total_deductions": round(payg_tax + medicare_levy, 2),
+        "net_pay": net_pay,
+        "superannuation": super_amount,
+        "employer_total_cost": employer_total_cost,
+        # Rates used
+        "super_rate_pct": round(SUPER_GUARANTEE_RATE * 100, 1),
+        "medicare_rate_pct": round(MEDICARE_LEVY_RATE * 100, 1),
+    }
+
 
 # =======================================
 # ENDPOINTS
@@ -973,3 +1169,631 @@ async def update_hourly_rate(req: UpdateRateRequest):
     logger.info(f"Hourly rate updated: {req.employee_id} at {req.center} -> ${req.new_rate:.2f} by {session.get('managerName')}")
     
     return {"success": True, "message": f"Hourly rate updated to ${req.new_rate:.2f}"}
+
+
+
+# =======================================
+# REVERSE PAYROLL ENDPOINTS
+# =======================================
+
+class ReversePayrollRequest(BaseModel):
+    token: str
+    target_takehome_hourly: float
+    hours_worked: float = 0  # 0 means use default 38hrs/week
+    pay_period_start: str = ""
+    pay_period_end: str = ""
+
+@router.post("/reverse-payroll-calculate")
+async def reverse_payroll_calculate(req: ReversePayrollRequest):
+    """Calculate reverse payroll: given target take-home hourly, compute gross, tax, super, etc."""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    hours = req.hours_worked if req.hours_worked > 0 else 38  # Default one week
+    result = calculate_payroll_for_employee(
+        req.target_takehome_hourly, hours,
+        req.pay_period_start, req.pay_period_end
+    )
+    return {"success": True, "payroll": result}
+
+
+class PayrollReportRequest(BaseModel):
+    token: str
+    center: str
+    year: int
+    month: int
+
+@router.post("/payroll-report")
+async def get_payroll_report(req: PayrollReportRequest):
+    """Get full monthly payroll report with Australian tax calculations.
+    This uses hourly_rate as the TARGET TAKE-HOME rate and reverse-calculates gross, tax, super.
+    """
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
+    
+    # Get the basic monthly data (hours per employee)
+    monthly_data = await get_monthly_report(MonthlyReportRequest(
+        token=req.token, center=req.center, year=req.year, month=req.month
+    ))
+    
+    from calendar import monthrange
+    _, last_day = monthrange(req.year, req.month)
+    month_name = datetime(req.year, req.month, 1).strftime("%B")
+    pay_period_start = f"{req.year}-{req.month:02d}-01"
+    pay_period_end = f"{req.year}-{req.month:02d}-{last_day:02d}"
+    
+    # Build week labels
+    weeks_in_month = monthly_data["weeks_in_month"]
+    week_labels = {}
+    for w in range(1, weeks_in_month + 1):
+        week_labels[w] = get_week_label(req.year, req.month, w)
+    
+    # Calculate payroll for each employee using reverse calculation
+    payroll_employees = []
+    totals = {
+        "total_hours": 0, "total_gross": 0, "total_payg": 0,
+        "total_medicare": 0, "total_net": 0, "total_super": 0,
+        "total_employer_cost": 0
+    }
+    
+    for emp in monthly_data["employees"]:
+        target_takehome_hourly = emp["hourly_rate"]
+        total_hours = emp["total_hours"]
+        
+        # Reverse calculate
+        payroll = calculate_payroll_for_employee(
+            target_takehome_hourly, total_hours,
+            pay_period_start, pay_period_end
+        )
+        
+        emp_record = {
+            **emp,
+            "target_takehome_hourly": target_takehome_hourly,
+            "gross_hourly_rate": payroll["gross_hourly_rate"],
+            "gross_pay": payroll["gross_pay"],
+            "payg_tax": payroll["payg_tax"],
+            "medicare_levy": payroll["medicare_levy"],
+            "total_deductions": payroll["total_deductions"],
+            "net_pay": payroll["net_pay"],
+            "superannuation": payroll["superannuation"],
+            "employer_total_cost": payroll["employer_total_cost"],
+            # Annualized for reference
+            "annual_gross": payroll["annual_gross_salary"],
+            "annual_net": payroll["annual_net"],
+        }
+        payroll_employees.append(emp_record)
+        
+        totals["total_hours"] += total_hours
+        totals["total_gross"] += payroll["gross_pay"]
+        totals["total_payg"] += payroll["payg_tax"]
+        totals["total_medicare"] += payroll["medicare_levy"]
+        totals["total_net"] += payroll["net_pay"]
+        totals["total_super"] += payroll["superannuation"]
+        totals["total_employer_cost"] += payroll["employer_total_cost"]
+    
+    # Round totals
+    for k in totals:
+        totals[k] = round(totals[k], 2)
+    
+    return {
+        "success": True,
+        "center": req.center,
+        "year": req.year,
+        "month": req.month,
+        "month_name": month_name,
+        "pay_period": f"{pay_period_start} to {pay_period_end}",
+        "weeks_in_month": weeks_in_month,
+        "week_labels": week_labels,
+        "employees": payroll_employees,
+        "totals": totals,
+        "rates": {
+            "super_rate": f"{SUPER_GUARANTEE_RATE * 100:.1f}%",
+            "medicare_rate": f"{MEDICARE_LEVY_RATE * 100:.1f}%",
+            "annual_hours_basis": ANNUAL_HOURS,
+        },
+        "report_name": f"PB-{req.center}_Payroll_{month_name}_{req.year}"
+    }
+
+
+class PayslipRequest(BaseModel):
+    token: str
+    center: str
+    year: int
+    month: int
+    employee_id: str
+
+@router.post("/payslip")
+async def generate_payslip(req: PayslipRequest):
+    """Generate individual employee payslip with full Australian tax breakdown."""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    access = await check_international_access(session, req.center)
+    if not access["allowed"]:
+        raise HTTPException(403, access.get("error", "Access denied"))
+    
+    # Get employee details
+    variants = center_code_variants(req.center)
+    emp = await db.employees.find_one(
+        {"$or": [
+            {"employee_id": req.employee_id, "center": {"$in": variants}},
+            {"id": req.employee_id, "center": {"$in": variants}}
+        ]},
+        {"_id": 0}
+    )
+    if not emp:
+        raise HTTPException(404, "Employee not found")
+    
+    # Get attendance for the month
+    from calendar import monthrange
+    _, last_day = monthrange(req.year, req.month)
+    start_date = f"{req.year}-{req.month:02d}-01"
+    end_date = f"{req.year}-{req.month:02d}-{last_day:02d}"
+    
+    records = await db.international_attendance.find({
+        "employee_id": req.employee_id,
+        "center": {"$in": variants},
+        "date": {"$gte": start_date, "$lte": end_date}
+    }, {"_id": 0}).to_list(100)
+    
+    total_hours = sum(r.get("hours_worked", 0) for r in records)
+    days_worked = len([r for r in records if r.get("hours_worked", 0) > 0])
+    
+    target_takehome_hourly = float(emp.get("hourly_rate", 0) or 0)
+    month_name = datetime(req.year, req.month, 1).strftime("%B")
+    
+    payroll = calculate_payroll_for_employee(
+        target_takehome_hourly, total_hours,
+        start_date, end_date
+    )
+    
+    # Build weekly breakdown
+    weeks_in_month = calculate_weeks_in_month(req.year, req.month)
+    weekly_hours = {}
+    for r in records:
+        wk = get_week_number_from_date(r["date"])
+        weekly_hours[wk] = weekly_hours.get(wk, 0) + r.get("hours_worked", 0)
+    
+    week_breakdown = []
+    for w in range(1, weeks_in_month + 1):
+        hrs = round(weekly_hours.get(w, 0), 2)
+        label = get_week_label(req.year, req.month, w)
+        week_breakdown.append({
+            "week": w, "label": label, "hours": hrs,
+            "gross": round(hrs * payroll["gross_hourly_rate"], 2),
+            "net": round(hrs * target_takehome_hourly, 2),
+        })
+    
+    return {
+        "success": True,
+        "payslip": {
+            "employee_name": emp.get("name", "Unknown"),
+            "employee_id": req.employee_id,
+            "category": emp.get("category", "CASUAL"),
+            "role": emp.get("role", ""),
+            "center": req.center,
+            "pay_period": f"1 {month_name} {req.year} - {last_day} {month_name} {req.year}",
+            "month": month_name,
+            "year": req.year,
+            "days_worked": days_worked,
+            "total_hours": round(total_hours, 2),
+            "week_breakdown": week_breakdown,
+            # Rates
+            "target_takehome_hourly": target_takehome_hourly,
+            "gross_hourly_rate": payroll["gross_hourly_rate"],
+            # Earnings
+            "gross_earnings": payroll["gross_pay"],
+            # Deductions
+            "payg_tax": payroll["payg_tax"],
+            "medicare_levy": payroll["medicare_levy"],
+            "total_deductions": payroll["total_deductions"],
+            # Net
+            "net_pay": payroll["net_pay"],
+            # Super (on top, not deducted)
+            "superannuation": payroll["superannuation"],
+            "super_rate": f"{SUPER_GUARANTEE_RATE * 100:.1f}%",
+            # Employer cost
+            "employer_total_cost": payroll["employer_total_cost"],
+            # Annualized reference
+            "annualized_gross": payroll["annual_gross_salary"],
+            "annualized_net": payroll["annual_net"],
+        }
+    }
+
+
+@router.post("/payslip-pdf")
+async def generate_payslip_pdf(req: PayslipRequest):
+    """Generate payslip as a PDF document."""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    # Get the payslip data
+    payslip_data = await generate_payslip(req)
+    ps = payslip_data["payslip"]
+    
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=16*mm, rightMargin=16*mm,
+                            topMargin=14*mm, bottomMargin=14*mm)
+    
+    styles = getSampleStyleSheet()
+    DARK_BG = colors.HexColor("#0F172A")
+    SAFFRON = colors.HexColor("#D97706")
+    GREEN = colors.HexColor("#059669")
+    RED = colors.HexColor("#DC2626")
+    LIGHT_GRAY = colors.HexColor("#F1F5F9")
+    MID_GRAY = colors.HexColor("#94A3B8")
+    
+    title_style = ParagraphStyle("T", parent=styles["Title"], fontSize=18,
+        textColor=colors.white, fontName="Helvetica-Bold")
+    section_style = ParagraphStyle("S", parent=styles["Heading2"], fontSize=12,
+        textColor=DARK_BG, spaceBefore=12, spaceAfter=4, fontName="Helvetica-Bold")
+    normal_style = ParagraphStyle("N", parent=styles["Normal"], fontSize=9,
+        textColor=colors.HexColor("#334155"), fontName="Helvetica")
+    small_style = ParagraphStyle("Sm", parent=styles["Normal"], fontSize=7.5,
+        textColor=MID_GRAY, fontName="Helvetica")
+    
+    def fmt(val):
+        return f"${abs(val):,.2f}" if val >= 0 else f"-${abs(val):,.2f}"
+    
+    elements = []
+    
+    # Header banner
+    import os
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "pb_logo.png")
+    if os.path.exists(logo_path):
+        logo = Image(logo_path, width=40, height=40)
+        header_cells = [[logo, Paragraph("PAYSLIP", title_style), ""]]
+    else:
+        header_cells = [["", Paragraph("PAYSLIP", title_style), ""]]
+    
+    ht = Table(header_cells, colWidths=[50, 350, 100])
+    ht.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), DARK_BG),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('ROUNDEDCORNERS', [6, 6, 6, 6]),
+    ]))
+    elements.append(ht)
+    elements.append(Spacer(1, 8))
+    
+    # Employee Info
+    info_rows = [
+        ["Employee", ps["employee_name"], "Pay Period", ps["pay_period"]],
+        ["Employee ID", ps["employee_id"], "Center", ps["center"]],
+        ["Category", ps["category"], "Days Worked", str(ps["days_worked"])],
+    ]
+    it = Table(info_rows, colWidths=[80, 180, 80, 150])
+    it.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), MID_GRAY),
+        ('TEXTCOLOR', (2, 0), (2, -1), MID_GRAY),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    elements.append(it)
+    elements.append(HRFlowable(width="100%", thickness=1, color=SAFFRON, spaceAfter=6, spaceBefore=6))
+    
+    # Earnings
+    elements.append(Paragraph("Earnings", section_style))
+    earn_rows = [
+        [Paragraph("<b>Description</b>", normal_style), Paragraph("<b>Rate</b>", normal_style),
+         Paragraph("<b>Hours</b>", normal_style), Paragraph("<b>Amount</b>", normal_style)],
+        ["Gross Pay (reverse-calculated)", fmt(ps["gross_hourly_rate"]) + "/hr",
+         str(ps["total_hours"]), fmt(ps["gross_earnings"])],
+    ]
+    et = Table(earn_rows, colWidths=[200, 90, 70, 100])
+    et.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), DARK_BG),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(et)
+    elements.append(Spacer(1, 6))
+    
+    # Deductions
+    elements.append(Paragraph("Deductions", section_style))
+    ded_rows = [
+        [Paragraph("<b>Description</b>", normal_style), Paragraph("<b>Amount</b>", normal_style)],
+        ["PAYG Tax Withholding", fmt(ps["payg_tax"])],
+        ["Medicare Levy (2%)", fmt(ps["medicare_levy"])],
+        [Paragraph("<b>Total Deductions</b>", normal_style), Paragraph(f"<b>{fmt(ps['total_deductions'])}</b>", normal_style)],
+    ]
+    dt = Table(ded_rows, colWidths=[300, 160])
+    dt.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#FEE2E2")),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#FEF3C7")),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(dt)
+    elements.append(Spacer(1, 6))
+    
+    # Net Pay
+    net_rows = [
+        [Paragraph("<b>NET PAY (Take-Home)</b>", ParagraphStyle("NP", parent=normal_style, fontSize=12, fontName="Helvetica-Bold")),
+         Paragraph(f"<b>{fmt(ps['net_pay'])}</b>", ParagraphStyle("NPV", parent=normal_style, fontSize=12, textColor=GREEN, fontName="Helvetica-Bold"))],
+    ]
+    nt = Table(net_rows, colWidths=[300, 160])
+    nt.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#D1FAE5")),
+        ('GRID', (0, 0), (-1, -1), 0.5, GREEN),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+    ]))
+    elements.append(nt)
+    elements.append(Spacer(1, 6))
+    
+    # Superannuation (separate section)
+    elements.append(Paragraph("Superannuation (Employer Contribution)", section_style))
+    super_rows = [
+        [f"Super Guarantee ({ps['super_rate']})", fmt(ps["superannuation"])],
+        [Paragraph("<b>Employer Total Cost</b>", normal_style), Paragraph(f"<b>{fmt(ps['employer_total_cost'])}</b>", normal_style)],
+    ]
+    st = Table(super_rows, colWidths=[300, 160])
+    st.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#EDE9FE")),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(st)
+    elements.append(Spacer(1, 8))
+    
+    # Weekly breakdown
+    if ps.get("week_breakdown"):
+        elements.append(Paragraph("Weekly Hours Breakdown", section_style))
+        wb_rows = [["Week", "Period", "Hours", "Gross", "Net"]]
+        for wb in ps["week_breakdown"]:
+            wb_rows.append([
+                f"Week {wb['week']}", wb["label"],
+                f"{wb['hours']:.1f}", fmt(wb["gross"]), fmt(wb["net"])
+            ])
+        wbt = Table(wb_rows, colWidths=[50, 130, 60, 90, 90])
+        wbt.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), DARK_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(wbt)
+    
+    # Formula note
+    elements.append(Spacer(1, 10))
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=MID_GRAY, spaceBefore=4))
+    elements.append(Paragraph(
+        "Formula: Target take-home hourly x 1,976 annual hrs = Target annual net. "
+        "Reverse-calculate gross to yield that net after PAYG + Medicare. "
+        "Super (11.5%) is on top of gross, not deducted from net pay.",
+        small_style
+    ))
+    elements.append(Paragraph(
+        f"Generated {datetime.now().strftime('%d %b %Y %I:%M %p')} | Purnabramha - MANASWINI FOODS PVT. LTD.",
+        small_style
+    ))
+    
+    doc.build(elements)
+    buf.seek(0)
+    
+    filename = f"Payslip_{ps['employee_name'].replace(' ', '_')}_{ps['month']}_{ps['year']}.pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.post("/payroll-report-pdf")
+async def export_payroll_report_pdf(req: PayrollReportRequest):
+    """Export full payroll report with tax breakdown as PDF."""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    report = await get_payroll_report(req)
+    
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=10*mm, rightMargin=10*mm,
+                            topMargin=12*mm, bottomMargin=12*mm)
+    
+    styles = getSampleStyleSheet()
+    DARK_BG = colors.HexColor("#0F172A")
+    SAFFRON = colors.HexColor("#D97706")
+    LIGHT_GRAY = colors.HexColor("#F1F5F9")
+    MID_GRAY = colors.HexColor("#94A3B8")
+    GREEN = colors.HexColor("#059669")
+    
+    title_style = ParagraphStyle("T", parent=styles["Title"], fontSize=16,
+        textColor=colors.white, fontName="Helvetica-Bold")
+    section_style = ParagraphStyle("S", parent=styles["Heading2"], fontSize=11,
+        textColor=DARK_BG, spaceBefore=10, spaceAfter=4, fontName="Helvetica-Bold")
+    normal_style = ParagraphStyle("N", parent=styles["Normal"], fontSize=8,
+        textColor=colors.HexColor("#334155"), fontName="Helvetica")
+    small_style = ParagraphStyle("Sm", parent=styles["Normal"], fontSize=7,
+        textColor=MID_GRAY, fontName="Helvetica")
+    
+    def fmt(val):
+        return f"${abs(val):,.2f}" if val >= 0 else f"-${abs(val):,.2f}"
+    
+    elements = []
+    
+    # Header
+    import os
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "pb_logo.png")
+    if os.path.exists(logo_path):
+        logo = Image(logo_path, width=36, height=36)
+        header_cells = [[logo, Paragraph(f"Payroll Report - {report['center']}", title_style),
+                         Paragraph(f"{report['month_name']} {report['year']}", ParagraphStyle("D", textColor=SAFFRON, fontSize=11, fontName="Helvetica-Bold"))]]
+    else:
+        header_cells = [["", Paragraph(f"Payroll Report - {report['center']}", title_style),
+                         Paragraph(f"{report['month_name']} {report['year']}", ParagraphStyle("D", textColor=SAFFRON, fontSize=11, fontName="Helvetica-Bold"))]]
+    
+    ht = Table(header_cells, colWidths=[45, 500, 200])
+    ht.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), DARK_BG),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('ROUNDEDCORNERS', [6, 6, 6, 6]),
+    ]))
+    elements.append(ht)
+    elements.append(Spacer(1, 4))
+    
+    # Summary cards
+    t = report["totals"]
+    summary_cells = [[
+        Paragraph(f"<b>Staff:</b> {len(report['employees'])}", normal_style),
+        Paragraph(f"<b>Hours:</b> {t['total_hours']:.1f}", normal_style),
+        Paragraph(f"<b>Gross:</b> {fmt(t['total_gross'])}", normal_style),
+        Paragraph(f"<b>PAYG:</b> {fmt(t['total_payg'])}", normal_style),
+        Paragraph(f"<b>Net:</b> {fmt(t['total_net'])}", normal_style),
+        Paragraph(f"<b>Super:</b> {fmt(t['total_super'])}", normal_style),
+        Paragraph(f"<b>Employer Cost:</b> {fmt(t['total_employer_cost'])}", normal_style),
+    ]]
+    st = Table(summary_cells, colWidths=[80, 80, 105, 95, 100, 95, 130])
+    st.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F0FDF4")),
+        ('BOX', (0, 0), (-1, -1), 0.5, GREEN),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+    ]))
+    elements.append(st)
+    elements.append(Spacer(1, 6))
+    
+    # Employee table
+    elements.append(Paragraph("Employee Payroll Breakdown", section_style))
+    
+    # Build week headers from labels
+    week_headers = [f"Wk{w}" for w in range(1, report["weeks_in_month"] + 1)]
+    headers = ["Employee", "Category"] + week_headers + [
+        "Total Hrs", "Take-Home/Hr", "Gross/Hr", "Gross Pay",
+        "PAYG Tax", "Medicare", "Net Pay", "Super", "Employer Cost"
+    ]
+    
+    data_rows = [headers]
+    for emp in report["employees"]:
+        week_vals = [f"{emp['weeks'].get(w, 0):.1f}" for w in range(1, report["weeks_in_month"] + 1)]
+        row = [
+            emp["employee_name"][:22],
+            emp["category"][:10],
+        ] + week_vals + [
+            f"{emp['total_hours']:.1f}",
+            fmt(emp["target_takehome_hourly"]),
+            fmt(emp["gross_hourly_rate"]),
+            fmt(emp["gross_pay"]),
+            fmt(emp["payg_tax"]),
+            fmt(emp["medicare_levy"]),
+            fmt(emp["net_pay"]),
+            fmt(emp["superannuation"]),
+            fmt(emp["employer_total_cost"]),
+        ]
+        data_rows.append(row)
+    
+    # Totals row
+    week_totals = [f"{sum(e['weeks'].get(w, 0) for e in report['employees']):.1f}" for w in range(1, report["weeks_in_month"] + 1)]
+    totals_row = ["TOTAL", ""] + week_totals + [
+        f"{t['total_hours']:.1f}", "", "",
+        fmt(t["total_gross"]), fmt(t["total_payg"]), fmt(t["total_medicare"]),
+        fmt(t["total_net"]), fmt(t["total_super"]), fmt(t["total_employer_cost"]),
+    ]
+    data_rows.append(totals_row)
+    
+    # Column widths
+    wk_count = report["weeks_in_month"]
+    col_widths = [95, 55] + [35] * wk_count + [40, 52, 50, 55, 52, 48, 55, 48, 60]
+    
+    dt = Table(data_rows, colWidths=col_widths)
+    style_cmds = [
+        ('BACKGROUND', (0, 0), (-1, 0), DARK_BG),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 6.5),
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, LIGHT_GRAY]),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#FEF3C7")),
+        ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+    ]
+    dt.setStyle(TableStyle(style_cmds))
+    elements.append(dt)
+    elements.append(Spacer(1, 8))
+    
+    # Week labels reference
+    if report.get("week_labels"):
+        elements.append(Paragraph("Week Date Ranges", section_style))
+        wl_text = " &nbsp;|&nbsp; ".join([f"<b>Wk{w}:</b> {lbl}" for w, lbl in report["week_labels"].items()])
+        elements.append(Paragraph(wl_text, normal_style))
+    
+    # Footer
+    elements.append(Spacer(1, 8))
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=MID_GRAY))
+    elements.append(Paragraph(
+        f"Super Rate: {report['rates']['super_rate']} | Medicare: {report['rates']['medicare_rate']} | "
+        f"Annual Hours Basis: {report['rates']['annual_hours_basis']} | "
+        f"Generated {datetime.now().strftime('%d %b %Y %I:%M %p')} | Purnabramha",
+        small_style
+    ))
+    
+    doc.build(elements)
+    buf.seek(0)
+    
+    filename = f"{report['center']}_Payroll_{report['month_name']}_{report['year']}.pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
