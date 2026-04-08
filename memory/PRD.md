@@ -170,6 +170,28 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 ## Completed in This Session
 - ✅ Bank Statement vs Expense Reconciliation Feature (P0) - DONE
 
+### [2026-04-08] Australian Reverse Payroll Calculation (PB-PERTH)
+- **Feature**: Full reverse payroll engine — given target take-home hourly rate, calculates gross, PAYG tax, Medicare levy, superannuation, net pay, employer cost
+- **Formulas**: Target net annual = hourly × 1,976. Bisection to find gross. Super 11.5% on top of gross. PAYG 2025-26 brackets. Medicare 2%.
+- **Endpoints**: `/api/international-attendance/reverse-payroll-calculate`, `/api/international-attendance/payroll-report`, `/api/international-attendance/payslip`, `/api/international-attendance/payslip-pdf`, `/api/international-attendance/payroll-report-pdf`
+- **Week Fix**: Week 1 = 1st-6th, Week 2 = 7th-13th, Week 3 = 14th-20th, Week 4 = 21st-27th, Week 5 = 28th-end
+- **Frontend**: Updated payroll table with Gross/PAYG/Medicare/Net/Super columns and week labels
+- **Tested**: 15/15 backend tests passed (iteration_59)
+- Files: `/app/backend/routes/international_attendance.py`, `/app/frontend/src/pages/InternationalAttendance.jsx`
+
+### [2026-04-05] Visual PDF Reports with KPI Cards, Charts & Logo
+- MIS + Franchise Dashboard PDFs now include colored KPI cards, trend/pie charts (matplotlib), Purnabramha logo
+- Fixed negative sign display in both UI (formatCurrency) and PDF (fmt)
+- Added Franchise Dashboard PDF endpoint `/api/mis/franchise-pdf`
+
+### [2026-04-05] WC Standing Consistency Fix
+- Rewired `calculate_working_capital_standing()` to use `get_franchise_for_center()` (same as WC table)
+- Enhanced franchise lookup with generic city/name fallback matching
+- Both profits and losses now affect WC (Closing WC = Opening WC + P/L)
+
+### [2026-04-05] MIS Working Capital Data Fix
+- MIS `/working-capital` endpoint now uses same P/L logic as WC table
+
 ### [2026-04-05] Fix Endless Future Dummy Months Generation (P0)
 - **Bug Fix**: WC Table and Payout Summary endpoints were not bounded by franchise agreement dates
 - **Root Cause**: No date-bounding logic existed — month generation could extend indefinitely
