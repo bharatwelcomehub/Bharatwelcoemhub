@@ -171,6 +171,14 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 ## Completed in This Session
 - ✅ Bank Statement vs Expense Reconciliation Feature (P0) - DONE
 
+### [2026-04-08] Payroll Calculation Template Update + CSV Export
+- **Super Rate**: Updated from 11.5% to 12% (FY 2025-26)
+- **Medicare Threshold**: Changed from $26k to $18,200 (tax-free threshold), matching user's Excel template
+- **Calculation Method**: Changed from hourly annualization (rate × 1,976) to weekly annualization (net_weekly × 52), matching Australian payroll practice for casual workers
+- **CSV Export**: Added `/api/international-attendance/export/payroll-summary-csv` endpoint with Employee Payroll + Weekly Org Cost Breakdown sections
+- **Frontend**: Added Export CSV / Export PDF buttons in Monthly Summary tab, fixed Super label to 12%
+- **Tested**: 15/15 backend + all frontend verified (iteration_61)
+
 ### [2026-04-08] Weekly/Monthly Organization Payroll Cost Breakdown (P0)
 - **Feature**: Added organizational cost visibility — admin can see per-person and total weekly/monthly costs
 - **Backend Fix**: `week-data` endpoint now returns `target_takehome_rate` and `gross_hourly_rate` per employee (was missing)
