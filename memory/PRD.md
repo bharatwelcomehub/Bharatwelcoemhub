@@ -8,6 +8,8 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - **Center Manager**: Day-to-day operations at a specific center
 - **Accountant**: Financial reporting, commission tracking, MIS
 - **Franchise Owner**: View-only dashboard with sales, expenses, franchise info, documents
+- **Chef (Perth)**: Fill and submit kitchen food safety records
+- **Manager (Perth)**: Review, submit, download, approve food safety records
 
 ## Core Modules
 1. Authentication (OTP-based)
@@ -20,56 +22,44 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 8. Franchise Management (with Directors list)
 9. Document Management (Emergent Object Storage)
 10. Franchise Owner Dashboard (RBAC)
-11. Payslip Generation (Logo, Signature selection, Employee dropdown, KYC info on payslips)
+11. Payslip Generation (Logo, Signature, KYC info on payslips)
 12. Franchise Exit & Closure Module
+13. **Food Safety Compliance Module** (8 templates, CRUD, records, reports)
 
 ## What's Been Implemented (Latest first)
 
+### [2026-04-11] Food Safety Compliance Module (Complete)
+- **8 Template Types**: Supplier Details, Food Receipt, Cooking & Cooling, Food Temp Record, 2-Hour/4-Hour Rule Log, Cleaning & Sanitising Procedure, Cleaning & Sanitising Record, General Temperature Record
+- **Template Master CRUD**: Admin can add/edit/delete/activate template items per center
+- **Seed Data**: 107 Purnabramha Perth menu items auto-seeded (thali, bhaji, amti, rice, solkadhi, etc. + suppliers + cleaning procedures)
+- **Record Workflow**: Draft → Submitted → Approved → Locked
+- **Dashboard**: Status cards per template type, overdue alerts for missing daily records, recent records
+- **Reports**: PDF and Excel export with date range filters
+- **Role Access**: Admin has full CRUD. Perth/non-Indian center staff can fill and submit records. Indian center users cannot access the module.
+- **Sidebar**: "Food Safety" section visible only to Admin and non-Indian center users
+- **Tested**: 20/20 backend + all frontend verified (iteration_65)
+- Files: `/app/backend/routes/food_safety.py`, `/app/frontend/src/pages/FoodSafety.jsx`
+- Collections: `fs_template_items`, `fs_records`
+
 ### [2026-04-11] Employee KYC & Document Management + Payslip Integration (Complete)
-- **New Fields**: Aadhaar, PAN, TFN, Blood Group, Passport Number, Visa Type added to Employee form
-- **Document Uploads**: Attachment option for each document (Aadhaar, PAN/TFN, Passport, Visa) via Emergent Object Storage
-- **Photo Upload**: Passport-size photo upload with preview in the form
-- **Employee Report PDF**: Export button generates a PDF directory with all employee details, photos, and blood groups
-- **Payslip Integration**: 
-  - Australian payslips now show TFN and Employee Photo
-  - Indian payslips now show Aadhaar + PAN and Employee Photo
-- **Employee List**: Updated table with Photo, Blood Group, and Docs columns
-- **Backend Endpoints**: `/api/employee_upload_photo`, `/api/employee_upload_document`, `/api/employee_report`
-- **Tested**: 12/12 backend tests + full frontend UI verified (iteration_64)
-- Files: `/app/backend/routes/employees.py`, `/app/backend/routes/payroll.py`, `/app/backend/server.py`, `/app/frontend/src/pages/Employees.jsx`
+- New fields: Aadhaar, PAN, TFN, Blood Group, Passport Number, Visa Type
+- Document uploads for each (Aadhaar, PAN/TFN, Passport, Visa) via Emergent Object Storage
+- Photo upload with preview
+- Employee Report PDF export
+- Payslip Integration: Australian = TFN + Photo, Indian = Aadhaar + PAN + Photo
+- Tested: 12/12 backend + all frontend verified (iteration_64)
 
-### [2026-04-11] Fix Monthly Payroll PDF — Complete All Sections
-- **Bug Fix**: PDF was missing Weekly Organization Cost Breakdown and Per-Person Organization Cost tables
-- **Bug Fix**: Employee names showing as "Unknown" and $0 values — fixed by querying correct `db.employees` collection
-- **Bug Fix**: Payslip employees endpoint querying wrong collection (`international_employees` → `employees`)
-- **Added**: PDF now contains all 4 sections matching the screen: Summary Cards, Employee Payroll Breakdown, Weekly Org Cost, Per-Person Cost
-- **Tested**: 10/10 backend + all frontend verified (iteration_63)
+### [2026-04-11] Fix Monthly Payroll PDF + Location-Aware Payslip Generation
+- Fixed missing PDF sections + employee name/value bugs
+- Auto-detect center country for payslip format
+- Tested: iterations 62-63
 
-### [2026-04-11] Location-Aware Payslip Generation (International Centers)
-- **Feature**: Payslip generation is now country-aware. Auto-detects center country from DB.
-- **Australia (PB-PERTH)**: Generates WA payroll format PDF with Hourly Rate, Total Hours, Gross Pay, PAYG Tax, Medicare Levy, Super (12%), Net Pay, Employer Cost. Hours fetched from `international_attendance` collection.
-- **India**: Continues using existing Indian salary format (Basic, HRA, ESI, Rs currency)
-- **Tested**: 10/10 backend + all frontend verified (iteration_62)
-- Files: `/app/backend/routes/payroll.py`, `/app/frontend/src/pages/Salary.jsx`
+### [2026-04-08] Payroll Calculation Template Update + CSV Export + Org Cost Breakdown
+- Super 12%, Medicare threshold fix, CSV export, weekly/monthly cost tables
+- Tested: iterations 60-61
 
-### [2026-04-08] Payroll Calculation Template Update + CSV Export
-- **Super Rate**: Updated from 11.5% to 12% (FY 2025-26)
-- **Medicare Threshold**: Changed from $26k to $18,200 (tax-free threshold)
-- **CSV Export**: Added payroll summary CSV endpoint
-- **Tested**: 15/15 backend + all frontend verified (iteration_61)
-
-### [2026-04-08] Weekly/Monthly Organization Payroll Cost Breakdown (P0)
-- **Feature**: Added organizational cost visibility
-- **Tested**: 12/12 backend + all frontend tests passed (iteration_60)
-
-### Earlier (see CHANGELOG.md for full history)
-- Australian Reverse Payroll Calculation
-- Visual PDF Reports with KPI Cards
-- Working Capital Feature Rewrite
-- Bulk Upload + Delete
-- Bank Reconciliation
-- Revenue/Profit Share Financial Breakdown
-- All base modules
+### Earlier (see git log for full history)
+- Australian Reverse Payroll, Visual PDF Reports, Working Capital, Bank Reconciliation, Revenue Share, all base modules
 
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
@@ -78,7 +68,7 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - (P2) Franchise Deal Simulator
 - (P2) 7-year retention deletion prompt
 - (P2) Menu card PDF generation per center
-- (P2) PDF generation refactoring (center_accounts.py + mis_dashboard.py → dedicated utility)
+- (P2) PDF generation refactoring (dedicated utility)
 
 ## Refactoring Needed
-- PDF Generation logic in `center_accounts.py` → dedicated generator utility
+- PDF Generation logic in routes → dedicated generator utility
