@@ -20,7 +20,8 @@ import {
   Eye,
   Users,
   IndianRupee,
-  Calculator
+  Calculator,
+  Globe
 } from "lucide-react";
 
 export default function Salary({ isPayslips = false }) {
@@ -39,6 +40,7 @@ export default function Salary({ isPayslips = false }) {
   const [signatory, setSignatory] = useState("sandeep");
   const [employeeList, setEmployeeList] = useState([]);
   const [employeeListLoading, setEmployeeListLoading] = useState(false);
+  const [centerCountry, setCenterCountry] = useState("India");
 
   const [centersList, setCentersList] = useState([]);
 
@@ -57,13 +59,16 @@ export default function Salary({ isPayslips = false }) {
       api.post("/payslip_employees", { token: session.token, center: targetCenter })
         .then(res => {
           setEmployeeList(res.data.employees || []);
+          setCenterCountry(res.data.country || "India");
         })
         .catch(() => {
           setEmployeeList([]);
+          setCenterCountry("India");
         })
         .finally(() => setEmployeeListLoading(false));
     } else {
       setEmployeeList([]);
+      if (!targetCenter) setCenterCountry("India");
     }
   }, [isPayslips, targetCenter, session?.token]);
 
@@ -264,8 +269,16 @@ export default function Salary({ isPayslips = false }) {
     }
   };
 
-  // Format currency
+  // Format currency - location-aware
   const formatCurrency = (amount) => {
+    if (centerCountry !== "India") {
+      return new Intl.NumberFormat('en-AU', {
+        style: 'currency',
+        currency: 'AUD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    }
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
@@ -273,6 +286,8 @@ export default function Salary({ isPayslips = false }) {
       maximumFractionDigits: 0
     }).format(amount);
   };
+
+  const isIntlCenter = centerCountry !== "India";
 
   if (!isAdminUser(session)) {
     return (
@@ -295,6 +310,11 @@ export default function Salary({ isPayslips = false }) {
             ? "Generate PDF payslips for employees" 
             : "View and generate salary for ICICI bank upload"}
         </p>
+        {isPayslips && isIntlCenter && (
+          <Badge className="mt-2 bg-blue-100 text-blue-800 hover:bg-blue-100" data-testid="intl-payroll-badge">
+            <Globe className="w-3 h-3 mr-1" /> {centerCountry} - Hourly Payroll (WA Format)
+          </Badge>
+        )}
       </div>
 
       {/* Controls Card */}
@@ -561,10 +581,21 @@ export default function Salary({ isPayslips = false }) {
           </h4>
           {isPayslips ? (
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Select a specific center to generate payslips</li>
-              <li>• Use "Single Employee" mode for individual payslip</li>
-              <li>• Enter FULL employee name in CAPS (e.g., EKTA SURESHKUMAR RAVAL)</li>
-              <li>• PDF format recommended for printing</li>
+              <li>Select a specific center to generate payslips</li>
+              {isIntlCenter ? (
+                <>
+                  <li>Payslips use <strong>Australian WA payroll format</strong> (hourly rate, PAYG, Medicare, Super)</li>
+                  <li>Hours are pulled from International Attendance records</li>
+                  <li>Take-home rate is reverse-calculated to Gross using PAYG tax brackets</li>
+                  <li>Super (12%) is on top of Gross, not deducted from Net</li>
+                </>
+              ) : (
+                <>
+                  <li>Use "Single Employee" mode for individual payslip</li>
+                  <li>Enter FULL employee name in CAPS (e.g., EKTA SURESHKUMAR RAVAL)</li>
+                  <li>PDF format recommended for printing</li>
+                </>
+              )}
             </ul>
           ) : (
             <ul className="text-sm text-muted-foreground space-y-1">

@@ -221,6 +221,20 @@ def get_week_label(year: int, month: int, week: int) -> str:
     
     return f"{ordinal(s)} - {ordinal(e)} {month_abbr}"
 
+
+def get_week_ranges(year: int, month: int) -> dict:
+    """Return {week_num: (start_date, end_date)} for each week in the month."""
+    from calendar import monthrange
+    _, last_day = monthrange(year, month)
+    boundaries = [(1,6),(7,13),(14,20),(21,27),(28,last_day)]
+    weeks = {}
+    for i, (s, e) in enumerate(boundaries, 1):
+        if s > last_day:
+            break
+        e = min(e, last_day)
+        weeks[i] = (datetime(year, month, s), datetime(year, month, e))
+    return weeks
+
 # =======================================
 # AUSTRALIAN PAYROLL CALCULATION ENGINE
 # =======================================
