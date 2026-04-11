@@ -2258,6 +2258,14 @@ set_doc_verify_token(verify_token)
 set_doc_verify_token_async(verify_token_async)
 app.include_router(doc_router)
 
+# Food Safety module
+from routes.food_safety import router as fs_router, set_db as set_fs_db, set_verify_token as set_fs_verify_token, set_has_admin_access as set_fs_has_admin_access
+set_fs_db(db)
+set_fs_verify_token(verify_token)
+set_fs_has_admin_access(has_admin_access)
+app.include_router(fs_router)
+
+
 
 @app.on_event("startup")
 async def startup_cleanup_centers():

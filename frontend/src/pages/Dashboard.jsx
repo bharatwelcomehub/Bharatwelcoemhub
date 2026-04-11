@@ -69,6 +69,7 @@ import POSBilling from "@/pages/POSBilling";
 import BillingConfiguration from "@/pages/BillingConfiguration";
 import DocumentManagement from "@/pages/DocumentManagement";
 import UserManuals from "@/pages/UserManuals";
+import FoodSafety from "@/pages/FoodSafety";
 
 // Menu categories structure
 const menuCategories = [
@@ -168,13 +169,22 @@ const menuCategories = [
       { path: "/menu-management", icon: UtensilsCrossed, label: "Menu Items", roleKey: "billing", forAdmin: true },
     ]
   },
+  {
+    id: "food_safety",
+    label: "Food Safety",
+    icon: Shield,
+    forInternational: true,
+    items: [
+      { path: "/food-safety", icon: Shield, label: "Food Safety", forInternational: true },
+    ]
+  },
 ];
 
 export default function Dashboard() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations", "billing"]);
+  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations", "billing", "food_safety"]);
   const [centersList, setCentersList] = useState([]);
   
   // Fetch centers from DB on mount
@@ -267,6 +277,15 @@ export default function Dashboard() {
   const hasCategoryAccess = (category) => {
     if (isSuperAdmin) return true;
     if (category.forMGT) return isAdmin;
+    if (category.forInternational) {
+      if (isAdmin) return true;
+      const centerCode = session?.center || "";
+      if (session?.is_india_center === false) return true;
+      if (session?.is_india_center === true) return false;
+      const centerData = centersList.find(c => c.code === centerCode);
+      if (centerData) return centerData.is_india_center === false;
+      return false;
+    }
     if (category.forFranchise) {
       // Franchise category accessible to Admin or users with franchise role
       const hasFranchiseAccess = isAdmin || userRoles.franchise === true;
@@ -465,6 +484,7 @@ export default function Dashboard() {
             <Route path="/pos-billing" element={<POSBilling />} />
             <Route path="/billing-config" element={<BillingConfiguration />} />
             <Route path="/documents" element={<DocumentManagement />} />
+            <Route path="/food-safety" element={<FoodSafety />} />
           </Routes>
         </div>
       </main>
