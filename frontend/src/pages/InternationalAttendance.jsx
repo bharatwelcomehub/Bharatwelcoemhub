@@ -441,7 +441,7 @@ export default function InternationalAttendance() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `PB-${selectedCenter}_Payroll_${MONTHS[month-1].label}_${year}.pdf`;
+      a.download = `${selectedCenter}_Payroll_${MONTHS[month-1].label}_${year}.pdf`;
       a.click();
       toast.success("Payroll PDF report exported");
     } catch (err) {

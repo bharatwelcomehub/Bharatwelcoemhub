@@ -171,6 +171,13 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 ## Completed in This Session
 - ✅ Bank Statement vs Expense Reconciliation Feature (P0) - DONE
 
+### [2026-04-11] Fix Monthly Payroll PDF — Complete All Sections
+- **Bug Fix**: PDF was missing Weekly Organization Cost Breakdown and Per-Person Organization Cost tables
+- **Bug Fix**: Employee names showing as "Unknown" and $0 values — fixed by querying correct `db.employees` collection
+- **Bug Fix**: Payslip employees endpoint querying wrong collection (`international_employees` → `employees`)
+- **Added**: PDF now contains all 4 sections matching the screen: Summary Cards, Employee Payroll Breakdown, Weekly Org Cost, Per-Person Cost
+- **Tested**: 10/10 backend + all frontend verified (iteration_63)
+
 ### [2026-04-11] Location-Aware Payslip Generation (International Centers)
 - **Feature**: Payslip generation is now country-aware. Auto-detects center country from DB.
 - **Australia (PB-PERTH)**: Generates WA payroll format PDF with Hourly Rate, Total Hours, Gross Pay, PAYG Tax, Medicare Levy, Super (12%), Net Pay, Employer Cost. Hours fetched from `international_attendance` collection.
