@@ -761,7 +761,8 @@ async def get_monthly_report(req: MonthlyReportRequest):
                 "employee_id": emp_id,
                 "employee_name": emp.get("name", "Unknown"),
                 "category": emp.get("category", "STAFF"),
-                "hourly_rate": float(emp.get("hourly_rate", 0) or 0),
+                "hourly_rate": float(emp.get("target_takehome_rate", 0) or emp.get("hourly_rate", 0) or 0),
+                "target_takehome_rate": float(emp.get("target_takehome_rate", 0) or emp.get("hourly_rate", 0) or 0),
                 "weeks": {i: 0 for i in range(1, weeks_in_month + 1)},
                 "total_hours": 0,
                 "total_salary": 0
@@ -1973,6 +1974,118 @@ async def export_payroll_report_pdf(req: PayrollReportRequest):
         elements.append(Paragraph("Week Date Ranges", section_style))
         wl_text = " &nbsp;|&nbsp; ".join([f"<b>Wk{w}:</b> {lbl}" for w, lbl in report["week_labels"].items()])
         elements.append(Paragraph(wl_text, normal_style))
+
+    elements.append(Spacer(1, 6))
+
+    # ----- WEEKLY ORGANIZATION COST BREAKDOWN -----
+    if report.get("weekly_totals"):
+        elements.append(Paragraph("Weekly Organization Cost Breakdown", section_style))
+        elements.append(Paragraph("What the organization pays each week (all employees combined)", small_style))
+        elements.append(Spacer(1, 3))
+
+        wk_headers = ["Week", "Period", "Hours", "Gross Pay", "Net Pay", "Super", "Employer Cost"]
+        wk_data = [wk_headers]
+
+        wk_count = report["weeks_in_month"]
+        for w in range(1, wk_count + 1):
+            wt = report["weekly_totals"].get(w) or report["weekly_totals"].get(str(w), {})
+            label = report.get("week_labels", {}).get(w) or report.get("week_labels", {}).get(str(w), "")
+            wk_data.append([
+                f"Week {w}",
+                str(label),
+                f"{wt.get('hours', 0):.1f}",
+                fmt(wt.get('gross', 0)),
+                fmt(wt.get('net', 0)),
+                fmt(wt.get('super', 0)),
+                fmt(wt.get('employer_cost', 0)),
+            ])
+
+        # Monthly total row
+        wk_data.append([
+            "MONTHLY TOTAL", "",
+            f"{t['total_hours']:.1f}",
+            fmt(t['total_gross']),
+            fmt(t['total_net']),
+            fmt(t['total_super']),
+            fmt(t['total_employer_cost']),
+        ])
+
+        wk_col_widths = [60, 120, 55, 80, 80, 70, 90]
+        wk_table = Table(wk_data, colWidths=wk_col_widths)
+        wk_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), DARK_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, LIGHT_GRAY]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#FEF3C7")),
+            ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ]
+        wk_table.setStyle(TableStyle(wk_style))
+        elements.append(wk_table)
+        elements.append(Spacer(1, 8))
+
+    # ----- PER-PERSON ORGANIZATION COST -----
+    if report.get("employees") and len(report["employees"]) > 0:
+        elements.append(Paragraph("Per-Person Organization Cost", section_style))
+        elements.append(Paragraph("Monthly cost to the organization per employee", small_style))
+        elements.append(Spacer(1, 3))
+
+        pp_headers = ["Employee", "Category", "Hours", "Take-Home/Hr", "Gross/Hr",
+                       "Net Pay", "Super", "PAYG + Medicare", "Employer Cost"]
+        pp_data = [pp_headers]
+
+        for emp in report["employees"]:
+            tax_combined = (emp.get("payg_tax", 0) or 0) + (emp.get("medicare_levy", 0) or 0)
+            pp_data.append([
+                emp["employee_name"][:22],
+                emp.get("category", "")[:10],
+                f"{emp['total_hours']:.1f}",
+                fmt(emp.get("target_takehome_hourly") or emp.get("hourly_rate", 0)),
+                fmt(emp.get("gross_hourly_rate", 0)),
+                fmt(emp.get("net_pay", 0)),
+                fmt(emp.get("superannuation", 0)),
+                fmt(tax_combined),
+                fmt(emp.get("employer_total_cost", 0)),
+            ])
+
+        # Total row
+        total_tax = (t.get("total_payg", 0) or 0) + (t.get("total_medicare", 0) or 0)
+        pp_data.append([
+            f"TOTAL ({len(report['employees'])} staff)", "",
+            f"{t['total_hours']:.1f}", "", "",
+            fmt(t['total_net']),
+            fmt(t['total_super']),
+            fmt(total_tax),
+            fmt(t['total_employer_cost']),
+        ])
+
+        pp_col_widths = [95, 55, 45, 65, 55, 65, 55, 75, 70]
+        pp_table = Table(pp_data, colWidths=pp_col_widths)
+        pp_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), DARK_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, LIGHT_GRAY]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#FEF3C7")),
+            ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ]
+        pp_table.setStyle(TableStyle(pp_style))
+        elements.append(pp_table)
+        elements.append(Spacer(1, 8))
     
     # Footer
     elements.append(Spacer(1, 8))

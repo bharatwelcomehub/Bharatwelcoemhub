@@ -1,0 +1,104 @@
+{
+  "summary": "Tested Monthly Payroll PDF generation fix (Iteration 63). All 10 backend tests passed. Frontend UI verified: Export PDF buttons work on both Monthly Summary tab and Export tab, PDF downloads trigger correctly, all 4 sections (Summary Cards, Employee Payroll Breakdown, Weekly Organization Cost Breakdown, Per-Person Organization Cost) are present in the report.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Export PDF filename",
+        "issues": ["PDF filename has duplicate 'PB-' prefix: 'PB-PB-PERTH_Payroll_April_2026.pdf' instead of 'PB-PERTH_Payroll_April_2026.pdf'"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_monthly_payroll_pdf.py",
+    "/app/test_reports/pytest/pytest_monthly_payroll_pdf.xml"
+  ],
+  "action_items": [
+    "Minor: Fix duplicate 'PB-' prefix in PDF filename (cosmetic issue)"
+  ],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_monthly_payroll_pdf.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": "Super Admin: Mobile 9741399190, OTP 123456, Center PB-MGT",
+  "seed_data_creation": "None - used existing test center PB-PERTH with employees and attendance data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Monthly Payroll PDF generation fully tested. Key features verified: (1) POST /api/international-attendance/payroll-report-pdf generates valid PDF with 4 sections, (2) POST /api/payslip_employees returns employees from db.employees for PB-PERTH with country='Australia' and payroll_type='hourly', (3) POST /api/payslips_generate generates Australian payslip PDF for PB-PERTH and Indian payslip for PB-HSR, (4) Frontend Export PDF buttons work on both Monthly Summary tab and Export tab, (5) Employee names show correctly (not 'Unknown'), (6) Financial values are real (not $0) - e.g., $2807.72 Gross Pay, $2572.51 Net Pay, $3144.65 Employer Cost for 6 staff with 117 hours.",
+  "features_tested": {
+    "payroll_report_pdf_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "PDF generation returns valid PDF (>5KB, proper PDF markers)",
+        "PDF contains employee names (not 'Unknown')",
+        "PDF contains real financial values (not $0)",
+        "Payroll report has all 4 sections: Summary Cards, Employee Payroll Breakdown, Weekly Org Cost Breakdown, Per-Person Org Cost"
+      ]
+    },
+    "payslip_employees_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "PB-PERTH returns country='Australia', payroll_type='hourly'",
+        "PB-HSR returns country='India', payroll_type='monthly'",
+        "Employees returned from db.employees collection"
+      ]
+    },
+    "payslips_generate_endpoint": {
+      "status": "PASSED",
+      "tests": [
+        "Australian payslip (PB-PERTH) single employee returns valid PDF",
+        "Australian payslip (PB-PERTH) bulk mode returns ZIP",
+        "Indian payslip (PB-HSR) still works"
+      ]
+    },
+    "monthly_csv_export": {
+      "status": "PASSED",
+      "tests": [
+        "CSV export returns valid CSV file"
+      ]
+    },
+    "frontend_export_buttons": {
+      "status": "PASSED",
+      "tests": [
+        "Monthly Summary tab 'Export PDF' button triggers download",
+        "Monthly Summary tab 'Export CSV' button triggers download",
+        "Export tab 'Monthly Payroll PDF → Export PDF' button triggers download"
+      ]
+    },
+    "frontend_monthly_summary_sections": {
+      "status": "PASSED",
+      "tests": [
+        "Summary Cards visible (6 Staff, 117.0 Hours, $2807.72 Gross, $184.19 PAYG, $2572.51 Net, $336.93 Super, $3144.65 Employer Cost)",
+        "Employee Payroll Breakdown table visible with 6 employees",
+        "Weekly Organization Cost Breakdown table visible with Week 1-5",
+        "Per-Person Organization Cost table visible with all employees"
+      ]
+    }
+  },
+  "api_verification": {
+    "payroll_report_pdf": {
+      "endpoint": "POST /api/international-attendance/payroll-report-pdf",
+      "request": {"token": "...", "center": "PB-PERTH", "year": 2026, "month": 4},
+      "response": "PDF file (application/pdf, >5KB)"
+    },
+    "payslip_employees_australia": {
+      "endpoint": "POST /api/payslip_employees",
+      "request": {"token": "...", "center": "PB-PERTH"},
+      "response": {"country": "Australia", "payroll_type": "hourly", "employees": "[6+ employees]"}
+    },
+    "payslips_generate_australia": {
+      "endpoint": "POST /api/payslips_generate",
+      "request": {"token": "...", "month": "2026-04", "targetCenter": "PB-PERTH", "mode": "single", "employeeName": "ASHA"},
+      "response": "PDF file (application/pdf)"
+    }
+  }
+}

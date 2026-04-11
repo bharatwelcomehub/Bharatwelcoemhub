@@ -498,25 +498,28 @@ async def payslip_employees(req: PayslipEmployeesRequest):
     country = await get_center_country(center)
 
     if country != "India":
-        # International center — fetch from international_employees
+        # International center — fetch from employees collection (same as get_international_employees)
         variants = center_code_variants(center)
-        employees = await db.international_employees.find(
+        employees_raw = await db.employees.find(
             {"center": {"$in": variants}},
-            {"_id": 0, "name": 1, "category": 1, "role": 1, "hourly_rate": 1,
-             "target_takehome_rate": 1, "gross_hourly_rate": 1}
         ).sort("name", 1).to_list(1000)
 
+        result_employees = []
+        for emp in employees_raw:
+            emp_id = emp.get("employee_id") or emp.get("id") or emp.get("emp_id") or str(emp.get("_id", ""))
+            target_takehome = float(emp.get("target_takehome_rate", 0) or emp.get("hourly_rate", 0) or 0)
+            gross_hourly = float(emp.get("gross_hourly_rate", 0) or 0)
+            result_employees.append({
+                "name": emp.get("name", ""),
+                "employee_id": emp_id,
+                "designation": emp.get("category", emp.get("designation", emp.get("role", "CASUAL"))),
+                "hourly_rate": float(emp.get("hourly_rate", 0) or 0),
+                "target_takehome_rate": target_takehome,
+                "gross_hourly_rate": gross_hourly,
+            })
+
         return {
-            "employees": [
-                {
-                    "name": e.get("name", ""),
-                    "designation": e.get("category", e.get("role", "CASUAL")),
-                    "hourly_rate": e.get("hourly_rate", 0),
-                    "target_takehome_rate": e.get("target_takehome_rate", 0),
-                    "gross_hourly_rate": e.get("gross_hourly_rate", 0),
-                }
-                for e in employees
-            ],
+            "employees": result_employees,
             "country": country,
             "payroll_type": "hourly",
         }
@@ -580,7 +583,7 @@ async def _generate_australian_payslips(req: PayslipGenRequest, year: int, month
     end_date = f"{year}-{month:02d}-{dim:02d}"
     month_name = datetime(year, month, 1).strftime("%B")
 
-    # Fetch employees from international_employees
+    # Fetch employees from main employees collection
     variants = center_code_variants(target_center)
     emp_query = {"center": {"$in": variants}}
 
@@ -588,10 +591,23 @@ async def _generate_australian_payslips(req: PayslipGenRequest, year: int, month
         emp_name_upper = req.employeeName.strip().upper()
         emp_query["name"] = {"$regex": f"^{emp_name_upper}$", "$options": "i"}
 
-    employees = await db.international_employees.find(emp_query, {"_id": 0}).to_list(1000)
+    employees_raw = await db.employees.find(emp_query).to_list(1000)
 
-    if not employees:
-        raise HTTPException(404, f"No international employees found for {target_center}")
+    if not employees_raw:
+        raise HTTPException(404, f"No employees found for {target_center}")
+
+    # Normalize employee data
+    employees = []
+    for emp in employees_raw:
+        emp_id = emp.get("employee_id") or emp.get("id") or emp.get("emp_id") or str(emp.get("_id", ""))
+        employees.append({
+            "employee_id": emp_id,
+            "name": emp.get("name", "Unknown"),
+            "category": emp.get("category", emp.get("designation", "CASUAL")),
+            "role": emp.get("role", emp.get("designation", "")),
+            "hourly_rate": float(emp.get("hourly_rate", 0) or 0),
+            "target_takehome_rate": float(emp.get("target_takehome_rate", 0) or emp.get("hourly_rate", 0) or 0),
+        })
 
     # Fetch ALL attendance for this center+month
     attendance_records = await db.international_attendance.find(
