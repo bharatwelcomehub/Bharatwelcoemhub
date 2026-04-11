@@ -3,12 +3,14 @@
 # Employee CRUD Operations
 # =======================================
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
+import os
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,45 @@ has_admin_access = None
 def set_has_admin_access(func):
     global has_admin_access
     has_admin_access = func
+
+
+# =======================================
+# OBJECT STORAGE FOR PHOTOS
+# =======================================
+
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+photo_storage_key = None
+
+def init_photo_storage():
+    global photo_storage_key
+    if photo_storage_key:
+        return photo_storage_key
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    photo_storage_key = resp.json()["storage_key"]
+    return photo_storage_key
+
+def upload_photo(path: str, data: bytes, content_type: str) -> str:
+    key = init_photo_storage()
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120,
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    return result.get("url", result.get("public_url", ""))
+
+def get_photo_url(path: str) -> str:
+    key = init_photo_storage()
+    resp = requests.get(
+        f"{STORAGE_URL}/objects/{path}/url",
+        headers={"X-Storage-Key": key}, timeout=30,
+    )
+    if resp.status_code == 200:
+        return resp.json().get("url", "")
+    return ""
 
 # =======================================
 # PYDANTIC MODELS
@@ -99,6 +140,14 @@ async def mgt_employee_create(data: dict):
         "mobile": data.get("mobile", ""),
         "email": data.get("email", ""),
         "remark": data.get("remark", ""),
+        # Document fields
+        "aadhaar": data.get("aadhaar", ""),
+        "pan": data.get("pan", ""),
+        "tfn": data.get("tfn", ""),
+        "passport_number": data.get("passport_number", ""),
+        "visa_type": data.get("visa_type", ""),
+        "blood_group": data.get("blood_group", ""),
+        "photo_url": data.get("photo_url", ""),
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     
@@ -127,8 +176,19 @@ async def mgt_employee_update(data: dict):
         "mobile": data.get("mobile", ""),
         "email": data.get("email", ""),
         "remark": data.get("remark", ""),
+        # Document fields
+        "aadhaar": data.get("aadhaar", ""),
+        "pan": data.get("pan", ""),
+        "tfn": data.get("tfn", ""),
+        "passport_number": data.get("passport_number", ""),
+        "visa_type": data.get("visa_type", ""),
+        "blood_group": data.get("blood_group", ""),
         "updatedAt": datetime.now(timezone.utc).isoformat()
     }
+    
+    # Include photo_url only if provided (don't overwrite with empty)
+    if data.get("photo_url"):
+        update_data["photo_url"] = data["photo_url"]
     
     # Find by name and center
     result = await db.employees.update_one(
@@ -271,3 +331,204 @@ async def get_employee_template():
         ],
         "centers": center_codes
     }
+
+
+
+@router.post("/employee_upload_photo")
+async def employee_upload_photo(
+    token: str = Form(...),
+    employee_name: str = Form(...),
+    center: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """Upload passport-size photo for an employee."""
+    session = verify_token(token)
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can upload employee photos")
+
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(400, "Only image files are allowed")
+
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Photo must be under 5MB")
+
+    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
+    safe_name = employee_name.strip().upper().replace(" ", "_")
+    path = f"purnabramha/employee_photos/{center.upper()}/{safe_name}.{ext}"
+
+    try:
+        url = upload_photo(path, content, file.content_type)
+    except Exception as e:
+        logger.error(f"Photo upload failed: {e}")
+        raise HTTPException(500, f"Failed to upload photo: {str(e)}")
+
+    # Update employee record with photo URL
+    result = await db.employees.update_one(
+        {"name": employee_name.strip().upper(), "center": center.upper()},
+        {"$set": {"photo_url": url, "photo_path": path, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    return {
+        "success": True,
+        "photo_url": url,
+        "message": f"Photo uploaded for {employee_name}",
+        "matched": result.matched_count > 0
+    }
+
+
+@router.post("/employee_report")
+async def generate_employee_report(data: dict):
+    """Generate employee report PDF with all details, photos, blood groups."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    from reportlab.lib.colors import HexColor
+    from io import BytesIO
+    import urllib.request
+
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can generate employee reports")
+
+    center = data.get("center", "").upper()
+    query = {"center": center} if center else {}
+
+    employees = await db.employees.find(query, {"_id": 0}).sort("name", 1).to_list(1000)
+    if not employees:
+        raise HTTPException(404, "No employees found")
+
+    # Get center country
+    center_doc = await db.centers.find_one({"code": center}, {"_id": 0, "country": 1}) if center else None
+    country = (center_doc.get("country") or "India") if center_doc else "India"
+    is_india = country.lower() == "india" or not country
+
+    pdf_buffer = BytesIO()
+    c = canvas.Canvas(pdf_buffer, pagesize=A4)
+    width, height = A4
+
+    def draw_header(page_y):
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width / 2, page_y, "Purnabramha - Employee Directory")
+        page_y -= 0.2 * inch
+        c.setFont("Helvetica", 9)
+        label = f"Center: {center}" if center else "All Centers"
+        c.drawCentredString(width / 2, page_y, f"{label} | Country: {country} | Generated: {datetime.now().strftime('%d-%m-%Y')}")
+        page_y -= 0.15 * inch
+        c.setLineWidth(0.5)
+        c.line(0.4 * inch, page_y, width - 0.4 * inch, page_y)
+        return page_y - 0.2 * inch
+
+    y = draw_header(height - 0.4 * inch)
+
+    for idx, emp in enumerate(employees):
+        # Check if we need a new page (each employee needs ~2.5 inches)
+        if y < 2.5 * inch:
+            c.showPage()
+            y = draw_header(height - 0.4 * inch)
+
+        # Employee card background
+        card_top = y + 0.1 * inch
+        card_height = 2.0 * inch
+        c.setFillColor(HexColor("#F8FAFC"))
+        c.setStrokeColor(HexColor("#E2E8F0"))
+        c.roundRect(0.4 * inch, card_top - card_height, width - 0.8 * inch, card_height, 4, fill=1, stroke=1)
+
+        # Photo placeholder (right side)
+        photo_x = width - 1.8 * inch
+        photo_y = card_top - 1.6 * inch
+        photo_w = 1.0 * inch
+        photo_h = 1.2 * inch
+
+        photo_url = emp.get("photo_url", "")
+        photo_drawn = False
+        if photo_url:
+            try:
+                import tempfile
+                req = urllib.request.Request(photo_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    img_data = resp.read()
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                    tmp.write(img_data)
+                    tmp_path = tmp.name
+                c.drawImage(tmp_path, photo_x, photo_y, width=photo_w, height=photo_h,
+                            preserveAspectRatio=True, mask='auto')
+                photo_drawn = True
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+        if not photo_drawn:
+            c.setFillColor(HexColor("#CBD5E1"))
+            c.roundRect(photo_x, photo_y, photo_w, photo_h, 3, fill=1, stroke=0)
+            c.setFillColor(HexColor("#64748B"))
+            c.setFont("Helvetica", 7)
+            c.drawCentredString(photo_x + photo_w / 2, photo_y + photo_h / 2, "No Photo")
+
+        c.setFillColor(HexColor("#000000"))
+
+        # Employee details (left side)
+        left_x = 0.6 * inch
+        text_y = card_top - 0.25 * inch
+        right_col = 3.5 * inch
+
+        # Name (bold, larger)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(left_x, text_y, emp.get("name", ""))
+        c.setFont("Helvetica", 7)
+        c.setFillColor(HexColor("#64748B"))
+        c.drawString(left_x + c.stringWidth(emp.get("name", ""), "Helvetica-Bold", 10) + 8, text_y + 1,
+                      emp.get("designation", ""))
+        c.setFillColor(HexColor("#000000"))
+        text_y -= 0.22 * inch
+
+        c.setFont("Helvetica", 7)
+        # Row 1
+        c.drawString(left_x, text_y, f"Center: {emp.get('center', 'N/A')}")
+        c.drawString(right_col, text_y, f"Gender: {emp.get('gender', 'N/A')}")
+        text_y -= 0.16 * inch
+
+        # Row 2
+        c.drawString(left_x, text_y, f"DOJ: {emp.get('dateOfJoining', 'N/A')}")
+        c.drawString(right_col, text_y, f"Mobile: {emp.get('mobile', 'N/A')}")
+        text_y -= 0.16 * inch
+
+        # Row 3 - Country-specific ID fields
+        if is_india:
+            c.drawString(left_x, text_y, f"Aadhaar: {emp.get('aadhaar', 'N/A')}")
+            c.drawString(right_col, text_y, f"PAN: {emp.get('pan', 'N/A')}")
+        else:
+            c.drawString(left_x, text_y, f"TFN: {emp.get('tfn', 'N/A')}")
+            c.drawString(right_col, text_y, f"Passport: {emp.get('passport_number', 'N/A')}")
+        text_y -= 0.16 * inch
+
+        # Row 4
+        if not is_india:
+            c.drawString(left_x, text_y, f"Visa: {emp.get('visa_type', 'N/A')}")
+        else:
+            c.drawString(left_x, text_y, f"Bank: {emp.get('bankName', 'N/A')} | A/c: {emp.get('beneAccNo', 'N/A')}")
+        blood = emp.get("blood_group", "")
+        c.drawString(right_col, text_y, f"Blood Group: {blood if blood else 'N/A'}")
+        text_y -= 0.16 * inch
+
+        # Row 5
+        c.drawString(left_x, text_y, f"Email: {emp.get('email', 'N/A')}")
+        text_y -= 0.16 * inch
+
+        y = card_top - card_height - 0.15 * inch
+
+    # Footer
+    c.setFont("Helvetica", 6)
+    c.drawCentredString(width / 2, 0.3 * inch, f"Purnabramha Employee Report | Total: {len(employees)} employees | Confidential")
+
+    c.save()
+    pdf_buffer.seek(0)
+
+    from fastapi.responses import Response
+    filename = f"Employee_Report_{center or 'ALL'}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
