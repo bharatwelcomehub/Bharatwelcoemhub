@@ -171,6 +171,15 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 ## Completed in This Session
 - ✅ Bank Statement vs Expense Reconciliation Feature (P0) - DONE
 
+### [2026-04-11] Location-Aware Payslip Generation (International Centers)
+- **Feature**: Payslip generation is now country-aware. Auto-detects center country from DB.
+- **Australia (PB-PERTH)**: Generates WA payroll format PDF with Hourly Rate, Total Hours, Gross Pay, PAYG Tax, Medicare Levy, Super (12%), Net Pay, Employer Cost. Hours fetched from `international_attendance` collection.
+- **India**: Continues using existing Indian salary format (Basic, HRA, ESI, Rs currency)
+- **Backend**: `get_center_country()` helper, `payslip_employees` returns `country` + `payroll_type`, `payslips_generate` routes to correct PDF generator
+- **Frontend**: Badge shows "Australia - Hourly Payroll (WA Format)", info section dynamically shows relevant rules
+- **Tested**: 10/10 backend + all frontend verified (iteration_62)
+- Files: `/app/backend/routes/payroll.py`, `/app/frontend/src/pages/Salary.jsx`
+
 ### [2026-04-08] Payroll Calculation Template Update + CSV Export
 - **Super Rate**: Updated from 11.5% to 12% (FY 2025-26)
 - **Medicare Threshold**: Changed from $26k to $18,200 (tax-free threshold), matching user's Excel template
