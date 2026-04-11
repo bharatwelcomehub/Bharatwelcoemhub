@@ -726,6 +726,14 @@ async def mgt_employee_create(data: dict):
         "mobile": data.get("mobile", ""),
         "email": data.get("email", ""),
         "remark": data.get("remark", ""),
+        # KYC & Document fields
+        "aadhaar": data.get("aadhaar", ""),
+        "pan": data.get("pan", ""),
+        "tfn": data.get("tfn", ""),
+        "passport_number": data.get("passport_number", ""),
+        "visa_type": data.get("visa_type", ""),
+        "blood_group": data.get("blood_group", ""),
+        "photo_url": data.get("photo_url", ""),
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     
@@ -754,8 +762,19 @@ async def mgt_employee_update(data: dict):
         "mobile": data.get("mobile", ""),
         "email": data.get("email", ""),
         "remark": data.get("remark", ""),
+        # KYC & Document fields
+        "aadhaar": data.get("aadhaar", ""),
+        "pan": data.get("pan", ""),
+        "tfn": data.get("tfn", ""),
+        "passport_number": data.get("passport_number", ""),
+        "visa_type": data.get("visa_type", ""),
+        "blood_group": data.get("blood_group", ""),
         "updatedAt": datetime.now(timezone.utc).isoformat()
     }
+    
+    # Include photo_url only if provided (don't overwrite with empty)
+    if data.get("photo_url"):
+        update_data["photo_url"] = data["photo_url"]
     
     # Find by name and center
     result = await db.employees.update_one(

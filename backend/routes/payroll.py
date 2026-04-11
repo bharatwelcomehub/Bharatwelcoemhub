@@ -95,6 +95,38 @@ def days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
 
 
+def _draw_employee_photo(c, photo_url: str, x: float, y: float, w: float, h: float):
+    """Draw employee photo on the PDF canvas. Falls back to placeholder if URL is empty or fails."""
+    import urllib.request
+    import tempfile
+    from reportlab.lib.colors import HexColor
+    from reportlab.lib.units import inch
+
+    if photo_url:
+        try:
+            req = urllib.request.Request(photo_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                img_data = resp.read()
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                tmp.write(img_data)
+                tmp_path = tmp.name
+            c.drawImage(tmp_path, x, y, width=w, height=h,
+                        preserveAspectRatio=True, mask='auto')
+            import os as _os
+            _os.unlink(tmp_path)
+            return
+        except Exception:
+            pass
+    # Placeholder
+    c.setStrokeColor(HexColor("#CBD5E1"))
+    c.setFillColor(HexColor("#F1F5F9"))
+    c.roundRect(x, y, w, h, 2, fill=1, stroke=1)
+    c.setFillColor(HexColor("#94A3B8"))
+    c.setFont("Helvetica", 6)
+    c.drawCentredString(x + w / 2, y + h / 2, "Photo")
+    c.setFillColor(HexColor("#000000"))
+
+
 async def get_center_country(center_code: str) -> str:
     """Detect center country from the centers collection. Returns 'India' or actual country."""
     center = await db.centers.find_one({"code": center_code}, {"_id": 0, "country": 1, "is_india_center": 1})
@@ -637,6 +669,14 @@ async def _generate_australian_payslips(req: PayslipGenRequest, year: int, month
         role = emp.get("role", "")
         target_takehome = float(emp.get("target_takehome_rate", 0) or emp.get("hourly_rate", 0) or 0)
 
+        # Fetch full employee record for KYC fields
+        emp_full = await db.employees.find_one(
+            {"name": {"$regex": f"^{emp_name}$", "$options": "i"}, "center": {"$in": variants}},
+            {"_id": 0}
+        ) or {}
+        emp_tfn = emp_full.get("tfn", "")
+        emp_photo_url = emp_full.get("photo_url", "")
+
         # Sum hours for the month
         emp_hours = att_map.get(emp_id, {})
         total_hours = sum(emp_hours.values())
@@ -688,6 +728,9 @@ async def _generate_australian_payslips(req: PayslipGenRequest, year: int, month
         c.drawCentredString(width / 2, height - 1.6 * inch,
                             f"Pay Period: 1st {month_name} {year} to {dim} {month_name} {year}")
 
+        # === EMPLOYEE PHOTO (top-right) ===
+        _draw_employee_photo(c, emp_photo_url, width - 1.6 * inch, height - 1.55 * inch, 0.8 * inch, 1.0 * inch)
+
         # === EMPLOYEE DETAILS ===
         y = height - 1.9 * inch
         left_x = 0.5 * inch
@@ -708,7 +751,12 @@ async def _generate_australian_payslips(req: PayslipGenRequest, year: int, month
 
         c.drawString(left_x, y, "Region: Western Australia")
         c.drawString(right_x, y, f"Country: {country}")
-        y -= 0.3 * inch
+        y -= 0.18 * inch
+
+        # TFN line
+        if emp_tfn:
+            c.drawString(left_x, y, f"TFN: {emp_tfn}")
+        y -= 0.15 * inch
 
         # === MAIN TABLE ===
         box_top = y
@@ -1029,6 +1077,9 @@ async def _generate_indian_payslips(req: PayslipGenRequest, year: int, month: in
             c.setFont("Helvetica-Bold", 11)
             c.drawCentredString(width/2, height - 1.4*inch, "SALARY SLIP")
 
+            # Employee Photo (top-right)
+            _draw_employee_photo(c, emp.get("photo_url", ""), width - 1.6*inch, height - 1.55*inch, 0.8*inch, 1.0*inch)
+
             # Employee Details
             y = height - 1.65*inch
             c.setFont("Helvetica", 8)
@@ -1049,6 +1100,16 @@ async def _generate_indian_payslips(req: PayslipGenRequest, year: int, month: in
             y -= 0.18*inch
 
             c.drawString(left_x, y, f"DOJ: {emp.get('dateOfJoining', 'N/A')}")
+
+            # Aadhaar + PAN for Indian payslips
+            emp_aadhaar = emp.get("aadhaar", "")
+            emp_pan = emp.get("pan", "")
+            if emp_aadhaar or emp_pan:
+                y -= 0.18*inch
+                if emp_aadhaar:
+                    c.drawString(left_x, y, f"Aadhaar: {emp_aadhaar}")
+                if emp_pan:
+                    c.drawString(right_x, y, f"PAN: {emp_pan}")
             y -= 0.15*inch
 
             # Main Table

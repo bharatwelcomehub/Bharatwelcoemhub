@@ -377,6 +377,57 @@ async def employee_upload_photo(
     }
 
 
+VALID_DOC_TYPES = {"aadhaar_doc", "pan_doc", "passport_doc", "visa_doc"}
+
+@router.post("/employee_upload_document")
+async def employee_upload_document(
+    token: str = Form(...),
+    employee_name: str = Form(...),
+    center: str = Form(...),
+    doc_type: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """Upload a KYC document (Aadhaar, PAN, Passport, Visa) for an employee."""
+    session = verify_token(token)
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can upload employee documents")
+
+    if doc_type not in VALID_DOC_TYPES:
+        raise HTTPException(400, f"Invalid doc_type. Must be one of: {', '.join(VALID_DOC_TYPES)}")
+
+    allowed_types = ("image/", "application/pdf")
+    if not any(file.content_type.startswith(t) for t in allowed_types):
+        raise HTTPException(400, "Only image or PDF files are allowed")
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Document must be under 10MB")
+
+    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "pdf"
+    safe_name = employee_name.strip().upper().replace(" ", "_")
+    path = f"purnabramha/employee_docs/{center.upper()}/{safe_name}/{doc_type}.{ext}"
+
+    try:
+        url = upload_photo(path, content, file.content_type)
+    except Exception as e:
+        logger.error(f"Document upload failed: {e}")
+        raise HTTPException(500, f"Failed to upload document: {str(e)}")
+
+    url_field = f"{doc_type}_url"
+    result = await db.employees.update_one(
+        {"name": employee_name.strip().upper(), "center": center.upper()},
+        {"$set": {url_field: url, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    return {
+        "success": True,
+        "doc_url": url,
+        "doc_type": doc_type,
+        "message": f"{doc_type} uploaded for {employee_name}",
+        "matched": result.matched_count > 0
+    }
+
+
 @router.post("/employee_report")
 async def generate_employee_report(data: dict):
     """Generate employee report PDF with all details, photos, blood groups."""
