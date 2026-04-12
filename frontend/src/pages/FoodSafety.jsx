@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/App";
-import { api, isAdminUser } from "@/lib/api";
+import { api, isAdminUser, fetchCentersFromDB } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Loader2, Plus, Save, Trash2, Search, X, RefreshCw, Edit, Download,
   FileText, ClipboardCheck, Thermometer, Clock, Sparkles, Shield,
-  AlertTriangle, CheckCircle, FileSpreadsheet, ChevronDown, ChevronRight, Eye,
+  AlertTriangle, CheckCircle, FileSpreadsheet, Eye,
 } from "lucide-react";
 
 const STATUS_COLORS = {
@@ -42,10 +42,12 @@ export default function FoodSafety() {
   const [templateTypes, setTemplateTypes] = useState([]);
   const [templateColumns, setTemplateColumns] = useState({});
   const [loading, setLoading] = useState(false);
+  const columnsRef = useRef({});
 
   // Dashboard
   const [dashboard, setDashboard] = useState(null);
-  const [dashCenter, setDashCenter] = useState("PB-PERTH");
+  const [dashCenter, setDashCenter] = useState(session?.center || "PB-PERTH");
+  const [centersList, setCentersList] = useState([]);
 
   // Template Items (CRUD)
   const [templateItems, setTemplateItems] = useState([]);
@@ -58,15 +60,31 @@ export default function FoodSafety() {
   const [recordForm, setRecordForm] = useState(null);
   const [recordEntries, setRecordEntries] = useState([]);
 
+  // Load centers list for selector
+  useEffect(() => {
+    if (session?.token) {
+      fetchCentersFromDB(session.token).then(centers => {
+        // Filter to non-India centers + always include current
+        const nonIndia = centers.filter(c => c.is_india_center === false || c.code === dashCenter);
+        setCentersList(nonIndia.length > 0 ? nonIndia : centers);
+      });
+    }
+  }, [session?.token]);
+
   // Load template types on mount
   useEffect(() => {
     if (session?.token) {
       api.post("/food-safety/template-types", { token: session.token })
         .then(res => {
           setTemplateTypes(res.data.types || []);
-          setTemplateColumns(res.data.columns || {});
+          const cols = res.data.columns || {};
+          setTemplateColumns(cols);
+          columnsRef.current = cols;
         })
-        .catch(() => toast.error("Failed to load template types"));
+        .catch((e) => {
+          console.error("Failed to load template types:", e);
+          toast.error("Failed to load template types");
+        });
     }
   }, [session?.token]);
 
@@ -178,7 +196,8 @@ export default function FoodSafety() {
 
   // Start new record
   const startNewRecord = (templateType) => {
-    const cols = templateColumns[templateType] || [];
+    // Use ref to get latest columns (avoids stale closure)
+    const cols = columnsRef.current[templateType] || templateColumns[templateType] || [];
     setRecordForm({
       template_type: templateType,
       record_date: new Date().toISOString().split("T")[0],
@@ -186,14 +205,19 @@ export default function FoodSafety() {
       notes: "",
       status: "draft",
     });
-    setRecordEntries([cols.reduce((acc, col) => ({ ...acc, [col.key]: "" }), {})]);
+    // Create one empty entry row with all column keys
+    const emptyRow = {};
+    cols.forEach(col => { emptyRow[col.key] = ""; });
+    setRecordEntries([emptyRow]);
     setActiveTab("record-entry");
   };
 
   // Add row to record entries
   const addEntryRow = () => {
-    const cols = templateColumns[recordForm?.template_type] || [];
-    setRecordEntries(prev => [...prev, cols.reduce((acc, col) => ({ ...acc, [col.key]: "" }), {})]);
+    const cols = columnsRef.current[recordForm?.template_type] || templateColumns[recordForm?.template_type] || [];
+    const emptyRow = {};
+    cols.forEach(col => { emptyRow[col.key] = ""; });
+    setRecordEntries(prev => [...prev, emptyRow]);
   };
 
   // Update entry field
@@ -320,7 +344,11 @@ export default function FoodSafety() {
         <div className="flex gap-2 items-center">
           <select value={dashCenter} onChange={e => setDashCenter(e.target.value)}
             className="h-10 px-3 rounded-md border border-input bg-background text-sm" data-testid="fs-center-select">
-            <option value="PB-PERTH">PB-PERTH</option>
+            {centersList.length > 0 ? centersList.map(c => (
+              <option key={c.code} value={c.code}>{c.code}</option>
+            )) : (
+              <option value={dashCenter}>{dashCenter}</option>
+            )}
           </select>
           {isAdmin && (
             <Button onClick={seedTemplates} variant="outline" size="sm" data-testid="seed-btn">
@@ -683,7 +711,10 @@ export default function FoodSafety() {
       )}
 
       {/* ===== RECORD ENTRY TAB ===== */}
-      {activeTab === "record-entry" && recordForm && (
+      {activeTab === "record-entry" && recordForm && (() => {
+        const entryCols = templateColumns[recordForm.template_type] || columnsRef.current[recordForm.template_type] || [];
+        const isReadOnly = recordForm.status === "locked" || recordForm.status === "approved";
+        return (
         <div className="space-y-4">
           <Card className="border-2 border-primary">
             <CardHeader className="pb-2">
@@ -722,13 +753,19 @@ export default function FoodSafety() {
               </div>
 
               {/* Entry rows */}
+              {entryCols.length === 0 ? (
+                <div className="p-6 text-center border rounded-lg bg-muted/30">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading template columns...</p>
+                </div>
+              ) : (
               <div className="border rounded-lg overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-muted">
                       <tr>
                         <th className="p-2 text-center w-10">#</th>
-                        {(templateColumns[recordForm.template_type] || []).map(col => (
+                        {entryCols.map(col => (
                           <th key={col.key} className="p-2 text-left text-xs font-bold whitespace-nowrap">
                             {col.label} {col.required && <span className="text-red-500">*</span>}
                           </th>
@@ -740,16 +777,16 @@ export default function FoodSafety() {
                       {recordEntries.map((entry, rowIdx) => (
                         <tr key={rowIdx} className="border-t" data-testid={`entry-row-${rowIdx}`}>
                           <td className="p-2 text-center text-xs text-muted-foreground">{rowIdx + 1}</td>
-                          {(templateColumns[recordForm.template_type] || []).map(col => (
+                          {entryCols.map(col => (
                             <td key={col.key} className="p-1">
                               {col.type === "textarea" ? (
                                 <Textarea value={entry[col.key] || ""} rows={1} className="text-xs min-w-[120px]"
                                   onChange={e => updateEntry(rowIdx, col.key, e.target.value)}
-                                  disabled={recordForm.status === "locked" || recordForm.status === "approved"} />
+                                  disabled={isReadOnly} />
                               ) : col.type === "select" ? (
                                 <select value={entry[col.key] || ""}
                                   onChange={e => updateEntry(rowIdx, col.key, e.target.value)}
-                                  disabled={recordForm.status === "locked" || recordForm.status === "approved"}
+                                  disabled={isReadOnly}
                                   className="h-8 px-1 rounded border border-input bg-background text-xs min-w-[100px]">
                                   <option value="">Select</option>
                                   {(col.options || []).map(o => <option key={o} value={o}>{o}</option>)}
@@ -758,18 +795,18 @@ export default function FoodSafety() {
                                 <div className="flex justify-center">
                                   <Checkbox checked={entry[col.key] === true || entry[col.key] === "true"}
                                     onCheckedChange={v => updateEntry(rowIdx, col.key, v)}
-                                    disabled={recordForm.status === "locked" || recordForm.status === "approved"} />
+                                    disabled={isReadOnly} />
                                 </div>
                               ) : (
                                 <Input value={entry[col.key] || ""} className="text-xs h-8 min-w-[80px]"
                                   type={col.type === "number" ? "number" : col.type === "date" ? "date" : col.type === "time" ? "time" : "text"}
                                   onChange={e => updateEntry(rowIdx, col.key, e.target.value)}
-                                  disabled={recordForm.status === "locked" || recordForm.status === "approved"} />
+                                  disabled={isReadOnly} />
                               )}
                             </td>
                           ))}
                           <td className="p-1">
-                            {recordForm.status !== "locked" && recordForm.status !== "approved" && recordEntries.length > 1 && (
+                            {!isReadOnly && recordEntries.length > 1 && (
                               <Button size="sm" variant="ghost" onClick={() => removeEntryRow(rowIdx)}>
                                 <X className="w-3 h-3 text-red-500" />
                               </Button>
@@ -781,15 +818,16 @@ export default function FoodSafety() {
                   </table>
                 </div>
               </div>
+              )}
 
-              {recordForm.status !== "locked" && recordForm.status !== "approved" && (
+              {!isReadOnly && (
                 <Button onClick={addEntryRow} variant="outline" size="sm" data-testid="add-entry-row">
                   <Plus className="w-3 h-3 mr-1" /> Add Row
                 </Button>
               )}
 
               {/* Action buttons */}
-              {recordForm.status !== "locked" && recordForm.status !== "approved" && (
+              {!isReadOnly && (
                 <div className="flex gap-3 pt-3 border-t">
                   <Button onClick={() => saveRecord("draft")} variant="outline" disabled={loading} data-testid="save-draft-btn">
                     {loading && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
@@ -803,7 +841,7 @@ export default function FoodSafety() {
               )}
 
               {/* Submission info for approved/locked */}
-              {(recordForm.status === "approved" || recordForm.status === "locked") && (
+              {isReadOnly && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
                   <p><strong>Submitted By:</strong> {recordForm.submittedBy || "N/A"} on {recordForm.submittedAt?.split("T")[0] || "N/A"}</p>
                   <p><strong>Approved By:</strong> {recordForm.approvedBy || "N/A"} on {recordForm.approvedAt?.split("T")[0] || "N/A"}</p>
@@ -813,7 +851,8 @@ export default function FoodSafety() {
             </CardContent>
           </Card>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
