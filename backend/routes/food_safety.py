@@ -390,6 +390,20 @@ async def lock_record(data: dict):
     return {"success": True, "message": "Record locked"}
 
 
+@router.post("/records/delete")
+async def delete_record(data: dict):
+    """Delete a food safety record (Admin only)."""
+    session = _check_auth(data.get("token"), require_admin=True)
+    record_id = data.get("record_id")
+    if not record_id:
+        raise HTTPException(400, "record_id required")
+
+    result = await db.fs_records.delete_one({"record_id": record_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Record not found")
+    return {"success": True, "message": "Record deleted"}
+
+
 # =======================================
 # DASHBOARD
 # =======================================

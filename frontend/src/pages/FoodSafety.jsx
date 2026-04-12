@@ -59,6 +59,7 @@ export default function FoodSafety() {
   const [recordFilter, setRecordFilter] = useState({ template_type: "", status: "", date_from: "", date_to: "" });
   const [recordForm, setRecordForm] = useState(null);
   const [recordEntries, setRecordEntries] = useState([]);
+  const [entryItemOptions, setEntryItemOptions] = useState([]); // Template master items for dropdown
 
   // Load centers list for selector
   useEffect(() => {
@@ -194,6 +195,19 @@ export default function FoodSafety() {
     if (activeTab === "records" && session?.token) loadRecords();
   }, [activeTab, loadRecords, session?.token]);
 
+  // Load template items for dropdown options
+  const loadEntryItemOptions = async (templateType) => {
+    try {
+      const res = await api.post("/food-safety/template-items/list", {
+        token: session.token, template_type: templateType, center: dashCenter,
+      });
+      const items = (res.data.items || []).filter(i => i.active !== false);
+      setEntryItemOptions(items.map(i => i.name || i.fields?.food || i.fields?.activity_food || i.fields?.item_equipment || i.fields?.area_equipment || ""));
+    } catch {
+      setEntryItemOptions([]);
+    }
+  };
+
   // Start new record
   const startNewRecord = (templateType) => {
     // Use ref to get latest columns (avoids stale closure)
@@ -210,6 +224,7 @@ export default function FoodSafety() {
     cols.forEach(col => { emptyRow[col.key] = ""; });
     setRecordEntries([emptyRow]);
     setActiveTab("record-entry");
+    loadEntryItemOptions(templateType);
   };
 
   // Add row to record entries
@@ -272,8 +287,8 @@ export default function FoodSafety() {
 
   // Edit existing record
   const editRecord = (rec) => {
-    if (rec.status === "locked" || rec.status === "approved") {
-      toast.error("Cannot edit locked/approved records");
+    if (rec.status === "locked") {
+      toast.error("Cannot edit locked records");
       return;
     }
     setRecordForm({
@@ -283,9 +298,27 @@ export default function FoodSafety() {
       notes: rec.notes || "",
       status: rec.status,
       record_id: rec.record_id,
+      submittedBy: rec.submittedBy,
+      submittedAt: rec.submittedAt,
+      approvedBy: rec.approvedBy,
+      approvedAt: rec.approvedAt,
     });
     setRecordEntries(rec.entries || []);
     setActiveTab("record-entry");
+    loadEntryItemOptions(rec.template_type);
+  };
+
+  // Delete record (Admin only)
+  const deleteRecord = async (record_id) => {
+    if (!window.confirm("Delete this record permanently?")) return;
+    try {
+      await api.post("/food-safety/records/delete", { token: session.token, record_id });
+      toast.success("Record deleted");
+      loadRecords();
+      loadDashboard();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Delete failed");
+    }
   };
 
   // Download report
@@ -679,19 +712,25 @@ export default function FoodSafety() {
                       <td className="p-3 text-center">
                         <div className="flex gap-1 justify-center">
                           {(rec.status === "draft" || rec.status === "submitted") && (
-                            <Button size="sm" variant="ghost" onClick={() => editRecord(rec)}>
+                            <Button size="sm" variant="ghost" onClick={() => editRecord(rec)} title="Edit">
                               <Edit className="w-3 h-3" />
                             </Button>
                           )}
                           {rec.status === "submitted" && isAdmin && (
                             <Button size="sm" variant="ghost" onClick={() => approveRecord(rec.record_id)}
-                              className="text-green-600" data-testid={`approve-${rec.record_id}`}>
+                              className="text-green-600" title="Approve" data-testid={`approve-${rec.record_id}`}>
                               <CheckCircle className="w-3 h-3" />
                             </Button>
                           )}
                           {(rec.status === "approved" || rec.status === "locked") && (
-                            <Button size="sm" variant="ghost" onClick={() => { setRecordForm({ ...rec }); setRecordEntries(rec.entries || []); setActiveTab("record-entry"); }}>
+                            <Button size="sm" variant="ghost" onClick={() => editRecord(rec)} title="View">
                               <Eye className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button size="sm" variant="ghost" onClick={() => deleteRecord(rec.record_id)}
+                              className="text-red-500" title="Delete" data-testid={`delete-${rec.record_id}`}>
+                              <Trash2 className="w-3 h-3" />
                             </Button>
                           )}
                         </div>
@@ -777,9 +816,20 @@ export default function FoodSafety() {
                       {recordEntries.map((entry, rowIdx) => (
                         <tr key={rowIdx} className="border-t" data-testid={`entry-row-${rowIdx}`}>
                           <td className="p-2 text-center text-xs text-muted-foreground">{rowIdx + 1}</td>
-                          {entryCols.map(col => (
+                          {entryCols.map(col => {
+                            // Fields that should use template master items as dropdown
+                            const isItemField = ["food", "activity_food", "supplier", "item_equipment", "area_equipment", "product"].includes(col.key);
+                            return (
                             <td key={col.key} className="p-1">
-                              {col.type === "textarea" ? (
+                              {isItemField && entryItemOptions.length > 0 ? (
+                                <select value={entry[col.key] || ""}
+                                  onChange={e => updateEntry(rowIdx, col.key, e.target.value)}
+                                  disabled={isReadOnly}
+                                  className="h-8 px-1 rounded border border-input bg-background text-xs min-w-[140px]">
+                                  <option value="">Select item...</option>
+                                  {entryItemOptions.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
+                                </select>
+                              ) : col.type === "textarea" ? (
                                 <Textarea value={entry[col.key] || ""} rows={1} className="text-xs min-w-[120px]"
                                   onChange={e => updateEntry(rowIdx, col.key, e.target.value)}
                                   disabled={isReadOnly} />
@@ -804,7 +854,8 @@ export default function FoodSafety() {
                                   disabled={isReadOnly} />
                               )}
                             </td>
-                          ))}
+                            );
+                          })}
                           <td className="p-1">
                             {!isReadOnly && recordEntries.length > 1 && (
                               <Button size="sm" variant="ghost" onClick={() => removeEntryRow(rowIdx)}>
