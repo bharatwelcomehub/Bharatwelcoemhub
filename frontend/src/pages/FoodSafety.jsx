@@ -198,7 +198,7 @@ export default function FoodSafety() {
   // Load template items for dropdown options
   // Uses ONE food list (cooking_cooling) for all food fields
   // Uses supplier_details for supplier fields
-  // Uses cleaning_procedure for frequency fields
+  // Uses cleaning_procedure for frequency fields + full item data for auto-fill
   const loadEntryItemOptions = async (templateType) => {
     try {
       // Food list: always from cooking_cooling items (ONE shared list)
@@ -213,11 +213,12 @@ export default function FoodSafety() {
       });
       const supplierItems = (supplierRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
 
-      // Cleaning frequency list: from cleaning_procedure items
+      // Cleaning procedure items: full data for auto-fill (how_often, cleaning_method, sanitising_method)
       const cleanRes = await api.post("/food-safety/template-items/list", {
         token: session.token, template_type: "cleaning_procedure", center: dashCenter,
       });
-      const cleanItems = (cleanRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
+      const cleanItemsFull = (cleanRes.data.items || []).filter(i => i.active !== false);
+      const cleanItems = cleanItemsFull.map(i => i.name);
 
       // Cleaning record area list: from cleaning_record items
       const cleanRecRes = await api.post("/food-safety/template-items/list", {
@@ -229,10 +230,11 @@ export default function FoodSafety() {
         food: foodItems,
         supplier: supplierItems,
         cleaning: cleanItems,
+        cleaningFull: cleanItemsFull, // Full items with fields for auto-fill
         cleaningRec: cleanRecItems,
       });
     } catch {
-      setEntryItemOptions({ food: [], supplier: [], cleaning: [], cleaningRec: [] });
+      setEntryItemOptions({ food: [], supplier: [], cleaning: [], cleaningFull: [], cleaningRec: [] });
     }
   };
 
@@ -268,6 +270,7 @@ export default function FoodSafety() {
     setRecordEntries(prev => prev.map((row, i) => {
       if (i !== rowIdx) return row;
       const updated = { ...row, [key]: value };
+
       // Auto-calculate Total Time Out for 2hr/4hr rule
       if (recordForm?.template_type === "two_four_hour_rule" && (key === "time_out" || key === "time_back")) {
         const tout = updated.time_out || "";
@@ -277,7 +280,7 @@ export default function FoodSafety() {
           const [h2, m2] = tback.split(":").map(Number);
           if (!isNaN(h1) && !isNaN(m1) && !isNaN(h2) && !isNaN(m2)) {
             let diffMin = (h2 * 60 + m2) - (h1 * 60 + m1);
-            if (diffMin < 0) diffMin += 24 * 60; // next day
+            if (diffMin < 0) diffMin += 24 * 60;
             const hrs = Math.floor(diffMin / 60);
             const mins = diffMin % 60;
             updated.total_time_out = `${hrs}h ${mins}m`;
@@ -286,6 +289,19 @@ export default function FoodSafety() {
           updated.total_time_out = "";
         }
       }
+
+      // Auto-fill cleaning procedure fields when item_equipment is selected
+      if (recordForm?.template_type === "cleaning_procedure" && key === "item_equipment") {
+        const opts = entryItemOptions || {};
+        const fullItems = opts.cleaningFull || [];
+        const match = fullItems.find(it => it.name === value);
+        if (match?.fields) {
+          updated.how_often = match.fields.how_often || "";
+          updated.cleaning_method = match.fields.cleaning_method || "";
+          updated.sanitising_method = match.fields.sanitising_method || "";
+        }
+      }
+
       return updated;
     }));
   };
@@ -871,12 +887,18 @@ export default function FoodSafety() {
                             // Map fields to correct dropdown list
                             const foodFields = ["food", "activity_food"];
                             const supplierFields = ["supplier", "supplier_name"];
-                            const cleanAreaFields = ["area_equipment", "item_equipment"];
+                            const cleanAreaFields = ["area_equipment"];
                             const freqField = col.key === "frequency" && recordForm.template_type === "cleaning_record";
+                            // For cleaning_procedure: item_equipment uses cleaning procedure items as dropdown
+                            const isCleanProcItem = col.key === "item_equipment" && recordForm.template_type === "cleaning_procedure";
+                            // Auto-filled fields for cleaning_procedure (read-only after item selection)
+                            const isAutoFilled = recordForm.template_type === "cleaning_procedure" && ["how_often", "cleaning_method", "sanitising_method"].includes(col.key);
                             let dropdownList = null;
-                            if (foodFields.includes(col.key) && opts.food?.length > 0) dropdownList = opts.food;
+                            if (isCleanProcItem && opts.cleaning?.length > 0) dropdownList = opts.cleaning;
+                            else if (foodFields.includes(col.key) && opts.food?.length > 0) dropdownList = opts.food;
                             else if (supplierFields.includes(col.key) && opts.supplier?.length > 0) dropdownList = opts.supplier;
                             else if (cleanAreaFields.includes(col.key) && opts.cleaningRec?.length > 0) dropdownList = opts.cleaningRec;
+                            else if (col.key === "item_equipment" && opts.cleaningRec?.length > 0) dropdownList = opts.cleaningRec;
                             else if (freqField && opts.cleaning?.length > 0) dropdownList = opts.cleaning;
                             const isCalc = col.type === "calculated";
                             return (
@@ -889,6 +911,9 @@ export default function FoodSafety() {
                                   <option value="">Select...</option>
                                   {dropdownList.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                                 </select>
+                              ) : isAutoFilled ? (
+                                <Input value={entry[col.key] || ""} className="text-xs h-8 min-w-[100px] bg-amber-50 border-amber-200"
+                                  readOnly disabled placeholder="Auto from master" title="Auto-filled from Template Master" />
                               ) : isCalc ? (
                                 <Input value={entry[col.key] || ""} className="text-xs h-8 min-w-[80px] bg-muted"
                                   readOnly disabled placeholder="Auto" />
