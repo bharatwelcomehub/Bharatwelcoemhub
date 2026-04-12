@@ -165,9 +165,19 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - `GET/POST/PUT/DELETE /api/admin/hero-images` - Banner CRUD
 - `GET/POST/PUT /api/admin/locations` - Location CRUD
 
+## SEO Infrastructure (Feb 2026)
+- [x] **8 Local SEO Location Pages** - /maharashtrian-restaurant-{location} for all centers
+- [x] **AI Knowledge Page** - /about-purnabramha-maharashtrian-restaurant (targets ChatGPT/Gemini/Perplexity)
+- [x] **JSON-LD Structured Data** - Restaurant & Organization schemas on all pages
+- [x] **Complete Sitemap (20 URLs)** - All core pages + 8 location pages + AI knowledge page
+- [x] **robots.txt** - Updated with sitemap reference, admin/auth exclusions
+- [x] **seo-config.json** - Full config with 8 locations, nearby areas, keywords, FAQ data
+
 ## Backlog
+- [ ] Sync Tiffin.js & Catering.js with database (currently using static JSON)
 - [ ] Payment Integration (Razorpay/Stripe)
 - [ ] Push notifications
+- [ ] "Share My Plate" social sharing for AI Nutrition card
 - [ ] Order history dashboard
 - [ ] Multi-language support
 
