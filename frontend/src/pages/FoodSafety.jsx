@@ -196,15 +196,43 @@ export default function FoodSafety() {
   }, [activeTab, loadRecords, session?.token]);
 
   // Load template items for dropdown options
+  // Uses ONE food list (cooking_cooling) for all food fields
+  // Uses supplier_details for supplier fields
+  // Uses cleaning_procedure for frequency fields
   const loadEntryItemOptions = async (templateType) => {
     try {
-      const res = await api.post("/food-safety/template-items/list", {
-        token: session.token, template_type: templateType, center: dashCenter,
+      // Food list: always from cooking_cooling items (ONE shared list)
+      const foodRes = await api.post("/food-safety/template-items/list", {
+        token: session.token, template_type: "cooking_cooling", center: dashCenter,
       });
-      const items = (res.data.items || []).filter(i => i.active !== false);
-      setEntryItemOptions(items.map(i => i.name || i.fields?.food || i.fields?.activity_food || i.fields?.item_equipment || i.fields?.area_equipment || ""));
+      const foodItems = (foodRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
+
+      // Supplier list: from supplier_details items
+      const supplierRes = await api.post("/food-safety/template-items/list", {
+        token: session.token, template_type: "supplier_details", center: dashCenter,
+      });
+      const supplierItems = (supplierRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
+
+      // Cleaning frequency list: from cleaning_procedure items
+      const cleanRes = await api.post("/food-safety/template-items/list", {
+        token: session.token, template_type: "cleaning_procedure", center: dashCenter,
+      });
+      const cleanItems = (cleanRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
+
+      // Cleaning record area list: from cleaning_record items
+      const cleanRecRes = await api.post("/food-safety/template-items/list", {
+        token: session.token, template_type: "cleaning_record", center: dashCenter,
+      });
+      const cleanRecItems = (cleanRecRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
+
+      setEntryItemOptions({
+        food: foodItems,
+        supplier: supplierItems,
+        cleaning: cleanItems,
+        cleaningRec: cleanRecItems,
+      });
     } catch {
-      setEntryItemOptions([]);
+      setEntryItemOptions({ food: [], supplier: [], cleaning: [], cleaningRec: [] });
     }
   };
 
@@ -237,7 +265,29 @@ export default function FoodSafety() {
 
   // Update entry field
   const updateEntry = (rowIdx, key, value) => {
-    setRecordEntries(prev => prev.map((row, i) => i === rowIdx ? { ...row, [key]: value } : row));
+    setRecordEntries(prev => prev.map((row, i) => {
+      if (i !== rowIdx) return row;
+      const updated = { ...row, [key]: value };
+      // Auto-calculate Total Time Out for 2hr/4hr rule
+      if (recordForm?.template_type === "two_four_hour_rule" && (key === "time_out" || key === "time_back")) {
+        const tout = updated.time_out || "";
+        const tback = updated.time_back || "";
+        if (tout && tback) {
+          const [h1, m1] = tout.split(":").map(Number);
+          const [h2, m2] = tback.split(":").map(Number);
+          if (!isNaN(h1) && !isNaN(m1) && !isNaN(h2) && !isNaN(m2)) {
+            let diffMin = (h2 * 60 + m2) - (h1 * 60 + m1);
+            if (diffMin < 0) diffMin += 24 * 60; // next day
+            const hrs = Math.floor(diffMin / 60);
+            const mins = diffMin % 60;
+            updated.total_time_out = `${hrs}h ${mins}m`;
+          }
+        } else {
+          updated.total_time_out = "";
+        }
+      }
+      return updated;
+    }));
   };
 
   // Remove entry row
@@ -817,18 +867,31 @@ export default function FoodSafety() {
                         <tr key={rowIdx} className="border-t" data-testid={`entry-row-${rowIdx}`}>
                           <td className="p-2 text-center text-xs text-muted-foreground">{rowIdx + 1}</td>
                           {entryCols.map(col => {
-                            // Fields that should use template master items as dropdown
-                            const isItemField = ["food", "activity_food", "supplier", "item_equipment", "area_equipment", "product"].includes(col.key);
+                            const opts = entryItemOptions || {};
+                            // Map fields to correct dropdown list
+                            const foodFields = ["food", "activity_food"];
+                            const supplierFields = ["supplier", "supplier_name"];
+                            const cleanAreaFields = ["area_equipment", "item_equipment"];
+                            const freqField = col.key === "frequency" && recordForm.template_type === "cleaning_record";
+                            let dropdownList = null;
+                            if (foodFields.includes(col.key) && opts.food?.length > 0) dropdownList = opts.food;
+                            else if (supplierFields.includes(col.key) && opts.supplier?.length > 0) dropdownList = opts.supplier;
+                            else if (cleanAreaFields.includes(col.key) && opts.cleaningRec?.length > 0) dropdownList = opts.cleaningRec;
+                            else if (freqField && opts.cleaning?.length > 0) dropdownList = opts.cleaning;
+                            const isCalc = col.type === "calculated";
                             return (
                             <td key={col.key} className="p-1">
-                              {isItemField && entryItemOptions.length > 0 ? (
+                              {dropdownList ? (
                                 <select value={entry[col.key] || ""}
                                   onChange={e => updateEntry(rowIdx, col.key, e.target.value)}
                                   disabled={isReadOnly}
                                   className="h-8 px-1 rounded border border-input bg-background text-xs min-w-[140px]">
-                                  <option value="">Select item...</option>
-                                  {entryItemOptions.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
+                                  <option value="">Select...</option>
+                                  {dropdownList.map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
                                 </select>
+                              ) : isCalc ? (
+                                <Input value={entry[col.key] || ""} className="text-xs h-8 min-w-[80px] bg-muted"
+                                  readOnly disabled placeholder="Auto" />
                               ) : col.type === "textarea" ? (
                                 <Textarea value={entry[col.key] || ""} rows={1} className="text-xs min-w-[120px]"
                                   onChange={e => updateEntry(rowIdx, col.key, e.target.value)}
