@@ -196,41 +196,32 @@ export default function FoodSafety() {
   }, [activeTab, loadRecords, session?.token]);
 
   // Load template items for dropdown options
-  // Uses ONE food list (cooking_cooling) for all food fields
-  // Uses supplier_details for supplier fields
-  // Uses cleaning_procedure for frequency fields + full item data for auto-fill
-  const loadEntryItemOptions = async (templateType) => {
+  // Falls back to all-center items if selected center has none
+  const loadEntryItemOptions = async () => {
     try {
-      // Food list: always from cooking_cooling items (ONE shared list)
-      const foodRes = await api.post("/food-safety/template-items/list", {
-        token: session.token, template_type: "cooking_cooling", center: dashCenter,
-      });
-      const foodItems = (foodRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
+      const fetchItems = async (tt) => {
+        const res = await api.post("/food-safety/template-items/list", {
+          token: session.token, template_type: tt, center: dashCenter,
+        });
+        const items = (res.data.items || []).filter(i => i.active !== false);
+        if (items.length > 0) return items;
+        const res2 = await api.post("/food-safety/template-items/list", {
+          token: session.token, template_type: tt, center: "",
+        });
+        return (res2.data.items || []).filter(i => i.active !== false);
+      };
 
-      // Supplier list: from supplier_details items
-      const supplierRes = await api.post("/food-safety/template-items/list", {
-        token: session.token, template_type: "supplier_details", center: dashCenter,
-      });
-      const supplierItems = (supplierRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
-
-      // Cleaning procedure items: full data for auto-fill (how_often, cleaning_method, sanitising_method)
-      const cleanRes = await api.post("/food-safety/template-items/list", {
-        token: session.token, template_type: "cleaning_procedure", center: dashCenter,
-      });
-      const cleanItemsFull = (cleanRes.data.items || []).filter(i => i.active !== false);
+      const foodItems = (await fetchItems("cooking_cooling")).map(i => i.name);
+      const supplierItems = (await fetchItems("supplier_details")).map(i => i.name);
+      const cleanItemsFull = await fetchItems("cleaning_procedure");
       const cleanItems = cleanItemsFull.map(i => i.name);
-
-      // Cleaning record area list: from cleaning_record items
-      const cleanRecRes = await api.post("/food-safety/template-items/list", {
-        token: session.token, template_type: "cleaning_record", center: dashCenter,
-      });
-      const cleanRecItems = (cleanRecRes.data.items || []).filter(i => i.active !== false).map(i => i.name);
+      const cleanRecItems = (await fetchItems("cleaning_record")).map(i => i.name);
 
       setEntryItemOptions({
         food: foodItems,
         supplier: supplierItems,
         cleaning: cleanItems,
-        cleaningFull: cleanItemsFull, // Full items with fields for auto-fill
+        cleaningFull: cleanItemsFull,
         cleaningRec: cleanRecItems,
       });
     } catch {
@@ -254,7 +245,7 @@ export default function FoodSafety() {
     cols.forEach(col => { emptyRow[col.key] = ""; });
     setRecordEntries([emptyRow]);
     setActiveTab("record-entry");
-    loadEntryItemOptions(templateType);
+    loadEntryItemOptions();
   };
 
   // Add row to record entries
@@ -371,7 +362,7 @@ export default function FoodSafety() {
     });
     setRecordEntries(rec.entries || []);
     setActiveTab("record-entry");
-    loadEntryItemOptions(rec.template_type);
+    loadEntryItemOptions();
   };
 
   // Delete record (Admin only)
@@ -888,18 +879,18 @@ export default function FoodSafety() {
                             const foodFields = ["food", "activity_food"];
                             const supplierFields = ["supplier", "supplier_name"];
                             const cleanAreaFields = ["area_equipment"];
-                            const freqField = col.key === "frequency" && recordForm.template_type === "cleaning_record";
-                            // For cleaning_procedure: item_equipment uses cleaning procedure items as dropdown
                             const isCleanProcItem = col.key === "item_equipment" && recordForm.template_type === "cleaning_procedure";
-                            // Auto-filled fields for cleaning_procedure (read-only after item selection)
                             const isAutoFilled = recordForm.template_type === "cleaning_procedure" && ["how_often", "cleaning_method", "sanitising_method"].includes(col.key);
+                            // Frequency dropdown for cleaning_record uses fixed options
+                            const isFreqDropdown = col.key === "frequency" && recordForm.template_type === "cleaning_record";
+                            const freqOptions = ["After each use", "Daily", "Weekly", "Monthly", "As needed"];
                             let dropdownList = null;
                             if (isCleanProcItem && opts.cleaning?.length > 0) dropdownList = opts.cleaning;
                             else if (foodFields.includes(col.key) && opts.food?.length > 0) dropdownList = opts.food;
                             else if (supplierFields.includes(col.key) && opts.supplier?.length > 0) dropdownList = opts.supplier;
                             else if (cleanAreaFields.includes(col.key) && opts.cleaningRec?.length > 0) dropdownList = opts.cleaningRec;
                             else if (col.key === "item_equipment" && opts.cleaningRec?.length > 0) dropdownList = opts.cleaningRec;
-                            else if (freqField && opts.cleaning?.length > 0) dropdownList = opts.cleaning;
+                            else if (isFreqDropdown) dropdownList = freqOptions;
                             const isCalc = col.type === "calculated";
                             return (
                             <td key={col.key} className="p-1">
