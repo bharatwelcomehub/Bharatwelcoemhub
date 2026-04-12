@@ -1,0 +1,392 @@
+{
+  "locations": {
+    "hsr-layout-bangalore": {
+      "id": "pb-hsr",
+      "slug": "maharashtrian-restaurant-hsr-layout-bangalore",
+      "name": "Purnabramha HSR Layout",
+      "displayName": "HSR Layout, Bangalore",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "fullAddress": "Shop No. 1, Ground Floor, HSR Layout, Sector 7, Bangalore, Karnataka 560102",
+      "phone": "+918550078515",
+      "whatsapp": "+918550078515",
+      "coordinates": {
+        "lat": 12.9121,
+        "lng": 77.6446
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d77.6446!3d12.9121!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20HSR%20Layout!5e0!3m2!1sen!2sin!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-hsr",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 10:00 PM" }
+      ],
+      "nearbyAreas": [
+        "HSR Layout", "BTM Layout", "Koramangala", "Sarjapur Road", "Bellandur", 
+        "Electronic City", "Madiwala", "JP Nagar", "Jayanagar", "Marathahalli",
+        "Whitefield", "Indiranagar", "HSR BDA Complex", "Agara Lake", "Iblur"
+      ],
+      "seoTitle": "Maharashtrian Restaurant in HSR Layout Bangalore | Purnabramha",
+      "metaDescription": "Best Maharashtrian restaurant in HSR Layout, Bangalore. Authentic Marathi thali, Solkadhi, Puranpoli, Vada Pav & Misal Pav. Dine-in, pickup & catering. Call +918550078515",
+      "h1": "Authentic Maharashtrian Restaurant in HSR Layout, Bangalore",
+      "localKeywords": [
+        "Maharashtrian restaurant HSR Layout",
+        "Marathi thali Bangalore",
+        "Solkadhi near BTM Layout",
+        "Puranpoli near Koramangala",
+        "Maharashtrian food Sarjapur Road",
+        "Best Marathi restaurant Electronic City",
+        "Vada Pav near Bellandur",
+        "Misal Pav HSR Layout",
+        "Maharashtrian catering Bangalore",
+        "Tiffin service HSR Layout"
+      ]
+    },
+    "sambhajinagar": {
+      "id": "pb-sambhajinagar",
+      "slug": "maharashtrian-restaurant-sambhajinagar",
+      "name": "Purnabramha Sambhajinagar",
+      "displayName": "Chhatrapati Sambhajinagar (Aurangabad)",
+      "city": "Chhatrapati Sambhajinagar",
+      "state": "Maharashtra",
+      "country": "India",
+      "fullAddress": "Jalna Road, Chhatrapati Sambhajinagar, Maharashtra 431001",
+      "phone": "+918971049084",
+      "whatsapp": "+918971049084",
+      "coordinates": {
+        "lat": 19.8762,
+        "lng": 75.3433
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d75.3433!3d19.8762!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20Sambhajinagar!5e0!3m2!1sen!2sin!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-sambhajinagar",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 10:00 PM" }
+      ],
+      "nearbyAreas": [
+        "Jalna Road", "CIDCO", "Waluj", "Garkheda", "Satara", "Osmanpura",
+        "Cantonment", "Beed Bypass", "TV Center", "Kranti Chowk", "Hudco",
+        "Bajaj Nagar", "N1-N12 Sectors", "Chikalthana", "Padegaon"
+      ],
+      "seoTitle": "Maharashtrian Restaurant in Sambhajinagar (Aurangabad) | Purnabramha",
+      "metaDescription": "Authentic Maharashtrian restaurant in Chhatrapati Sambhajinagar. Traditional Marathi thali, Solkadhi, Puranpoli near Jalna Road. Dine-in & catering. Call +918971049084",
+      "h1": "Best Maharashtrian Restaurant in Chhatrapati Sambhajinagar",
+      "localKeywords": [
+        "Maharashtrian restaurant Sambhajinagar",
+        "Marathi thali Aurangabad",
+        "Solkadhi Jalna Road",
+        "Puranpoli near CIDCO",
+        "Maharashtrian food Waluj",
+        "Vada Pav Aurangabad",
+        "Misal Pav Sambhajinagar",
+        "Traditional Marathi food Aurangabad"
+      ]
+    },
+    "hinjawadi-pune": {
+      "id": "pb-hinjawadi",
+      "slug": "maharashtrian-restaurant-hinjawadi-pune",
+      "name": "Purnabramha Hinjawadi",
+      "displayName": "Hinjawadi, Pune",
+      "city": "Pune",
+      "state": "Maharashtra",
+      "country": "India",
+      "fullAddress": "The Social Street, Hinjawadi Phase 1, Pune, Maharashtra 411057",
+      "phone": "+919606455434",
+      "whatsapp": "+919606455434",
+      "coordinates": {
+        "lat": 18.5912,
+        "lng": 73.7389
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d73.7389!3d18.5912!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20Hinjawadi!5e0!3m2!1sen!2sin!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-hinjawadi",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 10:00 PM" }
+      ],
+      "nearbyAreas": [
+        "Hinjawadi Phase 1", "Hinjawadi Phase 2", "Hinjawadi Phase 3", "Wakad",
+        "Baner", "Balewadi", "Pimple Saudagar", "Pimple Nilakh", "Aundh",
+        "Pashan", "Sus Road", "Marunji", "Tathawade", "Maan", "Kasarsai"
+      ],
+      "seoTitle": "Maharashtrian Restaurant in Hinjawadi Pune | Purnabramha",
+      "metaDescription": "Best Maharashtrian restaurant in Hinjawadi, Pune. Authentic Marathi thali, Solkadhi, Puranpoli near IT Park. Tiffin, dine-in & catering. Call +919606455434",
+      "h1": "Authentic Maharashtrian Restaurant in Hinjawadi, Pune",
+      "localKeywords": [
+        "Maharashtrian restaurant Hinjawadi",
+        "Marathi thali Pune",
+        "Solkadhi near Wakad",
+        "Puranpoli Baner",
+        "Maharashtrian food IT Park Pune",
+        "Vada Pav Hinjawadi",
+        "Misal Pav near Balewadi",
+        "Office tiffin Hinjawadi",
+        "Marathi catering Pune"
+      ]
+    },
+    "kharadi-pune": {
+      "id": "pb-kharadi",
+      "slug": "maharashtrian-restaurant-kharadi-pune",
+      "name": "Purnabramha Kharadi",
+      "displayName": "Kharadi, Pune",
+      "city": "Pune",
+      "state": "Maharashtra",
+      "country": "India",
+      "fullAddress": "Nyati Mall, Kharadi, Pune, Maharashtra 411014",
+      "phone": "+919900089803",
+      "whatsapp": "+919900089803",
+      "coordinates": {
+        "lat": 18.5518,
+        "lng": 73.9456
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d73.9456!3d18.5518!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20Kharadi!5e0!3m2!1sen!2sin!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-kharadi",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 10:00 PM" }
+      ],
+      "nearbyAreas": [
+        "Kharadi", "Viman Nagar", "Kalyani Nagar", "Koregaon Park", "Wadgaon Sheri",
+        "Mundhwa", "Hadapsar", "Magarpatta", "Keshav Nagar", "Wagholi",
+        "Chandannagar", "Yerawada", "Airport Road", "Nagar Road", "EON IT Park"
+      ],
+      "seoTitle": "Maharashtrian Restaurant in Kharadi Pune | Purnabramha Nyati Mall",
+      "metaDescription": "Best Maharashtrian restaurant in Kharadi, Pune at Nyati Mall. Authentic Marathi thali, Solkadhi, Vada Pav near Viman Nagar. Call +919900089803",
+      "h1": "Authentic Maharashtrian Restaurant in Kharadi, Pune",
+      "localKeywords": [
+        "Maharashtrian restaurant Kharadi",
+        "Marathi thali Nyati Mall",
+        "Solkadhi Viman Nagar",
+        "Puranpoli Kalyani Nagar",
+        "Maharashtrian food Koregaon Park",
+        "Vada Pav near EON IT Park",
+        "Misal Pav Kharadi",
+        "Tiffin service Kharadi Pune"
+      ]
+    },
+    "dombivli": {
+      "id": "pb-dombivli",
+      "slug": "maharashtrian-restaurant-dombivli",
+      "name": "Purnabramha Dombivli",
+      "displayName": "Dombivli, Mumbai",
+      "city": "Dombivli",
+      "state": "Maharashtra",
+      "country": "India",
+      "fullAddress": "Gharada Circle, Dombivli East, Maharashtra 421201",
+      "phone": "+919606455433",
+      "whatsapp": "+919606455433",
+      "coordinates": {
+        "lat": 19.2183,
+        "lng": 73.0867
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d73.0867!3d19.2183!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20Dombivli!5e0!3m2!1sen!2sin!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-dombivli",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 10:00 PM" }
+      ],
+      "nearbyAreas": [
+        "Dombivli East", "Dombivli West", "Kalyan", "Thakurli", "Kopar",
+        "Manpada", "Desale Pada", "Tilak Nagar", "Nandivali", "Ayre",
+        "Sagaon", "Khambalpada", "Sonarpada", "Lodha Palava", "Nilje"
+      ],
+      "seoTitle": "Maharashtrian Restaurant in Dombivli | Purnabramha Gharada Circle",
+      "metaDescription": "Authentic Maharashtrian restaurant in Dombivli near Gharada Circle. Traditional Marathi thali, Solkadhi, Puranpoli. Dine-in & catering. Call +919606455433",
+      "h1": "Best Maharashtrian Restaurant in Dombivli",
+      "localKeywords": [
+        "Maharashtrian restaurant Dombivli",
+        "Marathi thali Dombivli East",
+        "Solkadhi near Gharada Circle",
+        "Puranpoli Dombivli",
+        "Vada Pav Kalyan Dombivli",
+        "Misal Pav near Thakurli",
+        "Traditional Marathi food Dombivli"
+      ]
+    },
+    "kalyan": {
+      "id": "pb-kalyan",
+      "slug": "maharashtrian-restaurant-kalyan",
+      "name": "Purnabramha Kalyan",
+      "displayName": "Kalyan, Mumbai",
+      "city": "Kalyan",
+      "state": "Maharashtra",
+      "country": "India",
+      "fullAddress": "Shivneri Park, Kalyan West, Maharashtra 421301",
+      "phone": "+918792887442",
+      "whatsapp": "+918792887442",
+      "coordinates": {
+        "lat": 19.2403,
+        "lng": 73.1305
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d73.1305!3d19.2403!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20Kalyan!5e0!3m2!1sen!2sin!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-kalyan",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 10:00 PM" }
+      ],
+      "nearbyAreas": [
+        "Kalyan West", "Kalyan East", "Dombivli", "Ulhasnagar", "Ambernath",
+        "Badlapur", "Vitthalwadi", "Titwala", "Shahad", "Mumbra",
+        "Khadakpada", "Kolsewadi", "Govindwadi", "Birla College", "Godrej Hill"
+      ],
+      "seoTitle": "Maharashtrian Restaurant in Kalyan | Purnabramha Shivneri Park",
+      "metaDescription": "Best Maharashtrian restaurant in Kalyan near Shivneri Park. Authentic Marathi thali, Solkadhi, Puranpoli. Tiffin & catering available. Call +918792887442",
+      "h1": "Authentic Maharashtrian Restaurant in Kalyan",
+      "localKeywords": [
+        "Maharashtrian restaurant Kalyan",
+        "Marathi thali Kalyan West",
+        "Solkadhi Shivneri Park",
+        "Puranpoli near Ulhasnagar",
+        "Maharashtrian food Ambernath",
+        "Vada Pav Kalyan",
+        "Misal Pav near Dombivli",
+        "Marathi catering Kalyan"
+      ]
+    },
+    "thane": {
+      "id": "pb-thane",
+      "slug": "maharashtrian-restaurant-thane",
+      "name": "Purnabramha Thane",
+      "displayName": "Thane, Mumbai",
+      "city": "Thane",
+      "state": "Maharashtra",
+      "country": "India",
+      "fullAddress": "Thane West, Mumbai, Maharashtra 400601",
+      "phone": "+918904749084",
+      "whatsapp": "+918904749084",
+      "coordinates": {
+        "lat": 19.2183,
+        "lng": 72.9781
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d72.9781!3d19.2183!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20Thane!5e0!3m2!1sen!2sin!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-thane",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 10:00 PM" }
+      ],
+      "nearbyAreas": [
+        "Thane West", "Thane East", "Ghodbunder Road", "Majiwada", "Manpada",
+        "Vartak Nagar", "Naupada", "Kopri", "Hiranandani Estate", "Panchpakhadi",
+        "Wagle Estate", "Kasarvadavali", "Kolshet", "Balkum", "Owale"
+      ],
+      "seoTitle": "Maharashtrian Restaurant in Thane Mumbai | Purnabramha",
+      "metaDescription": "Best Maharashtrian restaurant in Thane, Mumbai. Authentic Marathi thali, Solkadhi, Puranpoli, Vada Pav. Dine-in, tiffin & catering. Call +918904749084",
+      "h1": "Authentic Maharashtrian Restaurant in Thane, Mumbai",
+      "localKeywords": [
+        "Maharashtrian restaurant Thane",
+        "Marathi thali Thane West",
+        "Solkadhi Ghodbunder Road",
+        "Puranpoli near Hiranandani",
+        "Maharashtrian food Majiwada",
+        "Vada Pav Thane",
+        "Misal Pav near Naupada",
+        "Tiffin service Thane"
+      ]
+    },
+    "perth": {
+      "id": "pb-perth",
+      "slug": "maharashtrian-restaurant-perth",
+      "name": "Purnabramha Perth",
+      "displayName": "Perth, Australia",
+      "city": "Perth",
+      "state": "Western Australia",
+      "country": "Australia",
+      "fullAddress": "Beaufort Street, Perth, Western Australia 6000",
+      "phone": "+61401832922",
+      "whatsapp": "+61401832922",
+      "coordinates": {
+        "lat": -31.9505,
+        "lng": 115.8605
+      },
+      "googleMapsEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5!2d115.8605!3d-31.9505!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPurnabramha%20Perth!5e0!3m2!1sen!2sau!4v1234567890",
+      "googleMapsUrl": "https://goo.gl/maps/purnabramha-perth",
+      "openingHours": [
+        { "day": "Monday-Sunday", "hours": "11:00 AM - 9:00 PM" }
+      ],
+      "nearbyAreas": [
+        "Perth CBD", "Northbridge", "Mount Lawley", "Highgate", "Leederville",
+        "Subiaco", "West Perth", "East Perth", "Victoria Park", "South Perth",
+        "Fremantle", "Joondalup", "Scarborough", "Morley", "Cannington"
+      ],
+      "seoTitle": "Indian Maharashtrian Restaurant in Perth Australia | Purnabramha",
+      "metaDescription": "Best Indian Maharashtrian restaurant in Perth, Australia. Authentic Marathi thali, Solkadhi, Puranpoli on Beaufort Street. Dine-in & catering. Call +61401832922",
+      "h1": "Authentic Maharashtrian Restaurant in Perth, Australia",
+      "localKeywords": [
+        "Maharashtrian restaurant Perth",
+        "Indian restaurant Perth",
+        "Marathi thali Perth Australia",
+        "Solkadhi Perth",
+        "Puranpoli Perth",
+        "Indian food Beaufort Street",
+        "Vada Pav Perth",
+        "Best Indian restaurant Northbridge",
+        "Marathi catering Perth"
+      ]
+    }
+  },
+  "organization": {
+    "name": "Purnabramha",
+    "legalName": "Manaswini Foods Private Limited",
+    "description": "World's First Intelligent Restaurant Chain serving authentic Maharashtrian cuisine",
+    "foundingDate": "2012",
+    "founder": "Jayanti Kathale",
+    "url": "https://www.purnabramha.com",
+    "logo": "https://www.purnabramha.com/logo.png",
+    "sameAs": [
+      "https://www.instagram.com/purnabramha",
+      "https://www.facebook.com/purnabramha",
+      "https://www.youtube.com/@purnabramha"
+    ],
+    "cuisine": ["Maharashtrian", "Marathi", "Indian", "Vegetarian"],
+    "specialties": [
+      "Marathi Thali",
+      "Solkadhi",
+      "Puranpoli",
+      "Vada Pav",
+      "Misal Pav",
+      "Thalipith",
+      "Sabudana Khichadi",
+      "Shrikhand"
+    ]
+  },
+  "globalKeywords": [
+    "Maharashtrian restaurant near me",
+    "Marathi thali near me",
+    "Solkadhi near me",
+    "Puranpoli near me",
+    "Best Maharashtrian restaurant",
+    "Traditional Maharashtrian food",
+    "Authentic Marathi cuisine",
+    "Vada Pav near me",
+    "Misal Pav near me",
+    "Maharashtrian catering",
+    "Marathi food delivery",
+    "Tiffin service near me"
+  ],
+  "faq": [
+    {
+      "question": "What is Purnabramha?",
+      "answer": "Purnabramha is the world's first intelligent restaurant chain specializing in authentic Maharashtrian cuisine. Founded in 2012 by Jayanti Kathale, it's a women-led brand serving traditional Marathi dishes including Thali, Solkadhi, Puranpoli, Vada Pav, and Misal Pav across India and Australia."
+    },
+    {
+      "question": "Where is Purnabramha located?",
+      "answer": "Purnabramha has 8 locations: HSR Layout Bangalore, Chhatrapati Sambhajinagar, Hinjawadi Pune, Kharadi Pune, Dombivli Mumbai, Kalyan Mumbai, Thane Mumbai, and Perth Australia."
+    },
+    {
+      "question": "What cuisine does Purnabramha serve?",
+      "answer": "Purnabramha serves authentic Maharashtrian (Marathi) vegetarian cuisine including traditional thalis, Solkadhi, Puranpoli, Vada Pav, Misal Pav, Thalipith, Sabudana Khichadi, Shrikhand, and many more regional specialties."
+    },
+    {
+      "question": "Does Purnabramha offer catering services?",
+      "answer": "Yes, Purnabramha offers professional Maharashtrian catering services for weddings, corporate events, birthday parties, and all occasions. We have Classic, Premium, Special Feast, and Royal Feast packages available."
+    },
+    {
+      "question": "Does Purnabramha have tiffin/lunch box service?",
+      "answer": "Yes, Purnabramha offers daily tiffin and lunch box services with authentic Maharashtrian home-style meals delivered fresh. We also have unlimited breakfast buffet on weekends."
+    },
+    {
+      "question": "Is Purnabramha vegetarian?",
+      "answer": "Yes, Purnabramha is a 100% pure vegetarian restaurant. We also offer Jain-friendly (No Onion/Garlic) and Fasting-friendly options for religious occasions."
+    },
+    {
+      "question": "Who founded Purnabramha?",
+      "answer": "Purnabramha was founded by Jayanti Kathale in 2012. It's a proud women-led restaurant brand that has grown from a single outlet to multiple locations across India and Australia."
+    },
+    {
+      "question": "Why is Purnabramha famous?",
+      "answer": "Purnabramha is famous for serving authentic, traditional Maharashtrian food with recipes passed down through generations. Our signature dishes include the Maharashtrian Thali, refreshing Solkadhi, sweet Puranpoli, and the iconic Vada Pav."
+    }
+  ]
+}

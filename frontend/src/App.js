@@ -19,6 +19,8 @@ import Franchise from '@/pages/Franchise';
 import Videos from '@/pages/Videos';
 import Inspiration from '@/pages/Inspiration';
 import About from '@/pages/About';
+import LocationSEO from '@/pages/LocationSEO';
+import AboutPurnabramha from '@/pages/AboutPurnabramha';
 import '@/App.css';
 
 // Remove Emergent badge
@@ -90,6 +92,19 @@ function App() {
                     <Route path="/videos" element={<Videos />} />
                     <Route path="/inspiration" element={<Inspiration />} />
                     <Route path="/about" element={<About />} />
+                    
+                    {/* SEO Location Pages */}
+                    <Route path="/maharashtrian-restaurant-hsr-layout-bangalore" element={<LocationSEO />} />
+                    <Route path="/maharashtrian-restaurant-sambhajinagar" element={<LocationSEO />} />
+                    <Route path="/maharashtrian-restaurant-hinjawadi-pune" element={<LocationSEO />} />
+                    <Route path="/maharashtrian-restaurant-kharadi-pune" element={<LocationSEO />} />
+                    <Route path="/maharashtrian-restaurant-dombivli" element={<LocationSEO />} />
+                    <Route path="/maharashtrian-restaurant-kalyan" element={<LocationSEO />} />
+                    <Route path="/maharashtrian-restaurant-thane" element={<LocationSEO />} />
+                    <Route path="/maharashtrian-restaurant-perth" element={<LocationSEO />} />
+                    
+                    {/* AI Knowledge Page */}
+                    <Route path="/about-purnabramha-maharashtrian-restaurant" element={<AboutPurnabramha />} />
                   </Routes>
                 </Layout>
               } />
