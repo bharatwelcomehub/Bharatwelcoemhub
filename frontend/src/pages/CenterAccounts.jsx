@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X
+  Check, X, Shield
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -1593,16 +1593,16 @@ export default function CenterAccounts() {
 
             {/* MG & Payout Tab */}
             <TabsContent value="payout" className="space-y-4">
-              {/* WC Gating Banner for MG & Payout */}
-              {accountSummary.payout?.wc_gated && (
-                <div className="p-4 bg-red-50 border-2 border-red-300 rounded-lg" data-testid="payout-wc-closed-banner">
+              {/* Protection Mode Banner */}
+              {accountSummary.payout?.protection_mode && (
+                <div className="p-4 bg-red-50 border-2 border-red-300 rounded-lg" data-testid="payout-protection-banner">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                     <div>
-                      <p className="font-semibold text-red-800">MG & Revenue Share CLOSED</p>
+                      <p className="font-semibold text-red-800">Protection Mode Active - MG Blocked</p>
                       <p className="text-sm text-red-700">
-                        Working Capital is at {accountSummary.financial_summary.wc_standing?.wc_percentage?.toFixed(0)}% of initial deposit.
-                        Both Minimum Guarantee and Revenue Share are suspended. Available WC: {formatCurrency(accountSummary.financial_summary.working_capital_available, accountSummary.country)}
+                        Working Capital is at {accountSummary.working_capital_status?.wc_percentage?.toFixed(0)}% of initial deposit (below 50% threshold).
+                        MG payouts are blocked. Revenue share calculated on Operational Balance only. Remaining funds directed to WC recovery.
                       </p>
                     </div>
                   </div>
@@ -1683,6 +1683,87 @@ export default function CenterAccounts() {
                 </Card>
               )}
 
+              {/* 5. Operational Sustainability Check */}
+              {accountSummary.operational_sustainability && (
+                <Card className="border-2 border-slate-300" data-testid="ops-sustainability">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-slate-700" />
+                      Operational Sustainability Check
+                    </CardTitle>
+                    <CardDescription>Operational Balance = Sales - Expenses - Commissions - GST</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="p-3 bg-blue-50 rounded text-center">
+                        <p className="text-xs text-gray-500">Total Sales</p>
+                        <p className="text-lg font-bold text-blue-700">{formatCurrency(accountSummary.operational_sustainability.total_sales, accountSummary.country)}</p>
+                      </div>
+                      <div className="p-3 bg-red-50 rounded text-center">
+                        <p className="text-xs text-gray-500">Total Expenses</p>
+                        <p className="text-lg font-bold text-red-600">({formatCurrency(accountSummary.operational_sustainability.total_expenses, accountSummary.country)})</p>
+                      </div>
+                      <div className="p-3 bg-orange-50 rounded text-center">
+                        <p className="text-xs text-gray-500">Total Commission</p>
+                        <p className="text-lg font-bold text-orange-600">({formatCurrency(accountSummary.operational_sustainability.total_commissions, accountSummary.country)})</p>
+                      </div>
+                      <div className="p-3 bg-amber-50 rounded text-center">
+                        <p className="text-xs text-gray-500">GST on Sales</p>
+                        <p className="text-lg font-bold text-amber-600">({formatCurrency(accountSummary.operational_sustainability.gst_on_sales, accountSummary.country)})</p>
+                      </div>
+                      <div className={`p-3 rounded text-center ${accountSummary.operational_sustainability.is_positive ? 'bg-green-50' : 'bg-red-100'}`}>
+                        <p className="text-xs text-gray-500">Operational Balance</p>
+                        <p className={`text-xl font-bold ${accountSummary.operational_sustainability.is_positive ? 'text-green-700' : 'text-red-700'}`}>
+                          {formatCurrency(accountSummary.operational_sustainability.operational_balance, accountSummary.country)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 6. Working Capital Status */}
+              {accountSummary.working_capital_status && (
+                <Card className={`border-2 ${accountSummary.working_capital_status.protection_mode ? 'border-red-400 bg-red-50/30' : 'border-green-400 bg-green-50/30'}`} data-testid="wc-status">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Wallet className="w-5 h-5" />
+                      Working Capital Status
+                      <Badge className={accountSummary.working_capital_status.protection_mode ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}>
+                        {accountSummary.working_capital_status.status}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs text-gray-500">Initial WC</p>
+                        <p className="text-lg font-bold">{formatCurrency(accountSummary.working_capital_status.initial_wc, accountSummary.country)}</p>
+                      </div>
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs text-gray-500">Current WC</p>
+                        <p className="text-lg font-bold">{formatCurrency(accountSummary.working_capital_status.current_wc, accountSummary.country)}</p>
+                      </div>
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs text-gray-500">WC Percentage</p>
+                        <p className={`text-lg font-bold ${accountSummary.working_capital_status.wc_percentage >= 50 ? 'text-green-600' : 'text-red-600'}`}>
+                          {accountSummary.working_capital_status.wc_percentage.toFixed(0)}%
+                        </p>
+                      </div>
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs text-gray-500">Threshold</p>
+                        <p className="text-lg font-bold">{accountSummary.working_capital_status.threshold}</p>
+                      </div>
+                    </div>
+                    {accountSummary.working_capital_status.protection_mode && (
+                      <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded text-sm text-red-800">
+                        <strong>Protection Mode Active:</strong> WC is below 50% of initial commitment. MG payouts are blocked. Revenue share on operational balance only. Remaining funds directed to WC recovery.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Payout Determination Card */}
               {accountSummary.payout && (
                 <Card>
@@ -1692,56 +1773,65 @@ export default function CenterAccounts() {
                       Payout to Franchise Owner - {accountSummary.period}
                     </CardTitle>
                     <CardDescription>
-                      Comparison: MG vs Franchise Owner's Revenue Share - Higher amount is payable to Franchise Owner
+                      {accountSummary.payout.protection_mode
+                        ? "Protection Mode: Revenue share on operational balance only. MG blocked."
+                        : "Comparison: MG vs Franchise Owner's Revenue Share - Higher amount is payable to Franchise Owner"
+                      }
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid md:grid-cols-3 gap-4">
-                      <Card className={`border-2 ${accountSummary.payout.type === 'minimum_guarantee' ? 'border-purple-400 bg-purple-50' : 'border-gray-200'} ${accountSummary.payout.wc_gated ? 'opacity-50' : ''}`}>
+                      <Card className={`border-2 ${accountSummary.payout.type === 'minimum_guarantee' ? 'border-purple-400 bg-purple-50' : 'border-gray-200'} ${accountSummary.payout.protection_mode ? 'opacity-50' : ''}`}>
                         <CardContent className="p-4 text-center">
                           <p className="text-sm text-gray-500">Minimum Guarantee</p>
                           <p className="text-2xl font-bold text-purple-600">
                             {formatCurrency(accountSummary.payout.mg_amount, accountSummary.country)}
                           </p>
-                          {accountSummary.payout.type === 'minimum_guarantee' && (
+                          {accountSummary.payout.type === 'minimum_guarantee' && !accountSummary.payout.protection_mode && (
                             <Badge className="mt-2 bg-purple-600">Payable</Badge>
                           )}
-                          {accountSummary.payout.wc_gated && (
-                            <Badge className="mt-2 bg-red-600 text-white">CLOSED</Badge>
+                          {accountSummary.payout.protection_mode && (
+                            <Badge className="mt-2 bg-red-600 text-white">BLOCKED</Badge>
                           )}
                         </CardContent>
                       </Card>
                       <div className="flex items-center justify-center">
                         <span className="text-2xl font-bold text-gray-400">vs</span>
                       </div>
-                      <Card className={`border-2 ${accountSummary.payout.type === 'revenue_share' ? 'border-green-400 bg-green-50' : 'border-gray-200'} ${accountSummary.payout.wc_gated ? 'opacity-50' : ''}`}>
+                      <Card className={`border-2 ${accountSummary.payout.type === 'revenue_share' || accountSummary.payout.type === 'revenue_share_protection' ? 'border-green-400 bg-green-50' : 'border-gray-200'} ${accountSummary.payout.protection_mode && accountSummary.payout.operational_balance <= 0 ? 'opacity-50' : ''}`}>
                         <CardContent className="p-4 text-center">
                           <p className="text-sm text-gray-500">Franchise Owner's Revenue Share ({accountSummary.share_calculation?.franchise_owner?.percentage || 15}%)</p>
                           <p className="text-2xl font-bold text-green-600">
                             {formatCurrency(accountSummary.payout.revenue_share_amount, accountSummary.country)}
                           </p>
-                          {accountSummary.payout.type === 'revenue_share' && (
+                          {(accountSummary.payout.type === 'revenue_share' || accountSummary.payout.type === 'revenue_share_protection') && (
                             <Badge className="mt-2 bg-green-600">Payable</Badge>
-                          )}
-                          {accountSummary.payout.wc_gated && (
-                            <Badge className="mt-2 bg-red-600 text-white">CLOSED</Badge>
                           )}
                         </CardContent>
                       </Card>
                     </div>
-                    <div className={`mt-4 p-4 rounded-lg ${accountSummary.payout.wc_gated ? 'bg-red-50' : 'bg-blue-50'}`}>
+
+                    {/* WC Recovery info for Protection Mode */}
+                    {accountSummary.payout.protection_mode && accountSummary.payout.wc_recovery_amount > 0 && (
+                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-sm">
+                        <strong>WC Recovery:</strong> {formatCurrency(accountSummary.payout.wc_recovery_amount, accountSummary.country)} directed to Working Capital recovery
+                      </div>
+                    )}
+
+                    <div className={`mt-4 p-4 rounded-lg ${accountSummary.payout.protection_mode ? 'bg-red-50' : 'bg-blue-50'}`}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className={`text-sm ${accountSummary.payout.wc_gated ? 'text-red-600' : 'text-blue-600'}`}>Amount Payable to Franchise Owner This Month</p>
-                          <p className={`text-3xl font-bold ${accountSummary.payout.wc_gated ? 'text-red-800' : 'text-blue-800'}`}>
+                          <p className={`text-sm ${accountSummary.payout.protection_mode ? 'text-red-600' : 'text-blue-600'}`}>Amount Payable to Franchise Owner This Month</p>
+                          <p className={`text-3xl font-bold ${accountSummary.payout.protection_mode ? 'text-red-800' : 'text-blue-800'}`}>
                             {formatCurrency(accountSummary.payout.amount, accountSummary.country)}
                           </p>
                         </div>
-                        <Badge className="text-lg px-4 py-2" variant={accountSummary.payout.wc_gated ? 'destructive' : accountSummary.payout.type === 'minimum_guarantee' ? 'default' : 'secondary'}>
-                          {accountSummary.payout.wc_gated ? 'WC CLOSED' : accountSummary.payout.type === 'minimum_guarantee' ? 'MG' : 'Revenue Share'}
+                        <Badge className="text-lg px-4 py-2" variant={accountSummary.payout.protection_mode ? 'destructive' : accountSummary.payout.type === 'minimum_guarantee' ? 'default' : 'secondary'}>
+                          {accountSummary.payout.protection_mode ? 'PROTECTION MODE' : accountSummary.payout.type === 'minimum_guarantee' ? 'MG' : 'Revenue Share'}
                         </Badge>
                       </div>
-                      <p className={`text-xs mt-2 ${accountSummary.payout.wc_gated ? 'text-red-500' : 'text-blue-500'}`}>{accountSummary.payout.reason}</p>
+                      <p className={`text-xs mt-2 ${accountSummary.payout.protection_mode ? 'text-red-500' : 'text-blue-500'}`}>{accountSummary.payout.reason}</p>
+                      <p className="text-xs mt-2 text-gray-500 italic">Revenue share distribution follows Operational Sustainability rules. Operational costs and working capital protection are prioritized before profit distribution.</p>
                     </div>
                   </CardContent>
                 </Card>

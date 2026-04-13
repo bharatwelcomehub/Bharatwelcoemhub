@@ -936,61 +936,119 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     wc_revenue_share_active = wc_standing["revenue_share_active"]
     wc_status = wc_standing["wc_status"]
     
-    # Apply WC gating: if WC < 50% of initial, CLOSE both Revenue Share and MG
-    if not wc_revenue_share_active and initial_wc_from_franchise > 0:
-        # Override share amounts to 0
-        franchise_owner_share = 0
-        purnabramha_share = 0
+    # ==========================================
+    # OPERATIONAL SUSTAINABILITY CHECK (NEW)
+    # ==========================================
+    # Operational Balance = Total Sales - Total Expenses - Commissions - GST on Sales
+    gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount
+    operational_balance = total_sale - total_expenses - total_commission - gst_for_ops
+    
+    operational_sustainability = {
+        "total_sales": round(total_sale, 2),
+        "total_expenses": round(total_expenses, 2),
+        "total_commissions": round(total_commission, 2),
+        "gst_on_sales": round(gst_for_ops, 2),
+        "operational_balance": round(operational_balance, 2),
+        "is_positive": operational_balance >= 0,
+    }
+    
+    # ==========================================
+    # WORKING CAPITAL STATUS
+    # ==========================================
+    wc_percentage = wc_standing.get("wc_percentage", 100)
+    protection_mode = not wc_revenue_share_active and initial_wc_from_franchise > 0
+    wc_status_label = "Protection Mode" if protection_mode else "Healthy"
+    
+    working_capital_status = {
+        "initial_wc": round(initial_wc_from_franchise, 2),
+        "current_wc": round(wc_standing.get("closing_wc", 0), 2),
+        "wc_percentage": round(wc_percentage, 2),
+        "status": wc_status_label,
+        "protection_mode": protection_mode,
+        "threshold": "50%",
+    }
+    
+    # ==========================================
+    # Apply Operational Sustainability Rules to Revenue Share
+    # ==========================================
+    # Store original calculated shares for display
+    original_franchise_owner_share = franchise_owner_share
+    
+    wc_recovery_amount = 0
+    payout_reason = ""
+    
+    if protection_mode:
+        # PROTECTION MODE (WC < 50%)
+        if operational_balance > 0:
+            # Revenue Share = Operational Balance × Franchise %
+            franchise_owner_share = operational_balance * (franchise_owner_percentage / 100)
+            purnabramha_share = operational_balance * (purnabramha_percentage / 100)
+            wc_recovery_amount = operational_balance - franchise_owner_share
+            payout_reason = f"Protection Mode: Revenue Share on Operational Balance only. Rs. {wc_recovery_amount:,.2f} directed to WC recovery. MG blocked."
+        else:
+            # Negative operational balance: No payout, loss absorbed by WC
+            franchise_owner_share = 0
+            purnabramha_share = 0
+            wc_recovery_amount = 0
+            payout_reason = "Protection Mode: Operational Balance negative. No Revenue Share, No MG. Loss absorbed by Working Capital."
+        
+        # Recalculate tax on updated purnabramha share
         if country == "India":
+            cgst_val = round(purnabramha_share * INDIA_CGST, 2)
+            sgst_val = round(purnabramha_share * INDIA_SGST, 2)
             purnabramha_share_with_tax = {
-                "base_amount": 0,
-                "gst_amount": 0,
-                "cgst": 0,
-                "sgst": 0,
-                "total_with_gst": 0
+                "base_amount": purnabramha_share,
+                "gst_amount": round(cgst_val + sgst_val, 2),
+                "cgst": cgst_val,
+                "sgst": sgst_val,
+                "total_with_gst": purnabramha_share
             }
         else:
-            purnabramha_share_with_tax = {"base_amount": 0, "gst": 0, "total": 0}
+            purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
     
     # ==========================================
     # Calculate MG (Minimum Guarantee)
     # ==========================================
     mg_data = None
     payable_type = "revenue_share"  # Default
-    # The comparison is: MG vs Franchise Owner's Share (NOT Purnabramha's share)
-    # If MG > Franchise Owner's Share → MG is payable to franchise owner
-    # If Franchise Owner's Share >= MG → Revenue Share is payable to franchise owner
     franchise_owner_share_for_comparison = franchise_owner_share
-    payable_amount = franchise_owner_share_for_comparison  # Default to franchise owner's revenue share
+    payable_amount = franchise_owner_share_for_comparison
     
     if franchise:
-        # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
         total_investment = float(franchise.get("total_investment", 0) or 0)
         franchise_fee_val = float(franchise.get("franchise_fee", 0) or 0)
         working_capital_val = float(franchise.get("working_capital", 0) or 0)
         
         if total_investment <= 0:
-            # Fallback: calculate from franchise_fee + working_capital
             total_investment = franchise_fee_val + working_capital_val
         
-        # Get setup costs
         setup_costs = franchise.get("setup_costs", {})
         if not isinstance(setup_costs, dict):
             setup_costs = {}
         
-        # Calculate MG (now includes franchise_fee and working_capital as deductions)
         mg_data = calculate_mg(total_investment, setup_costs, franchise_fee_val, working_capital_val)
-        
-        # Determine payable: If MG > Franchise Owner's Revenue Share, MG is payable
         monthly_mg = mg_data.get("monthly_mg", 0)
-        if monthly_mg > franchise_owner_share_for_comparison:
-            payable_type = "minimum_guarantee"
-            payable_amount = monthly_mg
+        
+        if protection_mode:
+            # In Protection Mode: MG is BLOCKED, only revenue share applies
+            payable_type = "revenue_share_protection"
+            payable_amount = franchise_owner_share
+            if operational_balance <= 0:
+                payable_type = "wc_protection_no_payout"
+                payable_amount = 0
+        else:
+            # Normal Mode: MG vs Revenue Share comparison
+            if monthly_mg > franchise_owner_share_for_comparison:
+                payable_type = "minimum_guarantee"
+                payable_amount = monthly_mg
+                # In Normal Mode, if operational balance is negative, WC absorbs loss but MG still payable if WC >= 50%
+            # Revenue Share >= MG: pay revenue share (default)
     
-    # Apply WC gating to MG as well: if WC < 50%, MG is also CLOSED
-    if not wc_revenue_share_active and initial_wc_from_franchise > 0:
-        payable_type = "wc_closed"
-        payable_amount = 0
+    if not payout_reason:
+        if payable_type == "minimum_guarantee":
+            payout_reason = f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(franchise_owner_share, 2)})"
+        else:
+            payout_reason = f"Revenue Share ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
     
     # ==========================================
     # 5. Build Response
@@ -1072,18 +1130,22 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         },
         # MG (Minimum Guarantee) calculation
         "mg_calculation": mg_data,
-        # Payout determination: MG vs Franchise Owner's Revenue Share
+        # Operational Sustainability Check (NEW)
+        "operational_sustainability": operational_sustainability,
+        # Working Capital Status (NEW)
+        "working_capital_status": working_capital_status,
+        # Payout determination
         "payout": {
             "type": payable_type,
             "amount": round(payable_amount, 2),
             "mg_amount": round(mg_data.get("monthly_mg", 0), 2) if mg_data else 0,
             "revenue_share_amount": round(franchise_owner_share, 2),
-            "wc_gated": not wc_revenue_share_active,
-            "reason": (
-                "Working Capital below 50% - Revenue Share & MG CLOSED" if payable_type == "wc_closed"
-                else f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(franchise_owner_share, 2)})" if payable_type == "minimum_guarantee"
-                else f"Revenue Share ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
-            )
+            "original_revenue_share": round(original_franchise_owner_share, 2),
+            "wc_gated": protection_mode,
+            "protection_mode": protection_mode,
+            "wc_recovery_amount": round(wc_recovery_amount, 2),
+            "operational_balance": round(operational_balance, 2),
+            "reason": payout_reason
         },
         "tax_rules": {
             "country": country,
@@ -1493,13 +1555,76 @@ async def generate_pib_report(req: PIBGenerateRequest):
     story.append(fin_table)
     story.append(Spacer(1, 15))
     
-    # Revenue/Profit Share Calculation - 80/20 Split
+    # ==========================================
+    # 5. OPERATIONAL SUSTAINABILITY CHECK (NEW)
+    # ==========================================
+    ops = summary.get("operational_sustainability", {})
+    story.append(Paragraph("5. OPERATIONAL SUSTAINABILITY CHECK", styles['PIBSection']))
+    
+    ops_data = [
+        ["Description", "Amount"],
+        ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
+        ["Less: Total Expenses", f"({currency} {ops.get('total_expenses', 0):,.2f})"],
+        ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
+        ["Less: GST on Sales", f"({currency} {ops.get('gst_on_sales', 0):,.2f})"],
+        ["", ""],
+        ["OPERATIONAL BALANCE", f"{currency} {ops.get('operational_balance', 0):,.2f}"],
+    ]
+    
+    ops_table = Table(ops_data, colWidths=[280, 170])
+    ops_balance_positive = ops.get("is_positive", True)
+    ops_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (-1, 0), BRAND_NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#e8f5e9") if ops_balance_positive else colors.HexColor("#ffcdd2")),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(ops_table)
+    story.append(Spacer(1, 15))
+    
+    # ==========================================
+    # 6. WORKING CAPITAL STATUS (NEW)
+    # ==========================================
+    wc_st_info = summary.get("working_capital_status", {})
+    story.append(Paragraph("6. WORKING CAPITAL STATUS", styles['PIBSection']))
+    
+    wc_protection = wc_st_info.get("protection_mode", False)
+    wc_status_data = [
+        ["Description", "Value"],
+        ["Initial Working Capital", f"{currency} {wc_st_info.get('initial_wc', 0):,.2f}"],
+        ["Current Working Capital", f"{currency} {wc_st_info.get('current_wc', 0):,.2f}"],
+        ["WC Percentage", f"{wc_st_info.get('wc_percentage', 100):.0f}%"],
+        ["Threshold", wc_st_info.get("threshold", "50%")],
+        ["Status", wc_st_info.get("status", "Healthy")],
+    ]
+    
+    wc_status_table = Table(wc_status_data, colWidths=[280, 170])
+    wc_status_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (-1, 0), BRAND_NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#ffcdd2") if wc_protection else colors.HexColor("#e8f5e9")),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(wc_status_table)
+    story.append(Spacer(1, 15))
+    
+    # Revenue/Profit Share Calculation
     share = summary["share_calculation"]
     base_label = "Net Revenue" if share['type'] == 'profit_share' else "Total Sales"
     
     # Add WC gating notice if applicable
     wc_gated = share.get("wc_gated", False)
-    section_title = f"5. {share['type'].upper().replace('_', ' ')} CALCULATION"
+    section_title = f"7. {share['type'].upper().replace('_', ' ')} CALCULATION"
     if wc_gated:
         section_title += " (*** CLOSED - WC BELOW 50% ***)"
     else:
@@ -1548,16 +1673,25 @@ async def generate_pib_report(req: PIBGenerateRequest):
     # Payout Summary section in PIB
     payout = summary.get("payout", {})
     if payout:
-        story.append(Paragraph("PAYOUT DETERMINATION", styles['PIBSection']))
+        story.append(Paragraph("8. PAYOUT DETERMINATION", styles['PIBSection']))
         payout_data = [
             ["Description", "Amount"],
+            ["Operational Balance", f"{currency} {payout.get('operational_balance', 0):,.2f}"],
             ["MG (Minimum Guarantee)", f"{currency} {payout.get('mg_amount', 0):,.2f}"],
             ["Franchise Owner Revenue Share", f"{currency} {payout.get('revenue_share_amount', 0):,.2f}"],
             ["", ""],
         ]
-        if payout.get("wc_gated"):
-            payout_data.append(["PAYABLE (WC CLOSED)", f"{currency} 0.00"])
-            payout_data.append(["Reason", "Working Capital below 50% - Both MG & Revenue Share CLOSED"])
+        
+        if payout.get("protection_mode"):
+            if payout.get("operational_balance", 0) > 0:
+                payout_data.append(["PAYABLE (REVENUE SHARE - PROTECTION MODE)", f"{currency} {payout.get('amount', 0):,.2f}"])
+                if payout.get("wc_recovery_amount", 0) > 0:
+                    payout_data.append(["WC Recovery Amount", f"{currency} {payout.get('wc_recovery_amount', 0):,.2f}"])
+                payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
+            else:
+                payout_data.append(["PAYABLE", f"{currency} 0.00"])
+                payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
+            payout_data.append(["Reason", payout.get("reason", "")])
         else:
             payout_data.append([f"PAYABLE ({payout.get('type', 'revenue_share').replace('_', ' ').upper()})", f"{currency} {payout.get('amount', 0):,.2f}"])
             payout_data.append(["Reason", payout.get("reason", "")])
@@ -1565,7 +1699,7 @@ async def generate_pib_report(req: PIBGenerateRequest):
         payout_table = Table(payout_data, colWidths=[280, 170])
         payout_style = [
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTNAME', (0, -2), (-1, -2), 'Helvetica-Bold'),
+            ('FONTNAME', (0, -2 if not payout.get("protection_mode") else -3), (-1, -2 if not payout.get("protection_mode") else -3), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('BACKGROUND', (0, 0), (-1, 0), BRAND_NAVY),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -1573,16 +1707,24 @@ async def generate_pib_report(req: PIBGenerateRequest):
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ]
-        if payout.get("wc_gated"):
-            payout_style.append(('BACKGROUND', (0, -2), (-1, -2), colors.HexColor("#ffcdd2")))
+        if payout.get("protection_mode"):
+            payout_style.append(('BACKGROUND', (0, 5), (-1, 5), colors.HexColor("#ffcdd2")))
         else:
-            payout_style.append(('BACKGROUND', (0, -2), (-1, -2), BRAND_GOLD))
+            payout_style.append(('BACKGROUND', (0, 5), (-1, 5), BRAND_GOLD))
         payout_table.setStyle(TableStyle(payout_style))
         story.append(payout_table)
-        story.append(Spacer(1, 20))
+        story.append(Spacer(1, 10))
+        
+        # Transparency message
+        story.append(Paragraph(
+            "<i>Revenue share distribution follows Operational Sustainability rules. "
+            "Operational costs and working capital protection are prioritized before profit distribution.</i>",
+            styles['PIBBody']
+        ))
+        story.append(Spacer(1, 15))
     
     # Tax Rules Note
-    story.append(Paragraph("6. TAX RULES APPLIED", styles['PIBSection']))
+    story.append(Paragraph("9. TAX RULES APPLIED", styles['PIBSection']))
     
     tax_rules = summary["tax_rules"]
     if tax_rules["country"] == "Australia":
