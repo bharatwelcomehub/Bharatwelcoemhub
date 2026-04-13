@@ -17,27 +17,43 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 11. Payslip Generation (Location-aware)
 12. Franchise Exit & Closure
 13. Food Safety Compliance Module (8 templates)
+14. **Daily Sales Text Generator** (WhatsApp-style summary)
+15. **Social Media Planning & Content Tracker**
+16. **Bill Download Access** (ZIP support for franchise owners)
 
-## What's Been Implemented (Latest first)
+## What's Been Implemented (Latest)
+
+### [2026-04-13] Three New Features (Complete)
+1. **Daily Sales Summary Text Generator**
+   - Auto-pulls data from daily_sales and expenses collections
+   - WhatsApp-ready format with "Jai Hind Namskar" header
+   - Editable fields with real-time preview
+   - Copy to clipboard, date picker, center selector
+   - Role: Manager=own center, Admin=all, Franchise Owner=view+copy
+   - Files: `/app/backend/routes/daily_text.py`, `/app/frontend/src/pages/DailyTextGenerator.jsx`
+
+2. **Social Media Planning & Content Tracker**
+   - 10 content types, 5 platforms, 5 statuses, 8 campaign categories
+   - Admin: full CRUD (create/edit/delete posts with creatives)
+   - Franchise Owner: read-only view of their center's content
+   - Dashboard widgets (total, posted, planned, ratio, by status/platform)
+   - Content List table + Calendar view
+   - Files: `/app/backend/routes/social_media.py`, `/app/frontend/src/pages/SocialMediaPlanner.jsx`
+
+3. **Bill Download Access for Franchise Owners**
+   - View bills from bills + expenses collections
+   - Single download, multi-select download
+   - Month ZIP, Custom date-range ZIP, Doc-type ZIP
+   - 8 document types (Sales Bill, Expense Bill, Invoice, etc.)
+   - Franchise owner: own center only; Admin: all centers
+   - Files: `/app/backend/routes/bill_download.py`, `/app/frontend/src/pages/BillDownload.jsx`
+
+- **Tested**: 22/22 backend + all frontend verified (iteration_66)
 
 ### [2026-04-13] PIB Operational Sustainability Update (Complete)
-- **New Section: Operational Sustainability Check**: Operational Balance = Sales - Expenses - Commissions - GST
-- **New Section: Working Capital Status**: Healthy vs Protection Mode with 50% threshold
-- **Updated Revenue Share Logic**: Normal Mode (WC >= 50%): MG vs Revenue Share → pay higher. Protection Mode (WC < 50%): MG blocked, revenue share on operational balance only, remaining to WC recovery
-- **Updated PIB PDF**: Now has 9 sections (Sales, Expenses, Commissions, Financial Summary, Operational Sustainability, WC Status, Revenue Share, Payout Determination, Tax Rules)
-- **Frontend**: New cards in MG & Payout tab showing Operational Sustainability Check, WC Status with green/red badges, transparency message
-- Files: `/app/backend/routes/center_accounts.py`, `/app/frontend/src/pages/CenterAccounts.jsx`
-
 ### [2026-04-12] Food Safety Compliance Module (Complete)
-- 8 template types, Template Master CRUD, record workflow, dashboard, PDF/Excel reports
-- Files: `/app/backend/routes/food_safety.py`, `/app/frontend/src/pages/FoodSafety.jsx`
-
 ### [2026-04-11] Employee KYC & Document Management (Complete)
-- Aadhaar, PAN, TFN, Blood Group, Passport, Visa fields + document uploads + photo
-- Payslip integration (Australian: TFN+Photo, Indian: Aadhaar+PAN+Photo)
-
-### Earlier
-- Location-Aware Payslip Generation, Monthly Payroll PDF Fix, Payroll Template Update, Org Cost Breakdown, all base modules
+### Earlier: Location-Aware Payslips, Payroll, all base modules
 
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
@@ -45,5 +61,5 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 - (P2) Image Upload for Recipes
 - (P2) Franchise Deal Simulator
 - (P2) 7-year retention deletion prompt
-- (P2) Menu card PDF generation per center
+- (P2) Menu card PDF per center
 - (P2) PDF generation refactoring
