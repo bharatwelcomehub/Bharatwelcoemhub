@@ -38,6 +38,9 @@ import {
   Cog,
   FileCheck2,
   BookOpen,
+  MessageSquare,
+  Download,
+  Share2,
 } from "lucide-react";
 
 // Import pages
@@ -70,6 +73,9 @@ import BillingConfiguration from "@/pages/BillingConfiguration";
 import DocumentManagement from "@/pages/DocumentManagement";
 import UserManuals from "@/pages/UserManuals";
 import FoodSafety from "@/pages/FoodSafety";
+import DailyTextGenerator from "@/pages/DailyTextGenerator";
+import SocialMediaPlanner from "@/pages/SocialMediaPlanner";
+import BillDownload from "@/pages/BillDownload";
 
 // Menu categories structure
 const menuCategories = [
@@ -93,6 +99,7 @@ const menuCategories = [
     items: [
       { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", roleKey: "sales_cash" },
       { path: "/expense-heads", icon: Tags, label: "Expense Heads", forMGT: true },
+      { path: "/daily-text", icon: MessageSquare, label: "Daily Text Generator", roleKey: "sales_cash" },
     ]
   },
   {
@@ -142,6 +149,8 @@ const menuCategories = [
       { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true, franchiseAdminOnly: true },
       { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
       { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
+      { path: "/social-media", icon: Share2, label: "Social Media Planner", forFranchise: true },
+      { path: "/bill-download", icon: Download, label: "Bill Download", forFranchise: true },
       { path: "/documents", icon: FileCheck2, label: "Documents", forFranchise: true, franchiseAdminOnly: true },
     ]
   },
@@ -485,6 +494,9 @@ export default function Dashboard() {
             <Route path="/billing-config" element={<BillingConfiguration />} />
             <Route path="/documents" element={<DocumentManagement />} />
             <Route path="/food-safety" element={<FoodSafety />} />
+            <Route path="/daily-text" element={<DailyTextGenerator />} />
+            <Route path="/social-media" element={<SocialMediaPlanner />} />
+            <Route path="/bill-download" element={<BillDownload />} />
           </Routes>
         </div>
       </main>

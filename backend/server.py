@@ -2266,6 +2266,33 @@ set_fs_has_admin_access(has_admin_access)
 app.include_router(fs_router)
 
 
+# Daily Text Generator module
+from routes.daily_text import router as dt_router, set_db as set_dt_db, set_verify_token as set_dt_verify_token, set_has_admin_access as set_dt_has_admin_access
+set_dt_db(db)
+set_dt_verify_token(verify_token)
+set_dt_has_admin_access(has_admin_access)
+app.include_router(dt_router)
+
+# Social Media Planner module
+from routes.social_media import router as sm_router, set_db as set_sm_db, set_verify_token as set_sm_verify_token, set_has_admin_access as set_sm_has_admin_access, set_upload_fn as set_sm_upload_fn
+set_sm_db(db)
+set_sm_verify_token(verify_token)
+set_sm_has_admin_access(has_admin_access)
+try:
+    from routes.documents import upload_photo as sm_upload_photo
+    set_sm_upload_fn(sm_upload_photo)
+except Exception:
+    pass
+app.include_router(sm_router)
+
+# Bill Download module
+from routes.bill_download import router as bd_router, set_db as set_bd_db, set_verify_token as set_bd_verify_token, set_has_admin_access as set_bd_has_admin_access
+set_bd_db(db)
+set_bd_verify_token(verify_token)
+set_bd_has_admin_access(has_admin_access)
+app.include_router(bd_router)
+
+
 
 @app.on_event("startup")
 async def startup_cleanup_centers():
