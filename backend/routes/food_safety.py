@@ -70,8 +70,8 @@ TEMPLATE_COLUMNS = {
         {"key": "time_2hr", "label": "Time at 2hr Check", "type": "time"},
         {"key": "temp_2hr", "label": "Temp at 2hr (<=21C?)", "type": "number"},
         {"key": "temp_2hr_ok", "label": "<=21C?", "type": "select", "options": ["Yes", "No"]},
-        {"key": "temp_within_4hrs", "label": "Temp within 4hrs?", "type": "number"},
-        {"key": "corrective_action", "label": "Corrective Action", "type": "select", "options": ["Yes", "No"]},
+        {"key": "temp_within_4hrs", "label": "5\u00b0C or below within 4 hrs? (6 hrs after start)", "type": "select", "options": ["Yes", "No"]},
+        {"key": "corrective_action", "label": "Corrective Action / Note", "type": "text"},
         {"key": "staff_initials", "label": "Staff Initials", "type": "text", "required": True},
     ],
     "food_temp_record": [
@@ -94,8 +94,9 @@ TEMPLATE_COLUMNS = {
         {"key": "activity", "label": "Activity (prep/display/transport)", "type": "text"},
         {"key": "time_back", "label": "Time Back in Temp Control (<=5C)", "type": "time"},
         {"key": "total_time_out", "label": "Total Time Out", "type": "calculated"},
-        {"key": "action", "label": "Action (re-refrigerate/use/discard)", "type": "select",
+        {"key": "action", "label": "Action", "type": "select",
          "options": ["Re-refrigerate", "Use immediately", "Discard"]},
+        {"key": "remark", "label": "Remark", "type": "text"},
         {"key": "staff_initials", "label": "Staff Initials", "type": "text", "required": True},
     ],
     "cleaning_procedure": [
