@@ -292,13 +292,64 @@ async def list_records(data: dict):
     return {"records": records}
 
 
+# =======================================
+# TEMPLATE APPROVAL SETTINGS
+# =======================================
+
+@router.post("/template-settings/get")
+async def get_template_settings(data: dict):
+    """Get approval settings for all template types."""
+    _check_auth(data.get("token"))
+    center = data.get("center", "").upper()
+
+    settings = await db.fs_template_settings.find(
+        {"center": center} if center else {},
+        {"_id": 0}
+    ).to_list(100)
+
+    # Build map: template_type -> requires_approval (default False)
+    settings_map = {}
+    for s in settings:
+        settings_map[s["template_type"]] = s.get("requires_approval", False)
+
+    return {"settings": settings_map}
+
+
+@router.post("/template-settings/save")
+async def save_template_settings(data: dict):
+    """Update requires_approval toggle for a template type (Admin only)."""
+    session = _check_auth(data.get("token"), require_admin=True)
+    template_type = data.get("template_type", "")
+    if template_type not in TEMPLATE_COLUMNS:
+        raise HTTPException(400, f"Invalid template_type: {template_type}")
+
+    center = data.get("center", "").upper()
+    requires_approval = data.get("requires_approval", False)
+
+    await db.fs_template_settings.update_one(
+        {"template_type": template_type, "center": center},
+        {"$set": {
+            "template_type": template_type,
+            "center": center,
+            "requires_approval": requires_approval,
+            "updatedAt": _now_iso(),
+            "updatedBy": session.get("managerName", session.get("mobile", "")),
+        }},
+        upsert=True
+    )
+    return {"success": True, "message": f"{'Approval required' if requires_approval else 'Auto-approve'} for {template_type}"}
+
+
+# =======================================
+# RECORDS CRUD (Chef / Manager / Admin)
+# =======================================
+
 @router.post("/records/save")
 async def save_record(data: dict):
     """Create or update a food safety record (draft or submit)."""
     session = _check_auth(data.get("token"))
     center = data.get("center", "").upper()
 
-    # Non-admin users must belong to a non-India center to fill records
     is_admin = has_admin_access(session)
     if not is_admin:
         if not await _is_non_india_center(center):
@@ -313,6 +364,20 @@ async def save_record(data: dict):
     if status not in ("draft", "submitted"):
         raise HTTPException(400, "Status must be draft or submitted")
 
+    # Check if this template requires approval
+    needs_approval = False
+    if status == "submitted":
+        setting = await db.fs_template_settings.find_one(
+            {"template_type": template_type, "center": center},
+            {"_id": 0, "requires_approval": 1}
+        )
+        needs_approval = setting.get("requires_approval", False) if setting else False
+
+    # Auto-approve if no approval required
+    final_status = status
+    if status == "submitted" and not needs_approval:
+        final_status = "approved"
+
     record_data = {
         "template_type": template_type,
         "center": center,
@@ -320,7 +385,7 @@ async def save_record(data: dict):
         "period": data.get("period", "daily"),
         "week_start": data.get("week_start", ""),
         "entries": data.get("entries", []),
-        "status": status,
+        "status": final_status,
         "notes": data.get("notes", ""),
         "updatedAt": _now_iso(),
         "updatedBy": session.get("managerName", session.get("mobile", "")),
@@ -330,19 +395,20 @@ async def save_record(data: dict):
         record_data["submittedAt"] = _now_iso()
         record_data["submittedBy"] = session.get("managerName", session.get("mobile", ""))
         record_data["submittedByRole"] = "Admin" if is_admin else (session.get("designation", "Manager"))
+        if not needs_approval:
+            record_data["approvedAt"] = _now_iso()
+            record_data["approvedBy"] = "Auto-Approved"
+            record_data["auto_approved"] = True
 
     if record_id:
-        # Check existing record isn't locked
         existing = await db.fs_records.find_one({"record_id": record_id}, {"_id": 0, "status": 1})
         if existing and existing.get("status") in ("approved", "locked"):
             raise HTTPException(403, "Cannot edit approved/locked records")
-        result = await db.fs_records.update_one(
-            {"record_id": record_id},
-            {"$set": record_data}
-        )
+        result = await db.fs_records.update_one({"record_id": record_id}, {"$set": record_data})
         if result.matched_count == 0:
             raise HTTPException(404, "Record not found")
-        return {"success": True, "message": f"Record {status}", "record_id": record_id}
+        msg = "Record auto-approved" if final_status == "approved" and status == "submitted" else f"Record {final_status}"
+        return {"success": True, "message": msg, "record_id": record_id, "auto_approved": final_status == "approved" and status == "submitted" and not needs_approval}
     else:
         import uuid
         record_id = f"FSR-{str(uuid.uuid4())[:8].upper()}"
@@ -350,7 +416,8 @@ async def save_record(data: dict):
         record_data["createdAt"] = _now_iso()
         record_data["createdBy"] = session.get("managerName", session.get("mobile", ""))
         await db.fs_records.insert_one(record_data)
-        return {"success": True, "message": f"Record {status}", "record_id": record_id}
+        msg = "Record auto-approved" if final_status == "approved" and status == "submitted" else f"Record {final_status}"
+        return {"success": True, "message": msg, "record_id": record_id, "auto_approved": final_status == "approved" and status == "submitted" and not needs_approval}
 
 
 @router.post("/records/approve")

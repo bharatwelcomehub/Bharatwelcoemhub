@@ -61,6 +61,9 @@ export default function FoodSafety() {
   const [recordEntries, setRecordEntries] = useState([]);
   const [entryItemOptions, setEntryItemOptions] = useState([]); // Template master items for dropdown
 
+  // Approval settings per template type
+  const [approvalSettings, setApprovalSettings] = useState({});
+
   // Load centers list for selector
   useEffect(() => {
     if (session?.token) {
@@ -128,7 +131,10 @@ export default function FoodSafety() {
   }, [session?.token, dashCenter]);
 
   useEffect(() => {
-    if (activeTab === "dashboard" && session?.token) loadDashboard();
+    if (activeTab === "dashboard" && session?.token) {
+      loadDashboard();
+      loadApprovalSettings();
+    }
   }, [activeTab, loadDashboard, session?.token]);
 
   // Seed templates
@@ -158,8 +164,37 @@ export default function FoodSafety() {
   }, [session?.token, selectedType, dashCenter]);
 
   useEffect(() => {
-    if (activeTab === "templates" && session?.token) loadTemplateItems();
+    if (activeTab === "templates" && session?.token) {
+      loadTemplateItems();
+      loadApprovalSettings();
+    }
   }, [activeTab, loadTemplateItems, session?.token]);
+
+  // Load approval settings
+  const loadApprovalSettings = async () => {
+    try {
+      const res = await api.post("/food-safety/template-settings/get", {
+        token: session.token, center: dashCenter,
+      });
+      setApprovalSettings(res.data.settings || {});
+    } catch {
+      setApprovalSettings({});
+    }
+  };
+
+  // Toggle approval requirement
+  const toggleApproval = async (templateType, currentValue) => {
+    try {
+      await api.post("/food-safety/template-settings/save", {
+        token: session.token, template_type: templateType,
+        center: dashCenter, requires_approval: !currentValue,
+      });
+      setApprovalSettings(prev => ({ ...prev, [templateType]: !currentValue }));
+      toast.success(!currentValue ? "Approval now required" : "Auto-approve enabled");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to update setting");
+    }
+  };
 
   // Save template item
   const saveTemplateItem = async () => {
@@ -616,6 +651,36 @@ export default function FoodSafety() {
             <Badge variant="outline">{templateItems.length} items</Badge>
           </div>
 
+          {/* Approval Settings (Admin only) */}
+          {isAdmin && (
+            <Card className="border border-dashed" data-testid="approval-settings">
+              <CardContent className="pt-3 pb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-muted-foreground">Approval Settings — Toggle which templates require manual approval</span>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {templateTypes.map(tt => {
+                    const needsApproval = approvalSettings[tt.key] || false;
+                    return (
+                      <div key={tt.key} className="flex items-center gap-2 p-2 border rounded-md min-w-[200px]"
+                        data-testid={`approval-${tt.key}`}>
+                        <Checkbox checked={needsApproval}
+                          onCheckedChange={() => toggleApproval(tt.key, needsApproval)} />
+                        <div className="text-xs">
+                          <p className="font-medium">{tt.label}</p>
+                          <p className={`${needsApproval ? "text-amber-600" : "text-green-600"}`}>
+                            {needsApproval ? "Requires Approval" : "Auto-Approved"}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Item form */}
           {itemForm && (
             <Card className="border-2 border-primary">
@@ -1011,18 +1076,30 @@ export default function FoodSafety() {
               )}
 
               {/* Action buttons */}
-              {!isReadOnly && (
-                <div className="flex gap-3 pt-3 border-t">
-                  <Button onClick={() => saveRecord("draft")} variant="outline" disabled={loading} data-testid="save-draft-btn">
-                    {loading && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-                    <Save className="w-4 h-4 mr-1" /> Save Draft
-                  </Button>
-                  <Button onClick={() => saveRecord("submitted")} disabled={loading} data-testid="submit-record-btn">
-                    {loading && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-                    <CheckCircle className="w-4 h-4 mr-1" /> Submit Record
-                  </Button>
+              {!isReadOnly && (() => {
+                const needsApproval = approvalSettings[recordForm.template_type] || false;
+                return (
+                <div className="space-y-2 pt-3 border-t">
+                  <div className="flex gap-3">
+                    <Button onClick={() => saveRecord("draft")} variant="outline" disabled={loading} data-testid="save-draft-btn">
+                      {loading && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                      <Save className="w-4 h-4 mr-1" /> Save Draft
+                    </Button>
+                    <Button onClick={() => saveRecord("submitted")} disabled={loading} data-testid="submit-record-btn"
+                      className={needsApproval ? "" : "bg-green-600 hover:bg-green-700"}>
+                      {loading && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      {needsApproval ? "Submit for Approval" : "Submit & Auto-Approve"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {needsApproval
+                      ? "This template requires admin approval. Record will be submitted for review."
+                      : "This template is set to auto-approve. Record will be approved immediately on submit."}
+                  </p>
                 </div>
-              )}
+                );
+              })()}
 
               {/* Submission info for approved/locked */}
               {isReadOnly && (
