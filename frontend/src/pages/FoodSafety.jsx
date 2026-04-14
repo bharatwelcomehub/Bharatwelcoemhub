@@ -255,6 +255,13 @@ export default function FoodSafety() {
     if (activeTab === "records" && session?.token) loadRecords();
   }, [activeTab, loadRecords, session?.token]);
 
+  // Also load item options when entering record-entry tab
+  useEffect(() => {
+    if (activeTab === "record-entry" && session?.token && recordForm) {
+      loadEntryItemOptions();
+    }
+  }, [activeTab, session?.token, recordForm?.template_type]);
+
   // Load template items for dropdown options
   // Falls back to all-center items if selected center has none
   const loadEntryItemOptions = async () => {
