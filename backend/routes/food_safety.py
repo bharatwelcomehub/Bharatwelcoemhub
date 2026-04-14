@@ -70,6 +70,8 @@ TEMPLATE_COLUMNS = {
         {"key": "time_2hr", "label": "Time at 2hr Check", "type": "time"},
         {"key": "temp_2hr", "label": "Temp at 2hr (<=21C?)", "type": "number"},
         {"key": "temp_2hr_ok", "label": "<=21C?", "type": "select", "options": ["Yes", "No"]},
+        {"key": "time_4hr", "label": "Time at 4hr Check", "type": "time"},
+        {"key": "temp_4hr", "label": "Temp at 4hr (<=5C?)", "type": "number"},
         {"key": "temp_within_4hrs", "label": "5\u00b0C or below within 4 hrs? (6 hrs after start)", "type": "select", "options": ["Yes", "No"]},
         {"key": "corrective_action", "label": "Corrective Action / Note", "type": "text"},
         {"key": "staff_initials", "label": "Staff Initials", "type": "text", "required": True},
