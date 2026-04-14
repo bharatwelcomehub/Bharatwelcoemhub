@@ -426,6 +426,7 @@ export default function FoodSafety() {
       const res = await api.post(endpoint, {
         token: session.token, center: dashCenter,
         template_type: recordFilter.template_type,
+        status: recordFilter.status,
         date_from: recordFilter.date_from, date_to: recordFilter.date_to,
       }, { responseType: "blob" });
       const ct = res.headers["content-type"] || "";
@@ -445,7 +446,19 @@ export default function FoodSafety() {
       window.URL.revokeObjectURL(url);
       toast.success(`${format.toUpperCase()} downloaded`);
     } catch (e) {
-      toast.error("Download failed");
+      // Parse error from blob response
+      try {
+        const errBlob = e.response?.data;
+        if (errBlob && typeof errBlob.text === "function") {
+          const text = await errBlob.text();
+          const json = JSON.parse(text);
+          toast.error(json.detail || "No records found for the selected filters");
+        } else {
+          toast.error(e.response?.data?.detail || "No records found. Please adjust filters and try again.");
+        }
+      } catch {
+        toast.error("No records found. Please adjust filters and try again.");
+      }
     } finally {
       setLoading(false);
     }

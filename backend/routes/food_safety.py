@@ -563,6 +563,8 @@ async def generate_report_pdf(data: dict):
         query["center"] = center
     if template_type:
         query["template_type"] = template_type
+    if data.get("status"):
+        query["status"] = data["status"]
     if date_from or date_to:
         dq = {}
         if date_from:
@@ -675,6 +677,8 @@ async def generate_report_excel(data: dict):
         query["center"] = center
     if template_type:
         query["template_type"] = template_type
+    if data.get("status"):
+        query["status"] = data["status"]
     if date_from or date_to:
         dq = {}
         if date_from:
