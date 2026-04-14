@@ -237,7 +237,8 @@ export default function FoodSafety() {
       };
 
       const foodItems = (await fetchItems("cooking_cooling")).map(i => i.name);
-      const supplierItems = (await fetchItems("supplier_details")).map(i => i.name);
+      const supplierItemsFull = await fetchItems("supplier_details");
+      const supplierItems = supplierItemsFull.map(i => i.name);
       const cleanItemsFull = await fetchItems("cleaning_procedure");
       const cleanItems = cleanItemsFull.map(i => i.name);
       const cleanRecItems = (await fetchItems("cleaning_record")).map(i => i.name);
@@ -245,12 +246,13 @@ export default function FoodSafety() {
       setEntryItemOptions({
         food: foodItems,
         supplier: supplierItems,
+        supplierFull: supplierItemsFull,
         cleaning: cleanItems,
         cleaningFull: cleanItemsFull,
         cleaningRec: cleanRecItems,
       });
     } catch {
-      setEntryItemOptions({ food: [], supplier: [], cleaning: [], cleaningFull: [], cleaningRec: [] });
+      setEntryItemOptions({ food: [], supplier: [], supplierFull: [], cleaning: [], cleaningFull: [], cleaningRec: [] });
     }
   };
 
@@ -315,6 +317,19 @@ export default function FoodSafety() {
           updated.how_often = match.fields.how_often || "";
           updated.cleaning_method = match.fields.cleaning_method || "";
           updated.sanitising_method = match.fields.sanitising_method || "";
+        }
+      }
+
+      // Auto-fill supplier details when supplier_name is selected
+      if (recordForm?.template_type === "supplier_details" && key === "supplier_name") {
+        const opts = entryItemOptions || {};
+        const fullItems = opts.supplierFull || [];
+        const match = fullItems.find(it => it.name === value);
+        if (match?.fields) {
+          updated.contact = match.fields.contact || "";
+          updated.address = match.fields.address || "";
+          updated.foods_supplied = match.fields.foods_supplied || "";
+          updated.notes = match.fields.notes || "";
         }
       }
 
@@ -905,7 +920,8 @@ export default function FoodSafety() {
                             const supplierFields = ["supplier", "supplier_name"];
                             const cleanAreaFields = ["area_equipment"];
                             const isCleanProcItem = col.key === "item_equipment" && recordForm.template_type === "cleaning_procedure";
-                            const isAutoFilled = recordForm.template_type === "cleaning_procedure" && ["how_often", "cleaning_method", "sanitising_method"].includes(col.key);
+                            const isAutoFilled = (recordForm.template_type === "cleaning_procedure" && ["how_often", "cleaning_method", "sanitising_method"].includes(col.key))
+                              || (recordForm.template_type === "supplier_details" && ["contact", "address", "foods_supplied", "notes"].includes(col.key));
                             // Frequency dropdown for cleaning_record uses fixed options
                             const isFreqDropdown = col.key === "frequency" && recordForm.template_type === "cleaning_record";
                             const freqOptions = ["After each use", "Daily", "Weekly", "Monthly", "As needed"];
