@@ -257,13 +257,6 @@ export default function FoodSafety() {
     if (activeTab === "records" && session?.token) loadRecords();
   }, [activeTab, loadRecords, session?.token]);
 
-  // Also load item options when entering record-entry tab
-  useEffect(() => {
-    if (activeTab === "record-entry" && session?.token && recordForm) {
-      loadEntryItemOptions();
-    }
-  }, [activeTab, session?.token, recordForm?.template_type]);
-
   // Hardcoded fallback lists — used when no template items are seeded yet
   const FALLBACK_FOOD_ITEMS = [
     "Maharashtrian Thali", "Bhaji (Mixed Veg)", "Amti / Varan (Dal)", "Steamed Rice",
@@ -281,6 +274,20 @@ export default function FoodSafety() {
   // Load template items for dropdown options
   // Falls back to hardcoded items if nothing found in DB
   const loadEntryItemOptions = async () => {
+    // Set fallback IMMEDIATELY so dropdowns render while API loads
+    setEntryItemOptions(prev => {
+      if (prev.food?.length > 0) return prev; // Already loaded, don't reset
+      return {
+        food: FALLBACK_FOOD_ITEMS,
+        supplier: FALLBACK_SUPPLIERS,
+        supplierFull: [],
+        cleaning: FALLBACK_CLEANING,
+        cleaningFull: [],
+        cleaningRec: FALLBACK_CLEANING_REC,
+      };
+    });
+
+    // Then try to load from API (will upgrade the fallback if successful)
     try {
       const fetchItems = async (tt) => {
         try {
@@ -299,7 +306,6 @@ export default function FoodSafety() {
       };
 
       const foodItemsRaw = await fetchItems("food_items");
-      // Also try cooking_cooling as legacy fallback
       const foodFromCooking = foodItemsRaw.length > 0 ? [] : await fetchItems("cooking_cooling");
       const foodItems = foodItemsRaw.length > 0
         ? foodItemsRaw.map(i => i.name)
@@ -325,15 +331,7 @@ export default function FoodSafety() {
         cleaningRec: cleanRecItems,
       });
     } catch {
-      // Ultimate fallback — hardcoded lists so dropdowns ALWAYS work
-      setEntryItemOptions({
-        food: FALLBACK_FOOD_ITEMS,
-        supplier: FALLBACK_SUPPLIERS,
-        supplierFull: [],
-        cleaning: FALLBACK_CLEANING,
-        cleaningFull: [],
-        cleaningRec: FALLBACK_CLEANING_REC,
-      });
+      // Fallback already set above, nothing to do
     }
   };
 
