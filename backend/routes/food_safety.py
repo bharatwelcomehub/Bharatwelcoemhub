@@ -84,6 +84,7 @@ TEMPLATE_COLUMNS = {
     ],
     "food_temp_record": [
         {"key": "date", "label": "Date", "type": "date", "required": True},
+        {"key": "food", "label": "Food Item", "type": "text", "required": True},
         {"key": "time", "label": "Time", "type": "time", "required": True},
         {"key": "cold_unit_1", "label": "Walkin Fridge", "type": "number"},
         {"key": "cold_unit_2", "label": "Cold Bain Marie", "type": "number"},
@@ -542,14 +543,22 @@ async def seed_template_data(data: dict):
     """Seed default template items for Purnabramha Perth menu. Admin only."""
     session = _check_auth(data.get("token"), require_admin=True)
     center = data.get("center", "PB-PERTH").upper()
+    force_food = data.get("force_food", False)
 
     # Check if already seeded
     existing = await db.fs_template_items.count_documents({"center": center})
     food_items_exist = await db.fs_template_items.count_documents({"center": center, "template_type": "food_items"})
-    if existing > 0 and food_items_exist > 0:
+    
+    if existing > 0 and food_items_exist > 0 and not force_food:
         return {"success": True, "message": f"Already seeded ({existing} items, {food_items_exist} food items). Use CRUD to manage.", "seeded": 0}
     
-    # If other items exist but food_items don't, only seed food_items
+    # If force_food or food_items missing: clean up ALL old food items from all templates
+    if force_food or food_items_exist == 0:
+        # Delete old food items from cooking_cooling, food_temp_record, two_four_hour_rule, general_temp_record, food_items
+        food_templates = ["food_items", "cooking_cooling", "food_temp_record", "two_four_hour_rule", "general_temp_record"]
+        del_result = await db.fs_template_items.delete_many({"center": center, "template_type": {"$in": food_templates}})
+        logger.info(f"Cleaned up {del_result.deleted_count} old food items for {center}")
+    
     seed_all = existing == 0
 
     import uuid
@@ -596,33 +605,18 @@ async def seed_template_data(data: dict):
 
     # Purnabramha Menu Items — ONE master food list used by all food dropdowns
     menu_items = [
-        ("Maharashtrian Thali", "Thali Item"),
-        ("Bhaji (Mixed Veg)", "Bhaji/Sabji"),
-        ("Amti / Varan (Dal)", "Dal/Amti"),
-        ("Steamed Rice", "Rice"),
-        ("Solkadhi", "Drink/Beverage"),
-        ("Chutney (Coconut/Garlic)", "Chutney/Condiment"),
-        ("Curd / Raita", "Chutney/Condiment"),
-        ("Shrikhand / Sweet", "Sweet/Dessert"),
-        ("Puri / Chapati", "Bread/Roti"),
-        ("Papad", "Other"),
-        ("Pickle", "Chutney/Condiment"),
-        ("Kokum Sarbat", "Drink/Beverage"),
-        ("Prep - Onion Masala Base", "Prep Item"),
-        ("Prep - Ginger Garlic Paste", "Prep Item"),
-        ("Prep - Tadka", "Prep Item"),
-        ("Prep - Chopped Vegetables", "Prep Item"),
-        ("Prep - Soaked Dal", "Prep Item"),
-        ("Display - Thali Counter Hot Items", "Display/Counter"),
-        ("Display - Cold Items (Curd/Chutney)", "Display/Counter"),
-        ("Takeaway - Packed Thali", "Takeaway"),
-        ("Takeaway - Individual Items", "Takeaway"),
+        "Misal Curry", "Takachi Kadhi", "Patvadi Rassa", "Brinjal Curry", "Mataki Usal",
+        "Katachi Amti", "Patal Bhaji", "Methi Aalan", "Kothimbir Vadi", "Kachori",
+        "Kachori Masala", "Puran", "Modak Saran", "Modak", "Shrikhand",
+        "Vada Pav Masala", "Masale Bhat", "Patvadi", "Maswadi", "Buttermilk",
+        "Solkadhi", "Masala Kokum", "Kokum", "Masala Lemon", "Baingan Bharta",
+        "Dry Aloo", "Wheat Flour Dough", "Rice Flour Dough", "Refined Flour Dough",
     ]
-    for i, (name, category) in enumerate(menu_items):
+    for i, name in enumerate(menu_items):
         items.append({
             "name": name, "item_id": str(uuid.uuid4())[:12], "template_type": "food_items",
             "center": center, "active": True, "order": i,
-            "fields": {"food_name": name, "category": category},
+            "fields": {"food_name": name},
             "createdAt": now, "updatedAt": now,
         })
 

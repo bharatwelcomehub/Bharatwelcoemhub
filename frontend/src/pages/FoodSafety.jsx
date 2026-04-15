@@ -92,7 +92,7 @@ export default function FoodSafety() {
     supplier_details: [{key:"supplier_name",label:"Supplier Name",type:"text",required:true},{key:"contact",label:"Contact Details",type:"text"},{key:"address",label:"Address",type:"text"},{key:"foods_supplied",label:"Foods Supplied",type:"text"},{key:"notes",label:"Notes",type:"text"}],
     food_receipt: [{key:"date",label:"Date",type:"date",required:true},{key:"time",label:"Time",type:"time",required:true},{key:"supplier",label:"Supplier",type:"text",required:true},{key:"product",label:"Product (Name & Lot)",type:"text",required:true},{key:"condition_temp",label:"Condition / Temp",type:"text"},{key:"corrective_action",label:"Corrective Action / Notes",type:"text"},{key:"checked_by",label:"Checked By",type:"text",required:true}],
     cooking_cooling: [{key:"date",label:"Date",type:"date",required:true},{key:"food",label:"Food",type:"text",required:true},{key:"core_temp",label:"Core Temp (>=75C)",type:"number"},{key:"cooling_start_time",label:"Cooling Start Time",type:"time"},{key:"cooling_start_temp",label:"Cooling Start Temp",type:"number"},{key:"time_2hr",label:"Time at 2hr Check",type:"time"},{key:"temp_2hr",label:"Temp at 2hr (<=21C?)",type:"number"},{key:"temp_2hr_ok",label:"<=21C?",type:"select",options:["Yes","No"]},{key:"time_4hr",label:"Time at 4hr Check",type:"time"},{key:"temp_4hr",label:"Temp at 4hr (<=5C?)",type:"number"},{key:"temp_within_4hrs",label:"5°C or below within 4 hrs? (6 hrs after start)",type:"select",options:["Yes","No"]},{key:"corrective_action",label:"Corrective Action / Note",type:"text"},{key:"staff_initials",label:"Staff Initials",type:"text",required:true}],
-    food_temp_record: [{key:"date",label:"Date",type:"date",required:true},{key:"time",label:"Time",type:"time",required:true},{key:"cold_unit_1",label:"Walkin Fridge",type:"number"},{key:"cold_unit_2",label:"Cold Bain Marie",type:"number"},{key:"cold_unit_3",label:"Prep Fridge",type:"number"},{key:"hot_unit_1",label:"Hot Unit 1 (Bain Marie)",type:"number"},{key:"cold_unit_4",label:"Deep Fridge",type:"number"},{key:"cold_unit_5",label:"Drink Fridge",type:"number"},{key:"notes",label:"Notes",type:"text"},{key:"corrective_action",label:"Corrective Action",type:"text"},{key:"staff_initials",label:"Staff Initials",type:"text",required:true}],
+    food_temp_record: [{key:"date",label:"Date",type:"date",required:true},{key:"food",label:"Food Item",type:"text",required:true},{key:"time",label:"Time",type:"time",required:true},{key:"cold_unit_1",label:"Walkin Fridge",type:"number"},{key:"cold_unit_2",label:"Cold Bain Marie",type:"number"},{key:"cold_unit_3",label:"Prep Fridge",type:"number"},{key:"hot_unit_1",label:"Hot Unit 1 (Bain Marie)",type:"number"},{key:"cold_unit_4",label:"Deep Fridge",type:"number"},{key:"cold_unit_5",label:"Drink Fridge",type:"number"},{key:"notes",label:"Notes",type:"text"},{key:"corrective_action",label:"Corrective Action",type:"text"},{key:"staff_initials",label:"Staff Initials",type:"text",required:true}],
     two_four_hour_rule: [{key:"date",label:"Date",type:"date",required:true},{key:"food",label:"Food",type:"text",required:true},{key:"time_out",label:"Time Out of Fridge (>5C)",type:"time",required:true},{key:"activity",label:"Activity (prep/display/transport)",type:"text"},{key:"time_back",label:"Time Back in Temp Control (<=5C)",type:"time"},{key:"total_time_out",label:"Total Time Out",type:"calculated"},{key:"action",label:"Action",type:"select",options:["Re-refrigerate","Use immediately","Discard"]},{key:"remark",label:"Remark",type:"text"},{key:"staff_initials",label:"Staff Initials",type:"text",required:true}],
     cleaning_procedure: [{key:"item_equipment",label:"Item / Equipment",type:"text",required:true},{key:"how_often",label:"How Often",type:"select",options:["After each use","Daily","Weekly","Monthly","As needed"]},{key:"cleaning_method",label:"Cleaning Method",type:"textarea"},{key:"sanitising_method",label:"Sanitising Method",type:"textarea"},{key:"responsibility",label:"Responsibility",type:"text"},{key:"comments",label:"Comments",type:"text"}],
     cleaning_record: [{key:"area_equipment",label:"Area / Equipment",type:"text",required:true},{key:"frequency",label:"Frequency",type:"text"},{key:"person_responsible",label:"Person Responsible",type:"text"},{key:"sun",label:"Sun",type:"check"},{key:"mon",label:"Mon",type:"check"},{key:"tue",label:"Tue",type:"check"},{key:"wed",label:"Wed",type:"check"},{key:"thu",label:"Thu",type:"check"},{key:"fri",label:"Fri",type:"check"},{key:"sat",label:"Sat",type:"check"},{key:"supervisor_initials",label:"Supervisor Initials",type:"text"}],
@@ -142,7 +142,7 @@ export default function FoodSafety() {
   // Seed templates
   const seedTemplates = async () => {
     try {
-      const res = await api.post("/food-safety/seed", { token: session.token, center: dashCenter });
+      const res = await api.post("/food-safety/seed", { token: session.token, center: dashCenter, force_food: true });
       toast.success(res.data.message);
       loadTemplateItems();
     } catch (e) {
@@ -259,13 +259,12 @@ export default function FoodSafety() {
 
   // Hardcoded fallback lists — used when no template items are seeded yet
   const FALLBACK_FOOD_ITEMS = [
-    "Maharashtrian Thali", "Bhaji (Mixed Veg)", "Amti / Varan (Dal)", "Steamed Rice",
-    "Solkadhi", "Chutney (Coconut/Garlic)", "Curd / Raita", "Shrikhand / Sweet",
-    "Puri / Chapati", "Papad", "Pickle", "Kokum Sarbat",
-    "Prep - Onion Masala Base", "Prep - Ginger Garlic Paste", "Prep - Tadka",
-    "Prep - Chopped Vegetables", "Prep - Soaked Dal",
-    "Display - Thali Counter Hot Items", "Display - Cold Items (Curd/Chutney)",
-    "Takeaway - Packed Thali", "Takeaway - Individual Items",
+    "Misal Curry", "Takachi Kadhi", "Patvadi Rassa", "Brinjal Curry", "Mataki Usal",
+    "Katachi Amti", "Patal Bhaji", "Methi Aalan", "Kothimbir Vadi", "Kachori",
+    "Kachori Masala", "Puran", "Modak Saran", "Modak", "Shrikhand",
+    "Vada Pav Masala", "Masale Bhat", "Patvadi", "Maswadi", "Buttermilk",
+    "Solkadhi", "Masala Kokum", "Kokum", "Masala Lemon", "Baingan Bharta",
+    "Dry Aloo", "Wheat Flour Dough", "Rice Flour Dough", "Refined Flour Dough",
   ];
   const FALLBACK_SUPPLIERS = ["Fresh Produce Supplier", "Dairy & Curd Supplier", "Spice & Dry Goods", "Meat & Protein"];
   const FALLBACK_CLEANING = ["Kitchen Benchtops", "Bain Marie", "Fridges & Cold Units", "Floors & Drains", "Utensils & Pots", "Exhaust & Hood"];
@@ -288,6 +287,7 @@ export default function FoodSafety() {
     });
 
     // Then try to load from API (will upgrade the fallback if successful)
+    if (!session?.token) return;
     try {
       const fetchItems = async (tt) => {
         try {
