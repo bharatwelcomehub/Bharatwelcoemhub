@@ -264,28 +264,57 @@ export default function FoodSafety() {
     }
   }, [activeTab, session?.token, recordForm?.template_type]);
 
+  // Hardcoded fallback lists — used when no template items are seeded yet
+  const FALLBACK_FOOD_ITEMS = [
+    "Maharashtrian Thali", "Bhaji (Mixed Veg)", "Amti / Varan (Dal)", "Steamed Rice",
+    "Solkadhi", "Chutney (Coconut/Garlic)", "Curd / Raita", "Shrikhand / Sweet",
+    "Puri / Chapati", "Papad", "Pickle", "Kokum Sarbat",
+    "Prep - Onion Masala Base", "Prep - Ginger Garlic Paste", "Prep - Tadka",
+    "Prep - Chopped Vegetables", "Prep - Soaked Dal",
+    "Display - Thali Counter Hot Items", "Display - Cold Items (Curd/Chutney)",
+    "Takeaway - Packed Thali", "Takeaway - Individual Items",
+  ];
+  const FALLBACK_SUPPLIERS = ["Fresh Produce Supplier", "Dairy & Curd Supplier", "Spice & Dry Goods", "Meat & Protein"];
+  const FALLBACK_CLEANING = ["Kitchen Benchtops", "Bain Marie", "Fridges & Cold Units", "Floors & Drains", "Utensils & Pots", "Exhaust & Hood"];
+  const FALLBACK_CLEANING_REC = ["Kitchen Benchtops", "Bain Marie", "Fridge 1", "Fridge 2", "Walk-in Cooler", "Floors", "Drains", "Dishwasher", "Hand Wash Basin", "Exhaust Hood", "Storage Shelves", "Waste Bins", "Thali Service Counter"];
+
   // Load template items for dropdown options
-  // Falls back to all-center items if selected center has none
+  // Falls back to hardcoded items if nothing found in DB
   const loadEntryItemOptions = async () => {
     try {
       const fetchItems = async (tt) => {
-        const res = await api.post("/food-safety/template-items/list", {
-          token: session.token, template_type: tt, center: dashCenter,
-        });
-        const items = (res.data.items || []).filter(i => i.active !== false);
-        if (items.length > 0) return items;
-        const res2 = await api.post("/food-safety/template-items/list", {
-          token: session.token, template_type: tt, center: "",
-        });
-        return (res2.data.items || []).filter(i => i.active !== false);
+        try {
+          const res = await api.post("/food-safety/template-items/list", {
+            token: session.token, template_type: tt, center: dashCenter,
+          });
+          const items = (res.data.items || []).filter(i => i.active !== false);
+          if (items.length > 0) return items;
+          const res2 = await api.post("/food-safety/template-items/list", {
+            token: session.token, template_type: tt, center: "",
+          });
+          return (res2.data.items || []).filter(i => i.active !== false);
+        } catch {
+          return [];
+        }
       };
 
-      const foodItems = (await fetchItems("food_items")).map(i => i.name);
+      const foodItemsRaw = await fetchItems("food_items");
+      // Also try cooking_cooling as legacy fallback
+      const foodFromCooking = foodItemsRaw.length > 0 ? [] : await fetchItems("cooking_cooling");
+      const foodItems = foodItemsRaw.length > 0
+        ? foodItemsRaw.map(i => i.name)
+        : foodFromCooking.length > 0
+          ? foodFromCooking.map(i => i.name)
+          : FALLBACK_FOOD_ITEMS;
+
       const supplierItemsFull = await fetchItems("supplier_details");
-      const supplierItems = supplierItemsFull.map(i => i.name);
+      const supplierItems = supplierItemsFull.length > 0 ? supplierItemsFull.map(i => i.name) : FALLBACK_SUPPLIERS;
+
       const cleanItemsFull = await fetchItems("cleaning_procedure");
-      const cleanItems = cleanItemsFull.map(i => i.name);
-      const cleanRecItems = (await fetchItems("cleaning_record")).map(i => i.name);
+      const cleanItems = cleanItemsFull.length > 0 ? cleanItemsFull.map(i => i.name) : FALLBACK_CLEANING;
+
+      const cleanRecItemsRaw = await fetchItems("cleaning_record");
+      const cleanRecItems = cleanRecItemsRaw.length > 0 ? cleanRecItemsRaw.map(i => i.name) : FALLBACK_CLEANING_REC;
 
       setEntryItemOptions({
         food: foodItems,
@@ -296,7 +325,15 @@ export default function FoodSafety() {
         cleaningRec: cleanRecItems,
       });
     } catch {
-      setEntryItemOptions({ food: [], supplier: [], supplierFull: [], cleaning: [], cleaningFull: [], cleaningRec: [] });
+      // Ultimate fallback — hardcoded lists so dropdowns ALWAYS work
+      setEntryItemOptions({
+        food: FALLBACK_FOOD_ITEMS,
+        supplier: FALLBACK_SUPPLIERS,
+        supplierFull: [],
+        cleaning: FALLBACK_CLEANING,
+        cleaningFull: [],
+        cleaningRec: FALLBACK_CLEANING_REC,
+      });
     }
   };
 
