@@ -257,36 +257,9 @@ export default function FoodSafety() {
     if (activeTab === "records" && session?.token) loadRecords();
   }, [activeTab, loadRecords, session?.token]);
 
-  // Hardcoded fallback lists — used when no template items are seeded yet
-  const FALLBACK_FOOD_ITEMS = [
-    "Misal Curry", "Takachi Kadhi", "Patvadi Rassa", "Brinjal Curry", "Mataki Usal",
-    "Katachi Amti", "Patal Bhaji", "Methi Aalan", "Kothimbir Vadi", "Kachori",
-    "Kachori Masala", "Puran", "Modak Saran", "Modak", "Shrikhand",
-    "Vada Pav Masala", "Masale Bhat", "Patvadi", "Maswadi", "Buttermilk",
-    "Solkadhi", "Masala Kokum", "Kokum", "Masala Lemon", "Baingan Bharta",
-    "Dry Aloo", "Wheat Flour Dough", "Rice Flour Dough", "Refined Flour Dough",
-  ];
-  const FALLBACK_SUPPLIERS = ["Fresh Produce Supplier", "Dairy & Curd Supplier", "Spice & Dry Goods", "Meat & Protein"];
-  const FALLBACK_CLEANING = ["Kitchen Benchtops", "Bain Marie", "Fridges & Cold Units", "Floors & Drains", "Utensils & Pots", "Exhaust & Hood"];
-  const FALLBACK_CLEANING_REC = ["Kitchen Benchtops", "Bain Marie", "Fridge 1", "Fridge 2", "Walk-in Cooler", "Floors", "Drains", "Dishwasher", "Hand Wash Basin", "Exhaust Hood", "Storage Shelves", "Waste Bins", "Thali Service Counter"];
-
-  // Load template items for dropdown options
-  // Falls back to hardcoded items if nothing found in DB
+  // Load ALL dropdown options purely from Food Items Master Template in DB
   const loadEntryItemOptions = async () => {
-    // Set fallback IMMEDIATELY so dropdowns render while API loads
-    setEntryItemOptions(prev => {
-      if (prev.food?.length > 0) return prev; // Already loaded, don't reset
-      return {
-        food: FALLBACK_FOOD_ITEMS,
-        supplier: FALLBACK_SUPPLIERS,
-        supplierFull: [],
-        cleaning: FALLBACK_CLEANING,
-        cleaningFull: [],
-        cleaningRec: FALLBACK_CLEANING_REC,
-      };
-    });
-
-    // Then try to load from API (will upgrade the fallback if successful)
+    // Load ALL dropdown options purely from Template Master DB
     if (!session?.token) return;
     try {
       const fetchItems = async (tt) => {
@@ -296,6 +269,7 @@ export default function FoodSafety() {
           });
           const items = (res.data.items || []).filter(i => i.active !== false);
           if (items.length > 0) return items;
+          // Fallback: try all centers
           const res2 = await api.post("/food-safety/template-items/list", {
             token: session.token, template_type: tt, center: "",
           });
@@ -306,21 +280,16 @@ export default function FoodSafety() {
       };
 
       const foodItemsRaw = await fetchItems("food_items");
-      const foodFromCooking = foodItemsRaw.length > 0 ? [] : await fetchItems("cooking_cooling");
-      const foodItems = foodItemsRaw.length > 0
-        ? foodItemsRaw.map(i => i.name)
-        : foodFromCooking.length > 0
-          ? foodFromCooking.map(i => i.name)
-          : FALLBACK_FOOD_ITEMS;
+      const foodItems = foodItemsRaw.map(i => i.name);
 
       const supplierItemsFull = await fetchItems("supplier_details");
-      const supplierItems = supplierItemsFull.length > 0 ? supplierItemsFull.map(i => i.name) : FALLBACK_SUPPLIERS;
+      const supplierItems = supplierItemsFull.map(i => i.name);
 
       const cleanItemsFull = await fetchItems("cleaning_procedure");
-      const cleanItems = cleanItemsFull.length > 0 ? cleanItemsFull.map(i => i.name) : FALLBACK_CLEANING;
+      const cleanItems = cleanItemsFull.map(i => i.name);
 
       const cleanRecItemsRaw = await fetchItems("cleaning_record");
-      const cleanRecItems = cleanRecItemsRaw.length > 0 ? cleanRecItemsRaw.map(i => i.name) : FALLBACK_CLEANING_REC;
+      const cleanRecItems = cleanRecItemsRaw.map(i => i.name);
 
       setEntryItemOptions({
         food: foodItems,
@@ -331,7 +300,7 @@ export default function FoodSafety() {
         cleaningRec: cleanRecItems,
       });
     } catch {
-      // Fallback already set above, nothing to do
+      // API failed — options stay empty, fields render as text inputs
     }
   };
 
