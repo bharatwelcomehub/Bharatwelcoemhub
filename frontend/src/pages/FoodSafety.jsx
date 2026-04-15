@@ -59,7 +59,7 @@ export default function FoodSafety() {
   const [recordFilter, setRecordFilter] = useState({ template_type: "", status: "", date_from: "", date_to: "" });
   const [recordForm, setRecordForm] = useState(null);
   const [recordEntries, setRecordEntries] = useState([]);
-  const [entryItemOptions, setEntryItemOptions] = useState([]); // Template master items for dropdown
+  const [entryItemOptions, setEntryItemOptions] = useState({}); // Template master items for dropdown
 
   // Approval settings per template type
   const [approvalSettings, setApprovalSettings] = useState({});
