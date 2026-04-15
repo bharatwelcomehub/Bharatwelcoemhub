@@ -34,6 +34,7 @@ def set_has_admin_access(func):
 # =======================================
 
 TEMPLATE_TYPES = [
+    {"key": "food_items", "label": "Food Items (Master List)", "order": 0},
     {"key": "supplier_details", "label": "Supplier Details", "order": 1},
     {"key": "food_receipt", "label": "Food Receipt", "order": 2},
     {"key": "cooking_cooling", "label": "Cooking and Cooling Food", "order": 3},
@@ -45,6 +46,11 @@ TEMPLATE_TYPES = [
 ]
 
 TEMPLATE_COLUMNS = {
+    "food_items": [
+        {"key": "food_name", "label": "Food Item Name", "type": "text", "required": True},
+        {"key": "category", "label": "Category", "type": "select", "options": ["Thali Item", "Bhaji/Sabji", "Dal/Amti", "Rice", "Drink/Beverage", "Chutney/Condiment", "Sweet/Dessert", "Bread/Roti", "Prep Item", "Display/Counter", "Takeaway", "Other"]},
+        {"key": "notes", "label": "Notes", "type": "text"},
+    ],
     "supplier_details": [
         {"key": "supplier_name", "label": "Supplier Name", "type": "text", "required": True},
         {"key": "contact", "label": "Contact Details", "type": "text"},
@@ -539,67 +545,86 @@ async def seed_template_data(data: dict):
 
     # Check if already seeded
     existing = await db.fs_template_items.count_documents({"center": center})
-    if existing > 0:
-        return {"success": True, "message": f"Already seeded ({existing} items). Use CRUD to manage.", "seeded": 0}
+    food_items_exist = await db.fs_template_items.count_documents({"center": center, "template_type": "food_items"})
+    if existing > 0 and food_items_exist > 0:
+        return {"success": True, "message": f"Already seeded ({existing} items, {food_items_exist} food items). Use CRUD to manage.", "seeded": 0}
+    
+    # If other items exist but food_items don't, only seed food_items
+    seed_all = existing == 0
 
     import uuid
     items = []
     now = _now_iso()
 
     # Supplier Details
-    suppliers = [
-        {"name": "Fresh Produce Supplier", "fields": {"supplier_name": "Fresh Produce WA", "contact": "08-XXXX-XXXX", "foods_supplied": "Vegetables, Herbs, Salad items", "address": "Perth Markets, WA"}},
-        {"name": "Dairy & Curd Supplier", "fields": {"supplier_name": "WA Dairy Co", "contact": "08-XXXX-XXXX", "foods_supplied": "Curd, Milk, Paneer, Cream", "address": "Jandakot, WA"}},
-        {"name": "Spice & Dry Goods", "fields": {"supplier_name": "Indian Spice House", "contact": "08-XXXX-XXXX", "foods_supplied": "Spices, Dal, Rice, Flour, Oil", "address": "Cannington, WA"}},
-        {"name": "Meat & Protein (if applicable)", "fields": {"supplier_name": "WA Meats", "contact": "08-XXXX-XXXX", "foods_supplied": "Chicken, Eggs", "address": "Osborne Park, WA"}},
-    ]
-    for i, s in enumerate(suppliers):
-        items.append({**s, "item_id": str(uuid.uuid4())[:12], "template_type": "supplier_details", "center": center, "active": True, "order": i, "createdAt": now, "updatedAt": now})
+    if seed_all:
+        suppliers = [
+            {"name": "Fresh Produce Supplier", "fields": {"supplier_name": "Fresh Produce WA", "contact": "08-XXXX-XXXX", "foods_supplied": "Vegetables, Herbs, Salad items", "address": "Perth Markets, WA"}},
+            {"name": "Dairy & Curd Supplier", "fields": {"supplier_name": "WA Dairy Co", "contact": "08-XXXX-XXXX", "foods_supplied": "Curd, Milk, Paneer, Cream", "address": "Jandakot, WA"}},
+            {"name": "Spice & Dry Goods", "fields": {"supplier_name": "Indian Spice House", "contact": "08-XXXX-XXXX", "foods_supplied": "Spices, Dal, Rice, Flour, Oil", "address": "Cannington, WA"}},
+            {"name": "Meat & Protein (if applicable)", "fields": {"supplier_name": "WA Meats", "contact": "08-XXXX-XXXX", "foods_supplied": "Chicken, Eggs", "address": "Osborne Park, WA"}},
+        ]
+        for i, s in enumerate(suppliers):
+            items.append({**s, "item_id": str(uuid.uuid4())[:12], "template_type": "supplier_details", "center": center, "active": True, "order": i, "createdAt": now, "updatedAt": now})
 
-    # Cleaning Procedures
-    cleaning_items = [
-        {"name": "Kitchen Benchtops", "fields": {"item_equipment": "Kitchen Benchtops / Prep Tables", "how_often": "After each use", "cleaning_method": "Wipe down with hot soapy water, rinse", "sanitising_method": "Spray food-safe sanitiser, leave 30 sec, wipe", "responsibility": "All kitchen staff"}},
-        {"name": "Bain Marie", "fields": {"item_equipment": "Bain Marie / Hot Holding Units", "how_often": "Daily", "cleaning_method": "Drain, scrub with detergent, rinse with hot water", "sanitising_method": "Spray sanitiser on all surfaces, air dry", "responsibility": "Closing chef"}},
-        {"name": "Fridges & Cold Units", "fields": {"item_equipment": "Fridges / Walk-in Cooler", "how_often": "Weekly", "cleaning_method": "Remove all items, wipe shelves with warm soapy water, rinse", "sanitising_method": "Apply food-safe sanitiser, wipe down, air dry", "responsibility": "Kitchen manager"}},
-        {"name": "Floors & Drains", "fields": {"item_equipment": "Kitchen Floors & Drains", "how_often": "Daily", "cleaning_method": "Sweep, mop with hot detergent solution", "sanitising_method": "Flush drains with sanitiser weekly", "responsibility": "Closing staff"}},
-        {"name": "Utensils & Pots", "fields": {"item_equipment": "Cooking Utensils, Pots, Pans", "how_often": "After each use", "cleaning_method": "Scrape, wash in hot soapy water, rinse", "sanitising_method": "Rinse with sanitiser or run through dishwasher", "responsibility": "Dishwasher / Chef"}},
-        {"name": "Exhaust & Hood", "fields": {"item_equipment": "Exhaust Hood & Filters", "how_often": "Monthly", "cleaning_method": "Remove filters, soak in degreaser, scrub, rinse", "sanitising_method": "N/A - degrease and dry", "responsibility": "Kitchen manager"}},
-    ]
-    for i, c in enumerate(cleaning_items):
-        items.append({**c, "item_id": str(uuid.uuid4())[:12], "template_type": "cleaning_procedure", "center": center, "active": True, "order": i, "createdAt": now, "updatedAt": now})
+    if seed_all:
+        # Cleaning Procedures
+        cleaning_items = [
+            {"name": "Kitchen Benchtops", "fields": {"item_equipment": "Kitchen Benchtops / Prep Tables", "how_often": "After each use", "cleaning_method": "Wipe down with hot soapy water, rinse", "sanitising_method": "Spray food-safe sanitiser, leave 30 sec, wipe", "responsibility": "All kitchen staff"}},
+            {"name": "Bain Marie", "fields": {"item_equipment": "Bain Marie / Hot Holding Units", "how_often": "Daily", "cleaning_method": "Drain, scrub with detergent, rinse with hot water", "sanitising_method": "Spray sanitiser on all surfaces, air dry", "responsibility": "Closing chef"}},
+            {"name": "Fridges & Cold Units", "fields": {"item_equipment": "Fridges / Walk-in Cooler", "how_often": "Weekly", "cleaning_method": "Remove all items, wipe shelves with warm soapy water, rinse", "sanitising_method": "Apply food-safe sanitiser, wipe down, air dry", "responsibility": "Kitchen manager"}},
+            {"name": "Floors & Drains", "fields": {"item_equipment": "Kitchen Floors & Drains", "how_often": "Daily", "cleaning_method": "Sweep, mop with hot detergent solution", "sanitising_method": "Flush drains with sanitiser weekly", "responsibility": "Closing staff"}},
+            {"name": "Utensils & Pots", "fields": {"item_equipment": "Cooking Utensils, Pots, Pans", "how_often": "After each use", "cleaning_method": "Scrape, wash in hot soapy water, rinse", "sanitising_method": "Rinse with sanitiser or run through dishwasher", "responsibility": "Dishwasher / Chef"}},
+            {"name": "Exhaust & Hood", "fields": {"item_equipment": "Exhaust Hood & Filters", "how_often": "Monthly", "cleaning_method": "Remove filters, soak in degreaser, scrub, rinse", "sanitising_method": "N/A - degrease and dry", "responsibility": "Kitchen manager"}},
+        ]
+        for i, c in enumerate(cleaning_items):
+            items.append({**c, "item_id": str(uuid.uuid4())[:12], "template_type": "cleaning_procedure", "center": center, "active": True, "order": i, "createdAt": now, "updatedAt": now})
 
-    # Cleaning Record items (areas to track weekly)
-    cleaning_rec_items = [
-        "Kitchen Benchtops", "Bain Marie", "Fridge 1", "Fridge 2", "Walk-in Cooler",
-        "Floors", "Drains", "Dishwasher", "Hand Wash Basin", "Exhaust Hood",
-        "Storage Shelves", "Waste Bins", "Thali Service Counter",
-    ]
-    for i, name in enumerate(cleaning_rec_items):
-        items.append({
-            "name": name, "item_id": str(uuid.uuid4())[:12], "template_type": "cleaning_record",
-            "center": center, "active": True, "order": i,
-            "fields": {"area_equipment": name, "frequency": "Daily"},
-            "createdAt": now, "updatedAt": now,
-        })
-
-    # Purnabramha Menu Items for cooking/cooling, temp records, 2-4hr rule
-    menu_items = [
-        "Maharashtrian Thali", "Bhaji (Mixed Veg)", "Amti / Varan (Dal)", "Steamed Rice",
-        "Solkadhi", "Chutney (Coconut/Garlic)", "Curd / Raita", "Shrikhand / Sweet",
-        "Puri / Chapati", "Papad", "Pickle", "Kokum Sarbat",
-        "Prep - Onion Masala Base", "Prep - Ginger Garlic Paste", "Prep - Tadka",
-        "Prep - Chopped Vegetables", "Prep - Soaked Dal",
-        "Display - Thali Counter Hot Items", "Display - Cold Items (Curd/Chutney)",
-        "Takeaway - Packed Thali", "Takeaway - Individual Items",
-    ]
-    for i, name in enumerate(menu_items):
-        for tt in ["cooking_cooling", "food_temp_record", "two_four_hour_rule", "general_temp_record"]:
+        # Cleaning Record items (areas to track weekly)
+        cleaning_rec_items = [
+            "Kitchen Benchtops", "Bain Marie", "Fridge 1", "Fridge 2", "Walk-in Cooler",
+            "Floors", "Drains", "Dishwasher", "Hand Wash Basin", "Exhaust Hood",
+            "Storage Shelves", "Waste Bins", "Thali Service Counter",
+        ]
+        for i, name in enumerate(cleaning_rec_items):
             items.append({
-                "name": name, "item_id": str(uuid.uuid4())[:12], "template_type": tt,
+                "name": name, "item_id": str(uuid.uuid4())[:12], "template_type": "cleaning_record",
                 "center": center, "active": True, "order": i,
-                "fields": {"food": name, "activity_food": name},
+                "fields": {"area_equipment": name, "frequency": "Daily"},
                 "createdAt": now, "updatedAt": now,
             })
+
+    # Purnabramha Menu Items — ONE master food list used by all food dropdowns
+    menu_items = [
+        ("Maharashtrian Thali", "Thali Item"),
+        ("Bhaji (Mixed Veg)", "Bhaji/Sabji"),
+        ("Amti / Varan (Dal)", "Dal/Amti"),
+        ("Steamed Rice", "Rice"),
+        ("Solkadhi", "Drink/Beverage"),
+        ("Chutney (Coconut/Garlic)", "Chutney/Condiment"),
+        ("Curd / Raita", "Chutney/Condiment"),
+        ("Shrikhand / Sweet", "Sweet/Dessert"),
+        ("Puri / Chapati", "Bread/Roti"),
+        ("Papad", "Other"),
+        ("Pickle", "Chutney/Condiment"),
+        ("Kokum Sarbat", "Drink/Beverage"),
+        ("Prep - Onion Masala Base", "Prep Item"),
+        ("Prep - Ginger Garlic Paste", "Prep Item"),
+        ("Prep - Tadka", "Prep Item"),
+        ("Prep - Chopped Vegetables", "Prep Item"),
+        ("Prep - Soaked Dal", "Prep Item"),
+        ("Display - Thali Counter Hot Items", "Display/Counter"),
+        ("Display - Cold Items (Curd/Chutney)", "Display/Counter"),
+        ("Takeaway - Packed Thali", "Takeaway"),
+        ("Takeaway - Individual Items", "Takeaway"),
+    ]
+    for i, (name, category) in enumerate(menu_items):
+        items.append({
+            "name": name, "item_id": str(uuid.uuid4())[:12], "template_type": "food_items",
+            "center": center, "active": True, "order": i,
+            "fields": {"food_name": name, "category": category},
+            "createdAt": now, "updatedAt": now,
+        })
 
     if items:
         await db.fs_template_items.insert_many(items)

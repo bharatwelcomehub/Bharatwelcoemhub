@@ -77,6 +77,7 @@ export default function FoodSafety() {
 
   // Hardcoded fallback template types (same as backend constants)
   const FALLBACK_TYPES = [
+    {key: "food_items", label: "Food Items (Master List)", order: 0},
     {key: "supplier_details", label: "Supplier Details", order: 1},
     {key: "food_receipt", label: "Food Receipt", order: 2},
     {key: "cooking_cooling", label: "Cooking and Cooling Food", order: 3},
@@ -87,6 +88,7 @@ export default function FoodSafety() {
     {key: "general_temp_record", label: "General Temperature Record", order: 8},
   ];
   const FALLBACK_COLUMNS = {
+    food_items: [{key:"food_name",label:"Food Item Name",type:"text",required:true},{key:"category",label:"Category",type:"select",options:["Thali Item","Bhaji/Sabji","Dal/Amti","Rice","Drink/Beverage","Chutney/Condiment","Sweet/Dessert","Bread/Roti","Prep Item","Display/Counter","Takeaway","Other"]},{key:"notes",label:"Notes",type:"text"}],
     supplier_details: [{key:"supplier_name",label:"Supplier Name",type:"text",required:true},{key:"contact",label:"Contact Details",type:"text"},{key:"address",label:"Address",type:"text"},{key:"foods_supplied",label:"Foods Supplied",type:"text"},{key:"notes",label:"Notes",type:"text"}],
     food_receipt: [{key:"date",label:"Date",type:"date",required:true},{key:"time",label:"Time",type:"time",required:true},{key:"supplier",label:"Supplier",type:"text",required:true},{key:"product",label:"Product (Name & Lot)",type:"text",required:true},{key:"condition_temp",label:"Condition / Temp",type:"text"},{key:"corrective_action",label:"Corrective Action / Notes",type:"text"},{key:"checked_by",label:"Checked By",type:"text",required:true}],
     cooking_cooling: [{key:"date",label:"Date",type:"date",required:true},{key:"food",label:"Food",type:"text",required:true},{key:"core_temp",label:"Core Temp (>=75C)",type:"number"},{key:"cooling_start_time",label:"Cooling Start Time",type:"time"},{key:"cooling_start_temp",label:"Cooling Start Temp",type:"number"},{key:"time_2hr",label:"Time at 2hr Check",type:"time"},{key:"temp_2hr",label:"Temp at 2hr (<=21C?)",type:"number"},{key:"temp_2hr_ok",label:"<=21C?",type:"select",options:["Yes","No"]},{key:"time_4hr",label:"Time at 4hr Check",type:"time"},{key:"temp_4hr",label:"Temp at 4hr (<=5C?)",type:"number"},{key:"temp_within_4hrs",label:"5°C or below within 4 hrs? (6 hrs after start)",type:"select",options:["Yes","No"]},{key:"corrective_action",label:"Corrective Action / Note",type:"text"},{key:"staff_initials",label:"Staff Initials",type:"text",required:true}],
@@ -278,7 +280,7 @@ export default function FoodSafety() {
         return (res2.data.items || []).filter(i => i.active !== false);
       };
 
-      const foodItems = (await fetchItems("cooking_cooling")).map(i => i.name);
+      const foodItems = (await fetchItems("food_items")).map(i => i.name);
       const supplierItemsFull = await fetchItems("supplier_details");
       const supplierItems = supplierItemsFull.map(i => i.name);
       const cleanItemsFull = await fetchItems("cleaning_procedure");
@@ -515,6 +517,9 @@ export default function FoodSafety() {
 
   const typeLabel = (key) => templateTypes.find(t => t.key === key)?.label || key;
 
+  // Record template types (excludes food_items master list — that's only for Template Master)
+  const recordTypes = templateTypes.filter(t => t.key !== "food_items");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -585,7 +590,7 @@ export default function FoodSafety() {
 
           {/* Status cards per template */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {templateTypes.map(tt => {
+            {recordTypes.map(tt => {
               const counts = dashboard?.status_counts?.[tt.key] || { draft: 0, submitted: 0, approved: 0, locked: 0 };
               const Icon = TYPE_ICONS[tt.key] || FileText;
               const total = counts.draft + counts.submitted + counts.approved + counts.locked;
@@ -816,7 +821,7 @@ export default function FoodSafety() {
                     onChange={e => setRecordFilter(p => ({ ...p, template_type: e.target.value }))}
                     className="w-full h-9 px-2 rounded-md border border-input bg-background text-xs" data-testid="rec-type-filter">
                     <option value="">All Types</option>
-                    {templateTypes.map(tt => <option key={tt.key} value={tt.key}>{tt.label}</option>)}
+                    {recordTypes.map(tt => <option key={tt.key} value={tt.key}>{tt.label}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -858,7 +863,7 @@ export default function FoodSafety() {
 
           {/* Quick add buttons */}
           <div className="flex gap-2 flex-wrap">
-            {templateTypes.map(tt => (
+            {recordTypes.map(tt => (
               <Button key={tt.key} size="sm" variant="outline" onClick={() => startNewRecord(tt.key)} data-testid={`new-rec-${tt.key}`}>
                 <Plus className="w-3 h-3 mr-1" /> {tt.label}
               </Button>
