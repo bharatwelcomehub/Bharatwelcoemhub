@@ -57,19 +57,18 @@ const AuthDialog = ({ open, onOpenChange }) => {
         <DialogHeader>
           <DialogTitle className="font-playfair text-2xl">Welcome to Purnabramha</DialogTitle>
           <DialogDescription>
-            Login or create an account to start ordering
+            Sign in to continue
           </DialogDescription>
         </DialogHeader>
 
-        {/* Google Login Button */}
+        {/* Google Login Button - Primary & Prominent */}
         <Button
           type="button"
-          variant="outline"
-          className="w-full flex items-center justify-center gap-3 py-5 rounded-full border-2"
+          className="w-full flex items-center justify-center gap-3 py-6 rounded-lg border-2 border-[#D4AF37]/30 bg-white hover:bg-[#F8F5F0] text-[#3D2314] font-semibold text-base shadow-sm"
           onClick={handleGoogleLogin}
           data-testid="google-login-btn"
         >
-          <svg className="h-5 w-5" viewBox="0 0 24 24">
+          <svg className="h-6 w-6" viewBox="0 0 24 24">
             <path
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
               fill="#4285F4"
@@ -90,20 +89,18 @@ const AuthDialog = ({ open, onOpenChange }) => {
           <span>Continue with Google</span>
         </Button>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-          </div>
-        </div>
+        <p className="text-center text-xs text-muted-foreground">Recommended — one click, no password needed</p>
 
-        <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login" data-testid="login-tab">Login</TabsTrigger>
-            <TabsTrigger value="register" data-testid="register-tab">Sign Up</TabsTrigger>
-          </TabsList>
+        <details className="mt-2">
+          <summary className="text-center text-xs text-muted-foreground cursor-pointer hover:text-[#B8962E]">
+            Or use email &amp; password instead
+          </summary>
+          <div className="mt-4">
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login" data-testid="login-tab">Login</TabsTrigger>
+                <TabsTrigger value="register" data-testid="register-tab">Sign Up</TabsTrigger>
+              </TabsList>
 
           <TabsContent value="login">
             <form onSubmit={handleLogin} className="space-y-4">
@@ -195,6 +192,8 @@ const AuthDialog = ({ open, onOpenChange }) => {
             </form>
           </TabsContent>
         </Tabs>
+          </div>
+        </details>
       </DialogContent>
     </Dialog>
   );
