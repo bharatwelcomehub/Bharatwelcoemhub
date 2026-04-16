@@ -197,11 +197,32 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [ ] **Phase 2 (Upcoming):** Voice output (TTS), dish knowledge database, recipe storytelling
 - [ ] **Phase 3 (Future):** Warli/traditional design motifs, digital Maharashtrian food archive
 
+## Book Reading Platform - "When a Restaurant Becomes Human" (Apr 2026)
+- [x] **Phase 1 Complete:**
+  - Premium book landing page (/book) with cover image, author info, 3-part purchase cards
+  - Flipbook reader (/book/read/:part) with realistic page-flip animation (react-pageflip)
+  - 152 pages of real book content loaded from PDF into MongoDB
+  - 3 parts: Part 1 (1-50), Part 2 (51-100), Part 3 (101-152) — ₹50/part, $1 AUD/part
+  - Stripe payment integration (checkout sessions, webhook, payment polling)
+  - Bookmark system (save, list, remove bookmarks per user)
+  - Reading progress tracking (continue reading from last page)
+  - Reading protection: no copy, no right-click, no print, no screenshot overlay
+  - Background music toggle (ambient instrumental, default OFF)
+  - Immersive dark theme reader with warm cream pages, serif typography
+  - Page navigation: prev/next buttons, slider, page counter
+  - Region-aware pricing (INR for India, AUD for Australia)
+  - Admin book management: upload pages, view analytics, get reader stats
+  - "Book" link in site navigation
+- [ ] **Phase 2 (Upcoming):** Tea/coffee break reminders with shayari, admin music tracks, shayari control
+- [ ] **Phase 3 (Future):** Reader community, book discussions, audio narration, author notes
+
 ## Backlog
 - [ ] Sync Tiffin.js & Catering.js with database (currently using static JSON)
+- [ ] Book Platform Phase 2: Tea/coffee break with shayari, admin music/shayari control
+- [ ] Book Platform Phase 3: Reader community, audio narration, author notes
 - [ ] Ask Vahini Phase 2: Voice output (TTS), dish knowledge database, recipe storytelling
 - [ ] Ask Vahini Phase 3: Warli/traditional design motifs, digital Maharashtrian food archive
-- [ ] Payment Integration (Razorpay/Stripe)
+- [ ] Payment Integration for other services (Razorpay/Stripe)
 - [ ] Push notifications
 - [ ] "Share My Plate" social sharing for AI Nutrition card
 - [ ] Order history dashboard
