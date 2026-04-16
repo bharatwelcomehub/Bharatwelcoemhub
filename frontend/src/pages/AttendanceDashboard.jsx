@@ -64,13 +64,16 @@ export default function AttendanceDashboard() {
   const token = session?.token;
   const isSuperAdmin = session?.is_super_admin === true;
   const isAdmin = session?.is_admin === true;
+  const isCenterManager = !isSuperAdmin && !isAdmin && !!session?.center;
 
   // State
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState("monthly");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [filterCenter, setFilterCenter] = useState("all");
+  const [filterCenter, setFilterCenter] = useState(
+    (isSuperAdmin || isAdmin) ? "all" : (session?.center || "all")
+  );
   
   // Data
   const [summary, setSummary] = useState(null);
@@ -83,7 +86,7 @@ export default function AttendanceDashboard() {
   const [showLockDialog, setShowLockDialog] = useState(false);
   const [lockAction, setLockAction] = useState("lock");
 
-  const hasAccess = isSuperAdmin || isAdmin;
+  const hasAccess = isSuperAdmin || isAdmin || isCenterManager;
 
   useEffect(() => {
     if (token && hasAccess) {
@@ -104,6 +107,11 @@ export default function AttendanceDashboard() {
   }, [token, viewMode, selectedDate, selectedMonth, filterCenter, hasAccess]);
 
   const fetchCenters = async () => {
+    if (isCenterManager) {
+      // Center Manager only sees their own center
+      setCenters([{ code: session?.center, name: session?.center }]);
+      return;
+    }
     try {
       const res = await fetch(`${API}/api/sales/centers-list`);
       if (res.ok) {
@@ -264,7 +272,7 @@ export default function AttendanceDashboard() {
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 mx-auto text-yellow-500 mb-4" />
           <h2 className="text-xl font-bold">Access Denied</h2>
-          <p className="text-muted-foreground mt-2">Admin or Super Admin access required</p>
+          <p className="text-muted-foreground mt-2">Please log in to view attendance</p>
         </div>
       </div>
     );
@@ -290,11 +298,11 @@ export default function AttendanceDashboard() {
             </h1>
             <p className="text-white/80 text-sm mt-1 flex items-center gap-2">
               <Eye className="w-4 h-4" />
-              View Only Mode • Changes via Center Manager Login
+              {isCenterManager ? `${session?.center} Center View` : "View Only Mode • Changes via Center Manager Login"}
             </p>
           </div>
           <Badge className="bg-white/20 text-white border-white/30 self-start">
-            {isSuperAdmin ? "Super Admin" : "Admin"} View
+            {isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Center Manager"} View
           </Badge>
         </div>
       </div>
@@ -331,19 +339,26 @@ export default function AttendanceDashboard() {
             {/* Center */}
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Center</Label>
-              <Select value={filterCenter} onValueChange={setFilterCenter}>
-                <SelectTrigger className="w-56 mt-1">
-                  <SelectValue placeholder="All Centers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Centers</SelectItem>
-                  {centers.map((c, idx) => (
+              {isCenterManager ? (
+                <div className="mt-1 h-9 flex items-center px-3 bg-muted rounded-md border text-sm font-medium">
+                  <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                  {session?.center}
+                </div>
+              ) : (
+                <Select value={filterCenter} onValueChange={setFilterCenter}>
+                  <SelectTrigger className="w-56 mt-1" data-testid="center-filter">
+                    <SelectValue placeholder="All Centers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Centers</SelectItem>
+                    {centers.map((c, idx) => (
                     <SelectItem key={`${c.code || c.center}-${idx}`} value={c.code || c.center}>
                       {c.code || c.center} - {c.name || ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              )}
             </div>
 
             {/* Date/Month */}
@@ -386,7 +401,7 @@ export default function AttendanceDashboard() {
           </div>
           
           {/* Lock Status & Controls */}
-          {viewMode === "monthly" && (isSuperAdmin || isAdmin) && (
+          {viewMode === "monthly" && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
               <div className="flex items-center gap-3">
                 {lockStatus.locked ? (
@@ -407,6 +422,7 @@ export default function AttendanceDashboard() {
                 )}
               </div>
               
+              {(isSuperAdmin || isAdmin) && (
               <div className="flex items-center gap-2">
                 {!lockStatus.locked ? (
                   <Button
@@ -441,6 +457,7 @@ export default function AttendanceDashboard() {
                   </span>
                 )}
               </div>
+              )}
             </div>
           )}
         </CardContent>
