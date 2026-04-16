@@ -1943,7 +1943,8 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def seed_admin_account():
-    """Ensure admin account exists on every startup."""
+    """Ensure admin accounts exist on every startup."""
+    # Seed PBadmin account
     existing = await db.users.find_one({"email": "PBadmin@purnabramha.com"}, {"_id": 0})
     if not existing:
         admin_user = {
@@ -1956,9 +1957,30 @@ async def seed_admin_account():
             "created_at": "2025-01-01T00:00:00Z"
         }
         await db.users.insert_one(admin_user)
-        logger.info("Admin account seeded successfully")
-    else:
-        logger.info("Admin account already exists")
+        logger.info("PBadmin account seeded")
+
+    # Grant admin privileges to owner's Google account
+    owner_account = await db.users.find_one({"email": "jayanti.kathale@purnabramha.com"}, {"_id": 0})
+    if owner_account:
+        await db.users.update_one(
+            {"email": "jayanti.kathale@purnabramha.com"},
+            {"$set": {"is_admin": True}}
+        )
+        # Grant book access to all 3 parts
+        for part in [1, 2, 3]:
+            existing_purchase = await db.book_purchases.find_one(
+                {"user_id": owner_account["id"], "part_number": part, "status": "completed"},
+                {"_id": 0}
+            )
+            if not existing_purchase:
+                await db.book_purchases.insert_one({
+                    "user_id": owner_account["id"],
+                    "part_number": part,
+                    "session_id": f"owner-grant-{part}",
+                    "status": "completed",
+                    "purchased_at": datetime.now(timezone.utc).isoformat()
+                })
+        logger.info("Owner account (jayanti.kathale) granted admin + book access")
 
 
 @app.on_event("shutdown")
