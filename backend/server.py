@@ -1943,7 +1943,7 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def seed_admin_account():
-    """Ensure admin accounts exist on every startup."""
+    """Ensure admin accounts and book content exist on every startup."""
     # Seed PBadmin account
     existing = await db.users.find_one({"email": "PBadmin@purnabramha.com"}, {"_id": 0})
     if not existing:
@@ -1981,6 +1981,29 @@ async def seed_admin_account():
                     "purchased_at": datetime.now(timezone.utc).isoformat()
                 })
         logger.info("Owner account (jayanti.kathale) granted admin + book access")
+
+    # Seed book pages if not already loaded
+    page_count = await db.book_pages.count_documents({})
+    if page_count < 152:
+        seed_file = ROOT_DIR / 'book_seed_data.json'
+        if seed_file.exists():
+            with open(seed_file, 'r') as f:
+                pages = json.load(f)
+            for page in pages:
+                await db.book_pages.update_one(
+                    {"page_number": page["page_number"]},
+                    {"$set": {
+                        "page_number": page["page_number"],
+                        "part_number": page["part_number"],
+                        "content": page["content"],
+                        "image_url": None,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }},
+                    upsert=True
+                )
+            logger.info(f"Seeded {len(pages)} book pages")
+        else:
+            logger.warning("book_seed_data.json not found, skipping book seed")
 
 
 @app.on_event("shutdown")
