@@ -149,10 +149,10 @@ const BookReader = () => {
     const actualPageNum = (partInfo?.start_page || 1) + pageIdx;
     saveProgress(actualPageNum);
     
-    // Tea/coffee break every 4 page flips
+    // Tea/coffee break every 20 page flips
     setPagesFlipped(prev => {
       const newCount = prev + 1;
-      if (newCount > 0 && newCount % 4 === 0) {
+      if (newCount > 0 && newCount % 20 === 0) {
         setTimeout(() => setShowBreak(true), 500);
       }
       return newCount;
