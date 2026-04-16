@@ -577,7 +577,7 @@ export default function Salary({ isPayslips = false }) {
               <li>• <Badge variant="outline" className="status-P">P</Badge> Present = 1 day</li>
               <li>• <Badge variant="outline" className="status-HD">HD</Badge> Half Day = 0.5 day</li>
               <li>• <Badge variant="outline" className="status-WO">WO</Badge> Weekly Off = 1 day (paid)</li>
-              <li>• <Badge variant="outline" className="status-L">L</Badge> Leave = 1 day (paid)</li>
+              <li>• <Badge variant="outline" className="status-L">L</Badge> Leave = 0 days (unpaid)</li>
               <li>• <Badge variant="outline" className="status-A">A</Badge> Absent = 0 days</li>
               <li>• <strong>Net = (Monthly Salary ÷ Days in Month × Present Days) - Advances</strong></li>
             </ul>

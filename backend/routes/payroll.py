@@ -305,7 +305,7 @@ async def salary_preview(req: SalaryPreviewRequest):
             adv_map[emp] = adv_map.get(emp, 0) + float(a.get("advanceAmount", 0) or 0)
         
         # Weight rules
-        weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+        weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 0, "A": 0}
         
         # Calculate salary for each employee
         salary_data = []
@@ -452,7 +452,7 @@ async def generate_salary(req: SalaryGenRequest):
             adv_map[emp] = adv_map.get(emp, 0) + float(a.get("advanceAmount", 0) or 0)
         
         # Weight rules
-        weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+        weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 0, "A": 0}
         
         # Create workbook
         wb = Workbook()
@@ -1011,7 +1011,7 @@ async def _generate_indian_payslips(req: PayslipGenRequest, year: int, month: in
                 {"_id": 0}
             ).to_list(100)
 
-            weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+            weights = {"P": 1, "HD": 0.5, "WO": 1, "L": 0, "A": 0}
             present = sum(weights.get(a.get("status", ""), 0) for a in attendance)
 
             advances = await db.advances.find(
@@ -1037,7 +1037,7 @@ async def _generate_indian_payslips(req: PayslipGenRequest, year: int, month: in
             {"employeeName": emp_name.upper(), "date": {"$regex": f"^{primary_month}"}},
             {"_id": 0}
         ).to_list(100)
-        weights_display = {"P": 1, "HD": 0.5, "WO": 1, "L": 1, "A": 0}
+        weights_display = {"P": 1, "HD": 0.5, "WO": 1, "L": 0, "A": 0}
         present_days = sum(weights_display.get(a.get("status", ""), 0) for a in primary_attendance)
         if present_days == 0:
             present_days = d_primary
