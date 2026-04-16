@@ -111,23 +111,29 @@ const BookReader = () => {
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
+  const [isPreview, setIsPreview] = useState(false);
+
   // Fetch pages
   useEffect(() => {
-    if (!token) { setError('Please login to read'); setLoading(false); return; }
     fetchPages();
-    fetchBookmarks();
+    if (token) fetchBookmarks();
   }, [partNumber, token]);
 
   const fetchPages = async () => {
     try {
-      const res = await fetch(`${API}/api/book/pages/${partNumber}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.status === 403) { setError('Please purchase this part first'); setLoading(false); return; }
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API}/api/book/pages/${partNumber}`, { headers });
+      if (res.status === 403 || res.status === 401) { 
+        setError('Please purchase this part to continue reading'); 
+        setLoading(false); 
+        return; 
+      }
       if (!res.ok) throw new Error('Failed to load');
       const data = await res.json();
       setPartInfo(data.part);
       setPages(data.pages || []);
+      setIsPreview(data.is_preview || false);
     } catch { setError('Failed to load book pages'); }
     setLoading(false);
   };
@@ -338,6 +344,25 @@ const BookReader = () => {
           <p className="text-[#D4AF37]/40 font-body">No pages available yet. Content coming soon.</p>
         )}
       </div>
+
+      {/* Preview Purchase Prompt */}
+      {isPreview && (
+        <div className="px-4 py-3 bg-gradient-to-r from-[#3D2314] via-[#5A3520] to-[#3D2314] border-t border-[#D4AF37]/20 flex-shrink-0">
+          <div className="flex items-center justify-between max-w-lg mx-auto">
+            <p className="text-[#D4AF37] text-xs font-body">
+              Free preview — Purchase to read all 50 pages
+            </p>
+            <button
+              onClick={() => navigate('/book')}
+              className="px-4 py-1.5 text-[10px] font-body font-bold text-[#3D2314] rounded-full tracking-wider uppercase"
+              style={{ background: 'linear-gradient(145deg, #D4AF37, #F3D060)' }}
+              data-testid="purchase-prompt-btn"
+            >
+              Purchase Now
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Controls */}
       <div className="flex items-center justify-center gap-6 px-4 py-4 bg-[#1a1008]/90 border-t border-[#D4AF37]/10">

@@ -1631,49 +1631,67 @@ async def get_book_parts(current_user: dict = Depends(get_optional_user)):
     return parts
 
 
+FREE_PREVIEW_PAGES = 5  # First 5 pages free without login
+
 @api_router.get("/book/pages/{part_number}")
-async def get_book_pages(part_number: int, current_user: dict = Depends(get_current_user)):
-    """Get pages for a purchased book part."""
+async def get_book_pages(part_number: int, current_user: dict = Depends(get_optional_user)):
+    """Get pages for a book part. First 5 pages are free preview."""
     if part_number not in BOOK_PARTS:
         raise HTTPException(status_code=404, detail="Invalid part number")
 
-    # Check purchase
-    purchase = await db.book_purchases.find_one(
-        {"user_id": current_user["user_id"], "part_number": part_number, "status": "completed"},
-        {"_id": 0}
-    )
-    if not purchase:
+    part_info = BOOK_PARTS[part_number]
+    is_purchased = False
+
+    if current_user:
+        purchase = await db.book_purchases.find_one(
+            {"user_id": current_user["user_id"], "part_number": part_number, "status": "completed"},
+            {"_id": 0}
+        )
+        is_purchased = purchase is not None
+
+    # For Part 1: allow free preview of first N pages
+    if part_number == 1:
+        end = part_info["end_page"] if is_purchased else part_info["start_page"] + FREE_PREVIEW_PAGES - 1
+        pages = []
+        for page_num in range(part_info["start_page"], end + 1):
+            pages.append({"page_number": page_num, "part_number": part_number, "has_image": True})
+        return {"part": part_info, "pages": pages, "is_preview": not is_purchased, "preview_pages": FREE_PREVIEW_PAGES}
+
+    # For other parts: require purchase
+    if not is_purchased:
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Please login and purchase this part")
         raise HTTPException(status_code=403, detail="You haven't purchased this part yet")
 
-    part_info = BOOK_PARTS[part_number]
-    # Return page list with image URLs
     pages = []
     for page_num in range(part_info["start_page"], part_info["end_page"] + 1):
-        pages.append({
-            "page_number": page_num,
-            "part_number": part_number,
-            "has_image": True
-        })
-
-    return {"part": part_info, "pages": pages}
+        pages.append({"page_number": page_num, "part_number": part_number, "has_image": True})
+    return {"part": part_info, "pages": pages, "is_preview": False}
 
 
 @api_router.get("/book/page-image/{page_number}")
 async def get_book_page_image(page_number: int, token: Optional[str] = None, current_user: dict = Depends(get_optional_user)):
-    """Serve a book page as an image. Requires auth + purchase."""
+    """Serve a book page as an image. First 5 pages are free."""
     # Support token via query param for img tags
     if not current_user and token:
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             current_user = payload
         except Exception:
-            # Try session token
             session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
             if session:
                 current_user = {"user_id": session["user_id"], "email": session.get("email", "")}
 
+    # Allow free preview of first N pages (no auth needed)
+    if page_number <= FREE_PREVIEW_PAGES:
+        image_path = ROOT_DIR / 'book_images' / f'page_{page_number}.jpg'
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail="Page image not found")
+        return FileResponse(str(image_path), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+    # Beyond free preview: require auth + purchase
     if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
+        raise HTTPException(status_code=401, detail="Login required to read beyond preview")
 
     # Determine which part this page belongs to
     part_number = None

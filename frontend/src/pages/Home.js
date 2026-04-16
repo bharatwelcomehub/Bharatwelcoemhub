@@ -5,7 +5,7 @@ import axios from 'axios';
 import { 
   UtensilsCrossed, MapPin, Phone, Star, ChevronRight, 
   Play, Users, ArrowRight, Calendar, 
-  ShoppingBag, PartyPopper, Coffee
+  ShoppingBag, PartyPopper, Coffee, BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -280,6 +280,51 @@ const Home = () => {
                 <button key={i} onClick={() => setCurrentSlide(i)} className={`h-1 transition-all ${currentSlide === i ? 'bg-[#B8962E] w-8' : 'bg-[#E8DFD0] w-4'}`} />
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Book Promotion */}
+      <section className="py-20 bg-[#3D2314] relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #D4AF37 0%, transparent 50%), radial-gradient(circle at 80% 50%, #D4AF37 0%, transparent 50%)' }} />
+        <div className="container mx-auto px-6 lg:px-12 relative">
+          <div className="flex flex-col md:flex-row items-center gap-10 lg:gap-16">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="flex-shrink-0"
+            >
+              <img
+                src="https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/bdlxtuu4_Book_Restaurant_become_Human.png"
+                alt="Purnabramha – When a Restaurant Becomes Human"
+                className="w-[180px] lg:w-[220px] rounded-lg shadow-[0_15px_50px_rgba(0,0,0,0.5)]"
+                style={{ aspectRatio: '2/3', objectFit: 'cover' }}
+                data-testid="home-book-cover"
+              />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="text-center md:text-left"
+            >
+              <p className="text-xs tracking-[0.3em] uppercase text-[#D4AF37]/60 font-body mb-3">New Book by Jayanti Pranav Kathale</p>
+              <h2 className="text-3xl lg:text-4xl font-heading text-[#D4AF37] mb-2">When a Restaurant</h2>
+              <h2 className="text-3xl lg:text-4xl font-heading text-[#D4AF37]/70 italic mb-4">Becomes Human</h2>
+              <p className="text-sm text-[#D4AF37]/50 font-body leading-relaxed mb-6 max-w-md">
+                152 pages of wisdom, love, and the journey of Purnabramha. Read online with page-flip animation, calm music, and tea break reminders.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <Link to="/book">
+                  <Button className="gold-glossy text-[#3D2314] font-bold rounded-none px-8 py-3 text-sm tracking-widest uppercase border-0" data-testid="home-book-cta">
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    Read Now
+                  </Button>
+                </Link>
+                <span className="text-[#D4AF37]/40 text-xs font-body">First pages free — no login needed</span>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>

@@ -284,6 +284,16 @@ const AskVahini = () => {
                     <Shuffle className="w-4 h-4" />
                     Let Vahini Choose For Me
                   </button>
+
+                  {/* Book Promotion */}
+                  <button
+                    onClick={() => { setIsOpen(false); navigate('/book'); }}
+                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-body text-[#B8962E] border border-[#D4AF37]/30 hover:bg-[#D4AF37]/10 transition-all"
+                    data-testid="vahini-book-link"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Read Our Book — When a Restaurant Becomes Human
+                  </button>
                 </div>
               )}
 
