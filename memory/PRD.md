@@ -23,28 +23,31 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 
 ## What's Been Implemented (Latest)
 
-### [2026-04-16] Salary ALL CENTERS Bug Fix + Clear Button (Complete)
-- Fixed: ALL CENTERS salary preview was double-counting transferred employees (129 vs correct 125)
-- Root cause: Frontend looped through centers individually, causing duplicates. Now uses single backend call with deduplication
-- Added: Clear/unselect button (×) next to center dropdown
-- Backend: `/salary_preview` now accepts `targetCenter: "ALL"` and fetches all employees once with name deduplication
+### [2026-04-16] International Attendance Calendar Week Logic (Complete)
+- Replaced month-based week logic (Week 1=days 1-6, etc.) with TRUE calendar weeks
+- Week 1: Jan 1 to first Sunday. Week 2+: Monday to Sunday (continues all year)
+- Weeks span across month boundaries (e.g., Week 14: Mar 30 - Apr 5)
+- New `/weeks-for-month` API returns which calendar weeks overlap with a month
+- Frontend: Week selector shows "Wk 14: Mar 30 - Apr 5", column headers show date + day
+- Month filter only controls which weeks are shown, doesn't break week structure
+- Backend: Updated save, week-data, monthly-report, payroll-report endpoints
+
+### [2026-04-16] Salary Bug Fixes (Complete)
+- Leave (L) weight: 1 → 0 (unpaid)
+- Transfer salary: per-center view now only counts attendance AT that center
+- Transferred-out employees added back to source center's salary
+- ALL CENTERS: single backend call with deduplication
 
 ### [2026-04-16] Food Safety Tablet-First UI Redesign (Complete)
-- Rewrote FoodSafety.jsx to tablet-optimized card-based layout
-- Dashboard: 2-column grid with color-coded cards, unique icons per template type
-- Record Entry: Card-based vertical layout instead of horizontal-scrolling table
-- All inputs h-14 (56px), all text text-lg (18px) for kitchen readability
-- Tested: 20/20 backend + 20/20 frontend (iteration_67)
 
 ### Earlier completed work
-- [2026-04-13] Daily Sales Text Generator, Social Media Planner, Bill Download (iteration_66)
+- [2026-04-13] Daily Sales Text Generator, Social Media Planner, Bill Download
 - [2026-04-13] PIB Operational Sustainability Update
 - [2026-04-12] Food Safety Compliance Module
 - [2026-04-11] Employee KYC & Document Management
-- Location-Aware Payslips, Payroll, all base modules
 
 ## Pending / Backlog
-- (P0) Center-Specific Attendance Unlock (user requested, analysis started)
+- (P0) Center-Specific Attendance Unlock
 - (P1) WhatsApp/Email notification hooks
 - (P1) Code freeze preparation audit
 - (P2) Image Upload for Recipes

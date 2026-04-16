@@ -77,8 +77,8 @@ export default function InternationalAttendance() {
   // Week selection
   const [year, setYear] = useState(getCurrentYear());
   const [month, setMonth] = useState(getCurrentMonth());
-  const [week, setWeek] = useState(1);
-  const [weeksInMonth, setWeeksInMonth] = useState(5);
+  const [week, setWeek] = useState(null); // calendar week number
+  const [monthWeeks, setMonthWeeks] = useState([]); // weeks overlapping with selected month
   
   // Attendance data
   const [employees, setEmployees] = useState([]);
@@ -136,17 +136,35 @@ export default function InternationalAttendance() {
     }
   }, [session?.token]);
 
-  // Calculate weeks in month when month changes
+  // Fetch calendar weeks for selected month
   useEffect(() => {
-    const lastDay = new Date(year, month, 0).getDate();
-    const weeks = Math.ceil(lastDay / 7);
-    setWeeksInMonth(weeks);
-    if (week > weeks) setWeek(1);
-  }, [year, month]);
+    if (!session?.token) return;
+    const fetchWeeks = async () => {
+      try {
+        const res = await fetch(`${API}/api/international-attendance/weeks-for-month`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: session.token, year, month })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const wks = data.weeks || [];
+          setMonthWeeks(wks);
+          // Auto-select first week if current selection is not in the list
+          if (wks.length > 0 && (!week || !wks.find(w => w.week === week))) {
+            setWeek(wks[0].week);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch weeks:", err);
+      }
+    };
+    fetchWeeks();
+  }, [year, month, session?.token]);
 
   // Fetch week attendance data
   const fetchWeekData = async () => {
-    if (!selectedCenter || !session?.token) return;
+    if (!selectedCenter || !session?.token || !week) return;
     
     setLoading(true);
     try {
@@ -180,7 +198,7 @@ export default function InternationalAttendance() {
   };
 
   useEffect(() => {
-    if (selectedCenter) {
+    if (selectedCenter && week) {
       fetchWeekData();
     }
   }, [selectedCenter, year, month, week]);
@@ -635,13 +653,15 @@ export default function InternationalAttendance() {
                   </div>
                   <div>
                     <Label className="text-xs">Week</Label>
-                    <Select value={week.toString()} onValueChange={(v) => setWeek(parseInt(v))}>
-                      <SelectTrigger className="w-28">
-                        <SelectValue />
+                    <Select value={week?.toString() || ""} onValueChange={(v) => setWeek(parseInt(v))}>
+                      <SelectTrigger className="w-56">
+                        <SelectValue placeholder="Select week" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map(w => (
-                          <SelectItem key={w} value={w.toString()}>Week {w}</SelectItem>
+                        {monthWeeks.map(w => (
+                          <SelectItem key={w.week} value={w.week.toString()}>
+                            Wk {w.week}: {w.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -664,11 +684,16 @@ export default function InternationalAttendance() {
 
             {/* Week Dates Header */}
             {weekDates.length > 0 && (
-              <div className="flex gap-2 text-xs text-muted-foreground">
-                <span>Week dates:</span>
+              <div className="flex gap-2 text-xs text-muted-foreground items-center">
+                <Badge variant="outline" className="text-xs font-mono">
+                  Week {week}
+                </Badge>
                 {weekDates.map((d, i) => (
-                  <span key={i} className={d ? "" : "text-gray-300"}>
-                    {d ? new Date(d).toLocaleDateString('en-AU', { day: '2-digit', month: 'short' }) : "-"}
+                  <span key={i} className={d ? "font-medium" : "text-gray-300"}>
+                    {d ? (() => {
+                      const dt = new Date(d + "T00:00:00");
+                      return `${dt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })} ${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i]}`;
+                    })() : "-"}
                     {i < 6 && " |"}
                   </span>
                 ))}
@@ -679,7 +704,7 @@ export default function InternationalAttendance() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">
-                  Weekly Attendance - Week {week}, {MONTHS[month-1].label} {year}
+                  Week {week} Attendance{monthWeeks.find(w => w.week === week) ? ` — ${monthWeeks.find(w => w.week === week).label}` : ""}
                 </CardTitle>
                 <CardDescription>
                   Enter hours worked per day. Maximum 16 hours per day.
@@ -702,13 +727,20 @@ export default function InternationalAttendance() {
                       <thead className="bg-muted">
                         <tr>
                           <th className="text-left py-3 px-2 font-medium min-w-[150px]">Employee</th>
-                          <th className="text-center py-3 px-2 font-medium w-16">Mon</th>
-                          <th className="text-center py-3 px-2 font-medium w-16">Tue</th>
-                          <th className="text-center py-3 px-2 font-medium w-16">Wed</th>
-                          <th className="text-center py-3 px-2 font-medium w-16">Thu</th>
-                          <th className="text-center py-3 px-2 font-medium w-16">Fri</th>
-                          <th className="text-center py-3 px-2 font-medium w-16 bg-blue-50">Sat</th>
-                          <th className="text-center py-3 px-2 font-medium w-16 bg-blue-50">Sun</th>
+                          {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day, i) => {
+                            const d = weekDates[i];
+                            const isWeekend = i >= 5;
+                            const dateLabel = d ? (() => {
+                              const dt = new Date(d + "T00:00:00");
+                              return dt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
+                            })() : "";
+                            return (
+                              <th key={day} className={`text-center py-2 px-2 font-medium w-16 ${isWeekend ? 'bg-blue-50' : ''}`}>
+                                <div className="text-xs">{DAY_NAMES[day]}</div>
+                                {d && <div className="text-[10px] text-muted-foreground font-normal">{dateLabel}</div>}
+                              </th>
+                            );
+                          })}
                           <th className="text-right py-3 px-2 font-medium w-20">Total Hrs</th>
                           <th className="text-right py-3 px-2 font-medium w-20">Rate</th>
                           <th className="text-right py-3 px-2 font-medium w-24">Salary</th>

@@ -135,105 +135,152 @@ async def check_international_access(session: dict, requested_center: str = None
     return {"allowed": True, "is_admin": False, "user_center": user_center_doc.get("code", user_center)}
 
 def get_week_dates(year: int, month: int, week: int) -> List[str]:
-    """Get dates for a specific week of a month (Mon-Sun).
-    Week boundaries: Week 1 = 1st-6th, Week 2 = 7th-13th, Week 3 = 14th-20th, etc.
-    Each week slot always has 7 entries (Mon-Sun) for the UI grid,
-    with None for dates outside the month.
+    """Get dates for a specific CALENDAR week of the year (Mon-Sun aligned).
+    Week 1: Jan 1 to first Sunday. Week 2+: Monday to Sunday.
+    Returns 7 slots [Mon..Sun] with None for days outside the week's range.
+    The month parameter is ignored for date calculation — weeks are year-based.
     """
-    from calendar import monthrange
-    _, last_day = monthrange(year, month)
-    
-    # Define week boundaries (day ranges)
-    week_boundaries = [
-        (1, 6),    # Week 1: 1st to 6th
-        (7, 13),   # Week 2: 7th to 13th
-        (14, 20),  # Week 3: 14th to 20th
-        (21, 27),  # Week 4: 21st to 27th
-        (28, last_day),  # Week 5: 28th to end
-    ]
-    
-    if week < 1 or week > len(week_boundaries):
+    weeks = _build_calendar_weeks(year)
+    if week < 1 or week > len(weeks):
         return [None] * 7
     
-    start_day, end_day = week_boundaries[week - 1]
-    end_day = min(end_day, last_day)
+    wk = weeks[week - 1]  # 0-indexed
+    wk_start = wk["start"]
+    wk_end = wk["end"]
     
-    # Find what day of the week the start_day falls on
-    start_date = datetime(year, month, start_day)
-    start_weekday = start_date.weekday()  # 0=Mon, 6=Sun
-    
-    # Build 7-slot array aligned to Mon-Sun
+    # Build 7-slot array aligned Mon(0)..Sun(6)
     dates = [None] * 7
-    for day in range(start_day, end_day + 1):
-        dt = datetime(year, month, day)
-        weekday_idx = dt.weekday()  # 0=Mon, 6=Sun
-        dates[weekday_idx] = dt.strftime("%Y-%m-%d")
-    
+    current = wk_start
+    while current <= wk_end:
+        idx = current.weekday()  # 0=Mon, 6=Sun
+        dates[idx] = current.strftime("%Y-%m-%d")
+        current += timedelta(days=1)
     return dates
 
-def get_week_number_from_date(date_str: str) -> int:
-    """Calculate which week of the month a date belongs to.
-    Week 1 = 1st-6th, Week 2 = 7th-13th, etc.
+
+def _build_calendar_weeks(year: int) -> list:
+    """Build all calendar weeks for a year.
+    Week 1: Jan 1 to first Sunday.
+    Week 2+: Monday to Sunday.
+    Returns list of {"week": int, "start": date, "end": date}.
     """
-    date = datetime.strptime(date_str, "%Y-%m-%d")
-    day = date.day
-    if day <= 6:
-        return 1
-    elif day <= 13:
-        return 2
-    elif day <= 20:
-        return 3
-    elif day <= 27:
-        return 4
+    from datetime import date as _date
+    jan1 = _date(year, 1, 1)
+    dec31 = _date(year, 12, 31)
+    
+    weeks = []
+    
+    # Week 1: Jan 1 to first Sunday
+    if jan1.weekday() == 6:  # Jan 1 is Sunday
+        week1_end = jan1
     else:
-        return 5
+        days_to_sunday = 6 - jan1.weekday()
+        week1_end = jan1 + timedelta(days=days_to_sunday)
+    
+    weeks.append({"week": 1, "start": jan1, "end": week1_end})
+    
+    # Week 2+: Monday to Sunday
+    current = week1_end + timedelta(days=1)
+    week_num = 2
+    while current <= dec31:
+        week_end = current + timedelta(days=6)
+        if week_end > dec31:
+            week_end = dec31
+        weeks.append({"week": week_num, "start": current, "end": week_end})
+        current = week_end + timedelta(days=1)
+        week_num += 1
+    
+    return weeks
+
+
+def get_week_number_from_date(date_str: str) -> int:
+    """Calculate which calendar week of the year a date belongs to.
+    Week 1: Jan 1 to first Sunday. Week 2+: Mon-Sun.
+    """
+    from datetime import date as _date
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    d = _date(dt.year, dt.month, dt.day)
+    
+    jan1 = _date(dt.year, 1, 1)
+    if jan1.weekday() == 6:
+        week1_end = jan1
+    else:
+        week1_end = jan1 + timedelta(days=6 - jan1.weekday())
+    
+    if d <= week1_end:
+        return 1
+    
+    # Days since start of Week 2
+    week2_start = week1_end + timedelta(days=1)
+    diff = (d - week2_start).days
+    return 2 + diff // 7
+
+
+def calculate_weeks_in_year(year: int) -> int:
+    """Return total number of calendar weeks in a year."""
+    return len(_build_calendar_weeks(year))
+
 
 def calculate_weeks_in_month(year: int, month: int) -> int:
-    """Calculate number of weeks in a month using our week boundary system."""
+    """Return the count of calendar weeks that overlap with the given month.
+    Used by monthly report to know how many week columns to show."""
+    overlapping = get_weeks_for_month(year, month)
+    return len(overlapping)
+
+
+def get_weeks_for_month(year: int, month: int) -> list:
+    """Return list of calendar weeks that overlap with a given month.
+    Each item: {"week": int, "start": date, "end": date, "label": str}
+    """
+    from datetime import date as _date
     from calendar import monthrange
     _, last_day = monthrange(year, month)
-    if last_day <= 6:
-        return 1
-    elif last_day <= 13:
-        return 2
-    elif last_day <= 20:
-        return 3
-    elif last_day <= 27:
-        return 4
-    else:
-        return 5
+    month_start = _date(year, month, 1)
+    month_end = _date(year, month, last_day)
+    
+    weeks = _build_calendar_weeks(year)
+    overlapping = []
+    for wk in weeks:
+        # Check if week overlaps with month
+        if wk["end"] >= month_start and wk["start"] <= month_end:
+            label = _format_week_label(wk)
+            overlapping.append({
+                "week": wk["week"],
+                "start": wk["start"].strftime("%Y-%m-%d"),
+                "end": wk["end"].strftime("%Y-%m-%d"),
+                "label": label
+            })
+    return overlapping
+
+
+def _format_week_label(wk: dict) -> str:
+    """Format a week label like 'Mar 31 - Apr 6'."""
+    s = wk["start"]
+    e = wk["end"]
+    if s.month == e.month:
+        return f"{s.strftime('%b')} {s.day} - {e.day}"
+    return f"{s.strftime('%b')} {s.day} - {e.strftime('%b')} {e.day}"
+
 
 def get_week_label(year: int, month: int, week: int) -> str:
-    """Get a human-readable label for a week, e.g. '1st - 6th Apr'"""
-    from calendar import monthrange
-    _, last_day = monthrange(year, month)
-    boundaries = [(1,6),(7,13),(14,20),(21,27),(28,last_day)]
-    if week < 1 or week > len(boundaries):
+    """Get a human-readable label for a calendar week.
+    The month param is ignored — uses calendar week directly.
+    """
+    weeks = _build_calendar_weeks(year)
+    if week < 1 or week > len(weeks):
         return f"Week {week}"
-    s, e = boundaries[week - 1]
-    e = min(e, last_day)
-    month_abbr = datetime(year, month, 1).strftime("%b")
-    
-    def ordinal(n):
-        if 11 <= n <= 13:
-            return f"{n}th"
-        return f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n%10]}"
-    
-    return f"{ordinal(s)} - {ordinal(e)} {month_abbr}"
+    return _format_week_label(weeks[week - 1])
 
 
 def get_week_ranges(year: int, month: int) -> dict:
-    """Return {week_num: (start_date, end_date)} for each week in the month."""
-    from calendar import monthrange
-    _, last_day = monthrange(year, month)
-    boundaries = [(1,6),(7,13),(14,20),(21,27),(28,last_day)]
-    weeks = {}
-    for i, (s, e) in enumerate(boundaries, 1):
-        if s > last_day:
-            break
-        e = min(e, last_day)
-        weeks[i] = (datetime(year, month, s), datetime(year, month, e))
-    return weeks
+    """Return {week_num: (start_date, end_date)} for calendar weeks overlapping the month."""
+    overlapping = get_weeks_for_month(year, month)
+    result = {}
+    for i, wk in enumerate(overlapping, 1):
+        s = datetime.strptime(wk["start"], "%Y-%m-%d")
+        e = datetime.strptime(wk["end"], "%Y-%m-%d")
+        result[i] = (s, e)
+    return result
 
 # =======================================
 # AUSTRALIAN PAYROLL CALCULATION ENGINE
@@ -465,6 +512,34 @@ async def get_international_centers(token: str):
         "show_dropdown": False  # No dropdown for center managers
     }
 
+class WeeksForMonthRequest(BaseModel):
+    token: str
+    year: int
+    month: int
+
+@router.post("/weeks-for-month")
+async def api_get_weeks_for_month(req: WeeksForMonthRequest):
+    """Get calendar weeks that overlap with a given month.
+    Weeks follow true calendar logic: Week 1 = Jan 1 to first Sunday,
+    Week 2+ = Monday to Sunday. Weeks span across month boundaries.
+    """
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    weeks = get_weeks_for_month(req.year, req.month)
+    total_weeks_in_year = calculate_weeks_in_year(req.year)
+    
+    return {
+        "success": True,
+        "year": req.year,
+        "month": req.month,
+        "weeks": weeks,
+        "total_weeks_in_year": total_weeks_in_year
+    }
+
 @router.post("/employees")
 async def get_international_employees(req: CenterRequest):
     """Get all employees for an international center"""
@@ -675,6 +750,9 @@ async def save_attendance(req: SaveAttendanceRequest):
                 warnings.append(f"{entry.employee_id}: Hours exceed {MAX_HOURS_PER_DAY} for {day}")
             
             # Upsert record - search with variants, save with normalized code
+            # Calculate calendar week number from date
+            cal_week = get_week_number_from_date(date)
+            
             await db.international_attendance.update_one(
                 {
                     "employee_id": entry.employee_id,
@@ -687,8 +765,8 @@ async def save_attendance(req: SaveAttendanceRequest):
                         "center": save_center,
                         "date": date,
                         "hours_worked": hours,
-                        "week_number": req.week,
-                        "month": req.month,
+                        "week_number": cal_week,
+                        "month": int(date.split("-")[1]),
                         "year": req.year,
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                         "updated_by": session.get("managerName", "Unknown")
@@ -746,13 +824,15 @@ async def get_monthly_report(req: MonthlyReportRequest):
         for emp in employees_result["employees"]
     }
     
-    # Group by employee and week
-    weeks_in_month = calculate_weeks_in_month(req.year, req.month)
+    # Group by employee and calendar week
+    overlapping_weeks = get_weeks_for_month(req.year, req.month)
+    week_numbers = [w["week"] for w in overlapping_weeks]
+    weeks_in_month = len(overlapping_weeks)
     employee_data = {}
     
     for record in attendance_records:
         emp_id = record["employee_id"]
-        week = record.get("week_number") or get_week_number_from_date(record["date"])
+        cal_week = record.get("week_number") or get_week_number_from_date(record["date"])
         hours = record.get("hours_worked", 0)
         
         if emp_id not in employee_data:
@@ -763,13 +843,13 @@ async def get_monthly_report(req: MonthlyReportRequest):
                 "category": emp.get("category", "STAFF"),
                 "hourly_rate": float(emp.get("target_takehome_rate", 0) or emp.get("hourly_rate", 0) or 0),
                 "target_takehome_rate": float(emp.get("target_takehome_rate", 0) or emp.get("hourly_rate", 0) or 0),
-                "weeks": {i: 0 for i in range(1, weeks_in_month + 1)},
+                "weeks": {w: 0 for w in week_numbers},
                 "total_hours": 0,
                 "total_salary": 0
             }
         
-        if 1 <= week <= weeks_in_month:
-            employee_data[emp_id]["weeks"][week] += hours
+        if cal_week in week_numbers:
+            employee_data[emp_id]["weeks"][cal_week] += hours
             employee_data[emp_id]["total_hours"] += hours
     
     # Calculate total salary
