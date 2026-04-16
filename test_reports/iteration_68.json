@@ -1,0 +1,85 @@
+{
+  "summary": "Dashboard/Data Visibility Fixes Testing Complete. All 16 backend API tests passed (100%). All 5 frontend UI flows verified working. Key fixes validated: (1) Daily Text Generator pulls actual stored data with has_sales_data=true and non-zero values, (2) Bill Download shows POS bills with proper bill_id/amount/description normalization, (3) Attendance Dashboard role-based access working for admin/super admin, (4) Owner Dashboard Franchise Info now shows Center Name, Phone, Legal Entity fields correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/franchises/by-center/{center}", "issue": "Franchise record missing center_code field - using selectedCenter fallback in frontend", "priority": "LOW"},
+      {"endpoint": "/api/franchises/by-center/{center}", "issue": "primary_contact_phone and primary_contact_email are empty in test data", "priority": "LOW"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dashboard_visibility_fixes.py",
+    "/app/test_reports/pytest/pytest_dashboard_visibility.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FranchiseOwnerDashboard.jsx was updated to correctly map franchise API fields: legal_entity_name→Legal Entity, primary_contact_phone→Phone, selectedCenter fallback→Center Name"
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/FranchiseOwnerDashboard.jsx",
+    "/app/backend/tests/test_dashboard_visibility_fixes.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 tests passed)",
+    "frontend": "100% (5/5 UI flows verified)"
+  },
+  "test_credentials": "Super Admin: Mobile 9741399190, OTP 123456, Center PB-MGT",
+  "seed_data_creation": "None - used existing data: PB-DV daily_sales for 2025-04-01, PB-HSR POS bills for 2026-03-27, FR-TEST-INDIA franchise",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Dashboard visibility fixes fully tested. Key endpoints verified: (1) /api/daily-text/generate - returns has_sales_data=true with opening_balance=33442, total_sale=50521 for PB-DV on 2025-04-01, (2) /api/bill-download/list - returns 6 bills for PB-HSR with proper bill_id format (BILL-PB-HSR-*), amounts, descriptions, (3) /api/attendance-dashboard/* - all 6 endpoints working (summary, center-detail, monthly-grid, daily-grid, center-breakdown, export), (4) /api/franchises/by-center/PB-HSR - returns franchise with legal_entity_name='Test Foods Pvt Ltd'. expense_attachments collection is empty in preview DB so no attachment bills shown.",
+  "features_tested": {
+    "daily_text_generator": {
+      "status": "PASSED",
+      "tests": [
+        "POST /api/daily-text/generate returns has_sales_data=true for PB-DV on 2025-04-01",
+        "Opening balance (33442) and total_sale (50521) are non-zero",
+        "Case-insensitive center matching works",
+        "Refresh from Data pulls fresh DB values without overrides",
+        "Frontend shows 'Auto-filled from sales data' badge",
+        "Frontend shows '8 expenses found' badge"
+      ]
+    },
+    "bill_download": {
+      "status": "PASSED",
+      "tests": [
+        "POST /api/bill-download/list returns bills with proper fields",
+        "POS bills normalized: bill_no→bill_id, grand_total→amount",
+        "6 bills found for PB-HSR with proper bill_id format",
+        "View and Download buttons present and functional",
+        "Admin can list bills from all centers"
+      ]
+    },
+    "attendance_dashboard": {
+      "status": "PASSED",
+      "tests": [
+        "POST /api/attendance-dashboard/summary works for admin",
+        "POST /api/attendance-dashboard/center-detail works for PB-MGT",
+        "POST /api/attendance-dashboard/monthly-grid works",
+        "POST /api/attendance-dashboard/daily-grid works",
+        "POST /api/attendance-dashboard/center-breakdown works",
+        "POST /api/attendance-dashboard/export returns Excel file"
+      ]
+    },
+    "owner_dashboard": {
+      "status": "PASSED",
+      "tests": [
+        "Franchise Dashboard loads for PB-HSR",
+        "Franchise Info tab shows Franchise Profile section",
+        "Center Name field present and shows PB-HSR",
+        "Phone field present (empty in test data)",
+        "Legal Entity field present and shows 'Test Foods Pvt Ltd'",
+        "All other franchise fields displayed correctly"
+      ]
+    },
+    "expense_attachments": {
+      "status": "SKIPPED",
+      "reason": "expense_attachments collection is empty in preview DB - no attachments to test"
+    }
+  }
+}

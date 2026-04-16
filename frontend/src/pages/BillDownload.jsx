@@ -103,20 +103,36 @@ export default function BillDownload() {
     } finally { setZipLoading(false); }
   };
 
-  const viewBill = (url) => {
-    if (url) window.open(url, "_blank");
-    else toast.error("No file URL available");
+  const viewBill = (bill) => {
+    const url = bill.file_url;
+    if (!url) { toast.error("No file URL available"); return; }
+    // For attachment downloads, append auth token
+    if (url.startsWith("/api/")) {
+      window.open(`${API_URL}${url}?token=${session?.token}`, "_blank");
+    } else if (url.startsWith("http")) {
+      window.open(url, "_blank");
+    } else {
+      toast.error("Invalid file URL");
+    }
   };
 
-  const downloadSingle = (url, name) => {
+  const downloadSingle = (bill) => {
+    const url = bill.file_url;
+    const name = bill.file_name;
     if (!url) { toast.error("No file URL"); return; }
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = name || "bill";
-    link.target = "_blank";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (url.startsWith("/api/")) {
+      window.open(`${API_URL}${url}?token=${session?.token}`, "_blank");
+    } else if (url.startsWith("http")) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name || "bill";
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      toast.error("Invalid file URL");
+    }
   };
 
   const filteredBills = bills.filter(b => {
@@ -248,10 +264,10 @@ export default function BillDownload() {
                   <td className="p-3 text-xs">{bill.uploaded_by || "-"}</td>
                   <td className="p-3 text-center">
                     <div className="flex gap-1 justify-center">
-                      <Button size="sm" variant="ghost" onClick={() => viewBill(bill.file_url)} title="View">
+                      <Button size="sm" variant="ghost" onClick={() => viewBill(bill)} title="View">
                         <Eye className="w-3 h-3" />
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => downloadSingle(bill.file_url, bill.file_name)} title="Download">
+                      <Button size="sm" variant="ghost" onClick={() => downloadSingle(bill)} title="Download">
                         <Download className="w-3 h-3" />
                       </Button>
                     </div>

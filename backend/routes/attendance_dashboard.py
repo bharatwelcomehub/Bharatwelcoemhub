@@ -49,7 +49,7 @@ ATTENDANCE_STATUS = {
     "A": {"label": "Absent", "color": "red", "weight": 0},
     "HD": {"label": "Half Day", "color": "yellow", "weight": 0.5},
     "WO": {"label": "Week Off", "color": "blue", "weight": 1},
-    "L": {"label": "Leave", "color": "orange", "weight": 1},
+    "L": {"label": "Leave", "color": "orange", "weight": 0},
     "LATE": {"label": "Late", "color": "purple", "weight": 1}
 }
 
@@ -70,6 +70,13 @@ def check_admin_access(session) -> bool:
     if roles.get("attendance"):
         return True
     return False
+
+def check_manager_access(session) -> bool:
+    """Check if user is a center manager (can view own center only)"""
+    if not session:
+        return False
+    # Any logged-in user with a center is a potential manager
+    return bool(session.get("center"))
 
 def check_super_admin(session) -> bool:
     """Check if user is Super Admin (for edit access)"""
@@ -141,12 +148,22 @@ async def get_dashboard_summary(req: DashboardRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
     
     # Determine date
     target_date = req.date or datetime.now().strftime("%Y-%m-%d")
-    filter_center = req.center.upper() if req.center else None
+    
+    # Center managers can only see their own center
+    if is_admin:
+        filter_center = req.center.upper() if req.center else None
+    else:
+        filter_center = session.get("center", "").upper()
+        if req.center and req.center.upper() != filter_center:
+            raise HTTPException(403, "You can only view attendance for your own center")
     
     # Get all employees (optionally filtered by center)
     emp_query = {"center": filter_center} if filter_center else {}
@@ -254,11 +271,18 @@ async def get_center_breakdown(req: DashboardRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
     
     target_date = req.date or datetime.now().strftime("%Y-%m-%d")
-    filter_center = req.center.upper() if req.center else None
+    
+    # Center managers can only see their own center
+    if is_admin:
+        filter_center = req.center.upper() if req.center else None
+    else:
+        filter_center = session.get("center", "").upper()
     
     # Get centers (optionally filtered)
     center_query = {"$or": [{"code": filter_center}, {"center": filter_center}]} if filter_center else {}
@@ -364,8 +388,12 @@ async def get_center_detail(req: CenterDetailRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
+    if not is_admin and req.center.upper() != session.get("center", "").upper():
+        raise HTTPException(403, "You can only view attendance for your own center")
     
     target_date = req.date or datetime.now().strftime("%Y-%m-%d")
     center = req.center.upper()
@@ -455,12 +483,17 @@ async def get_monthly_grid(req: DashboardRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
     
     # Determine month
     month = req.month or datetime.now().strftime("%Y-%m")
-    filter_center = req.center.upper() if req.center else None
+    if is_admin:
+        filter_center = req.center.upper() if req.center else None
+    else:
+        filter_center = session.get("center", "").upper()
     
     year, mon = map(int, month.split("-"))
     dim = days_in_month(year, mon)
@@ -645,11 +678,16 @@ async def get_daily_grid(req: DashboardRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
     
     target_date = req.date or datetime.now().strftime("%Y-%m-%d")
-    filter_center = req.center.upper() if req.center else None
+    if is_admin:
+        filter_center = req.center.upper() if req.center else None
+    else:
+        filter_center = session.get("center", "").upper()
     
     # Get employees (optionally filtered by center)
     emp_query = {"center": filter_center} if filter_center else {}
@@ -700,8 +738,10 @@ async def get_monthly_trend(req: DashboardRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
     
     # Determine month
     if req.month:
@@ -771,8 +811,10 @@ async def get_center_comparison(req: DashboardRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
     
     # Determine month
     if req.month:
@@ -854,8 +896,14 @@ async def export_attendance(req: ExportRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
+    
+    # Center managers forced to their own center
+    if not is_admin:
+        req.center = session.get("center", "")
     
     try:
         from openpyxl import Workbook
@@ -968,8 +1016,13 @@ async def export_monthly_attendance(req: ExportRequest):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    if not check_admin_access(session):
-        raise HTTPException(403, "Access denied. Admin or Super Admin required.")
+    is_admin = check_admin_access(session)
+    is_manager = check_manager_access(session)
+    if not is_admin and not is_manager:
+        raise HTTPException(403, "Access denied.")
+    
+    if not is_admin:
+        req.center = session.get("center", "")
     
     try:
         from openpyxl import Workbook

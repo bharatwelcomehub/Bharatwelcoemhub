@@ -31,7 +31,7 @@ def set_has_admin_access(func):
     has_admin_access = func
 
 
-DOC_TYPES = ["Sales Bill", "Expense Bill", "Invoice", "Purchase Bill", "Platform Settlement", "Supporting Document", "Account Document", "Other"]
+DOC_TYPES = ["Sales Bill", "Expense Bill", "Expense Attachment", "Invoice", "Purchase Bill", "Platform Settlement", "Supporting Document", "Account Document", "Other"]
 
 
 @router.post("/list")
@@ -78,34 +78,82 @@ async def list_bills(data: dict):
     elif data.get("year"):
         query["date"] = {"$regex": f"^{data['year']}"}
 
-    bills = await db.bills.find(query, {"_id": 0}).sort("date", -1).to_list(5000)
-
-    # Also search in expenses collection for bills with attachments
-    exp_query = {}
-    if query.get("center"):
-        exp_query["center"] = query["center"]
-    if data.get("month"):
-        exp_query["date"] = {"$regex": f"^{data['month']}"}
-    elif query.get("date"):
-        exp_query["date"] = query["date"]
-    exp_query["bill_url"] = {"$exists": True, "$ne": ""}
-
-    expense_bills = await db.expenses.find(exp_query, {"_id": 0}).sort("date", -1).to_list(5000)
-
-    # Convert expense bills to bill format
-    for eb in expense_bills:
+    raw_bills = await db.bills.find(query, {"_id": 0}).sort("date", -1).to_list(5000)
+    
+    # Normalize POS bills to standard format
+    bills = []
+    for rb in raw_bills:
         bills.append({
-            "bill_id": f"EXP-{eb.get('expense_id', '')}",
-            "center": eb.get("center", ""),
-            "date": eb.get("date", ""),
-            "doc_type": "Expense Bill",
-            "description": eb.get("description", eb.get("expense_type", "")),
-            "amount": eb.get("amount", 0),
-            "file_url": eb.get("bill_url", ""),
-            "file_name": eb.get("bill_filename", "expense_bill"),
-            "expense_head": eb.get("expense_type", ""),
-            "uploaded_by": eb.get("created_by", ""),
-            "uploaded_at": eb.get("created_at", ""),
+            "bill_id": rb.get("bill_id") or rb.get("bill_no", ""),
+            "center": rb.get("center", ""),
+            "date": rb.get("date", ""),
+            "doc_type": rb.get("doc_type", "Sales Bill"),
+            "description": rb.get("description") or f"{rb.get('order_type', '')} - Table {rb.get('table_no', '')}",
+            "amount": rb.get("amount") or rb.get("grand_total", 0),
+            "file_url": rb.get("file_url", ""),
+            "file_name": rb.get("file_name", ""),
+            "expense_head": rb.get("expense_head", ""),
+            "uploaded_by": rb.get("uploaded_by") or rb.get("created_by", ""),
+            "uploaded_at": rb.get("uploaded_at") or rb.get("created_at", ""),
+        })
+
+    # Search expense_attachments for uploaded bills (this is where actual uploads go)
+    att_query = {"is_deleted": {"$ne": True}}
+    if query.get("center"):
+        att_query["center"] = query["center"]
+    if data.get("month"):
+        att_query["created_at"] = {"$regex": f"^{data['month']}"}
+    elif data.get("date_from") or data.get("date_to"):
+        dq = {}
+        if data.get("date_from"):
+            dq["$gte"] = data["date_from"]
+        if data.get("date_to"):
+            dq["$lte"] = data["date_to"] + "T23:59:59"
+        if dq:
+            att_query["created_at"] = dq
+
+    attachments = await db.expense_attachments.find(att_query, {"_id": 0}).sort("created_at", -1).to_list(5000)
+
+    for att in attachments:
+        # Build download URL for the attachment
+        att_id = att.get("attachment_id", "")
+        file_url = f"/api/expense-attachments/download/{att_id}"
+        
+        # Try to get related expense info
+        expense_info = ""
+        expense_amount = 0
+        exp_id = att.get("expense_id")
+        if exp_id:
+            from bson import ObjectId
+            try:
+                exp = await db.expenses.find_one({"_id": ObjectId(exp_id)}, {"_id": 0, "description": 1, "amount": 1, "expense_type": 1, "date": 1})
+                if exp:
+                    expense_info = exp.get("description", exp.get("expense_type", ""))
+                    expense_amount = exp.get("amount", 0)
+            except Exception:
+                pass
+        
+        # Get group info if linked via group
+        group_id = att.get("invoice_group_id")
+        if group_id and not expense_info:
+            grp = await db.expense_groups.find_one({"group_id": group_id}, {"_id": 0, "vendor_name": 1, "invoice_number": 1})
+            if grp:
+                expense_info = f"{grp.get('vendor_name', '')} - {grp.get('invoice_number', '')}"
+
+        att_date = att.get("created_at", "")[:10]
+        bills.append({
+            "bill_id": att_id,
+            "center": att.get("center", ""),
+            "date": att_date,
+            "doc_type": "Expense Attachment",
+            "description": expense_info or att.get("original_filename", ""),
+            "amount": expense_amount,
+            "file_url": file_url,
+            "file_name": att.get("original_filename", "attachment"),
+            "expense_head": "",
+            "uploaded_by": att.get("uploaded_by", ""),
+            "uploaded_at": att.get("created_at", ""),
+            "storage_path": att.get("storage_path", ""),
         })
 
     return {
@@ -180,22 +228,41 @@ async def download_zip(data: dict):
 
     bills = await db.bills.find(query, {"_id": 0}).to_list(5000)
 
-    # Also check expenses with bill_url
+    # Also check expense_attachments
     if not bill_ids:
-        exp_q = {"center": center, "bill_url": {"$exists": True, "$ne": ""}}
+        att_q = {"center": center, "is_deleted": {"$ne": True}}
         if data.get("month"):
-            exp_q["date"] = {"$regex": f"^{data['month']}"}
+            att_q["created_at"] = {"$regex": f"^{data['month']}"}
         elif data.get("date_from") and data.get("date_to"):
-            exp_q["date"] = {"$gte": data["date_from"], "$lte": data["date_to"]}
-        expense_bills = await db.expenses.find(exp_q, {"_id": 0}).to_list(5000)
-        for eb in expense_bills:
+            att_q["created_at"] = {"$gte": data["date_from"], "$lte": data["date_to"] + "T23:59:59"}
+        attachments = await db.expense_attachments.find(att_q, {"_id": 0}).to_list(5000)
+        for att in attachments:
+            att_id = att.get("attachment_id", "")
             bills.append({
-                "bill_id": f"EXP-{eb.get('expense_id', '')}",
-                "date": eb.get("date", ""),
-                "doc_type": "Expense Bill",
-                "file_url": eb.get("bill_url", ""),
-                "file_name": eb.get("bill_filename", f"expense_{eb.get('date','')}"),
+                "bill_id": att_id,
+                "date": att.get("created_at", "")[:10],
+                "doc_type": "Expense_Attachment",
+                "file_url": "",  # Will use storage_path instead
+                "file_name": att.get("original_filename", "attachment"),
+                "storage_path": att.get("storage_path", ""),
             })
+    else:
+        # Check if any bill_ids are attachment IDs
+        att_ids = [bid for bid in bill_ids if bid.startswith("ATT-")]
+        if att_ids:
+            att_docs = await db.expense_attachments.find(
+                {"attachment_id": {"$in": att_ids}, "is_deleted": {"$ne": True}},
+                {"_id": 0}
+            ).to_list(500)
+            for att in att_docs:
+                bills.append({
+                    "bill_id": att.get("attachment_id", ""),
+                    "date": att.get("created_at", "")[:10],
+                    "doc_type": "Expense_Attachment",
+                    "file_url": "",
+                    "file_name": att.get("original_filename", "attachment"),
+                    "storage_path": att.get("storage_path", ""),
+                })
 
     if not bills:
         raise HTTPException(404, "No bills found for the given criteria")
@@ -205,21 +272,42 @@ async def download_zip(data: dict):
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for bill in bills:
             file_url = bill.get("file_url", "")
-            if not file_url:
+            storage_path = bill.get("storage_path", "")
+            
+            file_data = None
+            
+            # Try storage_path first (for expense_attachments)
+            if storage_path:
+                try:
+                    from emergentintegrations.object_storage import get_object
+                    result = get_object(storage_path)
+                    if result and result.get("data"):
+                        file_data = result["data"]
+                except Exception as e:
+                    logger.error(f"Failed to fetch from storage {storage_path}: {e}")
+            
+            # Fallback to URL download
+            if not file_data and file_url and file_url.startswith("http"):
+                try:
+                    req = urllib.request.Request(file_url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        file_data = resp.read()
+                except Exception as e:
+                    logger.error(f"Failed to download bill {bill.get('bill_id')}: {e}")
+            
+            if not file_data:
                 continue
-            try:
-                req = urllib.request.Request(file_url, headers={"User-Agent": "Mozilla/5.0"})
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    file_data = resp.read()
-                # Build neat filename
-                doc_type = bill.get("doc_type", "Other").replace(" ", "_")
-                date_str = bill.get("date", "unknown")
-                bill_id = bill.get("bill_id", "")
-                ext = file_url.rsplit(".", 1)[-1][:5] if "." in file_url else "pdf"
-                filename = f"{center}/{doc_type}/{date_str}_{bill_id}.{ext}"
-                zf.writestr(filename, file_data)
-            except Exception as e:
-                logger.error(f"Failed to download bill {bill.get('bill_id')}: {e}")
+                
+            # Build neat filename
+            doc_type = bill.get("doc_type", "Other").replace(" ", "_")
+            date_str = bill.get("date", "unknown")
+            bill_id = bill.get("bill_id", "")
+            orig_name = bill.get("file_name", "")
+            ext = orig_name.rsplit(".", 1)[-1][:5] if "." in orig_name else (
+                file_url.rsplit(".", 1)[-1][:5] if file_url and "." in file_url else "pdf"
+            )
+            filename = f"{center}/{doc_type}/{date_str}_{bill_id}.{ext}"
+            zf.writestr(filename, file_data)
 
     zip_buffer.seek(0)
     zip_data = zip_buffer.getvalue()

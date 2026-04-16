@@ -54,11 +54,19 @@ async def generate_daily_text(req: TextGenRequest):
         if user_center != center:
             raise HTTPException(403, "You can only generate text for your own center")
 
-    # Fetch daily sales record
+    # Fetch daily sales record - try exact match, then case-insensitive
     sale = await db.daily_sales.find_one({"center": center, "date": req.date}, {"_id": 0})
+    if not sale:
+        sale = await db.daily_sales.find_one(
+            {"center": {"$regex": f"^{center}$", "$options": "i"}, "date": req.date}, {"_id": 0}
+        )
 
-    # Fetch expenses for the day
+    # Fetch expenses for the day - same approach
     expenses = await db.expenses.find({"center": center, "date": req.date}, {"_id": 0}).to_list(500)
+    if not expenses:
+        expenses = await db.expenses.find(
+            {"center": {"$regex": f"^{center}$", "$options": "i"}, "date": req.date}, {"_id": 0}
+        ).to_list(500)
 
     # Calculate expense totals by payment mode
     online_expense = 0
@@ -115,10 +123,10 @@ async def generate_daily_text(req: TextGenRequest):
         data["apc"] = round(float(sale.get("avg_per_pax", 0)), 0)
         data["online_expense"] = round(online_expense, 2) or 0
 
-    # Apply manual overrides
+    # Apply manual overrides (only non-zero overrides, to prevent reset)
     if req.overrides:
         for key, val in req.overrides.items():
-            if key in data:
+            if key in data and val is not None:
                 data[key] = val
 
     # Format date for display

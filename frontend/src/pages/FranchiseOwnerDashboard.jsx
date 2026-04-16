@@ -546,10 +546,12 @@ export default function FranchiseOwnerDashboard() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {[
                       { label: "Franchise Name", value: franchiseInfo.franchise_name },
-                      { label: "Owner / Primary Contact", value: franchiseInfo.owner_name },
+                      { label: "Owner / Primary Contact", value: franchiseInfo.owner_name || franchiseInfo.primary_contact_name },
                       { label: "Franchise Code", value: franchiseInfo.franchise_code },
-                      { label: "Email", value: franchiseInfo.email },
-                      { label: "Phone", value: franchiseInfo.phone || "—" },
+                      { label: "Center Name", value: franchiseInfo.center || franchiseInfo.center_code || selectedCenter },
+                      { label: "Email", value: franchiseInfo.email || franchiseInfo.primary_contact_email },
+                      { label: "Phone", value: franchiseInfo.phone || franchiseInfo.contact_phone || franchiseInfo.primary_contact_phone },
+                      { label: "Legal Entity", value: franchiseInfo.legal_entity || franchiseInfo.company_name || franchiseInfo.legal_entity_name },
                       { label: "Agreement Start", value: franchiseInfo.agreement_start_date },
                       { label: "Agreement End", value: franchiseInfo.agreement_end_date },
                       { label: "Revenue Share %", value: `${revenueSharePct}%` },
@@ -558,7 +560,7 @@ export default function FranchiseOwnerDashboard() {
                       { label: "Address", value: franchiseInfo.address },
                       { label: "Status", value: franchiseInfo.status },
                     ].map((item, i) => (
-                      <div key={i}>
+                      <div key={i} data-testid={`franchise-info-${i}`}>
                         <p className="text-xs text-slate-500 mb-1">{item.label}</p>
                         <p className="text-sm font-semibold text-slate-800">{item.value || "—"}</p>
                       </div>

@@ -53,8 +53,23 @@ export default function DailyTextGenerator() {
   };
 
   const refreshFromData = async () => {
-    setEditableData({});
-    await generateText();
+    if (!selectedCenter) { toast.error("Select a center"); return; }
+    setLoading(true);
+    setCopied(false);
+    try {
+      // Force fresh pull from DB by NOT sending overrides
+      const res = await api.post("/daily-text/generate", {
+        token: session.token, center: selectedCenter, date: selectedDate,
+      });
+      setTextData(res.data);
+      setEditableData(res.data.data || {});
+      setGeneratedText(res.data.text || "");
+      toast.success("Refreshed from stored data");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to refresh");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Regenerate text from editable data
