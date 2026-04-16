@@ -172,9 +172,35 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [x] **Complete Sitemap (20 URLs)** - All core pages + 8 location pages + AI knowledge page
 - [x] **robots.txt** - Updated with sitemap reference, admin/auth exclusions
 - [x] **seo-config.json** - Full config with 8 locations, nearby areas, keywords, FAQ data
+- [x] **Bing Webmaster Tools** - BingSiteAuth.xml + meta tag verification
+- [x] **Google Search Console** - Sitemap submitted and indexed
+
+## Ask Vahini - AI Food Wisdom Engine (Apr 2026)
+- [x] **Phase 1 Complete:**
+  - Floating chat widget on every page (bottom-right FAB with gold gradient)
+  - AI personality as warm Maharashtrian Vahini (Mrs. Jayanti Kathale)
+  - "Jai Hind Namaskar" greeting on first message
+  - Menu-connected recommendations from actual Purnabramha menu DB (173+ items)
+  - Dish cards with name, category, price, Jain/Fasting tags
+  - Action buttons: Order (→/pickup), Book Table (→/table-booking), Location (→/locations), Share
+  - "Let Vahini Choose For Me" random dish feature with AI-generated Vahini message
+  - Social sharing: WhatsApp, Facebook, Copy Link
+  - Voice input via browser Web Speech API (mic button)
+  - Quick question suggestions for new users
+  - Session persistence across messages
+  - Festival-aware recommendations (pulls from active festival theme)
+  - Time-of-day context awareness
+  - Cultural notes and traditional wisdom with every recommendation
+  - Never reveals recipes (Purnabramha's secret)
+  - Backend: POST /api/vahini/chat, GET /api/vahini/random-dish
+  - AI: GPT-4.1-mini via emergentintegrations with Emergent LLM Key
+- [ ] **Phase 2 (Upcoming):** Voice output (TTS), dish knowledge database, recipe storytelling
+- [ ] **Phase 3 (Future):** Warli/traditional design motifs, digital Maharashtrian food archive
 
 ## Backlog
 - [ ] Sync Tiffin.js & Catering.js with database (currently using static JSON)
+- [ ] Ask Vahini Phase 2: Voice output (TTS), dish knowledge database, recipe storytelling
+- [ ] Ask Vahini Phase 3: Warli/traditional design motifs, digital Maharashtrian food archive
 - [ ] Payment Integration (Razorpay/Stripe)
 - [ ] Push notifications
 - [ ] "Share My Plate" social sharing for AI Nutrition card
