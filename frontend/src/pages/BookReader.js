@@ -8,45 +8,27 @@ import { toast } from 'sonner';
 const API = process.env.REACT_APP_BACKEND_URL;
 
 // Page component must use forwardRef for react-pageflip
-const PageContent = forwardRef(({ page, pageNum, totalPages }, ref) => {
+const PageContent = forwardRef(({ pageNum, authToken }, ref) => {
+  const imgSrc = `${API}/api/book/page-image/${pageNum}?token=${encodeURIComponent(authToken || '')}`;
   return (
     <div ref={ref} className="page-content" data-testid={`book-page-${pageNum}`}>
       <div
-        className="h-full w-full flex flex-col justify-between p-8 lg:p-12"
+        className="h-full w-full"
         style={{
-          background: 'linear-gradient(135deg, #FFF9F0, #FFF5E8, #FFFBF5)',
-          fontFamily: "'Cormorant Garamond', Georgia, serif",
+          background: '#FFFBF5',
           userSelect: 'none',
           WebkitUserSelect: 'none'
         }}
       >
-        {/* Content */}
-        <div className="flex-1 flex items-center justify-center overflow-hidden">
-          {page ? (
-            page.image_url ? (
-              <img
-                src={page.image_url}
-                alt={`Page ${pageNum}`}
-                className="max-w-full max-h-full object-contain"
-                draggable="false"
-                onContextMenu={(e) => e.preventDefault()}
-              />
-            ) : (
-              <div className="max-w-md mx-auto">
-                <p className="text-lg lg:text-xl leading-relaxed text-[#3D2314] whitespace-pre-wrap text-center">
-                  {page.content}
-                </p>
-              </div>
-            )
-          ) : (
-            <p className="text-[#B8962E]/40 italic text-lg">Content coming soon...</p>
-          )}
-        </div>
-
-        {/* Page Number */}
-        <div className="text-center pt-4 border-t border-[#E8DFD0]/50">
-          <span className="text-xs text-[#B8962E]/50 tracking-wider font-sans">{pageNum}</span>
-        </div>
+        <img
+          src={imgSrc}
+          alt={`Page ${pageNum}`}
+          className="w-full h-full object-contain"
+          draggable="false"
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ pointerEvents: 'none' }}
+          loading="lazy"
+        />
       </div>
     </div>
   );
@@ -313,9 +295,8 @@ const BookReader = () => {
             {allPages.map((page, idx) => (
               <PageContent
                 key={idx}
-                page={page}
                 pageNum={startPage + idx}
-                totalPages={endPage - startPage + 1}
+                authToken={token}
               />
             ))}
           </HTMLFlipBook>

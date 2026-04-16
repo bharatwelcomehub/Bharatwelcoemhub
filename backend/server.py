@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Response, Request, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -1645,12 +1646,62 @@ async def get_book_pages(part_number: int, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=403, detail="You haven't purchased this part yet")
 
     part_info = BOOK_PARTS[part_number]
-    pages = await db.book_pages.find(
-        {"page_number": {"$gte": part_info["start_page"], "$lte": part_info["end_page"]}},
-        {"_id": 0}
-    ).sort("page_number", 1).to_list(200)
+    # Return page list with image URLs
+    pages = []
+    for page_num in range(part_info["start_page"], part_info["end_page"] + 1):
+        pages.append({
+            "page_number": page_num,
+            "part_number": part_number,
+            "has_image": True
+        })
 
     return {"part": part_info, "pages": pages}
+
+
+@api_router.get("/book/page-image/{page_number}")
+async def get_book_page_image(page_number: int, token: Optional[str] = None, current_user: dict = Depends(get_optional_user)):
+    """Serve a book page as an image. Requires auth + purchase."""
+    # Support token via query param for img tags
+    if not current_user and token:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            current_user = payload
+        except Exception:
+            # Try session token
+            session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+            if session:
+                current_user = {"user_id": session["user_id"], "email": session.get("email", "")}
+
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Determine which part this page belongs to
+    part_number = None
+    for pn, info in BOOK_PARTS.items():
+        if info["start_page"] <= page_number <= info["end_page"]:
+            part_number = pn
+            break
+
+    if part_number is None:
+        raise HTTPException(status_code=404, detail="Page not found")
+
+    # Check purchase
+    purchase = await db.book_purchases.find_one(
+        {"user_id": current_user["user_id"], "part_number": part_number, "status": "completed"},
+        {"_id": 0}
+    )
+    if not purchase:
+        raise HTTPException(status_code=403, detail="Purchase required")
+
+    image_path = ROOT_DIR / 'book_images' / f'page_{page_number}.jpg'
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Page image not found")
+
+    return FileResponse(
+        str(image_path),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=3600"}
+    )
 
 
 @api_router.post("/book/purchase")
