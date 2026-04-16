@@ -28,6 +28,7 @@ const Layout = ({ children }) => {
     { name: 'Videos', path: '/videos' },
     { name: 'Inspiration', path: '/inspiration' },
     { name: 'Franchise', path: '/franchise' },
+    { name: 'Book', path: '/book' },
     { name: 'About', path: '/about' },
   ];
 

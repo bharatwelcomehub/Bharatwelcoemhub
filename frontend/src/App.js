@@ -21,6 +21,8 @@ import Inspiration from '@/pages/Inspiration';
 import About from '@/pages/About';
 import LocationSEO from '@/pages/LocationSEO';
 import AboutPurnabramha from '@/pages/AboutPurnabramha';
+import BookLanding from '@/pages/BookLanding';
+import BookReader from '@/pages/BookReader';
 import '@/App.css';
 
 // Remove Emergent badge
@@ -105,9 +107,16 @@ function App() {
                     
                     {/* AI Knowledge Page */}
                     <Route path="/about-purnabramha-maharashtrian-restaurant" element={<AboutPurnabramha />} />
+                    
+                    {/* Book Reading Platform */}
+                    <Route path="/book" element={<BookLanding />} />
+                    <Route path="/book/success" element={<BookLanding />} />
                   </Routes>
                 </Layout>
               } />
+
+              {/* Book Reader - Full screen without Layout */}
+              <Route path="/book/read/:part" element={<BookReader />} />
             </Routes>
             <Toaster />
           </SEOProvider>

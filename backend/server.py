@@ -1597,6 +1597,334 @@ async def vahini_random_dish(region: Optional[str] = "India"):
     }
 
 
+# ===================== BOOK READING PLATFORM =====================
+
+BOOK_PARTS = {
+    1: {"name": "Part 1", "pages": "1-50", "price_inr": 2.00, "price_aud": 0.10, "start_page": 1, "end_page": 50},
+    2: {"name": "Part 2", "pages": "51-100", "price_inr": 2.00, "price_aud": 0.10, "start_page": 51, "end_page": 100},
+    3: {"name": "Part 3", "pages": "101-152", "price_inr": 2.00, "price_aud": 0.10, "start_page": 101, "end_page": 152},
+}
+
+@api_router.get("/book/parts")
+async def get_book_parts(current_user: dict = Depends(get_optional_user)):
+    """Get all book parts with purchase status for current user."""
+    parts = []
+    for part_num, info in BOOK_PARTS.items():
+        purchased = False
+        if current_user:
+            purchase = await db.book_purchases.find_one(
+                {"user_id": current_user["user_id"], "part_number": part_num, "status": "completed"},
+                {"_id": 0}
+            )
+            purchased = purchase is not None
+        parts.append({
+            "part_number": part_num,
+            "name": info["name"],
+            "pages": info["pages"],
+            "price_inr": info["price_inr"],
+            "price_aud": info["price_aud"],
+            "start_page": info["start_page"],
+            "end_page": info["end_page"],
+            "purchased": purchased
+        })
+    return parts
+
+
+@api_router.get("/book/pages/{part_number}")
+async def get_book_pages(part_number: int, current_user: dict = Depends(get_current_user)):
+    """Get pages for a purchased book part."""
+    if part_number not in BOOK_PARTS:
+        raise HTTPException(status_code=404, detail="Invalid part number")
+
+    # Check purchase
+    purchase = await db.book_purchases.find_one(
+        {"user_id": current_user["user_id"], "part_number": part_number, "status": "completed"},
+        {"_id": 0}
+    )
+    if not purchase:
+        raise HTTPException(status_code=403, detail="You haven't purchased this part yet")
+
+    part_info = BOOK_PARTS[part_number]
+    pages = await db.book_pages.find(
+        {"page_number": {"$gte": part_info["start_page"], "$lte": part_info["end_page"]}},
+        {"_id": 0}
+    ).sort("page_number", 1).to_list(200)
+
+    return {"part": part_info, "pages": pages}
+
+
+@api_router.post("/book/purchase")
+async def create_book_purchase(request: Request, current_user: dict = Depends(get_current_user)):
+    """Create a Stripe checkout session for a book part."""
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+
+    body = await request.json()
+    part_number = body.get("part_number")
+    origin_url = body.get("origin_url", "")
+
+    if part_number not in BOOK_PARTS:
+        raise HTTPException(status_code=400, detail="Invalid part number")
+
+    # Check if already purchased
+    existing = await db.book_purchases.find_one(
+        {"user_id": current_user["user_id"], "part_number": part_number, "status": "completed"},
+        {"_id": 0}
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="You already own this part")
+
+    part_info = BOOK_PARTS[part_number]
+    region = body.get("region", "India")
+    amount = part_info["price_aud"] if region == "Australia" else part_info["price_inr"]
+    currency = "aud" if region == "Australia" else "inr"
+
+    api_key = os.environ.get('STRIPE_API_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Payment not configured")
+
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+
+    success_url = f"{origin_url}/book/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin_url}/book"
+
+    metadata = {
+        "user_id": current_user["user_id"],
+        "email": current_user.get("email", ""),
+        "part_number": str(part_number),
+        "type": "book_purchase"
+    }
+
+    checkout_req = CheckoutSessionRequest(
+        amount=amount,
+        currency=currency,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata
+    )
+
+    session = await stripe_checkout.create_checkout_session(checkout_req)
+
+    # Record pending transaction
+    await db.payment_transactions.insert_one({
+        "session_id": session.session_id,
+        "user_id": current_user["user_id"],
+        "email": current_user.get("email", ""),
+        "part_number": part_number,
+        "amount": amount,
+        "currency": currency,
+        "type": "book_purchase",
+        "payment_status": "initiated",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    return {"url": session.url, "session_id": session.session_id}
+
+
+@api_router.get("/book/purchase/status/{session_id}")
+async def check_book_purchase_status(session_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """Check status of a book purchase payment."""
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout
+
+    api_key = os.environ.get('STRIPE_API_KEY')
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+
+    status = await stripe_checkout.get_checkout_status(session_id)
+
+    # Update transaction
+    txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if txn and txn.get("payment_status") != "completed":
+        new_status = "completed" if status.payment_status == "paid" else status.payment_status
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"payment_status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+
+        # Grant access if paid
+        if status.payment_status == "paid":
+            part_number = int(status.metadata.get("part_number", 0))
+            user_id = status.metadata.get("user_id", current_user["user_id"])
+
+            # Check not already granted for this session
+            existing = await db.book_purchases.find_one(
+                {"session_id": session_id},
+                {"_id": 0}
+            )
+            if not existing:
+                await db.book_purchases.insert_one({
+                    "user_id": user_id,
+                    "part_number": part_number,
+                    "session_id": session_id,
+                    "status": "completed",
+                    "purchased_at": datetime.now(timezone.utc).isoformat()
+                })
+
+    return {
+        "status": status.status,
+        "payment_status": status.payment_status,
+        "amount": status.amount_total,
+        "currency": status.currency
+    }
+
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events."""
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout
+
+    api_key = os.environ.get('STRIPE_API_KEY')
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+
+    body = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+
+    try:
+        event = await stripe_checkout.handle_webhook(body, sig)
+        if event.payment_status == "paid" and event.metadata.get("type") == "book_purchase":
+            part_number = int(event.metadata.get("part_number", 0))
+            user_id = event.metadata.get("user_id", "")
+
+            existing = await db.book_purchases.find_one(
+                {"session_id": event.session_id},
+                {"_id": 0}
+            )
+            if not existing:
+                await db.book_purchases.insert_one({
+                    "user_id": user_id,
+                    "part_number": part_number,
+                    "session_id": event.session_id,
+                    "status": "completed",
+                    "purchased_at": datetime.now(timezone.utc).isoformat()
+                })
+
+            await db.payment_transactions.update_one(
+                {"session_id": event.session_id},
+                {"$set": {"payment_status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Stripe webhook error: {str(e)}")
+        return {"status": "error"}
+
+
+# Book Bookmarks
+@api_router.post("/book/bookmark")
+async def add_bookmark(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    page_number = body.get("page_number")
+    note = body.get("note", "")
+
+    await db.book_bookmarks.update_one(
+        {"user_id": current_user["user_id"], "page_number": page_number},
+        {"$set": {
+            "user_id": current_user["user_id"],
+            "page_number": page_number,
+            "note": note,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    return {"message": "Bookmarked"}
+
+
+@api_router.delete("/book/bookmark/{page_number}")
+async def remove_bookmark(page_number: int, current_user: dict = Depends(get_current_user)):
+    await db.book_bookmarks.delete_one({"user_id": current_user["user_id"], "page_number": page_number})
+    return {"message": "Bookmark removed"}
+
+
+@api_router.get("/book/bookmarks")
+async def get_bookmarks(current_user: dict = Depends(get_current_user)):
+    bookmarks = await db.book_bookmarks.find(
+        {"user_id": current_user["user_id"]},
+        {"_id": 0}
+    ).sort("page_number", 1).to_list(200)
+    return bookmarks
+
+
+# Reading Progress
+@api_router.put("/book/progress")
+async def update_reading_progress(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    await db.book_progress.update_one(
+        {"user_id": current_user["user_id"]},
+        {"$set": {
+            "user_id": current_user["user_id"],
+            "last_page": body.get("last_page", 1),
+            "last_part": body.get("last_part", 1),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    return {"message": "Progress saved"}
+
+
+@api_router.get("/book/progress")
+async def get_reading_progress(current_user: dict = Depends(get_current_user)):
+    progress = await db.book_progress.find_one(
+        {"user_id": current_user["user_id"]},
+        {"_id": 0}
+    )
+    return progress or {"last_page": 1, "last_part": 1}
+
+
+# Admin: Add book pages
+@api_router.post("/admin/book/pages")
+async def admin_add_book_pages(request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: Add or update book pages."""
+    body = await request.json()
+    pages = body.get("pages", [])
+    added = 0
+    for page in pages:
+        await db.book_pages.update_one(
+            {"page_number": page["page_number"]},
+            {"$set": {
+                "page_number": page["page_number"],
+                "part_number": page.get("part_number", 1),
+                "content": page.get("content", ""),
+                "image_url": page.get("image_url"),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        added += 1
+    return {"message": f"Added/updated {added} pages"}
+
+
+@api_router.get("/admin/book/pages")
+async def admin_get_all_book_pages(current_user: dict = Depends(get_current_user)):
+    """Admin: Get all book pages."""
+    pages = await db.book_pages.find({}, {"_id": 0}).sort("page_number", 1).to_list(200)
+    return pages
+
+
+@api_router.get("/admin/book/analytics")
+async def admin_book_analytics(current_user: dict = Depends(get_current_user)):
+    """Admin: Get book reading analytics."""
+    total_readers = await db.book_purchases.distinct("user_id")
+    total_purchases = await db.book_purchases.count_documents({"status": "completed"})
+    total_bookmarks = await db.book_bookmarks.count_documents({})
+
+    # Per-part stats
+    part_stats = {}
+    for part_num in [1, 2, 3]:
+        count = await db.book_purchases.count_documents({"part_number": part_num, "status": "completed"})
+        part_stats[f"part_{part_num}"] = count
+
+    return {
+        "total_readers": len(total_readers),
+        "total_purchases": total_purchases,
+        "total_bookmarks": total_bookmarks,
+        "part_stats": part_stats
+    }
+
+
 app.include_router(api_router)
 
 app.add_middleware(
