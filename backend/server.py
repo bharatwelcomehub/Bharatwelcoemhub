@@ -1463,10 +1463,10 @@ Dishes: {', '.join(menu_names[:100])}
         except json.JSONDecodeError:
             ai_data = {"message": response_text, "recommended_dishes": [], "cultural_note": ""}
 
-        # Match recommended dishes to actual menu items
+        # Match recommended dishes to actual menu items (use recommend_items to enforce BG filter)
         matched_dishes = []
         for dish_name in ai_data.get("recommended_dishes", []):
-            for item in all_items:
+            for item in recommend_items:
                 if item["name"].lower() == dish_name.lower():
                     matched_dishes.append({
                         "id": item["id"],
@@ -1481,8 +1481,8 @@ Dishes: {', '.join(menu_names[:100])}
                     })
                     break
             else:
-                # Fuzzy match
-                for item in all_items:
+                # Fuzzy match — still only from recommend_items
+                for item in recommend_items:
                     if dish_name.lower() in item["name"].lower() or item["name"].lower() in dish_name.lower():
                         matched_dishes.append({
                             "id": item["id"],
@@ -1497,6 +1497,13 @@ Dishes: {', '.join(menu_names[:100])}
                         })
                         break
 
+        # Strip any BG references from the AI message text for adult queries
+        ai_message = ai_data.get("message", response_text)
+        if not user_asks_kids:
+            import re
+            ai_message = re.sub(r'\bBG\s+', '', ai_message)
+            ai_message = re.sub(r'\bBalgopal\b', '', ai_message)
+
         # Save conversation
         await db.vahini_chats.insert_one({
             "session_id": session_id,
@@ -1507,14 +1514,14 @@ Dishes: {', '.join(menu_names[:100])}
         await db.vahini_chats.insert_one({
             "session_id": session_id,
             "role": "assistant",
-            "content": ai_data.get("message", response_text),
+            "content": ai_message,
             "recommended_dishes": [d["name"] for d in matched_dishes],
             "created_at": datetime.now(timezone.utc)
         })
 
         return {
             "session_id": session_id,
-            "message": ai_data.get("message", response_text),
+            "message": ai_message,
             "recommended_dishes": matched_dishes,
             "cultural_note": ai_data.get("cultural_note", ""),
             "is_first_message": is_first_message
