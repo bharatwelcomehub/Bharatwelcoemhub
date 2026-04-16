@@ -80,7 +80,9 @@ const BookLanding = () => {
 
   const handlePurchase = async (partNumber) => {
     if (!user) {
-      // Save which part they want to buy, then show login
+      // Save where to return after login, and which part to buy
+      localStorage.setItem('auth_return_to', '/book');
+      localStorage.setItem('pending_book_purchase', String(partNumber));
       setPendingPurchase(partNumber);
       setAuthDialogOpen(true);
       return;
@@ -110,10 +112,15 @@ const BookLanding = () => {
 
   // After login, auto-trigger the pending purchase
   useEffect(() => {
-    if (user && pendingPurchase) {
-      const partNum = pendingPurchase;
-      setPendingPurchase(null);
-      setTimeout(() => executePurchase(partNum), 500);
+    if (user) {
+      // Check both state and localStorage for pending purchase
+      const pending = pendingPurchase || localStorage.getItem('pending_book_purchase');
+      if (pending) {
+        const partNum = parseInt(pending);
+        setPendingPurchase(null);
+        localStorage.removeItem('pending_book_purchase');
+        setTimeout(() => executePurchase(partNum), 500);
+      }
     }
   }, [user]);
 

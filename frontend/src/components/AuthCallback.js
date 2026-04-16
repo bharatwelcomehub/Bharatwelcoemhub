@@ -29,8 +29,10 @@ const AuthCallback = () => {
       try {
         const user = await handleGoogleCallback(sessionId);
         toast.success(`Welcome, ${user.name || user.email}!`);
-        // Navigate to home or intended destination
-        navigate('/', { state: { user }, replace: true });
+        // Navigate back to where user was (or home)
+        const returnTo = localStorage.getItem('auth_return_to') || '/';
+        localStorage.removeItem('auth_return_to');
+        navigate(returnTo, { state: { user }, replace: true });
       } catch (error) {
         console.error('Auth callback error:', error);
         toast.error('Failed to complete login');
