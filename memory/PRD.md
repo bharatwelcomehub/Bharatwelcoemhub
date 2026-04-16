@@ -6,38 +6,33 @@ Internal management system for "Purnabramha," a restaurant franchise. Core philo
 ## Core Modules
 1. Authentication (OTP-based)
 2. Employee Management (CRUD, KYC/Documents)
-3. Attendance Module
+3. Attendance Module (Dashboard with role-based access)
 4. POS Billing
 5. Sales & Expenses
 6. Center Accounts (Financial summary, Commission, PIB with Operational Sustainability)
 7. MIS Dashboard
 8. Franchise Management
 9. Document Management
-10. Franchise Owner Dashboard
+10. Franchise Owner Dashboard (with full franchise info)
 11. Payslip Generation (Location-aware)
 12. Franchise Exit & Closure
-13. Food Safety Compliance Module (8 templates) — Tablet-first UI redesign complete
+13. Food Safety Compliance Module (8 templates, tablet-first UI)
 14. Daily Sales Text Generator (WhatsApp-style summary)
 15. Social Media Planning & Content Tracker
-16. Bill Download Access (ZIP support for franchise owners)
+16. Bill Download Access (ZIP support, expense attachments)
 
 ## What's Been Implemented (Latest)
 
-### [2026-04-16] International Attendance Calendar Week Logic (Complete)
-- Replaced month-based week logic (Week 1=days 1-6, etc.) with TRUE calendar weeks
-- Week 1: Jan 1 to first Sunday. Week 2+: Monday to Sunday (continues all year)
-- Weeks span across month boundaries (e.g., Week 14: Mar 30 - Apr 5)
-- New `/weeks-for-month` API returns which calendar weeks overlap with a month
-- Frontend: Week selector shows "Wk 14: Mar 30 - Apr 5", column headers show date + day
-- Month filter only controls which weeks are shown, doesn't break week structure
-- Backend: Updated save, week-data, monthly-report, payroll-report endpoints
+### [2026-04-16] Dashboard & Data Visibility Fixes (Complete)
+1. **Attendance Dashboard** — Added role-based access: Center Managers see only their center, Admin/Super Admin see all
+2. **Daily Text Generator** — Fixed data reset bug: now pulls actual stored data from daily_sales/expenses with case-insensitive center matching
+3. **Bill Download** — Wired expense_attachments collection, normalized POS bills (bill_no→bill_id), auth token for downloads
+4. **Owner Dashboard** — Added Center Name, Phone, Legal Entity fields with field fallback chains
+5. **Expense Bill Visibility** — Fixed "None" display by reading from expense_attachments collection instead of non-existent expenses.bill_url
+- Tested: 16/16 backend + 5/5 frontend (iteration_68)
 
-### [2026-04-16] Salary Bug Fixes (Complete)
-- Leave (L) weight: 1 → 0 (unpaid)
-- Transfer salary: per-center view now only counts attendance AT that center
-- Transferred-out employees added back to source center's salary
-- ALL CENTERS: single backend call with deduplication
-
+### [2026-04-16] International Attendance Calendar Weeks (Complete)
+### [2026-04-16] Salary Fixes (Leave weight, Transfer calculation) (Complete)
 ### [2026-04-16] Food Safety Tablet-First UI Redesign (Complete)
 
 ### Earlier completed work
