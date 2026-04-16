@@ -43,7 +43,8 @@ import {
   Eye,
   Lock,
   Unlock,
-  ShieldAlert
+  ShieldAlert,
+  Wallet
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -522,6 +523,15 @@ export default function AttendanceDashboard() {
               <div className="text-xs text-[#8B0000]/70">Attendance</div>
             </CardContent>
           </Card>
+          <Card className="bg-orange-50 dark:bg-orange-900/20 border-orange-200" data-testid="advance-summary-card">
+            <CardContent className="p-3 text-center">
+              <Wallet className="w-5 h-5 mx-auto text-orange-600 mb-1" />
+              <div className="text-2xl font-bold text-orange-600">
+                {summary.summary.total_advance ? `${Math.round(summary.summary.total_advance).toLocaleString()}` : "0"}
+              </div>
+              <div className="text-xs text-orange-600/70">Advance ({summary.summary.advance_count || 0})</div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -582,6 +592,7 @@ export default function AttendanceDashboard() {
                     <th className="border border-[#6B0000] p-1 text-center font-semibold bg-blue-700 w-8">WO</th>
                     <th className="border border-[#6B0000] p-1 text-center font-semibold bg-purple-700 w-8">L</th>
                     <th className="border border-[#6B0000] p-1 text-center font-semibold bg-slate-700 w-10">%</th>
+                    <th className="border border-[#6B0000] p-1 text-center font-semibold bg-orange-700 w-16">Adv</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -639,12 +650,17 @@ export default function AttendanceDashboard() {
                         }`}>
                           {pct}%
                         </td>
+                        <td className={`border border-gray-200 dark:border-gray-700 p-1 text-center font-bold text-[10px] ${
+                          emp.advance > 0 ? 'text-orange-700 bg-orange-50 dark:bg-orange-900/20' : 'text-gray-400'
+                        }`} data-testid={`advance-${emp.name}`}>
+                          {emp.advance > 0 ? Math.round(emp.advance).toLocaleString() : "-"}
+                        </td>
                       </tr>
                     );
                   })}
                   {(!monthlyGrid?.employees || monthlyGrid.employees.length === 0) && (
                     <tr>
-                      <td colSpan={daysInMonth + 8} className="text-center py-12 text-muted-foreground">
+                      <td colSpan={daysInMonth + 9} className="text-center py-12 text-muted-foreground">
                         <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
                         <p>No attendance data found for selected filters</p>
                       </td>

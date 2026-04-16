@@ -246,6 +246,15 @@ async def get_dashboard_summary(req: DashboardRequest):
     working_employees = total_employees - week_off - leave
     attendance_pct = round((present + half_day * 0.5) / working_employees * 100, 1) if working_employees > 0 else 0
     
+    # Get advance amounts for the month
+    month_str = target_date[:7]  # YYYY-MM
+    adv_query = {"date": {"$regex": f"^{month_str}"}}
+    if filter_center:
+        adv_query["center"] = filter_center
+    advances = await db.advances.find(adv_query, {"_id": 0}).to_list(5000)
+    total_advance = sum(float(a.get("advanceAmount", 0) or 0) for a in advances)
+    advance_count = len(advances)
+    
     return {
         "date": target_date,
         "center": filter_center or "all",
@@ -258,7 +267,9 @@ async def get_dashboard_summary(req: DashboardRequest):
             "leave": leave,
             "late": late,
             "not_marked": not_marked,
-            "attendance_percentage": attendance_pct
+            "attendance_percentage": attendance_pct,
+            "total_advance": round(total_advance, 2),
+            "advance_count": advance_count
         },
         "is_super_admin": check_super_admin(session),
         "can_edit": check_super_admin(session)
@@ -512,6 +523,19 @@ async def get_monthly_grid(req: DashboardRequest):
     
     attendance_records = await db.attendance.find(att_query, {"_id": 0}).to_list(50000)
     
+    # Get advance amounts for the month per employee
+    adv_query = {"date": {"$regex": f"^{month}"}}
+    if filter_center:
+        adv_query["center"] = filter_center
+    advances = await db.advances.find(adv_query, {"_id": 0}).to_list(5000)
+    adv_map = {}
+    total_advance_all = 0
+    for a in advances:
+        emp = a.get("employeeName", "").upper()
+        amt = float(a.get("advanceAmount", 0) or 0)
+        adv_map[emp] = adv_map.get(emp, 0) + amt
+        total_advance_all += amt
+    
     # Build attendance map: {center_employee_date: status}
     att_map = {}
     for a in attendance_records:
@@ -603,7 +627,8 @@ async def get_monthly_grid(req: DashboardRequest):
             "center": emp_center,
             "designation": emp.get("designation", ""),
             "attendance": attendance,
-            "transfer_tag": "HOME"
+            "transfer_tag": "HOME",
+            "advance": round(adv_map.get(emp_name, 0), 2)
         })
     
     # Add transferred-out employees to the grid (they belong to the source center)
@@ -647,7 +672,8 @@ async def get_monthly_grid(req: DashboardRequest):
             "transfer_info": {
                 "to_center": t_emp["to_center"],
                 "transfer_start": t_emp["transfer_start"]
-            }
+            },
+            "advance": round(adv_map.get(emp_name, 0), 2)
         })
     
     # Build center summary
@@ -668,6 +694,7 @@ async def get_monthly_grid(req: DashboardRequest):
         "days_in_month": dim,
         "employees": employee_grid,
         "center_summary": center_summary,
+        "total_advance": round(total_advance_all, 2),
         "is_super_admin": check_super_admin(session)
     }
 
