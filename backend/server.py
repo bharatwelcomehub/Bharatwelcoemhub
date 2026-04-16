@@ -1976,6 +1976,15 @@ async def admin_book_analytics(current_user: dict = Depends(get_current_user)):
     }
 
 
+@api_router.get("/book/ambient-music")
+async def get_ambient_music():
+    """Serve ambient reading music."""
+    music_path = ROOT_DIR / 'static' / 'ambient_music.wav'
+    if not music_path.exists():
+        raise HTTPException(status_code=404, detail="Music not found")
+    return FileResponse(str(music_path), media_type="audio/wav", headers={"Cache-Control": "public, max-age=86400"})
+
+
 app.include_router(api_router)
 
 app.add_middleware(

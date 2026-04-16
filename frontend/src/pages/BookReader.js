@@ -46,10 +46,21 @@ const BookReader = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dimensions, setDimensions] = useState({ width: 400, height: 560 });
+  const [showBreak, setShowBreak] = useState(false);
+  const [pagesFlipped, setPagesFlipped] = useState(0);
   const bookRef = useRef(null);
   const audioRef = useRef(null);
   const { user, token } = useAuth();
   const navigate = useNavigate();
+
+  // Shayaris for tea/coffee break
+  const shayaris = [
+    "Thodi der rukkar padhna,\nkabhi kabhi lafzon ko bhi\nsaans lene deni chahiye.",
+    "Kitaab koi bhi ho,\nchai ke bina\nmukammal nahi hoti.",
+    "Zindagi ki sabse acchi kitaab\nwoh hoti hai jo padhte waqt\nchai thandi ho jaaye.",
+    "Alfaaz ruk jaayein toh samjho,\nunhein bhi ek cup chai ki zaroorat hai.",
+    "Har ek panna ek safar hai,\naur har safar mein\nek chai break zaroori hai."
+  ];
 
   // Reading protection
   useEffect(() => {
@@ -137,6 +148,15 @@ const BookReader = () => {
     setCurrentPage(pageIdx);
     const actualPageNum = (partInfo?.start_page || 1) + pageIdx;
     saveProgress(actualPageNum);
+    
+    // Tea/coffee break every 4 page flips
+    setPagesFlipped(prev => {
+      const newCount = prev + 1;
+      if (newCount > 0 && newCount % 4 === 0) {
+        setTimeout(() => setShowBreak(true), 500);
+      }
+      return newCount;
+    });
   }, [partInfo, saveProgress]);
 
   const toggleBookmark = async () => {
@@ -162,17 +182,20 @@ const BookReader = () => {
     } catch { toast.error('Failed to update bookmark'); }
   };
 
-  // Music - use a royalty-free ambient sound
+  // Music - served from backend
   const toggleMusic = () => {
     if (!audioRef.current) {
-      audioRef.current = new Audio('https://cdn.pixabay.com/audio/2024/11/04/audio_4956b4ece1.mp3');
+      audioRef.current = new Audio(`${API}/api/book/ambient-music`);
       audioRef.current.loop = true;
       audioRef.current.volume = 0.15;
     }
     if (musicOn) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play().catch(() => {});
+      audioRef.current.play().catch((err) => {
+        console.log('Music play failed:', err);
+        toast.error('Tap again to play music');
+      });
     }
     setMusicOn(!musicOn);
   };
@@ -351,6 +374,61 @@ const BookReader = () => {
           mixBlendMode: 'difference'
         }}
       />
+
+      {/* Tea/Coffee Break Modal */}
+      {showBreak && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div
+            className="max-w-sm mx-4 rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: 'linear-gradient(135deg, #FFF9F0, #FFF5E8)' }}
+            data-testid="coffee-break-modal"
+          >
+            {/* Steaming cup animation */}
+            <div className="text-center pt-8 pb-4">
+              <div className="relative inline-block">
+                <span className="text-6xl">&#9749;</span>
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex gap-1">
+                  <span className="block w-1 h-6 bg-[#B8962E]/30 rounded-full animate-pulse" style={{animationDelay: '0ms'}} />
+                  <span className="block w-1 h-8 bg-[#B8962E]/20 rounded-full animate-pulse" style={{animationDelay: '200ms'}} />
+                  <span className="block w-1 h-5 bg-[#B8962E]/30 rounded-full animate-pulse" style={{animationDelay: '400ms'}} />
+                </div>
+              </div>
+            </div>
+
+            {/* Message */}
+            <div className="px-8 pb-4 text-center">
+              <p className="font-heading text-lg text-[#3D2314] mb-4">
+                Would you like a small tea or coffee break?
+              </p>
+              <p className="text-sm text-[#5C4A3A] font-body italic leading-relaxed whitespace-pre-line mb-6">
+                {shayaris[Math.floor(Math.random() * shayaris.length)]}
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex border-t border-[#E8DFD0]">
+              <button
+                onClick={() => setShowBreak(false)}
+                className="flex-1 py-4 text-sm font-body font-semibold text-white tracking-wider uppercase"
+                style={{ background: 'linear-gradient(145deg, #D4AF37, #B8962E)' }}
+                data-testid="continue-reading"
+              >
+                Continue Reading
+              </button>
+              <button
+                onClick={() => {
+                  setShowBreak(false);
+                  toast.success('Enjoy your break! The book will wait for you.');
+                }}
+                className="flex-1 py-4 text-sm font-body font-semibold text-[#B8962E] bg-white hover:bg-[#F8F5F0] tracking-wider uppercase border-l border-[#E8DFD0]"
+                data-testid="take-a-break"
+              >
+                Take a Break
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
