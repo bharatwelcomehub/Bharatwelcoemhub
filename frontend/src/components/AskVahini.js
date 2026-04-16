@@ -19,6 +19,11 @@ const AskVahini = () => {
   const recognitionRef = useRef(null);
   const navigate = useNavigate();
 
+  const getRegion = () => localStorage.getItem('purnabramha_country') || 'India';
+  const isAustralia = () => getRegion() === 'Australia';
+  const currencySymbol = () => isAustralia() ? '$' : '₹';
+  const getPrice = (dish) => isAustralia() ? dish.price_aud : dish.price_inr;
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -85,7 +90,7 @@ const AskVahini = () => {
         body: JSON.stringify({
           message: text.trim(),
           session_id: sessionId,
-          context: { time_of_day: timeOfDay }
+          context: { time_of_day: timeOfDay, region: getRegion() }
         })
       });
 
@@ -120,7 +125,7 @@ const AskVahini = () => {
     setMessages(prev => [...prev, { role: 'user', content: 'Let Vahini Choose For Me!' }]);
 
     try {
-      const res = await fetch(`${API}/api/vahini/random-dish`);
+      const res = await fetch(`${API}/api/vahini/random-dish?region=${getRegion()}`);
       const data = await res.json();
 
       setMessages(prev => [...prev, {
@@ -312,6 +317,8 @@ const AskVahini = () => {
                             onShare={() => setShowShareMenu(showShareMenu === `${i}-${j}` ? null : `${i}-${j}`)}
                             showShare={showShareMenu === `${i}-${j}`}
                             handleShare={handleShare}
+                            currencySymbol={currencySymbol()}
+                            getPrice={getPrice}
                           />
                         ))}
                       </div>
@@ -399,7 +406,8 @@ const AskVahini = () => {
 };
 
 
-const DishCard = ({ dish, navigate, setIsOpen, onShare, showShare, handleShare }) => {
+const DishCard = ({ dish, navigate, setIsOpen, onShare, showShare, handleShare, currencySymbol, getPrice }) => {
+  const price = getPrice(dish);
   return (
     <div className="bg-[#F8F5F0] rounded-xl p-3 border border-[#E8DFD0]">
       <div className="flex items-start gap-3">
@@ -415,9 +423,9 @@ const DishCard = ({ dish, navigate, setIsOpen, onShare, showShare, handleShare }
           <p className="text-sm font-heading font-semibold text-[#3D2314] truncate">{dish.name}</p>
           <p className="text-[10px] text-[#7A6F65] font-body">{dish.category}</p>
           <div className="flex items-center gap-2 mt-1">
-            {dish.price_inr && (
+            {price && (
               <span className="text-xs font-body font-bold text-[#B8962E]">
-                &#8377;{dish.price_inr}
+                {currencySymbol}{price}
               </span>
             )}
             {dish.no_onion_garlic && (

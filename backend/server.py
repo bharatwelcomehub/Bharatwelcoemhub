@@ -1405,6 +1405,7 @@ async def vahini_chat(req: VahiniChatRequest):
 
     # Build context
     context_info = ""
+    user_region = "India"
     if req.context:
         if req.context.get("mood"):
             context_info += f"\nUser's mood: {req.context['mood']}"
@@ -1414,6 +1415,9 @@ async def vahini_chat(req: VahiniChatRequest):
             context_info += f"\nCurrent weather: {req.context['weather']}"
         if req.context.get("time_of_day"):
             context_info += f"\nTime of day: {req.context['time_of_day']}"
+        if req.context.get("region"):
+            user_region = req.context["region"]
+            context_info += f"\nUser's region: {user_region}. Show prices in {'AUD ($)' if user_region == 'Australia' else 'INR (₹)'}. Mention the nearest Purnabramha center in {'Perth' if user_region == 'Australia' else 'India'}."
 
     # Check conversation history for context
     session_id = req.session_id or f"vahini-{uuid.uuid4()}"
@@ -1533,7 +1537,7 @@ Dishes: {', '.join(menu_names[:100])}
 
 
 @api_router.get("/vahini/random-dish")
-async def vahini_random_dish():
+async def vahini_random_dish(region: Optional[str] = "India"):
     """Let Vahini choose a random dish for you."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     import random
@@ -1547,6 +1551,9 @@ async def vahini_random_dish():
         i.get("category", "").lower() not in ["tea / coffee", "non tea / drinks", "tea-coffee", "drinks", "balgopal (kids menu)", "balgopal"]
         and not i["name"].startswith("BG ")
     ]
+    # For Australia, only show items that have AUD pricing
+    if region == "Australia":
+        main_items = [i for i in main_items if i.get("price_aud")]
     if not main_items:
         main_items = all_items
 
