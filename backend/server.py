@@ -1941,6 +1941,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@app.on_event("startup")
+async def seed_admin_account():
+    """Ensure admin account exists on every startup."""
+    existing = await db.users.find_one({"email": "PBadmin@purnabramha.com"}, {"_id": 0})
+    if not existing:
+        admin_user = {
+            "id": str(uuid.uuid4()),
+            "email": "PBadmin@purnabramha.com",
+            "name": "Admin",
+            "phone": "9741399190",
+            "password_hash": hash_password("PB22052012"),
+            "is_admin": True,
+            "created_at": "2025-01-01T00:00:00Z"
+        }
+        await db.users.insert_one(admin_user)
+        logger.info("Admin account seeded successfully")
+    else:
+        logger.info("Admin account already exists")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
