@@ -184,7 +184,8 @@ async def lock_payroll(req: MonthRequest):
 @router.post("/salary_preview")
 async def salary_preview(req: SalaryPreviewRequest):
     """Preview salary data on screen for a specific center or ALL centers (transfer-aware).
-    When targetCenter is 'ALL', fetches all employees once to avoid double-counting."""
+    Per-center: only counts attendance AT that center. Adds back transferred-out employees.
+    ALL: counts all attendance regardless of center."""
     session = verify_token(req.token)
     if not session or not has_admin_access(session):
         raise HTTPException(403, "Only Admin/Super Admin can view salary preview")
@@ -199,12 +200,10 @@ async def salary_preview(req: SalaryPreviewRequest):
         is_all = req.targetCenter.upper() == "ALL"
         
         if is_all:
-            # ALL CENTERS mode: fetch every employee exactly once
             employees = await db.employees.find({}, {"_id": 0}).to_list(5000)
             target_center = "ALL CENTERS"
         else:
             target_center = req.targetCenter.upper()
-            # Get home employees for selected center
             employees = await db.employees.find(
                 {"center": target_center},
                 {"_id": 0}
@@ -254,7 +253,7 @@ async def salary_preview(req: SalaryPreviewRequest):
                     "transfer_type": t["transfer_type"]
                 }
             
-            # For permanently transferred-in employees, add them to the employee list
+            # Add transferred-IN employees (permanent) who aren't already in list
             for t in transfers_in:
                 if t["transfer_type"] == "PERMANENT":
                     emp_name = t["employee_name"].upper()
@@ -262,8 +261,17 @@ async def salary_preview(req: SalaryPreviewRequest):
                         emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
                         if emp:
                             employees.append(emp)
+            
+            # Add transferred-OUT employees back (their center field may have changed
+            # to the new center, but they still have attendance at this center)
+            for t in transfers_out:
+                emp_name = t["employee_name"].upper()
+                if not any(e.get("name", "").upper() == emp_name for e in employees):
+                    emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
+                    if emp:
+                        employees.append(emp)
         
-        # Deduplicate employees by name (safety net)
+        # Deduplicate employees by name
         seen_names = set()
         unique_employees = []
         for emp in employees:
@@ -273,7 +281,7 @@ async def salary_preview(req: SalaryPreviewRequest):
                 unique_employees.append(emp)
         employees = unique_employees
         
-        # Get ALL attendance across ALL centers for these employees
+        # Get ALL attendance for these employees (we filter by center below for per-center view)
         emp_names = [e.get("name", "").upper() for e in employees]
         all_attendance = await db.attendance.find(
             {
@@ -289,14 +297,27 @@ async def salary_preview(req: SalaryPreviewRequest):
             {"_id": 0}
         ).to_list(5000)
         
-        # Build attendance map
+        # Build attendance map with center info: key = empName_date
         att_map = {}
         for a in all_attendance:
             key = f"{a['employeeName']}_{a['date']}"
-            if key not in att_map:
-                att_map[key] = {"status": a.get("status", ""), "center": a.get("center", "")}
+            att_center = a.get("center", "")
+            status = a.get("status", "")
+            
+            if is_all:
+                # ALL mode: just store the status (any center counts)
+                if key not in att_map:
+                    att_map[key] = {"status": status, "center": att_center}
+                else:
+                    # If multiple records for same emp/date, prefer one with actual status
+                    if not att_map[key]["status"] and status:
+                        att_map[key] = {"status": status, "center": att_center}
             else:
-                att_map[key] = {"status": a.get("status", ""), "center": a.get("center", "")}
+                # Per-center mode: store attendance with center info
+                # We'll filter by center when calculating days
+                if key not in att_map:
+                    att_map[key] = []
+                att_map[key].append({"status": status, "center": att_center})
         
         # Build advances map
         adv_map = {}
@@ -333,8 +354,20 @@ async def salary_preview(req: SalaryPreviewRequest):
             for d in range(1, dim + 1):
                 date_str = f"{req.month}-{d:02d}"
                 key = f"{emp_name}_{date_str}"
-                att_entry = att_map.get(key, {})
-                status = att_entry.get("status", "")
+                
+                if is_all:
+                    # ALL mode: count any attendance
+                    att_entry = att_map.get(key, {})
+                    status = att_entry.get("status", "") if isinstance(att_entry, dict) else ""
+                else:
+                    # Per-center mode: only count attendance AT this center
+                    att_entries = att_map.get(key, [])
+                    status = ""
+                    for entry in att_entries:
+                        if entry.get("center", "") == target_center:
+                            status = entry.get("status", "")
+                            break
+                
                 weight = weights.get(status, 0)
                 present_days += weight
             
@@ -385,7 +418,9 @@ async def salary_preview(req: SalaryPreviewRequest):
 
 @router.post("/generate_salary")
 async def generate_salary(req: SalaryGenRequest):
-    """Generate salary Excel for ICICI upload (transfer-aware)"""
+    """Generate salary Excel for ICICI upload (transfer-aware).
+    Per-center: only counts attendance AT that center, adds back transferred-out employees.
+    All: counts all attendance."""
     session = verify_token(req.token)
     if not session or not has_admin_access(session):
         raise HTTPException(403, "Only Admin can generate salary")
@@ -398,9 +433,13 @@ async def generate_salary(req: SalaryGenRequest):
         start_date = f"{req.month}-01"
         end_date = f"{req.month}-{dim:02d}"
         
+        is_all = req.mode != "single" or not req.targetCenter
+        target_center = None
+        
         # Get employees
         if req.mode == "single" and req.targetCenter:
             target_center = req.targetCenter.upper()
+            is_all = False
             employees = await db.employees.find(
                 {"center": target_center},
                 {"_id": 0}
@@ -409,9 +448,14 @@ async def generate_salary(req: SalaryGenRequest):
             # Add permanently transferred-in employees
             perm_in = await db.transfer_requests.find({
                 "to_center": target_center,
-                "transfer_type": "PERMANENT",
                 "status": {"$in": ["ACCEPTED", "COMPLETED"]},
-                "start_date": {"$lte": end_date}
+                "start_date": {"$lte": end_date},
+                "$or": [
+                    {"end_date": {"$gte": start_date}},
+                    {"end_date": None},
+                    {"end_date": ""},
+                    {"transfer_type": "PERMANENT"}
+                ]
             }, {"_id": 0}).to_list(100)
             
             for t in perm_in:
@@ -420,10 +464,40 @@ async def generate_salary(req: SalaryGenRequest):
                     emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
                     if emp:
                         employees.append(emp)
+            
+            # Add transferred-OUT employees back (they have attendance at this center)
+            perm_out = await db.transfer_requests.find({
+                "from_center": target_center,
+                "status": {"$in": ["ACCEPTED", "COMPLETED"]},
+                "start_date": {"$lte": end_date},
+                "$or": [
+                    {"end_date": {"$gte": start_date}},
+                    {"end_date": None},
+                    {"end_date": ""},
+                    {"transfer_type": "PERMANENT"}
+                ]
+            }, {"_id": 0}).to_list(100)
+            
+            for t in perm_out:
+                emp_name = t["employee_name"].upper()
+                if not any(e.get("name", "").upper() == emp_name for e in employees):
+                    emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
+                    if emp:
+                        employees.append(emp)
         else:
             employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
         
-        # Get ALL attendance (not filtered by center - use actual working location)
+        # Deduplicate
+        seen_names = set()
+        unique_employees = []
+        for emp in employees:
+            name = emp.get("name", "").upper()
+            if name and name not in seen_names:
+                seen_names.add(name)
+                unique_employees.append(emp)
+        employees = unique_employees
+        
+        # Get ALL attendance
         emp_names = [e.get("name", "").upper() for e in employees]
         attendance = await db.attendance.find(
             {
@@ -443,7 +517,20 @@ async def generate_salary(req: SalaryGenRequest):
         att_map = {}
         for a in attendance:
             key = f"{a['employeeName']}_{a['date']}"
-            att_map[key] = a.get("status", "")
+            att_center = a.get("center", "")
+            status = a.get("status", "")
+            
+            if is_all:
+                # All mode: any center counts
+                if key not in att_map:
+                    att_map[key] = status
+                elif not att_map[key] and status:
+                    att_map[key] = status
+            else:
+                # Per-center: store list with center info
+                if key not in att_map:
+                    att_map[key] = []
+                att_map[key].append({"status": status, "center": att_center})
         
         # Build advances map
         adv_map = {}
@@ -479,12 +566,28 @@ async def generate_salary(req: SalaryGenRequest):
             credit_narr = emp_remark if emp_remark else f"SALARY {req.month}"
             debit_narr = emp_remark if emp_remark else "SALARY"
             
-            # Calculate working days from actual attendance (any center)
+            # Calculate working days
             present_days = 0
             for d in range(1, dim + 1):
                 date_str = f"{req.month}-{d:02d}"
                 key = f"{emp_name}_{date_str}"
-                status = att_map.get(key, "")
+                
+                if is_all:
+                    status = att_map.get(key, "")
+                    if isinstance(status, list):
+                        status = status[0].get("status", "") if status else ""
+                else:
+                    # Per-center: only count attendance AT this center
+                    att_entries = att_map.get(key, [])
+                    status = ""
+                    if isinstance(att_entries, list):
+                        for entry in att_entries:
+                            if entry.get("center", "") == target_center:
+                                status = entry.get("status", "")
+                                break
+                    else:
+                        status = att_entries  # fallback for string
+                
                 weight = weights.get(status, 0)
                 present_days += weight
             
