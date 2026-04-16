@@ -1982,7 +1982,8 @@ async def get_ambient_music():
     music_path = ROOT_DIR / 'static' / 'ambient_music.mp3'
     if not music_path.exists():
         raise HTTPException(status_code=404, detail="Music not found")
-    return FileResponse(str(music_path), media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
+    # No-cache so new uploads take effect immediately
+    return FileResponse(str(music_path), media_type="audio/mpeg", headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"})
 
 
 @api_router.get("/book/settings")
@@ -2022,15 +2023,19 @@ async def upload_book_music(request: Request, current_user: dict = Depends(get_c
     if not audio_base64:
         raise HTTPException(status_code=400, detail="audio_base64 is required")
 
-    import base64
+    import base64, glob
     audio_data = base64.b64decode(audio_base64)
-    ext = filename.split('.')[-1] if '.' in filename else 'mp3'
-    save_path = ROOT_DIR / 'static' / f'ambient_music.{ext}'
 
+    # Remove all existing music files first
+    for old_file in glob.glob(str(ROOT_DIR / 'static' / 'ambient_music.*')):
+        os.remove(old_file)
+
+    # Always save as .mp3 regardless of input format
+    save_path = ROOT_DIR / 'static' / 'ambient_music.mp3'
     with open(save_path, 'wb') as f:
         f.write(audio_data)
 
-    return {"message": f"Music uploaded ({len(audio_data) // 1024}KB)", "filename": f"ambient_music.{ext}"}
+    return {"message": f"Music uploaded ({len(audio_data) // 1024}KB)"}
 
 
 app.include_router(api_router)

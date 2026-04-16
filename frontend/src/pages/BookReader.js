@@ -193,10 +193,10 @@ const BookReader = () => {
     } catch { toast.error('Failed to update bookmark'); }
   };
 
-  // Music - served from backend
+  // Music - served from backend (cache-busted)
   const toggleMusic = () => {
     if (!audioRef.current) {
-      audioRef.current = new Audio(`${API}/api/book/ambient-music`);
+      audioRef.current = new Audio(`${API}/api/book/ambient-music?t=${Date.now()}`);
       audioRef.current.loop = true;
       audioRef.current.volume = 0.15;
     }
