@@ -1600,9 +1600,9 @@ async def vahini_random_dish(region: Optional[str] = "India"):
 # ===================== BOOK READING PLATFORM =====================
 
 BOOK_PARTS = {
-    1: {"name": "Part 1", "pages": "1-50", "price_inr": 2.00, "price_aud": 0.10, "start_page": 1, "end_page": 50},
-    2: {"name": "Part 2", "pages": "51-100", "price_inr": 2.00, "price_aud": 0.10, "start_page": 51, "end_page": 100},
-    3: {"name": "Part 3", "pages": "101-152", "price_inr": 2.00, "price_aud": 0.10, "start_page": 101, "end_page": 152},
+    1: {"name": "Part 1", "pages": "1-50", "price_inr": 50.00, "price_aud": 1.00, "start_page": 1, "end_page": 50},
+    2: {"name": "Part 2", "pages": "51-100", "price_inr": 50.00, "price_aud": 1.00, "start_page": 51, "end_page": 100},
+    3: {"name": "Part 3", "pages": "101-152", "price_inr": 50.00, "price_aud": 1.00, "start_page": 101, "end_page": 152},
 }
 
 @api_router.get("/book/parts")

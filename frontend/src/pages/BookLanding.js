@@ -160,7 +160,7 @@ const BookLanding = () => {
                 </div>
                 <div className="w-px h-10 bg-[#E8DFD0]" />
                 <div className="text-center">
-                  <p className="text-2xl font-heading text-[#B8962E]">{currencySymbol}{isAustralia ? '0.10' : '2'}</p>
+                  <p className="text-2xl font-heading text-[#B8962E]">{currencySymbol}{parts.length > 0 ? (isAustralia ? parts[0].price_aud : parts[0].price_inr) : '50'}</p>
                   <p className="text-xs text-[#7A6F65] font-body">Per Part</p>
                 </div>
               </div>
