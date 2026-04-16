@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -177,6 +177,12 @@ const Admin = () => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
+  // Book Settings state
+  const [bookSettings, setBookSettings] = useState({ break_interval: 20, music_url: '', break_shayaris: [] });
+  const [bookAnalytics, setBookAnalytics] = useState(null);
+  const [newShayari, setNewShayari] = useState('');
+  const [musicUploading, setMusicUploading] = useState(false);
+
   // Get fresh token
   const getToken = () => localStorage.getItem('token') || token;
 
@@ -198,6 +204,7 @@ const Admin = () => {
       fetchFestivalThemes();
       fetchCateringPackages();
       fetchCateringMenuItems();
+      fetchBookSettings();
     }
   }, [token]);
 
@@ -217,6 +224,7 @@ const Admin = () => {
         fetchFestivalThemes();
         fetchCateringPackages();
         fetchCateringMenuItems();
+        fetchBookSettings();
       }, 100);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
@@ -928,8 +936,69 @@ const Admin = () => {
     }
   };
 
+  // Book Settings functions
+  const fetchBookSettings = async () => {
+    try {
+      const res = await axios.get(`${API}/book/settings`);
+      setBookSettings(res.data);
+      const currentToken = getToken();
+      if (currentToken) {
+        const analytics = await axios.get(`${API}/admin/book/analytics`, {
+          headers: { Authorization: `Bearer ${currentToken}` }
+        });
+        setBookAnalytics(analytics.data);
+      }
+    } catch {}
+  };
+
+  const saveBookSettings = async () => {
+    const currentToken = getToken();
+    try {
+      await axios.put(`${API}/admin/book/settings`, bookSettings, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Book settings saved!');
+    } catch { toast.error('Failed to save settings'); }
+  };
+
+  const handleMusicUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error('Max 10MB'); return; }
+    setMusicUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(',')[1];
+      const currentToken = getToken();
+      try {
+        await axios.post(`${API}/admin/book/upload-music`, {
+          audio_base64: base64,
+          filename: file.name
+        }, { headers: { Authorization: `Bearer ${currentToken}` } });
+        toast.success('Music uploaded!');
+      } catch { toast.error('Upload failed'); }
+      setMusicUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addShayari = () => {
+    if (!newShayari.trim()) return;
+    setBookSettings(prev => ({
+      ...prev,
+      break_shayaris: [...(prev.break_shayaris || []), newShayari.trim()]
+    }));
+    setNewShayari('');
+  };
+
+  const removeShayari = (idx) => {
+    setBookSettings(prev => ({
+      ...prev,
+      break_shayaris: prev.break_shayaris.filter((_, i) => i !== idx)
+    }));
+  };
+
   const handleFestivalSubmit = async (e) => {
-    e.preventDefault();
     const currentToken = getToken();
     try {
       if (editingFestival) {
@@ -1142,6 +1211,10 @@ const Admin = () => {
             <TabsTrigger value="videos" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3">
               <Video className="h-4 w-4" />
               Videos ({videos.length})
+            </TabsTrigger>
+            <TabsTrigger value="book" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="book-admin-tab">
+              <BookOpen className="h-4 w-4" />
+              Book
             </TabsTrigger>
           </TabsList>
 
@@ -1989,9 +2062,143 @@ const Admin = () => {
               )}
             </div>
           </TabsContent>
-        </Tabs>
 
-        {/* Menu Item Dialog */}
+          {/* BOOK SETTINGS TAB */}
+          <TabsContent value="book">
+            <div className="space-y-6">
+              {/* Analytics Cards */}
+              {bookAnalytics && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-2xl font-heading text-[#B8962E]">{bookAnalytics.total_readers}</p>
+                    <p className="text-xs text-[#7A6F65] font-body">Total Readers</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-2xl font-heading text-[#B8962E]">{bookAnalytics.total_purchases}</p>
+                    <p className="text-xs text-[#7A6F65] font-body">Parts Purchased</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-2xl font-heading text-[#B8962E]">{bookAnalytics.total_bookmarks}</p>
+                    <p className="text-xs text-[#7A6F65] font-body">Bookmarks</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="p-4 text-center">
+                    <p className="text-lg font-body text-[#5C4A3A]">P1: {bookAnalytics.part_stats?.part_1 || 0} | P2: {bookAnalytics.part_stats?.part_2 || 0} | P3: {bookAnalytics.part_stats?.part_3 || 0}</p>
+                    <p className="text-xs text-[#7A6F65] font-body">Per Part Sales</p>
+                  </CardContent></Card>
+                </div>
+              )}
+
+              {/* Break Interval Setting */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg"><Coffee className="h-5 w-5 text-[#B8962E]" /> Tea/Coffee Break Interval</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-[#7A6F65] font-body mb-3">Show break reminder after every X pages flipped</p>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      {[4, 10, 15, 20, 30].map(val => (
+                        <button
+                          key={val}
+                          onClick={() => setBookSettings(prev => ({ ...prev, break_interval: val }))}
+                          className={`px-4 py-2 rounded-lg text-sm font-body font-semibold transition-all ${
+                            bookSettings.break_interval === val
+                              ? 'bg-[#B8962E] text-white'
+                              : 'bg-[#F8F5F0] text-[#5C4A3A] border border-[#E8DFD0] hover:border-[#B8962E]'
+                          }`}
+                          data-testid={`break-interval-${val}`}
+                        >
+                          {val} pages
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs text-[#7A6F65] font-body">or custom:</span>
+                    <Input
+                      type="number"
+                      min={2}
+                      max={50}
+                      value={bookSettings.break_interval}
+                      onChange={(e) => setBookSettings(prev => ({ ...prev, break_interval: parseInt(e.target.value) || 20 }))}
+                      className="w-20"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Music Upload */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg"><Music className="h-5 w-5 text-[#B8962E]" /> Background Music</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-[#7A6F65] font-body mb-3">Upload calm ambient music (MP3/WAV, max 10MB). Readers can toggle it ON/OFF.</p>
+                  <div className="flex items-center gap-4">
+                    <label className="cursor-pointer px-4 py-2 bg-[#3D2314] text-[#D4AF37] rounded-lg text-sm font-body font-semibold hover:bg-[#5A3520] transition-colors">
+                      {musicUploading ? 'Uploading...' : 'Upload Music File'}
+                      <input
+                        type="file"
+                        accept="audio/mp3,audio/wav,audio/mpeg,audio/*"
+                        className="hidden"
+                        onChange={handleMusicUpload}
+                        disabled={musicUploading}
+                        data-testid="music-upload-input"
+                      />
+                    </label>
+                    <audio controls src={`${API}/book/ambient-music`} className="h-10" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Shayari Management */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg"><Coffee className="h-5 w-5 text-[#B8962E]" /> Break Shayaris</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-[#7A6F65] font-body mb-3">Custom shayaris shown during tea/coffee breaks. Leave empty to use defaults.</p>
+
+                  {/* Add new shayari */}
+                  <div className="flex gap-2 mb-4">
+                    <Textarea
+                      value={newShayari}
+                      onChange={(e) => setNewShayari(e.target.value)}
+                      placeholder="Type a new shayari..."
+                      className="flex-1 min-h-[60px]"
+                      data-testid="new-shayari-input"
+                    />
+                    <Button onClick={addShayari} className="bg-[#B8962E] text-white hover:bg-[#D4AF37]" data-testid="add-shayari-btn">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Existing shayaris */}
+                  <div className="space-y-2">
+                    {(bookSettings.break_shayaris || []).map((s, i) => (
+                      <div key={i} className="flex items-start gap-2 bg-[#F8F5F0] p-3 rounded-lg">
+                        <p className="flex-1 text-sm font-body text-[#3D2314] italic whitespace-pre-wrap">{s}</p>
+                        <button onClick={() => removeShayari(i)} className="text-red-400 hover:text-red-600 p-1">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {(!bookSettings.break_shayaris || bookSettings.break_shayaris.length === 0) && (
+                      <p className="text-xs text-[#7A6F65]/60 italic font-body">No custom shayaris. Default ones will be shown.</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Save Button */}
+              <Button
+                onClick={saveBookSettings}
+                className="w-full gold-glossy text-[#3D2314] font-bold rounded-none py-3 text-sm tracking-widest uppercase border-0"
+                data-testid="save-book-settings"
+              >
+                Save Book Settings
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>

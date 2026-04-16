@@ -48,19 +48,29 @@ const BookReader = () => {
   const [dimensions, setDimensions] = useState({ width: 400, height: 560 });
   const [showBreak, setShowBreak] = useState(false);
   const [pagesFlipped, setPagesFlipped] = useState(0);
+  const [readerSettings, setReaderSettings] = useState({ break_interval: 20, break_shayaris: [] });
   const bookRef = useRef(null);
   const audioRef = useRef(null);
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
-  // Shayaris for tea/coffee break
-  const shayaris = [
+  // Default shayaris (used if admin hasn't set custom ones)
+  const defaultShayaris = [
     "Thodi der rukkar padhna,\nkabhi kabhi lafzon ko bhi\nsaans lene deni chahiye.",
     "Kitaab koi bhi ho,\nchai ke bina\nmukammal nahi hoti.",
     "Zindagi ki sabse acchi kitaab\nwoh hoti hai jo padhte waqt\nchai thandi ho jaaye.",
     "Alfaaz ruk jaayein toh samjho,\nunhein bhi ek cup chai ki zaroorat hai.",
     "Har ek panna ek safar hai,\naur har safar mein\nek chai break zaroori hai."
   ];
+  const shayaris = readerSettings.break_shayaris?.length > 0 ? readerSettings.break_shayaris : defaultShayaris;
+
+  // Fetch reader settings from DB
+  useEffect(() => {
+    fetch(`${API}/api/book/settings`)
+      .then(r => r.json())
+      .then(data => setReaderSettings(data))
+      .catch(() => {});
+  }, []);
 
   // Reading protection
   useEffect(() => {
@@ -149,10 +159,11 @@ const BookReader = () => {
     const actualPageNum = (partInfo?.start_page || 1) + pageIdx;
     saveProgress(actualPageNum);
     
-    // Tea/coffee break every 20 page flips
+    // Tea/coffee break based on admin setting
     setPagesFlipped(prev => {
       const newCount = prev + 1;
-      if (newCount > 0 && newCount % 20 === 0) {
+      const interval = readerSettings.break_interval || 20;
+      if (newCount > 0 && newCount % interval === 0) {
         setTimeout(() => setShowBreak(true), 500);
       }
       return newCount;

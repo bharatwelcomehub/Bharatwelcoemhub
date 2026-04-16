@@ -1985,6 +1985,54 @@ async def get_ambient_music():
     return FileResponse(str(music_path), media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+@api_router.get("/book/settings")
+async def get_book_settings():
+    """Get book reader settings (break interval, music URL, etc.)."""
+    settings = await db.book_settings.find_one({"key": "reader_settings"}, {"_id": 0})
+    if not settings:
+        return {"break_interval": 20, "music_url": "", "break_shayaris": []}
+    return settings
+
+
+@api_router.put("/admin/book/settings")
+async def update_book_settings(request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: Update book reader settings."""
+    body = await request.json()
+    await db.book_settings.update_one(
+        {"key": "reader_settings"},
+        {"$set": {
+            "key": "reader_settings",
+            "break_interval": int(body.get("break_interval", 20)),
+            "music_url": body.get("music_url", ""),
+            "break_shayaris": body.get("break_shayaris", []),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    return {"message": "Settings updated"}
+
+
+@api_router.post("/admin/book/upload-music")
+async def upload_book_music(request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: Upload music via base64 encoded audio."""
+    body = await request.json()
+    audio_base64 = body.get("audio_base64", "")
+    filename = body.get("filename", "custom_music.mp3")
+
+    if not audio_base64:
+        raise HTTPException(status_code=400, detail="audio_base64 is required")
+
+    import base64
+    audio_data = base64.b64decode(audio_base64)
+    ext = filename.split('.')[-1] if '.' in filename else 'mp3'
+    save_path = ROOT_DIR / 'static' / f'ambient_music.{ext}'
+
+    with open(save_path, 'wb') as f:
+        f.write(audio_data)
+
+    return {"message": f"Music uploaded ({len(audio_data) // 1024}KB)", "filename": f"ambient_music.{ext}"}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
