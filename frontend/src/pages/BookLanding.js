@@ -5,6 +5,7 @@ import { BookOpen, Lock, CheckCircle, Bookmark, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import AuthDialog from '@/components/AuthDialog';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const COVER_IMAGE = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/bdlxtuu4_Book_Restaurant_become_Human.png';
@@ -14,6 +15,8 @@ const BookLanding = () => {
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [pendingPurchase, setPendingPurchase] = useState(null);
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
@@ -76,12 +79,22 @@ const BookLanding = () => {
   };
 
   const handlePurchase = async (partNumber) => {
-    if (!user) { toast.error('Please login to purchase'); return; }
+    if (!user) {
+      // Save which part they want to buy, then show login
+      setPendingPurchase(partNumber);
+      setAuthDialogOpen(true);
+      return;
+    }
+    executePurchase(partNumber);
+  };
+
+  const executePurchase = async (partNumber) => {
     setPurchasing(partNumber);
     try {
+      const currentToken = localStorage.getItem('token') || token;
       const res = await fetch(`${API}/api/book/purchase`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
         body: JSON.stringify({
           part_number: partNumber,
           origin_url: window.location.origin,
@@ -94,6 +107,15 @@ const BookLanding = () => {
     } catch { toast.error('Payment failed. Please try again.'); }
     setPurchasing(null);
   };
+
+  // After login, auto-trigger the pending purchase
+  useEffect(() => {
+    if (user && pendingPurchase) {
+      const partNum = pendingPurchase;
+      setPendingPurchase(null);
+      setTimeout(() => executePurchase(partNum), 500);
+    }
+  }, [user]);
 
   const handleRead = (partNumber) => {
     navigate(`/book/read/${partNumber}`);
@@ -230,11 +252,11 @@ const BookLanding = () => {
                   ) : (
                     <Button
                       onClick={() => handlePurchase(part.part_number)}
-                      disabled={purchasing === part.part_number || !user}
+                      disabled={purchasing === part.part_number}
                       className="w-full bg-[#3D2314] text-[#D4AF37] hover:bg-[#5A3520] font-bold rounded-none text-xs tracking-widest uppercase"
                       data-testid={`buy-part-${part.part_number}`}
                     >
-                      {purchasing === part.part_number ? 'Processing...' : !user ? 'Login to Purchase' : `Buy for ${currencySymbol}${isAustralia ? part.price_aud : part.price_inr}`}
+                      {purchasing === part.part_number ? 'Processing...' : `Buy for ${currencySymbol}${isAustralia ? part.price_aud : part.price_inr}`}
                     </Button>
                   )}
                 </div>
@@ -280,6 +302,9 @@ const BookLanding = () => {
           </div>
         </div>
       </section>
+
+      {/* Auth Dialog for purchase flow */}
+      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
     </div>
   );
 };
