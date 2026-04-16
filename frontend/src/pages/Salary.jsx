@@ -88,55 +88,15 @@ export default function Salary({ isPayslips = false }) {
     setPreviewLoading(true);
     setSalaryData(null);
     try {
-      // If ALL selected, make multiple API calls and combine
-      if (targetCenter === "ALL") {
-        let allSalaryData = [];
-        let totalGross = 0, totalAdvance = 0, totalNet = 0;
-        let totalEmployees = 0;
-        
-        for (const center of centersList) {
-          try {
-            const res = await api.post("/salary_preview", {
-              token: session.token,
-              month: month,
-              targetCenter: center.code
-            });
-            
-            if (res.data.salaryData) {
-              allSalaryData = [...allSalaryData, ...res.data.salaryData];
-              totalGross += res.data.totals?.gross || 0;
-              totalAdvance += res.data.totals?.advance || 0;
-              totalNet += res.data.totals?.net || 0;
-              totalEmployees += res.data.employeeCount || 0;
-            }
-          } catch (e) {
-            // Skip centers with errors
-          }
-        }
-        
-        setSalaryData({
-          center: "ALL CENTERS",
-          month: month,
-          daysInMonth: new Date(month.split("-")[0], month.split("-")[1], 0).getDate(),
-          employeeCount: totalEmployees,
-          totals: {
-            gross: totalGross,
-            advance: totalAdvance,
-            net: totalNet
-          },
-          salaryData: allSalaryData
-        });
-        toast.success(`Loaded salary data for ${totalEmployees} employees across all centers`);
-      } else {
-        const res = await api.post("/salary_preview", {
-          token: session.token,
-          month: month,
-          targetCenter: targetCenter
-        });
-        
-        setSalaryData(res.data);
-        toast.success(`Loaded salary data for ${res.data.employeeCount} employees`);
-      }
+      // Single backend call handles both ALL and individual centers
+      const res = await api.post("/salary_preview", {
+        token: session.token,
+        month: month,
+        targetCenter: targetCenter
+      });
+      
+      setSalaryData(res.data);
+      toast.success(`Loaded salary data for ${res.data.employeeCount} employees`);
     } catch (e) {
       const errorMsg = await parseErrorFromBlob(e);
       toast.error(errorMsg || "Failed to load salary preview");
@@ -344,22 +304,36 @@ export default function Salary({ isPayslips = false }) {
             {/* Center Selection */}
             <div className="space-y-2">
               <Label>Select Center</Label>
-              <Select value={targetCenter} onValueChange={(v) => {
-                setTargetCenter(v);
-                setSalaryData(null);
-              }}>
-                <SelectTrigger data-testid="center-select">
-                  <Building2 className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="Select center" />
-                </SelectTrigger>
-                <SelectContent>
-                  {centerOptions.map(c => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.code === "ALL" ? "📊 ALL CENTERS (Combined)" : `${c.code} - ${c.name}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select value={targetCenter} onValueChange={(v) => {
+                  setTargetCenter(v);
+                  setSalaryData(null);
+                }}>
+                  <SelectTrigger data-testid="center-select" className="flex-1">
+                    <Building2 className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Select center" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {centerOptions.map(c => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.code === "ALL" ? "ALL CENTERS (Combined)" : `${c.code} - ${c.name}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {targetCenter && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => { setTargetCenter(""); setSalaryData(null); }}
+                    title="Clear selection"
+                    data-testid="clear-center-btn"
+                  >
+                    <span className="text-lg font-bold">&times;</span>
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Payslips specific fields */}

@@ -65,7 +65,7 @@ class MonthRequest(BaseModel):
 class SalaryPreviewRequest(BaseModel):
     token: str
     month: str
-    targetCenter: str
+    targetCenter: str  # Can be "ALL" for combined view
 
 class SalaryGenRequest(BaseModel):
     token: str
@@ -183,7 +183,8 @@ async def lock_payroll(req: MonthRequest):
 
 @router.post("/salary_preview")
 async def salary_preview(req: SalaryPreviewRequest):
-    """Preview salary data on screen for a specific center (transfer-aware)"""
+    """Preview salary data on screen for a specific center or ALL centers (transfer-aware).
+    When targetCenter is 'ALL', fetches all employees once to avoid double-counting."""
     session = verify_token(req.token)
     if not session or not has_admin_access(session):
         raise HTTPException(403, "Only Admin/Super Admin can view salary preview")
@@ -191,71 +192,86 @@ async def salary_preview(req: SalaryPreviewRequest):
     try:
         year, month = map(int, req.month.split("-"))
         dim = days_in_month(year, month)
-        target_center = req.targetCenter.upper()
         
         start_date = f"{req.month}-01"
         end_date = f"{req.month}-{dim:02d}"
         
-        # Get home employees for selected center
-        employees = await db.employees.find(
-            {"center": target_center},
-            {"_id": 0}
-        ).to_list(1000)
+        is_all = req.targetCenter.upper() == "ALL"
         
-        # Get transfers affecting this center during this month
-        # Transferred IN: employees working here but paid by their home center
-        transfers_in = await db.transfer_requests.find({
-            "to_center": target_center,
-            "status": {"$in": ["ACCEPTED", "COMPLETED"]},
-            "start_date": {"$lte": end_date},
-            "$or": [
-                {"end_date": {"$gte": start_date}},
-                {"end_date": None},
-                {"end_date": ""},
-                {"transfer_type": "PERMANENT"}
-            ]
-        }, {"_id": 0}).to_list(500)
+        if is_all:
+            # ALL CENTERS mode: fetch every employee exactly once
+            employees = await db.employees.find({}, {"_id": 0}).to_list(5000)
+            target_center = "ALL CENTERS"
+        else:
+            target_center = req.targetCenter.upper()
+            # Get home employees for selected center
+            employees = await db.employees.find(
+                {"center": target_center},
+                {"_id": 0}
+            ).to_list(1000)
+            
+            # Get transfers affecting this center during this month
+            transfers_in = await db.transfer_requests.find({
+                "to_center": target_center,
+                "status": {"$in": ["ACCEPTED", "COMPLETED"]},
+                "start_date": {"$lte": end_date},
+                "$or": [
+                    {"end_date": {"$gte": start_date}},
+                    {"end_date": None},
+                    {"end_date": ""},
+                    {"transfer_type": "PERMANENT"}
+                ]
+            }, {"_id": 0}).to_list(500)
+            
+            transfers_out = await db.transfer_requests.find({
+                "from_center": target_center,
+                "status": {"$in": ["ACCEPTED", "COMPLETED"]},
+                "start_date": {"$lte": end_date},
+                "$or": [
+                    {"end_date": {"$gte": start_date}},
+                    {"end_date": None},
+                    {"end_date": ""},
+                    {"transfer_type": "PERMANENT"}
+                ]
+            }, {"_id": 0}).to_list(500)
+            
+            out_map = {}
+            for t in transfers_out:
+                out_map[t["employee_name"].upper()] = {
+                    "to_center": t["to_center"],
+                    "start_date": t["start_date"],
+                    "end_date": t.get("end_date", ""),
+                    "transfer_type": t["transfer_type"]
+                }
+            
+            in_map = {}
+            for t in transfers_in:
+                name = t["employee_name"].upper()
+                in_map[name] = {
+                    "from_center": t["from_center"],
+                    "start_date": t["start_date"],
+                    "end_date": t.get("end_date", ""),
+                    "transfer_type": t["transfer_type"]
+                }
+            
+            # For permanently transferred-in employees, add them to the employee list
+            for t in transfers_in:
+                if t["transfer_type"] == "PERMANENT":
+                    emp_name = t["employee_name"].upper()
+                    if not any(e.get("name", "").upper() == emp_name for e in employees):
+                        emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
+                        if emp:
+                            employees.append(emp)
         
-        # Transferred OUT: home employees working elsewhere
-        transfers_out = await db.transfer_requests.find({
-            "from_center": target_center,
-            "status": {"$in": ["ACCEPTED", "COMPLETED"]},
-            "start_date": {"$lte": end_date},
-            "$or": [
-                {"end_date": {"$gte": start_date}},
-                {"end_date": None},
-                {"end_date": ""},
-                {"transfer_type": "PERMANENT"}
-            ]
-        }, {"_id": 0}).to_list(500)
-        
-        out_map = {}  # emp_name -> {to_center, start_date, end_date, type}
-        for t in transfers_out:
-            out_map[t["employee_name"].upper()] = {
-                "to_center": t["to_center"],
-                "start_date": t["start_date"],
-                "end_date": t.get("end_date", ""),
-                "transfer_type": t["transfer_type"]
-            }
-        
-        in_map = {}
-        for t in transfers_in:
-            name = t["employee_name"].upper()
-            in_map[name] = {
-                "from_center": t["from_center"],
-                "start_date": t["start_date"],
-                "end_date": t.get("end_date", ""),
-                "transfer_type": t["transfer_type"]
-            }
-        
-        # For permanently transferred-in employees, add them to the employee list
-        for t in transfers_in:
-            if t["transfer_type"] == "PERMANENT":
-                emp_name = t["employee_name"].upper()
-                if not any(e.get("name", "").upper() == emp_name for e in employees):
-                    emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
-                    if emp:
-                        employees.append(emp)
+        # Deduplicate employees by name (safety net)
+        seen_names = set()
+        unique_employees = []
+        for emp in employees:
+            name = emp.get("name", "").upper()
+            if name and name not in seen_names:
+                seen_names.add(name)
+                unique_employees.append(emp)
+        employees = unique_employees
         
         # Get ALL attendance across ALL centers for these employees
         emp_names = [e.get("name", "").upper() for e in employees]
@@ -273,15 +289,13 @@ async def salary_preview(req: SalaryPreviewRequest):
             {"_id": 0}
         ).to_list(5000)
         
-        # Build attendance map: key = empName_date_center
+        # Build attendance map
         att_map = {}
         for a in all_attendance:
             key = f"{a['employeeName']}_{a['date']}"
-            # If multiple centers have attendance for same emp/date, use the working center's
             if key not in att_map:
                 att_map[key] = {"status": a.get("status", ""), "center": a.get("center", "")}
             else:
-                # Prefer the center where employee was actually working
                 att_map[key] = {"status": a.get("status", ""), "center": a.get("center", "")}
         
         # Build advances map
@@ -304,16 +318,17 @@ async def salary_preview(req: SalaryPreviewRequest):
             salary = float(emp.get("currentSalary", 0) or 0)
             
             transfer_tag = "HOME"
-            working_center = target_center
+            working_center = emp.get("center", "")
             
-            if emp_name in out_map:
-                transfer_tag = "TRANSFERRED_OUT"
-                working_center = out_map[emp_name]["to_center"]
-            elif emp_name in in_map:
-                transfer_tag = "TRANSFERRED_IN"
-                working_center = target_center
+            if not is_all:
+                if emp_name in out_map:
+                    transfer_tag = "TRANSFERRED_OUT"
+                    working_center = out_map[emp_name]["to_center"]
+                elif emp_name in in_map:
+                    transfer_tag = "TRANSFERRED_IN"
+                    working_center = target_center
             
-            # Calculate working days - use attendance from ANY center (actual working location)
+            # Calculate working days
             present_days = 0
             for d in range(1, dim + 1):
                 date_str = f"{req.month}-{d:02d}"
