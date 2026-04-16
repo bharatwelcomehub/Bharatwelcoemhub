@@ -1342,6 +1342,238 @@ async def admin_update_nutrition(item_id: str, nutrition_data: dict, current_use
     return updated
 
 
+# ===================== ASK VAHINI - AI FOOD WISDOM ENGINE =====================
+
+VAHINI_SYSTEM_PROMPT = """You are "Vahini" — the AI Food Wisdom persona of Purnabramha restaurant, modeled after the warmth and wisdom of Mrs. Jayanti Kathale, the founder.
+
+PERSONALITY:
+- You are a caring Maharashtrian Vahini (sister-in-law) who deeply understands food, health, seasons, and tradition
+- Your tone is warm, respectful, calm, and culturally rooted
+- You give simple, practical food advice rooted in Maharashtrian kitchen wisdom
+- You ALWAYS begin your FIRST greeting with "Jai Hind Namaskar." (only for the first message in a conversation)
+- You speak with affection, like a family elder guiding someone about food
+
+RULES:
+- NEVER share or hint at recipes. Purnabramha recipes are a closely guarded secret. If someone asks for a recipe, lovingly redirect them: "Vahini keeps her recipes secret! But you can enjoy this dish at any Purnabramha center."
+- Always recommend dishes that are ACTUALLY on the Purnabramha menu (provided below)
+- Consider the user's context: health concern, mood, weather, time of day, festival season
+- Give brief cultural or health significance with each recommendation
+- Keep responses concise and warm (2-4 short paragraphs maximum)
+- Do not use markdown formatting like ** or ## in your responses. Use plain text.
+
+RESPONSE FORMAT:
+You MUST respond with ONLY a valid JSON object (no markdown, no code blocks). Use this exact structure:
+{"message": "<your warm response text here>", "recommended_dishes": ["<Exact Dish Name from Menu 1>", "<Exact Dish Name from Menu 2>"], "cultural_note": "<brief cultural/health wisdom about the recommendation>"}
+
+- "message" should be your full conversational response
+- "recommended_dishes" should contain 1-3 EXACT dish names from the menu list provided
+- "cultural_note" is a short one-liner of traditional wisdom
+- If the user is just chatting or greeting, recommended_dishes can be empty []
+- Use the EXACT dish names from the menu, not abbreviated forms"""
+
+class VahiniChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    context: Optional[dict] = None  # {mood, health, weather, time_of_day}
+
+@api_router.post("/vahini/chat")
+async def vahini_chat(req: VahiniChatRequest):
+    """Chat with Vahini - the AI Food Wisdom Engine."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import random
+
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="LLM key not configured")
+
+    # Get menu items for grounding
+    all_items = await db.menu_items.find({"is_available": True}, {"_id": 0}).to_list(1000)
+    menu_names = [item["name"] for item in all_items]
+    categories = list(set(item.get("category", "") for item in all_items))
+
+    # Get active festival theme if any
+    festival = await db.festival_themes.find_one({"is_active": True}, {"_id": 0})
+    festival_context = ""
+    if festival:
+        festival_context = f"\nCurrent active festival: {festival.get('name', '')}. Suggest festival-appropriate dishes if relevant."
+
+    # Build context
+    context_info = ""
+    if req.context:
+        if req.context.get("mood"):
+            context_info += f"\nUser's mood: {req.context['mood']}"
+        if req.context.get("health"):
+            context_info += f"\nUser's health concern: {req.context['health']}"
+        if req.context.get("weather"):
+            context_info += f"\nCurrent weather: {req.context['weather']}"
+        if req.context.get("time_of_day"):
+            context_info += f"\nTime of day: {req.context['time_of_day']}"
+
+    # Check conversation history for context
+    session_id = req.session_id or f"vahini-{uuid.uuid4()}"
+    history = await db.vahini_chats.find(
+        {"session_id": session_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(6).to_list(6)
+    history.reverse()
+
+    is_first_message = len(history) == 0
+
+    menu_context = f"""
+PURNABRAMHA MENU (recommend ONLY from these):
+Categories: {', '.join(categories)}
+Dishes: {', '.join(menu_names[:100])}
+{festival_context}
+{context_info}
+{"This is the user's FIRST message - start with 'Jai Hind Namaskar.'" if is_first_message else "This is a follow-up message in the conversation - do NOT repeat 'Jai Hind Namaskar' greeting."}
+"""
+
+    try:
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message=VAHINI_SYSTEM_PROMPT + menu_context
+        ).with_model("openai", "gpt-4.1-mini")
+
+        # Add conversation history for context
+        for h in history[-4:]:
+            if h.get("role") == "user":
+                await chat.send_message(UserMessage(text=h["content"]))
+            # assistant messages are auto-tracked by session
+
+        user_message = UserMessage(text=req.message)
+        response = await chat.send_message(user_message)
+
+        # Parse AI response
+        response_text = response.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("\n", 1)[1] if "\n" in response_text else response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+
+        try:
+            ai_data = json.loads(response_text)
+        except json.JSONDecodeError:
+            ai_data = {"message": response_text, "recommended_dishes": [], "cultural_note": ""}
+
+        # Match recommended dishes to actual menu items
+        matched_dishes = []
+        for dish_name in ai_data.get("recommended_dishes", []):
+            for item in all_items:
+                if item["name"].lower() == dish_name.lower():
+                    matched_dishes.append({
+                        "id": item["id"],
+                        "name": item["name"],
+                        "category": item.get("category", ""),
+                        "price_inr": item.get("price_inr"),
+                        "price_aud": item.get("price_aud"),
+                        "image_url": item.get("image_url"),
+                        "description": item.get("description", ""),
+                        "no_onion_garlic": item.get("no_onion_garlic", False),
+                        "fasting_friendly": item.get("fasting_friendly", False)
+                    })
+                    break
+            else:
+                # Fuzzy match
+                for item in all_items:
+                    if dish_name.lower() in item["name"].lower() or item["name"].lower() in dish_name.lower():
+                        matched_dishes.append({
+                            "id": item["id"],
+                            "name": item["name"],
+                            "category": item.get("category", ""),
+                            "price_inr": item.get("price_inr"),
+                            "price_aud": item.get("price_aud"),
+                            "image_url": item.get("image_url"),
+                            "description": item.get("description", ""),
+                            "no_onion_garlic": item.get("no_onion_garlic", False),
+                            "fasting_friendly": item.get("fasting_friendly", False)
+                        })
+                        break
+
+        # Save conversation
+        await db.vahini_chats.insert_one({
+            "session_id": session_id,
+            "role": "user",
+            "content": req.message,
+            "created_at": datetime.now(timezone.utc)
+        })
+        await db.vahini_chats.insert_one({
+            "session_id": session_id,
+            "role": "assistant",
+            "content": ai_data.get("message", response_text),
+            "recommended_dishes": [d["name"] for d in matched_dishes],
+            "created_at": datetime.now(timezone.utc)
+        })
+
+        return {
+            "session_id": session_id,
+            "message": ai_data.get("message", response_text),
+            "recommended_dishes": matched_dishes,
+            "cultural_note": ai_data.get("cultural_note", ""),
+            "is_first_message": is_first_message
+        }
+
+    except Exception as e:
+        logger.error(f"Vahini chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Vahini is resting right now. Please try again shortly.")
+
+
+@api_router.get("/vahini/random-dish")
+async def vahini_random_dish():
+    """Let Vahini choose a random dish for you."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import random
+
+    all_items = await db.menu_items.find({"is_available": True}, {"_id": 0}).to_list(1000)
+    if not all_items:
+        raise HTTPException(status_code=404, detail="No menu items available")
+
+    # Pick a random dish (prefer main dishes, not drinks/tea)
+    main_items = [i for i in all_items if i.get("category", "").lower() not in ["tea / coffee", "non tea / drinks", "tea-coffee", "drinks"]]
+    if not main_items:
+        main_items = all_items
+
+    chosen = random.choice(main_items)
+
+    # Get nutrition if available
+    nutrition = await db.nutrition_info.find_one({"menu_item_id": chosen["id"]}, {"_id": 0})
+
+    # Generate a short Vahini-style message
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    vahini_message = f"Today Vahini suggests you eat {chosen['name']}. It is a wonderful Maharashtrian dish that nourishes both body and soul."
+
+    if api_key:
+        try:
+            chat = LlmChat(
+                api_key=api_key,
+                session_id=f"vahini-random-{uuid.uuid4()}",
+                system_message="You are Vahini, a warm Maharashtrian food elder. In 2-3 sentences, lovingly recommend this dish. Mention one health or cultural benefit. Do not use markdown. Keep it warm and brief. Start with 'Today Vahini suggests you eat...'"
+            ).with_model("openai", "gpt-4.1-mini")
+
+            msg = UserMessage(text=f"Dish: {chosen['name']}, Category: {chosen.get('category', '')}, Description: {chosen.get('description', '')}")
+            response = await chat.send_message(msg)
+            vahini_message = response.strip()
+        except Exception as e:
+            logger.error(f"Vahini random message error: {str(e)}")
+
+    return {
+        "message": vahini_message,
+        "dish": {
+            "id": chosen["id"],
+            "name": chosen["name"],
+            "category": chosen.get("category", ""),
+            "price_inr": chosen.get("price_inr"),
+            "price_aud": chosen.get("price_aud"),
+            "image_url": chosen.get("image_url"),
+            "description": chosen.get("description", ""),
+            "no_onion_garlic": chosen.get("no_onion_garlic", False),
+            "fasting_friendly": chosen.get("fasting_friendly", False)
+        },
+        "nutrition": nutrition
+    }
+
+
 app.include_router(api_router)
 
 app.add_middleware(

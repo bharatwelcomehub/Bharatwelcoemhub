@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthDialog from '@/components/AuthDialog';
 import InstallPrompt from '@/components/InstallPrompt';
+import AskVahini from '@/components/AskVahini';
 import { LocationBanner, NearestCenterBanner } from '@/components/LocationBanner';
 import { SEOFAQ, SEOInternalLinks } from '@/components/SEOFAQ';
 import SEOSchema from '@/components/SEOSchema';
@@ -219,6 +220,7 @@ const Layout = ({ children }) => {
 
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
       <InstallPrompt />
+      <AskVahini />
     </div>
   );
 };
