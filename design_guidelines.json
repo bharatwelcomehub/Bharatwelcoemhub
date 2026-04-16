@@ -1,180 +1,76 @@
 {
-  "identity": {
-    "name": "Purnabramha IntraPB",
-    "persona": "The Royal Manager",
-    "vibe": "Authentic, Efficient, Culturally Rich, Trustworthy",
-    "theme_mode": "light",
-    "emotional_archetype": "Organic & Earthy (with Royal accents)"
+  "theme": "Light",
+  "archetype": "Archetype 1 (Organic & Earthy) - Modified for High-Contrast Utility",
+  "brand_colors": {
+    "primary": "#8B0000",
+    "primary_hover": "#6B0000",
+    "background": "#FAFAF9",
+    "surface": "#FFFFFF",
+    "surface_glass": "rgba(255, 255, 255, 0.9)",
+    "text_primary": "#1C1917",
+    "text_secondary": "#57534E",
+    "border": "#E7E5E4",
+    "status": {
+      "success": "#059669",
+      "warning": "#D97706",
+      "danger": "#DC2626"
+    }
   },
   "typography": {
-    "fonts": {
-      "heading_english": "Playfair Display, serif",
-      "heading_marathi": "Tiro Devanagari Marathi, serif",
-      "body_english": "Manrope, sans-serif",
-      "body_marathi": "Noto Sans Devanagari, sans-serif",
-      "mono": "JetBrains Mono, monospace"
-    },
-    "scale": {
-      "h1": "text-4xl md:text-5xl font-bold tracking-tight",
-      "h2": "text-3xl md:text-4xl font-semibold tracking-tight",
-      "h3": "text-2xl font-semibold",
-      "body": "text-base leading-relaxed",
-      "small": "text-sm font-medium tracking-wide"
-    },
-    "usage_rules": [
-      "Use 'Playfair Display' for all English Headings (h1, h2, h3).",
-      "Use 'Tiro Devanagari Marathi' for all Marathi Headings.",
-      "Use 'Manrope' for all English UI text (buttons, inputs, tables).",
-      "Use 'Noto Sans Devanagari' for all Marathi UI text.",
-      "For bilingual text, prioritize Marathi visibility if the user locale is Marathi, otherwise English.",
-      "Headings must have 'text-primary' color unless on a dark background."
+    "headings": "Manrope",
+    "body": "IBM Plex Sans",
+    "hierarchy": {
+      "h1": "text-3xl sm:text-4xl tracking-tight font-bold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-bold",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "body": "text-lg",
+      "small": "text-base text-stone-500",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-stone-500"
+    }
+  },
+  "tablet_first_rules": {
+    "touch_targets": "MINIMUM 48px height (h-12 or h-14) for ALL interactive elements (buttons, inputs, dropdowns).",
+    "scrolling": "ABSOLUTELY NO horizontal scrolling tables for data entry. Convert all 6-12 column data entry tables into Vertical Card-based Forms (Bento-style or stacked lists).",
+    "contrast": "Kitchens are bright. Use high contrast. Text must be Slate-900 on White surfaces. Do not use light grey text for important data.",
+    "icons": "Use Phosphor Icons (duotone or bold) at large sizes (w-6 h-6 to w-8 h-8) to make identification instant for chefs."
+  },
+  "layout_and_spacing": {
+    "dashboard_grid": "Bento Grid Protocol Mode B (Control Room). grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6. Avoid 4-column density on tablets.",
+    "container_padding": "p-6 or p-8 inside cards. No cramped p-4.",
+    "filter_bar": "Do not cram 5 columns. Use a horizontal scrollable chip row OR a 'Filters' button that opens a large Shadcn Sheet/Dialog.",
+    "surface_strategy": "Neumorphism/Tactile Variant for cards. Flat white backgrounds with sharp 1px border-stone-200 and a soft shadow-sm. Add a 4px left-border of primary red for active/overdue items."
+  },
+  "components_strategy": {
+    "inputs": "Override Shadcn Input/Select/Dropdown to have `h-14` and `text-lg`. Use large tap areas.",
+    "buttons": "Override Shadcn Button to have `size='lg'` as default (`h-14 px-8 text-lg font-semibold`).",
+    "tabs": "Override Shadcn TabsList to be `h-14` or `h-16`, allowing text-lg and large tap targets. Avoid desktop-style tiny tabs.",
+    "record_entry_cards": "For daily compliance forms, use a dynamic card layout. e.g., A card for 'Chicken Temp'. Date/Time row 1, Item Select row 2, Temp Input row 3. Much easier to tap than a wide table row.",
+    "quick_add": "Floating Action Bar or top-pinned grid of large 'Quick Add' buttons for the 8 templates."
+  },
+  "testing_attributes": {
+    "rule": "All interactive elements MUST have data-testid. Kebab-case, role-based.",
+    "examples": [
+      "data-testid='quick-add-button'",
+      "data-testid='record-submit-button'",
+      "data-testid='filter-sheet-trigger'"
     ]
   },
-  "colors": {
-    "palette": {
-      "primary": "#7A0000",
-      "primary_foreground": "#FDFBF7",
-      "secondary": "#C79B2F",
-      "secondary_foreground": "#2D2424",
-      "accent": "#F4EBD0",
-      "accent_foreground": "#7A0000",
-      "background": "#FFFCF5",
-      "foreground": "#2D2424",
-      "card": "#FFFFFF",
-      "card_foreground": "#2D2424",
-      "border": "#E6DCC5",
-      "input": "#E6DCC5",
-      "ring": "#7A0000",
-      "muted": "#F5F0E6",
-      "muted_foreground": "#6C6464",
-      "success": "#2E7D32",
-      "warning": "#F57F17",
-      "error": "#D32F2F"
+  "media": {
+    "auth_background": {
+      "url": "https://images.unsplash.com/photo-1690983323310-3f8e55c9272f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBmb29kJTIwc3BpY2VzJTIwdG9wJTIwdmlld3xlbnwwfHx8fDE3NzYzMDY4NjB8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Indian food spices top view, use as an atmospheric login/auth background with a heavy white/red gradient overlay."
     },
-    "gradients": {
-      "royal_gold": "linear-gradient(135deg, #C79B2F 0%, #E6DCC5 100%)",
-      "deep_maroon": "linear-gradient(135deg, #7A0000 0%, #4A0000 100%)",
-      "warm_overlay": "linear-gradient(to bottom, rgba(255, 252, 245, 0) 0%, #FFFCF5 100%)"
-    },
-    "usage_rules": [
-      "Primary (Maroon) is for Main Actions (Buttons) and Key Headers.",
-      "Secondary (Gold) is for Borders, Icons, and Accent Highlights. NEVER use Gold for main body text.",
-      "Background is Warm Cream (#FFFCF5), not pure white.",
-      "Cards are Pure White (#FFFFFF) with a subtle 'border-sand' border.",
-      "Error states (Absent) should be distinct from Brand Maroon. Use '#D32F2F' for errors/alerts."
-    ]
-  },
-  "layout": {
-    "spacing_system": [
-      "p-1", "p-2", "p-4", "p-6", "p-8", "p-12", "p-16", "p-24", "p-32"
-    ],
-    "border_radius": {
-      "default": "rounded-lg",
-      "card": "rounded-xl",
-      "button": "rounded-md"
-    },
-    "grid_strategy": {
-      "dashboard": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
-      "attendance": "grid-cols-1 gap-4 (High Density)",
-      "bento_hero": "grid-cols-1 md:grid-cols-12 gap-6"
-    },
-    "containers": {
-      "main": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
-      "narrow": "max-w-3xl mx-auto px-4"
+    "empty_state_bg": {
+      "url": "https://images.unsplash.com/photo-1774716925718-82ea2f2eb01b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwyfHxjbGVhbiUyMGNvbW1lcmNpYWwlMjBraXRjaGVufGVufDB8fHx8MTc3NjMwNjg2MHww&ixlib=rb-4.1.0&q=85",
+      "description": "Clean modern kitchen, use as an empty state background with 10% opacity or heavy blur."
     }
-  },
-  "components": {
-    "buttons": {
-      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md",
-      "secondary": "bg-secondary/20 text-secondary-foreground hover:bg-secondary/30 border border-secondary/50",
-      "outline": "border-2 border-primary text-primary hover:bg-primary/5",
-      "ghost": "hover:bg-accent hover:text-accent-foreground"
-    },
-    "cards": {
-      "style": "bg-card text-card-foreground border border-border shadow-sm hover:shadow-md transition-shadow duration-200",
-      "padding": "p-6"
-    },
-    "inputs": {
-      "style": "bg-white border-input focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-md h-10 px-3"
-    },
-    "navigation": {
-      "sidebar": "bg-primary text-primary-foreground w-64 fixed h-full",
-      "sidebar_item": "flex items-center px-4 py-3 hover:bg-white/10 transition-colors cursor-pointer text-sm font-medium",
-      "sidebar_item_active": "bg-secondary text-secondary-foreground font-bold border-l-4 border-white"
-    }
-  },
-  "motion": {
-    "transitions": {
-      "default": "transition-all duration-200 ease-in-out",
-      "hover": "transition-colors duration-200"
-    },
-    "animations": {
-      "fade_in": "animate-in fade-in duration-500",
-      "slide_up": "animate-in slide-in-from-bottom-4 duration-500",
-      "pulse_slow": "animate-pulse duration-[3000ms]"
-    }
-  },
-  "images": {
-    "login_bg": {
-      "url": "https://images.unsplash.com/photo-1765360773028-6affda725695?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjByZXN0YXVyYW50JTIwaW50ZXJpb3IlMjBsdXh1cnl8ZW58MHx8fHwxNzcxNzI4MTUwfDA&ixlib=rb-4.1.0&q=85",
-      "description": "Elegant dining room, luxurious Indian restaurant interior. Use as full-screen background with overlay for Login.",
-      "category": "background"
-    },
-    "food_thali": {
-      "url": "https://images.pexels.com/photos/17223838/pexels-photo-17223838.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Traditional Maharashtra thali. Use for Bhojan Guru landing or dashboard widgets.",
-      "category": "content"
-    },
-    "food_misal": {
-      "url": "https://images.pexels.com/photos/17223835/pexels-photo-17223835.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Misal Pav platter. Use for Bhojan Guru recommendations.",
-      "category": "content"
-    },
-    "marigold_accent": {
-      "url": "https://images.unsplash.com/photo-1765087910207-c3942f93714a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxtYXJpZ29sZCUyMGZsb3dlcnMlMjBkZWNvcmF0aW9ufGVufDB8fHx8MTc3MTcyODE1Mnww&ixlib=rb-4.1.0&q=85",
-      "description": "Bright orange marigolds. Use as a subtle texture or header accent image.",
-      "category": "accent"
-    },
-    "chef_cooking": {
-      "url": "https://images.pexels.com/photos/32742922/pexels-photo-32742922.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      "description": "Chef seasoning dish. Use for Employee Management or Kitchen view.",
-      "category": "content"
-    }
-  },
-  "assets": {
-    "icons_library": "lucide-react",
-    "logo_placeholder": "Use Text 'Purnabramha' in 'Playfair Display' font, Gold color."
   },
   "instructions_to_main_agent": [
-    "1. UPDATE THEME: Immediately update 'index.css' to reflect the new color variables (Cream background, Maroon Primary).",
-    "2. FONT SETUP: Add 'Playfair Display', 'Manrope', 'Tiro Devanagari Marathi', and 'Noto Sans Devanagari' via Google Fonts in 'index.html' or CSS import.",
-    "3. LAYOUT: Implement a Sidebar Layout for the Dashboard. The Sidebar must use the Primary (Maroon) background.",
-    "4. ATTENDANCE: Use Shadcn Table for the Attendance Grid. It must be dense and scanable.",
-    "5. AUTH: The Login page must use the 'login_bg' image with a heavy dark overlay (bg-black/60) to ensure the Login Form pops.",
-    "6. BHOJAN GURU: This is a Chat/Recommendation interface. Make it friendly, using 'food_thali' images as distinct cards.",
-    "7. COMPONENTS: Use existing Shadcn components but style them with the 'rounded-lg' and specific border colors defined here.",
-    "8. I18N: Ensure all text nodes can support Marathi characters (UTF-8 encoding is standard, just ensure fonts are loaded)."
-  ],
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
-    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
-    "Create depth through layered design elements with z-index hierarchy.",
-    "Use glass-morphism effects with backdrop filters (12-24px blur).",
-    "You MUST NOT apply universal transition. Eg: 'transition: all'. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms.",
-    "You MUST NOT center align the app container, ie do not add '.App { text-align: center; }' in the css file. This disrupts the human natural reading flow of text.",
-    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
-    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
-    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
-    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
-    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN.",
-    "Prioritize using pre-existing components from src/components/ui when applicable.",
-    "Create new components that match the style and conventions of existing components when needed.",
-    "Examine existing components to understand the project's component patterns before creating new ones.",
-    "Components MUST use named exports (export const ComponentName = ...).",
-    "Pages MUST use default exports (export default function PageName() {...}).",
-    "Use 'sonner' for toasts.",
-    "Sonner component are located in '/app/src/components/ui/sonner.tsx'."
+    "PHASE 1 - ARCHITECTURE: Break down the monolithic 1136-line component. Create separate components: DashboardView, RecordListView, RecordEntryForm, and TemplateManager.",
+    "PHASE 2 - TABLET SIZING: Globally override Shadcn inputs, selects, and buttons to h-14 with text-lg. Kitchen touch targets must be massive. Replace standard table filters with a full-screen mobile-style filter Sheet or horizontal scrolling pill-tabs.",
+    "PHASE 3 - DATA ENTRY OVERHAUL: Destroy the horizontal scrolling tables for Record Entry. Build a 'RecordEntryCard' component. If a template has 6 columns, render them as a 2x3 grid inside a large padded card. The chef should scroll vertically through cards, not horizontally through columns.",
+    "PHASE 4 - VISUAL DISTINCTION: Assign a specific Lucide React or Phosphor icon to each of the 8 templates (e.g., Thermometer for Temp Record, Sparkles for Cleaning). Display these prominently on the Dashboard and Quick Add buttons.",
+    "PHASE 5 - BRANDING: Inject the Purnabramha Deep Red (#8B0000) into primary buttons, active tab borders, and selected states. Ensure text contrast against this red is absolute white.",
+    "INSTALLATION: Run `yarn add @phosphor-icons/react` for high-end duotone icons to replace standard lucide if preferred, otherwise use bold lucide-react."
   ]
 }
