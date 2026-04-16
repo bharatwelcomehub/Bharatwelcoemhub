@@ -1356,6 +1356,7 @@ PERSONALITY:
 RULES:
 - NEVER share or hint at recipes. Purnabramha recipes are a closely guarded secret. If someone asks for a recipe, lovingly redirect them: "Vahini keeps her recipes secret! But you can enjoy this dish at any Purnabramha center."
 - Always recommend dishes that are ACTUALLY on the Purnabramha menu (provided below)
+- IMPORTANT: Items starting with "BG" or from "Balgopal" category are KIDS MENU items (BG = Balgopal = kids). NEVER recommend BG/Balgopal items to adults. Only suggest them when the user specifically asks about food for kids or children.
 - Consider the user's context: health concern, mood, weather, time of day, festival season
 - Give brief cultural or health significance with each recommendation
 - Keep responses concise and warm (2-4 short paragraphs maximum)
@@ -1386,10 +1387,15 @@ async def vahini_chat(req: VahiniChatRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="LLM key not configured")
 
-    # Get menu items for grounding
+    # Get menu items for grounding — exclude BG/Balgopal (kids) items for adult recommendations
     all_items = await db.menu_items.find({"is_available": True}, {"_id": 0}).to_list(1000)
-    menu_names = [item["name"] for item in all_items]
-    categories = list(set(item.get("category", "") for item in all_items))
+    adult_items = [item for item in all_items if not item["name"].startswith("BG ") and item.get("category", "").lower() not in ["balgopal (kids menu)", "balgopal"]]
+    kids_items = [item for item in all_items if item["name"].startswith("BG ") or item.get("category", "").lower() in ["balgopal (kids menu)", "balgopal"]]
+    # Use adult items by default; include kids items only if user asks about kids/children
+    user_asks_kids = any(w in req.message.lower() for w in ["kid", "child", "balgopal", "children", "baby", "toddler"])
+    recommend_items = all_items if user_asks_kids else adult_items
+    menu_names = [item["name"] for item in recommend_items]
+    categories = list(set(item.get("category", "") for item in recommend_items))
 
     # Get active festival theme if any
     festival = await db.festival_themes.find_one({"is_active": True}, {"_id": 0})
@@ -1529,8 +1535,11 @@ async def vahini_random_dish():
     if not all_items:
         raise HTTPException(status_code=404, detail="No menu items available")
 
-    # Pick a random dish (prefer main dishes, not drinks/tea)
-    main_items = [i for i in all_items if i.get("category", "").lower() not in ["tea / coffee", "non tea / drinks", "tea-coffee", "drinks"]]
+    # Pick a random dish (exclude kids/BG items and drinks/tea)
+    main_items = [i for i in all_items if
+        i.get("category", "").lower() not in ["tea / coffee", "non tea / drinks", "tea-coffee", "drinks", "balgopal (kids menu)", "balgopal"]
+        and not i["name"].startswith("BG ")
+    ]
     if not main_items:
         main_items = all_items
 
