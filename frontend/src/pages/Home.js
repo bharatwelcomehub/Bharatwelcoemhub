@@ -141,6 +141,11 @@ const Home = () => {
                     <ShoppingBag className="mr-2 h-4 w-4" /> Order Pickup
                   </Button>
                 </Link>
+                <Link to="/book">
+                  <Button size="lg" variant="outline" className="border border-[#B8962E]/40 text-[#B8962E] hover:bg-[#B8962E]/10 px-8 py-6 text-sm rounded-none tracking-widest uppercase" data-testid="read-book-cta">
+                    <BookOpen className="mr-2 h-4 w-4" /> Read Book
+                  </Button>
+                </Link>
               </motion.div>
 
               {/* Stats Row */}

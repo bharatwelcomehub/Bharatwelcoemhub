@@ -2056,6 +2056,110 @@ async def upload_book_music(request: Request, current_user: dict = Depends(get_c
     return {"message": f"Music uploaded ({len(audio_data) // 1024}KB)"}
 
 
+# ===================== BOOK AUDIO NARRATION (TTS) =====================
+
+@api_router.get("/book/page-audio/{page_number}")
+async def get_page_audio(page_number: int, token: Optional[str] = None, current_user: dict = Depends(get_optional_user)):
+    """Get or generate audio narration for a book page."""
+    # Auth: free preview pages don't need login
+    if not current_user and token:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            current_user = payload
+        except Exception:
+            session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+            if session:
+                current_user = {"user_id": session["user_id"], "email": session.get("email", "")}
+
+    if page_number > FREE_PREVIEW_PAGES and not current_user:
+        raise HTTPException(status_code=401, detail="Login required")
+
+    if page_number > FREE_PREVIEW_PAGES and current_user:
+        part_number = None
+        for pn, info in BOOK_PARTS.items():
+            if info["start_page"] <= page_number <= info["end_page"]:
+                part_number = pn
+                break
+        if part_number:
+            purchase = await db.book_purchases.find_one(
+                {"user_id": current_user["user_id"], "part_number": part_number, "status": "completed"},
+                {"_id": 0}
+            )
+            if not purchase:
+                raise HTTPException(status_code=403, detail="Purchase required")
+
+    # Check for admin-uploaded custom narration first
+    custom_path = ROOT_DIR / 'book_audio' / f'custom_page_{page_number}.mp3'
+    if custom_path.exists():
+        return FileResponse(str(custom_path), media_type="audio/mpeg")
+
+    # Check for cached AI-generated audio
+    cached_path = ROOT_DIR / 'book_audio' / f'page_{page_number}.mp3'
+    if cached_path.exists():
+        return FileResponse(str(cached_path), media_type="audio/mpeg")
+
+    # Get page text content from DB
+    page_doc = await db.book_pages.find_one({"page_number": page_number}, {"_id": 0})
+    if not page_doc or not page_doc.get("content", "").strip():
+        raise HTTPException(status_code=404, detail="No text content for this page")
+
+    text = page_doc["content"].strip()
+    if len(text) < 10:
+        raise HTTPException(status_code=404, detail="Page has no readable content")
+
+    # Generate via TTS
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="TTS not configured")
+
+    try:
+        from emergentintegrations.llm.openai import OpenAITextToSpeech
+
+        tts = OpenAITextToSpeech(api_key=api_key)
+
+        # Truncate to 4096 chars (API limit)
+        tts_text = text[:4096]
+
+        audio_bytes = await tts.generate_speech(
+            text=tts_text,
+            model="tts-1-hd",
+            voice="fable",
+            speed=0.9
+        )
+
+        # Cache the generated audio
+        os.makedirs(ROOT_DIR / 'book_audio', exist_ok=True)
+        with open(cached_path, 'wb') as f:
+            f.write(audio_bytes)
+
+        return FileResponse(str(cached_path), media_type="audio/mpeg")
+
+    except Exception as e:
+        logger.error(f"TTS error for page {page_number}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate audio")
+
+
+@api_router.post("/admin/book/upload-narration")
+async def upload_custom_narration(request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: Upload custom narration audio for a specific page."""
+    body = await request.json()
+    page_number = body.get("page_number")
+    audio_base64 = body.get("audio_base64", "")
+
+    if not page_number or not audio_base64:
+        raise HTTPException(status_code=400, detail="page_number and audio_base64 required")
+
+    import base64
+    audio_data = base64.b64decode(audio_base64)
+    os.makedirs(ROOT_DIR / 'book_audio', exist_ok=True)
+    save_path = ROOT_DIR / 'book_audio' / f'custom_page_{page_number}.mp3'
+
+    with open(save_path, 'wb') as f:
+        f.write(audio_data)
+
+    return {"message": f"Custom narration uploaded for page {page_number} ({len(audio_data) // 1024}KB)"}
+
+
 app.include_router(api_router)
 
 app.add_middleware(

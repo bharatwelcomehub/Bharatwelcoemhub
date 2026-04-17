@@ -201,20 +201,28 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [x] **Phase 1 Complete:**
   - Premium book landing page (/book) with cover image, author info, 3-part purchase cards
   - Flipbook reader (/book/read/:part) with realistic page-flip animation (react-pageflip)
-  - 152 pages of real book content loaded from PDF into MongoDB
+  - 152 pages of real book content loaded from PDF as images into MongoDB
   - 3 parts: Part 1 (1-50), Part 2 (51-100), Part 3 (101-152) — ₹50/part, $1 AUD/part
   - Stripe payment integration (checkout sessions, webhook, payment polling)
   - Bookmark system (save, list, remove bookmarks per user)
   - Reading progress tracking (continue reading from last page)
   - Reading protection: no copy, no right-click, no print, no screenshot overlay
-  - Background music toggle (ambient instrumental, default OFF)
-  - Immersive dark theme reader with warm cream pages, serif typography
+  - Background music toggle (ambient instrumental, default OFF) — admin can upload custom music
+  - Tea/coffee break with shayari (admin-configurable interval: 4/10/15/20/30 pages)
+  - Immersive dark theme reader with warm cream pages
   - Page navigation: prev/next buttons, slider, page counter
   - Region-aware pricing (INR for India, AUD for Australia)
-  - Admin book management: upload pages, view analytics, get reader stats
-  - "Book" link in site navigation
-- [ ] **Phase 2 (Upcoming):** Tea/coffee break reminders with shayari, admin music tracks, shayari control
-- [ ] **Phase 3 (Future):** Reader community, book discussions, audio narration, author notes
+  - Admin book management: upload pages, view analytics, change music, manage shayaris, set break interval
+  - "Book" link in site navigation + homepage hero "Read Book" button
+  - Free preview: first 5 pages without login
+  - Smooth purchase flow: Google one-click login → Stripe → instant access
+  - CORS fix for production Google OAuth
+  - Audio narration (TTS): AI-generated HD voice narration using OpenAI tts-1-hd with "fable" voice
+  - Listen mode: headphones button → auto-reads pages → auto-advances
+  - Admin can upload custom narration per page (overrides AI voice)
+  - Audio cached after first generation (no repeated API calls)
+- [ ] **Phase 2 (Upcoming):** Reader community, book discussions, author notes
+- [ ] **Phase 3 (Future):** Additional books, digital Maharashtrian food archive
 
 ## Backlog
 - [ ] Sync Tiffin.js & Catering.js with database (currently using static JSON)

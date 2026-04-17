@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import HTMLFlipBook from 'react-pageflip';
-import { ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, ArrowLeft, Volume2, VolumeX, X, Home } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, ArrowLeft, Volume2, VolumeX, X, Home, Headphones, Pause, Play, SkipForward } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -49,8 +49,13 @@ const BookReader = () => {
   const [showBreak, setShowBreak] = useState(false);
   const [pagesFlipped, setPagesFlipped] = useState(0);
   const [readerSettings, setReaderSettings] = useState({ break_interval: 20, break_shayaris: [] });
+  const [listenMode, setListenMode] = useState(false);
+  const [narrationPlaying, setNarrationPlaying] = useState(false);
+  const [narrationLoading, setNarrationLoading] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
   const bookRef = useRef(null);
   const audioRef = useRef(null);
+  const narrationRef = useRef(null);
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
@@ -221,8 +226,81 @@ const BookReader = () => {
   useEffect(() => {
     return () => {
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      if (narrationRef.current) { narrationRef.current.pause(); narrationRef.current = null; }
     };
   }, []);
+
+  // Narration functions
+  const playNarration = async (pageNum) => {
+    // Stop any current narration
+    if (narrationRef.current) {
+      narrationRef.current.pause();
+      narrationRef.current = null;
+    }
+
+    setNarrationLoading(true);
+    setNarrationPlaying(false);
+
+    const authToken = token || '';
+    const url = `${API}/api/book/page-audio/${pageNum}?token=${encodeURIComponent(authToken)}&t=${Date.now()}`;
+
+    try {
+      const audio = new Audio(url);
+      narrationRef.current = audio;
+
+      audio.oncanplaythrough = () => {
+        setNarrationLoading(false);
+        setNarrationPlaying(true);
+        audio.play().catch(() => {});
+      };
+
+      audio.onended = () => {
+        setNarrationPlaying(false);
+        // Auto-advance to next page if autoPlay is on
+        if (autoPlay) {
+          bookRef.current?.pageFlip()?.flipNext();
+          setTimeout(() => {
+            const nextPageNum = pageNum + 1;
+            playNarration(nextPageNum);
+          }, 1000);
+        }
+      };
+
+      audio.onerror = () => {
+        setNarrationLoading(false);
+        setNarrationPlaying(false);
+        // Silently skip pages without audio (image pages)
+      };
+
+      audio.load();
+    } catch {
+      setNarrationLoading(false);
+    }
+  };
+
+  const stopNarration = () => {
+    if (narrationRef.current) {
+      narrationRef.current.pause();
+      narrationRef.current = null;
+    }
+    setNarrationPlaying(false);
+    setNarrationLoading(false);
+  };
+
+  const toggleListenMode = () => {
+    if (listenMode) {
+      // Turn off
+      stopNarration();
+      setAutoPlay(false);
+      setListenMode(false);
+    } else {
+      // Turn on — start narrating current page
+      setListenMode(true);
+      setAutoPlay(true);
+      const pageNum = (partInfo?.start_page || 1) + currentPage;
+      playNarration(pageNum);
+    }
+  };
 
   const actualPageNum = (partInfo?.start_page || 1) + currentPage;
   const isBookmarked = bookmarks.some(b => b.page_number === actualPageNum);
@@ -288,7 +366,22 @@ const BookReader = () => {
           <p className="text-[#D4AF37]/40 text-[10px] font-body">Page {actualPageNum} of {endPage}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Listen Mode */}
+          <button
+            onClick={toggleListenMode}
+            className={`p-2 rounded-full transition-colors flex items-center gap-1 ${listenMode ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-[#D4AF37]/40 hover:text-[#D4AF37]/70'}`}
+            data-testid="listen-toggle"
+          >
+            {narrationLoading ? (
+              <div className="w-4 h-4 border border-[#D4AF37]/50 border-t-[#D4AF37] rounded-full animate-spin" />
+            ) : listenMode ? (
+              <Pause className="w-4 h-4" />
+            ) : (
+              <Headphones className="w-4 h-4" />
+            )}
+            <span className="text-[9px] font-body hidden sm:inline">{listenMode ? 'Stop' : 'Listen'}</span>
+          </button>
           <button
             onClick={toggleMusic}
             className={`p-2 rounded-full transition-colors ${musicOn ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-[#D4AF37]/40 hover:text-[#D4AF37]/70'}`}
@@ -305,6 +398,33 @@ const BookReader = () => {
           </button>
         </div>
       </div>
+
+      {/* Listen Mode Banner */}
+      {listenMode && (
+        <div className="px-4 py-2 bg-[#D4AF37]/10 border-t border-[#D4AF37]/20 flex-shrink-0">
+          <div className="flex items-center justify-center gap-3">
+            {narrationLoading ? (
+              <p className="text-[#D4AF37] text-xs font-body animate-pulse">Generating narration for page {actualPageNum}...</p>
+            ) : narrationPlaying ? (
+              <p className="text-[#D4AF37] text-xs font-body flex items-center gap-2">
+                <span className="flex gap-0.5">
+                  <span className="w-1 h-3 bg-[#D4AF37] rounded-full animate-pulse" />
+                  <span className="w-1 h-4 bg-[#D4AF37] rounded-full animate-pulse" style={{animationDelay:'150ms'}} />
+                  <span className="w-1 h-2 bg-[#D4AF37] rounded-full animate-pulse" style={{animationDelay:'300ms'}} />
+                </span>
+                Listening to page {actualPageNum}... Auto-advance ON
+              </p>
+            ) : (
+              <button
+                onClick={() => playNarration(actualPageNum)}
+                className="text-[#D4AF37] text-xs font-body flex items-center gap-1 hover:underline"
+              >
+                <Play className="w-3 h-3" /> Play this page
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Book Area */}
       <div className="flex-1 flex items-center justify-center px-4 py-6">
