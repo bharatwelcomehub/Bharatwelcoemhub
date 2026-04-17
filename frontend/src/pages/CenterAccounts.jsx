@@ -1724,30 +1724,54 @@ export default function CenterAccounts() {
 
               {/* 6. Working Capital Status */}
               {accountSummary.working_capital_status && (
-                <Card className={`border-2 ${accountSummary.working_capital_status.protection_mode ? 'border-red-400 bg-red-50/30' : 'border-green-400 bg-green-50/30'}`} data-testid="wc-status">
+                <Card className={`border-2 ${accountSummary.working_capital_status.protection_mode ? 'border-red-400 bg-red-50/30' : (accountSummary.working_capital_status.status === 'Restoring' ? 'border-amber-400 bg-amber-50/30' : 'border-green-400 bg-green-50/30')}`} data-testid="wc-status">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Wallet className="w-5 h-5" />
                       Working Capital Status
-                      <Badge className={accountSummary.working_capital_status.protection_mode ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}>
+                      <Badge className={
+                        accountSummary.working_capital_status.protection_mode ? 'bg-red-600 text-white' :
+                        accountSummary.working_capital_status.status === 'Restoring' ? 'bg-amber-600 text-white' :
+                        'bg-green-600 text-white'
+                      }>
                         {accountSummary.working_capital_status.status}
                       </Badge>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="p-3 bg-white rounded border text-center">
-                        <p className="text-xs text-gray-500">Initial WC</p>
-                        <p className="text-lg font-bold">{formatCurrency(accountSummary.working_capital_status.initial_wc, accountSummary.country)}</p>
+                        <p className="text-xs text-blue-600 font-medium">Base WC</p>
+                        <p className="text-lg font-bold">{formatCurrency(accountSummary.working_capital_status.base_wc || accountSummary.working_capital_status.initial_wc, accountSummary.country)}</p>
                       </div>
                       <div className="p-3 bg-white rounded border text-center">
-                        <p className="text-xs text-gray-500">Current WC</p>
+                        <p className="text-xs text-gray-500">Opening WC (Month)</p>
+                        <p className="text-lg font-bold">{formatCurrency(accountSummary.working_capital_status.opening_wc || 0, accountSummary.country)}</p>
+                      </div>
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs font-medium text-gray-600">Current WC</p>
                         <p className="text-lg font-bold">{formatCurrency(accountSummary.working_capital_status.current_wc, accountSummary.country)}</p>
                       </div>
                       <div className="p-3 bg-white rounded border text-center">
-                        <p className="text-xs text-gray-500">WC Percentage</p>
-                        <p className={`text-lg font-bold ${accountSummary.working_capital_status.wc_percentage >= 50 ? 'text-green-600' : 'text-red-600'}`}>
-                          {accountSummary.working_capital_status.wc_percentage.toFixed(0)}%
+                        <p className="text-xs text-gray-500">WC % vs Base</p>
+                        <p className={`text-lg font-bold ${accountSummary.working_capital_status.wc_percentage >= 100 ? 'text-green-600' : accountSummary.working_capital_status.wc_percentage >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {accountSummary.working_capital_status.wc_percentage?.toFixed(0) || 0}%
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs text-red-500 font-medium">WC Used (This Month)</p>
+                        <p className="text-lg font-bold text-red-600">{formatCurrency(accountSummary.working_capital_status.wc_used || 0, accountSummary.country)}</p>
+                      </div>
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs text-green-500 font-medium">WC Restored (This Month)</p>
+                        <p className="text-lg font-bold text-green-600">{formatCurrency(accountSummary.working_capital_status.wc_restored || 0, accountSummary.country)}</p>
+                      </div>
+                      <div className="p-3 bg-white rounded border text-center">
+                        <p className="text-xs text-gray-500">Revenue Share</p>
+                        <p className={`text-lg font-bold ${accountSummary.working_capital_status.revenue_share_active ? 'text-green-600' : 'text-red-600'}`}>
+                          {accountSummary.working_capital_status.revenue_share_active ? 'Active' : 'Blocked'}
                         </p>
                       </div>
                       <div className="p-3 bg-white rounded border text-center">
@@ -1756,8 +1780,13 @@ export default function CenterAccounts() {
                       </div>
                     </div>
                     {accountSummary.working_capital_status.protection_mode && (
-                      <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded text-sm text-red-800">
-                        <strong>Protection Mode Active:</strong> WC is below 50% of initial commitment. MG payouts are blocked. Revenue share on operational balance only. Remaining funds directed to WC recovery.
+                      <div className="p-3 bg-red-100 border border-red-300 rounded text-sm text-red-800">
+                        <strong>Protection Mode Active:</strong> WC is below 50% of Base. MG payouts are blocked. Revenue share blocked. All profit directed to WC recovery.
+                      </div>
+                    )}
+                    {accountSummary.working_capital_status.status === 'Restoring' && !accountSummary.working_capital_status.protection_mode && (
+                      <div className="p-3 bg-amber-100 border border-amber-300 rounded text-sm text-amber-800">
+                        <strong>WC Restoring:</strong> Working Capital is between 50-100% of Base. Revenue share is blocked until WC is fully restored to Base level. Profits are being used to restore WC.
                       </div>
                     )}
                   </CardContent>

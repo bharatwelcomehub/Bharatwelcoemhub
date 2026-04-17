@@ -138,14 +138,19 @@ def calculate_mg(total_investment: float, setup_costs: dict, franchise_fee: floa
 
 async def calculate_working_capital_standing(db_ref, center_code: str, up_to_month: str, country: str = "India"):
     """
-    Calculate Working Capital standing for a specific month.
-    Uses the SAME logic as the WC Table: P/L = Sales - (Expenses + Commission).
-    Both profits and losses affect WC. No GST deduction in P/L.
-    Pulls initial WC from franchise's working_capital field in DB.
+    Calculate Working Capital standing with proper monthly flow logic.
+    
+    Monthly Flow:
+    1. Opening WC (= previous month's closing WC, or Base WC for first month)
+    2. Calculate Operational Balance (Sales - Expenses - Commission - GST)
+    3. If profit AND WC < Base → profit restores WC first before revenue share
+    4. If loss → deduct from WC
+    5. Revenue Share blocked if WC ≤ 50% of Base
+    6. Revenue Share resumes ONLY when WC restored to Base level
+    7. Closing WC = carries forward to next month
     """
-    # Use the same franchise lookup as WC table for consistency
     franchise = await get_franchise_for_center(center_code)
-    initial_wc = float(franchise.get("working_capital", 0) or 0) if franchise else 0
+    base_wc = float(franchise.get("working_capital", 0) or 0) if franchise else 0
     
     # Check for initial WC override
     wc_override = await db_ref.wc_overrides.find_one(
@@ -153,7 +158,7 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         {"_id": 0}
     )
     if wc_override and wc_override.get("initial_wc") is not None:
-        initial_wc = float(wc_override["initial_wc"])
+        base_wc = float(wc_override["initial_wc"])
     
     # Get monthly sales
     sales_months = await db_ref.daily_sales.aggregate([
@@ -178,6 +183,14 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
+    # Get monthly GST (from daily_sales gst_amount)
+    gst_months = await db_ref.daily_sales.aggregate([
+        {"$match": {"center": center_code, "date": {"$regex": r"^\d{4}-\d{2}"}}},
+        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
+        {"$group": {"_id": "$month", "total_gst": {"$sum": {"$ifNull": ["$gst_amount", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
+    
     # Get manual WC top-ups
     topups = await db_ref.wc_topups.find({"center": center_code}, {"_id": 0}).sort("date", 1).to_list(200)
     topup_by_month = {}
@@ -192,53 +205,102 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     for s in sales_months:
         m = s["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["sale"] = s["total_sale"]
     for e in expense_months:
         m = e["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["expenses"] = e["total_expense"]
     for c in commission_months:
         m = c["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["commission"] = c["total_commission"]
+    for g in gst_months:
+        m = g["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
+        month_data[m]["gst"] = g["total_gst"]
     
-    # Chain WC month-by-month up to the requested month (same logic as WC table)
+    # Chain WC month-by-month with proper flow
     sorted_months = sorted(m for m in month_data.keys() if m <= up_to_month)
     
-    current_wc = initial_wc
-    this_month_pnl = 0
-    this_month_sales = 0
-    this_month_expenses = 0
-    this_month_commissions = 0
-    opening_wc = initial_wc
+    current_wc = base_wc
+    cumulative_wc_used = 0
+    cumulative_wc_restored = 0
+    
+    # Track the requested month's data
+    this_month_data = {
+        "opening_wc": base_wc, "sales": 0, "expenses": 0, "commission": 0, "gst": 0,
+        "operational_balance": 0, "wc_used": 0, "wc_restored": 0, "topup": 0,
+        "closing_wc": base_wc, "revenue_share_blocked": False
+    }
+    
+    WC_THRESHOLD = 50  # 50% protection threshold
     
     for month in sorted_months:
         d = month_data[month]
         sale = d["sale"]
         expenses = d["expenses"]
         commission = d["commission"]
-        pnl = sale - (expenses + commission)
+        gst = d["gst"]
         
         opening_wc_for_month = current_wc
-        current_wc = current_wc + pnl
         
-        # Apply top-ups
+        # Step 2: Calculate Operational Balance
+        operational_balance = sale - expenses - commission - gst
+        
+        # Step 3 & 4: Apply operational balance to WC
+        month_wc_used = 0
+        month_wc_restored = 0
+        
+        if operational_balance >= 0:
+            # Profit: first restore WC if below base, then remainder is distributable
+            if current_wc < base_wc:
+                # How much WC needs to be restored
+                deficit = base_wc - current_wc
+                restore_amount = min(operational_balance, deficit)
+                month_wc_restored = restore_amount
+                current_wc += restore_amount
+                # Remaining profit after WC restoration (available for revenue share)
+                # The actual revenue share calculation happens in the summary endpoint
+            else:
+                # WC is at or above base, profit doesn't change WC
+                pass
+        else:
+            # Loss: deduct from WC
+            month_wc_used = abs(operational_balance)
+            current_wc += operational_balance  # operational_balance is negative
+        
+        # Apply manual top-ups
         topup_amount = topup_by_month.get(month, 0)
         if topup_amount != 0:
             current_wc += topup_amount
         
+        cumulative_wc_used += month_wc_used
+        cumulative_wc_restored += month_wc_restored
+        
+        closing_wc = current_wc
+        
+        # Track data for requested month
         if month == up_to_month:
-            opening_wc = opening_wc_for_month
-            this_month_pnl = pnl
-            this_month_sales = sale
-            this_month_expenses = expenses
-            this_month_commissions = commission
+            wc_pct = (closing_wc / base_wc * 100) if base_wc > 0 else 100
+            this_month_data = {
+                "opening_wc": round(opening_wc_for_month, 2),
+                "sales": round(sale, 2),
+                "expenses": round(expenses, 2),
+                "commission": round(commission, 2),
+                "gst": round(gst, 2),
+                "operational_balance": round(operational_balance, 2),
+                "wc_used": round(month_wc_used, 2),
+                "wc_restored": round(month_wc_restored, 2),
+                "topup": round(topup_amount, 2),
+                "closing_wc": round(closing_wc, 2),
+                "revenue_share_blocked": base_wc > 0 and wc_pct <= WC_THRESHOLD,
+            }
     
     closing_wc = current_wc
-    diff_from_initial = closing_wc - initial_wc
     
     # Loans outstanding
     year, mo = map(int, up_to_month.split("-"))
@@ -256,41 +318,50 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         for loan in loan_entries
     )
     
-    # WC Gating
-    wc_percentage = (closing_wc / initial_wc * 100) if initial_wc > 0 else 100
-    WC_THRESHOLD = 50
+    # WC Status Determination
+    wc_percentage = (closing_wc / base_wc * 100) if base_wc > 0 else 100
     revenue_share_active = True
     wc_status = "healthy"
     
-    if initial_wc > 0:
-        if wc_percentage < WC_THRESHOLD:
+    if base_wc > 0:
+        if wc_percentage <= WC_THRESHOLD:
             revenue_share_active = False
-            wc_status = "closed"
-        elif closing_wc < initial_wc:
+            wc_status = "protection"
+        elif closing_wc < base_wc:
+            # WC is between 50% and 100% — restoring, revenue share blocked until fully restored
+            revenue_share_active = False
             wc_status = "restoring"
+        # Revenue share resumes ONLY when WC >= Base WC
     
     return {
-        "initial_security_deposit": round(initial_wc, 2),
-        "opening_wc": round(opening_wc, 2),
-        "this_month_sales": round(this_month_sales, 2),
-        "this_month_expenses": round(this_month_expenses, 2),
-        "this_month_commissions": round(this_month_commissions, 2),
-        "this_month_gst": 0,
-        "this_month_pnl": round(this_month_pnl, 2),
+        "base_wc": round(base_wc, 2),
+        "initial_security_deposit": round(base_wc, 2),
+        "opening_wc": this_month_data["opening_wc"],
+        "this_month_sales": this_month_data["sales"],
+        "this_month_expenses": this_month_data["expenses"],
+        "this_month_commissions": this_month_data["commission"],
+        "this_month_gst": this_month_data["gst"],
+        "this_month_operational_balance": this_month_data["operational_balance"],
+        "this_month_pnl": this_month_data["operational_balance"],
+        "this_month_wc_used": this_month_data["wc_used"],
+        "this_month_wc_restored": this_month_data["wc_restored"],
+        "this_month_topup": this_month_data["topup"],
         "closing_wc": round(closing_wc, 2),
-        "diff_from_initial": round(diff_from_initial, 2),
+        "diff_from_initial": round(closing_wc - base_wc, 2),
+        "cumulative_wc_used": round(cumulative_wc_used, 2),
+        "cumulative_wc_restored": round(cumulative_wc_restored, 2),
         "loan_from_wc_deficit": 0,
         "loans_outstanding": round(total_loans_outstanding, 2),
         "total_effective_loans": round(total_loans_outstanding, 2),
         "available_capital": round(closing_wc - total_loans_outstanding, 2),
-        "wc_utilised": round(max(0, initial_wc - closing_wc), 2) if initial_wc > 0 else 0,
+        "wc_utilised": round(max(0, base_wc - closing_wc), 2) if base_wc > 0 else 0,
         "wc_percentage": round(wc_percentage, 2),
         "wc_status": wc_status,
         "revenue_share_active": revenue_share_active,
         "wc_threshold": WC_THRESHOLD,
-        "current_month_pnl": round(this_month_pnl, 2),
-        "current_month_sales": round(this_month_sales, 2),
-        "current_month_expenses": round(this_month_expenses, 2),
+        "current_month_pnl": this_month_data["operational_balance"],
+        "current_month_sales": this_month_data["sales"],
+        "current_month_expenses": this_month_data["expenses"],
     }
 
 
@@ -349,6 +420,14 @@ async def get_wc_table(req: dict = Body(...)):
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
+    # Get monthly GST
+    gst_months = await db.daily_sales.aggregate([
+        {"$match": {"center": center, "date": {"$regex": r"^\d{4}-\d{2}"}}},
+        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
+        {"$group": {"_id": "$month", "total_gst": {"$sum": {"$ifNull": ["$gst_amount", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
+    
     # Get manual WC top-ups (audit log)
     topups = await db.wc_topups.find(
         {"center": center},
@@ -368,20 +447,26 @@ async def get_wc_table(req: dict = Body(...)):
     for s in sales_months:
         m = s["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["sale"] = s["total_sale"]
     
     for e in expense_months:
         m = e["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["expenses"] = e["total_expense"]
     
     for c in commission_months:
         m = c["_id"]
         if m not in month_data:
-            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0}
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["commission"] = c["total_commission"]
+    
+    for g in gst_months:
+        m = g["_id"]
+        if m not in month_data:
+            month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
+        month_data[m]["gst"] = g["total_gst"]
     
     if not month_data:
         return {
@@ -403,7 +488,7 @@ async def get_wc_table(req: dict = Body(...)):
             "last_topup": None, "topup_log": topups
         }
     
-    # Build rows with new logic
+    # Build rows with new WC flow logic
     rows = []
     current_wc = initial_wc
     revenue_share_stopped_since = None
@@ -413,12 +498,27 @@ async def get_wc_table(req: dict = Body(...)):
         sale = round(d["sale"], 2)
         expenses = round(d["expenses"], 2)
         commission = round(d["commission"], 2)
-        pnl = round(sale - (expenses + commission), 2)
+        gst = round(d.get("gst", 0), 2)
+        operational_balance = round(sale - (expenses + commission + gst), 2)
         
         opening_wc = round(current_wc, 2)
         
-        # Apply P/L: both profits and losses affect WC
-        current_wc = round(current_wc + pnl, 2)
+        # New WC Flow Logic
+        wc_used = 0
+        wc_restored = 0
+        
+        if operational_balance >= 0:
+            # Profit: restore WC first if below base
+            if current_wc < initial_wc:
+                deficit = initial_wc - current_wc
+                restore_amount = min(operational_balance, deficit)
+                wc_restored = round(restore_amount, 2)
+                current_wc += restore_amount
+            # If WC is at/above base, profit doesn't change WC further
+        else:
+            # Loss: deduct from WC
+            wc_used = round(abs(operational_balance), 2)
+            current_wc += operational_balance  # negative value
         
         # Apply any manual top-ups for this month
         topup_amount = round(topup_by_month.get(month, 0), 2)
@@ -427,29 +527,36 @@ async def get_wc_table(req: dict = Body(...)):
         
         closing_wc = round(current_wc, 2)
         
-        # Revenue share status: stops if WC <= 50% of initial
+        # Revenue share status: stops if WC < Base, using 50% threshold for protection
+        wc_pct = (closing_wc / initial_wc * 100) if initial_wc > 0 else 100
         threshold = initial_wc * 0.5
-        if closing_wc <= threshold and initial_wc > 0:
-            rev_share_status = "stopped"
+        
+        if initial_wc > 0 and closing_wc < initial_wc:
+            if closing_wc <= threshold:
+                rev_share_status = "blocked"
+            else:
+                rev_share_status = "restoring"
             if revenue_share_stopped_since is None:
                 revenue_share_stopped_since = month
-        elif revenue_share_stopped_since is not None and closing_wc > threshold:
-            rev_share_status = "restored"
-            revenue_share_stopped_since = None
         else:
             rev_share_status = "active"
+            revenue_share_stopped_since = None
         
         rows.append({
             "month": month,
             "sale": sale,
             "expenses": expenses,
             "commission": commission,
-            "pnl": pnl,
+            "gst": gst,
+            "operational_balance": operational_balance,
+            "pnl": operational_balance,
             "opening_wc": opening_wc,
+            "wc_used": wc_used,
+            "wc_restored": wc_restored,
             "topup": topup_amount,
             "closing_wc": closing_wc,
-            "diff_from_initial": round(closing_wc - initial_wc, 2),
-            "rev_share_status": rev_share_status
+            "wc_percentage": round(wc_pct, 1),
+            "rev_share_status": rev_share_status,
         })
     
     # Get last topup for summary
@@ -457,15 +564,19 @@ async def get_wc_table(req: dict = Body(...)):
     
     # Current overall revenue share status
     final_wc = rows[-1]["closing_wc"] if rows else initial_wc
-    final_status = "active"
-    if initial_wc > 0 and final_wc <= (initial_wc * 0.5):
-        final_status = "stopped"
+    final_pct = (final_wc / initial_wc * 100) if initial_wc > 0 else 100
+    if initial_wc > 0 and final_wc < initial_wc:
+        final_status = "blocked" if final_pct <= 50 else "restoring"
+    else:
+        final_status = "active"
     
     return {
         "success": True,
         "rows": rows,
         "initial_wc": initial_wc,
+        "base_wc": initial_wc,
         "current_wc": final_wc,
+        "wc_percentage": round(final_pct, 1),
         "center": center,
         "revenue_share_status": final_status,
         "last_topup": last_topup,
@@ -957,14 +1068,21 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # ==========================================
     wc_percentage = wc_standing.get("wc_percentage", 100)
     protection_mode = not wc_revenue_share_active and initial_wc_from_franchise > 0
-    wc_status_label = "Protection Mode" if protection_mode else "Healthy"
+    wc_status_label = "Protection Mode" if protection_mode else ("Restoring" if wc_status == "restoring" else "Healthy")
     
     working_capital_status = {
+        "base_wc": round(initial_wc_from_franchise, 2),
         "initial_wc": round(initial_wc_from_franchise, 2),
+        "opening_wc": wc_standing.get("opening_wc", 0),
         "current_wc": round(wc_standing.get("closing_wc", 0), 2),
         "wc_percentage": round(wc_percentage, 2),
+        "wc_used": wc_standing.get("this_month_wc_used", 0),
+        "wc_restored": wc_standing.get("this_month_wc_restored", 0),
+        "cumulative_wc_used": wc_standing.get("cumulative_wc_used", 0),
+        "cumulative_wc_restored": wc_standing.get("cumulative_wc_restored", 0),
         "status": wc_status_label,
         "protection_mode": protection_mode,
+        "revenue_share_active": wc_revenue_share_active,
         "threshold": "50%",
     }
     
@@ -1596,10 +1714,14 @@ async def generate_pib_report(req: PIBGenerateRequest):
     wc_protection = wc_st_info.get("protection_mode", False)
     wc_status_data = [
         ["Description", "Value"],
-        ["Initial Working Capital", f"{currency} {wc_st_info.get('initial_wc', 0):,.2f}"],
+        ["Base Working Capital", f"{currency} {wc_st_info.get('base_wc', wc_st_info.get('initial_wc', 0)):,.2f}"],
+        ["Opening WC (This Month)", f"{currency} {wc_st_info.get('opening_wc', 0):,.2f}"],
+        ["WC Used for Operational Loss", f"{currency} {wc_st_info.get('wc_used', 0):,.2f}"],
+        ["WC Restored from Profit", f"{currency} {wc_st_info.get('wc_restored', 0):,.2f}"],
         ["Current Working Capital", f"{currency} {wc_st_info.get('current_wc', 0):,.2f}"],
-        ["WC Percentage", f"{wc_st_info.get('wc_percentage', 100):.0f}%"],
+        ["WC % vs Base", f"{wc_st_info.get('wc_percentage', 100):.0f}%"],
         ["Threshold", wc_st_info.get("threshold", "50%")],
+        ["Revenue Share Status", "BLOCKED" if wc_protection or not wc_st_info.get("revenue_share_active", True) else "Active"],
         ["Status", wc_st_info.get("status", "Healthy")],
     ]
     
