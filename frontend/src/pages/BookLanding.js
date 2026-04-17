@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Lock, CheckCircle, Bookmark, ArrowRight } from 'lucide-react';
+import { BookOpen, Lock, CheckCircle, Bookmark, ArrowRight, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import AuthDialog from '@/components/AuthDialog';
+import BookPodcastPlayer from '@/components/BookPodcastPlayer';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const COVER_IMAGE = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/bdlxtuu4_Book_Restaurant_become_Human.png';
@@ -17,6 +18,8 @@ const BookLanding = () => {
   const [purchasing, setPurchasing] = useState(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [pendingPurchase, setPendingPurchase] = useState(null);
+  const [showPodcast, setShowPodcast] = useState(false);
+  const [listenEnabled, setListenEnabled] = useState(true);
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
@@ -27,6 +30,7 @@ const BookLanding = () => {
   useEffect(() => {
     fetchParts();
     if (user) fetchProgress();
+    fetch(`${API}/api/book/settings`).then(r => r.json()).then(d => setListenEnabled(d.listen_enabled !== false)).catch(() => {});
   }, [user]);
 
   // Check for payment success redirect
@@ -204,6 +208,18 @@ const BookLanding = () => {
                   Continue Reading (Page {progress.last_page})
                 </Button>
               )}
+
+              {listenEnabled && (
+                <Button
+                  onClick={() => setShowPodcast(true)}
+                  variant="outline"
+                  className="border border-[#B8962E]/40 text-[#B8962E] hover:bg-[#B8962E]/10 rounded-none px-8 py-3 text-sm tracking-widest uppercase mb-4"
+                  data-testid="listen-book-btn"
+                >
+                  <Headphones className="w-4 h-4 mr-2" />
+                  Listen to the Book
+                </Button>
+              )}
             </motion.div>
           </div>
         </div>
@@ -312,6 +328,11 @@ const BookLanding = () => {
 
       {/* Auth Dialog for purchase flow */}
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
+
+      {/* Podcast Player */}
+      {listenEnabled && (
+        <BookPodcastPlayer visible={showPodcast} onClose={() => setShowPodcast(false)} />
+      )}
     </div>
   );
 };

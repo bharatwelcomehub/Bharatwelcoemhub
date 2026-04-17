@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -178,7 +178,7 @@ const Admin = () => {
   ];
 
   // Book Settings state
-  const [bookSettings, setBookSettings] = useState({ break_interval: 20, music_url: '', break_shayaris: [] });
+  const [bookSettings, setBookSettings] = useState({ break_interval: 20, music_url: '', break_shayaris: [], listen_enabled: true });
   const [bookAnalytics, setBookAnalytics] = useState(null);
   const [newShayari, setNewShayari] = useState('');
   const [musicUploading, setMusicUploading] = useState(false);
@@ -2087,6 +2087,40 @@ const Admin = () => {
                   </CardContent></Card>
                 </div>
               )}
+
+              {/* Listen Mode Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg"><Headphones className="h-5 w-5 text-[#B8962E]" /> Audio Listen Mode</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-[#7A6F65] font-body mb-3">Enable or disable the AI narration / listen feature for readers</p>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setBookSettings(prev => ({ ...prev, listen_enabled: true }))}
+                      className={`px-6 py-2 rounded-lg text-sm font-body font-semibold transition-all ${
+                        bookSettings.listen_enabled !== false
+                          ? 'bg-green-600 text-white'
+                          : 'bg-[#F8F5F0] text-[#5C4A3A] border border-[#E8DFD0] hover:border-green-400'
+                      }`}
+                      data-testid="listen-enabled-on"
+                    >
+                      ON — Readers can listen
+                    </button>
+                    <button
+                      onClick={() => setBookSettings(prev => ({ ...prev, listen_enabled: false }))}
+                      className={`px-6 py-2 rounded-lg text-sm font-body font-semibold transition-all ${
+                        bookSettings.listen_enabled === false
+                          ? 'bg-red-600 text-white'
+                          : 'bg-[#F8F5F0] text-[#5C4A3A] border border-[#E8DFD0] hover:border-red-400'
+                      }`}
+                      data-testid="listen-enabled-off"
+                    >
+                      OFF — Disable listening
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Break Interval Setting */}
               <Card>

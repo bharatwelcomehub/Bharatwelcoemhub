@@ -2009,7 +2009,7 @@ async def get_book_settings():
     """Get book reader settings (break interval, music URL, etc.)."""
     settings = await db.book_settings.find_one({"key": "reader_settings"}, {"_id": 0})
     if not settings:
-        return {"break_interval": 20, "music_url": "", "break_shayaris": []}
+        return {"break_interval": 20, "music_url": "", "break_shayaris": [], "listen_enabled": True}
     return settings
 
 
@@ -2024,6 +2024,7 @@ async def update_book_settings(request: Request, current_user: dict = Depends(ge
             "break_interval": int(body.get("break_interval", 20)),
             "music_url": body.get("music_url", ""),
             "break_shayaris": body.get("break_shayaris", []),
+            "listen_enabled": body.get("listen_enabled", True),
             "updated_at": datetime.now(timezone.utc).isoformat()
         }},
         upsert=True

@@ -219,8 +219,14 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
   - CORS fix for production Google OAuth
   - Audio narration (TTS): AI-generated HD voice narration using OpenAI tts-1-hd with "fable" voice
   - Listen mode: headphones button → auto-reads pages → auto-advances
+  - Podcast mode: full book playlist player with chapter markers, skip prev/next, progress bar
+  - Playback speed control: 0.75x / 1x / 1.25x / 1.5x / 2x
+  - Mini player bar stays visible (fixed bottom) even while browsing other sections
   - Admin can upload custom narration per page (overrides AI voice)
+  - Admin can toggle listen/narration ON or OFF for all readers
   - Audio cached after first generation (no repeated API calls)
+  - "Listen to the Book" CTA button on book landing page
+  - "Read Book" button on homepage hero section
 - [ ] **Phase 2 (Upcoming):** Reader community, book discussions, author notes
 - [ ] **Phase 3 (Future):** Additional books, digital Maharashtrian food archive
 

@@ -4,6 +4,7 @@ import HTMLFlipBook from 'react-pageflip';
 import { ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, ArrowLeft, Volume2, VolumeX, X, Home, Headphones, Pause, Play, SkipForward } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import BookPodcastPlayer from '@/components/BookPodcastPlayer';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -48,11 +49,13 @@ const BookReader = () => {
   const [dimensions, setDimensions] = useState({ width: 400, height: 560 });
   const [showBreak, setShowBreak] = useState(false);
   const [pagesFlipped, setPagesFlipped] = useState(0);
-  const [readerSettings, setReaderSettings] = useState({ break_interval: 20, break_shayaris: [] });
+  const [readerSettings, setReaderSettings] = useState({ break_interval: 20, break_shayaris: [], listen_enabled: true });
   const [listenMode, setListenMode] = useState(false);
   const [narrationPlaying, setNarrationPlaying] = useState(false);
   const [narrationLoading, setNarrationLoading] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
+  const [showPodcast, setShowPodcast] = useState(false);
+  const listenEnabled = readerSettings.listen_enabled !== false;
   const bookRef = useRef(null);
   const audioRef = useRef(null);
   const narrationRef = useRef(null);
@@ -367,21 +370,35 @@ const BookReader = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Listen Mode */}
-          <button
-            onClick={toggleListenMode}
-            className={`p-2 rounded-full transition-colors flex items-center gap-1 ${listenMode ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-[#D4AF37]/40 hover:text-[#D4AF37]/70'}`}
-            data-testid="listen-toggle"
-          >
-            {narrationLoading ? (
-              <div className="w-4 h-4 border border-[#D4AF37]/50 border-t-[#D4AF37] rounded-full animate-spin" />
-            ) : listenMode ? (
-              <Pause className="w-4 h-4" />
-            ) : (
-              <Headphones className="w-4 h-4" />
-            )}
-            <span className="text-[9px] font-body hidden sm:inline">{listenMode ? 'Stop' : 'Listen'}</span>
-          </button>
+          {/* Listen Mode / Podcast */}
+          {listenEnabled && (
+            <>
+              <button
+                onClick={toggleListenMode}
+                className={`p-2 rounded-full transition-colors flex items-center gap-1 ${listenMode ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-[#D4AF37]/40 hover:text-[#D4AF37]/70'}`}
+                data-testid="listen-toggle"
+                title="Read aloud this page"
+              >
+                {narrationLoading ? (
+                  <div className="w-4 h-4 border border-[#D4AF37]/50 border-t-[#D4AF37] rounded-full animate-spin" />
+                ) : listenMode ? (
+                  <Pause className="w-4 h-4" />
+                ) : (
+                  <Headphones className="w-4 h-4" />
+                )}
+                <span className="text-[9px] font-body hidden sm:inline">{listenMode ? 'Stop' : 'Listen'}</span>
+              </button>
+              <button
+                onClick={() => { stopNarration(); setListenMode(false); setShowPodcast(!showPodcast); }}
+                className={`p-2 rounded-full transition-colors flex items-center gap-1 ${showPodcast ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-[#D4AF37]/40 hover:text-[#D4AF37]/70'}`}
+                data-testid="podcast-toggle"
+                title="Podcast mode — listen to the whole book"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span className="text-[9px] font-body hidden sm:inline">Podcast</span>
+              </button>
+            </>
+          )}
           <button
             onClick={toggleMusic}
             className={`p-2 rounded-full transition-colors ${musicOn ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-[#D4AF37]/40 hover:text-[#D4AF37]/70'}`}
@@ -400,7 +417,7 @@ const BookReader = () => {
       </div>
 
       {/* Listen Mode Banner */}
-      {listenMode && (
+      {listenEnabled && listenMode && (
         <div className="px-4 py-2 bg-[#D4AF37]/10 border-t border-[#D4AF37]/20 flex-shrink-0">
           <div className="flex items-center justify-center gap-3">
             {narrationLoading ? (
@@ -584,6 +601,11 @@ const BookReader = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Podcast Player */}
+      {listenEnabled && (
+        <BookPodcastPlayer visible={showPodcast} onClose={() => setShowPodcast(false)} />
       )}
     </div>
   );
