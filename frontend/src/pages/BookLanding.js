@@ -211,7 +211,17 @@ const BookLanding = () => {
 
               {listenEnabled && (
                 <Button
-                  onClick={() => setShowPodcast(true)}
+                  onClick={() => {
+                    // Check if user has any purchased parts
+                    const hasPurchased = parts.some(p => p.purchased);
+                    if (hasPurchased) {
+                      setShowPodcast(true);
+                    } else {
+                      // Scroll to purchase section
+                      document.getElementById('book-parts')?.scrollIntoView({ behavior: 'smooth' });
+                      toast('Purchase a part first to start listening', { icon: '🎧' });
+                    }
+                  }}
                   variant="outline"
                   className="border border-[#B8962E]/40 text-[#B8962E] hover:bg-[#B8962E]/10 rounded-none px-8 py-3 text-sm tracking-widest uppercase mb-4"
                   data-testid="listen-book-btn"
@@ -226,7 +236,7 @@ const BookLanding = () => {
       </section>
 
       {/* Parts Section */}
-      <section className="py-16 bg-white border-t border-b border-[#E8DFD0]">
+      <section id="book-parts" className="py-16 bg-white border-t border-b border-[#E8DFD0]">
         <div className="container mx-auto px-4 lg:px-8">
           <h2 className="text-center font-heading text-2xl text-[#3D2314] mb-2">Choose Your Reading Journey</h2>
           <p className="text-center text-sm text-[#7A6F65] font-body mb-12">Purchase each part separately. Read at your own pace.</p>
