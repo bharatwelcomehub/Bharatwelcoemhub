@@ -369,7 +369,17 @@ async def google_auth_session(request: Request, response: Response):
     
     # Get full user data
     user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
-    
+
+    # Auto-grant owner privileges for Purnabramha owner
+    if email == "jayanti.kathale@purnabramha.com":
+        await db.users.update_one({"id": user_id}, {"$set": {"is_admin": True}})
+        for part in [1, 2, 3]:
+            exists = await db.book_purchases.find_one({"user_id": user_id, "part_number": part, "status": "completed"}, {"_id": 0})
+            if not exists:
+                await db.book_purchases.insert_one({"user_id": user_id, "part_number": part, "session_id": f"owner-grant-{part}", "status": "completed", "purchased_at": datetime.now(timezone.utc).isoformat()})
+        if user_doc:
+            user_doc["is_admin"] = True
+
     return {"user": user_doc, "token": session_token}
 
 @api_router.post("/auth/logout")
