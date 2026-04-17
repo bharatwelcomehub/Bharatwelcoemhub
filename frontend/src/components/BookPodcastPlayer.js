@@ -30,6 +30,8 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
   const isPlayingRef = useRef(false);
   const { token } = useAuth();
 
+  const [jumpPage, setJumpPage] = useState('');
+
   const speeds = [0.75, 1, 1.25, 1.5, 2];
 
   // Fetch which pages have speakable content
@@ -340,6 +342,39 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
                         {s}x
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Go to Page */}
+                <div className="flex items-center justify-between pt-3 border-t border-[#D4AF37]/10">
+                  <p className="text-[#D4AF37]/60 text-xs font-body">Jump to Page</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={152}
+                      value={jumpPage}
+                      onChange={(e) => setJumpPage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const pg = parseInt(jumpPage);
+                          if (pg >= 1 && pg <= 152) { isPlayingRef.current = true; playPage(pg); setJumpPage(''); setExpanded(false); }
+                        }
+                      }}
+                      placeholder="1–152"
+                      className="w-20 px-3 py-1.5 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/20 text-[#D4AF37] text-xs font-body text-center focus:outline-none focus:border-[#D4AF37]/50 placeholder:text-[#D4AF37]/30"
+                      data-testid="jump-page-input"
+                    />
+                    <button
+                      onClick={() => {
+                        const pg = parseInt(jumpPage);
+                        if (pg >= 1 && pg <= 152) { isPlayingRef.current = true; playPage(pg); setJumpPage(''); setExpanded(false); }
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-body font-semibold bg-[#D4AF37] text-[#3D2314] hover:bg-[#F3D060] transition-all"
+                      data-testid="jump-page-go"
+                    >
+                      Go
+                    </button>
                   </div>
                 </div>
               </div>
