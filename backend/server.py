@@ -2168,6 +2168,83 @@ async def upload_custom_narration(request: Request, current_user: dict = Depends
     with open(save_path, 'wb') as f:
         f.write(audio_data)
 
+
+@api_router.get("/book/audio-status")
+async def get_audio_status():
+    """Check which pages have audio ready (cached or custom)."""
+    audio_dir = ROOT_DIR / 'book_audio'
+    ready = []
+    if audio_dir.exists():
+        for f in audio_dir.iterdir():
+            if f.suffix == '.mp3':
+                name = f.stem
+                if name.startswith('custom_page_'):
+                    pg = int(name.replace('custom_page_', ''))
+                    ready.append(pg)
+                elif name.startswith('page_'):
+                    pg = int(name.replace('page_', ''))
+                    ready.append(pg)
+
+    # Also find pages that have text content (can be generated)
+    text_pages = await db.book_pages.find(
+        {"content": {"$regex": ".{10,}"}},
+        {"_id": 0, "page_number": 1}
+    ).to_list(200)
+    speakable = [p["page_number"] for p in text_pages]
+
+    return {"cached": sorted(set(ready)), "speakable": sorted(speakable)}
+
+
+@api_router.post("/book/prefetch-audio")
+async def prefetch_audio(request: Request, current_user: dict = Depends(get_optional_user)):
+    """Pre-generate audio for a batch of pages. Returns list of ready pages."""
+    body = await request.json()
+    page_numbers = body.get("pages", [])[:5]  # Max 5 at a time
+
+    if not current_user:
+        token_str = body.get("token", "")
+        if token_str:
+            try:
+                payload = jwt.decode(token_str, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                current_user = payload
+            except Exception:
+                session = await db.user_sessions.find_one({"session_token": token_str}, {"_id": 0})
+                if session:
+                    current_user = {"user_id": session["user_id"], "email": session.get("email", "")}
+
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    audio_dir = ROOT_DIR / 'book_audio'
+    os.makedirs(audio_dir, exist_ok=True)
+
+    generated = []
+    for pg in page_numbers:
+        cached = audio_dir / f'page_{pg}.mp3'
+        custom = audio_dir / f'custom_page_{pg}.mp3'
+        if cached.exists() or custom.exists():
+            generated.append(pg)
+            continue
+
+        page_doc = await db.book_pages.find_one({"page_number": pg}, {"_id": 0})
+        if not page_doc or not page_doc.get("content", "").strip() or len(page_doc["content"].strip()) < 10:
+            continue
+
+        try:
+            from emergentintegrations.llm.openai import OpenAITextToSpeech
+            tts = OpenAITextToSpeech(api_key=api_key)
+            audio_bytes = await tts.generate_speech(
+                text=page_doc["content"].strip()[:4096],
+                model="tts-1-hd",
+                voice="fable",
+                speed=0.9
+            )
+            with open(cached, 'wb') as f:
+                f.write(audio_bytes)
+            generated.append(pg)
+        except Exception as e:
+            logger.error(f"Prefetch TTS error page {pg}: {str(e)}")
+
+    return {"generated": generated}
+
     return {"message": f"Custom narration uploaded for page {page_number} ({len(audio_data) // 1024}KB)"}
 
 

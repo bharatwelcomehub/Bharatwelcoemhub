@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Headphones, Play, Pause, SkipForward, SkipBack, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -12,6 +11,8 @@ const CHAPTERS = [
   { name: 'Part 3', startPage: 101, endPage: 152 }
 ];
 
+const PREFETCH_AHEAD = 3;
+
 const BookPodcastPlayer = ({ visible, onClose }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -20,103 +21,222 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
   const [speed, setSpeed] = useState(1);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [speakablePages, setSpeakablePages] = useState([]);
+  const [statusText, setStatusText] = useState('');
+
   const audioRef = useRef(null);
+  const cacheRef = useRef({});      // { pageNum: blobUrl }
+  const prefetchingRef = useRef({}); // { pageNum: true } (in-flight)
+  const isPlayingRef = useRef(false);
   const { token } = useAuth();
 
   const speeds = [0.75, 1, 1.25, 1.5, 2];
 
-  const getCurrentChapter = () => {
+  // Fetch which pages have speakable content
+  useEffect(() => {
+    if (!visible) return;
+    fetch(`${API}/api/book/audio-status`)
+      .then(r => r.json())
+      .then(data => {
+        setSpeakablePages(data.speakable || []);
+      })
+      .catch(() => {});
+  }, [visible]);
+
+  const getAuthToken = () => token || localStorage.getItem('token') || '';
+
+  // Find next speakable page from given page
+  const getNextSpeakable = useCallback((fromPage) => {
+    for (let i = fromPage; i <= 152; i++) {
+      if (speakablePages.includes(i)) return i;
+    }
+    return null;
+  }, [speakablePages]);
+
+  const getPrevSpeakable = useCallback((fromPage) => {
+    for (let i = fromPage; i >= 1; i--) {
+      if (speakablePages.includes(i)) return i;
+    }
+    return null;
+  }, [speakablePages]);
+
+  const getCurrentChapter = useCallback(() => {
     for (const ch of CHAPTERS) {
       if (currentPage >= ch.startPage && currentPage <= ch.endPage) return ch;
     }
     return CHAPTERS[0];
-  };
+  }, [currentPage]);
 
-  const loadAndPlayPage = useCallback(async (pageNum) => {
+  // Pre-fetch a single page audio into blob cache
+  const prefetchPage = useCallback(async (pageNum) => {
+    if (cacheRef.current[pageNum] || prefetchingRef.current[pageNum]) return;
+    if (!speakablePages.includes(pageNum)) return;
+
+    prefetchingRef.current[pageNum] = true;
+    const authToken = getAuthToken();
+    const url = `${API}/api/book/page-audio/${pageNum}?token=${encodeURIComponent(authToken)}`;
+
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const blob = await res.blob();
+        cacheRef.current[pageNum] = URL.createObjectURL(blob);
+      }
+    } catch { /* silent */ }
+    delete prefetchingRef.current[pageNum];
+  }, [speakablePages]);
+
+  // Pre-fetch next N speakable pages
+  const prefetchAhead = useCallback((fromPage) => {
+    let count = 0;
+    let pg = fromPage;
+    while (count < PREFETCH_AHEAD && pg <= 152) {
+      if (speakablePages.includes(pg) && !cacheRef.current[pg]) {
+        prefetchPage(pg);
+        count++;
+      }
+      pg++;
+    }
+  }, [speakablePages, prefetchPage]);
+
+  // Play a specific page
+  const playPage = useCallback(async (pageNum) => {
+    // Stop current audio
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.onended = null;
       audioRef.current = null;
     }
 
-    setCurrentPage(pageNum);
-    setIsLoading(true);
+    // Find the actual speakable page (skip image-only pages)
+    const actualPage = getNextSpeakable(pageNum);
+    if (!actualPage) {
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+      setStatusText('End of book');
+      return;
+    }
+
+    setCurrentPage(actualPage);
     setProgress(0);
     setDuration(0);
 
-    const authToken = token || '';
-    const url = `${API}/api/book/page-audio/${pageNum}?token=${encodeURIComponent(authToken)}&t=${Date.now()}`;
+    // Start prefetching ahead
+    prefetchAhead(actualPage + 1);
 
-    const audio = new Audio(url);
+    // Check cache first
+    let audioUrl = cacheRef.current[actualPage];
+
+    if (!audioUrl) {
+      setIsLoading(true);
+      setStatusText(`Preparing page ${actualPage}...`);
+
+      // Fetch and cache
+      const authToken = getAuthToken();
+      const url = `${API}/api/book/page-audio/${actualPage}?token=${encodeURIComponent(authToken)}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          // Skip this page and try next
+          const next = getNextSpeakable(actualPage + 1);
+          if (next && isPlayingRef.current) {
+            playPage(next);
+          } else {
+            setIsPlaying(false);
+            isPlayingRef.current = false;
+            setIsLoading(false);
+          }
+          return;
+        }
+        const blob = await res.blob();
+        audioUrl = URL.createObjectURL(blob);
+        cacheRef.current[actualPage] = audioUrl;
+      } catch {
+        setIsLoading(false);
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        return;
+      }
+    }
+
+    setIsLoading(false);
+    setStatusText('');
+
+    const audio = new Audio(audioUrl);
     audio.playbackRate = speed;
     audioRef.current = audio;
 
-    audio.onloadedmetadata = () => {
-      setDuration(audio.duration);
-    };
-
-    audio.ontimeupdate = () => {
-      setProgress(audio.currentTime);
-    };
-
-    audio.oncanplaythrough = () => {
-      setIsLoading(false);
-      setIsPlaying(true);
-      audio.play().catch(() => {});
-    };
+    audio.onloadedmetadata = () => setDuration(audio.duration);
+    audio.ontimeupdate = () => setProgress(audio.currentTime);
 
     audio.onended = () => {
-      // Auto-advance to next page
-      const nextPage = pageNum + 1;
-      const chapter = getCurrentChapter();
-      if (nextPage <= 152) {
-        loadAndPlayPage(nextPage);
-      } else {
-        setIsPlaying(false);
+      if (isPlayingRef.current) {
+        const next = getNextSpeakable(actualPage + 1);
+        if (next) {
+          playPage(next);
+        } else {
+          setIsPlaying(false);
+          isPlayingRef.current = false;
+          setStatusText('Finished');
+        }
       }
     };
 
     audio.onerror = () => {
-      setIsLoading(false);
-      // Skip pages without audio (image-only pages) and try next
-      const nextPage = pageNum + 1;
-      if (nextPage <= 152) {
-        setTimeout(() => loadAndPlayPage(nextPage), 300);
-      } else {
-        setIsPlaying(false);
+      // Skip broken page
+      if (isPlayingRef.current) {
+        const next = getNextSpeakable(actualPage + 1);
+        if (next) playPage(next);
+        else { setIsPlaying(false); isPlayingRef.current = false; }
       }
     };
 
-    audio.load();
-  }, [token, speed]);
+    setIsPlaying(true);
+    isPlayingRef.current = true;
+    audio.play().catch(() => {});
+  }, [speed, getNextSpeakable, prefetchAhead]);
 
+  // Toggle play/pause
   const togglePlay = () => {
-    if (!audioRef.current) {
-      loadAndPlayPage(currentPage);
-      return;
-    }
-    if (isPlaying) {
+    if (isPlaying && audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
-    } else {
+      isPlayingRef.current = false;
+    } else if (!isPlaying && audioRef.current && audioRef.current.src) {
       audioRef.current.play().catch(() => {});
       setIsPlaying(true);
+      isPlayingRef.current = true;
+    } else {
+      isPlayingRef.current = true;
+      playPage(currentPage);
     }
   };
 
   const skipNext = () => {
-    loadAndPlayPage(Math.min(currentPage + 1, 152));
+    const next = getNextSpeakable(currentPage + 1);
+    if (next) {
+      isPlayingRef.current = true;
+      playPage(next);
+    }
   };
 
   const skipPrev = () => {
+    // If more than 3 seconds in, restart current page
     if (progress > 3 && audioRef.current) {
       audioRef.current.currentTime = 0;
-    } else {
-      loadAndPlayPage(Math.max(currentPage - 1, 1));
+      return;
+    }
+    const prev = getPrevSpeakable(currentPage - 1);
+    if (prev) {
+      isPlayingRef.current = true;
+      playPage(prev);
     }
   };
 
   const jumpToChapter = (chapter) => {
-    loadAndPlayPage(chapter.startPage);
+    isPlayingRef.current = true;
+    playPage(chapter.startPage);
+    setExpanded(false);
   };
 
   const changeSpeed = () => {
@@ -129,7 +249,7 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
   const seekTo = (e) => {
     if (!audioRef.current || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const pct = (e.clientX - rect.left) / rect.width;
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     audioRef.current.currentTime = pct * duration;
   };
 
@@ -137,8 +257,16 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
   useEffect(() => {
     return () => {
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      // Revoke all blob URLs
+      Object.values(cacheRef.current).forEach(url => URL.revokeObjectURL(url));
+      cacheRef.current = {};
     };
   }, []);
+
+  // Update speed on existing audio
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+  }, [speed]);
 
   const formatTime = (s) => {
     if (!s || isNaN(s)) return '0:00';
@@ -176,7 +304,7 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
                 {CHAPTERS.map((ch) => (
                   <button
                     key={ch.name}
-                    onClick={() => { jumpToChapter(ch); setExpanded(false); }}
+                    onClick={() => jumpToChapter(ch)}
                     className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-all ${
                       currentPage >= ch.startPage && currentPage <= ch.endPage
                         ? 'bg-[#D4AF37]/15 text-[#D4AF37]'
@@ -203,7 +331,7 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
                     {speeds.map(s => (
                       <button
                         key={s}
-                        onClick={() => { setSpeed(s); if (audioRef.current) audioRef.current.playbackRate = s; }}
+                        onClick={() => setSpeed(s)}
                         className={`px-3 py-1 rounded-full text-xs font-body font-semibold transition-all ${
                           speed === s ? 'bg-[#D4AF37] text-[#3D2314]' : 'text-[#D4AF37]/50 border border-[#D4AF37]/20 hover:border-[#D4AF37]/50'
                         }`}
@@ -222,13 +350,10 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
         {/* Mini Player Bar */}
         <div className="bg-[#1a1008]/95 backdrop-blur-lg border-t border-[#D4AF37]/20">
           {/* Progress Bar */}
-          <div
-            className="h-1 cursor-pointer group"
-            onClick={seekTo}
-          >
+          <div className="h-1 cursor-pointer group" onClick={seekTo}>
             <div className="h-full bg-[#D4AF37]/20 relative">
               <div
-                className="h-full bg-[#D4AF37] transition-all"
+                className="h-full bg-[#D4AF37] transition-all duration-200"
                 style={{ width: duration ? `${(progress / duration) * 100}%` : '0%' }}
               />
             </div>
@@ -241,7 +366,7 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
                 {chapter.name} — Page {currentPage}
               </p>
               <p className="text-[#D4AF37]/40 text-[10px] font-body">
-                {formatTime(progress)} / {formatTime(duration)} {isLoading && '— Loading...'}
+                {statusText || `${formatTime(progress)} / ${formatTime(duration)}`}
               </p>
             </button>
 
@@ -252,6 +377,7 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
               </button>
               <button
                 onClick={togglePlay}
+                disabled={isLoading}
                 className="p-3 rounded-full transition-all"
                 style={{ background: 'linear-gradient(145deg, #D4AF37, #B8962E)' }}
                 data-testid="podcast-play-btn"
@@ -281,7 +407,12 @@ const BookPodcastPlayer = ({ visible, onClose }) => {
               <button onClick={() => setExpanded(!expanded)} className="p-1 text-[#D4AF37]/40 hover:text-[#D4AF37]">
                 {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </button>
-              <button onClick={() => { if (audioRef.current) { audioRef.current.pause(); } onClose(); }} className="p-1 text-[#D4AF37]/30 hover:text-[#D4AF37]">
+              <button onClick={() => {
+                if (audioRef.current) audioRef.current.pause();
+                isPlayingRef.current = false;
+                setIsPlaying(false);
+                onClose();
+              }} className="p-1 text-[#D4AF37]/30 hover:text-[#D4AF37]">
                 <X className="w-4 h-4" />
               </button>
             </div>
