@@ -948,10 +948,14 @@ async def export_roster(req: dict = Body(...)):
         if status in status_colors:
             cell.fill = PatternFill("solid", fgColor=status_colors[status])
     
-    # Auto-width
-    for col in ws.columns:
-        max_len = max(len(str(cell.value or "")) for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = min(max_len + 3, 25)
+    # Auto-width (skip merged cells)
+    for col_idx in range(1, len(headers) + 1):
+        max_len = 0
+        col_letter = chr(64 + col_idx) if col_idx <= 26 else "A"
+        for row in ws.iter_rows(min_col=col_idx, max_col=col_idx, min_row=4, values_only=True):
+            for val in row:
+                max_len = max(max_len, len(str(val or "")))
+        ws.column_dimensions[col_letter].width = min(max_len + 3, 25)
     
     buf = io.BytesIO()
     wb.save(buf)

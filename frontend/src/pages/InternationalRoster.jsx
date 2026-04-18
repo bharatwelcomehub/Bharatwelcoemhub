@@ -409,112 +409,152 @@ export default function InternationalRoster() {
             <Button onClick={loadRoster} variant="ghost"><RefreshCw className="w-4 h-4" /></Button>
           </div>
 
-          {/* ===== GRID VIEW ===== */}
+          {/* ===== GRID VIEW — Weekly Calendar Grid ===== */}
           {viewMode === "grid" && (
             <div className="space-y-3">
-              {weekDays.map((dayInfo, dayIdx) => {
+              {/* Quick Add Row */}
+              {!isLocked && (
+                <Card className="border-dashed border-2">
+                  <CardContent className="py-3 flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-medium text-muted-foreground">Quick Add:</span>
+                    {weekDays.map(dayInfo => (
+                      <Button key={dayInfo.date} size="sm" variant="outline" onClick={() => addLine(dayInfo.date)}
+                        className="text-xs h-8" style={{ borderColor: DAY_COLORS[dayInfo.day] || "#64748b", color: DAY_COLORS[dayInfo.day] || "#64748b" }}>
+                        <Plus className="w-3 h-3 mr-1" /> {dayInfo.day_short} {dayInfo.date.slice(8)}
+                      </Button>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Day Cards */}
+              {weekDays.map((dayInfo) => {
                 const dayLines = lines.filter(l => l.date === dayInfo.date);
                 const dayColor = DAY_COLORS[dayInfo.day] || "#64748b";
+                if (dayLines.length === 0 && isLocked) return null;
                 return (
-                  <Card key={dayInfo.date} className="border-l-4" style={{ borderLeftColor: dayColor }}>
-                    <CardHeader className="py-2 px-4">
+                  <Card key={dayInfo.date} className="border-l-4 overflow-hidden" style={{ borderLeftColor: dayColor }}>
+                    <CardHeader className="py-2.5 px-4 bg-muted/30">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm font-bold" style={{ color: dayColor }}>
+                        <CardTitle className="text-sm font-bold flex items-center gap-2" style={{ color: dayColor }}>
+                          <Calendar className="w-4 h-4" />
                           {dayInfo.day} — {new Date(dayInfo.date + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
                         </CardTitle>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">{dayLines.length} shifts</Badge>
+                          <Badge variant="outline" className="text-xs">{dayLines.length} shift{dayLines.length !== 1 ? "s" : ""}</Badge>
                           {!isLocked && (
-                            <Button size="sm" variant="ghost" onClick={() => addLine(dayInfo.date)} className="h-7 px-2">
-                              <Plus className="w-3 h-3 mr-1" /> Add
+                            <Button size="sm" variant="outline" onClick={() => addLine(dayInfo.date)} className="h-7 px-2 text-xs">
+                              <Plus className="w-3 h-3 mr-1" /> Add Shift
                             </Button>
                           )}
                         </div>
                       </div>
                     </CardHeader>
-                    {dayLines.length > 0 && (
-                      <CardContent className="px-4 pb-3 space-y-2">
-                        {dayLines.map((line, lineIdx) => {
-                          const globalIdx = lines.indexOf(line);
-                          const isSent = line.status === "sent";
-                          const isDenied = line.status === "denied";
-                          const isConfirmed = line.status === "confirmed";
-                          return (
-                            <div key={globalIdx} className={`rounded-xl border-2 overflow-hidden ${
-                              isConfirmed ? "border-green-300 bg-green-50" :
-                              isDenied ? "border-red-300 bg-red-50" :
-                              isSent ? "border-blue-300 bg-blue-50" :
-                              "border-gray-200 bg-white"
-                            }`} data-testid={`roster-line-${globalIdx}`}>
-                              {/* Row 1: Shift details */}
-                              <div className="flex items-center gap-2 p-3 flex-wrap">
-                                <select value={line.shift_type} onChange={e => updateLine(globalIdx, "shift_type", e.target.value)}
-                                  disabled={isLocked} className="h-9 px-2 rounded-lg border text-sm w-28 bg-white font-medium">
-                                  {shifts.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                                </select>
-                                <Input type="time" value={line.planned_in} onChange={e => updateLine(globalIdx, "planned_in", e.target.value)}
-                                  disabled={isLocked} className="h-9 text-sm w-28" />
-                                <span className="text-sm text-muted-foreground font-bold">to</span>
-                                <Input type="time" value={line.planned_out} onChange={e => updateLine(globalIdx, "planned_out", e.target.value)}
-                                  disabled={isLocked} className="h-9 text-sm w-28" />
-                                <Badge variant="outline" className="text-sm font-mono px-2">{line.working_hours}h</Badge>
-                                <select value={line.employee_name} onChange={e => updateLine(globalIdx, "employee_name", e.target.value)}
-                                  disabled={isLocked} className="h-9 px-2 rounded-lg border text-sm flex-1 min-w-[140px] bg-white font-medium">
-                                  <option value="">Select Employee</option>
-                                  {employees.map(emp => <option key={emp.name} value={emp.name}>{emp.name}</option>)}
-                                </select>
-                                <select value={line.duty_role} onChange={e => updateLine(globalIdx, "duty_role", e.target.value)}
-                                  disabled={isLocked} className="h-9 px-2 rounded-lg border text-sm w-32 bg-white">
-                                  {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                                </select>
-                                <Badge className={`text-xs px-2 py-1 ${STATUS_COLORS[line.status] || ""}`}>{line.status?.toUpperCase()}</Badge>
-                                {!isLocked && !isSent && !isConfirmed && (
-                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => removeLine(globalIdx)}>
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </div>
-
-                              {/* Row 2: Confirm / Deny action buttons — only for SENT status */}
-                              {isSent && (
-                                <div className="flex items-center gap-3 px-3 pb-3 pt-0">
-                                  <span className="text-sm text-blue-700 font-medium">Employee Response:</span>
-                                  <Button onClick={() => updateResponse(line.line_id, "confirmed")}
-                                    className="h-10 px-5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-sm"
-                                    data-testid={`confirm-btn-${globalIdx}`}>
-                                    <CheckCircle className="w-5 h-5 mr-2" /> Confirm
-                                  </Button>
-                                  <Button onClick={() => updateResponse(line.line_id, "denied")}
-                                    variant="destructive" className="h-10 px-5 rounded-lg font-bold text-sm"
-                                    data-testid={`deny-btn-${globalIdx}`}>
-                                    <XCircle className="w-5 h-5 mr-2" /> Deny
-                                  </Button>
-                                </div>
-                              )}
-
-                              {/* Row 2: Replace action — only for DENIED status */}
-                              {isDenied && (
-                                <div className="flex items-center gap-3 px-3 pb-3 pt-0">
-                                  <span className="text-sm text-red-700 font-medium">Employee denied this shift.</span>
-                                  <Button onClick={() => setReplaceDialog({ line_id: line.line_id, original: line.employee_name, newEmployee: "", newWhatsapp: "" })}
-                                    className="h-10 px-5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold text-sm"
-                                    data-testid={`replace-btn-${globalIdx}`}>
-                                    <Users className="w-5 h-5 mr-2" /> Replace Employee
-                                  </Button>
-                                </div>
-                              )}
-
-                              {/* Row 2: Confirmed status */}
-                              {isConfirmed && (
-                                <div className="flex items-center gap-2 px-3 pb-3 pt-0">
-                                  <CheckCircle className="w-5 h-5 text-green-600" />
-                                  <span className="text-sm text-green-700 font-bold">Confirmed</span>
-                                  {line.attendance_synced && <Badge className="bg-blue-100 text-blue-700 text-xs ml-2">Synced to Attendance</Badge>}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                    {dayLines.length > 0 ? (
+                      <CardContent className="p-0">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                              <th className="text-left p-2 font-medium w-28">Shift</th>
+                              <th className="text-left p-2 font-medium w-20">In</th>
+                              <th className="text-left p-2 font-medium w-20">Out</th>
+                              <th className="text-center p-2 font-medium w-12">Hrs</th>
+                              <th className="text-left p-2 font-medium">Employee</th>
+                              <th className="text-left p-2 font-medium w-28">Role</th>
+                              <th className="text-center p-2 font-medium w-20">Status</th>
+                              <th className="text-center p-2 font-medium w-48">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dayLines.map((line) => {
+                              const globalIdx = lines.indexOf(line);
+                              const isSent = line.status === "sent";
+                              const isDenied = line.status === "denied";
+                              const isConfirmed = line.status === "confirmed";
+                              return (
+                                <tr key={globalIdx} className={`border-b last:border-b-0 ${
+                                  isConfirmed ? "bg-green-50" : isDenied ? "bg-red-50" : isSent ? "bg-blue-50/50" : ""
+                                }`} data-testid={`roster-line-${globalIdx}`}>
+                                  <td className="p-2">
+                                    <select value={line.shift_type} onChange={e => updateLine(globalIdx, "shift_type", e.target.value)}
+                                      disabled={isLocked || isConfirmed} className="h-8 px-1.5 rounded border text-xs w-full bg-white">
+                                      {shifts.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <Input type="time" value={line.planned_in} onChange={e => updateLine(globalIdx, "planned_in", e.target.value)}
+                                      disabled={isLocked || isConfirmed} className="h-8 text-xs w-full" />
+                                  </td>
+                                  <td className="p-2">
+                                    <Input type="time" value={line.planned_out} onChange={e => updateLine(globalIdx, "planned_out", e.target.value)}
+                                      disabled={isLocked || isConfirmed} className="h-8 text-xs w-full" />
+                                  </td>
+                                  <td className="p-2 text-center font-mono text-xs font-bold">{line.working_hours}</td>
+                                  <td className="p-2">
+                                    <select value={line.employee_name} onChange={e => updateLine(globalIdx, "employee_name", e.target.value)}
+                                      disabled={isLocked || isConfirmed} className="h-8 px-1.5 rounded border text-xs w-full bg-white font-medium">
+                                      <option value="">Select Employee</option>
+                                      {employees.map(emp => <option key={emp.name} value={emp.name}>{emp.name}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <select value={line.duty_role} onChange={e => updateLine(globalIdx, "duty_role", e.target.value)}
+                                      disabled={isLocked || isConfirmed} className="h-8 px-1.5 rounded border text-xs w-full bg-white">
+                                      {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <Badge className={`text-[10px] ${STATUS_COLORS[line.status] || ""}`}>{line.status?.toUpperCase()}</Badge>
+                                  </td>
+                                  <td className="p-2">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {/* SENT → Show Confirm / Deny */}
+                                      {isSent && (
+                                        <>
+                                          <Button size="sm" onClick={() => updateResponse(line.line_id, "confirmed")}
+                                            className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-md"
+                                            data-testid={`confirm-btn-${globalIdx}`}>
+                                            <CheckCircle className="w-3.5 h-3.5 mr-1" /> Confirm
+                                          </Button>
+                                          <Button size="sm" onClick={() => updateResponse(line.line_id, "denied")}
+                                            variant="destructive" className="h-8 px-3 text-xs font-bold rounded-md"
+                                            data-testid={`deny-btn-${globalIdx}`}>
+                                            <XCircle className="w-3.5 h-3.5 mr-1" /> Deny
+                                          </Button>
+                                        </>
+                                      )}
+                                      {/* DENIED → Show Replace */}
+                                      {isDenied && (
+                                        <Button size="sm" onClick={() => setReplaceDialog({ line_id: line.line_id, original: line.employee_name, newEmployee: "", newWhatsapp: "" })}
+                                          className="h-8 px-3 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-md"
+                                          data-testid={`replace-btn-${globalIdx}`}>
+                                          <Users className="w-3.5 h-3.5 mr-1" /> Replace
+                                        </Button>
+                                      )}
+                                      {/* CONFIRMED → Show check */}
+                                      {isConfirmed && (
+                                        <span className="flex items-center gap-1 text-green-700 text-xs font-bold">
+                                          <CheckCircle className="w-4 h-4" /> Done
+                                          {line.attendance_synced && <Badge className="bg-blue-100 text-blue-700 text-[9px] ml-1">Synced</Badge>}
+                                        </span>
+                                      )}
+                                      {/* DRAFT → Delete */}
+                                      {line.status === "draft" && !isLocked && (
+                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => removeLine(globalIdx)}>
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </CardContent>
+                    ) : (
+                      <CardContent className="py-4 text-center text-sm text-muted-foreground">
+                        No shifts scheduled — <button onClick={() => addLine(dayInfo.date)} className="text-primary underline font-medium">Add one</button>
                       </CardContent>
                     )}
                   </Card>
