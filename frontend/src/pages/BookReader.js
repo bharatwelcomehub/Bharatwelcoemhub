@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import HTMLFlipBook from 'react-pageflip';
-import { ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, ArrowLeft, Volume2, VolumeX, X, Home, Headphones, Pause, Play, SkipForward } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Bookmark, BookmarkCheck, ArrowLeft, Volume2, VolumeX, X, Home, Headphones, Pause, Play, SkipForward, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import BookPodcastPlayer from '@/components/BookPodcastPlayer';
@@ -55,6 +55,8 @@ const BookReader = () => {
   const [narrationLoading, setNarrationLoading] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
   const [showPodcast, setShowPodcast] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [isFullPage, setIsFullPage] = useState(false);
   const listenEnabled = readerSettings.listen_enabled !== false;
   const bookRef = useRef(null);
   const audioRef = useRef(null);
@@ -427,6 +429,32 @@ const BookReader = () => {
           >
             {isBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
           </button>
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-0.5 ml-1 border-l border-[#D4AF37]/10 pl-2">
+            <button
+              onClick={() => setZoom(z => Math.max(0.8, z - 0.2))}
+              className="p-1.5 text-[#D4AF37]/40 hover:text-[#D4AF37] rounded-full transition-colors"
+              data-testid="zoom-out"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[9px] text-[#D4AF37]/50 font-body min-w-[30px] text-center">{Math.round(zoom * 100)}%</span>
+            <button
+              onClick={() => setZoom(z => Math.min(2.5, z + 0.2))}
+              className="p-1.5 text-[#D4AF37]/40 hover:text-[#D4AF37] rounded-full transition-colors"
+              data-testid="zoom-in"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => { setIsFullPage(!isFullPage); setZoom(1); }}
+              className={`p-1.5 rounded-full transition-colors ${isFullPage ? 'text-[#D4AF37] bg-[#D4AF37]/10' : 'text-[#D4AF37]/40 hover:text-[#D4AF37]'}`}
+              data-testid="fullpage-toggle"
+              title="Full page view"
+            >
+              <Maximize className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -458,39 +486,61 @@ const BookReader = () => {
       )}
 
       {/* Book Area */}
-      <div className="flex-1 flex items-center justify-center px-2 py-1 overflow-hidden">
-        {allPages.length > 0 ? (
-          <HTMLFlipBook
-            ref={bookRef}
-            width={dimensions.width}
-            height={dimensions.height}
-            size="fixed"
-            minWidth={280}
-            maxWidth={900}
-            minHeight={400}
-            maxHeight={1200}
-            showCover={false}
-            maxShadowOpacity={0.3}
-            mobileScrollSupport={true}
-            onFlip={onFlip}
-            className="book-flipbook"
-            style={{}}
-            flippingTime={600}
-            usePortrait={true}
-            startZIndex={0}
-            autoSize={false}
-            drawShadow={true}
-            clickEventForward={true}
-            swipeDistance={20}
+      <div className="flex-1 flex items-center justify-center px-2 py-1 overflow-auto"
+        style={{ touchAction: 'pan-x pan-y pinch-zoom' }}>
+        {isFullPage ? (
+          /* Full Page Scroll Mode — single page at a time, scrollable, zoomable */
+          <div
+            className="w-full h-full flex items-center justify-center overflow-auto"
+            style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
           >
-            {allPages.map((page, idx) => (
-              <PageContent
-                key={idx}
-                pageNum={startPage + idx}
-                authToken={token}
+            <div style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s' }}>
+              <img
+                src={`${API}/api/book/page-image/${(partInfo?.start_page || 1) + currentPage}?token=${encodeURIComponent(token || '')}`}
+                alt={`Page ${(partInfo?.start_page || 1) + currentPage}`}
+                className="max-w-none shadow-2xl"
+                style={{ width: dimensions.width, height: 'auto' }}
+                draggable="false"
+                onContextMenu={(e) => e.preventDefault()}
+                data-testid="fullpage-image"
               />
-            ))}
-          </HTMLFlipBook>
+            </div>
+          </div>
+        ) : allPages.length > 0 ? (
+          /* Flipbook Mode */
+          <div style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s' }}>
+            <HTMLFlipBook
+              ref={bookRef}
+              width={dimensions.width}
+              height={dimensions.height}
+              size="fixed"
+              minWidth={280}
+              maxWidth={900}
+              minHeight={400}
+              maxHeight={1200}
+              showCover={false}
+              maxShadowOpacity={0.3}
+              mobileScrollSupport={true}
+              onFlip={onFlip}
+              className="book-flipbook"
+              style={{}}
+              flippingTime={600}
+              usePortrait={true}
+              startZIndex={0}
+              autoSize={false}
+              drawShadow={true}
+              clickEventForward={true}
+              swipeDistance={20}
+            >
+              {allPages.map((page, idx) => (
+                <PageContent
+                  key={idx}
+                  pageNum={startPage + idx}
+                  authToken={token}
+                />
+              ))}
+            </HTMLFlipBook>
+          </div>
         ) : (
           <p className="text-[#D4AF37]/40 font-body">No pages available yet. Content coming soon.</p>
         )}
@@ -518,7 +568,14 @@ const BookReader = () => {
       {/* Bottom Controls */}
       <div className="flex items-center justify-center gap-6 px-4 py-2 bg-[#1a1008]/90 border-t border-[#D4AF37]/10 flex-shrink-0">
         <button
-          onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+          onClick={() => {
+            if (isFullPage) {
+              setCurrentPage(p => Math.max(0, p - 1));
+              saveProgress((partInfo?.start_page || 1) + Math.max(0, currentPage - 1));
+            } else {
+              bookRef.current?.pageFlip()?.flipPrev();
+            }
+          }}
           className="p-3 rounded-full text-[#D4AF37]/60 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
           data-testid="prev-page"
         >
@@ -534,7 +591,12 @@ const BookReader = () => {
             value={currentPage}
             onChange={(e) => {
               const pg = parseInt(e.target.value);
-              bookRef.current?.pageFlip()?.turnToPage(pg);
+              if (isFullPage) {
+                setCurrentPage(pg);
+                saveProgress((partInfo?.start_page || 1) + pg);
+              } else {
+                bookRef.current?.pageFlip()?.turnToPage(pg);
+              }
             }}
             className="w-full h-1 appearance-none bg-[#D4AF37]/20 rounded-full cursor-pointer"
             style={{
@@ -545,7 +607,14 @@ const BookReader = () => {
         </div>
 
         <button
-          onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+          onClick={() => {
+            if (isFullPage) {
+              setCurrentPage(p => Math.min(allPages.length - 1, p + 1));
+              saveProgress((partInfo?.start_page || 1) + Math.min(allPages.length - 1, currentPage + 1));
+            } else {
+              bookRef.current?.pageFlip()?.flipNext();
+            }
+          }}
           className="p-3 rounded-full text-[#D4AF37]/60 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
           data-testid="next-page"
         >
