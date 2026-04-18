@@ -508,15 +508,21 @@ export default function InternationalRoster() {
                                   </td>
                                   <td className="p-2">
                                     <div className="flex items-center justify-center gap-1.5">
-                                      {/* SENT → Show Confirm / Deny */}
-                                      {isSent && (
+                                      {/* SENT or DRAFT → Show Confirm / Deny */}
+                                      {(isSent || line.status === "draft") && (
                                         <>
-                                          <Button size="sm" onClick={() => updateResponse(line.line_id, "confirmed")}
+                                          <Button size="sm" onClick={() => {
+                                            if (!line.line_id) { toast.error("Save the roster first before confirming"); return; }
+                                            updateResponse(line.line_id, "confirmed");
+                                          }}
                                             className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-md"
                                             data-testid={`confirm-btn-${globalIdx}`}>
                                             <CheckCircle className="w-3.5 h-3.5 mr-1" /> Confirm
                                           </Button>
-                                          <Button size="sm" onClick={() => updateResponse(line.line_id, "denied")}
+                                          <Button size="sm" onClick={() => {
+                                            if (!line.line_id) { toast.error("Save the roster first"); return; }
+                                            updateResponse(line.line_id, "denied");
+                                          }}
                                             variant="destructive" className="h-8 px-3 text-xs font-bold rounded-md"
                                             data-testid={`deny-btn-${globalIdx}`}>
                                             <XCircle className="w-3.5 h-3.5 mr-1" /> Deny
@@ -538,8 +544,8 @@ export default function InternationalRoster() {
                                           {line.attendance_synced && <Badge className="bg-blue-100 text-blue-700 text-[9px] ml-1">Synced</Badge>}
                                         </span>
                                       )}
-                                      {/* DRAFT → Delete */}
-                                      {line.status === "draft" && !isLocked && (
+                                      {/* Delete — for draft/sent, not confirmed/locked */}
+                                      {!isLocked && !isConfirmed && (
                                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => removeLine(globalIdx)}>
                                           <Trash2 className="w-4 h-4" />
                                         </Button>
