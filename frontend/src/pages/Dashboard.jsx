@@ -76,6 +76,7 @@ import FoodSafety from "@/pages/FoodSafety";
 import DailyTextGenerator from "@/pages/DailyTextGenerator";
 import SocialMediaPlanner from "@/pages/SocialMediaPlanner";
 import BillDownload from "@/pages/BillDownload";
+import InternationalRoster from "@/pages/InternationalRoster";
 
 // Menu categories structure
 const menuCategories = [
@@ -87,6 +88,7 @@ const menuCategories = [
     items: [
       { path: "/", icon: Calendar, label: "India Centers", roleKey: "attendance" },
       { path: "/international-attendance", icon: Globe, label: "International", roleKey: "attendance", forInternational: true },
+      { path: "/international-roster", icon: CalendarDays, label: "Intl Roster", roleKey: "attendance", forInternational: true },
       { path: "/employee-transfers", icon: ArrowRightLeft, label: "Transfers", roleKey: "attendance" },
       { path: "/attendance-dashboard", icon: BarChart3, label: "Attendance Dashboard", forAdmin: true },
     ]
@@ -466,6 +468,7 @@ export default function Dashboard() {
           <Routes>
             <Route path="/" element={<Attendance />} />
             <Route path="/international-attendance" element={<InternationalAttendance />} />
+            <Route path="/international-roster" element={<InternationalRoster />} />
             <Route path="/employee-transfers" element={<EmployeeTransfers />} />
             <Route path="/attendance-dashboard" element={<AttendanceDashboard />} />
             <Route path="/sales" element={<SalesExpenses />} />

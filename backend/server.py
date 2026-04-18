@@ -2292,6 +2292,12 @@ set_bd_verify_token(verify_token)
 set_bd_has_admin_access(has_admin_access)
 app.include_router(bd_router)
 
+# International Roster module
+from routes.international_roster import router as ir_router, set_db as set_ir_db, set_verify_token as set_ir_verify_token
+set_ir_db(db)
+set_ir_verify_token(verify_token)
+app.include_router(ir_router)
+
 
 
 @app.on_event("startup")
