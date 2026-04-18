@@ -101,17 +101,31 @@ const BookReader = () => {
     };
   }, []);
 
-  // Responsive dimensions
+  // Responsive dimensions — maximize reading area
   useEffect(() => {
     const updateDimensions = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
+      const topBar = 52;   // top bar height
+      const bottomBar = 60; // bottom controls height
+      const padding = 16;
+      const availH = h - topBar - bottomBar - padding;
+      
       if (w < 640) {
-        setDimensions({ width: w - 40, height: Math.min(h - 160, (w - 40) * 1.4) });
+        // Mobile — full width single page
+        const pw = w - 16;
+        const ph = Math.min(availH, pw * 1.5);
+        setDimensions({ width: pw, height: ph });
       } else if (w < 1024) {
-        setDimensions({ width: Math.min(450, w - 80), height: Math.min(630, h - 160) });
+        // Tablet — large single page
+        const pw = Math.min(w - 40, 600);
+        const ph = Math.min(availH, pw * 1.5);
+        setDimensions({ width: pw, height: ph });
       } else {
-        setDimensions({ width: 480, height: 670 });
+        // Desktop — tall and wide
+        const ph = availH;
+        const pw = Math.min(Math.floor(ph / 1.5), w - 80, 700);
+        setDimensions({ width: pw, height: ph });
       }
     };
     updateDimensions();
@@ -354,7 +368,7 @@ const BookReader = () => {
       data-testid="book-reader"
     >
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#1a1008]/90 border-b border-[#D4AF37]/10">
+      <div className="flex items-center justify-between px-3 py-2 bg-[#1a1008]/90 border-b border-[#D4AF37]/10 flex-shrink-0">
         <button
           onClick={() => navigate('/book')}
           className="flex items-center gap-2 text-[#D4AF37]/70 hover:text-[#D4AF37] text-sm font-body transition-colors"
@@ -444,7 +458,7 @@ const BookReader = () => {
       )}
 
       {/* Book Area */}
-      <div className="flex-1 flex items-center justify-center px-4 py-6">
+      <div className="flex-1 flex items-center justify-center px-2 py-1 overflow-hidden">
         {allPages.length > 0 ? (
           <HTMLFlipBook
             ref={bookRef}
@@ -452,22 +466,22 @@ const BookReader = () => {
             height={dimensions.height}
             size="fixed"
             minWidth={280}
-            maxWidth={600}
+            maxWidth={900}
             minHeight={400}
-            maxHeight={800}
+            maxHeight={1200}
             showCover={false}
             maxShadowOpacity={0.3}
             mobileScrollSupport={true}
             onFlip={onFlip}
             className="book-flipbook"
             style={{}}
-            flippingTime={800}
-            usePortrait={window.innerWidth < 768}
+            flippingTime={600}
+            usePortrait={true}
             startZIndex={0}
             autoSize={false}
             drawShadow={true}
             clickEventForward={true}
-            swipeDistance={30}
+            swipeDistance={20}
           >
             {allPages.map((page, idx) => (
               <PageContent
@@ -502,7 +516,7 @@ const BookReader = () => {
       )}
 
       {/* Bottom Controls */}
-      <div className="flex items-center justify-center gap-6 px-4 py-4 bg-[#1a1008]/90 border-t border-[#D4AF37]/10">
+      <div className="flex items-center justify-center gap-6 px-4 py-2 bg-[#1a1008]/90 border-t border-[#D4AF37]/10 flex-shrink-0">
         <button
           onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
           className="p-3 rounded-full text-[#D4AF37]/60 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
