@@ -436,59 +436,81 @@ export default function InternationalRoster() {
                       <CardContent className="px-4 pb-3 space-y-2">
                         {dayLines.map((line, lineIdx) => {
                           const globalIdx = lines.indexOf(line);
+                          const isSent = line.status === "sent";
+                          const isDenied = line.status === "denied";
+                          const isConfirmed = line.status === "confirmed";
                           return (
-                            <div key={globalIdx} className={`flex items-center gap-2 p-2 rounded-lg border text-sm ${
-                              line.status === "confirmed" ? "bg-green-50 border-green-200" :
-                              line.status === "denied" ? "bg-red-50 border-red-200" :
-                              line.status === "sent" ? "bg-blue-50 border-blue-200" :
-                              "bg-white border-gray-200"
+                            <div key={globalIdx} className={`rounded-xl border-2 overflow-hidden ${
+                              isConfirmed ? "border-green-300 bg-green-50" :
+                              isDenied ? "border-red-300 bg-red-50" :
+                              isSent ? "border-blue-300 bg-blue-50" :
+                              "border-gray-200 bg-white"
                             }`} data-testid={`roster-line-${globalIdx}`}>
-                              {/* Shift */}
-                              <select value={line.shift_type} onChange={e => updateLine(globalIdx, "shift_type", e.target.value)}
-                                disabled={isLocked} className="h-8 px-2 rounded border text-xs w-24 bg-white">
-                                {shifts.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                              </select>
-                              {/* Times */}
-                              <Input type="time" value={line.planned_in} onChange={e => updateLine(globalIdx, "planned_in", e.target.value)}
-                                disabled={isLocked} className="h-8 text-xs w-24" />
-                              <span className="text-xs text-muted-foreground">-</span>
-                              <Input type="time" value={line.planned_out} onChange={e => updateLine(globalIdx, "planned_out", e.target.value)}
-                                disabled={isLocked} className="h-8 text-xs w-24" />
-                              <span className="text-xs font-mono text-muted-foreground w-10">{line.working_hours}h</span>
-                              {/* Employee */}
-                              <select value={line.employee_name} onChange={e => updateLine(globalIdx, "employee_name", e.target.value)}
-                                disabled={isLocked} className="h-8 px-2 rounded border text-xs flex-1 min-w-[120px] bg-white">
-                                <option value="">Select Employee</option>
-                                {employees.map(emp => <option key={emp.name} value={emp.name}>{emp.name}</option>)}
-                              </select>
-                              {/* Role */}
-                              <select value={line.duty_role} onChange={e => updateLine(globalIdx, "duty_role", e.target.value)}
-                                disabled={isLocked} className="h-8 px-2 rounded border text-xs w-28 bg-white">
-                                {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                              </select>
-                              {/* Status badge */}
-                              <Badge className={`text-[10px] px-1.5 ${STATUS_COLORS[line.status] || ""}`}>{line.status}</Badge>
-                              {/* Actions */}
-                              {line.status === "sent" && (
-                                <div className="flex gap-1">
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-green-600" onClick={() => updateResponse(line.line_id, "confirmed")} title="Confirm">
-                                    <CheckCircle className="w-4 h-4" />
+                              {/* Row 1: Shift details */}
+                              <div className="flex items-center gap-2 p-3 flex-wrap">
+                                <select value={line.shift_type} onChange={e => updateLine(globalIdx, "shift_type", e.target.value)}
+                                  disabled={isLocked} className="h-9 px-2 rounded-lg border text-sm w-28 bg-white font-medium">
+                                  {shifts.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                                </select>
+                                <Input type="time" value={line.planned_in} onChange={e => updateLine(globalIdx, "planned_in", e.target.value)}
+                                  disabled={isLocked} className="h-9 text-sm w-28" />
+                                <span className="text-sm text-muted-foreground font-bold">to</span>
+                                <Input type="time" value={line.planned_out} onChange={e => updateLine(globalIdx, "planned_out", e.target.value)}
+                                  disabled={isLocked} className="h-9 text-sm w-28" />
+                                <Badge variant="outline" className="text-sm font-mono px-2">{line.working_hours}h</Badge>
+                                <select value={line.employee_name} onChange={e => updateLine(globalIdx, "employee_name", e.target.value)}
+                                  disabled={isLocked} className="h-9 px-2 rounded-lg border text-sm flex-1 min-w-[140px] bg-white font-medium">
+                                  <option value="">Select Employee</option>
+                                  {employees.map(emp => <option key={emp.name} value={emp.name}>{emp.name}</option>)}
+                                </select>
+                                <select value={line.duty_role} onChange={e => updateLine(globalIdx, "duty_role", e.target.value)}
+                                  disabled={isLocked} className="h-9 px-2 rounded-lg border text-sm w-32 bg-white">
+                                  {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                                </select>
+                                <Badge className={`text-xs px-2 py-1 ${STATUS_COLORS[line.status] || ""}`}>{line.status?.toUpperCase()}</Badge>
+                                {!isLocked && !isSent && !isConfirmed && (
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => removeLine(globalIdx)}>
+                                    <Trash2 className="w-4 h-4" />
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-600" onClick={() => updateResponse(line.line_id, "denied")} title="Deny">
-                                    <XCircle className="w-4 h-4" />
+                                )}
+                              </div>
+
+                              {/* Row 2: Confirm / Deny action buttons — only for SENT status */}
+                              {isSent && (
+                                <div className="flex items-center gap-3 px-3 pb-3 pt-0">
+                                  <span className="text-sm text-blue-700 font-medium">Employee Response:</span>
+                                  <Button onClick={() => updateResponse(line.line_id, "confirmed")}
+                                    className="h-10 px-5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-sm"
+                                    data-testid={`confirm-btn-${globalIdx}`}>
+                                    <CheckCircle className="w-5 h-5 mr-2" /> Confirm
+                                  </Button>
+                                  <Button onClick={() => updateResponse(line.line_id, "denied")}
+                                    variant="destructive" className="h-10 px-5 rounded-lg font-bold text-sm"
+                                    data-testid={`deny-btn-${globalIdx}`}>
+                                    <XCircle className="w-5 h-5 mr-2" /> Deny
                                   </Button>
                                 </div>
                               )}
-                              {line.status === "denied" && (
-                                <Button size="sm" variant="ghost" className="h-6 px-2 text-orange-600 text-xs"
-                                  onClick={() => setReplaceDialog({ line_id: line.line_id, original: line.employee_name, newEmployee: "", newWhatsapp: "" })}>
-                                  Replace
-                                </Button>
+
+                              {/* Row 2: Replace action — only for DENIED status */}
+                              {isDenied && (
+                                <div className="flex items-center gap-3 px-3 pb-3 pt-0">
+                                  <span className="text-sm text-red-700 font-medium">Employee denied this shift.</span>
+                                  <Button onClick={() => setReplaceDialog({ line_id: line.line_id, original: line.employee_name, newEmployee: "", newWhatsapp: "" })}
+                                    className="h-10 px-5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold text-sm"
+                                    data-testid={`replace-btn-${globalIdx}`}>
+                                    <Users className="w-5 h-5 mr-2" /> Replace Employee
+                                  </Button>
+                                </div>
                               )}
-                              {!isLocked && (
-                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-400" onClick={() => removeLine(globalIdx)}>
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+
+                              {/* Row 2: Confirmed status */}
+                              {isConfirmed && (
+                                <div className="flex items-center gap-2 px-3 pb-3 pt-0">
+                                  <CheckCircle className="w-5 h-5 text-green-600" />
+                                  <span className="text-sm text-green-700 font-bold">Confirmed</span>
+                                  {line.attendance_synced && <Badge className="bg-blue-100 text-blue-700 text-xs ml-2">Synced to Attendance</Badge>}
+                                </div>
                               )}
                             </div>
                           );
