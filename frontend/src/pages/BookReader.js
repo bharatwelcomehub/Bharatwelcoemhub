@@ -223,22 +223,34 @@ const BookReader = () => {
     } catch { toast.error('Failed to update bookmark'); }
   };
 
-  // Music - served from backend (cache-busted)
-  const toggleMusic = () => {
+  // Music - served from backend
+  const musicLoadedRef = useRef(false);
+
+  // Pre-load music when reader opens
+  useEffect(() => {
     if (!audioRef.current) {
-      audioRef.current = new Audio(`${API}/api/book/ambient-music?t=${Date.now()}`);
-      audioRef.current.loop = true;
-      audioRef.current.volume = 0.15;
+      const audio = new Audio(`${API}/api/book/ambient-music?t=${Date.now()}`);
+      audio.loop = true;
+      audio.volume = 0.15;
+      audio.preload = 'auto';
+      audio.oncanplaythrough = () => { musicLoadedRef.current = true; };
+      audioRef.current = audio;
     }
+  }, []);
+
+  const toggleMusic = () => {
+    if (!audioRef.current) return;
     if (musicOn) {
       audioRef.current.pause();
+      setMusicOn(false);
     } else {
-      audioRef.current.play().catch((err) => {
-        console.log('Music play failed:', err);
-        toast.error('Tap again to play music');
+      audioRef.current.play().then(() => {
+        setMusicOn(true);
+      }).catch(() => {
+        // Browser blocked autoplay — retry on next user gesture
+        setMusicOn(false);
       });
     }
-    setMusicOn(!musicOn);
   };
 
   // Cleanup music on unmount
