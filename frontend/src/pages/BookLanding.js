@@ -13,6 +13,7 @@ const COVER_IMAGE = 'https://customer-assets.emergentagent.com/job_50886080-3950
 
 const BookLanding = () => {
   const [parts, setParts] = useState([]);
+  const [bundle, setBundle] = useState(null);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
@@ -49,7 +50,8 @@ const BookLanding = () => {
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API}/api/book/parts`, { headers });
       const data = await res.json();
-      setParts(data);
+      setParts(data.parts || data);
+      if (data.bundle) setBundle(data.bundle);
     } catch { /* ignore */ }
     setLoading(false);
   };
@@ -114,16 +116,48 @@ const BookLanding = () => {
     setPurchasing(null);
   };
 
+  const handleBundlePurchase = async () => {
+    if (!user) {
+      localStorage.setItem('auth_return_to', '/book');
+      localStorage.setItem('pending_book_purchase', 'bundle');
+      setPendingPurchase('bundle');
+      setAuthDialogOpen(true);
+      return;
+    }
+    executeBundlePurchase();
+  };
+
+  const executeBundlePurchase = async () => {
+    setPurchasing('bundle');
+    try {
+      const currentToken = localStorage.getItem('token') || token;
+      const res = await fetch(`${API}/api/book/purchase-bundle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+        body: JSON.stringify({
+          origin_url: window.location.origin,
+          region: getRegion()
+        })
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else toast.error(data.detail || 'Payment error');
+    } catch { toast.error('Payment failed. Please try again.'); }
+    setPurchasing(null);
+  };
+
   // After login, auto-trigger the pending purchase
   useEffect(() => {
     if (user) {
-      // Check both state and localStorage for pending purchase
       const pending = pendingPurchase || localStorage.getItem('pending_book_purchase');
       if (pending) {
-        const partNum = parseInt(pending);
         setPendingPurchase(null);
         localStorage.removeItem('pending_book_purchase');
-        setTimeout(() => executePurchase(partNum), 500);
+        if (pending === 'bundle') {
+          setTimeout(() => executeBundlePurchase(), 500);
+        } else {
+          setTimeout(() => executePurchase(parseInt(pending)), 500);
+        }
       }
     }
   }, [user]);
@@ -239,7 +273,55 @@ const BookLanding = () => {
       <section id="book-parts" className="py-16 bg-white border-t border-b border-[#E8DFD0]">
         <div className="container mx-auto px-4 lg:px-8">
           <h2 className="text-center font-heading text-2xl text-[#3D2314] mb-2">Choose Your Reading Journey</h2>
-          <p className="text-center text-sm text-[#7A6F65] font-body mb-12">Purchase each part separately. Read at your own pace.</p>
+          <p className="text-center text-sm text-[#7A6F65] font-body mb-8">Purchase individual parts or get the complete book at a discount.</p>
+
+          {/* Bundle Card — Best Value */}
+          {bundle && !bundle.all_purchased && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-lg mx-auto mb-10 border-2 border-[#D4AF37] rounded-xl overflow-hidden shadow-lg relative"
+              data-testid="book-bundle"
+            >
+              <div className="absolute top-3 right-3 bg-[#D4AF37] text-[#3D2314] text-[10px] font-body font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                Best Value — Save {currencySymbol}{isAustralia ? (bundle.original_aud - bundle.price_aud).toFixed(2) : (bundle.original_inr - bundle.price_inr)}
+              </div>
+              <div className="bg-gradient-to-r from-[#3D2314] via-[#5A3520] to-[#3D2314] p-6 text-center">
+                <h3 className="font-heading text-2xl text-[#D4AF37] mb-1">Complete Book</h3>
+                <p className="text-[#D4AF37]/50 text-xs font-body">All 3 Parts — 152 Pages — Read + Listen</p>
+              </div>
+              <div className="p-6 bg-[#FDFBF7] flex items-center justify-between">
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-heading text-[#B8962E]">
+                      {currencySymbol}{isAustralia ? bundle.price_aud : bundle.price_inr}
+                    </span>
+                    <span className="text-lg font-body text-[#7A6F65] line-through">
+                      {currencySymbol}{isAustralia ? bundle.original_aud : bundle.original_inr}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[#7A6F65] font-body mt-1">One-time payment for the complete book</p>
+                </div>
+                <Button
+                  onClick={handleBundlePurchase}
+                  disabled={purchasing === 'bundle'}
+                  className="gold-glossy text-[#3D2314] font-bold rounded-none px-8 py-3 text-sm tracking-widest uppercase border-0"
+                  data-testid="buy-bundle"
+                >
+                  {purchasing === 'bundle' ? 'Processing...' : 'Buy Complete Book'}
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Divider */}
+          {bundle && !bundle.all_purchased && (
+            <div className="flex items-center gap-4 max-w-4xl mx-auto mb-8">
+              <div className="flex-1 border-t border-[#E8DFD0]" />
+              <span className="text-xs text-[#7A6F65] font-body">or buy individual parts</span>
+              <div className="flex-1 border-t border-[#E8DFD0]" />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             {parts.map((part) => (

@@ -1616,10 +1616,20 @@ BOOK_PARTS = {
     3: {"name": "Part 3", "pages": "101-152", "price_inr": 50.00, "price_aud": 1.00, "start_page": 101, "end_page": 152},
 }
 
+BOOK_BUNDLE = {
+    "name": "Complete Book",
+    "price_inr": 50.00,   # Discounted from ₹150
+    "price_aud": 1.50,    # Discounted from $3
+    "original_inr": 150.00,
+    "original_aud": 3.00,
+    "parts": [1, 2, 3]
+}
+
 @api_router.get("/book/parts")
 async def get_book_parts(current_user: dict = Depends(get_optional_user)):
     """Get all book parts with purchase status for current user."""
     parts = []
+    all_purchased = True
     for part_num, info in BOOK_PARTS.items():
         purchased = False
         if current_user:
@@ -1628,6 +1638,8 @@ async def get_book_parts(current_user: dict = Depends(get_optional_user)):
                 {"_id": 0}
             )
             purchased = purchase is not None
+        if not purchased:
+            all_purchased = False
         parts.append({
             "part_number": part_num,
             "name": info["name"],
@@ -1638,7 +1650,21 @@ async def get_book_parts(current_user: dict = Depends(get_optional_user)):
             "end_page": info["end_page"],
             "purchased": purchased
         })
-    return parts
+
+    # Count how many unpurchased
+    unpurchased = [p for p in parts if not p["purchased"]]
+
+    return {
+        "parts": parts,
+        "bundle": {
+            "price_inr": BOOK_BUNDLE["price_inr"],
+            "price_aud": BOOK_BUNDLE["price_aud"],
+            "original_inr": BOOK_BUNDLE["original_inr"],
+            "original_aud": BOOK_BUNDLE["original_aud"],
+            "all_purchased": all_purchased,
+            "unpurchased_count": len(unpurchased)
+        }
+    }
 
 
 FREE_PREVIEW_PAGES = 5  # First 5 pages free without login
@@ -1801,6 +1827,74 @@ async def create_book_purchase(request: Request, current_user: dict = Depends(ge
     return {"url": session.url, "session_id": session.session_id}
 
 
+@api_router.post("/book/purchase-bundle")
+async def create_bundle_purchase(request: Request, current_user: dict = Depends(get_current_user)):
+    """Create a Stripe checkout session for the complete book bundle."""
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+
+    body = await request.json()
+    origin_url = body.get("origin_url", "")
+    region = body.get("region", "India")
+
+    # Check which parts are not yet purchased
+    unpurchased = []
+    for pn in BOOK_BUNDLE["parts"]:
+        existing = await db.book_purchases.find_one(
+            {"user_id": current_user["user_id"], "part_number": pn, "status": "completed"},
+            {"_id": 0}
+        )
+        if not existing:
+            unpurchased.append(pn)
+
+    if not unpurchased:
+        raise HTTPException(status_code=400, detail="You already own all parts")
+
+    amount = BOOK_BUNDLE["price_aud"] if region == "Australia" else BOOK_BUNDLE["price_inr"]
+    currency = "aud" if region == "Australia" else "inr"
+
+    api_key = os.environ.get('STRIPE_API_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Payment not configured")
+
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+
+    success_url = f"{origin_url}/book/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{origin_url}/book"
+
+    metadata = {
+        "user_id": current_user["user_id"],
+        "email": current_user.get("email", ""),
+        "part_number": ",".join(str(p) for p in unpurchased),
+        "type": "book_bundle"
+    }
+
+    checkout_req = CheckoutSessionRequest(
+        amount=amount,
+        currency=currency,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata
+    )
+
+    session = await stripe_checkout.create_checkout_session(checkout_req)
+
+    await db.payment_transactions.insert_one({
+        "session_id": session.session_id,
+        "user_id": current_user["user_id"],
+        "email": current_user.get("email", ""),
+        "part_number": "bundle",
+        "amount": amount,
+        "currency": currency,
+        "type": "book_bundle",
+        "payment_status": "initiated",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    return {"url": session.url, "session_id": session.session_id}
+
+
 @api_router.get("/book/purchase/status/{session_id}")
 async def check_book_purchase_status(session_id: str, request: Request, current_user: dict = Depends(get_current_user)):
     """Check status of a book purchase payment."""
@@ -1824,22 +1918,34 @@ async def check_book_purchase_status(session_id: str, request: Request, current_
 
         # Grant access if paid
         if status.payment_status == "paid":
-            part_number = int(status.metadata.get("part_number", 0))
             user_id = status.metadata.get("user_id", current_user["user_id"])
+            purchase_type = status.metadata.get("type", "book_purchase")
 
-            # Check not already granted for this session
-            existing = await db.book_purchases.find_one(
-                {"session_id": session_id},
-                {"_id": 0}
-            )
+            existing = await db.book_purchases.find_one({"session_id": session_id}, {"_id": 0})
             if not existing:
-                await db.book_purchases.insert_one({
-                    "user_id": user_id,
-                    "part_number": part_number,
-                    "session_id": session_id,
-                    "status": "completed",
-                    "purchased_at": datetime.now(timezone.utc).isoformat()
-                })
+                if purchase_type == "book_bundle":
+                    # Grant all parts for bundle
+                    part_numbers = status.metadata.get("part_number", "1,2,3").split(",")
+                    for pn_str in part_numbers:
+                        pn = int(pn_str.strip())
+                        exists = await db.book_purchases.find_one({"user_id": user_id, "part_number": pn, "status": "completed"}, {"_id": 0})
+                        if not exists:
+                            await db.book_purchases.insert_one({
+                                "user_id": user_id,
+                                "part_number": pn,
+                                "session_id": f"{session_id}-{pn}",
+                                "status": "completed",
+                                "purchased_at": datetime.now(timezone.utc).isoformat()
+                            })
+                else:
+                    part_number = int(status.metadata.get("part_number", 0))
+                    await db.book_purchases.insert_one({
+                        "user_id": user_id,
+                        "part_number": part_number,
+                        "session_id": session_id,
+                        "status": "completed",
+                        "purchased_at": datetime.now(timezone.utc).isoformat()
+                    })
 
     return {
         "status": status.status,
@@ -1864,22 +1970,32 @@ async def stripe_webhook(request: Request):
 
     try:
         event = await stripe_checkout.handle_webhook(body, sig)
-        if event.payment_status == "paid" and event.metadata.get("type") == "book_purchase":
-            part_number = int(event.metadata.get("part_number", 0))
+        if event.payment_status == "paid":
+            purchase_type = event.metadata.get("type", "")
             user_id = event.metadata.get("user_id", "")
 
-            existing = await db.book_purchases.find_one(
-                {"session_id": event.session_id},
-                {"_id": 0}
-            )
-            if not existing:
-                await db.book_purchases.insert_one({
-                    "user_id": user_id,
-                    "part_number": part_number,
-                    "session_id": event.session_id,
-                    "status": "completed",
-                    "purchased_at": datetime.now(timezone.utc).isoformat()
-                })
+            if purchase_type == "book_bundle":
+                part_numbers = event.metadata.get("part_number", "1,2,3").split(",")
+                for pn_str in part_numbers:
+                    pn = int(pn_str.strip())
+                    exists = await db.book_purchases.find_one({"user_id": user_id, "part_number": pn, "status": "completed"}, {"_id": 0})
+                    if not exists:
+                        await db.book_purchases.insert_one({
+                            "user_id": user_id, "part_number": pn,
+                            "session_id": f"{event.session_id}-{pn}",
+                            "status": "completed",
+                            "purchased_at": datetime.now(timezone.utc).isoformat()
+                        })
+            elif purchase_type == "book_purchase":
+                part_number = int(event.metadata.get("part_number", 0))
+                existing = await db.book_purchases.find_one({"session_id": event.session_id}, {"_id": 0})
+                if not existing:
+                    await db.book_purchases.insert_one({
+                        "user_id": user_id, "part_number": part_number,
+                        "session_id": event.session_id,
+                        "status": "completed",
+                        "purchased_at": datetime.now(timezone.utc).isoformat()
+                    })
 
             await db.payment_transactions.update_one(
                 {"session_id": event.session_id},
