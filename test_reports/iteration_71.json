@@ -1,0 +1,26 @@
+{
+  "summary": "Attempted to reproduce the user's reported bug: 'Save All resets WC table editable columns (Expenses/GST/Commission/WC Adj) back to old values after save'. Bug NOT REPRODUCED. Tested 3 scenarios end-to-end against live preview URL with full network + console capture: (1) PB-HSR single-row Save All on 2025-05 with unique Expense=999001, GST=12345, Commission=22222, WC Adj=5000 -> all 4 persisted post-refetch; (2) PB-HSR multi-row Save All across 2025-06/07/08/09 with unique expense values 700001/800002/900003/100004 -> all 4 rows persisted correctly; (3) PB-MGT 2026-01 with Expense=333001, GST=44401, Commission=55501 -> all persisted. Network capture confirms frontend POSTs correct per-row bodies to /api/center-accounts/wc-row-save (only dirty fields included) and then re-fetches /api/center-accounts/wc-table; the refetch response contains the saved values which seed wcEdits correctly. No console errors, no React warnings, no failed promises.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_wc_target_expenses.py"
+  ],
+  "action_items": [
+    "No code fix required. The reported bug could not be reproduced on the current build. Likely explanations to confirm with the user: (a) she was viewing a stale tab before a deploy / needed a hard refresh, (b) she clicked Save All before the previous fetch finished (race), or (c) she had entered values equal to the original aggregate so the dirty-check (newExpense !== origExpense etc. at CenterAccounts.jsx L1113-1128) treated them as no-op and skipped the POST. Consider adding a visible toast like 'No changes to save' (already present on L1141) plus logging the skipped rows to console to help future debugging. Also consider forcing Save All to disable the button while wcLoading is true (currently only disabled on wcSaving) to prevent race conditions during an in-flight fetchWcTable."
+  ],
+  "critical_code_review_comments": [
+    "Save All handler (CenterAccounts.jsx L1095-1145) uses Math.round on BOTH orig and new values before comparing - correct, avoids float-noise false positives.",
+    "fetchWcTable (L251-280) resets wcEdits from r.expenses/r.wc_adjustment/r.commission/r.gst of the refetched response - these come from get_wc_table which respects override.commission_target and override.gst_target (backend L569-572), so post-save GET returns the saved targets. Verified live.",
+    "Backend save_wc_row_override correctly stores commission_target and gst_target as override fields and upserts the INTRA row for target_expenses - verified via network logs (body had commission_target=55501, gst_target=44401 and AFTER state confirmed).",
+    "Minor (non-blocking): the Save All button sits inside a flex-justify-between with THREE buttons (Save All, PDF, Excel) but the left side has CardTitle + CardDescription - the layout works, but visually the three buttons crowd together. Low priority.",
+    "Minor: Save All does not disable itself while wcLoading is true (only wcSaving). If a user clicks it during the refetch, it would read stale wcTableData.rows. Hardening recommendation only."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only task)", "frontend": "100% (3/3 scenarios: single-row PB-HSR, 4-row PB-HSR, single-row PB-MGT)"},
+  "test_credentials": "Super Admin: 9741399190 / OTP 123456 / login center PB-MGT (then switch to PB-HSR in the dropdown).",
+  "seed_data_creation": "Left test data on PB-HSR for months 2025-05 (exp 999001, gst 12345, com 22222, adj 5000) and 2025-06..2025-09 (exp 700001/800002/900003/100004) and PB-MGT 2026-01 (exp 333001, gst 44401, com 55501) - all are TEST_ style non-destructive overrides persisted via wc-row-save. Main agent should run a cleanup against wc_month_overrides for those months if desired.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "WC table Save All -> refetch -> re-seed wcEdits cycle is fully working. If the user reports it again, capture a HAR/network tab from her browser during Save All - likely she is either (i) running a pre-fix build (cache), (ii) hitting the dirty-check because typed value equals orig (in which case body is not sent and UI correctly shows the same orig value - not a bug), or (iii) clicking Save All while a fetchWcTable is still in flight. No code-level bug found.",
+  "rca of the issue": "Could not reproduce. Frontend flow is correct: Save All collects only dirty rows (rounded compare), sends per-row POSTs with target_expenses/commission_target/gst_target/wc_adjustment, awaits Promise.all, calls fetchWcTable() which POSTs /wc-table, receives updated rows (commission/gst come from override.commission_target/gst_target in backend), and setWcEdits is seeded from r.expenses/r.commission/r.gst/r.wc_adjustment of the response. All three live scenarios show the typed values surviving the refetch. If the user still sees reset, most probable cause is a stale/cached frontend bundle or user-triggered race (clicking Save All before the auto-fetch on center-change completes)."
+}
