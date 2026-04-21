@@ -652,6 +652,47 @@ async def get_daily_sales(req: SalesQueryRequest):
     
     return {"sales": sales, "count": len(sales)}
 
+
+@router.post("/expenses-by-date")
+async def get_expenses_by_date(req: dict = Body(...)):
+    """Aggregate expense amounts per date for a month, filtered by payment mode.
+    Used by the Sales Grid to auto-fill the Cash Exp column from CASH expenses."""
+    if not verify_token:
+        raise HTTPException(500, "Server configuration error")
+    
+    session = await get_session(req.get("token"))
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    
+    center = (req.get("center") or "").upper()
+    month = req.get("month", "")
+    payment_mode = (req.get("payment_mode") or "CASH").upper()
+    
+    if not center or not month:
+        raise HTTPException(400, "center and month required")
+    
+    # Aggregate expenses by date, filtered by payment mode
+    pipeline = [
+        {"$match": {
+            "center": center,
+            "date": {"$regex": f"^{month}"},
+            "payment_mode": {"$regex": f"^{payment_mode}$", "$options": "i"}
+        }},
+        {"$group": {
+            "_id": "$date",
+            "total": {"$sum": {"$ifNull": ["$amount", 0]}}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    results = await db.expenses.aggregate(pipeline).to_list(100)
+    
+    expenses_by_date = {}
+    for r in results:
+        expenses_by_date[r["_id"]] = round(r["total"], 2)
+    
+    return {"success": True, "expenses_by_date": expenses_by_date, "payment_mode": payment_mode}
+
 @router.post("/daily/create")
 async def create_daily_sale(req: DailySaleCreate, token: str):
     """Create a new daily sales record"""

@@ -58,7 +58,7 @@ const EDITABLE_FIELDS = [
   { key: 'doordash', label: 'Doordash', type: 'number' },
   { key: 'online_other', label: 'Online', type: 'number' },
   { key: 'due_amount', label: 'Due', type: 'number' },
-  { key: 'cash_expense', label: 'Cash Exp', type: 'number' },
+  { key: 'cash_expense', label: 'Cash Exp', type: 'number', readOnly: true },
   { key: 'num_guests', label: 'Guests', type: 'integer' },
   { key: 'num_bills', label: 'Bills', type: 'integer' },
 ];
@@ -143,6 +143,20 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
       const salesData = res.data.sales || [];
       const allDates = generateMonthDates();
       
+      // Fetch CASH expenses per date to auto-fill Cash Exp column
+      let cashExpByDate = {};
+      try {
+        const expRes = await api.post("/sales/expenses-by-date", {
+          token: session.token,
+          center: centerCode,
+          month: selectedMonth,
+          payment_mode: "CASH"
+        });
+        cashExpByDate = expRes.data.expenses_by_date || {};
+      } catch (e) {
+        console.log("Could not fetch cash expenses for grid");
+      }
+      
       // Create a map of existing data
       const salesMap = {};
       salesData.forEach(sale => {
@@ -190,10 +204,13 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
       // Build grid data with all dates
       const grid = allDates.map(date => {
         const existing = salesMap[date] || {};
+        // Override cash_expense with actual CASH expenses from expense entries
+        const actualCashExp = cashExpByDate[date] !== undefined ? cashExpByDate[date] : (existing.cash_expense || 0);
         return {
           date,
           ...getDefaultRow(),
           ...existing,
+          cash_expense: actualCashExp,
           _isNew: !salesMap[date],
           _original: { ...existing }
         };
@@ -690,6 +707,20 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         <td 
           key={field.key} 
           className="px-2 py-1 text-right bg-gray-50 text-gray-600 font-mono text-xs"
+        >
+          {displayValue}
+        </td>
+      );
+    }
+
+    // Read-only field (auto-fetched, like cash_expense from expense entries)
+    if (field.readOnly) {
+      const displayValue = typeof value === 'number' ? Math.round(value).toLocaleString() : value || 0;
+      return (
+        <td 
+          key={field.key} 
+          className="px-2 py-1 text-right bg-amber-50 text-amber-800 font-mono text-xs font-medium"
+          title="Auto-filled from Expense Entries (CASH mode)"
         >
           {displayValue}
         </td>
