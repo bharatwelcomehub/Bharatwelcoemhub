@@ -199,11 +199,19 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         };
       });
 
-      // Chain opening balances: first row uses previous month's closing, rest chain from previous day
-      // Set first row's opening from previous month's last day closing
-      if (grid.length > 0 && prevMonthClosing !== undefined) {
-        grid[0].opening_balance = prevMonthClosing;
-        grid[0].petty_cash_opening = prevMonthPettyCashClosing;
+      // Chain opening balances: first row uses DB value or previous month's closing
+      // Only apply previous month's closing if first row has NO saved opening_balance
+      if (grid.length > 0) {
+        const firstRow = grid[0];
+        const hasDbOpening = firstRow.opening_balance !== undefined && firstRow.opening_balance !== null && firstRow.opening_balance !== 0 && !firstRow._isNew;
+        if (!hasDbOpening && prevMonthClosing !== undefined) {
+          grid[0].opening_balance = prevMonthClosing;
+        }
+        if (firstRow._isNew && prevMonthPettyCashClosing !== undefined) {
+          grid[0].petty_cash_opening = prevMonthPettyCashClosing;
+        } else if (!firstRow.petty_cash_opening && prevMonthPettyCashClosing !== undefined) {
+          grid[0].petty_cash_opening = prevMonthPettyCashClosing;
+        }
         grid[0] = { ...calculateRow(grid[0]), _isNew: grid[0]._isNew, _original: grid[0]._original };
       }
       for (let i = 1; i < grid.length; i++) {
@@ -325,18 +333,43 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         parsedValue = parseFloat(editValue) || 0;
       }
 
-      // Update grid data
+      // Update grid data and cascade balances if needed
       setGridData(prev => {
         const newData = [...prev];
         newData[rowIndex] = calculateRow({
           ...newData[rowIndex],
           [field]: parsedValue
         });
+        
+        // Cascade opening/closing balances to subsequent rows
+        const cascadeFields = ['opening_balance', 'total_sale', 'deposited_in_bank', 'card_idfc', 
+          'bharat_pay', 'swiggy', 'zomato', 'doordash', 'online_other', 'cash_receipts', 'cash_expense', 'petty_cash_opening'];
+        if (cascadeFields.includes(field)) {
+          for (let i = rowIndex + 1; i < newData.length; i++) {
+            const prevRow = newData[i - 1];
+            newData[i] = calculateRow({
+              ...newData[i],
+              opening_balance: prevRow.closing_balance,
+              petty_cash_opening: prevRow.petty_cash_closing,
+            });
+          }
+        }
+        
         return newData;
       });
 
-      // Mark row as modified
-      setModifiedRows(prev => new Set([...prev, rowIndex]));
+      // Mark row as modified (and all subsequent rows if cascading)
+      const cascadeFields = ['opening_balance', 'total_sale', 'deposited_in_bank', 'card_idfc',
+        'bharat_pay', 'swiggy', 'zomato', 'doordash', 'online_other', 'cash_receipts', 'cash_expense', 'petty_cash_opening'];
+      setModifiedRows(prev => {
+        const newSet = new Set([...prev, rowIndex]);
+        if (cascadeFields.includes(field)) {
+          for (let i = rowIndex + 1; i < gridData.length; i++) {
+            newSet.add(i);
+          }
+        }
+        return newSet;
+      });
     }
     
     setEditingCell(null);
@@ -357,16 +390,33 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
         parsedValue = parseFloat(editValue) || 0;
       }
 
-      // Update grid data for current cell
+      // Update grid data for current cell + cascade
       setGridData(prev => {
         const newData = [...prev];
         newData[rowIndex] = calculateRow({
           ...newData[rowIndex],
           [editingCell.field]: parsedValue
         });
+        // Cascade to subsequent rows
+        const cascadeFields = ['opening_balance', 'total_sale', 'deposited_in_bank', 'card_idfc',
+          'bharat_pay', 'swiggy', 'zomato', 'doordash', 'online_other', 'cash_receipts', 'cash_expense', 'petty_cash_opening'];
+        if (cascadeFields.includes(editingCell.field)) {
+          for (let i = rowIndex + 1; i < newData.length; i++) {
+            const prevRow = newData[i - 1];
+            newData[i] = calculateRow({ ...newData[i], opening_balance: prevRow.closing_balance, petty_cash_opening: prevRow.petty_cash_closing });
+          }
+        }
         return newData;
       });
-      setModifiedRows(prev => new Set([...prev, rowIndex]));
+      setModifiedRows(prev => {
+        const newSet = new Set([...prev, rowIndex]);
+        const cascadeFields = ['opening_balance', 'total_sale', 'deposited_in_bank', 'card_idfc',
+          'bharat_pay', 'swiggy', 'zomato', 'doordash', 'online_other', 'cash_receipts', 'cash_expense', 'petty_cash_opening'];
+        if (cascadeFields.includes(editingCell.field)) {
+          for (let i = rowIndex + 1; i < gridData.length; i++) newSet.add(i);
+        }
+        return newSet;
+      });
       
       // Move to next cell
       const nextFieldIndex = e.shiftKey ? fieldIndex - 1 : fieldIndex + 1;
@@ -600,6 +650,15 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
       }
 
       if (savedCount > 0) {
+        // After all saves, trigger a single server-side recalculate to fix cascading balances
+        try {
+          await api.post(`/sales/recalculate-balances?token=${session.token}`, {
+            center: centerCode,
+            month: selectedMonth
+          });
+        } catch (e) {
+          console.log("Recalculate after save:", e);
+        }
         toast.success(`Saved ${savedCount} records successfully!`);
         setModifiedRows(new Set());
         fetchGridData(); // Refresh data

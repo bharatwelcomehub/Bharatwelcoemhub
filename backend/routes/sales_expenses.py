@@ -743,7 +743,8 @@ async def update_daily_sale(center: str, date: str, req: DailySaleUpdate, token:
         )
         
         # If opening_balance or any field affecting closing_balance was changed,
-        # cascade recalculate all subsequent days
+        # cascade recalculate all subsequent days (only for single-save, not bulk)
+        # Check if this is a bulk save via query param
         cascade_fields = {"opening_balance", "total_sale", "cash_receipts", "deposited_in_bank",
                           "card_idfc", "bharat_pay", "swiggy", "zomato", "doordash", "online_other",
                           "cash_expense", "petty_cash_opening"}
