@@ -266,6 +266,8 @@ export default function CenterAccounts() {
           init[r.month] = {
             expense: Math.round(r.expenses || 0),
             wc_adj: Math.round(r.wc_adjustment || 0),
+            commission: Math.round(r.commission || 0),
+            gst: Math.round(r.gst || 0),
           };
         });
         setWcEdits(init);
@@ -283,15 +285,15 @@ export default function CenterAccounts() {
     const initialWc = wcTableData.initial_wc || 0;
     let balance = initialWc;
     return wcTableData.rows.map((r) => {
-      const edit = wcEdits[r.month] || { expense: r.expenses, wc_adj: r.wc_adjustment || 0 };
+      const edit = wcEdits[r.month] || { expense: r.expenses, wc_adj: r.wc_adjustment || 0, commission: r.commission || 0, gst: r.gst || 0 };
       const expenses = Number(edit.expense) || 0;
       const wcAdj = Number(edit.wc_adj) || 0;
-      const commission = Number(r.commission) || 0;
-      const gst = Number(r.gst) || 0;
+      const commission = Number(edit.commission) || 0;
+      const gst = Number(edit.gst) || 0;
       const sale = Number(r.sale) || 0;
       const topup = Number(r.topup) || 0;
-      // P/L = Sale - Expenses (matches the UI formula). Commission/GST shown separately.
-      const pnl = sale - expenses;
+      // P/L = Sale - Expenses - GST - Commission (all visible editable columns)
+      const pnl = sale - expenses - commission - gst;
       const openingWc = balance;
       const balanceWc = openingWc + pnl + wcAdj + topup;
       balance = balanceWc;
@@ -303,13 +305,20 @@ export default function CenterAccounts() {
         ...r,
         expenses,
         wc_adjustment: wcAdj,
+        commission,
+        gst,
         pnl,
         opening_wc: openingWc,
         balance_wc: balanceWc,
         diff_wc: balanceWc,
         rev_share_status: rev,
         // flag rows where user has pending unsaved changes
-        _dirty: Math.round(expenses) !== Math.round(r.expenses) || Math.round(wcAdj) !== Math.round(r.wc_adjustment || 0),
+        _dirty: (
+          Math.round(expenses) !== Math.round(r.expenses) ||
+          Math.round(wcAdj) !== Math.round(r.wc_adjustment || 0) ||
+          Math.round(commission) !== Math.round(r.commission || 0) ||
+          Math.round(gst) !== Math.round(r.gst || 0)
+        ),
       };
     });
   }, [wcTableData, wcEdits]);
@@ -1081,7 +1090,7 @@ export default function CenterAccounts() {
                       <CardTitle className="text-base flex items-center gap-2">
                         <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
                       </CardTitle>
-                      <CardDescription>P/L = Sales - Expenses. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L</CardDescription>
+                      <CardDescription>P/L = Sale − Expenses − GST − Commission. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L + WC Adj</CardDescription>
                     </div>
                     <Button size="sm" disabled={wcSaving} onClick={async () => {
                       if (!wcTableData?.rows) return;
@@ -1093,18 +1102,28 @@ export default function CenterAccounts() {
                           if (!edit) return;
                           const origExpense = Math.round(r.expenses || 0);
                           const origAdj = Math.round(r.wc_adjustment || 0);
+                          const origCommission = Math.round(r.commission || 0);
+                          const origGst = Math.round(r.gst || 0);
                           const newExpense = Math.round(Number(edit.expense) || 0);
                           const newAdj = Math.round(Number(edit.wc_adj) || 0);
+                          const newCommission = Math.round(Number(edit.commission) || 0);
+                          const newGst = Math.round(Number(edit.gst) || 0);
                           const body = { token: session?.token, center: selectedCenter, month: r.month };
                           let dirty = false;
                           if (newExpense !== origExpense) {
-                            // Send absolute target; backend computes delta + writes one
-                            // INTRA expense row dated last day of the month.
                             body.target_expenses = newExpense;
                             dirty = true;
                           }
                           if (newAdj !== origAdj) {
                             body.wc_adjustment = newAdj;
+                            dirty = true;
+                          }
+                          if (newCommission !== origCommission) {
+                            body.commission_target = newCommission;
+                            dirty = true;
+                          }
+                          if (newGst !== origGst) {
+                            body.gst_target = newGst;
                             dirty = true;
                           }
                           if (dirty) {
@@ -1174,7 +1193,8 @@ export default function CenterAccounts() {
                             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-b text-xs">Month</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">Sale</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-amber-50" title="Editable">Expenses</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">Commission</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-rose-50" title="Editable">GST</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-orange-50" title="Editable">Commission</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">P/L</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-blue-50">Working Capital</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-green-50">Bal. WC</th>
@@ -1187,7 +1207,17 @@ export default function CenterAccounts() {
                           {computedWcRows.map((row) => {
                             const monthLabel = new Date(row.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
                             const fmt = (v) => Math.round(v).toLocaleString('en-IN');
-                            const edit = wcEdits[row.month] || { expense: row.expenses, wc_adj: row.wc_adjustment || 0 };
+                            const edit = wcEdits[row.month] || { expense: row.expenses, wc_adj: row.wc_adjustment || 0, commission: row.commission || 0, gst: row.gst || 0 };
+                            const mergeEdit = (patch) => setWcEdits(prev => ({
+                              ...prev,
+                              [row.month]: {
+                                expense: prev[row.month]?.expense ?? row.expenses ?? 0,
+                                wc_adj: prev[row.month]?.wc_adj ?? row.wc_adjustment ?? 0,
+                                commission: prev[row.month]?.commission ?? row.commission ?? 0,
+                                gst: prev[row.month]?.gst ?? row.gst ?? 0,
+                                ...patch,
+                              }
+                            }));
                             return (
                               <tr key={row.month} className={`border-b hover:bg-muted/30 ${row._dirty ? 'bg-yellow-50/60' : ''}`} data-testid={`wc-row-${row.month}`}>
                                 <td className="px-2 py-2 font-medium text-xs">{monthLabel}{row._dirty && <span className="ml-1 text-[10px] text-amber-700" title="Unsaved change">*</span>}</td>
@@ -1198,12 +1228,33 @@ export default function CenterAccounts() {
                                     value={edit.expense}
                                     onChange={(e) => {
                                       const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                      setWcEdits(prev => ({ ...prev, [row.month]: { ...(prev[row.month] || {}), expense: isNaN(v) ? 0 : v, wc_adj: (prev[row.month]?.wc_adj ?? row.wc_adjustment ?? 0) } }));
+                                      mergeEdit({ expense: isNaN(v) ? 0 : v });
                                     }}
                                     data-testid={`wc-expense-${row.month}`}
                                   />
                                 </td>
-                                <td className="px-2 py-2 text-right font-mono text-xs text-orange-600">{fmt(row.commission)}</td>
+                                <td className="px-2 py-2 text-right bg-rose-50/50">
+                                  <input type="number"
+                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
+                                    value={edit.gst}
+                                    onChange={(e) => {
+                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                      mergeEdit({ gst: isNaN(v) ? 0 : v });
+                                    }}
+                                    data-testid={`wc-gst-${row.month}`}
+                                  />
+                                </td>
+                                <td className="px-2 py-2 text-right bg-orange-50/50">
+                                  <input type="number"
+                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
+                                    value={edit.commission}
+                                    onChange={(e) => {
+                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                      mergeEdit({ commission: isNaN(v) ? 0 : v });
+                                    }}
+                                    data-testid={`wc-commission-${row.month}`}
+                                  />
+                                </td>
                                 <td className={`px-2 py-2 text-right font-mono text-xs font-semibold ${row.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                   {fmt(row.pnl)}
                                 </td>
@@ -1216,7 +1267,7 @@ export default function CenterAccounts() {
                                     value={edit.wc_adj}
                                     onChange={(e) => {
                                       const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                      setWcEdits(prev => ({ ...prev, [row.month]: { ...(prev[row.month] || {}), wc_adj: isNaN(v) ? 0 : v, expense: (prev[row.month]?.expense ?? row.expenses ?? 0) } }));
+                                      mergeEdit({ wc_adj: isNaN(v) ? 0 : v });
                                     }}
                                     data-testid={`wc-adj-${row.month}`}
                                   />

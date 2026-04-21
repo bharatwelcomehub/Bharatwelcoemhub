@@ -548,8 +548,8 @@ async def get_wc_table(req: dict = Body(...)):
         d = month_data[month]
         sale = round(d["sale"], 2)
         expenses = round(d["expenses"], 2)
-        commission = round(d["commission"], 2)
-        gst = round(d.get("gst", 0), 2)
+        commission_src = round(d["commission"], 2)
+        gst_src = round(d.get("gst", 0), 2)
         
         # Apply manual expense adjustment if any (audit trail only — the
         # actual adjustment is represented by a real INTRA CENTER ADJUSTMENT
@@ -564,10 +564,15 @@ async def get_wc_table(req: dict = Body(...)):
         # Non-INTRA portion of the DB expenses (what the user can edit against)
         real_expenses = round(expenses - expense_adj, 2) if expense_adj else expenses
         
-        # P/L = Sale - Expenses (matches the UI formula shown in the header).
-        # Commission and GST are displayed as separate informational columns
-        # and do NOT silently reduce P/L or Balance WC.
-        pnl = round(sale - final_expenses, 2)
+        # Commission / GST: show override target if the user explicitly set one
+        # for that month; otherwise fall back to the source aggregate.
+        commission_override = override.get("commission_target")
+        gst_override = override.get("gst_target")
+        commission = round(float(commission_override), 2) if commission_override is not None else commission_src
+        gst = round(float(gst_override), 2) if gst_override is not None else gst_src
+        
+        # P/L = Sale - Expenses - GST - Commission (all visible columns in UI)
+        pnl = round(sale - final_expenses - commission - gst, 2)
         
         # Opening WC = previous month's Balance WC (first month = Base WC)
         opening_wc = round(current_balance_wc, 2)
@@ -773,6 +778,10 @@ async def save_wc_row_override(req: dict = Body(...)):
             update["target_expenses"] = float(req["target_expenses"])
     if req.get("wc_adjustment") is not None:
         update["wc_adjustment"] = float(req["wc_adjustment"])
+    if req.get("commission_target") is not None:
+        update["commission_target"] = float(req["commission_target"])
+    if req.get("gst_target") is not None:
+        update["gst_target"] = float(req["gst_target"])
     
     await db.wc_month_overrides.update_one(
         {"center": center, "month": month},
@@ -884,7 +893,7 @@ async def export_wc_table_pdf(req: dict = Body(...)):
     # WC Table
     story.append(Paragraph("Month-by-Month Working Capital", styles['Section']))
     
-    headers = ["Month", "Sale", "Expenses", "Commission", "P/L", "Working Capital", "Bal. WC", "Diff of WC", "WC Adj", "Rev Share"]
+    headers = ["Month", "Sale", "Expenses", "GST", "Commission", "P/L", "Working Capital", "Bal. WC", "Diff of WC", "WC Adj", "Rev Share"]
     table_data = [headers]
     
     for r in rows:
@@ -893,6 +902,7 @@ async def export_wc_table_pdf(req: dict = Body(...)):
             month_label,
             f"{r['sale']:,.0f}",
             f"{r['expenses']:,.0f}",
+            f"{r.get('gst', 0):,.0f}",
             f"{r['commission']:,.0f}",
             f"{r['pnl']:,.0f}",
             f"{r['opening_wc']:,.0f}",
@@ -902,7 +912,7 @@ async def export_wc_table_pdf(req: dict = Body(...)):
             r.get('rev_share_status', 'active').title(),
         ])
     
-    col_widths = [55, 70, 70, 65, 70, 75, 75, 75, 55, 55]
+    col_widths = [50, 65, 65, 55, 60, 65, 70, 70, 70, 50, 50]
     wc_table = Table(table_data, colWidths=col_widths)
     
     style_cmds = [
@@ -918,12 +928,12 @@ async def export_wc_table_pdf(req: dict = Body(...)):
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")]),
     ]
     
-    # Color P/L column
+    # Color P/L column (index 5 now after adding GST column)
     for i, r in enumerate(rows, 1):
         if r['pnl'] < 0:
-            style_cmds.append(('TEXTCOLOR', (4, i), (4, i), colors.red))
+            style_cmds.append(('TEXTCOLOR', (5, i), (5, i), colors.red))
         else:
-            style_cmds.append(('TEXTCOLOR', (4, i), (4, i), colors.HexColor("#15803d")))
+            style_cmds.append(('TEXTCOLOR', (5, i), (5, i), colors.HexColor("#15803d")))
     
     wc_table.setStyle(TableStyle(style_cmds))
     story.append(wc_table)
@@ -980,7 +990,7 @@ async def export_wc_table_excel(req: dict = Body(...)):
     ws["I2"] = f"Date: {datetime.now().strftime('%d %b %Y')}"
     
     # Column headers
-    headers = ["Month", "Sale", "Expenses", "Commission", "P/L", "Working Capital", "Bal. WC", "Diff of WC", "WC Adj", "Rev Share"]
+    headers = ["Month", "Sale", "Expenses", "GST", "Commission", "P/L", "Working Capital", "Bal. WC", "Diff of WC", "WC Adj", "Rev Share"]
     header_fill = PatternFill("solid", fgColor="8B0000")
     thin_border = Border(
         left=Side(style='thin'), right=Side(style='thin'),
@@ -998,7 +1008,7 @@ async def export_wc_table_excel(req: dict = Body(...)):
     for row_idx, r in enumerate(rows, 5):
         month_label = datetime.strptime(r["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
         values = [
-            month_label, r["sale"], r["expenses"], r["commission"], r["pnl"],
+            month_label, r["sale"], r["expenses"], r.get("gst", 0), r["commission"], r["pnl"],
             r["opening_wc"], r["balance_wc"], r.get("diff_wc", r["balance_wc"]),
             r.get("wc_adjustment", 0), r.get("rev_share_status", "active").title()
         ]
@@ -1006,13 +1016,13 @@ async def export_wc_table_excel(req: dict = Body(...)):
             cell = ws.cell(row=row_idx, column=col, value=val)
             cell.border = thin_border
             cell.font = Font(size=9)
-            if col >= 2 and col <= 9:
+            if col >= 2 and col <= 10:
                 cell.number_format = '#,##0'
                 cell.alignment = Alignment(horizontal="right")
-            # Color P/L
-            if col == 5 and isinstance(val, (int, float)) and val < 0:
+            # Color P/L (now column 6 after adding GST)
+            if col == 6 and isinstance(val, (int, float)) and val < 0:
                 cell.font = Font(size=9, color="FF0000")
-            elif col == 5 and isinstance(val, (int, float)):
+            elif col == 6 and isinstance(val, (int, float)):
                 cell.font = Font(size=9, color="15803D")
     
     # Auto-width
