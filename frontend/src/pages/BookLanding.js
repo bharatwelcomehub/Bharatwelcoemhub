@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Lock, CheckCircle, Bookmark, ArrowRight, Headphones } from 'lucide-react';
+import { BookOpen, Lock, CheckCircle, Bookmark, ArrowRight, Headphones, CreditCard, Smartphone, X, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import BookPodcastPlayer from '@/components/BookPodcastPlayer';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const COVER_IMAGE = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/bdlxtuu4_Book_Restaurant_become_Human.png';
+const UPI_QR = '/upi-qr.jpg';
 
 const BookLanding = () => {
   const [parts, setParts] = useState([]);
@@ -18,6 +19,11 @@ const BookLanding = () => {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [showUpiModal, setShowUpiModal] = useState(null); // {type, part_number, amount}
+  const [upiPaymentId, setUpiPaymentId] = useState(null);
+  const [upiRef, setUpiRef] = useState('');
+  const [upiSubmitted, setUpiSubmitted] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
   const [pendingPurchase, setPendingPurchase] = useState(null);
   const [showPodcast, setShowPodcast] = useState(false);
   const [listenEnabled, setListenEnabled] = useState(true);
@@ -86,14 +92,18 @@ const BookLanding = () => {
 
   const handlePurchase = async (partNumber) => {
     if (!user) {
-      // Save where to return after login, and which part to buy
       localStorage.setItem('auth_return_to', '/book');
       localStorage.setItem('pending_book_purchase', String(partNumber));
       setPendingPurchase(partNumber);
       setAuthDialogOpen(true);
       return;
     }
-    executePurchase(partNumber);
+    if (getRegion() === 'Australia') {
+      executePurchase(partNumber);
+    } else {
+      const price = parts.find(p => p.part_number === partNumber)?.price_inr || 50;
+      setShowUpiModal({ type: 'part', part_number: partNumber, amount: price });
+    }
   };
 
   const executePurchase = async (partNumber) => {
@@ -124,7 +134,11 @@ const BookLanding = () => {
       setAuthDialogOpen(true);
       return;
     }
-    executeBundlePurchase();
+    if (getRegion() === 'Australia') {
+      executeBundlePurchase();
+    } else {
+      setShowUpiModal({ type: 'bundle', part_number: null, amount: bundle?.price_inr || 50 });
+    }
   };
 
   const executeBundlePurchase = async () => {
@@ -144,6 +158,48 @@ const BookLanding = () => {
       else toast.error(data.detail || 'Payment error');
     } catch { toast.error('Payment failed. Please try again.'); }
     setPurchasing(null);
+  };
+
+  // UPI Payment Flow
+  const startUpiPayment = async () => {
+    const currentToken = localStorage.getItem('token') || token;
+    try {
+      const res = await fetch(`${API}/api/book/upi-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+        body: JSON.stringify({ type: showUpiModal.type, part_number: showUpiModal.part_number })
+      });
+      const data = await res.json();
+      setUpiPaymentId(data.payment_id);
+    } catch { toast.error('Failed to create payment'); }
+  };
+
+  useEffect(() => {
+    if (showUpiModal && user) startUpiPayment();
+  }, [showUpiModal]);
+
+  const confirmUpiPayment = async () => {
+    if (!upiPaymentId) return;
+    const currentToken = localStorage.getItem('token') || token;
+    try {
+      await fetch(`${API}/api/book/upi-confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+        body: JSON.stringify({ payment_id: upiPaymentId, upi_ref: upiRef })
+      });
+      setUpiSubmitted(true);
+      toast.success('Payment submitted! Access will be granted shortly.');
+    } catch { toast.error('Failed to confirm payment'); }
+  };
+
+  const closeUpiModal = () => {
+    setShowUpiModal(null); setUpiPaymentId(null); setUpiRef(''); setUpiSubmitted(false); setCopiedUpi(false);
+  };
+
+  const copyUpiId = () => {
+    navigator.clipboard.writeText('jayanti.devashree-7@okaxis');
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
   };
 
   // After login, auto-trigger the pending purchase
@@ -424,6 +480,107 @@ const BookLanding = () => {
       {/* Podcast Player */}
       {listenEnabled && (
         <BookPodcastPlayer visible={showPodcast} onClose={() => setShowPodcast(false)} />
+      )}
+
+      {/* UPI Payment Modal */}
+      {showUpiModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#FDFBF7] rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
+            data-testid="upi-modal"
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#3D2314] to-[#5A3520] p-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-[#D4AF37] font-heading text-lg">Pay {currencySymbol}{showUpiModal.amount}</h3>
+                <p className="text-[#D4AF37]/50 text-xs font-body">{showUpiModal.type === 'bundle' ? 'Complete Book' : `Part ${showUpiModal.part_number}`}</p>
+              </div>
+              <button onClick={closeUpiModal} className="text-[#D4AF37]/50 hover:text-[#D4AF37]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {!upiSubmitted ? (
+              <div className="p-6">
+                {/* Payment Method Choice */}
+                <p className="text-sm font-body text-[#7A6F65] mb-4 text-center">Choose payment method</p>
+
+                {/* UPI Option */}
+                <div className="border-2 border-[#D4AF37] rounded-xl p-4 mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Smartphone className="w-5 h-5 text-[#B8962E]" />
+                    <span className="font-heading text-[#3D2314] text-sm">UPI / GPay / PhonePe</span>
+                    <span className="ml-auto text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-body font-bold">RECOMMENDED</span>
+                  </div>
+
+                  {/* QR Code */}
+                  <div className="flex justify-center mb-3">
+                    <img src={UPI_QR} alt="UPI QR Code" className="w-48 h-48 rounded-lg" />
+                  </div>
+
+                  {/* UPI ID */}
+                  <div className="flex items-center gap-2 bg-[#F8F5F0] rounded-lg p-2 mb-3">
+                    <span className="flex-1 text-xs font-body text-[#3D2314] font-mono">jayanti.devashree-7@okaxis</span>
+                    <button onClick={copyUpiId} className="p-1.5 rounded text-[#B8962E] hover:bg-[#D4AF37]/10">
+                      {copiedUpi ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+
+                  <p className="text-[10px] text-[#7A6F65] font-body text-center mb-3">
+                    Scan QR or pay {currencySymbol}{showUpiModal.amount} to the UPI ID above
+                  </p>
+
+                  {/* Confirmation */}
+                  <input
+                    type="text"
+                    value={upiRef}
+                    onChange={(e) => setUpiRef(e.target.value)}
+                    placeholder="Enter UPI transaction reference (optional)"
+                    className="w-full text-xs font-body bg-white border border-[#E8DFD0] rounded-lg px-3 py-2 mb-3 focus:outline-none focus:border-[#D4AF37]"
+                    data-testid="upi-ref-input"
+                  />
+
+                  <Button
+                    onClick={confirmUpiPayment}
+                    className="w-full gold-glossy text-[#3D2314] font-bold rounded-lg text-xs tracking-widest uppercase border-0"
+                    data-testid="upi-confirm-btn"
+                  >
+                    I've Paid — Verify My Payment
+                  </Button>
+                </div>
+
+                {/* Card Option */}
+                <button
+                  onClick={() => {
+                    closeUpiModal();
+                    if (showUpiModal.type === 'bundle') executeBundlePurchase();
+                    else executePurchase(showUpiModal.part_number);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 border border-[#E8DFD0] rounded-xl text-xs font-body text-[#7A6F65] hover:border-[#B8962E] hover:text-[#B8962E] transition-all"
+                  data-testid="card-pay-btn"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Pay with Card (Stripe)
+                </button>
+              </div>
+            ) : (
+              /* Success State */
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="font-heading text-xl text-[#3D2314] mb-2">Payment Submitted</h3>
+                <p className="text-sm text-[#7A6F65] font-body mb-1">Reference: {upiPaymentId}</p>
+                <p className="text-xs text-[#7A6F65] font-body mb-6">Your access will be activated shortly after verification.</p>
+                <Button onClick={closeUpiModal} className="bg-[#3D2314] text-[#D4AF37] hover:bg-[#5A3520] rounded-lg px-6">
+                  Done
+                </Button>
+              </div>
+            )}
+          </motion.div>
+        </div>
       )}
     </div>
   );

@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -182,6 +182,7 @@ const Admin = () => {
   const [bookAnalytics, setBookAnalytics] = useState(null);
   const [newShayari, setNewShayari] = useState('');
   const [musicUploading, setMusicUploading] = useState(false);
+  const [upiPayments, setUpiPayments] = useState([]);
 
   // Get fresh token
   const getToken = () => localStorage.getItem('token') || token;
@@ -947,8 +948,34 @@ const Admin = () => {
           headers: { Authorization: `Bearer ${currentToken}` }
         });
         setBookAnalytics(analytics.data);
+        const upi = await axios.get(`${API}/admin/upi-payments`, {
+          headers: { Authorization: `Bearer ${currentToken}` }
+        });
+        setUpiPayments(upi.data || []);
       }
     } catch {}
+  };
+
+  const approveUpi = async (paymentId) => {
+    const currentToken = getToken();
+    try {
+      await axios.post(`${API}/admin/upi-approve/${paymentId}`, {}, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Payment approved! Access granted.');
+      fetchBookSettings();
+    } catch { toast.error('Failed to approve'); }
+  };
+
+  const rejectUpi = async (paymentId) => {
+    const currentToken = getToken();
+    try {
+      await axios.post(`${API}/admin/upi-reject/${paymentId}`, {}, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Payment rejected.');
+      fetchBookSettings();
+    } catch { toast.error('Failed to reject'); }
   };
 
   const saveBookSettings = async () => {
@@ -2086,6 +2113,58 @@ const Admin = () => {
                     <p className="text-xs text-[#7A6F65] font-body">Per Part Sales</p>
                   </CardContent></Card>
                 </div>
+              )}
+
+              {/* UPI Payments Queue */}
+              {upiPayments.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Smartphone className="h-5 w-5 text-[#B8962E]" /> UPI Payments
+                      {upiPayments.filter(p => p.status === 'submitted').length > 0 && (
+                        <span className="ml-2 bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded-full font-body">
+                          {upiPayments.filter(p => p.status === 'submitted').length} pending
+                        </span>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {upiPayments.map((p) => (
+                        <div key={p.payment_id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                          p.status === 'submitted' ? 'border-orange-300 bg-orange-50' :
+                          p.status === 'approved' ? 'border-green-300 bg-green-50' :
+                          p.status === 'rejected' ? 'border-red-300 bg-red-50' :
+                          'border-[#E8DFD0] bg-[#F8F5F0]'
+                        }`}>
+                          <div>
+                            <p className="text-sm font-body font-semibold text-[#3D2314]">{p.email}</p>
+                            <p className="text-[10px] text-[#7A6F65] font-body">
+                              {p.description} — ₹{p.amount} — ID: {p.payment_id}
+                              {p.upi_ref && ` — Ref: ${p.upi_ref}`}
+                            </p>
+                            <p className="text-[10px] text-[#7A6F65]/60 font-body">{p.created_at?.split('T')[0]}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {p.status === 'submitted' && (
+                              <>
+                                <Button size="sm" onClick={() => approveUpi(p.payment_id)} className="bg-green-600 text-white text-[10px] h-7 px-3 hover:bg-green-700" data-testid={`approve-${p.payment_id}`}>
+                                  Approve
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => rejectUpi(p.payment_id)} className="text-red-600 border-red-300 text-[10px] h-7 px-3 hover:bg-red-50" data-testid={`reject-${p.payment_id}`}>
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                            {p.status === 'approved' && <span className="text-xs text-green-600 font-body font-semibold">Approved</span>}
+                            {p.status === 'rejected' && <span className="text-xs text-red-600 font-body font-semibold">Rejected</span>}
+                            {p.status === 'pending' && <span className="text-xs text-[#7A6F65] font-body">Awaiting payment</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Listen Mode Toggle */}

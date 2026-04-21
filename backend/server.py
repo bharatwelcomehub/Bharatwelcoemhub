@@ -2364,6 +2364,148 @@ async def prefetch_audio(request: Request, current_user: dict = Depends(get_opti
     return {"message": f"Custom narration uploaded for page {page_number} ({len(audio_data) // 1024}KB)"}
 
 
+# ===================== UPI PAYMENT FLOW =====================
+
+UPI_ID = "jayanti.devashree-7@okaxis"
+
+@api_router.post("/book/upi-payment")
+async def create_upi_payment(request: Request, current_user: dict = Depends(get_current_user)):
+    """Create a UPI payment request for book purchase."""
+    body = await request.json()
+    purchase_type = body.get("type", "part")  # "part" or "bundle"
+    part_number = body.get("part_number")
+
+    if purchase_type == "bundle":
+        amount = BOOK_BUNDLE["price_inr"]
+        description = "Complete Book (All 3 Parts)"
+        parts_to_grant = [1, 2, 3]
+    else:
+        if part_number not in BOOK_PARTS:
+            raise HTTPException(status_code=400, detail="Invalid part number")
+        amount = BOOK_PARTS[part_number]["price_inr"]
+        description = f"Book Part {part_number}"
+        parts_to_grant = [part_number]
+
+    payment_id = str(uuid.uuid4())[:8].upper()
+
+    await db.upi_payments.insert_one({
+        "payment_id": payment_id,
+        "user_id": current_user["user_id"],
+        "email": current_user.get("email", ""),
+        "amount": amount,
+        "type": purchase_type,
+        "parts_to_grant": parts_to_grant,
+        "description": description,
+        "status": "pending",
+        "upi_ref": None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    return {
+        "payment_id": payment_id,
+        "upi_id": UPI_ID,
+        "amount": amount,
+        "description": description
+    }
+
+
+@api_router.post("/book/upi-confirm")
+async def confirm_upi_payment(request: Request, current_user: dict = Depends(get_current_user)):
+    """User confirms they've made a UPI payment."""
+    body = await request.json()
+    payment_id = body.get("payment_id")
+    upi_ref = body.get("upi_ref", "")
+
+    if not payment_id:
+        raise HTTPException(status_code=400, detail="payment_id required")
+
+    payment = await db.upi_payments.find_one(
+        {"payment_id": payment_id, "user_id": current_user["user_id"]},
+        {"_id": 0}
+    )
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+
+    if payment["status"] == "approved":
+        raise HTTPException(status_code=400, detail="Already approved")
+
+    await db.upi_payments.update_one(
+        {"payment_id": payment_id},
+        {"$set": {
+            "status": "submitted",
+            "upi_ref": upi_ref,
+            "submitted_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    return {"message": "Payment submitted for verification. Access will be granted shortly."}
+
+
+@api_router.get("/admin/upi-payments")
+async def admin_get_upi_payments(current_user: dict = Depends(get_current_user)):
+    """Admin: Get all pending UPI payments."""
+    payments = await db.upi_payments.find(
+        {},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return payments
+
+
+@api_router.post("/admin/upi-approve/{payment_id}")
+async def admin_approve_upi(payment_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin: Approve a UPI payment and grant book access."""
+    payment = await db.upi_payments.find_one({"payment_id": payment_id}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+
+    if payment["status"] == "approved":
+        return {"message": "Already approved"}
+
+    # Grant book access
+    for pn in payment.get("parts_to_grant", []):
+        exists = await db.book_purchases.find_one(
+            {"user_id": payment["user_id"], "part_number": pn, "status": "completed"},
+            {"_id": 0}
+        )
+        if not exists:
+            await db.book_purchases.insert_one({
+                "user_id": payment["user_id"],
+                "part_number": pn,
+                "session_id": f"upi-{payment_id}-{pn}",
+                "status": "completed",
+                "purchased_at": datetime.now(timezone.utc).isoformat()
+            })
+
+    await db.upi_payments.update_one(
+        {"payment_id": payment_id},
+        {"$set": {"status": "approved", "approved_at": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    return {"message": f"Payment approved. Access granted for parts: {payment.get('parts_to_grant', [])}"}
+
+
+@api_router.post("/admin/upi-reject/{payment_id}")
+async def admin_reject_upi(payment_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin: Reject a UPI payment."""
+    await db.upi_payments.update_one(
+        {"payment_id": payment_id},
+        {"$set": {"status": "rejected", "rejected_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Payment rejected"}
+
+
+@api_router.get("/book/upi-status/{payment_id}")
+async def check_upi_status(payment_id: str, current_user: dict = Depends(get_current_user)):
+    """Check UPI payment status."""
+    payment = await db.upi_payments.find_one(
+        {"payment_id": payment_id, "user_id": current_user["user_id"]},
+        {"_id": 0}
+    )
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    return {"status": payment["status"]}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
