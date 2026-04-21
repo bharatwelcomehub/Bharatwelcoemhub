@@ -734,6 +734,41 @@ async def update_daily_sale(center: str, date: str, req: DailySaleUpdate, token:
             {"center": center.upper(), "date": date},
             {"$set": existing}
         )
+        
+        # If opening_balance or any field affecting closing_balance was changed,
+        # cascade recalculate all subsequent days
+        cascade_fields = {"opening_balance", "total_sale", "cash_receipts", "deposited_in_bank",
+                          "card_idfc", "bharat_pay", "swiggy", "zomato", "doordash", "online_other",
+                          "cash_expense", "petty_cash_opening"}
+        if cascade_fields & set(update_data.keys()):
+            # Recalculate all records from this date forward
+            subsequent = await db.daily_sales.find(
+                {"center": center.upper(), "date": {"$gt": date, "$regex": r"^\d{4}-\d{2}-\d{2}$"}},
+                {"_id": 0}
+            ).sort("date", 1).to_list(None)
+            
+            if subsequent:
+                from pymongo import ReplaceOne
+                prev_closing = existing.get("closing_balance", 0)
+                prev_petty_closing = existing.get("petty_cash_closing", 0)
+                bulk_ops = []
+                
+                for record in subsequent:
+                    record["opening_balance"] = prev_closing
+                    record["petty_cash_opening"] = prev_petty_closing
+                    record = calculate_totals(record)
+                    bulk_ops.append(
+                        ReplaceOne(
+                            {"center": center.upper(), "date": record["date"]},
+                            record, upsert=False
+                        )
+                    )
+                    prev_closing = record["closing_balance"]
+                    prev_petty_closing = record["petty_cash_closing"]
+                
+                if bulk_ops:
+                    await db.daily_sales.bulk_write(bulk_ops)
+                    logger.info(f"Cascaded balance update from {date}: {len(bulk_ops)} subsequent records recalculated")
     
     existing.pop("_id", None)
     logger.info(f"Daily sale updated: {center} - {date} by {session.get('managerName')}")
