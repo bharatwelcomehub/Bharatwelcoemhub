@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { 
   Wallet, Plus, ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle, 
   Building2, DollarSign, RefreshCw, Loader2, AlertCircle, History,
-  TrendingDown, Percent
+  TrendingDown, Percent, FileText, Download
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -49,7 +49,8 @@ export default function LoanEntries() {
     amount: '',
     loan_date: new Date().toISOString().split('T')[0],
     reason: '',
-    notes: ''
+    notes: '',
+    source_center: ''
   });
   
   const [repaymentForm, setRepaymentForm] = useState({
@@ -152,14 +153,15 @@ export default function LoanEntries() {
           amount: parseFloat(createForm.amount),
           loan_date: createForm.loan_date,
           reason: createForm.reason,
-          notes: createForm.notes
+          notes: createForm.notes,
+          source_center: createForm.source_center
         })
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('Loan entry created successfully');
+        toast.success(data.message || 'Loan entry created successfully');
         setShowCreateModal(false);
-        setCreateForm({ amount: '', loan_date: new Date().toISOString().split('T')[0], reason: '', notes: '' });
+        setCreateForm({ amount: '', loan_date: new Date().toISOString().split('T')[0], reason: '', notes: '', source_center: '' });
         fetchLoans();
         fetchLoanSummary();
       } else {
@@ -171,6 +173,30 @@ export default function LoanEntries() {
       setLoading(false);
     }
   };
+
+  // Download PDF Report
+  const downloadPdfReport = async () => {
+    if (!selectedCenter) { toast.error("Select a center"); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/loan-entries/report/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center: selectedCenter })
+      });
+      if (!res.ok) { const err = await res.json(); toast.error(err.detail || "Download failed"); return; }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Loan_Report_${selectedCenter}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("PDF downloaded");
+    } catch { toast.error("Download failed"); }
+    finally { setLoading(false); }
+  };
+
 
   // Add repayment
   const handleAddRepayment = async () => {
@@ -274,13 +300,17 @@ export default function LoanEntries() {
                 New Loan Entry
               </Button>
             )}
+            <Button variant="outline" onClick={downloadPdfReport} disabled={!selectedCenter || loading} data-testid="loan-pdf-btn">
+              <Download className="w-4 h-4 mr-2" />
+              PDF Report
+            </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Summary Cards */}
       {loanSummary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -340,6 +370,21 @@ export default function LoanEntries() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="bg-gradient-to-br from-teal-50 to-teal-100">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-teal-600">Loans Given</p>
+                  <p className="text-xl font-bold text-teal-800">
+                    {formatCurrency(loanSummary.summary?.total_given || 0, country)}
+                  </p>
+                  <p className="text-xs text-teal-500">Outstanding: {formatCurrency(loanSummary.summary?.total_given_outstanding || 0, country)}</p>
+                </div>
+                <ArrowUpCircle className="w-8 h-8 text-teal-400" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -362,16 +407,20 @@ export default function LoanEntries() {
                 {loans.map(loan => {
                   const outstanding = loan.amount - loan.total_repaid;
                   const repaidPercent = (loan.total_repaid / loan.amount) * 100;
+                  const isGiven = loan.loan_type === "given";
                   
                   return (
                     <div 
                       key={loan.loan_id} 
-                      className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                      className={`border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer ${isGiven ? 'border-l-4 border-l-teal-500' : 'border-l-4 border-l-red-400'}`}
                       onClick={() => { setSelectedLoan(loan); setShowDetailModal(true); }}
                     >
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="flex items-center gap-2">
+                            <Badge className={isGiven ? 'bg-teal-100 text-teal-800' : 'bg-red-100 text-red-800'}>
+                              {isGiven ? 'GIVEN' : 'TAKEN'}
+                            </Badge>
                             <span className="font-mono text-sm text-gray-500">{loan.loan_id}</span>
                             <Badge className={STATUS_COLORS[loan.status]}>
                               {loan.status.replace('_', ' ')}
@@ -379,6 +428,12 @@ export default function LoanEntries() {
                           </div>
                           <p className="font-medium mt-1">{loan.reason}</p>
                           <p className="text-sm text-gray-500">Date: {loan.loan_date}</p>
+                          {isGiven && loan.target_center && (
+                            <p className="text-sm text-teal-600 font-medium">Given to: {loan.target_center_name || loan.target_center}</p>
+                          )}
+                          {!isGiven && loan.source_center && (
+                            <p className="text-sm text-blue-600 font-medium">From: {loan.source_center_name || loan.source_center}</p>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-bold">{formatCurrency(loan.amount, country)}</p>
@@ -463,6 +518,21 @@ export default function LoanEntries() {
                 value={createForm.amount}
                 onChange={(e) => setCreateForm(p => ({ ...p, amount: e.target.value }))}
               />
+            </div>
+            <div>
+              <Label>Loan Source / Given By (Center) *</Label>
+              <Select value={createForm.source_center} onValueChange={(v) => setCreateForm(p => ({ ...p, source_center: v }))}>
+                <SelectTrigger data-testid="source-center-select">
+                  <Building2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Select source center" />
+                </SelectTrigger>
+                <SelectContent>
+                  {centers.filter(c => c.code !== selectedCenter).map(c => (
+                    <SelectItem key={c.code} value={c.code}>{c.code} - {c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">This center will see a "Loan Given" entry automatically</p>
             </div>
             <div>
               <Label>Loan Date *</Label>
