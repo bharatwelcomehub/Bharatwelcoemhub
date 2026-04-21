@@ -270,14 +270,21 @@ def calculate_gst(total_sale: float, swiggy: float, zomato: float, center: str) 
 
 def calculate_totals(sale: dict) -> dict:
     """
-    Calculate derived fields for a sale record using CORRECT FORMULAS.
+    Calculate derived fields for a sale record.
     
-    1. Total Sale = User enters (Card + Takeaway + Swiggy + Zomato + Doordash + Due)
-    2. Total Online Sale = Card + UPI + Swiggy + Zomato + Doordash + Takeaway
-    3. Cash Sale = Total Sale - Total Online Sale
-    4. Cash Expense = Only cash expenses of that day (from expenses)
-    5. Closing Balance = (Total Sale + Opening + Cash Receipts) - (Deposited + Online Sale + Cash Expense)
-    6. Petty Cash Closing = Petty Cash Opening + Cash Receipts - Cash Expense
+    TWO SEPARATE TRACKS:
+    
+    Track A — To Deposit (Opening/Closing Balance):
+      Cash Sale = Total Sale - Total Online Sale
+      Closing Balance = Opening Balance + Cash Sale - Deposited in Bank
+      To Deposit = Closing Balance
+      Next day Opening = Today's Closing
+    
+    Track B — Petty Cash:
+      Petty Cash Closing = Petty Cash Opening + Cash Withdrawal (Cash Receipts) - Cash Expenses
+      Next day Petty Opening = Today's Petty Closing
+    
+    These two tracks are INDEPENDENT and do not mix.
     """
     # Total sale = PBM + Other (or use direct total_sale if provided)
     if sale.get("total_sale", 0) == 0:
@@ -293,25 +300,25 @@ def calculate_totals(sale: dict) -> dict:
     online_other = sale.get("online_other", 0)
     
     opening_balance = sale.get("opening_balance", 0)
-    cash_receipts = sale.get("cash_receipts", 0)
+    cash_receipts = sale.get("cash_receipts", 0)  # Cash withdrawal from bank (for petty cash track)
     cash_expense = sale.get("cash_expense", 0)
     petty_opening = sale.get("petty_cash_opening", 0)
     deposited_in_bank = sale.get("deposited_in_bank", 0)
     
-    # Total Online Sale = Card + UPI + Swiggy + Zomato + Doordash + Takeaway/Other
+    # Total Online Sale = Card + UPI + Swiggy + Zomato + Doordash + Other
     sale["total_online_sale"] = card_idfc + bharat_pay + swiggy + zomato + doordash + online_other
     
     # Cash Sale = Total Sale - Total Online Sale
     sale["total_cash_sale"] = max(0, total_sale - sale["total_online_sale"])
     
-    # Closing Balance = (Total Sale + Opening + Cash Receipts) - (Deposited + Online Sale + Cash Expense)
-    sale["closing_balance"] = (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + sale["total_online_sale"] + cash_expense)
+    # TRACK A: To Deposit
+    # Closing Balance = Opening Balance + Cash Sale - Deposited in Bank
+    sale["closing_balance"] = opening_balance + sale["total_cash_sale"] - deposited_in_bank
+    sale["to_deposit_in_bank"] = sale["closing_balance"]
     
-    # Petty Cash Closing = Petty Cash Opening + Cash Receipts - Cash Expense
+    # TRACK B: Petty Cash
+    # Petty Cash Closing = Petty Cash Opening + Cash Withdrawal (Cash Receipts) - Cash Expenses
     sale["petty_cash_closing"] = petty_opening + cash_receipts - cash_expense
-    
-    # To Deposit = Closing Balance - Petty Cash Closing
-    sale["to_deposit_in_bank"] = sale["closing_balance"] - sale["petty_cash_closing"]
     
     return sale
 
@@ -2707,15 +2714,18 @@ async def upload_custom_format_data(
                     record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
                     record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
                     
-                    # Calculate closing balance + petty cash closing
+                    # Calculate closing balance + petty cash closing (TWO SEPARATE TRACKS)
                     ob = record["opening_balance"]
                     cr = record["cash_receipts"]
                     dep = record["deposited_in_bank"]
                     ce = record["cash_expense"]
-                    record["closing_balance"] = (record["total_sale"] + ob + cr) - (dep + total_online + ce)
+                    cash_sale = record["total_sale"] - total_online
+                    # Track A: Closing = Opening + Cash Sale - Deposited
+                    record["closing_balance"] = ob + max(0, cash_sale) - dep
+                    record["to_deposit_in_bank"] = record["closing_balance"]
+                    # Track B: Petty = Petty Opening + Cash Withdrawal - Cash Expenses
                     pco = record["petty_cash_opening"]
                     record["petty_cash_closing"] = pco + cr - ce
-                    record["to_deposit_in_bank"] = record["closing_balance"] - record["petty_cash_closing"]
                     
                     all_sales_records[f"{center}_{date_str}"] = record
                     
@@ -2885,15 +2895,18 @@ async def upload_custom_format_data(
                         record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
                         record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
                         
-                        # Calculate closing balance + petty cash closing
+                        # Calculate closing balance + petty cash closing (TWO SEPARATE TRACKS)
                         ob = record["opening_balance"]
                         cr = record["cash_receipts"]
                         dep = record["deposited_in_bank"]
                         ce = record["cash_expense"]
-                        record["closing_balance"] = (record["total_sale"] + ob + cr) - (dep + total_online + ce)
+                        cash_sale = record["total_sale"] - total_online
+                        # Track A: Closing = Opening + Cash Sale - Deposited
+                        record["closing_balance"] = ob + max(0, cash_sale) - dep
+                        record["to_deposit_in_bank"] = record["closing_balance"]
+                        # Track B: Petty = Petty Opening + Cash Withdrawal - Cash Expenses
                         pco = record["petty_cash_opening"]
                         record["petty_cash_closing"] = pco + cr - ce
-                        record["to_deposit_in_bank"] = record["closing_balance"] - record["petty_cash_closing"]
                         
                         if record["num_guests"] > 0:
                             record["avg_per_pax"] = round(record["total_sale"] / record["num_guests"], 2)

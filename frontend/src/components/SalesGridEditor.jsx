@@ -247,7 +247,9 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     cash_expense: 0
   });
 
-  // Calculate derived fields for a row matching Excel formulas exactly
+  // Calculate derived fields for a row — TWO SEPARATE TRACKS
+  // Track A (To Deposit): Closing = Opening + Cash Sale - Deposited
+  // Track B (Petty Cash): Petty Closing = Petty Opening + Cash Receipts - Cash Expenses
   const calculateRow = (row) => {
     const total_sale = parseFloat(row.total_sale) || 0;
     const swiggy = parseFloat(row.swiggy) || 0;
@@ -264,9 +266,13 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
 
     const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + doordash + online_other;
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
-    const closing_balance = (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense);
+    
+    // Track A: Closing Balance = Opening + Cash Sale - Deposited
+    const closing_balance = opening_balance + total_cash_sale - deposited_in_bank;
+    const to_deposit_in_bank = closing_balance;
+    
+    // Track B: Petty Cash Closing = Petty Opening + Cash Withdrawal (Receipts) - Cash Expenses
     const petty_cash_closing = petty_cash_opening + cash_receipts - cash_expense;
-    const to_deposit_in_bank = closing_balance - petty_cash_closing;
 
     return {
       ...row,
