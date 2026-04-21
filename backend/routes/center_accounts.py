@@ -248,6 +248,26 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
             month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["gst"] = g["total_gst"]
     
+    # Apply WC table per-month overrides: commission_target and gst_target
+    # are absolute values (replace source aggregate). expense_adjustment is
+    # already reflected in db.expenses (via INTRA row), so we do NOT add it.
+    try:
+        override_docs = await db_ref.wc_month_overrides.find(
+            {"center": center_code}, {"_id": 0}
+        ).to_list(500)
+        for od in override_docs:
+            om = od.get("month", "")
+            if not om:
+                continue
+            if om not in month_data:
+                month_data[om] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
+            if od.get("commission_target") is not None:
+                month_data[om]["commission"] = float(od["commission_target"])
+            if od.get("gst_target") is not None:
+                month_data[om]["gst"] = float(od["gst_target"])
+    except Exception:
+        pass
+    
     # Chain WC month-by-month with proper flow
     sorted_months = sorted(m for m in month_data.keys() if m <= up_to_month)
     

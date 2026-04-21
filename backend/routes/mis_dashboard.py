@@ -38,6 +38,42 @@ def set_verify_token_async(func):
 # ACCESS CHECK
 # =======================================
 
+async def fetch_wc_overrides(center, start_date, end_date):
+    """Fetch wc_month_overrides for a center (or all centers if 'all') within a
+    date range. Returns a dict: {(center, month): {'commission_target': ..., 'gst_target': ...}}
+    Used by MIS/Franchise dashboards so that commission & GST overrides entered
+    in the WC table (Center Accounts) flow through to the dashboard summaries.
+    """
+    # Derive month set from date range
+    from datetime import datetime as _dt
+    months = set()
+    try:
+        s = _dt.strptime(start_date, "%Y-%m-%d").replace(day=1)
+        e = _dt.strptime(end_date, "%Y-%m-%d")
+        cur = s
+        while cur <= e:
+            months.add(cur.strftime("%Y-%m"))
+            if cur.month == 12:
+                cur = cur.replace(year=cur.year + 1, month=1)
+            else:
+                cur = cur.replace(month=cur.month + 1)
+    except Exception:
+        return {}
+    
+    q = {"month": {"$in": list(months)}}
+    if center and center != "all":
+        q["center"] = center
+    docs = await db.wc_month_overrides.find(q, {"_id": 0}).to_list(2000)
+    result = {}
+    for d in docs:
+        key = (d.get("center", ""), d.get("month", ""))
+        result[key] = {
+            "commission_target": d.get("commission_target"),
+            "gst_target": d.get("gst_target"),
+        }
+    return result
+
+
 async def check_mis_access(token: str) -> dict:
     """Check if user has MIS Dashboard access (Super Admin, Admin, Accounts, or Franchise Owner)"""
     # Try async verification first (checks MongoDB)
@@ -207,6 +243,61 @@ async def get_mis_overview(data: dict):
     except Exception as comm_err:
         logger.warning(f"MIS: commission calc failed: {comm_err}")
     
+    # Apply WC table overrides (commission_target / gst_target) so Sales/
+    # Expenses/Commission/GST summaries match the Center Accounts WC table.
+    # Expenses already include INTRA CENTER ADJUSTMENT rows from db.expenses.
+    try:
+        ov_map = await fetch_wc_overrides(center, start_date, end_date)
+        # Per-month source aggregates (center, month) for the current period
+        # so we can subtract the source value and add the override value.
+        def _month_bucket(rows, value_key, center_key="center"):
+            buckets = {}
+            for r in rows:
+                c = r.get(center_key, "") or ""
+                d = r.get("date", "") or ""
+                m = d[:7] if d else ""
+                if not m:
+                    continue
+                buckets[(c, m)] = buckets.get((c, m), 0) + float(r.get(value_key, 0) or 0)
+            return buckets
+        
+        # GST source bucket: from daily_sales.gst_amount
+        gst_src_buckets = _month_bucket(sales_data, "gst_amount")
+        
+        # Commission source bucket: from comm_records grouped by (center, month)
+        comm_src_buckets = {}
+        try:
+            for r in comm_records:
+                cc = r.get("center", "") or ""
+                mm = r.get("month", "") or ""
+                if not mm:
+                    continue
+                v = (
+                    r.get("gst_tax_deductions", 0) + r.get("other_deductions", 0)
+                    or (r.get("commission_amount", 0) + r.get("gst_on_commission", 0))
+                )
+                comm_src_buckets[(cc, mm)] = comm_src_buckets.get((cc, mm), 0) + v
+        except Exception:
+            pass
+        
+        def _apply_overrides(ov, gst_total, comm_total, gst_buckets, comm_buckets):
+            new_gst = gst_total
+            new_comm = comm_total
+            for (cc, mm), o in ov.items():
+                gt = o.get("gst_target")
+                ct = o.get("commission_target")
+                if gt is not None:
+                    new_gst = new_gst - gst_buckets.get((cc, mm), 0) + float(gt)
+                if ct is not None:
+                    new_comm = new_comm - comm_buckets.get((cc, mm), 0) + float(ct)
+            return round(new_gst, 2), round(new_comm, 2)
+        
+        total_gst, total_commissions = _apply_overrides(
+            ov_map, total_gst, total_commissions, gst_src_buckets, comm_src_buckets
+        )
+    except Exception as ov_err:
+        logger.warning(f"MIS: WC override application failed: {ov_err}")
+    
     # Profit calculation: Sales - Expenses - GST - Commissions
     profit = total_sales - total_expenses - total_gst - total_commissions
     profit_margin = round((profit / total_sales * 100) if total_sales > 0 else 0, 2)
@@ -261,6 +352,24 @@ async def get_mis_overview(data: dict):
                 centers_data[c]["commissions"] = round(center_comm_map.get(c, 0), 2)
     except Exception as comm_err:
         logger.error(f"MIS center commission calc failed: {comm_err}", exc_info=True)
+    
+    # Apply WC-table per-center overrides to centers_data (commissions/gst)
+    try:
+        for (cc, mm), o in ov_map.items():
+            if cc not in centers_data:
+                continue
+            gt = o.get("gst_target")
+            ct = o.get("commission_target")
+            if gt is not None:
+                centers_data[cc]["gst"] = round(
+                    centers_data[cc].get("gst", 0) - gst_src_buckets.get((cc, mm), 0) + float(gt), 2
+                )
+            if ct is not None:
+                centers_data[cc]["commissions"] = round(
+                    centers_data[cc].get("commissions", 0) - comm_src_buckets.get((cc, mm), 0) + float(ct), 2
+                )
+    except Exception as ov2_err:
+        logger.warning(f"MIS: per-center WC override application failed: {ov2_err}")
     
     # Calculate profit for each center
     for c in centers_data:

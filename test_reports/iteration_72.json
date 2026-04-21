@@ -1,0 +1,31 @@
+{
+  "summary": "Verified MIS Dashboard ↔ WC-table parity (the bug user reported about dashboards not reflecting WC master data). Added /app/backend/tests/test_mis_wc_parity.py with 6 tests covering: (a) clean-state month-by-month parity for PB-HSR 2025-04..2025-07 (sales/expenses/gst/commission from POST /api/mis/overview must equal the corresponding row in POST /api/center-accounts/wc-table), (b) override propagation — after saving target_expenses=700000, commission_target=50000, gst_target=80000 for PB-HSR 2025-05, MIS summary AND the per-center row both return exp=700000 gst=80000 comm=50000 with profit = sales-700000-80000-50000, (c) /api/mis/working-capital: a forced 5M loss override drops available_working_capital below base_wc. All 6 tests PASSED. Regression suite re-run: 17/17 PASS across test_wc_target_expenses.py and test_wc_and_attendance_lock.py (WC save/persist + attendance lock center-scope intact).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_mis_wc_parity.py",
+    "/app/test_reports/pytest/pytest_mis_wc_parity.xml",
+    "/app/test_reports/pytest/pytest_wc_regression_iter72.xml"
+  ],
+  "action_items": [
+    "No backend code changes required — the MIS/WC parity fix (fetch_wc_overrides + per-center override block in mis_dashboard.py + commission_target/gst_target handling in center_accounts.calculate_working_capital_standing + get_wc_table) works correctly for summary, per-center rows, and working-capital calculation.",
+    "Frontend verification (out of scope here): confirm MIS Dashboard UI and Franchise Owner Dashboard UI bind to summary.total_expenses / total_gst / total_commissions / profit and per-center centers[].expenses/gst/commissions/profit exactly as returned — the APIs are correct."
+  ],
+  "critical_code_review_comments": [
+    "mis_dashboard.get_mis_overview applies overrides correctly at both summary (L283-297) and per-center level (L357-372) using subtract-source + add-target arithmetic. ov_map keyed on (center, month). Verified: works for single-month custom ranges.",
+    "Potential edge case (not hit in tests): If a user sets an override for a month OUTSIDE the selected period but within the derived month-set (fetch_wc_overrides derives months from start→end inclusively), the override still matches. This is correct because the period is month-aligned in the parity tests. For mid-month custom ranges (e.g., 2025-05-10..2025-05-20), the override still applies to the whole-month aggregate — acceptable since WC table is always whole-month.",
+    "center_accounts.get_wc_table (L589-592) correctly reads commission_target/gst_target overrides as absolute replacements (not deltas). Matches the subtract-source+add-target logic in MIS dashboard, so both endpoints converge.",
+    "calculate_working_capital_standing now applies commission_target/gst_target (verified via the forced-loss test — WC dropped from 900000 base to negative territory).",
+    "Minor: fetch_wc_overrides in mis_dashboard.py lines 41-74 silently returns {} on date parse errors — ok for robustness, but should at least log.warning for traceability. Non-blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_mis_wc_parity.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6 parity + 17/17 regression = 23/23)", "frontend": "n/a"},
+  "test_credentials": "Super Admin 9741399190 / OTP 123456 / login center PB-MGT. Parity tests target PB-HSR (12 months of seed data).",
+  "seed_data_creation": "None persisted. All INTRA expense rows and wc_month_overrides for PB-HSR 2025-04..2025-07 are cleaned up both before and after each test via autouse fixture.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Parity between MIS Dashboard (/api/mis/overview, /api/mis/working-capital) and WC table (/api/center-accounts/wc-table) is fully verified. Reusable helpers in test_mis_wc_parity.py: _save_wc_row, _get_wc_row, _get_mis_overview, _get_mis_wc. For any future override-reflection regressions, extend TestParityWithOverrides with new override-field parametrizations (expense_adjustment, wc_adjustment).",
+  "rca of the issue": "Original user bug (MIS/Franchise dashboards not reflecting WC master data) was fixed by main agent prior to this iteration via (1) fetch_wc_overrides helper in mis_dashboard.py, (2) subtract-source + add-target override application at summary AND per-center level, (3) commission_target/gst_target absolute replacement in center_accounts.get_wc_table and calculate_working_capital_standing. This iteration confirms the fix end-to-end: 4-month clean-state parity sweep (PB-HSR 2025-04..07), override injection at 2025-05, and forced-loss WC reduction — all PASS."
+}
