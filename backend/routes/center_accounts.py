@@ -540,11 +540,9 @@ async def get_wc_table(req: dict = Body(...)):
             "last_topup": None, "topup_log": topups
         }
     
-    # Build rows with new WC flow logic
+    # Build rows: Balance WC = Opening WC + P/L, chains forward
     rows = []
-    current_wc = initial_wc
-    revenue_share_stopped_since = None
-    cumulative_pnl = 0
+    current_balance_wc = initial_wc  # First month Opening WC = Base WC
     
     for month in sorted_months:
         d = month_data[month]
@@ -561,53 +559,33 @@ async def get_wc_table(req: dict = Body(...)):
         # Final expenses = DB expenses + manual adjustment
         final_expenses = expenses + expense_adj
         
-        operational_balance = round(sale - (final_expenses + commission + gst), 2)
-        cumulative_pnl += operational_balance
+        # P/L = Sale - Expenses (commission/gst deducted separately if needed)
+        pnl = round(sale - final_expenses - commission - gst, 2)
         
-        opening_wc = round(current_wc, 2)
+        # Opening WC = previous month's Balance WC (first month = Base WC)
+        opening_wc = round(current_balance_wc, 2)
         
-        # New WC Flow Logic
-        wc_used = 0
-        wc_restored = 0
+        # Balance WC = Opening WC + P/L + any manual WC adjustment
+        balance_wc = round(opening_wc + pnl + wc_adj, 2)
         
-        if operational_balance >= 0:
-            if current_wc < initial_wc:
-                deficit = initial_wc - current_wc
-                restore_amount = min(operational_balance, deficit)
-                wc_restored = round(restore_amount, 2)
-                current_wc += restore_amount
-        else:
-            wc_used = round(abs(operational_balance), 2)
-            current_wc += operational_balance
-        
-        # Apply manual WC adjustment (direct override)
-        if wc_adj != 0:
-            current_wc += wc_adj
-        
-        # Apply any manual top-ups for this month
+        # Apply top-ups
         topup_amount = round(topup_by_month.get(month, 0), 2)
         if topup_amount != 0:
-            current_wc = round(current_wc + topup_amount, 2)
+            balance_wc = round(balance_wc + topup_amount, 2)
         
-        closing_wc = round(current_wc, 2)
+        # Diff of WC = Balance WC - Base WC (or same as Balance WC per your sheet)
+        diff_wc = round(balance_wc, 2)
         
-        # Balance WC = Base WC + Cumulative P/L
-        balance_wc = round(initial_wc + cumulative_pnl + wc_adj, 2)
+        # Revenue share status based on balance_wc vs initial
+        wc_pct = (balance_wc / initial_wc * 100) if initial_wc > 0 else 100
         
-        # Revenue share status
-        wc_pct = (closing_wc / initial_wc * 100) if initial_wc > 0 else 100
-        threshold = initial_wc * 0.5
-        
-        if initial_wc > 0 and closing_wc < initial_wc:
-            if closing_wc <= threshold:
+        if initial_wc > 0 and balance_wc < initial_wc:
+            if balance_wc <= initial_wc * 0.5:
                 rev_share_status = "blocked"
             else:
                 rev_share_status = "restoring"
-            if revenue_share_stopped_since is None:
-                revenue_share_stopped_since = month
         else:
             rev_share_status = "active"
-            revenue_share_stopped_since = None
         
         rows.append({
             "month": month,
@@ -617,24 +595,26 @@ async def get_wc_table(req: dict = Body(...)):
             "expense_adjustment": expense_adj,
             "commission": commission,
             "gst": gst,
-            "operational_balance": operational_balance,
-            "pnl": operational_balance,
+            "pnl": pnl,
+            "operational_balance": pnl,
             "opening_wc": opening_wc,
-            "wc_used": wc_used,
-            "wc_restored": wc_restored,
             "wc_adjustment": wc_adj,
             "topup": topup_amount,
-            "closing_wc": closing_wc,
             "balance_wc": balance_wc,
+            "closing_wc": balance_wc,
+            "diff_wc": diff_wc,
             "wc_percentage": round(wc_pct, 1),
             "rev_share_status": rev_share_status,
         })
+        
+        # Chain: next month's opening = this month's balance
+        current_balance_wc = balance_wc
     
     # Get last topup for summary
     last_topup = topups[-1] if topups else None
     
     # Current overall revenue share status
-    final_wc = rows[-1]["closing_wc"] if rows else initial_wc
+    final_wc = rows[-1]["balance_wc"] if rows else initial_wc
     final_pct = (final_wc / initial_wc * 100) if initial_wc > 0 else 100
     if initial_wc > 0 and final_wc < initial_wc:
         final_status = "blocked" if final_pct <= 50 else "restoring"

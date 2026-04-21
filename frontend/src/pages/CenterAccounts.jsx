@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield
+  Check, X, Shield, Save
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -1026,10 +1026,47 @@ export default function CenterAccounts() {
               {/* Working Capital Month-by-Month Table */}
               <Card data-testid="wc-table-card">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
-                  </CardTitle>
-                  <CardDescription>P/L = Sales - (Expenses + Commission + GST). Expenses & WC are editable for adjustments.</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
+                      </CardTitle>
+                      <CardDescription>P/L = Sales - Expenses. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L</CardDescription>
+                    </div>
+                    <Button size="sm" onClick={async () => {
+                      // Save all pending edits
+                      const inputs = document.querySelectorAll('[data-wc-edit]');
+                      const saves = [];
+                      inputs.forEach(inp => {
+                        const month = inp.dataset.month;
+                        const field = inp.dataset.field;
+                        const origVal = parseFloat(inp.dataset.orig) || 0;
+                        const newVal = parseFloat(inp.value) || 0;
+                        if (Math.abs(newVal - origVal) > 0.01) {
+                          const body = { token: session?.token, center: selectedCenter, month };
+                          if (field === 'expenses') {
+                            const dbVal = parseFloat(inp.dataset.dbval) || 0;
+                            body.expense_adjustment = newVal - dbVal;
+                          } else {
+                            body.wc_adjustment = newVal;
+                          }
+                          saves.push(fetch(`${API}/api/center-accounts/wc-row-save`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                          }));
+                        }
+                      });
+                      if (saves.length > 0) {
+                        await Promise.all(saves);
+                        toast.success(`Saved ${saves.length} changes`);
+                        fetchWcTable();
+                      } else {
+                        toast.info("No changes to save");
+                      }
+                    }} className="bg-[#8B0000] hover:bg-[#6B0000]" data-testid="wc-save-all-btn">
+                      <Save className="w-4 h-4 mr-1" /> Save All
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   {wcLoading ? (
@@ -1041,73 +1078,53 @@ export default function CenterAccounts() {
                           <tr>
                             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-b text-xs">Month</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">Sale</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-amber-50" title="Editable - adjust expenses">Expenses</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-amber-50" title="Editable">Expenses</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">Commission</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">P/L</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-blue-50">Opening WC</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-purple-50" title="Editable - manual WC adjustment">WC Adj</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-green-50">Closing WC</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-cyan-50">Balance WC</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-blue-50">Working Capital</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-green-50">Bal. WC</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-cyan-50">Diff of WC</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-purple-50" title="Editable">WC Adj</th>
                             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">Rev Share</th>
-                            <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">Save</th>
                           </tr>
                         </thead>
                         <tbody>
                           {wcTableData.rows.map((row) => {
                             const monthLabel = new Date(row.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                            const fmt = (v) => Math.round(v).toLocaleString('en-IN');
                             return (
                               <tr key={row.month} className="border-b hover:bg-muted/30" data-testid={`wc-row-${row.month}`}>
                                 <td className="px-2 py-2 font-medium text-xs">{monthLabel}</td>
-                                <td className="px-2 py-2 text-right font-mono text-xs">{Math.round(row.sale).toLocaleString('en-IN')}</td>
+                                <td className="px-2 py-2 text-right font-mono text-xs">{fmt(row.sale)}</td>
                                 <td className="px-2 py-2 text-right bg-amber-50/50">
-                                  <input type="number" 
-                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
+                                  <input type="number"
+                                    data-wc-edit=""
+                                    data-month={row.month}
+                                    data-field="expenses"
+                                    data-orig={Math.round(row.expenses)}
+                                    data-dbval={Math.round(row.expenses_db || row.expenses)}
+                                    className="w-24 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
                                     defaultValue={Math.round(row.expenses)}
-                                    onBlur={async (e) => {
-                                      const newVal = parseFloat(e.target.value) || 0;
-                                      const adj = newVal - (row.expenses_db || row.expenses);
-                                      if (Math.abs(adj) > 0.01) {
-                                        try {
-                                          await fetch(`${API}/api/center-accounts/wc-row-save`, {
-                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ token: session?.token, center: selectedCenter, month: row.month, expense_adjustment: adj })
-                                          });
-                                          fetchWcTable();
-                                        } catch { /* silent */ }
-                                      }
-                                    }}
                                     data-testid={`wc-expense-${row.month}`}
                                   />
                                 </td>
-                                <td className="px-2 py-2 text-right font-mono text-xs text-orange-600">{Math.round(row.commission).toLocaleString('en-IN')}</td>
+                                <td className="px-2 py-2 text-right font-mono text-xs text-orange-600">{fmt(row.commission)}</td>
                                 <td className={`px-2 py-2 text-right font-mono text-xs font-semibold ${row.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {Math.round(row.pnl).toLocaleString('en-IN')}
+                                  {fmt(row.pnl)}
                                 </td>
-                                <td className="px-2 py-2 text-right font-mono text-xs bg-blue-50/50">{Math.round(row.opening_wc).toLocaleString('en-IN')}</td>
+                                <td className="px-2 py-2 text-right font-mono text-xs bg-blue-50/50 font-medium">{fmt(row.opening_wc)}</td>
+                                <td className="px-2 py-2 text-right font-mono text-xs bg-green-50/50 font-bold">{fmt(row.balance_wc)}</td>
+                                <td className="px-2 py-2 text-right font-mono text-xs bg-cyan-50/50 font-bold">{fmt(row.diff_wc || row.balance_wc)}</td>
                                 <td className="px-2 py-2 text-right bg-purple-50/50">
                                   <input type="number"
+                                    data-wc-edit=""
+                                    data-month={row.month}
+                                    data-field="wc_adj"
+                                    data-orig={Math.round(row.wc_adjustment || 0)}
                                     className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
                                     defaultValue={Math.round(row.wc_adjustment || 0)}
-                                    onBlur={async (e) => {
-                                      const newVal = parseFloat(e.target.value) || 0;
-                                      if (Math.abs(newVal - (row.wc_adjustment || 0)) > 0.01) {
-                                        try {
-                                          await fetch(`${API}/api/center-accounts/wc-row-save`, {
-                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ token: session?.token, center: selectedCenter, month: row.month, wc_adjustment: newVal })
-                                          });
-                                          fetchWcTable();
-                                        } catch { /* silent */ }
-                                      }
-                                    }}
                                     data-testid={`wc-adj-${row.month}`}
                                   />
-                                </td>
-                                <td className={`px-2 py-2 text-right font-mono text-xs font-bold bg-green-50/50 ${row.closing_wc < wcTableData.initial_wc * 0.5 ? 'text-red-600' : ''}`}>
-                                  {Math.round(row.closing_wc).toLocaleString('en-IN')}
-                                </td>
-                                <td className="px-2 py-2 text-right font-mono text-xs font-bold bg-cyan-50/50 text-cyan-800">
-                                  {Math.round(row.balance_wc || 0).toLocaleString('en-IN')}
                                 </td>
                                 <td className="px-2 py-2 text-center">
                                   {row.rev_share_status === 'active' ? (
@@ -1116,11 +1133,6 @@ export default function CenterAccounts() {
                                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Restoring</span>
                                   ) : (
                                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">Blocked</span>
-                                  )}
-                                </td>
-                                <td className="px-2 py-1 text-center">
-                                  {(row.expense_adjustment !== 0 || row.wc_adjustment !== 0) && (
-                                    <span className="text-[10px] text-blue-500" title="Has manual adjustments">Adj</span>
                                   )}
                                 </td>
                               </tr>
