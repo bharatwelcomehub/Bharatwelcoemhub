@@ -1092,7 +1092,7 @@ export default function CenterAccounts() {
                       </CardTitle>
                       <CardDescription>P/L = Sale − Expenses − GST − Commission. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L + WC Adj</CardDescription>
                     </div>
-                    <Button size="sm" disabled={wcSaving} onClick={async () => {
+                    <Button size="sm" disabled={wcSaving || wcLoading} onClick={async () => {
                       if (!wcTableData?.rows) return;
                       setWcSaving(true);
                       try {
@@ -1135,8 +1135,8 @@ export default function CenterAccounts() {
                         });
                         if (saves.length > 0) {
                           await Promise.all(saves);
+                          await fetchWcTable();
                           toast.success(`Saved ${saves.length} row${saves.length > 1 ? 's' : ''} (Expense Master updated on last day of month)`);
-                          fetchWcTable();
                         } else {
                           toast.info("No changes to save");
                         }
