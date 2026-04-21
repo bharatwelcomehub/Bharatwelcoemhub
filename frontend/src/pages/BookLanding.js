@@ -10,7 +10,8 @@ import BookPodcastPlayer from '@/components/BookPodcastPlayer';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const COVER_IMAGE = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/bdlxtuu4_Book_Restaurant_become_Human.png';
-const UPI_QR = '/upi-qr.jpg';
+const UPI_QR_PART = '/upi_qr_50.png';
+const UPI_QR_BUNDLE = '/upi_qr_bundle.png';
 
 const BookLanding = () => {
   const [parts, setParts] = useState([]);
@@ -515,10 +516,15 @@ const BookLanding = () => {
                     <span className="ml-auto text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-body font-bold">RECOMMENDED</span>
                   </div>
 
-                  {/* QR Code */}
+                  {/* QR Code - Amount locked */}
                   <div className="flex justify-center mb-3">
-                    <img src={UPI_QR} alt="UPI QR Code" className="w-48 h-48 rounded-lg" />
+                    <img
+                      src={showUpiModal.type === 'bundle' ? UPI_QR_BUNDLE : UPI_QR_PART}
+                      alt="UPI QR Code"
+                      className="w-48 h-48 rounded-lg border border-[#E8DFD0]"
+                    />
                   </div>
+                  <p className="text-[9px] text-green-600 font-body text-center mb-2 font-semibold">Amount ₹{showUpiModal.amount} is locked in QR — cannot be changed</p>
 
                   {/* UPI ID */}
                   <div className="flex items-center gap-2 bg-[#F8F5F0] rounded-lg p-2 mb-3">
