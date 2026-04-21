@@ -707,7 +707,8 @@ async def set_wc_override(req: dict = Body(...)):
 
 @router.post("/wc-row-save")
 async def save_wc_row_override(req: dict = Body(...)):
-    """Save manual expense/WC adjustment for a specific month in the WC table."""
+    """Save manual expense/WC adjustment for a specific month in the WC table.
+    If expense_adjustment is provided, auto-creates an INTRA expense entry."""
     token = req.get("token")
     center = req.get("center", "").upper()
     month = req.get("month", "")
@@ -727,9 +728,10 @@ async def save_wc_row_override(req: dict = Body(...)):
         "updated_at": now,
     }
     
-    # Only set fields that are provided
+    expense_adj = None
     if req.get("expense_adjustment") is not None:
-        update["expense_adjustment"] = float(req["expense_adjustment"])
+        expense_adj = float(req["expense_adjustment"])
+        update["expense_adjustment"] = expense_adj
     if req.get("wc_adjustment") is not None:
         update["wc_adjustment"] = float(req["wc_adjustment"])
     
@@ -738,6 +740,256 @@ async def save_wc_row_override(req: dict = Body(...)):
         {"$set": update},
         upsert=True
     )
+    
+    # Auto-create/update INTRA expense entry in the expenses collection
+    if expense_adj is not None and abs(expense_adj) > 0.01:
+        # Use the 1st of the month as the expense date
+        expense_date = f"{month}-01"
+        intra_id = f"INTRA-{center}-{month}"
+        
+        # Remove old INTRA entry for this center+month if exists
+        await db.expenses.delete_many({
+            "center": center,
+            "expense_type": "INTRA CENTER ADJUSTMENT",
+            "date": {"$regex": f"^{month}"},
+            "intra_entry_id": intra_id
+        })
+        
+        # Create new INTRA expense entry (only if non-zero adjustment)
+        await db.expenses.insert_one({
+            "center": center,
+            "date": expense_date,
+            "expense_type": "INTRA CENTER ADJUSTMENT",
+            "description": f"WC Table adjustment for {month}",
+            "amount": abs(expense_adj),
+            "payment_mode": "ADJUSTMENT",
+            "intra_entry_id": intra_id,
+            "created_by": user,
+            "created_at": now,
+            "updated_at": now,
+            "source": "wc_table"
+        })
+        logger.info(f"INTRA expense entry created: {center} {month} amount={expense_adj} by {user}")
+    
+    return {"success": True, "message": f"WC row saved for {center} {month}"}
+    center = (req.get("center") or "").upper()
+    
+    if not center:
+        raise HTTPException(400, "center required")
+    
+    # Get WC table data
+    wc_data = await get_wc_table(req)
+    rows = wc_data.get("rows", [])
+    initial_wc = wc_data.get("initial_wc", 0)
+    
+    # Get franchise info
+    franchise = await get_franchise_for_center(center)
+    center_info = None
+    try:
+        center_doc = await db.centers.find_one({"code": center}, {"_id": 0})
+        center_info = center_doc or {}
+    except Exception:
+        center_info = {}
+    
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from fastapi.responses import Response
+    import io
+    
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=10*mm, leftMargin=10*mm, rightMargin=10*mm)
+    styles = getSampleStyleSheet()
+    
+    styles.add(ParagraphStyle(name='Brand', fontSize=20, textColor=colors.HexColor("#8B0000"), fontName='Helvetica-Bold', spaceAfter=2*mm))
+    styles.add(ParagraphStyle(name='Sub', fontSize=10, textColor=colors.gray, spaceAfter=4*mm))
+    styles.add(ParagraphStyle(name='Section', fontSize=12, textColor=colors.HexColor("#8B0000"), fontName='Helvetica-Bold', spaceBefore=4*mm, spaceAfter=2*mm))
+    
+    story = []
+    
+    # Header
+    story.append(Paragraph("Purnabramha", styles['Brand']))
+    story.append(Paragraph(f"Working Capital Statement — {center} ({center_info.get('name', '')})", styles['Sub']))
+    
+    # Franchise info
+    if franchise:
+        info_data = [
+            ["Franchise Owner", franchise.get("owner_name", "N/A"), "Center", f"{center} - {center_info.get('name', '')}"],
+            ["City / State", f"{franchise.get('city', '')} / {franchise.get('state', '')}", "Base Working Capital", f"Rs. {initial_wc:,.0f}"],
+            ["Report Date", datetime.now().strftime("%d %b %Y"), "Current WC", f"Rs. {wc_data.get('current_wc', 0):,.0f}"],
+        ]
+        info_table = Table(info_data, colWidths=[100, 180, 120, 180])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 4*mm))
+    
+    # WC Table
+    story.append(Paragraph("Month-by-Month Working Capital", styles['Section']))
+    
+    headers = ["Month", "Sale", "Expenses", "Commission", "P/L", "Working Capital", "Bal. WC", "Diff of WC", "WC Adj", "Rev Share"]
+    table_data = [headers]
+    
+    for r in rows:
+        month_label = datetime.strptime(r["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
+        table_data.append([
+            month_label,
+            f"{r['sale']:,.0f}",
+            f"{r['expenses']:,.0f}",
+            f"{r['commission']:,.0f}",
+            f"{r['pnl']:,.0f}",
+            f"{r['opening_wc']:,.0f}",
+            f"{r['balance_wc']:,.0f}",
+            f"{r.get('diff_wc', r['balance_wc']):,.0f}",
+            f"{r.get('wc_adjustment', 0):,.0f}" if r.get('wc_adjustment', 0) != 0 else "-",
+            r.get('rev_share_status', 'active').title(),
+        ])
+    
+    col_widths = [55, 70, 70, 65, 70, 75, 75, 75, 55, 55]
+    wc_table = Table(table_data, colWidths=col_widths)
+    
+    style_cmds = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#8B0000")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+        ('ALIGN', (1, 0), (-2, -1), 'RIGHT'),
+        ('ALIGN', (-1, 0), (-1, -1), 'CENTER'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")]),
+    ]
+    
+    # Color P/L column
+    for i, r in enumerate(rows, 1):
+        if r['pnl'] < 0:
+            style_cmds.append(('TEXTCOLOR', (4, i), (4, i), colors.red))
+        else:
+            style_cmds.append(('TEXTCOLOR', (4, i), (4, i), colors.HexColor("#15803d")))
+    
+    wc_table.setStyle(TableStyle(style_cmds))
+    story.append(wc_table)
+    
+    story.append(Spacer(1, 8*mm))
+    story.append(Paragraph(f"Generated on {datetime.now().strftime('%d %b %Y %H:%M')} by {session.get('managerName', 'System')}", 
+                           ParagraphStyle(name='Footer', fontSize=7, textColor=colors.gray)))
+    
+    doc.build(story)
+    buf.seek(0)
+    
+    filename = f"WC_Statement_{center}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@router.post("/wc-table/export-excel")
+async def export_wc_table_excel(req: dict = Body(...)):
+    """Export WC table as Excel."""
+    token = req.get("token")
+    session = await check_access(token)
+    center = (req.get("center") or "").upper()
+    
+    if not center:
+        raise HTTPException(400, "center required")
+    
+    wc_data = await get_wc_table(req)
+    rows = wc_data.get("rows", [])
+    initial_wc = wc_data.get("initial_wc", 0)
+    
+    franchise = await get_franchise_for_center(center)
+    
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from fastapi.responses import Response
+    import io
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "WC Statement"
+    
+    # Header
+    ws.merge_cells("A1:J1")
+    ws["A1"] = "Purnabramha — Working Capital Statement"
+    ws["A1"].font = Font(size=16, bold=True, color="8B0000")
+    
+    ws["A2"] = f"Center: {center}"
+    ws["A2"].font = Font(size=10, bold=True)
+    ws["C2"] = f"Owner: {franchise.get('owner_name', 'N/A') if franchise else 'N/A'}"
+    ws["F2"] = f"Base WC: {initial_wc:,.0f}"
+    ws["I2"] = f"Date: {datetime.now().strftime('%d %b %Y')}"
+    
+    # Column headers
+    headers = ["Month", "Sale", "Expenses", "Commission", "P/L", "Working Capital", "Bal. WC", "Diff of WC", "WC Adj", "Rev Share"]
+    header_fill = PatternFill("solid", fgColor="8B0000")
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+    
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col, value=h)
+        cell.font = Font(bold=True, color="FFFFFF", size=9)
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin_border
+    
+    # Data rows
+    for row_idx, r in enumerate(rows, 5):
+        month_label = datetime.strptime(r["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
+        values = [
+            month_label, r["sale"], r["expenses"], r["commission"], r["pnl"],
+            r["opening_wc"], r["balance_wc"], r.get("diff_wc", r["balance_wc"]),
+            r.get("wc_adjustment", 0), r.get("rev_share_status", "active").title()
+        ]
+        for col, val in enumerate(values, 1):
+            cell = ws.cell(row=row_idx, column=col, value=val)
+            cell.border = thin_border
+            cell.font = Font(size=9)
+            if col >= 2 and col <= 9:
+                cell.number_format = '#,##0'
+                cell.alignment = Alignment(horizontal="right")
+            # Color P/L
+            if col == 5 and isinstance(val, (int, float)) and val < 0:
+                cell.font = Font(size=9, color="FF0000")
+            elif col == 5 and isinstance(val, (int, float)):
+                cell.font = Font(size=9, color="15803D")
+    
+    # Auto-width
+    for col_idx in range(1, len(headers) + 1):
+        ws.column_dimensions[chr(64 + col_idx)].width = 14
+    ws.column_dimensions['A'].width = 10
+    
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    
+    filename = f"WC_Statement_{center}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+            "amount": abs(expense_adj),
+            "payment_mode": "ADJUSTMENT",
+            "intra_entry_id": intra_id,
+            "created_by": user,
+            "created_at": now,
+            "updated_at": now,
+            "source": "wc_table"
+        })
+        logger.info(f"INTRA expense entry created: {center} {month} amount={expense_adj} by {user}")
     
     return {"success": True, "message": f"WC row saved for {center} {month}"}
 

@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save
+  Check, X, Shield, Save, FileSpreadsheet
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -1058,13 +1058,47 @@ export default function CenterAccounts() {
                       });
                       if (saves.length > 0) {
                         await Promise.all(saves);
-                        toast.success(`Saved ${saves.length} changes`);
+                        toast.success(`Saved ${saves.length} changes (INTRA entries created)`);
                         fetchWcTable();
                       } else {
                         toast.info("No changes to save");
                       }
                     }} className="bg-[#8B0000] hover:bg-[#6B0000]" data-testid="wc-save-all-btn">
                       <Save className="w-4 h-4 mr-1" /> Save All
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      try {
+                        const res = await fetch(`${API}/api/center-accounts/wc-table/export-pdf`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ token: session?.token, center: selectedCenter })
+                        });
+                        if (!res.ok) { toast.error("PDF export failed"); return; }
+                        const blob = await res.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href = url;
+                        a.download = `WC_Statement_${selectedCenter}.pdf`;
+                        document.body.appendChild(a); a.click(); a.remove();
+                        toast.success("PDF downloaded");
+                      } catch { toast.error("PDF export failed"); }
+                    }} data-testid="wc-pdf-btn">
+                      <Download className="w-4 h-4 mr-1" /> PDF
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      try {
+                        const res = await fetch(`${API}/api/center-accounts/wc-table/export-excel`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ token: session?.token, center: selectedCenter })
+                        });
+                        if (!res.ok) { toast.error("Excel export failed"); return; }
+                        const blob = await res.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href = url;
+                        a.download = `WC_Statement_${selectedCenter}.xlsx`;
+                        document.body.appendChild(a); a.click(); a.remove();
+                        toast.success("Excel downloaded");
+                      } catch { toast.error("Excel export failed"); }
+                    }} data-testid="wc-excel-btn">
+                      <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
                     </Button>
                   </div>
                 </CardHeader>
