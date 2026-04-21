@@ -176,12 +176,37 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
-    # Get monthly commissions
-    commission_months = await db_ref.monthly_commissions.aggregate([
+    # Get monthly commissions — check multiple collections and field names
+    # 1. monthly_commissions uses: other_deductions (platform commissions)
+    commission_months_1 = await db_ref.monthly_commissions.aggregate([
         {"$match": {"center": center_code}},
-        {"$group": {"_id": "$month", "total_commission": {"$sum": {"$ifNull": ["$commission_amount", 0]}}}},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": {
+            "$add": [
+                {"$ifNull": ["$commission_amount", 0]},
+                {"$ifNull": ["$other_deductions", 0]},
+                {"$ifNull": ["$gst_tax_deductions", 0]},
+                {"$ifNull": ["$tds", 0]}
+            ]
+        }}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
+    
+    # 2. commission_statements uses: commission_charged
+    commission_months_2 = await db_ref.commission_statements.aggregate([
+        {"$match": {"center": center_code}},
+        {"$addFields": {"month": {"$substr": [{"$ifNull": ["$settlement_period_start", ""]}, 0, 7]}}},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": {"$ifNull": ["$commission_charged", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
+    
+    # Merge commission data from both sources
+    commission_map = {}
+    for c in commission_months_1:
+        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+    for c in commission_months_2:
+        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+    
+    commission_months = [{"_id": m, "total_commission": v} for m, v in sorted(commission_map.items())]
     
     # Get monthly GST (from daily_sales gst_amount)
     gst_months = await db_ref.daily_sales.aggregate([
@@ -413,12 +438,33 @@ async def get_wc_table(req: dict = Body(...)):
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
-    # Get monthly commissions
-    commission_months = await db.monthly_commissions.aggregate([
+    # Get monthly commissions — check both collections with correct field names
+    commission_months_1 = await db.monthly_commissions.aggregate([
         {"$match": {"center": center}},
-        {"$group": {"_id": "$month", "total_commission": {"$sum": {"$ifNull": ["$commission_amount", 0]}}}},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": {
+            "$add": [
+                {"$ifNull": ["$commission_amount", 0]},
+                {"$ifNull": ["$other_deductions", 0]},
+                {"$ifNull": ["$gst_tax_deductions", 0]},
+                {"$ifNull": ["$tds", 0]}
+            ]
+        }}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
+    
+    commission_months_2 = await db.commission_statements.aggregate([
+        {"$match": {"center": center}},
+        {"$addFields": {"month": {"$substr": [{"$ifNull": ["$settlement_period_start", ""]}, 0, 7]}}},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": {"$ifNull": ["$commission_charged", 0]}}}},
+        {"$sort": {"_id": 1}}
+    ]).to_list(200)
+    
+    commission_map = {}
+    for c in commission_months_1:
+        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+    for c in commission_months_2:
+        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+    commission_months = [{"_id": m, "total_commission": v} for m, v in sorted(commission_map.items())]
     
     # Get monthly GST
     gst_months = await db.daily_sales.aggregate([
