@@ -290,7 +290,8 @@ export default function CenterAccounts() {
       const gst = Number(r.gst) || 0;
       const sale = Number(r.sale) || 0;
       const topup = Number(r.topup) || 0;
-      const pnl = sale - expenses - commission - gst;
+      // P/L = Sale - Expenses (matches the UI formula). Commission/GST shown separately.
+      const pnl = sale - expenses;
       const openingWc = balance;
       const balanceWc = openingWc + pnl + wcAdj + topup;
       balance = balanceWc;

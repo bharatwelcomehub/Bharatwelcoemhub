@@ -564,8 +564,10 @@ async def get_wc_table(req: dict = Body(...)):
         # Non-INTRA portion of the DB expenses (what the user can edit against)
         real_expenses = round(expenses - expense_adj, 2) if expense_adj else expenses
         
-        # P/L = Sale - Expenses (commission/gst deducted separately if needed)
-        pnl = round(sale - final_expenses - commission - gst, 2)
+        # P/L = Sale - Expenses (matches the UI formula shown in the header).
+        # Commission and GST are displayed as separate informational columns
+        # and do NOT silently reduce P/L or Balance WC.
+        pnl = round(sale - final_expenses, 2)
         
         # Opening WC = previous month's Balance WC (first month = Base WC)
         opening_wc = round(current_balance_wc, 2)
