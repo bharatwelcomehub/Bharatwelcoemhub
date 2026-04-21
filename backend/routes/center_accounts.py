@@ -527,6 +527,12 @@ async def get_wc_table(req: dict = Body(...)):
     effective_end = get_franchise_effective_end_month(franchise)
     sorted_months = [m for m in sorted_months if m <= effective_end]
     
+    # Get per-month overrides (manual expense/WC adjustments)
+    month_overrides = {}
+    override_docs = await db.wc_month_overrides.find({"center": center}, {"_id": 0}).to_list(200)
+    for od in override_docs:
+        month_overrides[od.get("month", "")] = od
+    
     if not sorted_months:
         return {
             "success": True, "rows": [], "initial_wc": initial_wc, "center": center,
@@ -538,6 +544,7 @@ async def get_wc_table(req: dict = Body(...)):
     rows = []
     current_wc = initial_wc
     revenue_share_stopped_since = None
+    cumulative_pnl = 0
     
     for month in sorted_months:
         d = month_data[month]
@@ -545,7 +552,17 @@ async def get_wc_table(req: dict = Body(...)):
         expenses = round(d["expenses"], 2)
         commission = round(d["commission"], 2)
         gst = round(d.get("gst", 0), 2)
-        operational_balance = round(sale - (expenses + commission + gst), 2)
+        
+        # Apply manual expense adjustment if any
+        override = month_overrides.get(month, {})
+        expense_adj = round(float(override.get("expense_adjustment", 0)), 2)
+        wc_adj = round(float(override.get("wc_adjustment", 0)), 2)
+        
+        # Final expenses = DB expenses + manual adjustment
+        final_expenses = expenses + expense_adj
+        
+        operational_balance = round(sale - (final_expenses + commission + gst), 2)
+        cumulative_pnl += operational_balance
         
         opening_wc = round(current_wc, 2)
         
@@ -554,17 +571,18 @@ async def get_wc_table(req: dict = Body(...)):
         wc_restored = 0
         
         if operational_balance >= 0:
-            # Profit: restore WC first if below base
             if current_wc < initial_wc:
                 deficit = initial_wc - current_wc
                 restore_amount = min(operational_balance, deficit)
                 wc_restored = round(restore_amount, 2)
                 current_wc += restore_amount
-            # If WC is at/above base, profit doesn't change WC further
         else:
-            # Loss: deduct from WC
             wc_used = round(abs(operational_balance), 2)
-            current_wc += operational_balance  # negative value
+            current_wc += operational_balance
+        
+        # Apply manual WC adjustment (direct override)
+        if wc_adj != 0:
+            current_wc += wc_adj
         
         # Apply any manual top-ups for this month
         topup_amount = round(topup_by_month.get(month, 0), 2)
@@ -573,7 +591,10 @@ async def get_wc_table(req: dict = Body(...)):
         
         closing_wc = round(current_wc, 2)
         
-        # Revenue share status: stops if WC < Base, using 50% threshold for protection
+        # Balance WC = Base WC + Cumulative P/L
+        balance_wc = round(initial_wc + cumulative_pnl + wc_adj, 2)
+        
+        # Revenue share status
         wc_pct = (closing_wc / initial_wc * 100) if initial_wc > 0 else 100
         threshold = initial_wc * 0.5
         
@@ -591,7 +612,9 @@ async def get_wc_table(req: dict = Body(...)):
         rows.append({
             "month": month,
             "sale": sale,
-            "expenses": expenses,
+            "expenses": final_expenses,
+            "expenses_db": expenses,
+            "expense_adjustment": expense_adj,
             "commission": commission,
             "gst": gst,
             "operational_balance": operational_balance,
@@ -599,8 +622,10 @@ async def get_wc_table(req: dict = Body(...)):
             "opening_wc": opening_wc,
             "wc_used": wc_used,
             "wc_restored": wc_restored,
+            "wc_adjustment": wc_adj,
             "topup": topup_amount,
             "closing_wc": closing_wc,
+            "balance_wc": balance_wc,
             "wc_percentage": round(wc_pct, 1),
             "rev_share_status": rev_share_status,
         })
@@ -698,6 +723,45 @@ async def set_wc_override(req: dict = Body(...)):
     )
     logger.info(f"Initial WC set for {center}: {value}")
     return {"success": True, "message": f"Initial WC set for {center}: {value}"}
+
+
+@router.post("/wc-row-save")
+async def save_wc_row_override(req: dict = Body(...)):
+    """Save manual expense/WC adjustment for a specific month in the WC table."""
+    token = req.get("token")
+    center = req.get("center", "").upper()
+    month = req.get("month", "")
+    
+    session = await check_access(token)
+    
+    if not month or not center:
+        raise HTTPException(400, "center and month are required")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    user = session.get("managerName", "Unknown")
+    
+    update = {
+        "center": center,
+        "month": month,
+        "updated_by": user,
+        "updated_at": now,
+    }
+    
+    # Only set fields that are provided
+    if req.get("expense_adjustment") is not None:
+        update["expense_adjustment"] = float(req["expense_adjustment"])
+    if req.get("wc_adjustment") is not None:
+        update["wc_adjustment"] = float(req["wc_adjustment"])
+    
+    await db.wc_month_overrides.update_one(
+        {"center": center, "month": month},
+        {"$set": update},
+        upsert=True
+    )
+    
+    return {"success": True, "message": f"WC row saved for {center} {month}"}
+
+
 
 
 # Colors for PDF

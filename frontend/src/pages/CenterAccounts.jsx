@@ -1029,7 +1029,7 @@ export default function CenterAccounts() {
                   <CardTitle className="text-base flex items-center gap-2">
                     <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
                   </CardTitle>
-                  <CardDescription>P/L = Sales - (Expenses + Commission). Both profits and losses affect WC.</CardDescription>
+                  <CardDescription>P/L = Sales - (Expenses + Commission + GST). Expenses & WC are editable for adjustments.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   {wcLoading ? (
@@ -1039,15 +1039,17 @@ export default function CenterAccounts() {
                       <table className="w-full text-sm border-collapse" data-testid="wc-assessment-table">
                         <thead className="bg-muted sticky top-0">
                           <tr>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground border-b">Month</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">Sale</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">Expenses</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">Commission</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b">P/L</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-blue-50">Opening WC</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-purple-50">Top-up</th>
-                            <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b bg-green-50">Closing WC</th>
-                            <th className="px-3 py-2 text-center font-medium text-muted-foreground border-b">Rev Share</th>
+                            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-b text-xs">Month</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">Sale</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-amber-50" title="Editable - adjust expenses">Expenses</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">Commission</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">P/L</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-blue-50">Opening WC</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-purple-50" title="Editable - manual WC adjustment">WC Adj</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-green-50">Closing WC</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-cyan-50">Balance WC</th>
+                            <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">Rev Share</th>
+                            <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">Save</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1055,27 +1057,70 @@ export default function CenterAccounts() {
                             const monthLabel = new Date(row.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
                             return (
                               <tr key={row.month} className="border-b hover:bg-muted/30" data-testid={`wc-row-${row.month}`}>
-                                <td className="px-3 py-2 font-medium text-xs">{monthLabel}</td>
-                                <td className="px-3 py-2 text-right font-mono text-xs">{row.sale.toLocaleString('en-IN')}</td>
-                                <td className="px-3 py-2 text-right font-mono text-xs text-red-600">{row.expenses.toLocaleString('en-IN')}</td>
-                                <td className="px-3 py-2 text-right font-mono text-xs text-orange-600">{row.commission.toLocaleString('en-IN')}</td>
-                                <td className={`px-3 py-2 text-right font-mono text-xs font-semibold ${row.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {row.pnl.toLocaleString('en-IN')}
+                                <td className="px-2 py-2 font-medium text-xs">{monthLabel}</td>
+                                <td className="px-2 py-2 text-right font-mono text-xs">{Math.round(row.sale).toLocaleString('en-IN')}</td>
+                                <td className="px-2 py-2 text-right bg-amber-50/50">
+                                  <input type="number" 
+                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
+                                    defaultValue={Math.round(row.expenses)}
+                                    onBlur={async (e) => {
+                                      const newVal = parseFloat(e.target.value) || 0;
+                                      const adj = newVal - (row.expenses_db || row.expenses);
+                                      if (Math.abs(adj) > 0.01) {
+                                        try {
+                                          await fetch(`${API}/api/center-accounts/wc-row-save`, {
+                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ token: session?.token, center: selectedCenter, month: row.month, expense_adjustment: adj })
+                                          });
+                                          fetchWcTable();
+                                        } catch { /* silent */ }
+                                      }
+                                    }}
+                                    data-testid={`wc-expense-${row.month}`}
+                                  />
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono text-xs bg-blue-50/50">{row.opening_wc.toLocaleString('en-IN')}</td>
-                                <td className="px-3 py-2 text-right font-mono text-xs bg-purple-50/50">
-                                  {row.topup !== 0 ? <span className="text-purple-600 font-medium">+{row.topup.toLocaleString('en-IN')}</span> : '-'}
+                                <td className="px-2 py-2 text-right font-mono text-xs text-orange-600">{Math.round(row.commission).toLocaleString('en-IN')}</td>
+                                <td className={`px-2 py-2 text-right font-mono text-xs font-semibold ${row.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {Math.round(row.pnl).toLocaleString('en-IN')}
                                 </td>
-                                <td className={`px-3 py-2 text-right font-mono text-xs font-bold bg-green-50/50 ${row.closing_wc < wcTableData.initial_wc * 0.5 ? 'text-red-600' : ''}`}>
-                                  {row.closing_wc.toLocaleString('en-IN')}
+                                <td className="px-2 py-2 text-right font-mono text-xs bg-blue-50/50">{Math.round(row.opening_wc).toLocaleString('en-IN')}</td>
+                                <td className="px-2 py-2 text-right bg-purple-50/50">
+                                  <input type="number"
+                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
+                                    defaultValue={Math.round(row.wc_adjustment || 0)}
+                                    onBlur={async (e) => {
+                                      const newVal = parseFloat(e.target.value) || 0;
+                                      if (Math.abs(newVal - (row.wc_adjustment || 0)) > 0.01) {
+                                        try {
+                                          await fetch(`${API}/api/center-accounts/wc-row-save`, {
+                                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ token: session?.token, center: selectedCenter, month: row.month, wc_adjustment: newVal })
+                                          });
+                                          fetchWcTable();
+                                        } catch { /* silent */ }
+                                      }
+                                    }}
+                                    data-testid={`wc-adj-${row.month}`}
+                                  />
                                 </td>
-                                <td className="px-3 py-2 text-center">
+                                <td className={`px-2 py-2 text-right font-mono text-xs font-bold bg-green-50/50 ${row.closing_wc < wcTableData.initial_wc * 0.5 ? 'text-red-600' : ''}`}>
+                                  {Math.round(row.closing_wc).toLocaleString('en-IN')}
+                                </td>
+                                <td className="px-2 py-2 text-right font-mono text-xs font-bold bg-cyan-50/50 text-cyan-800">
+                                  {Math.round(row.balance_wc || 0).toLocaleString('en-IN')}
+                                </td>
+                                <td className="px-2 py-2 text-center">
                                   {row.rev_share_status === 'active' ? (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
-                                  ) : row.rev_share_status === 'restored' ? (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Restored</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
+                                  ) : row.rev_share_status === 'restoring' ? (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Restoring</span>
                                   ) : (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Stopped</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">Blocked</span>
+                                  )}
+                                </td>
+                                <td className="px-2 py-1 text-center">
+                                  {(row.expense_adjustment !== 0 || row.wc_adjustment !== 0) && (
+                                    <span className="text-[10px] text-blue-500" title="Has manual adjustments">Adj</span>
                                   )}
                                 </td>
                               </tr>
