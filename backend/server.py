@@ -921,12 +921,19 @@ async def get_employee_template():
 # ATTENDANCE ENDPOINTS
 # =======================================
 
-async def is_attendance_locked(date: str) -> dict:
-    """Check if attendance is locked for a given date's month"""
+async def is_attendance_locked(date: str, center: Optional[str] = None) -> dict:
+    """Check if attendance is locked for a given date's month (center-aware)."""
     month = date[:7]  # Extract YYYY-MM
-    lock = await db.attendance_locks.find_one({"month": month}, {"_id": 0})
-    if lock and lock.get("locked"):
-        return {"locked": True, "month": month, "locked_by": lock.get("locked_by", "Admin")}
+    g_lock = await db.attendance_locks.find_one(
+        {"month": month, "$or": [{"center": {"$exists": False}}, {"center": ""}, {"center": None}]},
+        {"_id": 0}
+    )
+    if g_lock and g_lock.get("locked"):
+        return {"locked": True, "month": month, "scope": "global", "locked_by": g_lock.get("locked_by", "Admin")}
+    if center:
+        c_lock = await db.attendance_locks.find_one({"month": month, "center": center.upper()}, {"_id": 0})
+        if c_lock and c_lock.get("locked"):
+            return {"locked": True, "month": month, "scope": "center", "locked_by": c_lock.get("locked_by", "Admin")}
     return {"locked": False}
 
 # Attendance endpoints MOVED to routes/attendance.py (transfer-aware)

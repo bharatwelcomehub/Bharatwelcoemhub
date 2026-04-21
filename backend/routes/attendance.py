@@ -93,12 +93,21 @@ class BulkAdvances(BaseModel):
 def days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
 
-async def is_attendance_locked(date: str) -> dict:
-    """Check if attendance is locked for a given date's month"""
+async def is_attendance_locked(date: str, center: Optional[str] = None) -> dict:
+    """Check if attendance is locked for a given date's month.
+    Respects both global locks (center missing/empty) and center-specific locks."""
     month = date[:7]  # Extract YYYY-MM
-    lock = await db.attendance_locks.find_one({"month": month}, {"_id": 0})
-    if lock and lock.get("locked"):
-        return {"locked": True, "month": month, "locked_by": lock.get("locked_by", "Admin")}
+    # Global lock takes precedence if present
+    g_lock = await db.attendance_locks.find_one(
+        {"month": month, "$or": [{"center": {"$exists": False}}, {"center": ""}, {"center": None}]},
+        {"_id": 0}
+    )
+    if g_lock and g_lock.get("locked"):
+        return {"locked": True, "month": month, "scope": "global", "locked_by": g_lock.get("locked_by", "Admin")}
+    if center:
+        c_lock = await db.attendance_locks.find_one({"month": month, "center": center.upper()}, {"_id": 0})
+        if c_lock and c_lock.get("locked"):
+            return {"locked": True, "month": month, "scope": "center", "locked_by": c_lock.get("locked_by", "Admin")}
     return {"locked": False}
 
 # =======================================
@@ -459,10 +468,12 @@ async def bulk_attendance_month(req: BulkMonthlyAttendance):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Check attendance lock FIRST
-    att_lock = await db.attendance_locks.find_one({"month": req.month}, {"_id": 0})
-    if att_lock and att_lock.get("locked"):
-        raise HTTPException(400, f"Attendance is locked for {req.month}. Contact Admin to unlock.")
+    # Check attendance lock FIRST (center-scoped)
+    center_upper = (req.center or "").upper()
+    att_lock_status = await is_attendance_locked(f"{req.month}-01", center_upper)
+    if att_lock_status.get("locked"):
+        scope = att_lock_status.get("scope", "center")
+        raise HTTPException(400, f"Attendance is locked for {req.month} ({'all centers' if scope == 'global' else center_upper}). Contact Admin to unlock.")
     
     # Check payroll lock
     lock = await db.payroll_locks.find_one({"month": req.month}, {"_id": 0})

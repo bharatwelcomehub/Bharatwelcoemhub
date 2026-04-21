@@ -130,7 +130,7 @@ export default function AttendanceDashboard() {
       const res = await fetch(`${API}/api/attendance-dashboard/lock-status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, month: selectedMonth })
+        body: JSON.stringify({ token, month: selectedMonth, center: filterCenter && filterCenter !== "all" ? filterCenter : "" })
       });
       if (res.ok) {
         const data = await res.json();
@@ -139,7 +139,7 @@ export default function AttendanceDashboard() {
     } catch (err) {
       console.error("Error fetching lock status:", err);
     }
-  }, [token, selectedMonth]);
+  }, [token, selectedMonth, filterCenter]);
 
   const handleLockToggle = async () => {
     try {
@@ -149,7 +149,8 @@ export default function AttendanceDashboard() {
         body: JSON.stringify({ 
           token, 
           month: selectedMonth,
-          action: lockAction
+          action: lockAction,
+          center: filterCenter && filterCenter !== "all" ? filterCenter : ""
         })
       });
       if (res.ok) {
@@ -403,17 +404,19 @@ export default function AttendanceDashboard() {
           
           {/* Lock Status & Controls */}
           {viewMode === "monthly" && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            <div className="flex items-center justify-between mt-4 pt-4 border-t" data-testid="attendance-lock-controls">
               <div className="flex items-center gap-3">
                 {lockStatus.locked ? (
-                  <Badge className="bg-red-100 text-red-700 border-red-300 flex items-center gap-1 px-3 py-1">
+                  <Badge className="bg-red-100 text-red-700 border-red-300 flex items-center gap-1 px-3 py-1" data-testid="lock-status-badge-locked">
                     <Lock className="w-4 h-4" />
                     LOCKED - {selectedMonth}
+                    {lockStatus.scope === "global" ? " (ALL CENTERS)" : (lockStatus.center ? ` (${lockStatus.center})` : "")}
                   </Badge>
                 ) : (
-                  <Badge className="bg-green-100 text-green-700 border-green-300 flex items-center gap-1 px-3 py-1">
+                  <Badge className="bg-green-100 text-green-700 border-green-300 flex items-center gap-1 px-3 py-1" data-testid="lock-status-badge-open">
                     <Unlock className="w-4 h-4" />
                     OPEN - {selectedMonth}
+                    {filterCenter && filterCenter !== "all" ? ` (${filterCenter})` : " (ALL CENTERS)"}
                   </Badge>
                 )}
                 {lockStatus.locked && lockStatus.locked_by && (
@@ -430,26 +433,30 @@ export default function AttendanceDashboard() {
                     variant="outline"
                     size="sm"
                     className="text-red-600 border-red-300 hover:bg-red-50"
+                    data-testid="lock-month-button"
                     onClick={() => {
                       setLockAction("lock");
                       setShowLockDialog(true);
                     }}
                   >
                     <Lock className="w-4 h-4 mr-1" />
-                    Lock Month
+                    {filterCenter && filterCenter !== "all" ? `Lock ${filterCenter}` : "Lock Month (ALL)"}
                   </Button>
                 ) : isSuperAdmin ? (
+                  // If a global lock is active, user MUST select a specific center to unlock that center,
+                  // or leave filter as ALL to unlock the global lock itself.
                   <Button
                     variant="outline"
                     size="sm"
                     className="text-green-600 border-green-300 hover:bg-green-50"
+                    data-testid="unlock-month-button"
                     onClick={() => {
                       setLockAction("unlock");
                       setShowLockDialog(true);
                     }}
                   >
                     <Unlock className="w-4 h-4 mr-1" />
-                    Unlock Month
+                    {filterCenter && filterCenter !== "all" ? `Unlock ${filterCenter}` : "Unlock Month (ALL)"}
                   </Button>
                 ) : (
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -803,11 +810,13 @@ export default function AttendanceDashboard() {
                 <>
                   <Lock className="w-5 h-5 text-red-600" />
                   Lock Attendance for {selectedMonth}
+                  {filterCenter && filterCenter !== "all" ? ` — ${filterCenter}` : " — ALL CENTERS"}
                 </>
               ) : (
                 <>
                   <Unlock className="w-5 h-5 text-green-600" />
                   Unlock Attendance for {selectedMonth}
+                  {filterCenter && filterCenter !== "all" ? ` — ${filterCenter}` : " — ALL CENTERS"}
                 </>
               )}
             </DialogTitle>
@@ -817,13 +826,15 @@ export default function AttendanceDashboard() {
             {lockAction === "lock" ? (
               <div className="space-y-3">
                 <p className="text-sm">
-                  Are you sure you want to <strong className="text-red-600">lock</strong> attendance for <strong>{selectedMonth}</strong>?
+                  Are you sure you want to <strong className="text-red-600">lock</strong> attendance for <strong>{selectedMonth}</strong>
+                  {filterCenter && filterCenter !== "all" ? <> at <strong>{filterCenter}</strong></> : <> across <strong>ALL CENTERS</strong></>}?
                 </p>
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded-lg p-3">
                   <p className="text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <span>
-                      Once locked, <strong>no one</strong> (including center managers) will be able to edit attendance for this month. 
+                      Once locked, <strong>no one</strong> (including center managers) will be able to edit attendance for
+                      {filterCenter && filterCenter !== "all" ? <> <strong>{filterCenter}</strong></> : <> <strong>any center</strong></>} this month. 
                       Only Super Admin can unlock.
                     </span>
                   </p>
@@ -832,13 +843,16 @@ export default function AttendanceDashboard() {
             ) : (
               <div className="space-y-3">
                 <p className="text-sm">
-                  Are you sure you want to <strong className="text-green-600">unlock</strong> attendance for <strong>{selectedMonth}</strong>?
+                  Are you sure you want to <strong className="text-green-600">unlock</strong> attendance for <strong>{selectedMonth}</strong>
+                  {filterCenter && filterCenter !== "all" ? <> at <strong>{filterCenter}</strong></> : <> across <strong>ALL CENTERS</strong></>}?
                 </p>
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-lg p-3">
                   <p className="text-sm text-blue-800 dark:text-blue-200 flex items-start gap-2">
                     <ShieldAlert className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <span>
-                      After unlocking, center managers will be able to edit attendance for this month again.
+                      After unlocking, center managers will be able to edit attendance for 
+                      {filterCenter && filterCenter !== "all" ? <> <strong>{filterCenter}</strong></> : <> <strong>this month globally</strong></>}.
+                      Other centers' locks are <strong>not</strong> affected.
                     </span>
                   </p>
                 </div>
@@ -847,22 +861,23 @@ export default function AttendanceDashboard() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowLockDialog(false)}>
+            <Button variant="outline" onClick={() => setShowLockDialog(false)} data-testid="lock-dialog-cancel">
               Cancel
             </Button>
             <Button 
               onClick={handleLockToggle}
+              data-testid="lock-dialog-confirm"
               className={lockAction === "lock" ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
             >
               {lockAction === "lock" ? (
                 <>
                   <Lock className="w-4 h-4 mr-1" />
-                  Yes, Lock Month
+                  Yes, Lock {filterCenter && filterCenter !== "all" ? filterCenter : "All Centers"}
                 </>
               ) : (
                 <>
                   <Unlock className="w-4 h-4 mr-1" />
-                  Yes, Unlock Month
+                  Yes, Unlock {filterCenter && filterCenter !== "all" ? filterCenter : "All Centers"}
                 </>
               )}
             </Button>

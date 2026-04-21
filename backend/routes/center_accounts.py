@@ -772,6 +772,13 @@ async def save_wc_row_override(req: dict = Body(...)):
         logger.info(f"INTRA expense entry created: {center} {month} amount={expense_adj} by {user}")
     
     return {"success": True, "message": f"WC row saved for {center} {month}"}
+
+
+@router.post("/wc-table/export-pdf")
+async def export_wc_table_pdf(req: dict = Body(...)):
+    """Export WC table as PDF with Purnabramha branding."""
+    token = req.get("token")
+    session = await check_access(token)
     center = (req.get("center") or "").upper()
     
     if not center:
@@ -979,21 +986,6 @@ async def export_wc_table_excel(req: dict = Body(...)):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
-
-
-            "amount": abs(expense_adj),
-            "payment_mode": "ADJUSTMENT",
-            "intra_entry_id": intra_id,
-            "created_by": user,
-            "created_at": now,
-            "updated_at": now,
-            "source": "wc_table"
-        })
-        logger.info(f"INTRA expense entry created: {center} {month} amount={expense_adj} by {user}")
-    
-    return {"success": True, "message": f"WC row saved for {center} {month}"}
-
-
 
 
 # Colors for PDF

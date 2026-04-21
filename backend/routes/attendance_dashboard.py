@@ -122,20 +122,37 @@ class AttendanceLockRequest(BaseModel):
     token: str
     month: str  # YYYY-MM format
     action: str  # "lock" or "unlock"
+    center: Optional[str] = None  # Optional center-specific lock. If None/empty -> global lock for all centers.
 
 # =======================================
 # ATTENDANCE LOCK HELPERS
 # =======================================
 
-async def is_month_locked(month: str) -> bool:
-    """Check if a month's attendance is locked"""
-    lock = await db.attendance_locks.find_one({"month": month}, {"_id": 0})
-    return lock is not None and lock.get("locked", False)
+async def is_month_locked(month: str, center: Optional[str] = None) -> bool:
+    """Check if a month's attendance is locked.
+    A month is considered locked for a center if either:
+      - a global lock exists for that month (center missing/empty), OR
+      - a center-specific lock exists for that month+center.
+    """
+    # Global lock check
+    global_lock = await db.attendance_locks.find_one(
+        {"month": month, "$or": [{"center": {"$exists": False}}, {"center": ""}, {"center": None}]},
+        {"_id": 0}
+    )
+    if global_lock and global_lock.get("locked", False):
+        return True
+    if center:
+        center_lock = await db.attendance_locks.find_one(
+            {"month": month, "center": center.upper()}, {"_id": 0}
+        )
+        if center_lock and center_lock.get("locked", False):
+            return True
+    return False
 
-async def is_date_locked(date: str) -> bool:
+async def is_date_locked(date: str, center: Optional[str] = None) -> bool:
     """Check if a specific date's attendance is locked (based on its month)"""
     month = date[:7]  # Extract YYYY-MM from YYYY-MM-DD
-    return await is_month_locked(month)
+    return await is_month_locked(month, center)
 
 # =======================================
 # DASHBOARD ENDPOINTS
@@ -1259,7 +1276,9 @@ async def get_status_options():
 
 @router.post("/lock")
 async def lock_attendance_month(req: AttendanceLockRequest):
-    """Lock or unlock a month's attendance (Admin/Super Admin only)"""
+    """Lock or unlock a month's attendance (Admin/Super Admin only).
+    If req.center is provided, the lock applies only to that center.
+    If req.center is omitted/empty, the lock applies globally to all centers."""
     session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
@@ -1280,12 +1299,19 @@ async def lock_attendance_month(req: AttendanceLockRequest):
     except ValueError:
         raise HTTPException(400, "Invalid month format. Use YYYY-MM")
     
+    center = (req.center or "").upper().strip()
+    scope_label = f"{req.month} @ {center}" if center else f"{req.month} (ALL CENTERS)"
+    
+    # Build lock key. Global locks use center="" to keep single-document semantics.
+    lock_key = {"month": req.month, "center": center}
+    
     if req.action == "lock":
         await db.attendance_locks.update_one(
-            {"month": req.month},
+            lock_key,
             {
                 "$set": {
                     "month": req.month,
+                    "center": center,
                     "locked": True,
                     "locked_by": session.get("managerName", "Admin"),
                     "locked_at": datetime.now(timezone.utc).isoformat(),
@@ -1299,16 +1325,17 @@ async def lock_attendance_month(req: AttendanceLockRequest):
         await db.attendance_audit.insert_one({
             "action": "LOCK_MONTH",
             "month": req.month,
+            "center": center,
             "locked_by": session.get("managerName", ""),
             "locked_at": datetime.now(timezone.utc).isoformat()
         })
         
-        logger.info(f"Attendance locked for {req.month} by {session.get('managerName')}")
-        return {"success": True, "message": f"Attendance for {req.month} has been locked"}
+        logger.info(f"Attendance locked for {scope_label} by {session.get('managerName')}")
+        return {"success": True, "message": f"Attendance locked for {scope_label}"}
     
     elif req.action == "unlock":
         await db.attendance_locks.update_one(
-            {"month": req.month},
+            lock_key,
             {
                 "$set": {
                     "locked": False,
@@ -1322,35 +1349,57 @@ async def lock_attendance_month(req: AttendanceLockRequest):
         await db.attendance_audit.insert_one({
             "action": "UNLOCK_MONTH",
             "month": req.month,
+            "center": center,
             "unlocked_by": session.get("managerName", ""),
             "unlocked_at": datetime.now(timezone.utc).isoformat()
         })
         
-        logger.info(f"Attendance unlocked for {req.month} by {session.get('managerName')}")
-        return {"success": True, "message": f"Attendance for {req.month} has been unlocked"}
+        logger.info(f"Attendance unlocked for {scope_label} by {session.get('managerName')}")
+        return {"success": True, "message": f"Attendance unlocked for {scope_label}"}
     
     else:
         raise HTTPException(400, "Invalid action. Use 'lock' or 'unlock'")
 
 @router.post("/lock-status")
 async def get_lock_status(req: DashboardRequest):
-    """Get lock status for a month"""
+    """Get lock status for a month. If req.center is provided, returns the effective
+    status for that center (global lock OR center-specific lock)."""
     session = await get_session(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
     month = req.month or datetime.now().strftime("%Y-%m")
-    lock = await db.attendance_locks.find_one({"month": month}, {"_id": 0})
+    center = (getattr(req, "center", None) or "").upper().strip()
     
+    # Prefer center-specific lock info when center is provided
+    effective_lock = None
+    if center:
+        c_lock = await db.attendance_locks.find_one(
+            {"month": month, "center": center}, {"_id": 0}
+        )
+        if c_lock and c_lock.get("locked", False):
+            effective_lock = c_lock
+    
+    if not effective_lock:
+        g_lock = await db.attendance_locks.find_one(
+            {"month": month, "$or": [{"center": {"$exists": False}}, {"center": ""}, {"center": None}]},
+            {"_id": 0}
+        )
+        if g_lock and g_lock.get("locked", False):
+            effective_lock = g_lock
+    
+    locked = effective_lock is not None
     return {
         "month": month,
-        "locked": lock.get("locked", False) if lock else False,
-        "locked_by": lock.get("locked_by", "") if lock else "",
-        "locked_at": lock.get("locked_at", "") if lock else ""
+        "center": center,
+        "locked": locked,
+        "scope": ("center" if locked and effective_lock.get("center") else ("global" if locked else None)),
+        "locked_by": effective_lock.get("locked_by", "") if effective_lock else "",
+        "locked_at": effective_lock.get("locked_at", "") if effective_lock else ""
     }
 
 @router.get("/all-locks")
 async def get_all_locks():
-    """Get all locked months"""
-    locks = await db.attendance_locks.find({"locked": True}, {"_id": 0}).to_list(100)
+    """Get all locked months (global + per-center)"""
+    locks = await db.attendance_locks.find({"locked": True}, {"_id": 0}).to_list(1000)
     return {"locks": locks}

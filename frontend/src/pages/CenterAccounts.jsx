@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save, FileSpreadsheet
+  Check, X, Shield, Save
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;

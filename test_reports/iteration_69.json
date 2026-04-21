@@ -1,0 +1,27 @@
+{
+  "summary": "Verified P0 items: (1) WC table auto-INTRA expense on wc-row-save + PDF/Excel exports; (2) Center-specific Attendance Lock/Unlock scope (center + global). Backend: 10/10 pytest passed. Frontend: AttendanceDashboard lock UI correctly reflects scope in button label, badge, and confirm dialog.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_wc_and_attendance_lock.py",
+    "/app/test_reports/pytest/wc_and_attendance_lock.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "attendance_dashboard.py lock doc uses center=\"\" for global locks; is_month_locked in both attendance_dashboard.py and attendance.py correctly checks global first then center-specific - good.",
+    "wc-row-save deletes prior INTRA entry by matching intra_entry_id before inserting new - correct dedup behavior (verified replace: 1234.56 -> 500).",
+    "bulk_attendance_month now calls is_attendance_locked with the request center, so center-scoped locks block writes for that center only. Verified.",
+    "Minor: bulk_attendance (daily) still calls is_attendance_locked(req.date) WITHOUT passing the center (routes/attendance.py line 185). This means a center-specific lock will NOT block per-day bulk_attendance writes for that center (only global lock will). Consider passing req.center like bulk_attendance_month does for consistency.",
+    "server.py has a separate is_attendance_locked helper (~line 924) per the request - not re-tested here; main agent may want to confirm it follows the same scope rules."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_wc_and_attendance_lock.py"
+  ],
+  "success_rate": {"backend": "100% (10/10 passed)", "frontend": "100% (lock UI scope labels verified)"},
+  "test_credentials": "Super Admin: Mobile 9741399190, OTP 123456, Center PB-MGT",
+  "seed_data_creation": "Test month 2026-02. wc_month_overrides/expenses/attendance_locks cleared before and after run. INTRA-PB-HSR-2026-02 expense created & replaced as expected.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "WC auto-INTRA expense + PDF/Excel exports and Center-scoped Attendance Lock are fully verified. Use /app/backend/tests/test_wc_and_attendance_lock.py as regression. Only open observation is that daily /api/bulk_attendance does not pass center to is_attendance_locked, so center-scoped locks only guard the monthly path; global locks guard both. Frontend test confirmed: lock-month-button shows 'Lock PB-HSR' when center filter=PB-HSR and 'Lock Month (ALL)' when filter=all; badge/dialog echo same scope.",
+  "rca of the issue": "N/A - all tests green"
+}
