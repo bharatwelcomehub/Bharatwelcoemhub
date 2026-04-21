@@ -551,13 +551,18 @@ async def get_wc_table(req: dict = Body(...)):
         commission = round(d["commission"], 2)
         gst = round(d.get("gst", 0), 2)
         
-        # Apply manual expense adjustment if any
+        # Apply manual expense adjustment if any (audit trail only — the
+        # actual adjustment is represented by a real INTRA CENTER ADJUSTMENT
+        # row in db.expenses which is already captured in `expenses` above,
+        # so we MUST NOT add it again here or we will double-count.)
         override = month_overrides.get(month, {})
         expense_adj = round(float(override.get("expense_adjustment", 0)), 2)
         wc_adj = round(float(override.get("wc_adjustment", 0)), 2)
         
-        # Final expenses = DB expenses + manual adjustment
-        final_expenses = expenses + expense_adj
+        # Final expenses = DB expenses (already includes any INTRA adjustment row)
+        final_expenses = expenses
+        # Non-INTRA portion of the DB expenses (what the user can edit against)
+        real_expenses = round(expenses - expense_adj, 2) if expense_adj else expenses
         
         # P/L = Sale - Expenses (commission/gst deducted separately if needed)
         pnl = round(sale - final_expenses - commission - gst, 2)
@@ -591,7 +596,7 @@ async def get_wc_table(req: dict = Body(...)):
             "month": month,
             "sale": sale,
             "expenses": final_expenses,
-            "expenses_db": expenses,
+            "expenses_db": real_expenses,
             "expense_adjustment": expense_adj,
             "commission": commission,
             "gst": gst,
@@ -708,7 +713,17 @@ async def set_wc_override(req: dict = Body(...)):
 @router.post("/wc-row-save")
 async def save_wc_row_override(req: dict = Body(...)):
     """Save manual expense/WC adjustment for a specific month in the WC table.
-    If expense_adjustment is provided, auto-creates an INTRA expense entry."""
+
+    Accepted body (any combination):
+      - target_expenses (float): user-entered absolute monthly total expense.
+        Backend will compute the delta against real (non-INTRA) db.expenses
+        for that center+month and create a single mirrored
+        "INTRA CENTER ADJUSTMENT" row in db.expenses dated on the LAST day
+        of the month. Existing INTRA row for that month (if any) is replaced.
+      - expense_adjustment (float, legacy/direct): absolute delta to record.
+      - wc_adjustment (float): manual WC override (no db.expenses side effect).
+    """
+    import calendar as _calendar
     token = req.get("token")
     center = req.get("center", "").upper()
     month = req.get("month", "")
@@ -720,18 +735,40 @@ async def save_wc_row_override(req: dict = Body(...)):
     
     now = datetime.now(timezone.utc).isoformat()
     user = session.get("managerName", "Unknown")
+    intra_id = f"INTRA-{center}-{month}"
     
+    # Resolve the delta (expense_adj). target_expenses (absolute) takes precedence.
+    expense_adj = None
+    if req.get("target_expenses") is not None:
+        target = float(req["target_expenses"])
+        # Compute REAL (non-INTRA) db.expenses total for that center+month
+        agg = await db.expenses.aggregate([
+            {"$match": {
+                "center": center,
+                "date": {"$regex": f"^{month}"},
+                "$or": [
+                    {"intra_entry_id": {"$exists": False}},
+                    {"intra_entry_id": {"$ne": intra_id}}
+                ]
+            }},
+            {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$amount", 0]}}}}
+        ]).to_list(1)
+        real_total = float(agg[0]["total"]) if agg else 0.0
+        expense_adj = round(target - real_total, 2)
+    elif req.get("expense_adjustment") is not None:
+        expense_adj = float(req["expense_adjustment"])
+    
+    # Build override audit doc
     update = {
         "center": center,
         "month": month,
         "updated_by": user,
         "updated_at": now,
     }
-    
-    expense_adj = None
-    if req.get("expense_adjustment") is not None:
-        expense_adj = float(req["expense_adjustment"])
+    if expense_adj is not None:
         update["expense_adjustment"] = expense_adj
+        if req.get("target_expenses") is not None:
+            update["target_expenses"] = float(req["target_expenses"])
     if req.get("wc_adjustment") is not None:
         update["wc_adjustment"] = float(req["wc_adjustment"])
     
@@ -741,37 +778,42 @@ async def save_wc_row_override(req: dict = Body(...)):
         upsert=True
     )
     
-    # Auto-create/update INTRA expense entry in the expenses collection
-    if expense_adj is not None and abs(expense_adj) > 0.01:
-        # Use the 1st of the month as the expense date
-        expense_date = f"{month}-01"
-        intra_id = f"INTRA-{center}-{month}"
-        
-        # Remove old INTRA entry for this center+month if exists
+    # Replace INTRA expense row for this month. Dated LAST day of month.
+    if expense_adj is not None:
+        # Always delete the existing INTRA row to keep at most one per month
         await db.expenses.delete_many({
             "center": center,
             "expense_type": "INTRA CENTER ADJUSTMENT",
-            "date": {"$regex": f"^{month}"},
             "intra_entry_id": intra_id
         })
         
-        # Create new INTRA expense entry (only if non-zero adjustment)
-        await db.expenses.insert_one({
-            "center": center,
-            "date": expense_date,
-            "expense_type": "INTRA CENTER ADJUSTMENT",
-            "description": f"WC Table adjustment for {month}",
-            "amount": abs(expense_adj),
-            "payment_mode": "ADJUSTMENT",
-            "intra_entry_id": intra_id,
-            "created_by": user,
-            "created_at": now,
-            "updated_at": now,
-            "source": "wc_table"
-        })
-        logger.info(f"INTRA expense entry created: {center} {month} amount={expense_adj} by {user}")
+        # Only insert when the delta is non-zero. Negative allowed (target < real).
+        if abs(expense_adj) > 0.01:
+            try:
+                yy, mm = int(month[:4]), int(month[5:7])
+                last_day = _calendar.monthrange(yy, mm)[1]
+                expense_date = f"{month}-{last_day:02d}"
+            except Exception:
+                expense_date = f"{month}-28"
+            
+            await db.expenses.insert_one({
+                "center": center,
+                "date": expense_date,
+                "expense_type": "INTRA CENTER ADJUSTMENT",
+                "description": f"WC Table adjustment for {month}",
+                "amount": round(expense_adj, 2),
+                "payment_mode": "ADJUSTMENT",
+                "intra_entry_id": intra_id,
+                "created_by": user,
+                "created_at": now,
+                "updated_at": now,
+                "source": "wc_table"
+            })
+            logger.info(f"INTRA expense row {intra_id} amount={expense_adj} on {expense_date}")
+        else:
+            logger.info(f"INTRA expense row {intra_id} cleared (adjustment=0)")
     
-    return {"success": True, "message": f"WC row saved for {center} {month}"}
+    return {"success": True, "message": f"WC row saved for {center} {month}", "expense_adjustment": expense_adj}
 
 
 @router.post("/wc-table/export-pdf")

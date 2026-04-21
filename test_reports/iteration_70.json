@@ -1,0 +1,30 @@
+{
+  "summary": "Validated WC table refactor end-to-end. Backend new target_expenses contract on /api/center-accounts/wc-row-save: INTRA row dated last day of month (28-Feb non-leap, 29-Feb leap, 31-Jul), target replaces (not compounds) prior INTRA, target==real DELETES INTRA, wc_adjustment alone does not touch db.expenses, wc-table returns expenses==target (no double counting). Frontend /center-accounts WC breakdown verified live: typing in wc-expense-{month} cascades P/L, Opening WC, Bal.WC, Diff of WC for that row WITHOUT save, row gets yellow tint + '*' marker; Save All posts {target_expenses:N} (not delta) only for changed rows; after refetch value is retained and '*' / yellow cleared. PDF & Excel buttons present. New regression suite added (test_wc_target_expenses.py 7/7) and prior wc_and_attendance_lock suite still passes (10/10).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_wc_target_expenses.py",
+    "/app/backend/tests/test_wc_and_attendance_lock.py",
+    "/app/test_reports/pytest/pytest_wc_target_expenses.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "save_wc_row_override (routes/center_accounts.py ~L713) correctly excludes prior INTRA row when computing real_total via $or:[{intra_entry_id:{$exists:false}},{intra_entry_id:{$ne:intra_id}}], so re-saves do not compound.",
+    "INTRA delete is unconditional before potential insert; insert is guarded by abs(expense_adj) > 0.01 - this is what makes 'target==real => 0 INTRA rows' work. Verified.",
+    "Last-day-of-month derived via calendar.monthrange. Leap year (2024-02-29) verified end-to-end via pytest.",
+    "get_wc_table (~L399) no longer adds expense_adjustment on top of db expenses (comment at L554-557 makes this explicit); this fixes the prior double-count bug. wc-table response shape preserved with both `expenses` (=db total incl. INTRA) and `expenses_db` (=non-INTRA real total) which is what the FE uses to render edits vs ground truth.",
+    "FE computedWcRows (CenterAccounts.jsx L281-314) correctly chains balance forward across months and marks _dirty for highlight. Save All only POSTs rows where expense changed (target_expenses) and rows where adj changed (wc_adjustment) - confirmed by network capture (1 POST for the 1 edited row).",
+    "Minor: backend `/wc-row-save` still accepts legacy `expense_adjustment` (delta) when target_expenses is absent. FE no longer sends it, but keeping for backwards compat is fine - just document.",
+    "Minor: in get_wc_table, real_expenses is computed as expenses - expense_adj (audit-derived) but since INTRA is now the only source of truth for the adjustment, `expense_adjustment` from override doc and the actual INTRA amount should always match; if they ever drift (e.g. manual mongo edit), expenses_db could be wrong. Low risk."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_wc_target_expenses.py"
+  ],
+  "success_rate": {"backend": "100% (7/7 new + 10/10 regression)", "frontend": "100% (live cascade, save contract, retention, yellow tint, '*' marker all verified)"},
+  "test_credentials": "Super Admin: 9741399190 / OTP 123456 / login center PB-MGT; WC test center PB-HSR",
+  "seed_data_creation": "Test months (2026-02, 2024-02, 2030-07) on PB-HSR: INTRA rows + wc_month_overrides cleaned before AND after each test. UI test created PB-HSR 2026-03 INTRA which was cleaned post-test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "WC live-cascade + target_expenses save contract is fully working on PB-HSR. Re-use /app/backend/tests/test_wc_target_expenses.py as regression. UI flow: login (PB-MGT) -> /center-accounts -> select PB-HSR -> Overview tab already shows Month-by-Month WC Breakdown with controlled inputs (data-testid wc-expense-{YYYY-MM}, wc-adj-{YYYY-MM}). No tab switch needed. Editing input updates row live; Save All POSTs only changed rows with {target_expenses}.",
+  "rca of the issue": "Original bugs were caused by (a) get_wc_table summing expenses_db AND adding expense_adjustment from override doc => double-count after first save, (b) wc-row-save accepting only delta which kept compounding, (c) inputs being uncontrolled so no live recalc, (d) INTRA row getting dated on save day (mid-month). Fix: backend treats INTRA as single source of truth (no additive override), accepts target_expenses (absolute), dates row on calendar.monthrange last day; frontend uses controlled wcEdits + computedWcRows useMemo for cascading recompute and posts target_expenses on Save All."
+}

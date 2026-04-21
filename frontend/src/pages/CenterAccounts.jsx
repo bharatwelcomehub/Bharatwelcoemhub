@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/App';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -125,6 +125,10 @@ export default function CenterAccounts() {
   const [topupReason, setTopupReason] = useState('');
   const [topupMonth, setTopupMonth] = useState('');
   const [showTopupLog, setShowTopupLog] = useState(false);
+  // Live-edit state for WC row inputs (keyed by month).
+  // { "2024-01": { expense: 1000, wc_adj: 0 } }
+  const [wcEdits, setWcEdits] = useState({});
+  const [wcSaving, setWcSaving] = useState(false);
 
   // Fetch centers
   const fetchCenters = useCallback(async () => {
@@ -256,6 +260,15 @@ export default function CenterAccounts() {
       const data = await res.json();
       if (data.success) {
         setWcTableData(data);
+        // Reset live-edit state to the newly fetched values
+        const init = {};
+        (data.rows || []).forEach(r => {
+          init[r.month] = {
+            expense: Math.round(r.expenses || 0),
+            wc_adj: Math.round(r.wc_adjustment || 0),
+          };
+        });
+        setWcEdits(init);
       }
     } catch (error) {
       console.error('Failed to fetch WC table');
@@ -263,6 +276,42 @@ export default function CenterAccounts() {
       setWcLoading(false);
     }
   }, [token, selectedCenter]);
+
+  // Derived: rows recomputed live based on wcEdits, cascading Balance WC forward
+  const computedWcRows = useMemo(() => {
+    if (!wcTableData?.rows?.length) return [];
+    const initialWc = wcTableData.initial_wc || 0;
+    let balance = initialWc;
+    return wcTableData.rows.map((r) => {
+      const edit = wcEdits[r.month] || { expense: r.expenses, wc_adj: r.wc_adjustment || 0 };
+      const expenses = Number(edit.expense) || 0;
+      const wcAdj = Number(edit.wc_adj) || 0;
+      const commission = Number(r.commission) || 0;
+      const gst = Number(r.gst) || 0;
+      const sale = Number(r.sale) || 0;
+      const topup = Number(r.topup) || 0;
+      const pnl = sale - expenses - commission - gst;
+      const openingWc = balance;
+      const balanceWc = openingWc + pnl + wcAdj + topup;
+      balance = balanceWc;
+      let rev = 'active';
+      if (initialWc > 0 && balanceWc < initialWc) {
+        rev = balanceWc <= initialWc * 0.5 ? 'blocked' : 'restoring';
+      }
+      return {
+        ...r,
+        expenses,
+        wc_adjustment: wcAdj,
+        pnl,
+        opening_wc: openingWc,
+        balance_wc: balanceWc,
+        diff_wc: balanceWc,
+        rev_share_status: rev,
+        // flag rows where user has pending unsaved changes
+        _dirty: Math.round(expenses) !== Math.round(r.expenses) || Math.round(wcAdj) !== Math.round(r.wc_adjustment || 0),
+      };
+    });
+  }, [wcTableData, wcEdits]);
 
   // Save WC override (initial value only)
   const saveWcOverride = async (month, value) => {
@@ -1033,38 +1082,49 @@ export default function CenterAccounts() {
                       </CardTitle>
                       <CardDescription>P/L = Sales - Expenses. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L</CardDescription>
                     </div>
-                    <Button size="sm" onClick={async () => {
-                      // Save all pending edits
-                      const inputs = document.querySelectorAll('[data-wc-edit]');
-                      const saves = [];
-                      inputs.forEach(inp => {
-                        const month = inp.dataset.month;
-                        const field = inp.dataset.field;
-                        const origVal = parseFloat(inp.dataset.orig) || 0;
-                        const newVal = parseFloat(inp.value) || 0;
-                        if (Math.abs(newVal - origVal) > 0.01) {
-                          const body = { token: session?.token, center: selectedCenter, month };
-                          if (field === 'expenses') {
-                            const dbVal = parseFloat(inp.dataset.dbval) || 0;
-                            body.expense_adjustment = newVal - dbVal;
-                          } else {
-                            body.wc_adjustment = newVal;
+                    <Button size="sm" disabled={wcSaving} onClick={async () => {
+                      if (!wcTableData?.rows) return;
+                      setWcSaving(true);
+                      try {
+                        const saves = [];
+                        wcTableData.rows.forEach(r => {
+                          const edit = wcEdits[r.month];
+                          if (!edit) return;
+                          const origExpense = Math.round(r.expenses || 0);
+                          const origAdj = Math.round(r.wc_adjustment || 0);
+                          const newExpense = Math.round(Number(edit.expense) || 0);
+                          const newAdj = Math.round(Number(edit.wc_adj) || 0);
+                          const body = { token: session?.token, center: selectedCenter, month: r.month };
+                          let dirty = false;
+                          if (newExpense !== origExpense) {
+                            // Send absolute target; backend computes delta + writes one
+                            // INTRA expense row dated last day of the month.
+                            body.target_expenses = newExpense;
+                            dirty = true;
                           }
-                          saves.push(fetch(`${API}/api/center-accounts/wc-row-save`, {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
-                          }));
+                          if (newAdj !== origAdj) {
+                            body.wc_adjustment = newAdj;
+                            dirty = true;
+                          }
+                          if (dirty) {
+                            saves.push(fetch(`${API}/api/center-accounts/wc-row-save`, {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(body)
+                            }));
+                          }
+                        });
+                        if (saves.length > 0) {
+                          await Promise.all(saves);
+                          toast.success(`Saved ${saves.length} row${saves.length > 1 ? 's' : ''} (Expense Master updated on last day of month)`);
+                          fetchWcTable();
+                        } else {
+                          toast.info("No changes to save");
                         }
-                      });
-                      if (saves.length > 0) {
-                        await Promise.all(saves);
-                        toast.success(`Saved ${saves.length} changes (INTRA entries created)`);
-                        fetchWcTable();
-                      } else {
-                        toast.info("No changes to save");
+                      } finally {
+                        setWcSaving(false);
                       }
                     }} className="bg-[#8B0000] hover:bg-[#6B0000]" data-testid="wc-save-all-btn">
-                      <Save className="w-4 h-4 mr-1" /> Save All
+                      <Save className="w-4 h-4 mr-1" /> {wcSaving ? 'Saving...' : 'Save All'}
                     </Button>
                     <Button size="sm" variant="outline" onClick={async () => {
                       try {
@@ -1105,7 +1165,7 @@ export default function CenterAccounts() {
                 <CardContent className="p-0">
                   {wcLoading ? (
                     <div className="text-center py-8 text-muted-foreground">Loading...</div>
-                  ) : wcTableData?.rows?.length > 0 ? (
+                  ) : computedWcRows.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm border-collapse" data-testid="wc-assessment-table">
                         <thead className="bg-muted sticky top-0">
@@ -1123,22 +1183,22 @@ export default function CenterAccounts() {
                           </tr>
                         </thead>
                         <tbody>
-                          {wcTableData.rows.map((row) => {
+                          {computedWcRows.map((row) => {
                             const monthLabel = new Date(row.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
                             const fmt = (v) => Math.round(v).toLocaleString('en-IN');
+                            const edit = wcEdits[row.month] || { expense: row.expenses, wc_adj: row.wc_adjustment || 0 };
                             return (
-                              <tr key={row.month} className="border-b hover:bg-muted/30" data-testid={`wc-row-${row.month}`}>
-                                <td className="px-2 py-2 font-medium text-xs">{monthLabel}</td>
+                              <tr key={row.month} className={`border-b hover:bg-muted/30 ${row._dirty ? 'bg-yellow-50/60' : ''}`} data-testid={`wc-row-${row.month}`}>
+                                <td className="px-2 py-2 font-medium text-xs">{monthLabel}{row._dirty && <span className="ml-1 text-[10px] text-amber-700" title="Unsaved change">*</span>}</td>
                                 <td className="px-2 py-2 text-right font-mono text-xs">{fmt(row.sale)}</td>
                                 <td className="px-2 py-2 text-right bg-amber-50/50">
                                   <input type="number"
-                                    data-wc-edit=""
-                                    data-month={row.month}
-                                    data-field="expenses"
-                                    data-orig={Math.round(row.expenses)}
-                                    data-dbval={Math.round(row.expenses_db || row.expenses)}
                                     className="w-24 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
-                                    defaultValue={Math.round(row.expenses)}
+                                    value={edit.expense}
+                                    onChange={(e) => {
+                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                      setWcEdits(prev => ({ ...prev, [row.month]: { ...(prev[row.month] || {}), expense: isNaN(v) ? 0 : v, wc_adj: (prev[row.month]?.wc_adj ?? row.wc_adjustment ?? 0) } }));
+                                    }}
                                     data-testid={`wc-expense-${row.month}`}
                                   />
                                 </td>
@@ -1151,12 +1211,12 @@ export default function CenterAccounts() {
                                 <td className="px-2 py-2 text-right font-mono text-xs bg-cyan-50/50 font-bold">{fmt(row.diff_wc || row.balance_wc)}</td>
                                 <td className="px-2 py-2 text-right bg-purple-50/50">
                                   <input type="number"
-                                    data-wc-edit=""
-                                    data-month={row.month}
-                                    data-field="wc_adj"
-                                    data-orig={Math.round(row.wc_adjustment || 0)}
                                     className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
-                                    defaultValue={Math.round(row.wc_adjustment || 0)}
+                                    value={edit.wc_adj}
+                                    onChange={(e) => {
+                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                      setWcEdits(prev => ({ ...prev, [row.month]: { ...(prev[row.month] || {}), wc_adj: isNaN(v) ? 0 : v, expense: (prev[row.month]?.expense ?? row.expenses ?? 0) } }));
+                                    }}
                                     data-testid={`wc-adj-${row.month}`}
                                   />
                                 </td>
