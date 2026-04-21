@@ -5,6 +5,15 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-21] WC Table Exports + Auto INTRA Expense + Center-Specific Attendance Lock
+- `POST /api/center-accounts/wc-row-save` auto-creates a mirrored "INTRA CENTER ADJUSTMENT" entry in `db.expenses` for the same center+month (idempotent via `intra_entry_id`).
+- `POST /api/center-accounts/wc-table/export-pdf` and `/export-excel` produce branded Purnabramha PDF / XLSX downloads.
+- `AttendanceLockRequest.center` now optional. Lock docs keyed by `{month, center}`; empty center represents a global (all-centers) lock.
+- `/lock`, `/lock-status`, `is_month_locked`, `is_date_locked`, `is_attendance_locked` (attendance_dashboard.py, attendance.py, server.py) updated to be center-aware; global locks take precedence.
+- `bulk_attendance` and `bulk_attendance_month` write-gates now pass the request center to the lock check, so a center-specific lock only blocks writes for that center.
+- Frontend `AttendanceDashboard.jsx`: lock button label, badge and confirm dialog now echo the selected center or "ALL CENTERS".
+- Verified end-to-end via testing_agent_v3_fork — 10/10 backend pytest cases + frontend scope label checks passed (iteration_69.json).
+
 ### [2026-04-18] International Weekly Roster (Complete - All 3 Phases)
 **Phase 1 - Core CRUD + Masters:**
 - Role Master (10 default roles: Biller, Plater, Service, Kitchen Hand, etc.)
@@ -37,7 +46,6 @@ Internal management system for "Purnabramha," a restaurant franchise.
 ### [2026-04-16] Salary Fixes + Food Safety Tablet UI
 
 ## Pending / Backlog
-- (P0) Center-Specific Attendance Unlock
 - (P1) WhatsApp/Email notification hooks
 - (P1) Code freeze preparation audit
-- (P2) Image Upload for Recipes, Franchise Deal Simulator, Menu card PDF, PDF refactoring
+- (P2) Image Upload for Recipes, Franchise Deal Simulator, Menu card PDF, PDF refactoring, 7-year retention deletion prompt

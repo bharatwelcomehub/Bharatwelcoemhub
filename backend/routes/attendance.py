@@ -181,10 +181,12 @@ async def bulk_attendance(req: BulkAttendance):
     if not session:
         raise HTTPException(401, "Invalid or expired token")
     
-    # Check attendance lock FIRST
-    att_lock = await is_attendance_locked(req.date)
+    # Check attendance lock FIRST (center-scoped)
+    center_req = (req.center or "").upper()
+    att_lock = await is_attendance_locked(req.date, center_req)
     if att_lock["locked"]:
-        raise HTTPException(400, f"Attendance is locked for {att_lock['month']}. Contact Admin to unlock.")
+        scope = att_lock.get("scope", "center")
+        raise HTTPException(400, f"Attendance is locked for {att_lock['month']} ({'all centers' if scope == 'global' else center_req}). Contact Admin to unlock.")
     
     # Check payroll lock
     month = req.date[:7]
