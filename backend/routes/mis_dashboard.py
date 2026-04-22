@@ -202,6 +202,55 @@ async def get_mis_overview(data: dict):
     # Expenses
     total_expenses = sum(float(e.get("amount", 0) or 0) for e in expenses_data)
     
+    # Historical monthly summary merge — fills months that have no live daily
+    # data from imported Excel rollups. Scoped by center (if center != "all")
+    # and the date range's months. Does NOT overwrite live data.
+    try:
+        from datetime import datetime as _dt
+        _s = _dt.strptime(start_date, "%Y-%m-%d").replace(day=1)
+        _e = _dt.strptime(end_date, "%Y-%m-%d")
+        _ms = set()
+        _cur = _s
+        while _cur <= _e:
+            _ms.add(_cur.strftime("%Y-%m"))
+            _cur = _cur.replace(year=_cur.year + 1, month=1) if _cur.month == 12 else _cur.replace(month=_cur.month + 1)
+        # Live-month set per (center, month): any row with non-zero sale/expense
+        _live = set()
+        for s in sales_data:
+            _c = s.get("center", "")
+            _m = (s.get("date") or "")[:7]
+            if _c and _m and (float(s.get("total_sale", 0) or 0) > 0):
+                _live.add((_c, _m))
+        for e in expenses_data:
+            _c = e.get("center", "")
+            _m = (e.get("date") or "")[:7]
+            if _c and _m and (float(e.get("amount", 0) or 0) > 0):
+                _live.add((_c, _m))
+        _q = {"month": {"$in": list(_ms)}}
+        if center and center != "all":
+            _q["center"] = center
+        _hist = await db.historical_monthly_summary.find(_q, {"_id": 0}).to_list(5000)
+        hist_sale_add = 0.0
+        hist_exp_add = 0.0
+        hist_by_center: dict = {}
+        for h in _hist:
+            key = (h.get("center", ""), h.get("month", ""))
+            if key in _live:
+                continue
+            s_v = float(h.get("sale", 0) or 0)
+            e_v = float(h.get("expenses", 0) or 0)
+            hist_sale_add += s_v
+            hist_exp_add += e_v
+            cc = h.get("center", "")
+            hist_by_center.setdefault(cc, {"sale": 0, "expenses": 0})
+            hist_by_center[cc]["sale"] += s_v
+            hist_by_center[cc]["expenses"] += e_v
+        total_sales += hist_sale_add
+        total_expenses += hist_exp_add
+    except Exception as hx:
+        logger.warning(f"MIS: historical merge failed: {hx}")
+        hist_by_center = {}
+    
     # Commission calculation (from monthly_commissions uploads)
     total_commissions = 0.0
     try:
@@ -334,6 +383,17 @@ async def get_mis_overview(data: dict):
         if c not in centers_data:
             centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
         centers_data[c]["expenses"] += float(e.get("amount", 0) or 0)
+    
+    # Inject historical (Excel-imported) totals per center — only for months
+    # where this center has no live data (already filtered into hist_by_center).
+    try:
+        for cc, v in (hist_by_center or {}).items():
+            if cc not in centers_data:
+                centers_data[cc] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
+            centers_data[cc]["sales"] += v.get("sale", 0)
+            centers_data[cc]["expenses"] += v.get("expenses", 0)
+    except Exception:
+        pass
     
     # Add commissions per center from monthly_commissions
     try:

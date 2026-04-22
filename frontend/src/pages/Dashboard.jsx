@@ -41,6 +41,7 @@ import {
   MessageSquare,
   Download,
   Share2,
+  Upload,
 } from "lucide-react";
 
 // Import pages
@@ -60,6 +61,7 @@ import FranchiseManagement from "@/pages/FranchiseManagement";
 import FranchiseExit from "@/pages/FranchiseExit";
 import MISDashboard from "@/pages/MISDashboard";
 import CenterAccounts from "@/pages/CenterAccounts";
+import HistoricalImport from "@/pages/HistoricalImport";
 import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
@@ -112,6 +114,7 @@ const menuCategories = [
     items: [
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
       { path: "/loan-entries", icon: Wallet, label: "Loan Entries", forAccounts: true },
+      { path: "/historical-import", icon: Upload, label: "Historical Import", forAccounts: true, superAdminOnly: true },
       { path: "/mis-dashboard", icon: BarChart3, label: "MIS Dashboard", forAccounts: true },
     ]
   },
@@ -272,6 +275,7 @@ export default function Dashboard() {
       }
       return true;
     }
+    if (item.superAdminOnly && !isSuperAdmin) return false;
     if (item.forAccounts) {
       return isAdmin || userRoles.accounting === true;
     }
@@ -484,6 +488,7 @@ export default function Dashboard() {
             <Route path="/franchises" element={<FranchiseManagement />} />
             <Route path="/franchise-exit" element={<FranchiseExit />} />
             <Route path="/center-accounts" element={<CenterAccounts />} />
+            <Route path="/historical-import" element={<HistoricalImport />} />
             <Route path="/loan-entries" element={<LoanEntries />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />

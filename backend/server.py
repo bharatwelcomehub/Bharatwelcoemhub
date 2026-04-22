@@ -2305,6 +2305,10 @@ set_ir_db(db)
 set_ir_verify_token(verify_token)
 app.include_router(ir_router)
 
+# Historical data import (WC rollups, loans)
+from routes.historical_import import router as hist_router
+app.include_router(hist_router)
+
 
 
 @app.on_event("startup")

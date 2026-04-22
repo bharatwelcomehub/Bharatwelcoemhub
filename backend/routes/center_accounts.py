@@ -268,6 +268,26 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     except Exception:
         pass
     
+    # Merge historical monthly summary (only months with no live data)
+    try:
+        hist_rows = await db_ref.historical_monthly_summary.find(
+            {"center": center_code}, {"_id": 0}
+        ).to_list(500)
+        for h in hist_rows:
+            m = h.get("month", "")
+            if not m:
+                continue
+            has_live = m in month_data and (
+                month_data[m].get("sale", 0) > 0 or month_data[m].get("expenses", 0) > 0
+            )
+            if has_live:
+                continue
+            month_data.setdefault(m, {"sale": 0, "expenses": 0, "commission": 0, "gst": 0})
+            month_data[m]["sale"] = float(h.get("sale", 0) or 0)
+            month_data[m]["expenses"] = float(h.get("expenses", 0) or 0)
+    except Exception:
+        pass
+    
     # Chain WC month-by-month with proper flow
     sorted_months = sorted(m for m in month_data.keys() if m <= up_to_month)
     
@@ -533,6 +553,32 @@ async def get_wc_table(req: dict = Body(...)):
         if m not in month_data:
             month_data[m] = {"sale": 0, "expenses": 0, "commission": 0, "gst": 0}
         month_data[m]["gst"] = g["total_gst"]
+    
+    # Merge historical monthly summary rows (from Excel imports). Only fill in
+    # months that have no daily sale/expense in the database so we never
+    # double-count live operational data.
+    try:
+        hist_rows = await db.historical_monthly_summary.find(
+            {"center": center}, {"_id": 0}
+        ).to_list(500)
+        for h in hist_rows:
+            m = h.get("month", "")
+            if not m:
+                continue
+            has_live = m in month_data and (
+                month_data[m].get("sale", 0) > 0 or month_data[m].get("expenses", 0) > 0
+            )
+            if has_live:
+                continue
+            month_data.setdefault(m, {"sale": 0, "expenses": 0, "commission": 0, "gst": 0})
+            month_data[m]["sale"] = float(h.get("sale", 0) or 0)
+            month_data[m]["expenses"] = float(h.get("expenses", 0) or 0)
+            # historical rows don't carry separate commission/gst — already
+            # netted into P/L in the source file. Keep commission/gst at 0 so
+            # our P/L formula (sale - expenses - comm - gst) matches the source.
+            month_data[m]["_from_history"] = True
+    except Exception as hx:
+        logger.warning(f"WC history merge failed for {center}: {hx}")
     
     if not month_data:
         return {

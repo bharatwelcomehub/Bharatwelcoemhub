@@ -1,0 +1,40 @@
+{
+  "summary": "Phase-1 Historical Monthly Rollup Migration — full coverage. Added /app/backend/tests/test_historical_import.py (10 focused cases) covering: auth (non-super-admin 403 on /import-wc-file and /clear), import of /tmp/wc.xlsx (6 sheets processed: PB-SN 39, PB-DV 16, PB-KN 13, PB-TH 39, PB-HSR 15, PB-HW 8 = 130 rows; LOANS & 'S NAGAR W CAP' skipped), idempotency on re-import (upsert by {center,month} keeps count stable), /summary shape (earliest/latest/months/total_sale/total_expenses per center), /clear scoping (center=PB-SN deletes only PB-SN rows — others untouched), WC-table merge (PB-SN now surfaces 2023-01..2026-03 historical months with cascading Balance WC), no-double-count invariant (PB-HSR months sanity-checked against /api/mis/overview total_sales within 15% — live data takes precedence), /api/mis/overview with period=custom picks up PB-TH 2024-06 history (total_sales>0, per-center row present), /api/mis/working-capital differs from base_wc after historical cascade. All 10 pass. Regression: 23/23 passed across test_mis_wc_parity.py + test_wc_target_expenses.py + test_wc_and_attendance_lock.py. Frontend smoke: /historical-import renders for Super Admin (page wrapper + file input + upload button all have data-testid); sidebar 'Historical Import' link appears under Accounts group for super_admin only; gated off for franchise_owner (8888888888/PB-HSR).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/historical/import-wc-file", "issue": "Sheet 'S NAGAR W CAP' is skipped with reason 'no parseable month rows' — _parse_wc_sheet header detection doesn't match that sheet's header row layout. Not a regression (PB-SN is still seeded from the 'S-NAGAR' sheet), but worth confirming with the user that the intended mapping is the other sheet."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_historical_import.py",
+    "/app/test_reports/pytest/pytest_historical_import.xml",
+    "/app/test_reports/pytest/pytest_wc_regression_iter73.xml"
+  ],
+  "action_items": [
+    "(Optional) Confirm with user whether 'S NAGAR W CAP' sheet should also be ingested — it is currently skipped due to header-row layout mismatch. 'S-NAGAR W-CAP ASSMT' variant is processed correctly so PB-SN data is complete."
+  ],
+  "critical_code_review_comments": [
+    "historical_import.py _parse_wc_sheet (L92-99) relies on header row containing the exact lowercased tokens 'month' AND 'sale'/'sales' — any sheet whose header uses 'MONTH' split across two cells or has extra whitespace/merged cells will be silently skipped. The 'sheets_skipped' array does surface these, so operationally fine, but consider loosening the match (substring) or logging warnings.",
+    "historical_import.py BANER→PB-MGT fallback (L41) still has a TODO — should be resolved before a broader Phase-2 rollout; currently BANER would land under PB-MGT which could mix with real MGT live data. File doesn't include a BANER sheet today so no regression.",
+    "center_accounts.get_wc_table (L557-581) and calculate_working_capital_standing (L271-289) correctly gate historical merge on 'has_live' (sale>0 or expenses>0). This is the right no-double-count guard but it means a month with tiny live data (e.g. one mis-entered INTRA row of ₹1) would shadow the entire historical rollup. Acceptable for Phase-1; flag if user reports truncation.",
+    "mis_dashboard.py L208-252 historical merge derives the month set from start_date→end_date using calendar iteration — works for any custom range. Scoped by center when center!='all'. Live-month detection (L218-228) uses (center,month) with sale>0 OR expense>0 — consistent with WC table.",
+    "HistoricalImport.jsx cleanly separates super-admin gate (L70-72) and has full data-testid coverage (historical-import-page, historical-file-input, historical-upload-btn, historical-last-result, historical-summary-table, historical-clear-{center}, historical-clear-all). No design issues observed.",
+    "Sidebar entry Dashboard.jsx L117 uses superAdminOnly:true flag — correctly hides link from non-super-admin as verified in UI smoke test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_historical_import.py (new, 10 tests)"
+  ],
+  "success_rate": {"backend": "100% (10/10 new + 23/23 regression = 33/33)", "frontend": "100% smoke (page + sidebar gating)"},
+  "test_credentials": "Super Admin 9741399190 / OTP 123456 / center PB-MGT. Franchise Owner 8888888888 / OTP 123456 / center PB-HSR.",
+  "seed_data_creation": "Tests auto-seed /tmp/wc.xlsx (130 rows, 6 centers) via module fixture and clear historical_monthly_summary both before and after the module run. Post-test DB is clean (mongosh confirmed).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Historical import end-to-end is green. Test helpers in test_historical_import.py: _login(creds), SAMPLE_XLSX constant, module-scoped super_token/franchise_token fixtures, seeded fixture re-imports /tmp/wc.xlsx. When extending to Phase-2 (daily rollup migration or loans import), add a new TestLoansImport class calling POST /api/historical/import-loans-file (endpoint noted in docstring L165 but not yet implemented). MIS overview requires period='custom' + custom_start/custom_end — not start_date/end_date — a gotcha caught in this iteration.",
+  "rca of the issue": "n/a — feature implementation verified green, no bug raised."
+}
