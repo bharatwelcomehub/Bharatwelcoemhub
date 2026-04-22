@@ -1,0 +1,44 @@
+{
+  "summary": "Phase-1 (option a) Loans Historical Importer — full coverage. Added /app/backend/tests/test_historical_loans_import.py (10 cases) covering: auth (franchise gets 403 on /import-loans-file and /clear-loans), import of /tmp/wc.xlsx parses LOANS sheets (PB-SN, PB-DV, PB-KN, PB-TH, PB-MGT, PB-HW etc.), idempotency (re-import keeps DB count stable at 396 HIST- docs / 247 pairs), mirror integrity (every HIST-*-G has mirror HIST-*-T with matching linked_loan_id, amount, loan_date, swapped center/source_center — 60 pairs spot-checked), /loans-summary shape + total_count==total_rows + parity check that count is even (mirror invariant), /api/loan-entries/list (the actual loans listing endpoint — verified HIST-* rows surface in existing UI flow), /clear-loans with center=PB-SN deletes only PB-SN HIST- (others untouched), /clear-loans without center wipes all HIST- loans. All 10 pass. Regression: 33/33 pre-existing tests (test_wc_target_expenses 7 + test_wc_and_attendance_lock 9 + test_mis_wc_parity 6 + test_historical_import 11) all green. Frontend smoke on https://balance-cascade-fix.preview.emergentagent.com/historical-import (super_admin login 9741399190): page renders, all six required data-testids present (historical-import-page, historical-file-input, historical-upload-btn, loans-file-input, loans-upload-btn, 'Loans Import (Inter-Center Transfers)' title) — loans-summary-table not yet visible because pytest teardown wiped HIST docs (conditional render is correct).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/historical/import-loans-file", "issue": "BANER counterparty/sheet currently maps to PB-MGT as a fallback (TODO comment in COUNTERPARTY_TO_CENTER L244 and SHEET_TO_CENTER L41). Will conflate with real PB-MGT loans the moment a true BANER center is created. Same TODO existed for WC import — flagged in iter73 as well."},
+      {"endpoint": "/api/historical/loans-summary", "issue": "Endpoint walks every HIST- doc on each call (no projection-side aggregation). For 396 docs it's instant, but at scale (>50k pairs) consider db.aggregate([$match,$group])."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/historical-import (Loans Import card)", "issues": ["Loans summary table is conditionally rendered only when loansSummary.centers.length>0 — when empty there's no placeholder analogous to the WC card's 'No historical data imported yet'. Consider adding a parallel empty-state inside the Loans card for consistency."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_historical_loans_import.py",
+    "/app/test_reports/pytest/pytest_loans_import.xml",
+    "/app/test_reports/pytest/pytest_regression_iter74.xml"
+  ],
+  "action_items": [
+    "(Optional) Resolve BANER → PB-MGT TODO before onboarding a real Baner center, otherwise historical loans will mis-route.",
+    "(Optional, low-pri) Add an empty-state row to the Loans Import card when loansSummary is empty, mirroring the WC card."
+  ],
+  "critical_code_review_comments": [
+    "historical_import.py _parse_loans_sheet (L258-356): counterparty resolution scans up to 5 rows above the header AND ±1/2/3 column offsets — robust for merged/header-spanned cells. Diagonal scans could theoretically pick the wrong counterparty for very dense sheets; in practice 247 pairs imported cleanly with cross-sheet dedup intact (396 distinct docs).",
+    "historical_import.py _upsert_loan_pairs (L359-424): deterministic loan_id = HIST-{giver}-{taker}-{date}-{int_amount}-G/-T is the right idempotency key. status hard-coded to 'partially_repaid' is intentional (closing-balance handled manually) but means every HIST- loan permanently shows as partial in /api/loan-entries/list summary buckets — confirm with user this is desired.",
+    "historical_import.py L375 uses int(round(amount)) in the loan_id — two same-day pairs that differ only in paise would collide and overwrite. Acceptable for the historical roll-up where amounts are whole rupees, but worth a code comment.",
+    "historical_import.py L452: 'if \"LOAN\" not in sn.upper(): continue' — same pattern as WC's skip; symmetric so no regression.",
+    "loan_entries.py /list (L236) returns every loan_entries row joined by center, no source filter — HIST-* rows interleave with manually-entered loans. UI may want a toggle 'show historical only' once volume grows.",
+    "HistoricalImport.jsx L233-324: clean separation; all required data-testids (loans-file-input, loans-upload-btn, loans-last-result, loans-summary-table, loans-clear-{center}, loans-clear-all) present; toast feedback wired; fetchSummary refreshes both summaries in parallel."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_historical_loans_import.py (new, 10 tests)"
+  ],
+  "success_rate": {"backend": "100% (10/10 new + 33/33 regression = 43/43)", "frontend": "100% smoke (page renders, all 6 testids present)"},
+  "test_credentials": "Super Admin 9741399190 / OTP 123456 / center PB-MGT. Franchise Owner 8888888888 / OTP 123456 / center PB-HSR.",
+  "seed_data_creation": "Module fixture deletes HIST- loan_entries before & after run (per main-agent instruction: do NOT touch historical_monthly_summary). Final DB state: HIST- loans wiped clean. WC historical_monthly_summary preserved as instructed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Loans importer is green end-to-end. Test helpers in test_historical_loans_import.py: _login(creds), _mongo_client() (reads /app/backend/.env, strips quotes — a gotcha caught this iteration), SAMPLE_XLSX=/tmp/wc.xlsx. Existing /api/loan-entries/list (POST {token, center}) is the canonical endpoint to query loans (NOT /api/loans). When extending to Phase-2 (e.g., daily import, repayments), follow the same idempotent loan_id pattern HIST-{giver}-{taker}-{YYYY-MM-DD}-{int_amount}-G/-T. Note status is hard-coded 'partially_repaid'.",
+  "rca of the issue": "n/a — feature implementation verified green, no bug raised."
+}
