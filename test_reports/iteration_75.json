@@ -1,0 +1,41 @@
+{
+  "summary": "Phase-2 Monthly Expense/Trial Balance importer — full backend coverage. Added /app/backend/tests/test_historical_monthly_import.py (12 cases) covering all 8 review-request scenarios: (1) happy-path import of /tmp/hsr_mar26.xlsx → success=true, center=PB-HSR, month=2026-03, TB heads=37, total_expenses=₹14,62,630, total_sales=₹12,47,314, expense rows=93, daily_sales.days=31; (2) filename auto-detect — renamed copy 'EXPENCE SHEET -HSR- MARCH. 2026.xlsx' resolves to PB-HSR/2026-03, file without center keyword returns 400, center_override rescues it; (3) idempotency — two consecutive imports leave expenses count unchanged and historical_trial_balance has exactly ONE doc per {center,month}; (4) live-data protection — seeded a non-monthly_import row for 2026-03-15, re-import does NOT overwrite it, skipped_live_days counter ≥1; (5) /monthly-summary returns PB-HSR with months_count≥1, earliest≤2026-03≤latest, totals >₹10L; (6) RBAC — franchise token (8888888888) gets 403 on both /import-monthly-file and /clear-monthly; (7) downstream visibility — /api/center-accounts/wc-table for PB-HSR shows a 2026-03 row with expenses ≥₹9L, /api/mis/overview for 2026-03-01..2026-03-31 PB-HSR includes total_expenses ≥₹9L; (8) /clear-monthly with {center:PB-HSR, month:2026-03} deletes monthly_import expense rows and the TB doc but PRESERVES a manually-seeded live expense row. All 12 pass. Regression: 43/43 prior historical tests (test_historical_import 10 + test_historical_loans_import 10 + test_wc_target_expenses 7 + test_wc_and_attendance_lock 10 + test_mis_wc_parity 6) all green. Cleanup teardown wipes monthly_import + historical_trial_balance per main-agent instruction.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/historical/import-monthly-file", "issue": "Per-row inserts in a Python loop (db.expenses.insert_one × 93 + db.daily_sales.update_one × 31) — fine for one center/month, but at 240 file batch-import scale (~22k inserts) will be slow. Consider insert_many for expenses and a bulk_write for daily_sales."},
+      {"endpoint": "/api/historical/import-monthly-file", "issue": "_parse_trial_balance_sheet (L587) uses 'first numeric cell as amount' heuristic — works for HSR's layout but is fragile against TB sheets that put a code/serial number in the first numeric column. Recommend anchoring to a column header (AMOUNT/CR/DR) once another center's TB layout is sampled."},
+      {"endpoint": "/api/historical/import-monthly-file", "issue": "_find_month_sheet only matches sheets whose tokens contain a 3-letter month prefix + the year; sheets named 'MARCH' (no year) won't be detected. The HSR file has 'MARCH.26' so it's fine, but other centers may have variant naming."},
+      {"endpoint": "/api/historical/clear-monthly", "issue": "Wildcard wipe (no center, no month) deletes ALL monthly_import rows + ALL historical_trial_balance — this is intentional but lacks a confirm flag. A 'confirm: true' guard would prevent fat-finger wipes."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_historical_monthly_import.py",
+    "/app/test_reports/pytest/pytest_historical_monthly_import.xml",
+    "/app/test_reports/pytest/pytest_regression_iter75.xml"
+  ],
+  "action_items": [
+    "(Optional) Switch per-row inserts to bulk_write/insert_many in /import-monthly-file before bulk-importing the 240-file backlog (10 centers × 24 months).",
+    "(Optional) Harden _parse_trial_balance_sheet header detection by anchoring on AMOUNT/CR/DR column instead of first-numeric heuristic — sample another center's TB sheet to confirm.",
+    "(Optional) Extend _find_month_sheet fallback when month-sheet name has no year token (e.g. plain 'MARCH').",
+    "(Optional) Add confirm:true guard to /clear-monthly when both center & month are absent."
+  ],
+  "critical_code_review_comments": [
+    "historical_import.py _detect_center_from_filename (L58) correctly tokenises on non-alphanumerics — prevents 'HSR' from matching unrelated words (verified by NO_CENTER_XLSX test).",
+    "historical_import.py /import-monthly-file (L767-893) correctly delete-then-insert monthly_import expenses (L838-841) — clean re-import without orphan rows. Verified by test_05.",
+    "historical_import.py daily_sales upsert (L863-888) deletes prior monthly_import docs, then existence-checks each day before upsert. The skipped_live_days counter is correctly populated (verified test_06).",
+    "historical_import.py /clear-monthly (L921-954) source-regex filter on monthly_import: protects live rows. Verified test_12.",
+    "historical_import.py /import-monthly-file does NOT call total_expenses_sum from daily expense rows — uses TB rollup only. WC-table downstream test (test_10) confirms expenses surface via existing /center-accounts aggregation on db.expenses. Good separation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_historical_monthly_import.py (new, 12 tests)"
+  ],
+  "success_rate": {"backend": "100% (12/12 new + 43/43 regression = 55/55)", "frontend": "not tested (testing_type=backend only)"},
+  "test_credentials": "Super Admin 9741399190 / OTP 123456 / center PB-MGT. Franchise Owner 8888888888 / OTP 123456 / center PB-HSR.",
+  "seed_data_creation": "Module-scoped autouse fixture creates two renamed copies of /tmp/hsr_mar26.xlsx ('EXPENCE SHEET -HSR- MARCH. 2026.xlsx' and 'EXPENCE SHEET MARCH 2026.xlsx') in /tmp and removes them at teardown. Cleanup also wipes db.expenses and db.daily_sales rows with source matching ^monthly_import: and the entire db.historical_trial_balance collection — per main-agent instruction.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Monthly importer is end-to-end green. Test helpers in test_historical_monthly_import.py: _login(creds), _mongo() (reads /app/backend/.env, strips quotes), ORIG_XLSX=/tmp/hsr_mar26.xlsx, RENAMED_HSR/NO_CENTER_XLSX created in /tmp via shutil.copy. The HSR sample file already has live daily_sales rows for 2026-03 from prior operator entry → test_06 self-seeds an extra non-monthly_import row to be safe. When extending to the other 9 centers, use /import-monthly-file with center_override if the filename keyword doesn't match FILENAME_CENTER_KEYWORDS. Frontend changes (Monthly Import card on /historical-import) were NOT exercised this run — main agent or next frontend testing agent should verify data-testid='monthly-file-input' and 'monthly-upload-btn' wiring.",
+  "rca of the issue": "n/a — feature implementation verified green, no bug raised."
+}

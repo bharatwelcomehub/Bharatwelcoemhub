@@ -25,6 +25,66 @@ db = _mongo[os.environ["DB_NAME"]]
 router = APIRouter(prefix="/api/historical", tags=["historical"])
 
 
+# Center-name keyword → system center code (used for filename-based auto-detect
+# AND sheet-name mapping in WC files).
+FILENAME_CENTER_KEYWORDS = [
+    ("HSR", "PB-HSR"),
+    ("DOMBIVLI", "PB-DV"),
+    ("DOMBVLI", "PB-DV"),
+    ("THANE", "PB-TH"),
+    ("S-NAGAR", "PB-SN"),
+    ("SAMBHAJI", "PB-SN"),
+    ("SN", "PB-SN"),
+    ("KHARADI", "PB-KN"),
+    ("KN", "PB-KN"),
+    ("HINJAWADI", "PB-HW"),
+    ("HINJAWADE", "PB-HW"),
+    ("HW", "PB-HW"),
+    ("MGT", "PB-MGT"),
+    ("MFPL", "PB-MGT"),
+    ("KALYAN", "PB-KAL"),
+    ("KAL", "PB-KAL"),
+    ("PERTH", "PB-PERTH"),
+]
+
+MONTH_NAMES = {
+    "JAN": 1, "JANUARY": 1, "FEB": 2, "FEBRUARY": 2, "MAR": 3, "MARCH": 3,
+    "APR": 4, "APRIL": 4, "MAY": 5, "JUN": 6, "JUNE": 6, "JUL": 7, "JULY": 7,
+    "AUG": 8, "AUGUST": 8, "SEP": 9, "SEPT": 9, "SEPTEMBER": 9,
+    "OCT": 10, "OCTOBER": 10, "NOV": 11, "NOVEMBER": 11, "DEC": 12, "DECEMBER": 12,
+}
+
+
+def _detect_center_from_filename(name: str) -> Optional[str]:
+    import re as _re
+    up = name.upper()
+    # Separate tokens around non-alphanumerics so "HSR" doesn't match words like "THOSE"
+    tokens = set(_re.findall(r"[A-Z0-9]+", up))
+    for kw, code in FILENAME_CENTER_KEYWORDS:
+        if kw in tokens:
+            return code
+    return None
+
+
+def _detect_month_from_filename(name: str) -> Optional[str]:
+    import re as _re
+    up = name.upper()
+    # Look for a month name followed (possibly) by a year
+    # Patterns like "MARCH. 2026", "APRIL 2024", "MAR 26", "APR.18"
+    m = _re.search(r"(JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:T(?:EMBER)?)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)[.\s-]*((?:20)?\d{2})", up)
+    if not m:
+        return None
+    mname = m.group(1)
+    yraw = m.group(2)
+    month_num = MONTH_NAMES.get(mname)
+    if not month_num:
+        return None
+    year = int(yraw)
+    if year < 100:
+        year = 2000 + year
+    return f"{year:04d}-{month_num:02d}"
+
+
 # Sheet name (or uppercased keywords in it) → system center code.
 # Matching is: if any key is a substring of the sheet name (upper) → map.
 SHEET_TO_CENTER = {
@@ -518,4 +578,378 @@ async def clear_historical(req: dict):
     else:
         res = await db.historical_monthly_summary.delete_many({})
     return {"success": True, "deleted": res.deleted_count}
+
+
+# ============================================================
+# MONTHLY FILE IMPORTER (Trial Balance + Daily Expenses + Daily Sales)
+# ============================================================
+
+def _parse_trial_balance_sheet(ws) -> dict:
+    """Return {heads: {CATEGORY: amount}, total_sales: float}."""
+    rows = list(ws.iter_rows(values_only=True))
+    heads: dict[str, float] = {}
+    total_sales = 0.0
+    for row in rows:
+        # pick first non-empty text cell as label
+        label = None
+        amount = None
+        sales_amt = None
+        for ci, v in enumerate(row):
+            if v is None or v == "":
+                continue
+            if isinstance(v, str):
+                s = v.strip()
+                if not s:
+                    continue
+                if label is None:
+                    label = s
+                elif "SALES" in s.upper() or "RESTAURANT" in s.upper():
+                    # next numeric is sales
+                    for v2 in row[ci + 1:]:
+                        if isinstance(v2, (int, float)) and v2 > 0:
+                            sales_amt = float(v2)
+                            break
+            elif isinstance(v, (int, float)) and amount is None:
+                amount = float(v)
+        if sales_amt is not None:
+            total_sales += sales_amt
+        if label and amount is not None and amount > 0 and "SALES" not in label.upper() and "TOTAL" not in label.upper() and "PARTICULARS" not in label.upper() and "NARATION" not in label.upper():
+            heads[label.upper()] = heads.get(label.upper(), 0) + amount
+    return {"heads": heads, "total_sales": round(total_sales, 2)}
+
+
+def _find_month_sheet(wb, target_month: str) -> Optional[str]:
+    """Find a sheet whose name matches the target month (YYYY-MM)."""
+    import re as _re
+    try:
+        year_full = int(target_month[:4])
+        year_2d = year_full % 100
+        month_num = int(target_month[5:7])
+    except Exception:
+        return None
+    month_name = None
+    for name, n in MONTH_NAMES.items():
+        if n == month_num and len(name) <= 3:
+            month_name = name
+            break
+    if not month_name:
+        return None
+    for sn in wb.sheetnames:
+        up = sn.upper()
+        tokens = set(_re.findall(r"[A-Z0-9]+", up))
+        # Any form: "MARCH.26", "MAR 2026", "MAR.18", etc.
+        if not any(t.startswith(month_name[:3]) for t in tokens):
+            continue
+        if str(year_2d) in tokens or str(year_full) in tokens:
+            return sn
+    return None
+
+
+def _parse_daily_expense_sheet(ws) -> list[dict]:
+    """Return list of {date, description, amount, category, payment_mode}."""
+    rows = list(ws.iter_rows(values_only=True))
+    out = []
+    # Find header row containing DATE, EXPENCE, AMOUNT
+    header_idx = None
+    col_map = {}
+    for ri, row in enumerate(rows[:12]):
+        lowered = [str(c).strip().lower() if c else "" for c in row]
+        if any("date" == v for v in lowered) and any("expen" in v for v in lowered) and any("amount" in v for v in lowered):
+            header_idx = ri
+            for ci, v in enumerate(lowered):
+                if v == "date":
+                    col_map["date"] = ci
+                elif "expen" in v and "type" not in v:
+                    col_map["desc"] = ci
+                elif v == "amount":
+                    col_map["amount"] = ci
+                elif "expanse type" in v or "expense type" in v or "category" in v:
+                    col_map["category"] = ci
+                elif "payment" in v or "cash" == v:
+                    col_map.setdefault("payment", ci)
+            break
+    if header_idx is None or "date" not in col_map:
+        return []
+    for row in rows[header_idx + 1:]:
+        try:
+            d = row[col_map["date"]]
+            if not isinstance(d, datetime):
+                continue
+            desc = row[col_map.get("desc", -1)] if col_map.get("desc") is not None else ""
+            amt = row[col_map.get("amount", -1)] if col_map.get("amount") is not None else None
+            cat = row[col_map.get("category", -1)] if col_map.get("category") is not None else ""
+            pay = row[col_map.get("payment", -1)] if col_map.get("payment") is not None else ""
+            if not isinstance(amt, (int, float)) or amt <= 0:
+                continue
+            out.append({
+                "date": d.strftime("%Y-%m-%d"),
+                "description": (str(desc) if desc else "").strip(),
+                "category": (str(cat) if cat else "").strip().upper(),
+                "amount": float(amt),
+                "payment_mode": (str(pay) if pay else "CASH").strip().upper(),
+            })
+        except Exception:
+            continue
+    return out
+
+
+def _parse_daily_sales_from_sheets(wb, month: str) -> dict:
+    """Aggregate daily sales from CASH SALE + PHONE PE + CARD + SW + ZM sheets.
+    Returns {YYYY-MM-DD: {cash, online, card, swiggy, zomato, total}}."""
+    days: dict[str, dict] = {}
+    
+    def _rows(sname: str):
+        if sname not in wb.sheetnames:
+            return []
+        return list(wb[sname].iter_rows(values_only=True))
+    
+    def _extract(sn: str, value_col_keywords: tuple):
+        """Find 2nd numeric after DATE column; returns dict {date: value}."""
+        rows = _rows(sn)
+        out = {}
+        header_idx = None
+        date_ci = None
+        val_ci = None
+        for ri, row in enumerate(rows[:6]):
+            lowered = [str(c).strip().lower() if c else "" for c in row]
+            if "date" in lowered:
+                header_idx = ri
+                date_ci = lowered.index("date")
+                for ci, v in enumerate(lowered):
+                    for kw in value_col_keywords:
+                        if kw in v:
+                            val_ci = ci
+                            break
+                    if val_ci is not None:
+                        break
+                break
+        if header_idx is None or date_ci is None:
+            return out
+        if val_ci is None:
+            # Default: first numeric column after DATE
+            val_ci = date_ci + 1
+        for row in rows[header_idx + 1:]:
+            try:
+                d = row[date_ci]
+                v = row[val_ci] if val_ci < len(row) else None
+                if isinstance(d, datetime) and isinstance(v, (int, float)):
+                    out[d.strftime("%Y-%m-%d")] = float(v)
+            except Exception:
+                continue
+        return out
+    
+    cash_map = _extract("CASH SALE", ("cash sale", "cash"))
+    pp_map = _extract("PHONE PE", ("pp sale", "as per data"))
+    card_map = _extract("CARD", ("card",))
+    sw_map = _extract("SW", ("swiggy",))
+    zm_map = _extract("ZM", ("zomato",))
+    
+    all_dates = set(cash_map) | set(pp_map) | set(card_map) | set(sw_map) | set(zm_map)
+    for d in all_dates:
+        cash = cash_map.get(d, 0)
+        pp = pp_map.get(d, 0)
+        card = card_map.get(d, 0)
+        sw = sw_map.get(d, 0)
+        zm = zm_map.get(d, 0)
+        online = pp + card + sw + zm
+        days[d] = {
+            "cash": round(cash, 2),
+            "online": round(online, 2),
+            "phone_pe": round(pp, 2),
+            "card": round(card, 2),
+            "swiggy": round(sw, 2),
+            "zomato": round(zm, 2),
+            "total": round(cash + online, 2),
+        }
+    return days
+
+
+@router.post("/import-monthly-file")
+async def import_monthly_file(
+    file: UploadFile = File(...),
+    token: str = Form(...),
+    center_override: Optional[str] = Form(None),
+    month_override: Optional[str] = Form(None),
+):
+    """Upload a single monthly Excel (e.g. 'EXPENCE SHEET -HSR- MARCH. 2026.xlsx').
+    Parses 4 data sources and ingests them:
+      - TRIAL BAL. → historical_trial_balance (head-wise rollup)
+      - Daily expense sheet (MARCH.26 etc.) → db.expenses rows (historical source)
+      - CASH SALE + PHONE PE + CARD + SW + ZM → db.daily_sales (1 doc per date)
+      - PIB → ingested into historical_pib collection for future reporting
+    
+    Center & month auto-detected from filename; override with form fields."""
+    session = await get_session(token)
+    if not session or not check_super_admin(session):
+        raise HTTPException(403, "Only Super Admin can import historical data")
+    
+    user = session.get("managerName", "Admin")
+    raw = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
+    except Exception as exc:
+        raise HTTPException(400, f"Could not read workbook: {exc}")
+    
+    center = (center_override or _detect_center_from_filename(file.filename or "")) or ""
+    month = month_override or _detect_month_from_filename(file.filename or "") or ""
+    if not center:
+        raise HTTPException(400, "Could not detect center from filename — pass center_override.")
+    if not month:
+        raise HTTPException(400, "Could not detect month from filename — pass month_override (YYYY-MM).")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    result: dict = {
+        "file": file.filename, "center": center, "month": month,
+        "trial_balance": {"heads": 0, "total_expenses": 0, "total_sales": 0},
+        "expenses": {"rows": 0},
+        "daily_sales": {"days": 0, "total_sales": 0},
+    }
+    
+    # 1. TRIAL BAL.
+    tb_sheet = None
+    for sn in wb.sheetnames:
+        if "TRIAL" in sn.upper() and "BAL" in sn.upper():
+            tb_sheet = sn
+            break
+    if tb_sheet:
+        tb = _parse_trial_balance_sheet(wb[tb_sheet])
+        if tb["heads"]:
+            total_exp = round(sum(tb["heads"].values()), 2)
+            doc = {
+                "center": center, "month": month,
+                "heads": tb["heads"], "total_expenses": total_exp,
+                "total_sales": tb["total_sales"],
+                "source": f"monthly_import:{file.filename}",
+                "updated_at": now, "updated_by": user,
+            }
+            await db.historical_trial_balance.update_one(
+                {"center": center, "month": month},
+                {"$set": doc, "$setOnInsert": {"created_at": now, "created_by": user}},
+                upsert=True,
+            )
+            result["trial_balance"] = {"heads": len(tb["heads"]), "total_expenses": total_exp, "total_sales": tb["total_sales"]}
+    
+    # 2. Daily expenses (month sheet)
+    month_sheet = _find_month_sheet(wb, month)
+    expenses_rows = 0
+    if month_sheet:
+        exps = _parse_daily_expense_sheet(wb[month_sheet])
+        # Delete prior historical expenses for this center+month to keep re-imports clean
+        await db.expenses.delete_many({
+            "center": center, "date": {"$regex": f"^{month}"},
+            "source": {"$regex": "^monthly_import:"},
+        })
+        for i, e in enumerate(exps):
+            await db.expenses.insert_one({
+                "center": center, "date": e["date"],
+                "expense_type": e["category"] or "OTHER",
+                "description": e["description"] or "",
+                "amount": e["amount"],
+                "payment_mode": e["payment_mode"] or "CASH",
+                "source": f"monthly_import:{file.filename}",
+                "historical_id": f"HIST-EXP-{center}-{month}-{i:04d}",
+                "created_by": user, "created_at": now, "updated_at": now,
+            })
+            expenses_rows += 1
+        result["expenses"] = {"rows": expenses_rows}
+    
+    # 3. Daily sales (cash + online from 5 sheets)
+    daily = _parse_daily_sales_from_sheets(wb, month)
+    total_sales_sum = 0
+    # Clean prior monthly-import docs for this center+month so we can upsert
+    # without tripping the existing unique {center,date} index. Live daily_sales
+    # rows (created by operators) will block the insert — that's intentional
+    # so we never silently overwrite real data.
+    await db.daily_sales.delete_many({
+        "center": center, "date": {"$regex": f"^{month}"},
+        "source": {"$regex": "^monthly_import:"},
+    })
+    skipped_live = 0
+    for d, v in daily.items():
+        existing = await db.daily_sales.find_one({"center": center, "date": d}, {"_id": 0, "source": 1})
+        if existing and not str(existing.get("source", "")).startswith("monthly_import:"):
+            skipped_live += 1
+            continue
+        await db.daily_sales.update_one(
+            {"center": center, "date": d},
+            {"$set": {
+                "center": center, "date": d,
+                "total_cash_sale": v["cash"],
+                "total_online_sale": v["online"],
+                "total_sale": v["total"],
+                "phone_pe_sale": v["phone_pe"],
+                "card_sale": v["card"],
+                "swiggy_sale": v["swiggy"],
+                "zomato_sale": v["zomato"],
+                "source": f"monthly_import:{file.filename}",
+                "updated_at": now, "updated_by": user,
+            }, "$setOnInsert": {"created_at": now, "created_by": user}},
+            upsert=True,
+        )
+        total_sales_sum += v["total"]
+    result["daily_sales"] = {"days": len(daily), "total_sales": round(total_sales_sum, 2), "skipped_live_days": skipped_live}
+    
+    logger.info(f"Monthly import {file.filename} → {center} {month}: {result}")
+    return {"success": True, **result}
+
+
+@router.post("/monthly-summary")
+async def monthly_summary(req: dict):
+    """Rollup of imported monthly files: trial_balance + daily sales + expense row counts."""
+    token = req.get("token")
+    session = await get_session(token)
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    
+    tb = await db.historical_trial_balance.find({}, {"_id": 0}).to_list(5000)
+    by = {}
+    for r in tb:
+        key = r["center"]
+        by.setdefault(key, {"center": key, "months": [], "total_expenses": 0, "total_sales": 0})
+        by[key]["months"].append(r["month"])
+        by[key]["total_expenses"] += r.get("total_expenses", 0)
+        by[key]["total_sales"] += r.get("total_sales", 0)
+    for v in by.values():
+        v["months"].sort()
+        v["months_count"] = len(v["months"])
+        v["earliest"] = v["months"][0] if v["months"] else ""
+        v["latest"] = v["months"][-1] if v["months"] else ""
+    
+    return {"centers": list(by.values()), "total_files": len(tb)}
+
+
+@router.post("/clear-monthly")
+async def clear_monthly_imports(req: dict):
+    """Wipe monthly-import expenses + sales + trial balance for a center/month.
+    Super Admin only. If center+month not given, wipes ALL monthly imports."""
+    token = req.get("token")
+    session = await get_session(token)
+    if not session or not check_super_admin(session):
+        raise HTTPException(403, "Only Super Admin can clear historical data")
+    
+    center = req.get("center")
+    month = req.get("month")
+    
+    exp_q = {"source": {"$regex": "^monthly_import:"}}
+    sal_q = {"source": {"$regex": "^monthly_import:"}}
+    tb_q: dict = {}
+    if center:
+        exp_q["center"] = center
+        sal_q["center"] = center
+        tb_q["center"] = center
+    if month:
+        exp_q["date"] = {"$regex": f"^{month}"}
+        sal_q["date"] = {"$regex": f"^{month}"}
+        tb_q["month"] = month
+    
+    exp_del = await db.expenses.delete_many(exp_q)
+    sal_del = await db.daily_sales.delete_many(sal_q)
+    tb_del = await db.historical_trial_balance.delete_many(tb_q)
+    
+    return {
+        "success": True,
+        "expenses_deleted": exp_del.deleted_count,
+        "sales_deleted": sal_del.deleted_count,
+        "trial_balance_deleted": tb_del.deleted_count,
+    }
 

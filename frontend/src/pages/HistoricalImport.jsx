@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/App';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Database, Trash2, ArrowLeft, Landmark } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Database, Trash2, ArrowLeft, Landmark, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -21,6 +21,11 @@ export default function HistoricalImport() {
   const [loansUploading, setLoansUploading] = useState(false);
   const [lastLoansResult, setLastLoansResult] = useState(null);
   const [loansSummary, setLoansSummary] = useState(null);
+  // Monthly file state
+  const [monthlyFiles, setMonthlyFiles] = useState([]);
+  const [monthlyUploading, setMonthlyUploading] = useState(false);
+  const [monthlyResults, setMonthlyResults] = useState([]);
+  const [monthlySummary, setMonthlySummary] = useState(null);
 
   const isSuperAdmin = session?.role === 'super_admin' || session?.is_super_admin;
 
@@ -28,7 +33,7 @@ export default function HistoricalImport() {
     if (!session?.token) return;
     setLoadingSummary(true);
     try {
-      const [wcRes, ldRes] = await Promise.all([
+      const [wcRes, ldRes, mRes] = await Promise.all([
         fetch(`${API}/api/historical/summary`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: session.token }),
@@ -37,9 +42,14 @@ export default function HistoricalImport() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: session.token }),
         }),
+        fetch(`${API}/api/historical/monthly-summary`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: session.token }),
+        }),
       ]);
       if (wcRes.ok) setSummary(await wcRes.json());
       if (ldRes.ok) setLoansSummary(await ldRes.json());
+      if (mRes.ok) setMonthlySummary(await mRes.json());
     } finally {
       setLoadingSummary(false);
     }
@@ -107,6 +117,49 @@ export default function HistoricalImport() {
     const data = await res.json();
     if (res.ok) { toast.success(`Deleted ${data.deleted} loan rows`); fetchSummary(); }
     else toast.error(data.detail || 'Failed');
+  };
+
+  const handleMonthlyUpload = async () => {
+    if (!monthlyFiles.length) { toast.error('Pick one or more .xlsx files'); return; }
+    setMonthlyUploading(true);
+    const results = [];
+    for (const f of monthlyFiles) {
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('token', session.token);
+      try {
+        const res = await fetch(`${API}/api/historical/import-monthly-file`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Import failed');
+        results.push({ ok: true, name: f.name, ...data });
+      } catch (err) {
+        results.push({ ok: false, name: f.name, error: err.message });
+      }
+    }
+    setMonthlyResults(results);
+    const okCount = results.filter(r => r.ok).length;
+    toast[okCount === results.length ? 'success' : 'warning'](
+      `${okCount} of ${results.length} files imported`
+    );
+    setMonthlyFiles([]);
+    fetchSummary();
+    setMonthlyUploading(false);
+  };
+
+  const handleClearMonthly = async (center, month) => {
+    const label = month ? `${center} ${month}` : (center || 'ALL monthly imports');
+    if (!window.confirm(`Delete monthly import data for ${label}? (trial balance + expenses + sales rows from imports)`)) return;
+    const res = await fetch(`${API}/api/historical/clear-monthly`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session.token, center, month }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast.success(`Cleared: ${data.expenses_deleted} exp · ${data.sales_deleted} sales · ${data.trial_balance_deleted} TB`);
+      fetchSummary();
+    } else {
+      toast.error(data.detail || 'Failed');
+    }
   };
 
   if (!isSuperAdmin) {
@@ -320,6 +373,116 @@ export default function HistoricalImport() {
               </table>
             </div>
           )}
+        </CardContent>
+      </Card>
+      <Card className="border-blue-700/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-700" /> Monthly Expense/Trial Balance Import</CardTitle>
+          <CardDescription>
+            Upload one or more monthly expense files (e.g. <code>EXPENCE SHEET -HSR- MARCH. 2026.xlsx</code>). Center + month are auto-detected from filename. Ingests:
+            <span className="block mt-1">• <strong>TRIAL BAL.</strong> sheet → head-wise monthly rollup (GROCERY, RENT, etc.)</span>
+            <span className="block">• <strong>Daily expense sheet</strong> (e.g. MARCH.26) → expense rows into the Expense Master</span>
+            <span className="block">• <strong>CASH SALE + PHONE PE + CARD + SW + ZM</strong> → daily sales rows</span>
+            <span className="block text-amber-700">Live daily sales (entered by operators) are never overwritten — they take precedence.</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <input
+              type="file" accept=".xlsx,.xls" multiple
+              data-testid="monthly-file-input"
+              onChange={(e) => { setMonthlyFiles(Array.from(e.target.files || [])); setMonthlyResults([]); }}
+              className="flex-1 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-700 file:text-white hover:file:bg-blue-800"
+            />
+            <Button onClick={handleMonthlyUpload} disabled={!monthlyFiles.length || monthlyUploading} className="bg-blue-700 hover:bg-blue-800" data-testid="monthly-upload-btn">
+              {monthlyUploading ? 'Importing…' : `Import ${monthlyFiles.length || ''} file${monthlyFiles.length === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+
+          {monthlyResults.length > 0 && (
+            <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-900/10 space-y-2 max-h-80 overflow-auto" data-testid="monthly-last-result">
+              {monthlyResults.map((r, i) => (
+                <div key={i} className="text-sm">
+                  {r.ok ? (
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">{r.name} → <strong>{r.center}</strong> {r.month}</p>
+                        <p className="text-xs text-muted-foreground">
+                          TB: {r.trial_balance.heads} heads (₹{Math.round(r.trial_balance.total_expenses).toLocaleString('en-IN')} exp / ₹{Math.round(r.trial_balance.total_sales).toLocaleString('en-IN')} sale)
+                          · Expenses: {r.expenses.rows} rows
+                          · Sales: {r.daily_sales.days} days{r.daily_sales.skipped_live_days ? ` (${r.daily_sales.skipped_live_days} kept live)` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-red-700">{r.name}</p>
+                        <p className="text-xs text-muted-foreground">{r.error}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {monthlySummary?.centers?.length > 0 && (
+            <div className="overflow-x-auto pt-3">
+              <table className="w-full text-sm" data-testid="monthly-summary-table">
+                <thead>
+                  <tr className="border-b bg-muted">
+                    <th className="px-3 py-2 text-left font-medium">Center</th>
+                    <th className="px-3 py-2 text-right font-medium">Months</th>
+                    <th className="px-3 py-2 text-left font-medium">Range</th>
+                    <th className="px-3 py-2 text-right font-medium">Total Expenses</th>
+                    <th className="px-3 py-2 text-right font-medium">Total Sales</th>
+                    <th className="px-3 py-2 text-center font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlySummary.centers.map(c => (
+                    <tr key={c.center} className="border-b hover:bg-muted/30">
+                      <td className="px-3 py-2 font-semibold">{c.center}</td>
+                      <td className="px-3 py-2 text-right">{c.months_count}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{c.earliest} → {c.latest}</td>
+                      <td className="px-3 py-2 text-right font-mono">₹{Math.round(c.total_expenses).toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2 text-right font-mono">₹{Math.round(c.total_sales).toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2 text-center">
+                        <Button size="sm" variant="ghost" onClick={() => handleClearMonthly(c.center, null)} data-testid={`monthly-clear-${c.center}`}>
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-muted/50 font-semibold">
+                    <td className="px-3 py-2">Total</td>
+                    <td className="px-3 py-2 text-right">{monthlySummary.total_files}</td>
+                    <td></td>
+                    <td className="px-3 py-2 text-right font-mono">₹{monthlySummary.centers.reduce((a,c)=>a+c.total_expenses,0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+                    <td className="px-3 py-2 text-right font-mono">₹{monthlySummary.centers.reduce((a,c)=>a+c.total_sales,0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+                    <td className="px-3 py-2 text-center">
+                      <Button size="sm" variant="ghost" onClick={() => handleClearMonthly(null, null)} data-testid="monthly-clear-all">
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </Button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="text-xs text-muted-foreground border-t pt-3">
+            <strong>Where does the imported data appear?</strong>
+            <ul className="list-disc pl-5 mt-1 space-y-0.5">
+              <li>Center Accounts → <strong>WC Breakdown</strong> (the month row for that center)</li>
+              <li><strong>MIS Dashboard</strong> sales / expenses / profit for any date range that includes the imported month</li>
+              <li><strong>Franchise Owner Dashboard</strong> for the same center</li>
+              <li>Expense Master / Sales ↔ Expenses Grid → the per-day rows with source="monthly_import:..."</li>
+            </ul>
+          </div>
         </CardContent>
       </Card>
     </div>
