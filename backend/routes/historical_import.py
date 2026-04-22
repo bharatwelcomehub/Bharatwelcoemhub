@@ -693,7 +693,161 @@ def _parse_daily_expense_sheet(ws) -> list[dict]:
     return out
 
 
+def _parse_pib_sheet(ws) -> dict:
+    """Parse PIB sheet → {platforms: {swiggy/zomato/card: {gross, commission}},
+    revenue_share, sgst, cgst, total_gst, gross_for_revenue, net_sale_for_revenue}.
+    Works by scanning DESCRIPTION column for keywords."""
+    rows = list(ws.iter_rows(values_only=True))
+    platforms: dict = {}
+    revenue_share = None
+    sgst = None
+    cgst = None
+    gross_for_revenue = None
+    net_sale_for_revenue = None
+    gst_paid = None
+    
+    for row in rows:
+        # Find the first text cell (description) and collect all numeric cells
+        label = None
+        nums = []
+        for v in row:
+            if v is None or v == "":
+                continue
+            if isinstance(v, str):
+                s = v.strip()
+                if s and label is None:
+                    label = s.upper()
+            elif isinstance(v, (int, float)):
+                nums.append(float(v))
+        if not label or not nums:
+            continue
+        
+        def _pick_sale_commission():
+            """Return (gross, commission_abs). Commission is the negative value
+            (or last value if all positive, when labelled). Gross is the largest
+            non-negative numeric excluding small SL.NO-looking integers."""
+            neg = [n for n in nums if n < 0]
+            # Non-negative candidates, excluding tiny serial-number-looking values
+            positives = [n for n in nums if n >= 0 and n > 100]
+            gross = max(positives) if positives else 0
+            if neg:
+                commission = abs(min(neg))
+            else:
+                # All positive — commission often sits after the gross
+                # Pick the smaller positive (if there are 2+) as commission
+                others = [n for n in positives if n != gross]
+                commission = min(others) if others else 0
+            return gross, commission
+        
+        if "SWIGGY" in label and "SALE" in label:
+            g, c = _pick_sale_commission()
+            platforms["swiggy"] = {"gross": g, "commission": c}
+        elif "ZOMATO" in label and "SALE" in label:
+            g, c = _pick_sale_commission()
+            platforms["zomato"] = {"gross": g, "commission": c}
+        elif "CARD" in label and "SALE" in label:
+            g, c = _pick_sale_commission()
+            platforms["card"] = {"gross": g, "commission": c}
+        elif "PHONE" in label and ("PE" in label or "PAY" in label):
+            g, c = _pick_sale_commission()
+            platforms["phonepe"] = {"gross": g, "commission": c}
+        elif "REVENUE SHARE" in label:
+            revenue_share = nums[-1]
+        elif ("S.GST" in label or "SGST" in label) and "CGST" not in label:
+            sgst = nums[-1]
+        elif "C.GST" in label or "CGST" in label:
+            cgst = nums[-1]
+        elif "GROSS SALE FOR REVENUE" in label:
+            gross_for_revenue = nums[-1]
+        elif "NET SALE CONSIDER" in label and "REVENUE" in label:
+            net_sale_for_revenue = nums[-1]
+        elif "GST PAID" in label and "REVENUE" not in label:
+            gst_paid = nums[-1]
+    
+    total_gst = (sgst or 0) + (cgst or 0)
+    return {
+        "platforms": platforms,
+        "revenue_share": revenue_share,
+        "sgst": sgst,
+        "cgst": cgst,
+        "total_gst_on_revenue": total_gst,
+        "gst_paid": gst_paid,
+        "gross_for_revenue": gross_for_revenue,
+        "net_sale_for_revenue": net_sale_for_revenue,
+    }
+
+
 def _parse_daily_sales_from_sheets(wb, month: str) -> dict:
+    """Aggregate daily sales from CASH SALE + PHONE PE + CARD + SW + ZM sheets.
+    Returns {YYYY-MM-DD: {cash, online, card, swiggy, zomato, total}}."""
+    days: dict[str, dict] = {}
+    
+    def _rows(sname: str):
+        if sname not in wb.sheetnames:
+            return []
+        return list(wb[sname].iter_rows(values_only=True))
+    
+    def _extract(sn: str, value_col_keywords: tuple):
+        rows = _rows(sn)
+        out = {}
+        header_idx = None
+        date_ci = None
+        val_ci = None
+        for ri, row in enumerate(rows[:6]):
+            lowered = [str(c).strip().lower() if c else "" for c in row]
+            if "date" in lowered:
+                header_idx = ri
+                date_ci = lowered.index("date")
+                for ci, v in enumerate(lowered):
+                    for kw in value_col_keywords:
+                        if kw in v:
+                            val_ci = ci
+                            break
+                    if val_ci is not None:
+                        break
+                break
+        if header_idx is None or date_ci is None:
+            return out
+        if val_ci is None:
+            val_ci = date_ci + 1
+        for row in rows[header_idx + 1:]:
+            try:
+                d = row[date_ci]
+                v = row[val_ci] if val_ci < len(row) else None
+                if isinstance(d, datetime) and isinstance(v, (int, float)):
+                    out[d.strftime("%Y-%m-%d")] = float(v)
+            except Exception:
+                continue
+        return out
+    
+    cash_map = _extract("CASH SALE", ("cash sale", "cash"))
+    pp_map = _extract("PHONE PE", ("pp sale", "as per data"))
+    card_map = _extract("CARD", ("card",))
+    sw_map = _extract("SW", ("swiggy",))
+    zm_map = _extract("ZM", ("zomato",))
+    
+    all_dates = set(cash_map) | set(pp_map) | set(card_map) | set(sw_map) | set(zm_map)
+    for d in all_dates:
+        cash = cash_map.get(d, 0)
+        pp = pp_map.get(d, 0)
+        card = card_map.get(d, 0)
+        sw = sw_map.get(d, 0)
+        zm = zm_map.get(d, 0)
+        online = pp + card + sw + zm
+        days[d] = {
+            "cash": round(cash, 2),
+            "online": round(online, 2),
+            "phone_pe": round(pp, 2),
+            "card": round(card, 2),
+            "swiggy": round(sw, 2),
+            "zomato": round(zm, 2),
+            "total": round(cash + online, 2),
+        }
+    return days
+
+
+
+
     """Aggregate daily sales from CASH SALE + PHONE PE + CARD + SW + ZM sheets.
     Returns {YYYY-MM-DD: {cash, online, card, swiggy, zomato, total}}."""
     days: dict[str, dict] = {}
@@ -889,6 +1043,70 @@ async def import_monthly_file(
         total_sales_sum += v["total"]
     result["daily_sales"] = {"days": len(daily), "total_sales": round(total_sales_sum, 2), "skipped_live_days": skipped_live}
     
+    # 4. PIB sheet — commissions per platform + revenue share + GST
+    pib_sheet = None
+    for sn in wb.sheetnames:
+        if sn.upper().strip() == "PIB":
+            pib_sheet = sn
+            break
+    pib_data = None
+    commissions_created = 0
+    if pib_sheet:
+        pib_data = _parse_pib_sheet(wb[pib_sheet])
+        # Upsert one monthly_commissions row per platform
+        import uuid as _uuid
+        for plat, v in pib_data["platforms"].items():
+            comm_id_key = f"HIST-{center}-{month}-{plat.upper()}"
+            doc = {
+                "commission_id": comm_id_key,
+                "center": center,
+                "month": month,
+                "platform": plat,
+                "original_filename": file.filename,
+                "gross_amount": round(v["gross"], 2),
+                "gst_tax_deductions": 0,
+                "other_deductions": round(v["commission"], 2),   # commission treated as deduction
+                "sundry_debtors": 0,
+                "tds": 0,
+                "net_payout": round(v["gross"] - v["commission"], 2),
+                "order_count": 0,
+                "currency": "INR",
+                "raw_summary": {"source": "pib", "commission": v["commission"]},
+                "uploaded_by": user,
+                "upload_date": now,
+                "source": f"monthly_import:{file.filename}",
+            }
+            await db.monthly_commissions.update_one(
+                {"commission_id": comm_id_key},
+                {"$set": doc, "$setOnInsert": {"created_at": now}},
+                upsert=True,
+            )
+            commissions_created += 1
+        # Also upsert a rollup doc (revenue share, GST) into historical_pib collection
+        if pib_data.get("revenue_share") is not None:
+            await db.historical_pib.update_one(
+                {"center": center, "month": month},
+                {"$set": {
+                    "center": center, "month": month,
+                    "revenue_share": pib_data.get("revenue_share"),
+                    "sgst": pib_data.get("sgst"),
+                    "cgst": pib_data.get("cgst"),
+                    "total_gst_on_revenue": pib_data.get("total_gst_on_revenue"),
+                    "gst_paid": pib_data.get("gst_paid"),
+                    "gross_for_revenue": pib_data.get("gross_for_revenue"),
+                    "net_sale_for_revenue": pib_data.get("net_sale_for_revenue"),
+                    "source": f"monthly_import:{file.filename}",
+                    "updated_at": now, "updated_by": user,
+                }, "$setOnInsert": {"created_at": now}},
+                upsert=True,
+            )
+    result["commissions"] = {
+        "rows": commissions_created,
+        "platforms": list((pib_data or {}).get("platforms", {}).keys()),
+        "revenue_share": (pib_data or {}).get("revenue_share"),
+        "total_gst_on_revenue": (pib_data or {}).get("total_gst_on_revenue"),
+    }
+    
     logger.info(f"Monthly import {file.filename} → {center} {month}: {result}")
     return {"success": True, **result}
 
@@ -946,10 +1164,24 @@ async def clear_monthly_imports(req: dict):
     sal_del = await db.daily_sales.delete_many(sal_q)
     tb_del = await db.historical_trial_balance.delete_many(tb_q)
     
+    # Commissions & PIB
+    comm_q: dict = {"source": {"$regex": "^monthly_import:"}}
+    pib_q: dict = {"source": {"$regex": "^monthly_import:"}}
+    if center:
+        comm_q["center"] = center
+        pib_q["center"] = center
+    if month:
+        comm_q["month"] = month
+        pib_q["month"] = month
+    comm_del = await db.monthly_commissions.delete_many(comm_q)
+    pib_del = await db.historical_pib.delete_many(pib_q)
+    
     return {
         "success": True,
         "expenses_deleted": exp_del.deleted_count,
         "sales_deleted": sal_del.deleted_count,
         "trial_balance_deleted": tb_del.deleted_count,
+        "commissions_deleted": comm_del.deleted_count,
+        "pib_deleted": pib_del.deleted_count,
     }
 

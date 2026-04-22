@@ -580,6 +580,24 @@ async def get_wc_table(req: dict = Body(...)):
     except Exception as hx:
         logger.warning(f"WC history merge failed for {center}: {hx}")
     
+    # Merge historical_pib rollups (from monthly Excel imports). If the month
+    # has PIB data, use SGST+CGST as GST (source of truth for the month).
+    # Do NOT overwrite existing non-zero gst (from daily_sales.gst_amount).
+    try:
+        pib_rows = await db.historical_pib.find(
+            {"center": center}, {"_id": 0}
+        ).to_list(500)
+        for p in pib_rows:
+            m = p.get("month", "")
+            if not m:
+                continue
+            month_data.setdefault(m, {"sale": 0, "expenses": 0, "commission": 0, "gst": 0})
+            gst_from_pib = float(p.get("total_gst_on_revenue", 0) or 0)
+            if gst_from_pib > 0 and month_data[m].get("gst", 0) == 0:
+                month_data[m]["gst"] = gst_from_pib
+    except Exception as px:
+        logger.warning(f"WC PIB merge failed for {center}: {px}")
+    
     if not month_data:
         return {
             "success": True, "rows": [], "initial_wc": initial_wc, "center": center,

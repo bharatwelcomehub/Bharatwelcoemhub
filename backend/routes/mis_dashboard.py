@@ -199,6 +199,43 @@ async def get_mis_overview(data: dict):
     # GST from actual data (gst_amount field in daily_sales)
     total_gst = round(sum(float(s.get("gst_amount", 0) or 0) for s in sales_data), 2)
     
+    # Merge PIB-derived GST (from monthly Excel imports): adds SGST+CGST for
+    # months where the daily_sales don't already carry gst_amount. Scoped by
+    # center + month range.
+    try:
+        from datetime import datetime as _dt2
+        _s2 = _dt2.strptime(start_date, "%Y-%m-%d").replace(day=1)
+        _e2 = _dt2.strptime(end_date, "%Y-%m-%d")
+        _ms2 = []
+        _cur2 = _s2
+        while _cur2 <= _e2:
+            _ms2.append(_cur2.strftime("%Y-%m"))
+            _cur2 = _cur2.replace(year=_cur2.year + 1, month=1) if _cur2.month == 12 else _cur2.replace(month=_cur2.month + 1)
+        _pq = {"month": {"$in": _ms2}}
+        if center and center != "all":
+            _pq["center"] = center
+        pib_rows = await db.historical_pib.find(_pq, {"_id": 0}).to_list(1000)
+        # Live GST per (center, month): don't add PIB where live gst already exists
+        live_gst_months: set = set()
+        for s in sales_data:
+            if float(s.get("gst_amount", 0) or 0) > 0:
+                live_gst_months.add((s.get("center", ""), (s.get("date") or "")[:7]))
+        pib_gst_add = 0.0
+        pib_gst_by_center: dict = {}
+        for p in pib_rows:
+            key = (p.get("center", ""), p.get("month", ""))
+            if key in live_gst_months:
+                continue
+            g = float(p.get("total_gst_on_revenue", 0) or 0)
+            if g <= 0:
+                continue
+            pib_gst_add += g
+            pib_gst_by_center[p.get("center", "")] = pib_gst_by_center.get(p.get("center", ""), 0) + g
+        total_gst = round(total_gst + pib_gst_add, 2)
+    except Exception as pgx:
+        logger.warning(f"MIS: PIB GST merge failed: {pgx}")
+        pib_gst_by_center = {}
+    
     # Expenses
     total_expenses = sum(float(e.get("amount", 0) or 0) for e in expenses_data)
     
@@ -392,6 +429,15 @@ async def get_mis_overview(data: dict):
                 centers_data[cc] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
             centers_data[cc]["sales"] += v.get("sale", 0)
             centers_data[cc]["expenses"] += v.get("expenses", 0)
+    except Exception:
+        pass
+    
+    # Inject PIB-derived GST per center (when not already covered by live)
+    try:
+        for cc, g in (pib_gst_by_center or {}).items():
+            if cc not in centers_data:
+                centers_data[cc] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
+            centers_data[cc]["gst"] = round(centers_data[cc].get("gst", 0) + g, 2)
     except Exception:
         pass
     
