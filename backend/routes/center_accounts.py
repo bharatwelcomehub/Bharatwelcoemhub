@@ -1901,6 +1901,122 @@ async def generate_commission_summary(req: PIBGenerateRequest):
     )
 
 
+@router.post("/generate-bank-statement")
+async def generate_bank_statement(req: PIBGenerateRequest):
+    """Generate a monthly Bank Activity Statement (derived cash-flow).
+
+    Credits: daily sales receipts split by Cash / Online+Card / Aggregator.
+    Debits : monthly expense rows + commission deductions + GST-liability
+             payment (if already booked in this month) + revenue share payout
+             (if paid in this month).
+    Opening/closing derived from the working-capital opening + net movement.
+    """
+    session = await check_access(req.token)
+    await enforce_owner_visibility(session, req.center, req.month)
+
+    start_date, end_date = _mk_month_range(req.month)
+    center_info = await get_center_details(req.center)
+
+    # ---- Credits: daily sales ------------------------------------------------
+    sales = await db.daily_sales.find(
+        {"center": req.center, "date": {"$gte": start_date, "$lte": end_date}},
+        {"_id": 0},
+    ).sort("date", 1).to_list(200)
+
+    credits: list = []
+    for s in sales:
+        d = s.get("date")
+        cash = float(s.get("total_cash_sale") or s.get("cash_sale") or 0)
+        online_card = float(s.get("total_online_sale") or s.get("online_sale") or s.get("card_sale") or 0)
+        swiggy = float(s.get("swiggy_sale") or s.get("swiggy") or 0)
+        zomato = float(s.get("zomato_sale") or s.get("zomato") or 0)
+        doordash = float(s.get("doordash_sale") or s.get("doordash") or 0)
+        if cash:
+            credits.append({"date": d, "description": "Cash sales", "amount": cash})
+        if online_card:
+            credits.append({"date": d, "description": "Online / Card sales", "amount": online_card})
+        agg = swiggy + zomato + doordash
+        if agg:
+            credits.append({"date": d, "description": "Aggregator receipts (Swiggy+Zomato+DoorDash gross)", "amount": agg})
+
+    # ---- Debits: expenses ----------------------------------------------------
+    expenses = await db.expenses.find(
+        {"center": req.center, "date": {"$gte": start_date, "$lte": end_date}},
+        {"_id": 0},
+    ).sort("date", 1).to_list(500)
+    debits: list = []
+    for e in expenses:
+        amt = float(e.get("amount", 0) or 0)
+        if amt <= 0:
+            continue
+        cat = e.get("expense_type") or e.get("category") or "Expense"
+        debits.append({"date": e.get("date", ""), "description": cat, "amount": amt})
+
+    # ---- Debits: aggregator commission deductions + payout ------------------
+    summary: dict = {}
+    try:
+        summary_req = AccountPeriodRequest(token=req.token, center=req.center, month=req.month)
+        summary_response = await get_center_account_summary(summary_req)
+        summary = summary_response.get("summary", {})
+        total_comm = float(summary.get("commissions", {}).get("total", 0) or 0)
+        if total_comm > 0:
+            debits.append({
+                "date": end_date,
+                "description": "Aggregator / Card commissions (Swiggy / Zomato / Card deductions)",
+                "amount": total_comm,
+            })
+        payout = summary.get("payout") or {}
+        if payout.get("amount") and payout.get("status") == "paid":
+            debits.append({
+                "date": end_date,
+                "description": f"Revenue share payout ({payout.get('type', 'revenue_share').replace('_',' ').title()})",
+                "amount": float(payout.get("amount") or 0),
+            })
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"bank-statement: summary fetch failed for {req.center} {req.month}: {exc}")
+
+    # Opening / closing
+    wc_info = summary.get("working_capital_status", {}) or {}
+    opening = float(wc_info.get("opening_wc", 0) or 0)
+    total_credits = sum(float(r["amount"]) for r in credits)
+    total_debits = sum(float(r["amount"]) for r in debits)
+    closing = opening + total_credits - total_debits
+
+    pdf_data = {
+        "center": req.center,
+        "center_name": center_info.get("name", req.center),
+        "month": req.month,
+        "period_label": f"Period: {start_date} to {end_date}",
+        "opening_balance": opening,
+        "closing_balance": closing,
+        "credits": credits,
+        "debits": debits,
+        "totals": {
+            "total_credits": total_credits,
+            "total_debits": total_debits,
+            "net_movement": total_credits - total_debits,
+        },
+    }
+
+    from utils.pdf_generator import build_bank_statement_pdf
+    pdf_bytes = build_bank_statement_pdf(pdf_data)
+    filename = f"Bank_Statement_{req.center}_{req.month}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _mk_month_range(month: str) -> tuple[str, str]:
+    """YYYY-MM → (YYYY-MM-01, YYYY-MM-lastday)."""
+    from calendar import monthrange
+    y, m = int(month[:4]), int(month[5:7])
+    last = monthrange(y, m)[1]
+    return f"{y:04d}-{m:02d}-01", f"{y:04d}-{m:02d}-{last:02d}"
+
+
+
 # =======================================
 # CENTER-FRANCHISE LINKING
 # =======================================
@@ -2347,7 +2463,11 @@ async def export_mg_payout(data: dict = Body(...)):
     from_month = data.get("from_month")
     to_month = data.get("to_month")
 
-    await check_access(token)
+    session = await check_access(token)
+    # Franchise Owners can only download released months — apply gate to the
+    # "to_month" (latest) as the representative month.
+    if from_month and to_month:
+        await enforce_owner_visibility(session, center, to_month)
 
     # Reuse payout-summary logic
     summary_data = await get_payout_summary({

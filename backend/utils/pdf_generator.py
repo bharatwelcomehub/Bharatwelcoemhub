@@ -899,3 +899,122 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     doc.build(elements)
     buf.seek(0)
     return buf.getvalue()
+
+
+
+# =============================================================================
+# Bank Activity / Cash Flow Statement — PDF
+# =============================================================================
+def build_bank_statement_pdf(data: Dict[str, Any]) -> bytes:
+    """Monthly Bank Activity Statement — derived cash-flow view.
+
+    Expected `data` dict:
+      center, center_name, month, period_label
+      opening_balance, closing_balance
+      credits: [{date, description, amount}, ...]
+      debits:  [{date, description, amount}, ...]
+      totals:  {total_credits, total_debits, net_movement}
+    """
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=36, rightMargin=36,
+                            topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle("BSTitle", fontSize=16, fontName="Helvetica-Bold",
+                              textColor=BRAND_MAROON, alignment=TA_CENTER, spaceAfter=4))
+    styles.add(ParagraphStyle("BSSub", fontSize=10, textColor=colors.gray,
+                              alignment=TA_CENTER, spaceAfter=12))
+    styles.add(ParagraphStyle("BSSection", fontSize=11, fontName="Helvetica-Bold",
+                              textColor=BRAND_NAVY, spaceBefore=10, spaceAfter=6))
+
+    story: List[Any] = [
+        Paragraph("PURNABRAMHA — BANK ACTIVITY STATEMENT", styles["BSTitle"]),
+        Paragraph(
+            f"{data.get('center_name', data.get('center', ''))} &nbsp; · &nbsp; {data.get('period_label', data.get('month', ''))}",
+            styles["BSSub"],
+        ),
+    ]
+
+    opening = float(data.get("opening_balance", 0) or 0)
+    closing = float(data.get("closing_balance", 0) or 0)
+    totals = data.get("totals", {}) or {}
+    total_credits = float(totals.get("total_credits", 0) or 0)
+    total_debits = float(totals.get("total_debits", 0) or 0)
+    net = total_credits - total_debits
+
+    # Summary band
+    summary_tbl = Table([
+        ["Opening Balance", "Credits (Inflows)", "Debits (Outflows)", "Net Movement", "Closing Balance"],
+        [
+            f"Rs. {opening:,.2f}",
+            f"Rs. {total_credits:,.2f}",
+            f"(Rs. {total_debits:,.2f})",
+            f"{'+' if net >= 0 else '-'} Rs. {abs(net):,.2f}",
+            f"Rs. {closing:,.2f}",
+        ],
+    ], colWidths=[100, 110, 110, 110, 100])
+    summary_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTSIZE", (0, 1), (-1, 1), 9),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("BACKGROUND", (-1, 1), (-1, 1), BRAND_GOLD),
+        ("TEXTCOLOR", (3, 1), (3, 1), colors.HexColor("#15803d") if net >= 0 else colors.red),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(summary_tbl)
+
+    def _section(title: str, rows: List[Dict[str, Any]], color: Any) -> None:
+        story.append(Paragraph(title, styles["BSSection"]))
+        if not rows:
+            story.append(Paragraph("<i>No transactions.</i>",
+                                   ParagraphStyle("BSEmpty", fontSize=9, textColor=colors.gray)))
+            return
+        table_data = [["Date", "Description", "Amount"]]
+        for r in rows:
+            table_data.append([
+                r.get("date", ""),
+                r.get("description", ""),
+                f"Rs. {float(r.get('amount', 0) or 0):,.2f}",
+            ])
+        total = sum(float(r.get("amount", 0) or 0) for r in rows)
+        table_data.append(["", "TOTAL", f"Rs. {total:,.2f}"])
+        tbl = Table(table_data, colWidths=[70, 340, 120])
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), color),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ("BACKGROUND", (0, -1), (-1, -1), LIGHT_GRAY),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#fafafa")]),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(tbl)
+
+    _section("CREDITS (Money In)", data.get("credits", []),
+             colors.HexColor("#166534"))
+    _section("DEBITS (Money Out)", data.get("debits", []),
+             colors.HexColor("#991b1b"))
+
+    story.append(Spacer(1, 18))
+    story.append(Paragraph(
+        "<i>This is a derived cash-flow statement built from recorded sales, expenses, commissions, "
+        "GST liability payments and revenue-share payouts. It is not a bank-feed reconciliation.</i>",
+        ParagraphStyle("BSNote", fontSize=7, textColor=colors.gray, alignment=TA_CENTER),
+    ))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        f"Generated on {datetime.now().strftime('%d %b %Y, %I:%M %p')} | Purnabramha",
+        ParagraphStyle("BSFooter", fontSize=7, textColor=colors.gray, alignment=TA_CENTER),
+    ))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.getvalue()

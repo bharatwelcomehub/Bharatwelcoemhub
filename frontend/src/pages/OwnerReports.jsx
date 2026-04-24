@@ -244,6 +244,7 @@ export default function OwnerReports() {
                   { id: 'pib', label: 'PIB Report', path: 'generate-pib', color: 'bg-[#8B0000] hover:bg-[#6B0000] text-white' },
                   { id: 'gst', label: 'GST Summary', path: 'generate-gst-summary', color: 'bg-amber-600 hover:bg-amber-700 text-white' },
                   { id: 'comm', label: 'Commission Summary', path: 'generate-commission-summary', color: 'bg-emerald-700 hover:bg-emerald-800 text-white' },
+                  { id: 'bank', label: 'Bank Statement', path: 'generate-bank-statement', color: 'bg-sky-700 hover:bg-sky-800 text-white' },
                 ].map(r => (
                   <Button
                     key={r.id}
@@ -276,6 +277,40 @@ export default function OwnerReports() {
                     <Download className="w-4 h-4 mr-2" /> {r.label}
                   </Button>
                 ))}
+                {/* MG Report — uses a different endpoint (accepts from_month/to_month) */}
+                <Button
+                  className="bg-indigo-700 hover:bg-indigo-800 text-white"
+                  data-testid="or-dl-mg"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`${API}/api/center-accounts/export-mg-payout`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          token: session.token, center,
+                          from_month: `${year}-${month}`, to_month: `${year}-${month}`,
+                          format: 'pdf',
+                        }),
+                      });
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({ detail: 'Download failed' }));
+                        throw new Error(err.detail || 'Download failed');
+                      }
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `MG_Report_${center}_${year}-${month}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(url);
+                      toast.success('MG Report downloaded');
+                    } catch (e) { toast.error(e.message); }
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" /> MG Report
+                </Button>
               </div>
             </CardContent>
           </Card>
