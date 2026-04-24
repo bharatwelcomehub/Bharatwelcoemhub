@@ -5,6 +5,23 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-24] GST removed from Month-M P/L everywhere (M+1 single-source-of-truth)
+- User reported: PIB Section 5 Operational Balance was over-stating loss by the current month's GST because GST for Month M is paid in Month M+1 via our new `gst_liability_payment` expense row — deducting it in Month M was double-counting.
+- **Fix applied everywhere** (so dashboards reconcile):
+  - `center_accounts.py::calculate_working_capital_standing` — `operational_balance = sale − expenses − commission` (GST removed)
+  - `center_accounts.py::get_wc_table` — `pnl = sale − expenses − commission` (GST column still displayed for reference)
+  - `center_accounts.py::get_center_account_summary` — `india_net_revenue = sales − commissions`, `operational_balance = sales − expenses − commissions`
+  - `center_accounts.py::get_payout_summary` — `net_revenue_for_share = sales − commissions`
+  - `mis_dashboard.py` — 3 profit formulas (`overview`, `trends`, `quarters`) all updated
+  - `owner_reports.py::_compute_monthly_report` — `pnl = sales − expenses − commissions`
+  - `frontend/CenterAccounts.jsx::computedWcRows` live cascade — `pnl = sale − expenses − commission`; UI description updated
+- **PIB PDF cleanup**: Section 4 and Section 5 now show GST as a **Memo line** labelled "booked as liability, paid next month" instead of a `Less:` deduction. Subtotals match the new formula.
+- **Verified on PB-HSR 2026-03** (Sales ₹27,000, Expenses ₹4,000, Comm ₹0, GST ₹1,150):
+  - Old Net Revenue: ₹25,850 (wrongly deducted GST) → New Net Revenue: **₹27,000** ✅
+  - Old Owner PNL: ₹21,850 → New PNL: **₹23,000** (diff = exactly ₹1,150 GST) ✅
+  - WC P/L, Operational Balance, MIS profit all realigned.
+- Model: GST cash-impact is now recorded exactly **once** — as the auto-created "GST PAYMENT" expense row on the 20th of M+1 (via `/api/gst/mark-paid`).
+
 ### [2026-04-24] Refactor — Extracted all PDF/Excel generation into `utils/pdf_generator.py`
 - Moved 855 lines of `reportlab` / `openpyxl` rendering code out of `/app/backend/routes/center_accounts.py` (was 3,207 lines → now 2,352 lines, -27%).
 - New `/app/backend/utils/pdf_generator.py` (~640 lines) exposes 7 pure byte-returning builders:

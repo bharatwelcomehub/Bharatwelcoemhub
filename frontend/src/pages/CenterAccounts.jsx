@@ -292,8 +292,10 @@ export default function CenterAccounts() {
       const gst = Number(edit.gst) || 0;
       const sale = Number(r.sale) || 0;
       const topup = Number(r.topup) || 0;
-      // P/L = Sale - Expenses - GST - Commission (all visible editable columns)
-      const pnl = sale - expenses - commission - gst;
+      // P/L = Sale - Expenses - Commission (GST column is shown but NOT deducted;
+      // GST for Month M is paid as an expense in Month M+1 via the auto-created
+      // 'GST PAYMENT' entry, so deducting it here would double-count.)
+      const pnl = sale - expenses - commission;
       const openingWc = balance;
       const balanceWc = openingWc + pnl + wcAdj + topup;
       balance = balanceWc;
@@ -1119,7 +1121,7 @@ export default function CenterAccounts() {
                       <CardTitle className="text-base flex items-center gap-2">
                         <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
                       </CardTitle>
-                      <CardDescription>P/L = Sale − Expenses − GST − Commission. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L + WC Adj</CardDescription>
+                      <CardDescription>P/L = Sale − Expenses − Commission. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L + WC Adj. GST is shown for reference — it's paid as an expense in the following month (M+1).</CardDescription>
                     </div>
                     <Button size="sm" disabled={wcSaving || wcLoading} onClick={async () => {
                       if (!wcTableData?.rows) return;

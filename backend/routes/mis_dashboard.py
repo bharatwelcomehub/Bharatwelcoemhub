@@ -389,8 +389,11 @@ async def get_mis_overview(data: dict):
     except Exception as ov_err:
         logger.warning(f"MIS: WC override application failed: {ov_err}")
     
-    # Profit calculation: Sales - Expenses - GST - Commissions
-    profit = total_sales - total_expenses - total_gst - total_commissions
+    # Profit calculation: Sales - Expenses - Commissions
+    # NOTE: GST is NOT deducted from current-month profit. GST for Month M is
+    # booked as a liability and paid as a 'GST PAYMENT' expense row in Month M+1
+    # (see routes.gst_liabilities), so subtracting it here would double-count.
+    profit = total_sales - total_expenses - total_commissions
     profit_margin = round((profit / total_sales * 100) if total_sales > 0 else 0, 2)
     
     # Calculate totals - Previous Period
@@ -666,7 +669,8 @@ async def get_sales_trends(data: dict):
         expenses = t.get("expenses", 0)
         gst = round(t.get("gst", 0), 2)
         t["gst"] = gst
-        t["profit"] = round(sales - expenses - gst, 2)
+        # GST is not deducted — it's paid as an expense in M+1 (see gst_liabilities flow)
+        t["profit"] = round(sales - expenses, 2)
     
     return {"trends": trends, "group_by": group_by}
 
@@ -983,7 +987,8 @@ async def get_quarterly_comparison(data: dict):
         total_sales = sum(float(s.get("total_sale", 0) or 0) for s in sales)
         total_expenses = sum(float(e.get("amount", 0) or 0) for e in expenses)
         gst = round(sum(float(s.get("gst_amount", 0) or 0) for s in sales), 2)
-        profit = total_sales - total_expenses - gst
+        # GST is not deducted — it's paid as an expense in M+1 (see gst_liabilities flow)
+        profit = total_sales - total_expenses
         
         quarters.append({
             "quarter": f"Q{q_num + 1}",

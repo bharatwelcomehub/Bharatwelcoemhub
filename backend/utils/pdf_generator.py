@@ -364,10 +364,15 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ["Less: Total Expenses", f"({currency} {fin['total_expenses']:,.2f})"],
         ["Less: Total Commissions", f"({currency} {fin['total_commissions']:,.2f})"],
     ]
-    if summary.get("country") == "India" and gst_on_sales > 0:
-        fin_data.append(["Less: GST on Sales (5%)", f"({currency} {gst_on_sales:,.2f})"])
-    elif summary.get("country") == "Australia":
-        fin_data.append(["Less: GST on Sales (10%)", f"({currency} {gst_on_sales:,.2f})"])
+    # GST is booked as a liability for Month M and paid as an expense in
+    # Month M+1 — so it is NOT deducted from Net Revenue here (to avoid
+    # double-counting). The GST amount is shown as a memo line for audit.
+    if gst_on_sales > 0:
+        gst_rate_label = "5%" if summary.get("country") == "India" else "10%"
+        fin_data.append([
+            f"Memo: GST on Sales ({gst_rate_label}) — booked as liability, paid next month",
+            f"{currency} {gst_on_sales:,.2f}",
+        ])
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
     fin_data.append(["", ""])
     fin_data.append(["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"])
@@ -421,10 +426,15 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
         ["Less: Total Expenses", f"({currency} {ops.get('total_expenses', 0):,.2f})"],
         ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
-        ["Less: GST on Sales", f"({currency} {ops.get('gst_on_sales', 0):,.2f})"],
-        ["", ""],
-        ["OPERATIONAL BALANCE", f"{currency} {ops.get('operational_balance', 0):,.2f}"],
     ]
+    gst_liability = ops.get("gst_on_sales", 0)
+    if gst_liability > 0:
+        ops_data.append([
+            "Memo: GST liability for this month (paid next month, appears in M+1 expenses)",
+            f"{currency} {gst_liability:,.2f}",
+        ])
+    ops_data.append(["", ""])
+    ops_data.append(["OPERATIONAL BALANCE", f"{currency} {ops.get('operational_balance', 0):,.2f}"])
     ops_balance_positive = ops.get("is_positive", True)
     ops_table = Table(ops_data, colWidths=[280, 170])
     ops_table.setStyle(TableStyle([

@@ -117,7 +117,10 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         {"center": center, "month": month}, {"_id": 0}
     )
     
-    pnl = round(total_sales - total_expenses - gst_amount - total_commission, 2)
+    pnl = round(total_sales - total_expenses - total_commission, 2)
+    # NOTE: GST is NOT deducted from current-month P/L.
+    # GST for Month M is booked as a liability and paid as a 'GST PAYMENT'
+    # expense row in Month M+1 (see routes.gst_liabilities.mark_paid).
     
     return {
         "center": center, "month": month,

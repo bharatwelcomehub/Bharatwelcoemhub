@@ -329,7 +329,11 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         opening_wc_for_month = current_wc
         
         # Step 2: Calculate Operational Balance
-        operational_balance = sale - expenses - commission - gst
+        # GST is booked as a liability in Month M and paid in Month M+1 via the
+        # auto-created 'GST PAYMENT' expense (routes.gst_liabilities.mark_paid).
+        # So we do NOT deduct GST from this month's P/L — it will naturally
+        # appear in M+1 expenses when paid.
+        operational_balance = sale - expenses - commission
         
         # Step 3 & 4: Apply operational balance to WC
         month_wc_used = 0
@@ -606,7 +610,7 @@ async def get_wc_table(req: dict = Body(...)):
             month_data[m]["expenses"] = float(h.get("expenses", 0) or 0)
             # historical rows don't carry separate commission/gst — already
             # netted into P/L in the source file. Keep commission/gst at 0 so
-            # our P/L formula (sale - expenses - comm - gst) matches the source.
+            # our P/L formula (sale - expenses - comm) matches the source.
             month_data[m]["_from_history"] = True
     except Exception as hx:
         logger.warning(f"WC history merge failed for {center}: {hx}")
@@ -686,8 +690,11 @@ async def get_wc_table(req: dict = Body(...)):
         commission = round(float(commission_override), 2) if commission_override is not None else commission_src
         gst = round(float(gst_override), 2) if gst_override is not None else gst_src
         
-        # P/L = Sale - Expenses - GST - Commission (all visible columns in UI)
-        pnl = round(sale - final_expenses - commission - gst, 2)
+        # P/L = Sale - Expenses - Commission
+        # GST column is shown for visibility but NOT subtracted — GST liability
+        # for Month M is paid as an expense in Month M+1 (see gst_liabilities
+        # flow), so deducting it here would double-count it.
+        pnl = round(sale - final_expenses - commission, 2)
         
         # Opening WC = previous month's Balance WC (first month = Base WC)
         opening_wc = round(current_balance_wc, 2)
@@ -1326,20 +1333,23 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     
     if country == "India":
         # India: Revenue share model
-        # Net Revenue = Total Sales - Commissions (Swiggy, Zomato, Card) - GST on Sale (if gst_applicable is ON)
-        # NOTE: Expenses are NOT deducted for India revenue share calculation
-        
-        # Calculate GST on ELIGIBLE sales (total − Swiggy − Zomato − DoorDash)
-        # at 5% when gst_applicable is ON. Rate for Perth / outside-India is 10%.
+        # GST for Month M is booked as a liability (see gst_liabilities) and
+        # paid in Month M+1 via the auto-created 'GST PAYMENT' expense row.
+        # Therefore we do NOT deduct GST from Month M Net Revenue — that would
+        # double-count it once here and again as an expense in M+1.
+        # NOTE: Expenses are NOT deducted for India revenue share calculation.
+
+        # GST is still COMPUTED (shown in Financial Summary for reference) at
+        # 5% on eligible sales (total − aggregator) when gst_applicable is ON.
         gst_on_sales = round(max(0.0, total_sale - aggregator_sale) * 0.05, 2) if gst_applicable_india else 0
-        
-        # Net Revenue for India = Total Sales - Commissions - GST on Sales (if applicable)
-        india_net_revenue = total_sale - total_commission - gst_on_sales
-        
+
+        # Net Revenue for India = Total Sales - Commissions (GST excluded: paid in M+1)
+        india_net_revenue = total_sale - total_commission
+
         # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
         franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
         purnabramha_percentage = 100 - franchise_owner_percentage
-        # Calculate on Net Revenue (after commissions and GST if applicable)
+        # Calculate on Net Revenue (after commissions)
         purnabramha_share = india_net_revenue * (purnabramha_percentage / 100)
         franchise_owner_share = india_net_revenue * (franchise_owner_percentage / 100)
         share_type = "revenue_share"
@@ -1386,9 +1396,12 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # ==========================================
     # OPERATIONAL SUSTAINABILITY CHECK (NEW)
     # ==========================================
-    # Operational Balance = Total Sales - Total Expenses - Commissions - GST on Sales
-    gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount
-    operational_balance = total_sale - total_expenses - total_commission - gst_for_ops
+    # Operational Balance = Total Sales - Total Expenses - Commissions
+    # GST for Month M is booked as a liability and paid in Month M+1 via the
+    # auto-created 'GST PAYMENT' expense row — so it naturally flows through
+    # M+1 expenses. Subtracting it here would double-count the cash impact.
+    gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount  # kept for display only
+    operational_balance = total_sale - total_expenses - total_commission
     
     operational_sustainability = {
         "total_sales": round(total_sale, 2),
@@ -2182,12 +2195,6 @@ async def get_payout_summary(data: dict = Body(...)):
             "swiggy": 1, "zomato": 1, "doordash": 1}).to_list(100)
         
         total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
-        total_aggregator_sale = sum(
-            (r.get("swiggy_sale", r.get("swiggy", 0)) or 0)
-            + (r.get("zomato_sale", r.get("zomato", 0)) or 0)
-            + (r.get("doordash_sale", r.get("doordash", 0)) or 0)
-            for r in sales_records
-        )
         
         # Get expenses for this month
         expense_records = await db.expenses.find({
@@ -2216,17 +2223,16 @@ async def get_payout_summary(data: dict = Body(...)):
             total_commission += new_val if new_val > 0 else old_val
         
         # Calculate Net Revenue / Net Profit based on country
-        # India: Net Revenue = Total Sales - Commissions - GST (if applicable) - NO expense deduction
+        # India: Net Revenue = Total Sales - Commissions (GST excluded, paid M+1)
         # Outside India: Net Profit = Total Sales - Expenses - Commissions
         franchise_country = franchise.get("country", "India") if franchise else "India"
-        gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
-        
+
         if franchise_country == "India":
-            # India: Net Revenue = Eligible Sales (Sales - Aggregators) × 5% for GST,
-            # then Net Revenue = Sales - Commissions - GST on eligible sales.
-            # NOTE: Expenses are NOT deducted for India revenue share calculation
-            gst_on_sales = round(max(0.0, total_sale - total_aggregator_sale) * 0.05, 2) if gst_applicable_india else 0
-            net_revenue_for_share = max(0, total_sale - total_commission - gst_on_sales)
+            # India: Net Revenue = Total Sales - Commissions
+            # GST is NOT deducted — it is booked as a liability in Month M and
+            # paid as an expense in Month M+1 (see gst_liabilities flow).
+            # Deducting it here would double-count.
+            net_revenue_for_share = max(0, total_sale - total_commission)
         else:
             # Outside India: Net Profit = Sales - Expenses - Commissions
             net_revenue_for_share = max(0, total_sale - total_expenses - total_commission)
