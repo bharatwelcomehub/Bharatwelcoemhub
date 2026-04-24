@@ -232,6 +232,54 @@ export default function OwnerReports() {
 
       {report && visible && (
         <>
+          {/* Download Reports — PDFs */}
+          <Card data-testid="or-downloads">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><Download className="w-4 h-4" /> Download Reports (PDF)</CardTitle>
+              <CardDescription>Pre-formatted statements for {center} · {year}-{month}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { id: 'pib', label: 'PIB Report', path: 'generate-pib', color: 'bg-[#8B0000] hover:bg-[#6B0000] text-white' },
+                  { id: 'gst', label: 'GST Summary', path: 'generate-gst-summary', color: 'bg-amber-600 hover:bg-amber-700 text-white' },
+                  { id: 'comm', label: 'Commission Summary', path: 'generate-commission-summary', color: 'bg-emerald-700 hover:bg-emerald-800 text-white' },
+                ].map(r => (
+                  <Button
+                    key={r.id}
+                    className={r.color}
+                    data-testid={`or-dl-${r.id}`}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`${API}/api/center-accounts/${r.path}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ token: session.token, center, month: `${year}-${month}` }),
+                        });
+                        if (!res.ok) {
+                          const err = await res.json().catch(() => ({ detail: 'Download failed' }));
+                          throw new Error(err.detail || 'Download failed');
+                        }
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${r.label.replace(/\s+/g, '_')}_${center}_${year}-${month}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        URL.revokeObjectURL(url);
+                        toast.success(`${r.label} downloaded`);
+                      } catch (e) { toast.error(e.message); }
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" /> {r.label}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Top row — key metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="or-kpi-cards">
             <Card><CardContent className="p-4">

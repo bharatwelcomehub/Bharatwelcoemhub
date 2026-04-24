@@ -1036,6 +1036,38 @@ async def check_access(token: str):
     
     return session
 
+
+def _is_staff(session: dict) -> bool:
+    """Staff = Super Admin, Admin, Accountant (all-centers access)."""
+    if not session:
+        return False
+    if session.get("is_super_admin") or session.get("is_admin"):
+        return True
+    role_key = (session.get("role_key") or "").lower()
+    if role_key in ("super_admin", "admin", "accountant"):
+        return True
+    roles = session.get("roles") or {}
+    if roles.get("accounts") or roles.get("reports") or roles.get("mis") or roles.get("accounting"):
+        return True
+    return False
+
+
+async def enforce_owner_visibility(session: dict, center: str, month: str):
+    """Block report downloads for Franchise Owners unless the month has been
+    released via /api/owner-reports/set-visibility.
+    Staff (SA/Admin/Accountant) are never blocked."""
+    if _is_staff(session):
+        return
+    vis = await db.owner_report_visibility.find_one(
+        {"center": center, "month": month}, {"_id": 0}
+    )
+    if not (vis and vis.get("ready")):
+        raise HTTPException(
+            403,
+            "This month has not yet been released by the Accounts team. "
+            "Please contact the Accounts team to approve the month for viewing.",
+        )
+
 async def get_center_details(center_code: str):
     """Get center details with country info"""
     center = await db.centers.find_one({"code": center_code}, {"_id": 0})
@@ -1047,8 +1079,7 @@ async def get_franchise_for_center(center_code: str):
     """Get linked franchise for a center"""
     center = await db.centers.find_one({"code": center_code}, {"_id": 0})
     if not center:
-        return None
-    
+        return None    
     # Check if center has franchise_code
     franchise_code = center.get("franchise_code")
     if franchise_code:
@@ -1805,6 +1836,7 @@ async def preview_pib_report(req: PIBGenerateRequest):
 async def generate_pib_report(req: PIBGenerateRequest):
     """Generate PIB (Profit & Income Balance) Report PDF"""
     session = await check_access(req.token)
+    await enforce_owner_visibility(session, req.center, req.month)
     
     # Get account summary
     summary_req = AccountPeriodRequest(
@@ -1836,6 +1868,7 @@ async def generate_pib_report(req: PIBGenerateRequest):
 async def generate_gst_summary(req: PIBGenerateRequest):
     """Generate GST Summary Report PDF"""
     session = await check_access(req.token)
+    await enforce_owner_visibility(session, req.center, req.month)
     
     # Get account summary
     summary_req = AccountPeriodRequest(token=req.token, center=req.center, month=req.month)
@@ -1853,7 +1886,8 @@ async def generate_gst_summary(req: PIBGenerateRequest):
 @router.post("/generate-commission-summary")
 async def generate_commission_summary(req: PIBGenerateRequest):
     """Generate Aggregator/Card Commission Summary PDF"""
-    await check_access(req.token)
+    session = await check_access(req.token)
+    await enforce_owner_visibility(session, req.center, req.month)
     summary_req = AccountPeriodRequest(token=req.token, center=req.center, month=req.month)
     summary_response = await get_center_account_summary(summary_req)
     summary = summary_response["summary"]

@@ -5,6 +5,12 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-24] Download buttons for PIB / GST / Commission on Owner Reports
+- Added **"Download Reports (PDF)"** card on `/owner-reports` (shown only when the month is visible) with 3 branded buttons: PIB Report, GST Summary, Commission Summary — each streams a Blob from the existing `/api/center-accounts/generate-*` endpoints.
+- **Backend visibility gating added**: new `enforce_owner_visibility()` helper in `center_accounts.py` — Franchise Owners get **HTTP 403** "not yet released" on un-flagged months; Staff (SA/Admin/Accountant) bypass.
+- Verified E2E: Franchise Owner `8888888888` blocked with 403 on un-released PB-HSR 2026-03 → released via SA → PDF download succeeds (6,884B valid PDF).
+- Test-ids: `or-downloads`, `or-dl-pib`, `or-dl-gst`, `or-dl-comm`.
+
 ### [2026-04-24] GST Summary PDF fix + Owner Report Release UI
 - **GST Summary PDF bug**: was computing GST as `total_sale × rate` (on gross), displaying "Sales GST | Rs. 10,01,161 | 5% | Rs. 50,058". Now shows the full eligible-sales breakdown: `Total Sales (Gross)` → `Less: Aggregator Sales` → `Eligible Sales (Taxable Base)` with the correct 5% on the eligible base. Fallback logic kept for edge cases (Australia uses GST-inclusive math).
 - **Owner Report Release workflow**: added in-page controls on `/owner-reports`:
