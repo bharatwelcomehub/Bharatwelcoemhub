@@ -34,14 +34,35 @@ export default function OwnerReports() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Auto-populate centers from session or an API
-    if (session?.ownerCenters?.length) {
-      setCenters(session.ownerCenters);
-      setCenter(session.ownerCenters[0]);
-    } else if (session?.center) {
-      setCenters([session.center]);
-      setCenter(session.center);
-    }
+    // Staff (Admin / Super Admin / Accountant) can pick any center — fetch
+    // the full centers list. Franchise Owners are scoped to ownerCenters
+    // returned by login.
+    const isStaff = !!(session?.is_super_admin || session?.is_admin
+      || session?.role_key === 'accountant' || session?.roles?.accounting);
+    (async () => {
+      if (isStaff) {
+        try {
+          const res = await fetch(`${API}/api/mgt/centers`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: session.token }),
+          });
+          const data = await res.json();
+          const list = (data.centers || []).map(c => c.code || c).filter(Boolean);
+          if (list.length) {
+            setCenters(list);
+            setCenter(prev => prev || list[0]);
+            return;
+          }
+        } catch { /* fall through */ }
+      }
+      if (session?.ownerCenters?.length) {
+        setCenters(session.ownerCenters);
+        setCenter(session.ownerCenters[0]);
+      } else if (session?.center) {
+        setCenters([session.center]);
+        setCenter(session.center);
+      }
+    })();
   }, [session]);
 
   const load = useCallback(async () => {

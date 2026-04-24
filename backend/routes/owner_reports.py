@@ -15,6 +15,25 @@ from utils.gst import compute_gst_from_rows, gst_rate_for
 
 logger = logging.getLogger(__name__)
 
+
+def check_release_access(session) -> bool:
+    """Who can release / revoke a month's visibility to franchise owners?
+    Super Admin, Admin (is_admin), Accountant role, or anyone with
+    'accounts' or 'reports' action rights.
+    """
+    if not session:
+        return False
+    if session.get("is_super_admin") or session.get("is_admin"):
+        return True
+    role_key = (session.get("role_key") or "").lower()
+    if role_key in ("super_admin", "admin", "accountant"):
+        return True
+    roles = session.get("roles") or {}
+    # Accounts-team roles carry an 'accounts' or 'reports' action set
+    if roles.get("accounts") or roles.get("reports") or roles.get("mis"):
+        return True
+    return False
+
 _mongo = AsyncIOMotorClient(os.environ["MONGO_URL"])
 db = _mongo[os.environ["DB_NAME"]]
 
@@ -36,11 +55,12 @@ def _month_range(month: str) -> tuple[str, str]:
 
 @router.post("/set-visibility")
 async def set_visibility(req: dict = Body(...)):
-    """Accounts team flags a center+month as ready (or not) for owner viewing.
+    """Release / revoke a month for franchise-owner viewing.
+    Allowed for Super Admin, Admin, Accountant (and anyone with accounts/reports role).
     Body: {token, center, month, ready: bool, note?}"""
     session = await get_session(req.get("token"))
-    if not session or not check_admin_access(session):
-        raise HTTPException(403, "Only Admin or Super Admin can set owner visibility")
+    if not session or not check_release_access(session):
+        raise HTTPException(403, "Only Super Admin, Admin, or Accounts team can release reports to owners")
     center = req["center"]
     month = req["month"]
     ready = bool(req.get("ready", True))
@@ -164,31 +184,34 @@ async def monthly_report(req: dict = Body(...)):
         raise HTTPException(401, "Invalid token")
     center = req["center"]
     month = req["month"]
-    is_admin = check_admin_access(session)
-    
+    # Staff = anyone in the release-access bracket (Super Admin, Admin,
+    # Accountant, accounts/reports role). They bypass the visibility gate and
+    # can view/release ANY center.
+    is_staff = check_release_access(session)
+
     vis = await db.owner_report_visibility.find_one(
         {"center": center, "month": month}, {"_id": 0}
     )
     ready = bool(vis and vis.get("ready"))
-    
-    if not is_admin and not ready:
+
+    if not is_staff and not ready:
         return {
             "success": True,
             "visibility": {"ready": False, "reason": "Current month in progress. Accounts team has not yet approved visibility."},
             "center": center, "month": month,
         }
-    
+
     data = await _compute_monthly_report(center, month)
-    # Admin/Super Admin always see the report; expose an admin_bypass flag so
-    # the UI can render content while still surfacing the "not yet flagged"
-    # state to Accounts users.
-    effective_ready = ready or is_admin
+    # Staff always see the report; expose an admin_bypass flag so the UI can
+    # render content while still surfacing the "not yet flagged" state.
+    effective_ready = ready or is_staff
     return {
         "success": True,
         "visibility": {
             "ready": effective_ready,
             "flagged_ready": ready,
-            "admin_bypass": (is_admin and not ready),
+            "admin_bypass": (is_staff and not ready),
+            "can_release": is_staff,
             "note": vis.get("note", "") if vis else "",
         },
         **data,

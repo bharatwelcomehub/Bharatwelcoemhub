@@ -267,6 +267,12 @@ export default function Dashboard() {
       return false; // Default hide for unknown centers
     }
     if (item.forFranchise) {
+      // Owner Reports should be visible to anyone who can RELEASE reports
+      // (Admin, Super Admin, Accountant) AND to Franchise Owners.
+      const isAccountant = userRoles.accounting === true || userRoles.accounts === true || session?.role_key === 'accountant';
+      if (item.path === '/owner-reports') {
+        return isAdmin || isSuperAdmin || isAccountant || userRoles.franchise === true || session?.role_key === 'franchise_owner';
+      }
       const hasFranchiseAccess = isAdmin || userRoles.franchise === true;
       if (!hasFranchiseAccess) return false;
       // Franchise owners (non-admin users with franchise role) can only see Owner Dashboard + Exit
@@ -304,8 +310,10 @@ export default function Dashboard() {
       return false;
     }
     if (category.forFranchise) {
-      // Franchise category accessible to Admin or users with franchise role
-      const hasFranchiseAccess = isAdmin || userRoles.franchise === true;
+      // Franchise category accessible to Admin, Franchise Owners, or Accountants
+      // (since Accountants now release Owner Reports from within this section).
+      const isAccountant = userRoles.accounting === true || userRoles.accounts === true || session?.role_key === 'accountant';
+      const hasFranchiseAccess = isAdmin || userRoles.franchise === true || isAccountant;
       if (!hasFranchiseAccess) return false;
       // Check at least one item is accessible
       return category.items.some(item => hasAccess(item));
