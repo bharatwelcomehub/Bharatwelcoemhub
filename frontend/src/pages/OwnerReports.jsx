@@ -135,6 +135,21 @@ export default function OwnerReports() {
         </Card>
       )}
 
+      {/* Admin bypass notice — data is shown but owners still blocked */}
+      {report?.visibility?.admin_bypass && (
+        <Card className="border-sky-300 bg-sky-50 dark:bg-sky-900/10" data-testid="or-admin-bypass-banner">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-sky-700 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sky-900 dark:text-sky-100">Admin preview — not yet released to owners</p>
+              <p className="text-sm text-sky-800 dark:text-sky-200">
+                Accounts team has not flagged this month as ready. Franchise owners will see the "Report not yet available" screen until released.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {report && visible && (
         <>
           {/* Top row — key metrics */}

@@ -176,8 +176,17 @@ async def monthly_report(req: dict = Body(...)):
         }
     
     data = await _compute_monthly_report(center, month)
+    # Admin/Super Admin always see the report; expose an admin_bypass flag so
+    # the UI can render content while still surfacing the "not yet flagged"
+    # state to Accounts users.
+    effective_ready = ready or is_admin
     return {
         "success": True,
-        "visibility": {"ready": ready, "note": vis.get("note", "") if vis else ""},
+        "visibility": {
+            "ready": effective_ready,
+            "flagged_ready": ready,
+            "admin_bypass": (is_admin and not ready),
+            "note": vis.get("note", "") if vis else "",
+        },
         **data,
     }

@@ -2995,23 +2995,24 @@ export default function CenterAccounts() {
               {(() => {
                 const s = pibPreview.summary;
                 const sales = s.sales || {};
-                const finCur = s.financial || s.summary || {};
-                const revShare = s.revenue_share || {};
+                const finCur = s.financial_summary || s.financial || s.summary || {};
+                const comms = s.commissions || {};
+                const revShare = s.share_calculation || s.revenue_share || {};
                 const pnlFig = finCur.net_revenue ?? finCur.profit ?? finCur.pnl;
                 return (
                   <>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       <div className="rounded-lg border p-3 bg-blue-50 dark:bg-blue-900/20">
                         <p className="text-xs text-muted-foreground">Total Sale</p>
-                        <p className="text-lg font-bold">₹{Math.round(sales.total_sale || finCur.total_sale || 0).toLocaleString('en-IN')}</p>
+                        <p className="text-lg font-bold">₹{Math.round(sales.total_sale || finCur.total_sales || finCur.total_sale || 0).toLocaleString('en-IN')}</p>
                       </div>
                       <div className="rounded-lg border p-3 bg-rose-50 dark:bg-rose-900/20">
-                        <p className="text-xs text-muted-foreground">GST (eligible × rate)</p>
-                        <p className="text-lg font-bold">₹{Math.round(finCur.sales_gst_amount || finCur.gst || 0).toLocaleString('en-IN')}</p>
+                        <p className="text-xs text-muted-foreground">GST ({finCur.sales_gst_rate || '5%'} × eligible)</p>
+                        <p className="text-lg font-bold">₹{Math.round(finCur.sales_gst || finCur.sales_gst_amount || finCur.gst || 0).toLocaleString('en-IN')}</p>
                       </div>
                       <div className="rounded-lg border p-3 bg-orange-50 dark:bg-orange-900/20">
                         <p className="text-xs text-muted-foreground">Total Commission</p>
-                        <p className="text-lg font-bold">₹{Math.round(finCur.total_commission || finCur.commission || 0).toLocaleString('en-IN')}</p>
+                        <p className="text-lg font-bold">₹{Math.round(comms.total || finCur.total_commissions || finCur.total_commission || finCur.commission || 0).toLocaleString('en-IN')}</p>
                       </div>
                       <div className="rounded-lg border p-3 bg-amber-50 dark:bg-amber-900/20">
                         <p className="text-xs text-muted-foreground">Total Expenses</p>
@@ -3023,16 +3024,16 @@ export default function CenterAccounts() {
                       </div>
                       <div className="rounded-lg border p-3 bg-purple-50 dark:bg-purple-900/20">
                         <p className="text-xs text-muted-foreground">Revenue Share</p>
-                        <p className="text-lg font-bold">₹{Math.round(revShare.amount || finCur.revenue_share || 0).toLocaleString('en-IN')}</p>
+                        <p className="text-lg font-bold">₹{Math.round(revShare.share_amount || revShare.amount || finCur.revenue_share || 0).toLocaleString('en-IN')}</p>
                       </div>
                     </div>
                     <div className="rounded-lg border p-3 bg-muted/40">
                       <p className="font-semibold text-xs text-muted-foreground mb-2">SALES BREAKDOWN</p>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                        <div>Cash: ₹{Math.round(sales.cash_sale || 0).toLocaleString('en-IN')}</div>
-                        <div>Online/Card: ₹{Math.round(sales.card_sale || sales.online_sale || 0).toLocaleString('en-IN')}</div>
-                        <div>Swiggy: ₹{Math.round(sales.swiggy_sale || 0).toLocaleString('en-IN')}</div>
-                        <div>Zomato: ₹{Math.round(sales.zomato_sale || 0).toLocaleString('en-IN')}</div>
+                        <div>Cash: ₹{Math.round(sales.total_cash_sale || sales.cash_sale || 0).toLocaleString('en-IN')}</div>
+                        <div>Online/Card: ₹{Math.round(sales.total_online_sale || sales.card_sale || sales.online_sale || 0).toLocaleString('en-IN')}</div>
+                        <div>Swiggy: ₹{Math.round(sales.swiggy || sales.swiggy_sale || 0).toLocaleString('en-IN')}</div>
+                        <div>Zomato: ₹{Math.round(sales.zomato || sales.zomato_sale || 0).toLocaleString('en-IN')}</div>
                       </div>
                     </div>
                     <details className="rounded-lg border p-2 bg-muted/20">
