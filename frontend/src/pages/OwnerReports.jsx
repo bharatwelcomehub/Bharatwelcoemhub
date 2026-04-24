@@ -140,12 +140,71 @@ export default function OwnerReports() {
         <Card className="border-sky-300 bg-sky-50 dark:bg-sky-900/10" data-testid="or-admin-bypass-banner">
           <CardContent className="p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-sky-700 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="font-semibold text-sky-900 dark:text-sky-100">Admin preview — not yet released to owners</p>
               <p className="text-sm text-sky-800 dark:text-sky-200">
                 Accounts team has not flagged this month as ready. Franchise owners will see the "Report not yet available" screen until released.
               </p>
             </div>
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              data-testid="or-release-btn"
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${API}/api/owner-reports/set-visibility`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      token: session.token, center, month: `${year}-${month}`, ready: true,
+                      note: `Released by ${session.managerName || 'admin'} on ${new Date().toLocaleString()}`,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.detail || 'Failed');
+                  toast.success(`Released ${center} · ${year}-${month} to franchise owners.`);
+                  load();
+                } catch (e) { toast.error(e.message); }
+              }}
+            >Release to Owners</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Released banner — admin can revoke */}
+      {report?.visibility?.flagged_ready && (
+        <Card className="border-emerald-300 bg-emerald-50 dark:bg-emerald-900/10" data-testid="or-released-banner">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-emerald-700 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-emerald-900 dark:text-emerald-100">Released to franchise owners ✓</p>
+              <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                {report.visibility.note || 'This month is visible to franchise owners.'}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-300 text-red-700 hover:bg-red-50"
+              data-testid="or-revoke-btn"
+              onClick={async () => {
+                if (!window.confirm('Revoke access so franchise owners can no longer see this month?')) return;
+                try {
+                  const res = await fetch(`${API}/api/owner-reports/set-visibility`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      token: session.token, center, month: `${year}-${month}`, ready: false,
+                      note: `Revoked by ${session.managerName || 'admin'} on ${new Date().toLocaleString()}`,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.detail || 'Failed');
+                  toast.success(`Access revoked for ${center} · ${year}-${month}.`);
+                  load();
+                } catch (e) { toast.error(e.message); }
+              }}
+            >Revoke Access</Button>
           </CardContent>
         </Card>
       )}

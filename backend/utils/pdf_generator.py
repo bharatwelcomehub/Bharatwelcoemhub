@@ -628,15 +628,29 @@ def build_gst_summary_pdf(summary: Dict[str, Any]) -> bytes:
 
     currency = "AUD" if summary["country"] == "Australia" else "Rs."
     tax_rules = summary["tax_rules"]
-    sales_gst = summary["sales"]["total_sale"] * (tax_rules["sales_gst_rate"] / 100)
-    if summary["country"] == "Australia":
-        sales_gst = (summary["sales"]["total_sale"] * AUSTRALIA_GST_INCLUSIVE
-                     / (1 + AUSTRALIA_GST_INCLUSIVE))
+
+    # Use the pre-computed GST (from financial_summary.sales_gst) which is
+    # already based on ELIGIBLE sales (Total − Swiggy − Zomato − DoorDash).
+    # Fallback to manual compute if missing.
+    sales_total = float(summary["sales"].get("total_sale", 0) or 0)
+    aggregator_total = float(summary["sales"].get("aggregator_sale", 0) or 0)
+    eligible_base = max(0.0, sales_total - aggregator_total)
+    sales_gst = float(summary.get("financial_summary", {}).get("sales_gst", 0) or 0)
+    if sales_gst == 0:  # fallback
+        if summary["country"] == "Australia":
+            sales_gst = eligible_base * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
+        else:
+            sales_gst = eligible_base * (tax_rules["sales_gst_rate"] / 100)
 
     gst_data = [
         ["Description", "Taxable Amount", "GST Rate", "GST Amount"],
-        ["Sales GST", f"{currency} {summary['sales']['total_sale']:,.2f}",
-         f"{tax_rules['sales_gst_rate']:.0f}%", f"{currency} {sales_gst:,.2f}"],
+        ["Total Sales (Gross)", f"{currency} {sales_total:,.2f}", "-", "-"],
+        ["Less: Aggregator Sales (Swiggy/Zomato/DoorDash)",
+         f"({currency} {aggregator_total:,.2f})", "-", "-"],
+        ["Eligible Sales (Taxable Base)",
+         f"{currency} {eligible_base:,.2f}",
+         f"{tax_rules['sales_gst_rate']:.0f}%",
+         f"{currency} {sales_gst:,.2f}"],
         ["Revenue/Profit Share",
          f"{currency} {summary['share_calculation']['purnabramha']['base_amount']:,.2f}",
          f"{tax_rules['share_gst_rate']:.0f}%",
@@ -646,7 +660,7 @@ def build_gst_summary_pdf(summary: Dict[str, Any]) -> bytes:
         gst_data.append(["  - CGST (9%)", "", "", f"{currency} {summary['share_calculation']['purnabramha']['cgst']:,.2f}"])
         gst_data.append(["  - SGST (9%)", "", "", f"{currency} {summary['share_calculation']['purnabramha']['sgst']:,.2f}"])
 
-    gst_table = Table(gst_data, colWidths=[150, 120, 80, 100])
+    gst_table = Table(gst_data, colWidths=[230, 100, 60, 100])
     gst_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
