@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Body
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from .attendance_dashboard import get_session, check_super_admin
+from .owner_reports import check_release_access
 from utils.gst import compute_gst_from_rows, gst_rate_for
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,7 @@ async def mark_paid(req: dict = Body(...)):
     """Mark a GST liability as paid. Creates a corresponding expense row in the
     payment month (defaults to M+1) with category 'GST PAYMENT'."""
     session = await get_session(req.get("token"))
-    if not session or not check_super_admin(session):
+    if not session or not check_release_access(session):
         raise HTTPException(403, "Only Super Admin can record GST payments")
     center = req.get("center")
     month = req.get("month")          # liability month (M)
@@ -175,7 +176,7 @@ async def unmark_paid(req: dict = Body(...)):
     """Reverse a GST payment: deletes the expense row and clears paid flags.
     Useful when an accounting mistake is made."""
     session = await get_session(req.get("token"))
-    if not session or not check_super_admin(session):
+    if not session or not check_release_access(session):
         raise HTTPException(403, "Only Super Admin can reverse GST payments")
     center = req.get("center")
     month = req.get("month")

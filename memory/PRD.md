@@ -5,6 +5,17 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-24] Release-All + GST Reconciliation + Bank Reconciliation
+Shipped 3 features requested from the backlog:
+
+1. **Release All for Month bulk action** — new `POST /api/owner-reports/release-all` upserts visibility for ALL active centers in one call; `Release All` (green) + `Revoke All` (red) buttons in the Owner Reports header. Verified: 10 centers toggled in a single click.
+
+2. **GST Reconciliation sub-page** — new `/gst-reconciliation` route (Admin/Accountant only) using the existing `/api/gst/*` endpoints. Table columns: Center, Month, Eligible Base, Rate, GST Amount, Status, Paid Date, Action. Filters: Center, Year, Status (all/paid/unpaid). "Recompute All" seed button + inline "Mark Paid"/"Unmark" actions per row. `mark-paid` / `unmark-paid` access broadened from Super-Admin-only to the `check_release_access()` group (SA + Admin + Accountant).
+
+3. **Bank Reconciliation page** — new `/bank-reconciliation` route consuming the already-mature `bank_reconciliation.py` backend (21 pre-existing uploads visible). Upload form (Center/Month/CSV|XLSX), Recent Uploads table, 4-tab summary view (Unrecorded / Matched / Added / Ignored), Add-as-Expense dialog with expense-category dropdown + payment-mode picker, Ignore flow with reason capture.
+
+All 3 pages wired into sidebar; test-ids present throughout (`or-release-all-btn`, `gr-*`, `br-*`).
+
 ### [2026-04-24] Added MG Report + Bank Statement on Owner Reports
 - **MG Report** button — wires to existing `/api/center-accounts/export-mg-payout` (PDF format). Now gated by `enforce_owner_visibility()` so Franchise Owners only get released months.
 - **Bank Statement** (new) — `POST /api/center-accounts/generate-bank-statement` builds a derived monthly cash-flow PDF via new `build_bank_statement_pdf()` in `utils/pdf_generator.py`. Sections: Opening Balance → Credits (daily sales by Cash/Online/Aggregator) → Debits (expenses + commissions + revenue-share payouts if paid) → Net Movement → Closing Balance. Includes disclaimer labelling it as a derived statement (not bank-feed reconciliation).

@@ -22,6 +22,7 @@ import {
   Briefcase,
   IndianRupee,
   Receipt,
+  Banknote,
   Tags,
   ChevronDown,
   ChevronRight,
@@ -61,6 +62,8 @@ import FranchiseManagement from "@/pages/FranchiseManagement";
 import FranchiseExit from "@/pages/FranchiseExit";
 import MISDashboard from "@/pages/MISDashboard";
 import CenterAccounts from "@/pages/CenterAccounts";
+import GSTReconciliation from "@/pages/GSTReconciliation";
+import BankReconciliation from "@/pages/BankReconciliation";
 import HistoricalImport from "@/pages/HistoricalImport";
 import OwnerReports from "@/pages/OwnerReports";
 import LoanEntries from "@/pages/LoanEntries";
@@ -114,6 +117,8 @@ const menuCategories = [
     forAccounts: true,
     items: [
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
+      { path: "/gst-reconciliation", icon: Receipt, label: "GST Reconciliation", forAccounts: true },
+      { path: "/bank-reconciliation", icon: Banknote, label: "Bank Reconciliation", forAccounts: true },
       { path: "/loan-entries", icon: Wallet, label: "Loan Entries", forAccounts: true },
       { path: "/historical-import", icon: Upload, label: "Historical Import", forAccounts: true, superAdminOnly: true },
       { path: "/mis-dashboard", icon: BarChart3, label: "MIS Dashboard", forAccounts: true },
@@ -498,6 +503,8 @@ export default function Dashboard() {
             <Route path="/franchises" element={<FranchiseManagement />} />
             <Route path="/franchise-exit" element={<FranchiseExit />} />
             <Route path="/center-accounts" element={<CenterAccounts />} />
+            <Route path="/gst-reconciliation" element={<GSTReconciliation />} />
+            <Route path="/bank-reconciliation" element={<BankReconciliation />} />
             <Route path="/historical-import" element={<HistoricalImport />} />
             <Route path="/owner-reports" element={<OwnerReports />} />
             <Route path="/loan-entries" element={<LoanEntries />} />

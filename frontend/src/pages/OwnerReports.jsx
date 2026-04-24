@@ -100,8 +100,49 @@ export default function OwnerReports() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Filters</CardTitle>
+          {(session?.is_super_admin || session?.is_admin || session?.role_key === 'accountant' || session?.roles?.accounting) && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white"
+                data-testid="or-release-all-btn"
+                onClick={async () => {
+                  if (!window.confirm(`Release ${year}-${month} for ALL active centers to franchise owners?`)) return;
+                  try {
+                    const res = await fetch(`${API}/api/owner-reports/release-all`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token: session.token, month: `${year}-${month}`, ready: true }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || 'Failed');
+                    toast.success(`Released ${year}-${month} for ${data.updated} center(s).`);
+                    load();
+                  } catch (e) { toast.error(e.message); }
+                }}
+              >Release All for {year}-{month}</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                data-testid="or-revoke-all-btn"
+                onClick={async () => {
+                  if (!window.confirm(`Revoke owner access to ${year}-${month} for ALL centers?`)) return;
+                  try {
+                    const res = await fetch(`${API}/api/owner-reports/release-all`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token: session.token, month: `${year}-${month}`, ready: false }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || 'Failed');
+                    toast.success(`Revoked ${year}-${month} across ${data.updated} center(s).`);
+                    load();
+                  } catch (e) { toast.error(e.message); }
+                }}
+              >Revoke All</Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

@@ -78,6 +78,40 @@ async def set_visibility(req: dict = Body(...)):
     return {"success": True}
 
 
+@router.post("/release-all")
+async def release_all(req: dict = Body(...)):
+    """Bulk release / revoke a month for ALL active centers.
+    Body: {token, month, ready: bool, note?, exclude?: [centers]}"""
+    session = await get_session(req.get("token"))
+    if not session or not check_release_access(session):
+        raise HTTPException(403, "Only Super Admin, Admin, or Accounts team can bulk-release reports")
+    month = req["month"]
+    ready = bool(req.get("ready", True))
+    exclude = set(req.get("exclude") or [])
+    note = req.get("note") or f"Bulk {'released' if ready else 'revoked'} by {session.get('managerName','admin')} on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    centers = await db.centers.find(
+        {"$or": [{"active": True}, {"active": {"$exists": False}}]},
+        {"_id": 0, "code": 1},
+    ).to_list(500)
+    codes = [c["code"] for c in centers if c.get("code") and c["code"] not in exclude]
+
+    updated = 0
+    for code in codes:
+        await db.owner_report_visibility.update_one(
+            {"center": code, "month": month},
+            {"$set": {
+                "center": code, "month": month, "ready": ready, "note": note,
+                "updated_by": session.get("managerName", ""), "updated_at": now,
+            }, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+        updated += 1
+    return {"success": True, "updated": updated, "month": month, "ready": ready, "centers": codes}
+
+
+
 @router.post("/visibility-status")
 async def visibility_status(req: dict = Body(...)):
     """List visibility flags (Accounts view). Optional center filter."""
