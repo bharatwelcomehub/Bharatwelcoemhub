@@ -232,35 +232,24 @@ def get_currency_symbol(center: str) -> str:
     """Get currency symbol based on center"""
     return "$" if is_perth_center(center) else "₹"
 
-def calculate_gst(total_sale: float, swiggy: float, zomato: float, center: str) -> dict:
+def calculate_gst(total_sale: float, swiggy: float, zomato: float, center: str, doordash: float = 0) -> dict:
     """
-    Calculate GST based on center location.
-    - Perth (Australia): 10% GST INCLUSIVE (extract from total)
-    - India: 5% GST EXCLUSIVE (added on top, excl. Swiggy/Zomato)
+    Calculate GST using Net Eligible Sales formula (Apr 2026 rule).
+        Net Eligible Sales = Total − Swiggy − Zomato − DoorDash
+        GST = Net Eligible Sales × 5%  (India)
+             = Net Eligible Sales × 10% (Perth / outside-India)
     """
-    # Exclude Swiggy and Zomato from GST calculation
-    gst_applicable_sale = max(0, total_sale - swiggy - zomato)
-    
+    gst_applicable_sale = max(0, float(total_sale) - float(swiggy or 0) - float(zomato or 0) - float(doordash or 0))
     if is_perth_center(center):
-        # Australia (Perth): 10% GST is INCLUDED in price
-        # Formula: GST = Total / 11
         gst_rate = 10
-        gst_amount = gst_applicable_sale / 11
-        net_sale = gst_applicable_sale - gst_amount
-        is_inclusive = True
     else:
-        # India: 5% GST is ADDED to subtotal
-        # Formula: GST = Subtotal * 0.05
         gst_rate = 5
-        gst_amount = gst_applicable_sale * 0.05
-        net_sale = gst_applicable_sale
-        is_inclusive = False
-    
+    gst_amount = gst_applicable_sale * (gst_rate / 100.0)
     return {
         "gst_rate": gst_rate,
         "gst_amount": round(gst_amount, 2),
-        "net_sale": round(net_sale, 2),
-        "is_inclusive": is_inclusive,
+        "net_sale": round(gst_applicable_sale, 2),
+        "is_inclusive": False,
         "currency": get_currency_symbol(center)
     }
 
@@ -2495,7 +2484,7 @@ async def upload_sales_data(
                     record["total_cash_sale"] = record["total_sale"] - total_online
                     
                     # GST calculation (5% of total sale)
-                    record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                    record["gst_amount"] = round(max(0, record["total_sale"] - (record.get("swiggy_sale", record.get("swiggy", 0)) or 0) - (record.get("zomato_sale", record.get("zomato", 0)) or 0) - (record.get("doordash_sale", record.get("doordash", 0)) or 0)) * 0.05, 2)
                     
                     # Averages
                     if record["num_guests"] > 0:
@@ -2754,7 +2743,7 @@ async def upload_custom_format_data(
                                   record["doordash"] + record["online_other"])
                     record["total_online_sale"] = total_online
                     record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
-                    record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                    record["gst_amount"] = round(max(0, record["total_sale"] - (record.get("swiggy_sale", record.get("swiggy", 0)) or 0) - (record.get("zomato_sale", record.get("zomato", 0)) or 0) - (record.get("doordash_sale", record.get("doordash", 0)) or 0)) * 0.05, 2)
                     
                     # Calculate closing balance + petty cash closing (TWO SEPARATE TRACKS)
                     ob = record["opening_balance"]
@@ -2935,7 +2924,7 @@ async def upload_custom_format_data(
                                       record["doordash"] + record["online_other"])
                         record["total_online_sale"] = total_online
                         record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
-                        record["gst_amount"] = round(record["total_sale"] * 0.05, 2)
+                        record["gst_amount"] = round(max(0, record["total_sale"] - (record.get("swiggy_sale", record.get("swiggy", 0)) or 0) - (record.get("zomato_sale", record.get("zomato", 0)) or 0) - (record.get("doordash_sale", record.get("doordash", 0)) or 0)) * 0.05, 2)
                         
                         # Calculate closing balance + petty cash closing (TWO SEPARATE TRACKS)
                         ob = record["opening_balance"]

@@ -62,6 +62,7 @@ import FranchiseExit from "@/pages/FranchiseExit";
 import MISDashboard from "@/pages/MISDashboard";
 import CenterAccounts from "@/pages/CenterAccounts";
 import HistoricalImport from "@/pages/HistoricalImport";
+import OwnerReports from "@/pages/OwnerReports";
 import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
@@ -152,6 +153,7 @@ const menuCategories = [
     forFranchise: true,
     items: [
       { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true, franchiseAdminOnly: true },
+      { path: "/owner-reports", icon: FileText, label: "Owner Reports", forFranchise: true },
       { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
       { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
       { path: "/social-media", icon: Share2, label: "Social Media Planner", forFranchise: true },
@@ -489,6 +491,7 @@ export default function Dashboard() {
             <Route path="/franchise-exit" element={<FranchiseExit />} />
             <Route path="/center-accounts" element={<CenterAccounts />} />
             <Route path="/historical-import" element={<HistoricalImport />} />
+            <Route path="/owner-reports" element={<OwnerReports />} />
             <Route path="/loan-entries" element={<LoanEntries />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />

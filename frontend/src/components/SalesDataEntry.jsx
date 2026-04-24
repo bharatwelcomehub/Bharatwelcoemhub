@@ -42,35 +42,26 @@ const isDateFrozen = (dateStr) => {
   return recordDate < today;
 };
 
-// GST Calculation
-// India: 5% GST ADDED to subtotal (excluding Swiggy/Zomato)
-// Perth: 10% GST INCLUDED in total (extract from total)
-const calculateGST = (totalSale, swiggy, zomato, center, centersList = []) => {
-  // Exclude Swiggy and Zomato from GST calculation
-  const gstApplicableSale = (parseFloat(totalSale) || 0) - (parseFloat(swiggy) || 0) - (parseFloat(zomato) || 0);
-  
-  if (isIntl(center, centersList)) {
-    // Australia (Perth): 10% GST is INCLUDED in price
-    // Formula: GST = Total / 11
-    const gstAmount = gstApplicableSale / 11;
-    const netSale = gstApplicableSale - gstAmount;
-    return {
-      gstRate: 10,
-      gstAmount: gstAmount,
-      netSale: netSale,
-      isInclusive: true
-    };
-  } else {
-    // India: 5% GST is ADDED to subtotal
-    // Formula: GST = Subtotal * 0.05
-    const gstAmount = gstApplicableSale * 0.05;
-    return {
-      gstRate: 5,
-      gstAmount: gstAmount,
-      netSale: gstApplicableSale,
-      isInclusive: false
-    };
-  }
+// GST Calculation (as of Apr 2026):
+//   Net Eligible Sales = Total − Swiggy − Zomato − DoorDash
+//   GST = Net Eligible Sales × 5%  (India)  |  × 10%  (Perth)
+const calculateGST = (totalSale, swiggy, zomato, center, centersList = [], doordash = 0) => {
+  const eligible = Math.max(
+    0,
+    (parseFloat(totalSale) || 0)
+      - (parseFloat(swiggy) || 0)
+      - (parseFloat(zomato) || 0)
+      - (parseFloat(doordash) || 0)
+  );
+  const isPerth = isIntl(center, centersList);
+  const rate = isPerth ? 10 : 5;
+  const gstAmount = eligible * (rate / 100);
+  return {
+    gstRate: rate,
+    gstAmount: gstAmount,
+    netSale: eligible,
+    isInclusive: false,
+  };
 };
 
 export default function SalesDataEntry({ session, selectedCenter, centersList = [] }) {
@@ -136,7 +127,7 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
     const total_cash_sale = Math.max(0, total_sale - total_online_sale);
     
     // GST Calculation
-    const gst = calculateGST(total_sale, formData.swiggy, formData.zomato, centerCode, centersList);
+    const gst = calculateGST(total_sale, formData.swiggy, formData.zomato, centerCode, centersList, formData.doordash);
     
     // Average calculations
     const num_guests = parseInt(formData.num_guests) || 0;

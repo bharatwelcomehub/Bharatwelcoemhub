@@ -208,13 +208,28 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
     
     commission_months = [{"_id": m, "total_commission": v} for m, v in sorted(commission_map.items())]
     
-    # Get monthly GST (from daily_sales gst_amount)
-    gst_months = await db_ref.daily_sales.aggregate([
+    # Get monthly eligible base for GST (total - aggregators) and apply rate
+    gst_months_raw = await db_ref.daily_sales.aggregate([
         {"$match": {"center": center_code, "date": {"$regex": r"^\d{4}-\d{2}"}}},
-        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
-        {"$group": {"_id": "$month", "total_gst": {"$sum": {"$ifNull": ["$gst_amount", 0]}}}},
+        {"$addFields": {
+            "month": {"$substr": ["$date", 0, 7]},
+            "_eligible": {
+                "$max": [0, {"$subtract": [
+                    {"$ifNull": ["$total_sale", 0]},
+                    {"$add": [
+                        {"$ifNull": ["$swiggy_sale", {"$ifNull": ["$swiggy", 0]}]},
+                        {"$ifNull": ["$zomato_sale", {"$ifNull": ["$zomato", 0]}]},
+                        {"$ifNull": ["$doordash_sale", {"$ifNull": ["$doordash", 0]}]},
+                    ]}
+                ]}]
+            }
+        }},
+        {"$group": {"_id": "$month", "eligible_base": {"$sum": "$_eligible"}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
+    from utils.gst import gst_rate_for
+    _rate_std = gst_rate_for(country, center_code)
+    gst_months = [{"_id": g["_id"], "total_gst": round(float(g.get("eligible_base", 0)) * _rate_std, 2)} for g in gst_months_raw]
     
     # Get manual WC top-ups
     topups = await db_ref.wc_topups.find({"center": center_code}, {"_id": 0}).sort("date", 1).to_list(200)
@@ -506,13 +521,29 @@ async def get_wc_table(req: dict = Body(...)):
         commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
     commission_months = [{"_id": m, "total_commission": v} for m, v in sorted(commission_map.items())]
     
-    # Get monthly GST
-    gst_months = await db.daily_sales.aggregate([
+    # Get monthly eligible base for GST: (total_sale - swiggy - zomato - doordash)
+    # Rate is applied below based on center country (India 5%, Perth 10%).
+    gst_months_raw = await db.daily_sales.aggregate([
         {"$match": {"center": center, "date": {"$regex": r"^\d{4}-\d{2}"}}},
-        {"$addFields": {"month": {"$substr": ["$date", 0, 7]}}},
-        {"$group": {"_id": "$month", "total_gst": {"$sum": {"$ifNull": ["$gst_amount", 0]}}}},
+        {"$addFields": {
+            "month": {"$substr": ["$date", 0, 7]},
+            "_eligible": {
+                "$max": [0, {"$subtract": [
+                    {"$ifNull": ["$total_sale", 0]},
+                    {"$add": [
+                        {"$ifNull": ["$swiggy_sale", {"$ifNull": ["$swiggy", 0]}]},
+                        {"$ifNull": ["$zomato_sale", {"$ifNull": ["$zomato", 0]}]},
+                        {"$ifNull": ["$doordash_sale", {"$ifNull": ["$doordash", 0]}]},
+                    ]}
+                ]}]
+            }
+        }},
+        {"$group": {"_id": "$month", "eligible_base": {"$sum": "$_eligible"}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
+    from utils.gst import gst_rate_for
+    _rate = gst_rate_for(None, center)
+    gst_months = [{"_id": g["_id"], "total_gst": round(float(g.get("eligible_base", 0)) * _rate, 2)} for g in gst_months_raw]
     
     # Get manual WC top-ups (audit log)
     topups = await db.wc_topups.find(
@@ -1431,26 +1462,23 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # Total commission
     total_commission = total_aggregator_commission + card_commission
     
-    # For Australia: Sales are GST inclusive (10%)
-    # We need to extract GST from total sale
+    # Net Eligible Sales for GST = Total - Aggregators (Swiggy + Zomato + DoorDash).
+    # Rate: 10% for Australia/Perth, 5% for India.
+    gst_rate = 0.10 if country == "Australia" else 0.05
+    eligible_base = max(0.0, total_sale - aggregator_sale)
+    sales_gst_amount = round(eligible_base * gst_rate, 2)
+    
     if country == "Australia":
-        # GST is 10% included in sale, so extract it
-        gst_rate = 0.10
-        sales_gst_amount = total_sale * gst_rate / (1 + gst_rate)
+        # Australia historically booked GST as inclusive; we still deduct it
+        # from revenue for profit-share so downstream formula is unchanged.
         sales_ex_gst = total_sale - sales_gst_amount
-        
-        # Commission GST (10% on commission)
         commission_gst = total_commission * gst_rate
         total_commission_with_gst = total_commission + commission_gst
-        
-        # Net Revenue for profit share calculation:
-        # Sales (ex GST) - Expenses - Commission (with GST)
         net_revenue = sales_ex_gst - total_expenses - total_commission_with_gst
     else:
         # India: GST is added separately
-        sales_gst_amount = total_sale * 0.05  # 5% GST on food
         sales_ex_gst = total_sale
-        commission_gst = 0  # Commission GST handled differently in India
+        commission_gst = 0
         total_commission_with_gst = total_commission
         net_revenue = total_sale - total_expenses - total_commission
     
@@ -1466,8 +1494,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # Net Revenue = Total Sales - Commissions (Swiggy, Zomato, Card) - GST on Sale (if gst_applicable is ON)
         # NOTE: Expenses are NOT deducted for India revenue share calculation
         
-        # Calculate GST on sales (5% of total sales) - only deducted if gst_applicable is ON
-        gst_on_sales = total_sale * INDIA_GST_ON_SALES if gst_applicable_india else 0
+        # Calculate GST on ELIGIBLE sales (total − Swiggy − Zomato − DoorDash)
+        # at 5% when gst_applicable is ON. Rate for Perth / outside-India is 10%.
+        gst_on_sales = round(max(0.0, total_sale - aggregator_sale) * 0.05, 2) if gst_applicable_india else 0
         
         # Net Revenue for India = Total Sales - Commissions - GST on Sales (if applicable)
         india_net_revenue = total_sale - total_commission - gst_on_sales
@@ -1901,6 +1930,28 @@ async def delete_commission(data: dict):
 # =======================================
 # PDF GENERATION - PIB REPORT
 # =======================================
+
+@router.post("/preview-pib")
+async def preview_pib_report(req: PIBGenerateRequest):
+    """Return the PIB data as JSON so the frontend can render a preview screen
+    BEFORE the user clicks Download. Same computation as /generate-pib but
+    without the PDF rendering step."""
+    session = await check_access(req.token)
+    summary_req = AccountPeriodRequest(
+        token=req.token, center=req.center, month=req.month
+    )
+    summary_response = await get_center_account_summary(summary_req)
+    summary = summary_response["summary"]
+    if not summary["franchise"]["linked"]:
+        raise HTTPException(400, "Center is not linked to a franchise. Cannot generate PIB.")
+    return {
+        "success": True,
+        "center": req.center,
+        "month": req.month,
+        "summary": summary,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
 
 @router.post("/generate-pib")
 async def generate_pib_report(req: PIBGenerateRequest):
@@ -2803,13 +2854,20 @@ async def get_payout_summary(data: dict = Body(...)):
         else:
             end_date = f"{year}-{int(mon) + 1:02d}-01"
         
-        # Get total sales
+        # Get total sales + aggregator breakdown (needed for eligible-GST base)
         sales_records = await db.daily_sales.find({
             "center": center,
             "date": {"$gte": start_date, "$lt": end_date}
-        }, {"total_sale": 1}).to_list(100)
+        }, {"total_sale": 1, "swiggy_sale": 1, "zomato_sale": 1, "doordash_sale": 1,
+            "swiggy": 1, "zomato": 1, "doordash": 1}).to_list(100)
         
         total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
+        total_aggregator_sale = sum(
+            (r.get("swiggy_sale", r.get("swiggy", 0)) or 0)
+            + (r.get("zomato_sale", r.get("zomato", 0)) or 0)
+            + (r.get("doordash_sale", r.get("doordash", 0)) or 0)
+            for r in sales_records
+        )
         
         # Get expenses for this month
         expense_records = await db.expenses.find({
@@ -2844,9 +2902,10 @@ async def get_payout_summary(data: dict = Body(...)):
         gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
         
         if franchise_country == "India":
-            # India: Net Revenue = Sales - Commissions - GST on sales (if applicable)
+            # India: Net Revenue = Eligible Sales (Sales - Aggregators) × 5% for GST,
+            # then Net Revenue = Sales - Commissions - GST on eligible sales.
             # NOTE: Expenses are NOT deducted for India revenue share calculation
-            gst_on_sales = total_sale * 0.05 if gst_applicable_india else 0  # 5% GST on food sales
+            gst_on_sales = round(max(0.0, total_sale - total_aggregator_sale) * 0.05, 2) if gst_applicable_india else 0
             net_revenue_for_share = max(0, total_sale - total_commission - gst_on_sales)
         else:
             # Outside India: Net Profit = Sales - Expenses - Commissions

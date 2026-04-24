@@ -676,7 +676,36 @@ export default function CenterAccounts() {
   };
 
   // Download PDF report
+  const [pibPreview, setPibPreview] = useState(null);      // PIB preview data for view-before-download
+  const [pibPreviewLoading, setPibPreviewLoading] = useState(false);
+
+  const openPibPreview = async () => {
+    if (!selectedCenter || !selectedMonth) { toast.error('Please select center and month'); return; }
+    setPibPreviewLoading(true);
+    setPibPreview({ loading: true });
+    try {
+      const res = await fetch(`${API}/api/center-accounts/preview-pib`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to load preview');
+      }
+      setPibPreview(await res.json());
+    } catch (e) {
+      toast.error(e.message || 'Failed');
+      setPibPreview(null);
+    } finally {
+      setPibPreviewLoading(false);
+    }
+  };
+
   const downloadReport = async (reportType) => {
+    // Intercept PIB: show preview first, then the user clicks Download inside the modal.
+    if (reportType === 'pib') {
+      return openPibPreview();
+    }
     if (!selectedCenter || !selectedMonth) {
       toast.error('Please select center and month');
       return;
@@ -2947,6 +2976,100 @@ export default function CenterAccounts() {
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : editingPayment ? <Pencil className="w-4 h-4 mr-2" /> : <DollarSign className="w-4 h-4 mr-2" />}
               {editingPayment ? 'Update Payment' : 'Record Payment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PIB Preview Dialog — View before Download */}
+      <Dialog open={!!pibPreview} onOpenChange={(open) => { if (!open) setPibPreview(null); }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" data-testid="pib-preview-dialog">
+          <DialogHeader>
+            <DialogTitle>PIB Report Preview — {selectedCenter} · {selectedMonth}</DialogTitle>
+            <DialogDescription>Review the figures, then click Download to save the PDF.</DialogDescription>
+          </DialogHeader>
+          {pibPreviewLoading || (pibPreview && pibPreview.loading) ? (
+            <div className="py-12 text-center text-muted-foreground">Loading preview…</div>
+          ) : pibPreview?.summary ? (
+            <div className="space-y-4 text-sm" data-testid="pib-preview-content">
+              {(() => {
+                const s = pibPreview.summary;
+                const sales = s.sales || {};
+                const finCur = s.financial || s.summary || {};
+                const revShare = s.revenue_share || {};
+                const pnlFig = finCur.net_revenue ?? finCur.profit ?? finCur.pnl;
+                return (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div className="rounded-lg border p-3 bg-blue-50 dark:bg-blue-900/20">
+                        <p className="text-xs text-muted-foreground">Total Sale</p>
+                        <p className="text-lg font-bold">₹{Math.round(sales.total_sale || finCur.total_sale || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="rounded-lg border p-3 bg-rose-50 dark:bg-rose-900/20">
+                        <p className="text-xs text-muted-foreground">GST (eligible × rate)</p>
+                        <p className="text-lg font-bold">₹{Math.round(finCur.sales_gst_amount || finCur.gst || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="rounded-lg border p-3 bg-orange-50 dark:bg-orange-900/20">
+                        <p className="text-xs text-muted-foreground">Total Commission</p>
+                        <p className="text-lg font-bold">₹{Math.round(finCur.total_commission || finCur.commission || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="rounded-lg border p-3 bg-amber-50 dark:bg-amber-900/20">
+                        <p className="text-xs text-muted-foreground">Total Expenses</p>
+                        <p className="text-lg font-bold">₹{Math.round(finCur.total_expenses || finCur.expenses || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="rounded-lg border p-3 bg-green-50 dark:bg-green-900/20">
+                        <p className="text-xs text-muted-foreground">Net Revenue</p>
+                        <p className="text-lg font-bold">₹{Math.round(pnlFig || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div className="rounded-lg border p-3 bg-purple-50 dark:bg-purple-900/20">
+                        <p className="text-xs text-muted-foreground">Revenue Share</p>
+                        <p className="text-lg font-bold">₹{Math.round(revShare.amount || finCur.revenue_share || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border p-3 bg-muted/40">
+                      <p className="font-semibold text-xs text-muted-foreground mb-2">SALES BREAKDOWN</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <div>Cash: ₹{Math.round(sales.cash_sale || 0).toLocaleString('en-IN')}</div>
+                        <div>Online/Card: ₹{Math.round(sales.card_sale || sales.online_sale || 0).toLocaleString('en-IN')}</div>
+                        <div>Swiggy: ₹{Math.round(sales.swiggy_sale || 0).toLocaleString('en-IN')}</div>
+                        <div>Zomato: ₹{Math.round(sales.zomato_sale || 0).toLocaleString('en-IN')}</div>
+                      </div>
+                    </div>
+                    <details className="rounded-lg border p-2 bg-muted/20">
+                      <summary className="cursor-pointer text-xs font-semibold">Show full summary JSON</summary>
+                      <pre className="text-[10px] mt-2 overflow-auto max-h-60">{JSON.stringify(s, null, 2)}</pre>
+                    </details>
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-8">No data to preview.</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPibPreview(null)} data-testid="pib-preview-cancel">Close</Button>
+            <Button
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${API}/api/center-accounts/generate-pib`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth }),
+                  });
+                  if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Failed'); }
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = `PIB_${selectedCenter}_${selectedMonth}.pdf`;
+                  a.click(); window.URL.revokeObjectURL(url);
+                  toast.success('PIB downloaded');
+                  setPibPreview(null);
+                } catch (e) { toast.error(e.message); }
+              }}
+              className="bg-[#8B0000] hover:bg-[#6B0000]"
+              disabled={!pibPreview?.summary}
+              data-testid="pib-preview-download"
+            >
+              <Download className="w-4 h-4 mr-1" /> Download PDF
             </Button>
           </DialogFooter>
         </DialogContent>

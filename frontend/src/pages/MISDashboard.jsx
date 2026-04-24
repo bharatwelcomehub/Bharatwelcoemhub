@@ -299,6 +299,36 @@ export default function MISDashboard() {
 
   return (
     <div className="space-y-6" data-testid="mis-dashboard">
+      {/* Data availability banner — shown when the selected period has no data */}
+      {overview?.data_availability && !overview.data_availability.has_data_in_range && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700/50 p-4 flex items-start gap-3" data-testid="data-availability-banner">
+          <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300" />
+          </div>
+          <div className="flex-1 text-sm">
+            {overview.data_availability.earliest_month ? (
+              <>
+                <p className="font-semibold text-amber-900 dark:text-amber-100">
+                  No data for the selected range.
+                </p>
+                <p className="text-amber-800 dark:text-amber-200 mt-0.5">
+                  Data available from <strong>{new Date(overview.data_availability.earliest_month + "-01").toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</strong> onwards. Previous data not available in system.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-amber-900 dark:text-amber-100">
+                  No data available for this center yet.
+                </p>
+                <p className="text-amber-800 dark:text-amber-200 mt-0.5">
+                  Either upload historical files via <em>Accounts → Historical Import</em>, or enter daily sales/expenses for the current month.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── HEADER ── */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700/40">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">

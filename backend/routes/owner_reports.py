@@ -1,0 +1,183 @@
+"""Owner Reports — gated reports for franchise owners.
+
+Accounts team must flag a center+month as 'ready_for_owner' before owners
+can view PIB/GST/Sales/Expense reports for that month. Unflagged → owner
+sees "Current month in progress" message.
+"""
+from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, HTTPException, Body
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import logging
+
+from .attendance_dashboard import get_session, check_super_admin, check_admin_access
+from utils.gst import compute_gst_from_rows, gst_rate_for
+
+logger = logging.getLogger(__name__)
+
+_mongo = AsyncIOMotorClient(os.environ["MONGO_URL"])
+db = _mongo[os.environ["DB_NAME"]]
+
+router = APIRouter(prefix="/api/owner-reports", tags=["owner-reports"])
+
+
+def _month_range(month: str) -> tuple[str, str]:
+    """YYYY-MM → (YYYY-MM-01, YYYY-MM-lastday)."""
+    y, m = int(month[:4]), int(month[5:7])
+    start = f"{y:04d}-{m:02d}-01"
+    # last day of the month
+    if m == 12:
+        next_first = datetime(y + 1, 1, 1)
+    else:
+        next_first = datetime(y, m + 1, 1)
+    end_day = (next_first - timedelta(days=1)).day
+    return start, f"{y:04d}-{m:02d}-{end_day:02d}"
+
+
+@router.post("/set-visibility")
+async def set_visibility(req: dict = Body(...)):
+    """Accounts team flags a center+month as ready (or not) for owner viewing.
+    Body: {token, center, month, ready: bool, note?}"""
+    session = await get_session(req.get("token"))
+    if not session or not check_admin_access(session):
+        raise HTTPException(403, "Only Admin or Super Admin can set owner visibility")
+    center = req["center"]
+    month = req["month"]
+    ready = bool(req.get("ready", True))
+    now = datetime.now(timezone.utc).isoformat()
+    await db.owner_report_visibility.update_one(
+        {"center": center, "month": month},
+        {"$set": {
+            "center": center, "month": month, "ready": ready,
+            "note": req.get("note", ""),
+            "updated_by": session.get("managerName", ""),
+            "updated_at": now,
+        }, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    return {"success": True}
+
+
+@router.post("/visibility-status")
+async def visibility_status(req: dict = Body(...)):
+    """List visibility flags (Accounts view). Optional center filter."""
+    session = await get_session(req.get("token"))
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    q = {}
+    if req.get("center") and req["center"] != "all":
+        q["center"] = req["center"]
+    rows = await db.owner_report_visibility.find(q, {"_id": 0}).sort("month", -1).to_list(5000)
+    return {"rows": rows}
+
+
+async def _compute_monthly_report(center: str, month: str) -> dict:
+    """Build a fully-computed monthly report packet for an owner."""
+    start_date, end_date = _month_range(month)
+    # Sales
+    sales = await db.daily_sales.find(
+        {"center": center, "date": {"$gte": start_date, "$lte": end_date}},
+        {"_id": 0}
+    ).to_list(1000)
+    gst_calc = compute_gst_from_rows(sales, None, center)
+    total_sales = round(sum(float(r.get("total_sale", 0) or 0) for r in sales), 2)
+    aggregator = gst_calc["aggregator_sale"]
+    eligible = gst_calc["eligible_base"]
+    gst_amount = gst_calc["gst_amount"]
+    cash = round(sum(float(r.get("total_cash_sale", 0) or 0) for r in sales), 2)
+    online = round(sum(float(r.get("total_online_sale", 0) or 0) for r in sales), 2)
+    
+    # Expenses
+    expenses = await db.expenses.find(
+        {"center": center, "date": {"$gte": start_date, "$lte": end_date}},
+        {"_id": 0}
+    ).to_list(2000)
+    total_expenses = round(sum(float(r.get("amount", 0) or 0) for r in expenses), 2)
+    # Category breakdown
+    by_cat = {}
+    for e in expenses:
+        k = (e.get("expense_type") or "OTHER").upper()
+        by_cat[k] = by_cat.get(k, 0) + float(e.get("amount", 0) or 0)
+    expense_breakdown = [{"category": k, "amount": round(v, 2)} for k, v in sorted(by_cat.items(), key=lambda kv: -kv[1])]
+    
+    # Commissions
+    comms = await db.monthly_commissions.find(
+        {"center": center, "month": month}, {"_id": 0}
+    ).to_list(100)
+    total_commission = round(sum(float(c.get("other_deductions", 0) or 0) for c in comms), 2)
+    commission_breakdown = [
+        {"platform": c.get("platform"), "gross": round(float(c.get("gross_amount", 0)), 2),
+         "commission": round(float(c.get("other_deductions", 0)), 2),
+         "net_payout": round(float(c.get("net_payout", 0)), 2)}
+        for c in comms
+    ]
+    
+    # GST liability (for PIB)
+    gst_liab = await db.gst_liabilities.find_one(
+        {"center": center, "month": month}, {"_id": 0}
+    )
+    
+    pnl = round(total_sales - total_expenses - gst_amount - total_commission, 2)
+    
+    return {
+        "center": center, "month": month,
+        "sales": {
+            "total": total_sales, "cash": cash, "online": online,
+            "swiggy": round(sum(float(r.get("swiggy_sale", r.get("swiggy", 0)) or 0) for r in sales), 2),
+            "zomato": round(sum(float(r.get("zomato_sale", r.get("zomato", 0)) or 0) for r in sales), 2),
+            "doordash": round(sum(float(r.get("doordash_sale", r.get("doordash", 0)) or 0) for r in sales), 2),
+            "card": round(sum(float(r.get("card_sale", 0) or 0) for r in sales), 2),
+            "phone_pe": round(sum(float(r.get("phone_pe_sale", 0) or 0) for r in sales), 2),
+            "days": len(sales),
+        },
+        "gst": {
+            "rate_pct": int(gst_calc["rate"] * 100),
+            "eligible_base": eligible,
+            "aggregator_sale": aggregator,
+            "gst_amount": gst_amount,
+            "liability_paid": bool(gst_liab.get("paid")) if gst_liab else False,
+            "liability_paid_date": gst_liab.get("paid_date") if gst_liab else None,
+        },
+        "expenses": {
+            "total": total_expenses,
+            "rows": len(expenses),
+            "by_category": expense_breakdown,
+        },
+        "commissions": {
+            "total": total_commission,
+            "by_platform": commission_breakdown,
+        },
+        "pnl": pnl,
+    }
+
+
+@router.post("/monthly-report")
+async def monthly_report(req: dict = Body(...)):
+    """Owner-facing monthly report. Blocked unless the center+month is flagged
+    ready_for_owner by Accounts/Admin. Admin/SA can always view.
+    Body: {token, center, month}"""
+    session = await get_session(req.get("token"))
+    if not session:
+        raise HTTPException(401, "Invalid token")
+    center = req["center"]
+    month = req["month"]
+    is_admin = check_admin_access(session)
+    
+    vis = await db.owner_report_visibility.find_one(
+        {"center": center, "month": month}, {"_id": 0}
+    )
+    ready = bool(vis and vis.get("ready"))
+    
+    if not is_admin and not ready:
+        return {
+            "success": True,
+            "visibility": {"ready": False, "reason": "Current month in progress. Accounts team has not yet approved visibility."},
+            "center": center, "month": month,
+        }
+    
+    data = await _compute_monthly_report(center, month)
+    return {
+        "success": True,
+        "visibility": {"ready": ready, "note": vis.get("note", "") if vis else ""},
+        **data,
+    }

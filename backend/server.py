@@ -2309,6 +2309,14 @@ app.include_router(ir_router)
 from routes.historical_import import router as hist_router
 app.include_router(hist_router)
 
+# GST liabilities & payments
+from routes.gst_liabilities import router as gst_router
+app.include_router(gst_router)
+
+# Owner-facing gated reports
+from routes.owner_reports import router as owner_reports_router
+app.include_router(owner_reports_router)
+
 
 
 @app.on_event("startup")

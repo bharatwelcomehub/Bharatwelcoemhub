@@ -196,8 +196,13 @@ async def get_mis_overview(data: dict):
     total_guests = sum(int(s.get("num_guests", 0) or 0) for s in sales_data)
     total_bills = sum(int(s.get("num_bills", 0) or 0) for s in sales_data)
     
-    # GST from actual data (gst_amount field in daily_sales)
-    total_gst = round(sum(float(s.get("gst_amount", 0) or 0) for s in sales_data), 2)
+    # GST using eligible-sales formula: (total_sale - swiggy - zomato - doordash) * rate
+    # India: 5%, Perth/outside-India: 10%. This replaces the legacy sum of
+    # daily_sales.gst_amount which incorrectly treated GST as % of gross.
+    from utils.gst import compute_gst_from_rows
+    _gst_calc = compute_gst_from_rows(sales_data, country=None, center=(center if center and center != "all" else None))
+    total_gst = _gst_calc["gst_amount"]
+    # Legacy field still available as _gst_calc["stored_gst_sum"] if ever needed
     
     # Merge PIB-derived GST (from monthly Excel imports): adds SGST+CGST for
     # months where the daily_sales don't already carry gst_amount. Scoped by
@@ -409,11 +414,14 @@ async def get_mis_overview(data: dict):
     for s in sales_data:
         c = s.get("center", "Unknown")
         if c not in centers_data:
-            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0}
+            centers_data[c] = {"sales": 0, "guests": 0, "bills": 0, "expenses": 0, "commissions": 0, "gst": 0, "_eligible_base": 0}
         centers_data[c]["sales"] += float(s.get("total_sale", 0) or 0)
         centers_data[c]["guests"] += int(s.get("num_guests", 0) or 0)
         centers_data[c]["bills"] += int(s.get("num_bills", 0) or 0)
-        centers_data[c]["gst"] += float(s.get("gst_amount", 0) or 0)
+        # Accumulate the eligible base (total - swiggy - zomato - doordash) per center;
+        # GST applied in one go below using per-center rate.
+        from utils.gst import eligible_base_from_daily_row as _eb
+        centers_data[c]["_eligible_base"] = centers_data[c].get("_eligible_base", 0) + _eb(s)
     
     for e in expenses_data:
         c = e.get("center", "Unknown")
@@ -459,6 +467,16 @@ async def get_mis_overview(data: dict):
     except Exception as comm_err:
         logger.error(f"MIS center commission calc failed: {comm_err}", exc_info=True)
     
+    # Apply per-center GST = eligible_base × rate (5% India, 10% Perth) BEFORE
+    # overrides, so that override logic still works uniformly.
+    try:
+        from utils.gst import gst_rate_for as _gst_rate_for
+        for cc, cd in centers_data.items():
+            rate = _gst_rate_for(None, cc)
+            cd["gst"] = round(cd.get("_eligible_base", 0) * rate, 2)
+    except Exception:
+        pass
+    
     # Apply WC-table per-center overrides to centers_data (commissions/gst)
     try:
         for (cc, mm), o in ov_map.items():
@@ -495,6 +513,30 @@ async def get_mis_overview(data: dict):
         for c, data in sorted(centers_data.items(), key=lambda x: x[1]["sales"], reverse=True)
     ]
     
+    # Earliest-available data across all sources (live + historical imports).
+    # Used by frontend to show "Data available from {month} onwards" banner
+    # when the user picks a date range before any data exists.
+    earliest_month = None
+    try:
+        _q = {"center": center} if center and center != "all" else {}
+        # Scan min(date) across daily_sales + historical_monthly_summary + historical_trial_balance
+        candidates = []
+        ds_min = await db.daily_sales.find(_q, {"date": 1, "_id": 0}).sort("date", 1).limit(1).to_list(1)
+        if ds_min and ds_min[0].get("date"):
+            candidates.append(str(ds_min[0]["date"])[:7])
+        hq = {"center": center} if center and center != "all" else {}
+        h_min = await db.historical_monthly_summary.find(hq, {"month": 1, "_id": 0}).sort("month", 1).limit(1).to_list(1)
+        if h_min and h_min[0].get("month"):
+            candidates.append(h_min[0]["month"])
+        tb_min = await db.historical_trial_balance.find(hq, {"month": 1, "_id": 0}).sort("month", 1).limit(1).to_list(1)
+        if tb_min and tb_min[0].get("month"):
+            candidates.append(tb_min[0]["month"])
+        if candidates:
+            earliest_month = min(candidates)
+    except Exception:
+        pass
+    has_any_data = (total_sales > 0) or (total_expenses > 0)
+    
     return {
         "period": {
             "type": period,
@@ -502,6 +544,10 @@ async def get_mis_overview(data: dict):
             "end": end_date,
             "prev_start": prev_start,
             "prev_end": prev_end
+        },
+        "data_availability": {
+            "has_data_in_range": bool(has_any_data),
+            "earliest_month": earliest_month,
         },
         "summary": {
             "total_sales": round(total_sales, 2),
