@@ -1925,7 +1925,7 @@ export default function CenterAccounts() {
                       <Shield className="w-5 h-5 text-slate-700" />
                       Operational Sustainability Check
                     </CardTitle>
-                    <CardDescription>Operational Balance = Sales - Expenses - Commissions - GST</CardDescription>
+                    <CardDescription>Operational Balance = Sales − Expenses − Commissions. GST is booked as a liability and paid as an expense in the following month (M+1).</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -1941,9 +1941,9 @@ export default function CenterAccounts() {
                         <p className="text-xs text-gray-500">Total Commission</p>
                         <p className="text-lg font-bold text-orange-600">({formatCurrency(accountSummary.operational_sustainability.total_commissions, accountSummary.country)})</p>
                       </div>
-                      <div className="p-3 bg-amber-50 rounded text-center">
-                        <p className="text-xs text-gray-500">GST on Sales</p>
-                        <p className="text-lg font-bold text-amber-600">({formatCurrency(accountSummary.operational_sustainability.gst_on_sales, accountSummary.country)})</p>
+                      <div className="p-3 bg-amber-50 rounded text-center" title="Memo only — paid as expense in M+1">
+                        <p className="text-xs text-gray-500">GST <span className="text-[10px]">(memo, paid M+1)</span></p>
+                        <p className="text-lg font-bold text-amber-600">{formatCurrency(accountSummary.operational_sustainability.gst_on_sales, accountSummary.country)}</p>
                       </div>
                       <div className={`p-3 rounded text-center ${accountSummary.operational_sustainability.is_positive ? 'bg-green-50' : 'bg-red-100'}`}>
                         <p className="text-xs text-gray-500">Operational Balance</p>
