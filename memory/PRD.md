@@ -5,6 +5,14 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-25] Loan Entry Delete — Per-row + Bulk (center+month / all centers)
+- **Per-row delete**: existing `POST /api/loan-entries/delete/{loan_id}` enhanced — now cascade-deletes the linked mirror entry (taken↔given pair) automatically. Added `force=true` flag to override the "has repayments" guard. Verified via curl: creating a TAKEN at PB-HSR mirrored to PB-SN, then deleting via the taken loan_id removed both entries (`{"deleted_loan_ids":["LOAN-PB-HSR-...","LOAN-PB-SN-...-G"]}`); subsequent `get` on the mirror returns 404.
+- **Bulk delete**: new `POST /api/loan-entries/bulk-delete` (Super Admin only) — accepts `center` (or `"all"`), optional `month` (YYYY-MM, filters by `loan_date` regex), `force` and `confirm:true` (mandatory). Mirrors are also cascaded. Returns `deleted_count`, `skipped_count`, `skipped_loan_ids`. Validation: 400 for missing confirm, bad month format, missing center.
+- **Frontend `/loan-entries`**:
+  - Per-row red **Delete** button (super-admin only) with confirmation modal showing loan_id, type, amount, repaid total, and the linked mirror that will also be removed; force checkbox auto-shown when total_repaid > 0.
+  - Header **Bulk Delete** button (super-admin only) → modal with Center scope (incl. "ALL CENTERS"), optional month picker, force toggle, and a live red summary banner showing the active scope before confirm.
+  - Test-ids: `loan-bulk-delete-btn`, `loan-bulk-center-select`, `loan-bulk-month-input`, `loan-bulk-force`, `loan-bulk-delete-confirm-btn`, `loan-delete-btn-{loan_id}`, `loan-delete-confirm-btn`, `loan-delete-force`.
+
 ### [2026-04-24] Release-All + GST Reconciliation + Bank Reconciliation
 Shipped 3 features requested from the backlog:
 

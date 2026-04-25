@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { 
   Wallet, Plus, ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle, 
   Building2, DollarSign, RefreshCw, Loader2, AlertCircle, History,
-  TrendingDown, Percent, FileText, Download
+  TrendingDown, Percent, FileText, Download, Trash2
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -58,6 +58,17 @@ export default function LoanEntries() {
     repayment_date: new Date().toISOString().split('T')[0],
     notes: ''
   });
+
+  // Delete states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [loanToDelete, setLoanToDelete] = useState(null);
+  const [deleteForce, setDeleteForce] = useState(false);
+
+  // Bulk delete states
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkCenter, setBulkCenter] = useState('all');
+  const [bulkMonth, setBulkMonth] = useState('');
+  const [bulkForce, setBulkForce] = useState(false);
 
   // Fetch centers
   const fetchCenters = useCallback(async () => {
@@ -255,6 +266,71 @@ export default function LoanEntries() {
     }
   };
 
+  // Delete single loan
+  const handleDeleteLoan = async () => {
+    if (!loanToDelete) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/loan-entries/delete/${loanToDelete.loan_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, force: deleteForce })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Loan entry deleted');
+        setShowDeleteModal(false);
+        setLoanToDelete(null);
+        setDeleteForce(false);
+        fetchLoans();
+        fetchLoanSummary();
+      } else {
+        toast.error(data.detail || 'Failed to delete loan');
+      }
+    } catch (e) {
+      toast.error('Failed to delete loan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (!bulkCenter) {
+      toast.error("Please select a center scope");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/loan-entries/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          center: bulkCenter,
+          month: bulkMonth,
+          force: bulkForce,
+          confirm: true
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message);
+        setShowBulkDeleteModal(false);
+        setBulkMonth('');
+        setBulkForce(false);
+        fetchLoans();
+        fetchLoanSummary();
+      } else {
+        toast.error(data.detail || 'Bulk delete failed');
+      }
+    } catch (e) {
+      toast.error('Bulk delete failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getCountry = () => {
     if (!selectedCenter) return 'India';
     const center = centers.find(c => c.code === selectedCenter);
@@ -304,6 +380,18 @@ export default function LoanEntries() {
               <Download className="w-4 h-4 mr-2" />
               PDF Report
             </Button>
+            {session?.is_super_admin && (
+              <Button
+                variant="outline"
+                onClick={() => { setBulkCenter(selectedCenter || 'all'); setBulkMonth(''); setBulkForce(false); setShowBulkDeleteModal(true); }}
+                disabled={loading}
+                data-testid="loan-bulk-delete-btn"
+                className="text-red-600 border-red-300 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Bulk Delete
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -460,8 +548,8 @@ export default function LoanEntries() {
                       </div>
                       
                       {/* Action buttons */}
-                      {loan.status !== 'fully_repaid' && (session?.is_super_admin || session?.is_admin) && (
-                        <div className="mt-3 flex gap-2">
+                      <div className="mt-3 flex gap-2 flex-wrap">
+                        {loan.status !== 'fully_repaid' && (session?.is_super_admin || session?.is_admin) && (
                           <Button 
                             size="sm" 
                             variant="outline"
@@ -474,8 +562,25 @@ export default function LoanEntries() {
                             <ArrowUpCircle className="w-4 h-4 mr-1" />
                             Add Repayment
                           </Button>
-                        </div>
-                      )}
+                        )}
+                        {session?.is_super_admin && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid={`loan-delete-btn-${loan.loan_id}`}
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLoanToDelete(loan);
+                              setDeleteForce(false);
+                              setShowDeleteModal(true);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -711,6 +816,134 @@ export default function LoanEntries() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="max-w-md" data-testid="loan-delete-modal">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" />
+              Delete Loan Entry
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete the loan and its mirrored entry on the linked center.
+            </DialogDescription>
+          </DialogHeader>
+          {loanToDelete && (
+            <div className="space-y-3">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm space-y-1">
+                <p><strong>Loan ID:</strong> <span className="font-mono">{loanToDelete.loan_id}</span></p>
+                <p><strong>Type:</strong> {loanToDelete.loan_type === 'given' ? 'GIVEN' : 'TAKEN'}</p>
+                <p><strong>Amount:</strong> {formatCurrency(loanToDelete.amount, country)}</p>
+                <p><strong>Date:</strong> {loanToDelete.loan_date}</p>
+                <p><strong>Total Repaid:</strong> {formatCurrency(loanToDelete.total_repaid, country)}</p>
+                {loanToDelete.linked_loan_id && (
+                  <p className="text-amber-700"><strong>Linked Mirror:</strong> <span className="font-mono">{loanToDelete.linked_loan_id}</span> (will also be deleted)</p>
+                )}
+              </div>
+              {(loanToDelete.total_repaid || 0) > 0 && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="delete-force"
+                    data-testid="loan-delete-force"
+                    checked={deleteForce}
+                    onChange={(e) => setDeleteForce(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <label htmlFor="delete-force" className="text-sm text-amber-800">
+                    This loan has repayments. Check to force delete anyway (also clears the mirrored repayments).
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={loading}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteLoan}
+              disabled={loading || ((loanToDelete?.total_repaid || 0) > 0 && !deleteForce)}
+              data-testid="loan-delete-confirm-btn"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete Permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Modal */}
+      <Dialog open={showBulkDeleteModal} onOpenChange={setShowBulkDeleteModal}>
+        <DialogContent className="max-w-md" data-testid="loan-bulk-delete-modal">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" />
+              Bulk Delete Loan Entries
+            </DialogTitle>
+            <DialogDescription>
+              Delete loans by center scope and (optionally) by month. Mirrored linked entries are also removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Center Scope *</Label>
+              <Select value={bulkCenter} onValueChange={setBulkCenter}>
+                <SelectTrigger data-testid="loan-bulk-center-select">
+                  <SelectValue placeholder="Select scope" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ALL CENTERS</SelectItem>
+                  {centers.map(c => (
+                    <SelectItem key={c.code} value={c.code}>{c.code} - {c.name || c.code}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Month (optional, leave blank for all months)</Label>
+              <Input
+                type="month"
+                value={bulkMonth}
+                onChange={(e) => setBulkMonth(e.target.value)}
+                data-testid="loan-bulk-month-input"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Filters by loan_date YYYY-MM</p>
+            </div>
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="bulk-force"
+                data-testid="loan-bulk-force"
+                checked={bulkForce}
+                onChange={(e) => setBulkForce(e.target.checked)}
+                className="mt-1"
+              />
+              <label htmlFor="bulk-force" className="text-sm text-amber-800">
+                Force delete loans that already have repayments (otherwise they'll be skipped).
+              </label>
+            </div>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <strong>Warning:</strong> This action cannot be undone. Confirm scope:
+              <div className="mt-1 font-mono text-xs">
+                center = {bulkCenter || '(none)'} | month = {bulkMonth || 'ALL MONTHS'} | force = {bulkForce ? 'yes' : 'no'}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkDeleteModal(false)} disabled={loading}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={loading || !bulkCenter}
+              data-testid="loan-bulk-delete-confirm-btn"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete Matching Loans
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

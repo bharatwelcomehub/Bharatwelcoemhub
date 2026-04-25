@@ -440,7 +440,9 @@ async def get_loan_summary(data: dict):
 
 @router.post("/delete/{loan_id}")
 async def delete_loan_entry(loan_id: str, data: dict):
-    """Delete a loan entry (only if no repayments)"""
+    """Delete a loan entry and its linked mirror.
+    Pass force=true to override the 'has repayments' guard.
+    """
     token = data.get("token")
     session = await check_access(token)
     
@@ -448,16 +450,130 @@ async def delete_loan_entry(loan_id: str, data: dict):
     if not session.get("is_super_admin"):
         raise HTTPException(403, "Only Super Admin can delete loan entries")
     
+    force = bool(data.get("force", False))
+    
     loan = await db.loan_entries.find_one({"loan_id": loan_id})
     if not loan:
         raise HTTPException(404, "Loan entry not found")
     
-    if loan.get("total_repaid", 0) > 0:
-        raise HTTPException(400, "Cannot delete loan with existing repayments")
+    if loan.get("total_repaid", 0) > 0 and not force:
+        raise HTTPException(400, "Cannot delete loan with existing repayments. Pass force=true to override.")
+    
+    deleted_ids = [loan_id]
+    
+    # Cascade delete the mirrored loan (taken<->given pair)
+    linked_id = loan.get("linked_loan_id")
+    if linked_id:
+        linked = await db.loan_entries.find_one({"loan_id": linked_id})
+        if linked:
+            await db.loan_entries.delete_one({"loan_id": linked_id})
+            deleted_ids.append(linked_id)
     
     await db.loan_entries.delete_one({"loan_id": loan_id})
     
-    return {"success": True, "message": "Loan entry deleted"}
+    logger.info(f"Loan entries deleted by {session.get('managerName')}: {deleted_ids}")
+    
+    return {
+        "success": True,
+        "message": f"Deleted {len(deleted_ids)} loan entry/entries",
+        "deleted_loan_ids": deleted_ids
+    }
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_loan_entries(data: dict):
+    """Bulk delete loan entries by center and/or month.
+    
+    Body:
+    - token: required
+    - center: center code OR "all" (required)
+    - month: YYYY-MM string (optional; if omitted, deletes ALL months for the center scope)
+    - force: bool (optional, default False) - allow deleting loans with repayments
+    - confirm: bool (required, must be true) - safety check
+    """
+    token = data.get("token")
+    session = await check_access(token)
+    
+    # Only Super Admin can bulk delete
+    if not session.get("is_super_admin"):
+        raise HTTPException(403, "Only Super Admin can bulk delete loan entries")
+    
+    center = (data.get("center") or "").strip()
+    month = (data.get("month") or "").strip()  # YYYY-MM
+    force = bool(data.get("force", False))
+    confirm = bool(data.get("confirm", False))
+    
+    if not center:
+        raise HTTPException(400, "center is required ('all' or a center code)")
+    
+    if not confirm:
+        raise HTTPException(400, "confirm=true is required to bulk delete")
+    
+    # Build query
+    query: Dict[str, Any] = {}
+    if center.lower() != "all":
+        query["center"] = center
+    
+    if month:
+        # Validate YYYY-MM
+        try:
+            datetime.strptime(month, "%Y-%m")
+        except ValueError:
+            raise HTTPException(400, "month must be in YYYY-MM format")
+        query["loan_date"] = {"$regex": f"^{month}-"}
+    
+    # Find candidates
+    candidates = await db.loan_entries.find(query, {"_id": 0}).to_list(10000)
+    
+    if not candidates:
+        return {
+            "success": True,
+            "message": "No loan entries matched the filter",
+            "deleted_count": 0,
+            "skipped_count": 0
+        }
+    
+    # Build the full set of loan_ids to delete (cascade mirrors)
+    loan_ids_to_delete = set()
+    skipped_with_repayments = []
+    
+    for loan in candidates:
+        if loan.get("total_repaid", 0) > 0 and not force:
+            skipped_with_repayments.append(loan.get("loan_id"))
+            continue
+        loan_ids_to_delete.add(loan.get("loan_id"))
+        linked = loan.get("linked_loan_id")
+        if linked:
+            loan_ids_to_delete.add(linked)
+    
+    deleted_count = 0
+    if loan_ids_to_delete:
+        result = await db.loan_entries.delete_many({"loan_id": {"$in": list(loan_ids_to_delete)}})
+        deleted_count = result.deleted_count
+    
+    logger.info(
+        f"Bulk loan delete by {session.get('managerName')}: "
+        f"center={center}, month={month or 'ALL'}, force={force}, "
+        f"deleted={deleted_count}, skipped={len(skipped_with_repayments)}"
+    )
+    
+    msg_parts = [f"Deleted {deleted_count} loan entries"]
+    if center.lower() == "all":
+        msg_parts.append("across all centers")
+    else:
+        msg_parts.append(f"for {center}")
+    if month:
+        msg_parts.append(f"in {month}")
+    if skipped_with_repayments:
+        msg_parts.append(f"({len(skipped_with_repayments)} skipped due to repayments — use force=true to override)")
+    
+    return {
+        "success": True,
+        "message": " ".join(msg_parts),
+        "deleted_count": deleted_count,
+        "skipped_count": len(skipped_with_repayments),
+        "skipped_loan_ids": skipped_with_repayments
+    }
 
 
 # =======================================
