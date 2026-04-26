@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 const BANNER_IMG = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/leitfka5_banana%20leaf%20concept%20%281%29.pdf';
 const CONCEPT_IMG = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/leitfka5_banana%20leaf%20concept%20%281%29.pdf';
 
+const THALI_IMAGE = 'https://static.prod-images.emergentagent.com/jobs/50886080-3950-4b54-8e6a-7e012eaffafc/images/1312be33fab72a840c93a99a09e5dbdea5454e8e51ac81cd7c514e9c852776b6.png';
+
 const THALI_ITEMS = [
   { name: 'Tak Vati', marathi: 'ताक वाटी', desc: 'Traditional buttermilk' },
   { name: 'Bharleli Vangi', marathi: 'भरलेली वांगी', desc: 'Stuffed brinjal with rich spice masala' },
@@ -82,57 +84,73 @@ const BananaLeafThali = () => {
   return (
     <div className="min-h-screen bg-[#FDFBF7]">
       {/* Hero Section */}
-      <section className="relative py-16 lg:py-24 bg-gradient-to-b from-[#3D2314] via-[#4A2A18] to-[#3D2314] overflow-hidden">
+      <section className="relative py-12 lg:py-20 bg-gradient-to-b from-[#3D2314] via-[#4A2A18] to-[#3D2314] overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #2E7D32 0%, transparent 50%), radial-gradient(circle at 70% 50%, #D4AF37 0%, transparent 50%)' }} />
         <div className="container mx-auto px-4 lg:px-8 relative">
-          <div className="text-center max-w-3xl mx-auto">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-              <div className="inline-flex items-center gap-2 bg-[#2E7D32]/20 border border-[#2E7D32]/30 rounded-full px-4 py-1.5 mb-6">
-                <Leaf className="w-4 h-4 text-[#4CAF50]" />
-                <span className="text-xs font-body text-[#4CAF50] tracking-wider uppercase">Launching May 2nd, 2026</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+            {/* Image */}
+            <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }} className="order-2 lg:order-1 flex justify-center">
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-br from-[#2E7D32]/20 to-[#D4AF37]/10 rounded-2xl blur-2xl" />
+                <img
+                  src={THALI_IMAGE}
+                  alt="Purnabramha Banana Leaf Thali - Authentic Maharashtrian Unlimited Thali"
+                  className="relative w-full max-w-[500px] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.4)]"
+                  data-testid="banana-leaf-hero-img"
+                />
               </div>
             </motion.div>
 
-            <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="font-heading text-4xl lg:text-6xl text-[#D4AF37] mb-3">
-              Banana Leaf Thali
-            </motion.h1>
-            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="font-heading text-xl lg:text-2xl text-[#D4AF37]/60 italic mb-6">
-              केळीच्या पानाची पंगत
-            </motion.p>
-            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="text-base text-[#D4AF37]/50 font-body leading-relaxed mb-8 max-w-xl mx-auto">
-              Authentic Maharashtrian unlimited thali served on a traditional banana leaf.
-              Pure vegetarian. Wholesome. Satisfying. Non-sharable.
-            </motion.p>
+            {/* Text */}
+            <div className="order-1 lg:order-2 text-center lg:text-left">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+                <div className="inline-flex items-center gap-2 bg-[#2E7D32]/20 border border-[#2E7D32]/30 rounded-full px-4 py-1.5 mb-6">
+                  <Leaf className="w-4 h-4 text-[#4CAF50]" />
+                  <span className="text-xs font-body text-[#4CAF50] tracking-wider uppercase">Launching May 2nd, 2026</span>
+                </div>
+              </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="flex flex-wrap items-center justify-center gap-6 mb-8">
-              <div className="text-center">
-                <p className="text-3xl font-heading text-[#D4AF37]">&#8377;490</p>
-                <p className="text-[10px] text-[#D4AF37]/40 font-body">Per Person (India)</p>
-              </div>
-              <div className="w-px h-10 bg-[#D4AF37]/20" />
-              <div className="text-center">
-                <p className="text-3xl font-heading text-[#D4AF37]">$40</p>
-                <p className="text-[10px] text-[#D4AF37]/40 font-body">Per Person (Perth)</p>
-              </div>
-              <div className="w-px h-10 bg-[#D4AF37]/20" />
-              <div className="text-center">
-                <p className="text-3xl font-heading text-[#D4AF37]">Unlimited</p>
-                <p className="text-[10px] text-[#D4AF37]/40 font-body">All Dishes, All Servings</p>
-              </div>
-            </motion.div>
+              <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="font-heading text-4xl lg:text-5xl text-[#D4AF37] mb-3">
+                Banana Leaf Thali
+              </motion.h1>
+              <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="font-heading text-xl text-[#D4AF37]/60 italic mb-5">
+                केळीच्या पानाची पंगत
+              </motion.p>
+              <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="text-sm text-[#D4AF37]/50 font-body leading-relaxed mb-6 max-w-md mx-auto lg:mx-0">
+                Authentic Maharashtrian unlimited thali served on a traditional banana leaf.
+                Pure vegetarian. Wholesome. Satisfying. Non-sharable.
+              </motion.p>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="flex flex-wrap items-center justify-center gap-4">
-              <Link to="/table-booking">
-                <Button className="gold-glossy text-[#3D2314] font-bold rounded-none px-8 py-3 text-sm tracking-widest uppercase border-0" data-testid="banana-leaf-book-btn">
-                  <Calendar className="w-4 h-4 mr-2" /> Book Your Table
-                </Button>
-              </Link>
-              <a href="https://wa.me/919741399190?text=Hi%2C%20I%20want%20to%20book%20Banana%20Leaf%20Thali%20for%20our%20corporate%20group" target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" className="border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-none px-8 py-3 text-sm tracking-widest uppercase" data-testid="banana-leaf-corporate-btn">
-                  <Users className="w-4 h-4 mr-2" /> Corporate Group Booking
-                </Button>
-              </a>
-            </motion.div>
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="flex flex-wrap items-center justify-center lg:justify-start gap-6 mb-8">
+                <div className="text-center">
+                  <p className="text-3xl font-heading text-[#D4AF37]">&#8377;490</p>
+                  <p className="text-[10px] text-[#D4AF37]/40 font-body">Per Person (India)</p>
+                </div>
+                <div className="w-px h-10 bg-[#D4AF37]/20" />
+                <div className="text-center">
+                  <p className="text-3xl font-heading text-[#D4AF37]">$40</p>
+                  <p className="text-[10px] text-[#D4AF37]/40 font-body">Per Person (Perth)</p>
+                </div>
+                <div className="w-px h-10 bg-[#D4AF37]/20" />
+                <div className="text-center">
+                  <p className="text-3xl font-heading text-[#D4AF37]">Unlimited</p>
+                  <p className="text-[10px] text-[#D4AF37]/40 font-body">All Dishes, All Servings</p>
+                </div>
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                <Link to="/table-booking">
+                  <Button className="gold-glossy text-[#3D2314] font-bold rounded-none px-8 py-3 text-sm tracking-widest uppercase border-0" data-testid="banana-leaf-book-btn">
+                    <Calendar className="w-4 h-4 mr-2" /> Book Your Table
+                  </Button>
+                </Link>
+                <a href="https://wa.me/919741399190?text=Hi%2C%20I%20want%20to%20book%20Banana%20Leaf%20Thali%20for%20our%20corporate%20group" target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" className="border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-none px-8 py-3 text-sm tracking-widest uppercase" data-testid="banana-leaf-corporate-btn">
+                    <Users className="w-4 h-4 mr-2" /> Corporate Group Booking
+                  </Button>
+                </a>
+              </motion.div>
+            </div>
           </div>
         </div>
       </section>
