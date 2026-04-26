@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
 
@@ -19,6 +20,8 @@ import perthMenus from '@/config/menus-perth.json';
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const TableBooking = () => {
+  const [searchParams] = useSearchParams();
+  const urlType = searchParams.get('type') || '';
   const [selectedRegion, setSelectedRegion] = useState('');
   const [selectedCenter, setSelectedCenter] = useState('');
   const [bookingDate, setBookingDate] = useState('');
@@ -27,6 +30,8 @@ const TableBooking = () => {
   const [guestCount, setGuestCount] = useState('2');
   const [celebration, setCelebration] = useState('none');
   const [guestType, setGuestType] = useState('');
+  const [bookingType, setBookingType] = useState(urlType.includes('banana-leaf') ? 'banana-leaf' : 'regular');
+  const [isCorporate, setIsCorporate] = useState(urlType === 'banana-leaf-corporate');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -111,12 +116,19 @@ const TableBooking = () => {
     const timeSlotLabel = bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label || '';
     const celebrationLabel = bookingRules.tableBooking.celebrationOptions.find(c => c.id === celebration)?.label || '';
     let message = `🪔 *PURNABRAMHA TABLE BOOKING* 🪔\n━━━━━━━━━━━━━━━━\n\n`;
+    if (bookingType === 'banana-leaf') {
+      message = `🍌🪔 *BANANA LEAF THALI BOOKING* 🪔🍌\n━━━━━━━━━━━━━━━━\n\n`;
+      message += `🍃 *Banana Leaf Thali — Unlimited*\n`;
+      message += `💰 ${currentCenter?.country === 'Australia' ? '$40/person' : '₹490/person'}\n`;
+      if (isCorporate) message += `🏢 *CORPORATE GROUP BOOKING*\n`;
+      message += `\n`;
+    }
     message += `📍 ${currentCenter?.displayName}\n📅 ${bookingDate} ⏰ ${timeSlotLabel}\n`;
     message += `🍽️ ${serviceType === 'dine-in' ? 'Dine In' : 'Pickup'} | 👥 ${guestCount} guests\n`;
     if (celebration !== 'none') message += `🎉 ${celebrationLabel}\n`;
     message += `\n👤 *${name}* | 📞 ${phone}\n`;
     if (email) message += `📧 ${email}\n`;
-    if (cartItemCount > 0) {
+    if (bookingType !== 'banana-leaf' && cartItemCount > 0) {
       message += `\n🛒 *Pre-Order:*\n`;
       Object.entries(cart).forEach(([id, item]) => { message += `• ${item.name} ×${item.qty} — ${formatPrice(item.price * item.qty)}\n`; });
       message += `💰 *Total: ${formatPrice(cartTotal)}*\n`;
@@ -227,6 +239,41 @@ const TableBooking = () => {
                     <div><Label className={labelCls}>Center *</Label><Select value={selectedCenter} onValueChange={setSelectedCenter} disabled={!selectedRegion}><SelectTrigger className={inputCls} data-testid="center-select"><SelectValue placeholder="Select Center" /></SelectTrigger><SelectContent className="bg-white border-[#E8DFD0]">{filteredCenters.map(c => <SelectItem key={c.id} value={c.id}>{c.displayName}</SelectItem>)}</SelectContent></Select></div>
                   </div>
                   {currentCenter && <div className="p-2 bg-[#F8F5F0] border border-[#E8DFD0] flex items-center gap-2 text-sm text-[#5C4A3A] font-body"><Phone className="h-4 w-4 text-[#B8962E]/60" /><span>{currentCenter.phone}</span></div>}
+                </div>
+              </div>
+
+              {/* Booking Type — Banana Leaf Thali Option */}
+              <div className="pearl-surface overflow-hidden" data-testid="booking-type-section">
+                <div className="bg-[#F8F5F0] border-b border-[#E8DFD0] p-4"><h3 className="flex items-center gap-2 text-[#B8962E] font-heading font-medium"><Leaf className="h-5 w-5" /> Booking Type</h3></div>
+                <div className="p-4">
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <button
+                      onClick={() => { setBookingType('regular'); setIsCorporate(false); }}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${bookingType === 'regular' ? 'border-[#B8962E] bg-[#B8962E]/5' : 'border-[#E8DFD0] hover:border-[#B8962E]/30'}`}
+                      data-testid="type-regular"
+                    >
+                      <p className="font-heading text-sm text-[#3D2314]">Regular Booking</p>
+                      <p className="text-[10px] text-[#7A6F65] font-body mt-1">Dine-in or Pickup from our menu</p>
+                    </button>
+                    <button
+                      onClick={() => { setBookingType('banana-leaf'); setServiceType('dine-in'); }}
+                      className={`p-4 rounded-lg border-2 text-left transition-all relative ${bookingType === 'banana-leaf' ? 'border-[#2E7D32] bg-[#2E7D32]/5' : 'border-[#E8DFD0] hover:border-[#2E7D32]/30'}`}
+                      data-testid="type-banana-leaf"
+                    >
+                      <span className="absolute -top-2 right-3 bg-[#2E7D32] text-white text-[8px] px-2 py-0.5 rounded-full font-body font-bold">NEW</span>
+                      <p className="font-heading text-sm text-[#3D2314] flex items-center gap-1"><Leaf className="w-3.5 h-3.5 text-[#2E7D32]" /> Banana Leaf Thali</p>
+                      <p className="text-[10px] text-[#7A6F65] font-body mt-1">Unlimited Maharashtrian thali | Tue, Wed, Thu | Lunch only</p>
+                      <p className="text-xs text-[#2E7D32] font-body font-semibold mt-1">{selectedRegion === 'australia' ? '$40/person' : '₹490/person'}</p>
+                    </button>
+                  </div>
+                  {bookingType === 'banana-leaf' && (
+                    <div className="mt-3 flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={isCorporate} onChange={(e) => setIsCorporate(e.target.checked)} className="accent-[#2E7D32] w-4 h-4" />
+                        <span className="text-xs font-body text-[#3D2314]">Corporate Group Booking (20+ guests)</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 

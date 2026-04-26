@@ -139,16 +139,16 @@ const BananaLeafThali = () => {
               </motion.div>
 
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
-                <Link to="/table-booking">
+                <Link to="/table-booking?type=banana-leaf">
                   <Button className="gold-glossy text-[#3D2314] font-bold rounded-none px-8 py-3 text-sm tracking-widest uppercase border-0" data-testid="banana-leaf-book-btn">
                     <Calendar className="w-4 h-4 mr-2" /> Book Your Table
                   </Button>
                 </Link>
-                <a href="https://wa.me/919741399190?text=Hi%2C%20I%20want%20to%20book%20Banana%20Leaf%20Thali%20for%20our%20corporate%20group" target="_blank" rel="noopener noreferrer">
+                <Link to="/table-booking?type=banana-leaf-corporate">
                   <Button variant="outline" className="border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-none px-8 py-3 text-sm tracking-widest uppercase" data-testid="banana-leaf-corporate-btn">
                     <Users className="w-4 h-4 mr-2" /> Corporate Group Booking
                   </Button>
-                </a>
+                </Link>
               </motion.div>
             </div>
           </div>

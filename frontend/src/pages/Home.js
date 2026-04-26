@@ -172,6 +172,38 @@ const Home = () => {
         </motion.div>
       </section>
 
+      {/* Banana Leaf Thali Launch — Top of page */}
+      <section className="py-12 bg-gradient-to-r from-[#1B5E20] via-[#2E7D32] to-[#1B5E20] relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #fff 0%, transparent 40%)' }} />
+        <div className="container mx-auto px-6 lg:px-12 relative">
+          <div className="text-center max-w-2xl mx-auto">
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1 mb-4">
+                <Leaf className="w-3.5 h-3.5 text-[#A5D6A7]" />
+                <span className="text-[10px] font-body text-[#A5D6A7] tracking-wider uppercase">New — Launching May 2nd</span>
+              </div>
+              <h2 className="font-heading text-2xl lg:text-3xl text-white mb-2">Banana Leaf Thali</h2>
+              <p className="font-heading text-base text-white/60 italic mb-3">केळीच्या पानाची पंगत</p>
+              <p className="text-sm text-white/50 font-body mb-5">
+                Unlimited authentic Maharashtrian thali on banana leaf. Every Tue, Wed, Thu — Lunch only. ₹490/person | $40 in Perth
+              </p>
+              <div className="flex flex-wrap justify-center gap-4">
+                <Link to="/banana-leaf-thali">
+                  <Button className="bg-white text-[#1B5E20] hover:bg-white/90 font-bold rounded-none px-8 py-3 text-sm tracking-widest uppercase" data-testid="home-banana-leaf-cta">
+                    <ArrowRight className="w-4 h-4 mr-2" /> Explore Menu
+                  </Button>
+                </Link>
+                <Link to="/table-booking?type=banana-leaf">
+                  <Button variant="outline" className="border border-white/30 text-white hover:bg-white/10 rounded-none px-8 py-3 text-sm tracking-widest uppercase">
+                    <Calendar className="w-4 h-4 mr-2" /> Book Table
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* Services */}
       <section className="py-24 bg-[#FDFBF7]">
         <div className="container mx-auto px-6 lg:px-12">
@@ -285,39 +317,6 @@ const Home = () => {
                 <button key={i} onClick={() => setCurrentSlide(i)} className={`h-1 transition-all ${currentSlide === i ? 'bg-[#B8962E] w-8' : 'bg-[#E8DFD0] w-4'}`} />
               ))}
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Banana Leaf Thali Launch */}
-      <section className="py-16 bg-gradient-to-r from-[#1B5E20] via-[#2E7D32] to-[#1B5E20] relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #fff 0%, transparent 40%)' }} />
-        <div className="container mx-auto px-6 lg:px-12 relative">
-          <div className="text-center max-w-2xl mx-auto">
-            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-              <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1 mb-4">
-                <Leaf className="w-3.5 h-3.5 text-[#A5D6A7]" />
-                <span className="text-[10px] font-body text-[#A5D6A7] tracking-wider uppercase">New — Launching May 2nd</span>
-              </div>
-              <h2 className="font-heading text-3xl lg:text-4xl text-white mb-2">Banana Leaf Thali</h2>
-              <p className="font-heading text-lg text-white/60 italic mb-4">केळीच्या पानाची पंगत</p>
-              <p className="text-sm text-white/50 font-body mb-6">
-                Unlimited authentic Maharashtrian thali on banana leaf. Every Tue, Wed, Thu — Lunch only.
-                ₹490/person | $40 in Perth
-              </p>
-              <div className="flex flex-wrap justify-center gap-4">
-                <Link to="/banana-leaf-thali">
-                  <Button className="bg-white text-[#1B5E20] hover:bg-white/90 font-bold rounded-none px-8 py-3 text-sm tracking-widest uppercase" data-testid="home-banana-leaf-cta">
-                    <ArrowRight className="w-4 h-4 mr-2" /> Explore Menu
-                  </Button>
-                </Link>
-                <Link to="/table-booking">
-                  <Button variant="outline" className="border border-white/30 text-white hover:bg-white/10 rounded-none px-8 py-3 text-sm tracking-widest uppercase">
-                    <Calendar className="w-4 h-4 mr-2" /> Book Table
-                  </Button>
-                </Link>
-              </div>
-            </motion.div>
           </div>
         </div>
       </section>
