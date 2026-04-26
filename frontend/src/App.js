@@ -23,6 +23,7 @@ import LocationSEO from '@/pages/LocationSEO';
 import AboutPurnabramha from '@/pages/AboutPurnabramha';
 import BookLanding from '@/pages/BookLanding';
 import BookReader from '@/pages/BookReader';
+import BananaLeafThali from '@/pages/BananaLeafThali';
 import '@/App.css';
 
 // Remove Emergent badge
@@ -111,6 +112,9 @@ function App() {
                     {/* Book Reading Platform */}
                     <Route path="/book" element={<BookLanding />} />
                     <Route path="/book/success" element={<BookLanding />} />
+                    
+                    {/* Banana Leaf Thali */}
+                    <Route path="/banana-leaf-thali" element={<BananaLeafThali />} />
                   </Routes>
                 </Layout>
               } />
