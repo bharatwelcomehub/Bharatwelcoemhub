@@ -5,6 +5,19 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-27] Weekly Sales Text Generator (Tab on /daily-text)
+- New backend endpoint `POST /api/daily-text/generate-weekly` aggregates Mon-Sun (snapped from any selected date) from `daily_sales` + `expenses` for a center.
+  - Outputs the requested WhatsApp format: `Jai Hind Namskar` → ordinal date range (e.g. `20th April 2026 to 26th April 2026`) → `↪️ Total Sale / Card / Deposit / Withdrawl` → `DESCRIPTION Expenses` block (top 6 expense categories grouped from `expense_type` or `description`, lettered a/b/c…) → `↪️ Swiggy / Zomato / [Doordash if international] / Paytm / Bharat Pay / Cash Sale / Cash Expenses / Cash In Hand / Online Expenses / APC / Total No. Of Guest`.
+  - Doordash line is **conditionally rendered** only when the center is international (`is_india_center === false` or non-India `country` field, e.g. PB-PERTH).
+  - Cash In Hand = closing balance on the LAST day of the week with sales data (no double-counting). APC = total_sale / total_guests (weekly average).
+  - Accepts `overrides` dict (any field, including `expense_categories: [{name, amount}]`) for manager edits before send.
+- Frontend `/daily-text` page rebuilt as **Tabs (Daily | Weekly)**:
+  - Weekly tab: Center select, "pick any date in week" picker (Mon-Sun snap explained inline), Generate / Refresh / Copy buttons.
+  - Editable values panel with all 15 numeric fields + dynamic add/remove rows for expense categories.
+  - Live regeneration of the WhatsApp preview as the manager edits (mirrors backend formatter exactly).
+  - Test-ids: `tab-daily`, `tab-weekly`, `weekly-center-select`, `weekly-date`, `weekly-generate-btn`, `weekly-refresh-btn`, `weekly-copy-btn`, `weekly-text-preview`, `weekly-field-{key}`, `weekly-add-cat-btn`, `weekly-cat-row-{i}`, `weekly-cat-remove-{i}`.
+- Verified via curl: PB-HSR Mar 2-8 2026 → 7 days aggregated correctly (Total Sale 15000, Card 4000, Swiggy/Zomato 1000 each, Bharat Pay 2000, Guests 100, APC 150, expense category "Other Expenses" 2500, Cash In Hand = 76355 from last-day closing). PB-PERTH preview correctly inserts "Total Doordash" line.
+
 ### [2026-04-25] Loan Entry Delete — Per-row + Bulk (center+month / all centers)
 - **Per-row delete**: existing `POST /api/loan-entries/delete/{loan_id}` enhanced — now cascade-deletes the linked mirror entry (taken↔given pair) automatically. Added `force=true` flag to override the "has repayments" guard. Verified via curl: creating a TAKEN at PB-HSR mirrored to PB-SN, then deleting via the taken loan_id removed both entries (`{"deleted_loan_ids":["LOAN-PB-HSR-...","LOAN-PB-SN-...-G"]}`); subsequent `get` on the mirror returns 404.
 - **Bulk delete**: new `POST /api/loan-entries/bulk-delete` (Super Admin only) — accepts `center` (or `"all"`), optional `month` (YYYY-MM, filters by `loan_date` regex), `force` and `confirm:true` (mandatory). Mirrors are also cascaded. Returns `deleted_count`, `skipped_count`, `skipped_loan_ids`. Validation: 400 for missing confirm, bad month format, missing center.
