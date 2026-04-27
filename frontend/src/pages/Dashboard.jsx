@@ -107,7 +107,7 @@ const menuCategories = [
     items: [
       { path: "/sales", icon: IndianRupee, label: "Sales Dashboard", roleKey: "sales_cash" },
       { path: "/expense-heads", icon: Tags, label: "Expense Heads", forMGT: true },
-      { path: "/daily-text", icon: MessageSquare, label: "Daily Text Generator", roleKey: "sales_cash" },
+      { path: "/daily-text", icon: MessageSquare, label: "Sales Text Generator", roleKey: "sales_cash" },
     ]
   },
   {
