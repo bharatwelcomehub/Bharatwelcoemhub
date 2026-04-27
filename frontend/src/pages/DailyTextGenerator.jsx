@@ -8,9 +8,41 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import {
-  Loader2, RefreshCw, Copy, FileText, MessageSquare, Check, CalendarRange, CalendarDays, CalendarClock, Download,
+  Loader2, RefreshCw, Copy, FileText, MessageSquare, Check, CalendarRange, CalendarDays, CalendarClock, Download, BarChart3,
 } from "lucide-react";
+
+// Inline Sales-vs-Expenses bar chart component reused across tabs
+function SalesVsExpensesChart({ chartSeries, periodLabel }) {
+  if (!chartSeries || chartSeries.length === 0) {
+    return (
+      <div className="text-center text-xs text-muted-foreground py-6 italic" data-testid="chart-empty">
+        No chart data available
+      </div>
+    );
+  }
+  const fmt = (n) => `${(Number(n) || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  return (
+    <div className="w-full" data-testid="chart-container">
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={chartSeries} margin={{ top: 8, right: 16, left: 0, bottom: 24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={chartSeries.length > 8 ? -35 : 0}
+                 textAnchor={chartSeries.length > 8 ? "end" : "middle"} height={50} />
+          <YAxis tick={{ fontSize: 10 }} tickFormatter={fmt} />
+          <Tooltip formatter={(v) => fmt(v)} contentStyle={{ fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar dataKey="sales" name="Sales" fill="#800020" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="expenses" name="Expenses" fill="#C9A227" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      {periodLabel && (
+        <p className="text-center text-xs text-muted-foreground mt-1">{periodLabel}</p>
+      )}
+    </div>
+  );
+}
 
 const downloadBrandedPdf = async ({ session, center, periodType, payload, filenameHint, onErr, onOk }) => {
   try {
@@ -204,6 +236,30 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
           </div>
         </CardContent>
       </Card>
+
+      {textData && (
+        <Card className="border-2 border-amber-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
+              <BarChart3 className="w-4 h-4" /> Sales vs Expenses (Daily)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Sales: <strong className="text-[#800020]">Rs. {(editableData.total_sale || 0).toLocaleString("en-IN")}</strong>
+              {" · "}Expenses: <strong className="text-[#C9A227]">Rs. {((editableData.online_expense || 0) + (editableData.cash_expense || 0)).toLocaleString("en-IN")}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SalesVsExpensesChart
+              chartSeries={[{
+                label: selectedDate,
+                date: selectedDate,
+                sales: Number(editableData.total_sale) || 0,
+                expenses: (Number(editableData.online_expense) || 0) + (Number(editableData.cash_expense) || 0),
+              }]}
+              periodLabel={`Date: ${selectedDate}`} />
+          </CardContent>
+        </Card>
+      )}
 
       {textData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -452,6 +508,24 @@ function WeeklyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
           </div>
         </CardContent>
       </Card>
+
+      {textData && (
+        <Card className="border-2 border-amber-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
+              <BarChart3 className="w-4 h-4" /> Sales vs Expenses (Weekly)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Total Sales: <strong className="text-[#800020]">Rs. {(textData.data?.total_sale || 0).toLocaleString("en-IN")}</strong>
+              {" · "}Total Expenses: <strong className="text-[#C9A227]">Rs. {(textData.data?.total_expenses || 0).toLocaleString("en-IN")}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SalesVsExpensesChart chartSeries={textData.data?.chart_series || []}
+              periodLabel={`${textData.week_start} → ${textData.week_end}`} />
+          </CardContent>
+        </Card>
+      )}
 
       {textData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -726,6 +800,24 @@ function MonthlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }
       </Card>
 
       {textData && (
+        <Card className="border-2 border-amber-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
+              <BarChart3 className="w-4 h-4" /> Sales vs Expenses (Monthly)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Total Sales: <strong className="text-[#800020]">Rs. {(textData.data?.total_sale || 0).toLocaleString("en-IN")}</strong>
+              {" · "}Total Expenses: <strong className="text-[#C9A227]">Rs. {(textData.data?.total_expenses || 0).toLocaleString("en-IN")}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SalesVsExpensesChart chartSeries={textData.data?.chart_series || []}
+              periodLabel={`${textData.month_start} → ${textData.month_end}`} />
+          </CardContent>
+        </Card>
+      )}
+
+      {textData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {canEdit && (
             <Card>
@@ -969,6 +1061,24 @@ function YearlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
           </div>
         </CardContent>
       </Card>
+
+      {textData && (
+        <Card className="border-2 border-amber-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
+              <BarChart3 className="w-4 h-4" /> Sales vs Expenses (Yearly — bucketed by month)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Total Sales: <strong className="text-[#800020]">Rs. {(textData.data?.total_sale || 0).toLocaleString("en-IN")}</strong>
+              {" · "}Total Expenses: <strong className="text-[#C9A227]">Rs. {(textData.data?.total_expenses || 0).toLocaleString("en-IN")}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SalesVsExpensesChart chartSeries={textData.data?.chart_series || []}
+              periodLabel={textData.year_label} />
+          </CardContent>
+        </Card>
+      )}
 
       {textData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

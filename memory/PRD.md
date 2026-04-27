@@ -5,6 +5,18 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-27] Sales vs Expenses Charts (UI + PDF) on all 4 tabs
+- **On-screen chart card** added on every tab (`/daily-text` Daily | Weekly | Monthly | Yearly).
+  - Renders a Recharts dual-bar chart (`BarChart` + 2 `Bar`s — Sales in `#800020` maroon, Expenses in `#C9A227` gold) with X-axis labels rotated when bars > 8.
+  - Sub-title shows "Total Sales: Rs. X · Total Expenses: Rs. Y" in the brand colors.
+  - Daily tab shows a single comparison bar (sales vs sum of cash + online expenses for that day).
+- **In-PDF chart**: matplotlib renders the same `chart_series` as a 9.5" × 3.5" PNG (150 dpi, brand maroon/gold bars, navy title, value labels above bars when ≤ 12 buckets) and embeds it via reportlab `Image` between the meta block and the WhatsApp body. PDF size grew from 189 KB → 239 KB (proves chart embedded).
+- **Auto-bucketing rule** in `_build_chart_series`:
+  - ≤ 31 days → per-day buckets (e.g. weekly = 7 bars, monthly = 28-31 bars).
+  - > 31 days → bucket by `YYYY-MM` (e.g. yearly = 12 month bars).
+- `data.total_expenses` now also returned from the aggregator for KPI display.
+- Verified via curl: weekly returns `chart_series` len 7, monthly len 31, yearly len 12 (Apr 25 → Mar 26 with correct per-month rollup).
+
 ### [2026-04-27] Yearly Tab + Branded PDF Downloads + Franchise Owner Access (Sales Text Generator)
 - **Yearly tab** added to `/daily-text` (now Daily | Weekly | Monthly | Yearly).
   - New endpoint `POST /api/daily-text/generate-yearly` with `year` (int).

@@ -305,6 +305,7 @@ async def download_text_pdf(req: PdfDownloadRequest):
     
     text_body = ""
     period_label = ""
+    chart_series = []
     
     if period_type == "daily":
         if not req.date:
@@ -348,6 +349,13 @@ async def download_text_pdf(req: PdfDownloadRequest):
             display_date = req.date
         text_body = _format_whatsapp_text(d_data, display_date)
         period_label = f"Daily Report — {display_date}"
+        # Single-day chart with one bar pair
+        chart_series = [{
+            "label": display_date,
+            "date": req.date,
+            "sales": round(float(d_data["total_sale"]), 2),
+            "expenses": round(online_expense + cash_expense_total, 2),
+        }]
     
     elif period_type == "weekly":
         if not req.week_date:
@@ -364,6 +372,7 @@ async def download_text_pdf(req: PdfDownloadRequest):
         data["week_end"] = week_end.strftime("%Y-%m-%d")
         text_body = _format_period_whatsapp_text(data, period_type="week")
         period_label = f"Weekly Report — {week_start.strftime('%d %b %Y')} to {week_end.strftime('%d %b %Y')}"
+        chart_series = data.get("chart_series", [])
     
     elif period_type == "monthly":
         if not req.month:
@@ -383,6 +392,7 @@ async def download_text_pdf(req: PdfDownloadRequest):
         data["month"] = req.month
         text_body = _format_period_whatsapp_text(data, period_type="month")
         period_label = f"Monthly Report — {first_day.strftime('%B %Y')}"
+        chart_series = data.get("chart_series", [])
     
     else:  # yearly
         if not req.year or not isinstance(req.year, int):
@@ -404,6 +414,7 @@ async def download_text_pdf(req: PdfDownloadRequest):
         data["is_international"] = is_international
         text_body = _format_period_whatsapp_text(data, period_type="year")
         period_label = f"Yearly Report — {period_label_inner}"
+        chart_series = data.get("chart_series", [])
 
     # Look up center info for header
     center_doc = await db.centers.find_one({"code": center}, {"_id": 0}) or \
@@ -418,6 +429,7 @@ async def download_text_pdf(req: PdfDownloadRequest):
         center_name=center_name,
         text_body=text_body,
         manager_name=session.get("managerName", ""),
+        chart_series=chart_series,
     )
     
     safe_label = period_label.replace(" ", "_").replace("/", "-").replace("—", "-")
@@ -431,7 +443,8 @@ async def download_text_pdf(req: PdfDownloadRequest):
 
 
 def _build_text_summary_pdf(title: str, period_label: str, center_code: str,
-                             center_name: str, text_body: str, manager_name: str) -> bytes:
+                             center_name: str, text_body: str, manager_name: str,
+                             chart_series: list = None) -> bytes:
     """Render a branded Purnabramha PDF containing the WhatsApp-style summary text."""
     import io as _io
     from pathlib import Path as _Path
@@ -525,6 +538,18 @@ def _build_text_summary_pdf(title: str, period_label: str, center_code: str,
     story.append(meta_tbl)
     story.append(Spacer(1, 4 * mm))
     
+    # Sales vs Expenses chart (PNG generated with matplotlib)
+    if chart_series:
+        chart_png = _build_sales_vs_expenses_chart_png(chart_series, period_label)
+        if chart_png:
+            try:
+                chart_buf = _io.BytesIO(chart_png)
+                chart_img = Image(chart_buf, width=170 * mm, height=62 * mm)
+                story.append(chart_img)
+                story.append(Spacer(1, 4 * mm))
+            except Exception as _e:
+                logger.warning(f"Embedding chart image failed: {_e}")
+    
     # Body — preserve formatting & emoji
     # Use Preformatted to maintain alignment of WhatsApp text
     body_box = Preformatted(text_body, ParagraphStyle(
@@ -614,6 +639,10 @@ async def _aggregate_period(center: str, date_strs: list):
 
     apc = round(total_sale / total_guests, 0) if total_guests > 0 else 0
 
+    # Build chart series: sales vs expenses per bucket
+    # Daily aggregations -> per-day series; long ranges -> auto-bucket by month
+    chart_series = _build_chart_series(date_strs, sales, expenses)
+
     data = {
         "total_sale": round(total_sale, 2),
         "total_card": round(total_card, 2),
@@ -632,8 +661,130 @@ async def _aggregate_period(center: str, date_strs: list):
         "apc": int(apc),
         "expense_categories": [{"name": k, "amount": round(v, 2)} for k, v in top_categories],
         "is_international": is_international,
+        "chart_series": chart_series,
+        "total_expenses": round(online_expense_total + cash_expense_total, 2),
     }
     return data, sales, expenses, is_international
+
+
+def _build_chart_series(date_strs: list, sales: list, expenses: list) -> list:
+    """Return a list of {label, sales, expenses} buckets.
+    - For periods <= 31 days: one bucket per day.
+    - For periods > 31 days: auto-bucket by YYYY-MM month label.
+    """
+    n = len(date_strs)
+    if n <= 31:
+        # Per-day buckets in date order
+        sale_by_day = {s.get("date"): float(s.get("total_sale", 0) or 0) for s in sales}
+        exp_by_day: dict = {}
+        for e in expenses:
+            d = e.get("date")
+            if not d:
+                continue
+            exp_by_day[d] = exp_by_day.get(d, 0) + float(e.get("amount", 0) or 0)
+        from datetime import datetime as _dt
+        out = []
+        for d in date_strs:
+            try:
+                lbl = _dt.strptime(d, "%Y-%m-%d").strftime("%d %b") if n > 7 else _dt.strptime(d, "%Y-%m-%d").strftime("%a %d")
+            except ValueError:
+                lbl = d
+            out.append({
+                "label": lbl,
+                "date": d,
+                "sales": round(sale_by_day.get(d, 0), 2),
+                "expenses": round(exp_by_day.get(d, 0), 2),
+            })
+        return out
+    else:
+        # Bucket by year-month
+        from datetime import datetime as _dt
+        buckets: dict = {}
+        for s in sales:
+            d = s.get("date") or ""
+            ym = d[:7]
+            if not ym:
+                continue
+            buckets.setdefault(ym, {"sales": 0.0, "expenses": 0.0})
+            buckets[ym]["sales"] += float(s.get("total_sale", 0) or 0)
+        for e in expenses:
+            d = e.get("date") or ""
+            ym = d[:7]
+            if not ym:
+                continue
+            buckets.setdefault(ym, {"sales": 0.0, "expenses": 0.0})
+            buckets[ym]["expenses"] += float(e.get("amount", 0) or 0)
+        # Walk through unique months in date_strs in chronological order
+        seen = []
+        for d in date_strs:
+            ym = d[:7]
+            if ym and ym not in seen:
+                seen.append(ym)
+        out = []
+        for ym in seen:
+            try:
+                lbl = _dt.strptime(ym + "-01", "%Y-%m-%d").strftime("%b %y")
+            except ValueError:
+                lbl = ym
+            b = buckets.get(ym, {"sales": 0, "expenses": 0})
+            out.append({
+                "label": lbl,
+                "date": ym,
+                "sales": round(b["sales"], 2),
+                "expenses": round(b["expenses"], 2),
+            })
+        return out
+
+
+def _build_sales_vs_expenses_chart_png(chart_series: list, period_label: str) -> bytes | None:
+    """Render a Sales vs Expenses bar chart as PNG bytes using matplotlib."""
+    if not chart_series:
+        return None
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import io as _io
+
+        labels = [b["label"] for b in chart_series]
+        sales = [b["sales"] for b in chart_series]
+        expenses = [b["expenses"] for b in chart_series]
+
+        fig, ax = plt.subplots(figsize=(9.5, 3.5), dpi=150)
+        x = range(len(labels))
+        width = 0.4
+        bars1 = ax.bar([i - width / 2 for i in x], sales, width=width,
+                       label="Sales", color="#800020", edgecolor="#5c0017")
+        bars2 = ax.bar([i + width / 2 for i in x], expenses, width=width,
+                       label="Expenses", color="#C9A227", edgecolor="#8a6f1b")
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(labels, rotation=45 if len(labels) > 8 else 0,
+                           ha="right" if len(labels) > 8 else "center", fontsize=8)
+        ax.set_ylabel("Amount", fontsize=9)
+        ax.set_title(f"Sales vs Expenses — {period_label}", fontsize=11,
+                     color="#1a365d", fontweight="bold")
+        ax.legend(fontsize=8, loc="upper right")
+        ax.grid(True, axis="y", alpha=0.3, linestyle="--")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        # Auto-hide value labels if too many bars
+        if len(labels) <= 12:
+            for bars in (bars1, bars2):
+                for bar in bars:
+                    h = bar.get_height()
+                    if h > 0:
+                        ax.text(bar.get_x() + bar.get_width() / 2, h,
+                                f"{int(round(h)):,}", ha="center", va="bottom", fontsize=7,
+                                color="#374151")
+        plt.tight_layout()
+        buf = _io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        buf.seek(0)
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"Chart render failed: {e}")
+        return None
 
 
 def _format_period_whatsapp_text(d: dict, period_type: str = "week") -> str:
