@@ -236,21 +236,84 @@ async def get_other_income_summary(center: str, month: Optional[str] = None) -> 
 async def get_loans_given_summary(center: str, month: Optional[str] = None) -> dict:
     """Used by PIB to render the 'Loan Given to Other Center' memo (no destination name)."""
     if db is None:
-        return {"total": 0, "count": 0, "rows": []}
+        return {"total": 0, "count": 0, "rows": [], "outstanding": 0, "repaid": 0}
     query = {"center": {"$regex": f"^{center}$", "$options": "i"}, "loan_type": "given"}
     if month:
         # loan_date format YYYY-MM-DD
         query["loan_date"] = {"$regex": f"^{month}-"}
     loans = await db.loan_entries.find(query, {"_id": 0}).to_list(2000)
     total = round(sum(float(le.get("amount", 0) or 0) for le in loans), 2)
-    # Strip target_center / target_center_name from response (privacy per requirement)
+    repaid_total = round(sum(float(le.get("total_repaid", 0) or 0) for le in loans), 2)
+    outstanding_total = round(total - repaid_total, 2)
     sanitized = []
     for le in loans:
+        amt = float(le.get("amount", 0) or 0)
+        rp = float(le.get("total_repaid", 0) or 0)
         sanitized.append({
             "loan_id": le.get("loan_id"),
             "loan_date": le.get("loan_date"),
-            "amount": float(le.get("amount", 0) or 0),
+            "amount": amt,
+            "repaid": round(rp, 2),
+            "outstanding": round(amt - rp, 2),
             "reason": "Loan Given to Other Center",
             "status": le.get("status"),
         })
-    return {"total": total, "count": len(loans), "rows": sanitized}
+    return {
+        "total": total, "count": len(loans), "rows": sanitized,
+        "outstanding": outstanding_total, "repaid": repaid_total,
+    }
+
+
+async def get_loans_taken_summary(center: str, month: Optional[str] = None) -> dict:
+    """Used by PIB to render the 'Loan Taken' memo for the borrower center.
+    Includes source center name and outstanding/repaid status.
+    """
+    if db is None:
+        return {"total": 0, "count": 0, "rows": [], "outstanding": 0, "repaid": 0}
+    query = {"center": {"$regex": f"^{center}$", "$options": "i"}, "loan_type": "taken"}
+    if month:
+        query["loan_date"] = {"$regex": f"^{month}-"}
+    loans = await db.loan_entries.find(query, {"_id": 0}).to_list(2000)
+    total = round(sum(float(le.get("amount", 0) or 0) for le in loans), 2)
+    repaid_total = round(sum(float(le.get("total_repaid", 0) or 0) for le in loans), 2)
+    outstanding_total = round(total - repaid_total, 2)
+    rows = []
+    for le in loans:
+        amt = float(le.get("amount", 0) or 0)
+        rp = float(le.get("total_repaid", 0) or 0)
+        rows.append({
+            "loan_id": le.get("loan_id"),
+            "loan_date": le.get("loan_date"),
+            "amount": amt,
+            "repaid": round(rp, 2),
+            "outstanding": round(amt - rp, 2),
+            "source_center": le.get("source_center", ""),
+            "reason": le.get("reason", "Loan taken"),
+            "status": le.get("status"),
+        })
+    return {
+        "total": total, "count": len(loans), "rows": rows,
+        "outstanding": outstanding_total, "repaid": repaid_total,
+    }
+
+
+async def get_other_income_by_month(center: str) -> dict:
+    """Sum Other Income per month for a center.
+    Used by WC chain to treat Other Income as non-operating cash inflow that
+    adds to the closing WC (so it flows into next month's Opening WC).
+    
+    Returns: { 'YYYY-MM': total_amount, ... }
+    """
+    if db is None:
+        return {}
+    rows = await db.other_income.find(
+        {"center": {"$regex": f"^{center}$", "$options": "i"}},
+        {"_id": 0, "month": 1, "amount": 1}
+    ).to_list(5000)
+    out: dict = {}
+    for r in rows:
+        m = r.get("month") or ""
+        if not m:
+            continue
+        out[m] = round(out.get(m, 0) + float(r.get("amount", 0) or 0), 2)
+    return out

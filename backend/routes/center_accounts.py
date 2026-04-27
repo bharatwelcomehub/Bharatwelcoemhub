@@ -244,6 +244,14 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
             topup_by_month[m] = 0
         topup_by_month[m] += float(t.get("amount", 0))
     
+    # Other Income (memo) — non-operating cash inflow that adds to closing WC
+    # so it flows into next month's opening balance. Stays OUT of P&L / Sales.
+    try:
+        from routes.other_income import get_other_income_by_month
+        other_income_by_month = await get_other_income_by_month(center_code)
+    except Exception:
+        other_income_by_month = {}
+    
     # Merge all months
     month_data = {}
     for s in sales_months:
@@ -357,9 +365,13 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         # P&L: sale - expenses - commission (GST excluded — paid as M+1 expense)
         pnl = sale - expenses - commission
         
-        # Linear chain: closing = opening + pnl + wc_adj + topup
+        # Linear chain: closing = opening + pnl + wc_adj + topup + other_income
+        # Other Income is non-operating cash IN (loan-taken auto, vendor refund,
+        # franchisee repayment, etc.) — does NOT affect P&L / Sales / MG / Revenue
+        # Share, but DOES boost closing WC so it carries to next month's opening.
         topup_amount = topup_by_month.get(month, 0)
-        closing_for_month = opening_wc_for_month + pnl + wc_adj + topup_amount
+        oi_amount = other_income_by_month.get(month, 0)
+        closing_for_month = opening_wc_for_month + pnl + wc_adj + topup_amount + oi_amount
         
         # Tracking metrics for the requested month only
         month_wc_used = 0.0
@@ -387,6 +399,7 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
                 "wc_used": round(month_wc_used, 2),
                 "wc_restored": round(month_wc_restored, 2),
                 "topup": round(topup_amount, 2),
+                "other_income": round(oi_amount, 2),
                 "wc_adjustment": round(wc_adj, 2),
                 "closing_wc": round(closing_for_month, 2),
                 "revenue_share_blocked": base_wc > 0 and wc_pct <= WC_THRESHOLD,
@@ -582,6 +595,13 @@ async def get_wc_table(req: dict = Body(...)):
             topup_by_month[m] = 0
         topup_by_month[m] += float(t.get("amount", 0))
     
+    # Other Income per month — non-operating cash that boosts closing WC
+    try:
+        from routes.other_income import get_other_income_by_month
+        other_income_by_month = await get_other_income_by_month(center)
+    except Exception:
+        other_income_by_month = {}
+    
     # Merge all months
     month_data = {}
     for s in sales_months:
@@ -726,6 +746,12 @@ async def get_wc_table(req: dict = Body(...)):
         if topup_amount != 0:
             balance_wc = round(balance_wc + topup_amount, 2)
         
+        # Apply Other Income (non-operating cash inflow — adds to closing WC,
+        # carries forward as next month's opening balance, but stays OUT of P&L)
+        oi_amount = round(other_income_by_month.get(month, 0), 2)
+        if oi_amount != 0:
+            balance_wc = round(balance_wc + oi_amount, 2)
+        
         # Diff of WC = Balance WC - Base WC (or same as Balance WC per your sheet)
         diff_wc = round(balance_wc, 2)
         
@@ -753,6 +779,7 @@ async def get_wc_table(req: dict = Body(...)):
             "opening_wc": opening_wc,
             "wc_adjustment": wc_adj,
             "topup": topup_amount,
+            "other_income": oi_amount,
             "balance_wc": balance_wc,
             "closing_wc": balance_wc,
             "diff_wc": diff_wc,
@@ -1443,15 +1470,19 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     wc_revenue_share_active = wc_standing["revenue_share_active"]
     wc_status = wc_standing["wc_status"]
     
-    # Other Income & Loans Given memo (does NOT affect P&L / WC / MG)
+    # Other Income & Loans memo (Other Income adjusts WC chain — see calculate_working_capital_standing)
     try:
-        from routes.other_income import get_other_income_summary, get_loans_given_summary
+        from routes.other_income import (
+            get_other_income_summary, get_loans_given_summary, get_loans_taken_summary
+        )
         _other_income_memo = await get_other_income_summary(req.center, req.month)
         _loans_given_memo = await get_loans_given_summary(req.center, req.month)
+        _loans_taken_memo = await get_loans_taken_summary(req.center, req.month)
     except Exception as _ex:
-        logger.warning(f"Other income / loans-given memo failed for {req.center}: {_ex}")
+        logger.warning(f"Other income / loans memo failed for {req.center}: {_ex}")
         _other_income_memo = {"total": 0, "by_category": {}, "rows": []}
-        _loans_given_memo = {"total": 0, "count": 0, "rows": []}
+        _loans_given_memo = {"total": 0, "count": 0, "rows": [], "outstanding": 0, "repaid": 0}
+        _loans_taken_memo = {"total": 0, "count": 0, "rows": [], "outstanding": 0, "repaid": 0}
     
     # ==========================================
     # OPERATIONAL SUSTAINABILITY CHECK (NEW)
@@ -1663,8 +1694,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         "working_capital_status": working_capital_status,
         # Other Income — memo only (does NOT affect P&L / WC / MG / Revenue Share)
         "other_income": _other_income_memo,
-        # Loans given to other centers — memo only (no destination name)
+        # Loans given to other centers — memo (no destination name)
         "loans_given": _loans_given_memo,
+        # Loans taken by this center — memo with outstanding/repaid status
+        "loans_taken": _loans_taken_memo,
         # Payout determination
         "payout": {
             "type": payable_type,

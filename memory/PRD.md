@@ -5,6 +5,15 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-27] Other Income → Opening Balance + Loans Taken/Given Outstanding Visibility
+Addresses 4 user requests on the Sales Breakdown UI:
+- **Loan Taken now visible to borrower** — new "Loans Taken" memo block (amber) on Sales Breakdown showing the source center, principal, repaid, outstanding, and per-loan status badges (FULLY REPAID / PARTIAL / OUTSTANDING).
+- **Outstanding / Repaid status on both sides** — both `loans_taken` (borrower view) and `loans_given` (lender view, anonymised) now expose `total`, `repaid`, `outstanding`, and per-row breakdown. Computed live from `loan_entries.amount - total_repaid`.
+- **Other Income now flows into next-month Opening Balance** — changed from pure-memo to non-operating cash inflow. Aggregated per month via `get_other_income_by_month()` and added to the WC chain in BOTH `calculate_working_capital_standing` and `get_wc_table`: `closing = opening + pnl + wc_adj + topup + other_income`. P&L / Sales / Commission / MG / Revenue Share remain UNAFFECTED — Other Income only boosts WC closing so it carries to next month's opening balance. New `other_income` column in WC table rows.
+  - Verified: PB-MGT Jan 2026 closing went from -252,502 → -244,725 after adding Rs 7,777 Other Income (delta = exactly +7,777, as expected).
+- **Per-row Delete on Other Income** — admin/accountant-visible Trash icon on every manual row. Auto-generated rows show "linked to loan" hint and require deleting the source loan instead (cascade already in place).
+- New backend endpoint `get_loans_taken_summary()` returns rows with `source_center` (visible to borrower) for transparent repayment tracking.
+
 ### [2026-04-27] Other Income (Memo-Only) + Loans Given memo on PIB / Sales Breakdown
 - **New collection**: `other_income` with fields `income_id`, `center`, `date`, `month`, `amount`, `category` (`loan_taken | vendor_refund | franchisee_repayment | other`), `reason`, `linked_loan_id`, `auto_generated`, `created_by`, `created_at`.
 - **New routes** at `/api/other-income/`:
