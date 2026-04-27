@@ -5,6 +5,13 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-27] Cash Inflows (Non-Operating) surfaced on PIB / MIS / Owner Reports
+Closes the loop on Other Income visibility — same data, three audiences:
+- **PIB Report PDF** (`utils/pdf_generator.py` `build_pib_pdf`): new section **"4B. Cash Inflows (Non-Operating) & Inter-Center Loans"** rendered between Financial Summary (4) and Operational Sustainability (5). Lists every Other Income row by category (loan_taken auto-rows + manual vendor_refund / franchisee_repayment / other), every Loan Taken with `From {source_center}` + Repaid/Outstanding/Status, and every Loan Given anonymised as `To Other Center` with the same Repaid/Outstanding/Status. Disclaimer at the top: "These rows do NOT affect Sales / P&L / Revenue Share / MG. Other Income adjusts next month's Opening Working Capital." Verified by extracting PB-PERTH 2026-01 PDF text (8 KB, 200 OK) — section + auto + manual + loan-taken row all present.
+- **MIS Dashboard JSON** (`mis_dashboard.py /working-capital`): each center entry now carries `other_income_total`, `other_income_by_category`, `loans_taken_total`, `loans_taken_outstanding`, `loans_given_total`, `loans_given_outstanding`. Top-level totals also added (`total_other_income`, `total_loans_taken`, `total_loans_taken_outstanding`, `total_loans_given`, `total_loans_given_outstanding`).
+- **MIS Dashboard UI** (`MISDashboard.jsx`): new emerald/amber/rose tri-card row "Cash Inflows (Non-Operating) & Inter-Center Loans" appearing under the WC headline cards, only when at least one total is > 0. Each KPI card shows total + outstanding sub-line. Test-ids: `cash-inflows-card`, `mis-other-income-card`, `mis-loans-taken-card`, `mis-loans-given-card`.
+- **MIS PDF** (`mis_dashboard.py _build_mis_pdf` + `_build_franchise_pdf`): same tri-cell row inserted right after the WC headline cards in both the admin/CXO MIS PDF and the franchise-owner-scoped PDF. Brand-tinted backgrounds (emerald/amber/rose) with totals and outstanding sub-text.
+
 ### [2026-04-27] Other Income → Opening Balance + Loans Taken/Given Outstanding Visibility
 Addresses 4 user requests on the Sales Breakdown UI:
 - **Loan Taken now visible to borrower** — new "Loans Taken" memo block (amber) on Sales Breakdown showing the source center, principal, repaid, outstanding, and per-loan status badges (FULLY REPAID / PARTIAL / OUTSTANDING).

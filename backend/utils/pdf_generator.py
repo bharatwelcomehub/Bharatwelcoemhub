@@ -418,6 +418,76 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     story.append(fin_table)
     story.append(Spacer(1, 15))
 
+    # --- 4b. Cash Inflows (Non-Operating) + Inter-Center Loans ---------------
+    other_income = summary.get("other_income") or {}
+    loans_taken = summary.get("loans_taken") or {}
+    loans_given = summary.get("loans_given") or {}
+    oi_total = float(other_income.get("total", 0) or 0)
+    lt_total = float(loans_taken.get("total", 0) or 0)
+    lg_total = float(loans_given.get("total", 0) or 0)
+
+    if oi_total > 0 or lt_total > 0 or lg_total > 0:
+        story.append(Paragraph("4B. CASH INFLOWS (NON-OPERATING) & INTER-CENTER LOANS",
+                               styles["PIBSection"]))
+        story.append(Paragraph(
+            "These rows do NOT affect Sales / P&amp;L / Revenue Share / MG. "
+            "Other Income adjusts next month's Opening Working Capital.",
+            styles["PIBNote"] if "PIBNote" in styles.byName else styles["BodyText"],
+        ))
+        story.append(Spacer(1, 4))
+
+        inflow_rows = [["Description", "Category / Source", "Amount", "Status"]]
+
+        # Other Income rows
+        by_cat = other_income.get("by_category", {}) or {}
+        if oi_total > 0:
+            for cat, amt in by_cat.items():
+                inflow_rows.append([
+                    "Other Income",
+                    cat.replace("_", " ").title(),
+                    f"{currency} {float(amt or 0):,.2f}",
+                    "Adds to next-month Opening WC",
+                ])
+
+        # Loans taken (borrower's own PIB — source center SHOWN)
+        for r in (loans_taken.get("rows") or []):
+            status = (r.get("status") or "active").replace("_", " ").title()
+            inflow_rows.append([
+                "Loan Taken",
+                f"From {r.get('source_center') or 'External'}",
+                f"{currency} {float(r.get('amount', 0) or 0):,.2f}",
+                f"Repaid: {currency} {float(r.get('repaid', 0) or 0):,.2f} · "
+                f"Outstanding: {currency} {float(r.get('outstanding', 0) or 0):,.2f} · {status}",
+            ])
+
+        # Loans given (lender's own PIB — destination HIDDEN per policy)
+        for r in (loans_given.get("rows") or []):
+            status = (r.get("status") or "active").replace("_", " ").title()
+            inflow_rows.append([
+                "Loan Given",
+                "To Other Center",
+                f"({currency} {float(r.get('amount', 0) or 0):,.2f})",
+                f"Repaid: {currency} {float(r.get('repaid', 0) or 0):,.2f} · "
+                f"Outstanding: {currency} {float(r.get('outstanding', 0) or 0):,.2f} · {status}",
+            ])
+
+        inflow_tbl = Table(inflow_rows, colWidths=[90, 120, 90, 160])
+        inflow_tbl.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(inflow_tbl)
+        story.append(Spacer(1, 15))
+
+    # --- 5. Commission Summary (continued) ---------------------------------
+
     # --- 5. Operational Sustainability -------------------------------------
     ops = summary.get("operational_sustainability", {})
     story.append(Paragraph("5. OPERATIONAL SUSTAINABILITY CHECK", styles["PIBSection"]))

@@ -1152,6 +1152,19 @@ async def get_working_capital(data: dict):
             total_current_wc += closing_wc
             total_loans += wc_data.get("total_effective_loans", 0)
             
+            # Other Income + Loans taken/given memos (non-operating cash view)
+            try:
+                from routes.other_income import (
+                    get_other_income_summary, get_loans_taken_summary, get_loans_given_summary
+                )
+                oi_memo = await get_other_income_summary(cc, up_to_month)
+                lt_memo = await get_loans_taken_summary(cc, up_to_month)
+                lg_memo = await get_loans_given_summary(cc, up_to_month)
+            except Exception:
+                oi_memo = {"total": 0, "by_category": {}}
+                lt_memo = {"total": 0, "outstanding": 0, "repaid": 0}
+                lg_memo = {"total": 0, "outstanding": 0, "repaid": 0}
+            
             centers_summary.append({
                 "center": cc,
                 "franchise_name": franchise_name,
@@ -1164,6 +1177,13 @@ async def get_working_capital(data: dict):
                 "revenue_share_active": wc_data.get("revenue_share_active", True),
                 "loans_outstanding": round(loans_outstanding, 2),
                 "available_wc": round(closing_wc, 2),
+                # Non-operating cash inflow memos
+                "other_income_total": round(float(oi_memo.get("total", 0) or 0), 2),
+                "other_income_by_category": oi_memo.get("by_category", {}),
+                "loans_taken_total": round(float(lt_memo.get("total", 0) or 0), 2),
+                "loans_taken_outstanding": round(float(lt_memo.get("outstanding", 0) or 0), 2),
+                "loans_given_total": round(float(lg_memo.get("total", 0) or 0), 2),
+                "loans_given_outstanding": round(float(lg_memo.get("outstanding", 0) or 0), 2),
                 # Legacy fields for backward compat
                 "total_loans": round(wc_data.get("total_effective_loans", 0), 2),
                 "total_repaid": 0,
@@ -1214,12 +1234,25 @@ async def get_working_capital(data: dict):
     
     total_outstanding = total_loans
     
+    # Aggregate top-level Other Income / Loans Taken / Loans Given totals
+    total_other_income = round(sum(c.get("other_income_total", 0) for c in centers_summary), 2)
+    total_loans_taken = round(sum(c.get("loans_taken_total", 0) for c in centers_summary), 2)
+    total_loans_taken_out = round(sum(c.get("loans_taken_outstanding", 0) for c in centers_summary), 2)
+    total_loans_given = round(sum(c.get("loans_given_total", 0) for c in centers_summary), 2)
+    total_loans_given_out = round(sum(c.get("loans_given_outstanding", 0) for c in centers_summary), 2)
+    
     return {
         "initial_working_capital": round(total_initial_wc, 2),
         "available_working_capital": round(total_current_wc, 2),
         "total_loans": round(total_loans, 2),
         "total_repaid": round(total_repaid, 2),
         "total_outstanding": round(total_outstanding, 2),
+        # Non-operating cash-flow totals (across selected centers, for selected month)
+        "total_other_income": total_other_income,
+        "total_loans_taken": total_loans_taken,
+        "total_loans_taken_outstanding": total_loans_taken_out,
+        "total_loans_given": total_loans_given,
+        "total_loans_given_outstanding": total_loans_given_out,
         "up_to_month": up_to_month,
         "centers": centers_summary,
         "loan_timeline": loan_timeline,
@@ -1646,6 +1679,39 @@ def _build_mis_pdf(overview_data, trends_data, expense_data, wc_data, quarterly_
     elements.append(wc_summary_t)
     elements.append(Spacer(1, 6))
 
+    # ── CASH INFLOWS (Non-Operating) ──
+    total_oi = float(wc_data.get("total_other_income", 0) or 0) if wc_data else 0
+    total_lt = float(wc_data.get("total_loans_taken", 0) or 0) if wc_data else 0
+    total_lt_out = float(wc_data.get("total_loans_taken_outstanding", 0) or 0) if wc_data else 0
+    total_lg = float(wc_data.get("total_loans_given", 0) or 0) if wc_data else 0
+    total_lg_out = float(wc_data.get("total_loans_given_outstanding", 0) or 0) if wc_data else 0
+
+    if total_oi > 0 or total_lt > 0 or total_lg > 0:
+        elements.append(Paragraph("Cash Inflows (Non-Operating) & Inter-Center Loans", section_style))
+        elements.append(Paragraph(
+            "<font size=7 color='#64748B'>These do NOT affect P&L / Sales / Revenue Share. "
+            "Other Income adjusts next-month Opening Working Capital.</font>",
+            normal_style,
+        ))
+        elements.append(Spacer(1, 4))
+        inflow_data = [[
+            Paragraph(f"<b>Other Income</b><br/>{fmt(total_oi)}", normal_style),
+            Paragraph(f"<b>Loans Taken</b><br/>{fmt(total_lt)}<br/><font size=7>Outstanding: {fmt(total_lt_out)}</font>", normal_style),
+            Paragraph(f"<b>Loans Given</b><br/>{fmt(total_lg)}<br/><font size=7>Outstanding: {fmt(total_lg_out)}</font>", normal_style),
+        ]]
+        inflow_t = Table(inflow_data, colWidths=[155, 155, 165])
+        inflow_t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor("#DCFCE7")),   # emerald
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor("#FEF3C7")),   # amber
+            ('BACKGROUND', (2, 0), (2, 0), colors.HexColor("#FFE4E6")),   # rose
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(inflow_t)
+        elements.append(Spacer(1, 8))
+
     wc_centers = wc_data.get("centers", []) if wc_data else []
     if wc_centers:
         wc_header = ["Center", "Franchise", "Initial WC", "Current WC", "This Month P/L", "Loans", "Status"]
@@ -2012,6 +2078,12 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
             ('FONTSIZE', (0, 0), (-1, -1), 8.5),
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_GRAY]),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
             ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
@@ -2019,6 +2091,38 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ]))
         elements.append(wt)
+        elements.append(Spacer(1, 10))
+
+    # ── CASH INFLOWS (Non-Operating) ──
+    _total_oi = float(wc_data.get("total_other_income", 0) or 0) if wc_data else 0
+    _total_lt = float(wc_data.get("total_loans_taken", 0) or 0) if wc_data else 0
+    _total_lt_out = float(wc_data.get("total_loans_taken_outstanding", 0) or 0) if wc_data else 0
+    _total_lg = float(wc_data.get("total_loans_given", 0) or 0) if wc_data else 0
+    _total_lg_out = float(wc_data.get("total_loans_given_outstanding", 0) or 0) if wc_data else 0
+    if _total_oi > 0 or _total_lt > 0 or _total_lg > 0:
+        elements.append(Paragraph("Cash Inflows (Non-Operating) & Inter-Center Loans", section_style))
+        elements.append(Paragraph(
+            "<font size=7 color='#64748B'>Does NOT affect P&L / Sales / Revenue Share. "
+            "Other Income adjusts next-month Opening Working Capital.</font>",
+            normal_style,
+        ))
+        elements.append(Spacer(1, 4))
+        inflow_rows = [
+            [Paragraph(f"<b>Other Income</b><br/>{fmt(_total_oi)}", normal_style),
+             Paragraph(f"<b>Loans Taken</b><br/>{fmt(_total_lt)}<br/><font size=7>Outstanding: {fmt(_total_lt_out)}</font>", normal_style),
+             Paragraph(f"<b>Loans Given</b><br/>{fmt(_total_lg)}<br/><font size=7>Outstanding: {fmt(_total_lg_out)}</font>", normal_style)],
+        ]
+        inflow_t = Table(inflow_rows, colWidths=[150, 150, 160])
+        inflow_t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor("#DCFCE7")),
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor("#FEF3C7")),
+            ('BACKGROUND', (2, 0), (2, 0), colors.HexColor("#FFE4E6")),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(inflow_t)
         elements.append(Spacer(1, 10))
 
     # ── FOOTER ──

@@ -673,6 +673,54 @@ export default function MISDashboard() {
             </div>
           </div>
 
+          {/* Cash Inflows (Non-Operating) */}
+          {((workingCapital?.total_other_income || 0) > 0 ||
+            (workingCapital?.total_loans_taken || 0) > 0 ||
+            (workingCapital?.total_loans_given || 0) > 0) && (
+            <Card className="bg-white border-slate-200/60 rounded-xl" data-testid="cash-inflows-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-500" /> Cash Inflows (Non-Operating) & Inter-Center Loans
+                </CardTitle>
+                <p className="text-xs text-slate-500">
+                  Does <strong>not</strong> affect Sales / P&amp;L / Revenue Share.
+                  Other Income adjusts next-month Opening Working Capital.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-lg p-4 bg-emerald-50 border border-emerald-200" data-testid="mis-other-income-card">
+                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Other Income</p>
+                    <p className="text-2xl font-bold text-emerald-800 mt-1">
+                      {formatFullCurrency(workingCapital?.total_other_income || 0, isIntl)}
+                    </p>
+                    <p className="text-[11px] text-emerald-700/70 mt-1">
+                      Vendor refunds, repayments, loan-taken entries
+                    </p>
+                  </div>
+                  <div className="rounded-lg p-4 bg-amber-50 border border-amber-200" data-testid="mis-loans-taken-card">
+                    <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">Loans Taken</p>
+                    <p className="text-2xl font-bold text-amber-800 mt-1">
+                      {formatFullCurrency(workingCapital?.total_loans_taken || 0, isIntl)}
+                    </p>
+                    <p className="text-[11px] text-amber-700/70 mt-1">
+                      Outstanding: <strong>{formatFullCurrency(workingCapital?.total_loans_taken_outstanding || 0, isIntl)}</strong>
+                    </p>
+                  </div>
+                  <div className="rounded-lg p-4 bg-rose-50 border border-rose-200" data-testid="mis-loans-given-card">
+                    <p className="text-xs font-medium text-rose-700 uppercase tracking-wide">Loans Given</p>
+                    <p className="text-2xl font-bold text-rose-800 mt-1">
+                      {formatFullCurrency(workingCapital?.total_loans_given || 0, isIntl)}
+                    </p>
+                    <p className="text-[11px] text-rose-700/70 mt-1">
+                      Outstanding: <strong>{formatFullCurrency(workingCapital?.total_loans_given_outstanding || 0, isIntl)}</strong>
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Center-wise WC Breakdown */}
           {workingCapital?.centers?.length > 0 && (
             <Card className="bg-white border-slate-200/60 rounded-xl backdrop-blur overflow-hidden">
