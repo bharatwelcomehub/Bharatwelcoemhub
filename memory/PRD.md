@@ -5,6 +5,23 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-27] WC Parity Fix — Standing Card / MIS / Owner Reports now match WC Breakdown table
+- **Bug**: Working Capital Standing card on `/center-accounts` showed Opening WC of `Rs. -21,63,635.24` for PB-MGT March 2026 while the Month-by-Month WC Breakdown table (correct) showed `Rs. -16,97,058`. Same divergence appeared on MIS Dashboard, Franchise Owner Dashboard, and downloaded Owner Report PDFs.
+- **Root cause**: `calculate_working_capital_standing` (powering Standing card / MIS / PDFs) used a different chain than `get_wc_table`:
+  - Did NOT apply per-month `wc_adjustment` overrides.
+  - Did NOT honor the franchise `effective_end_month` cap (so future months past the franchise contract were still chained).
+  - Did NOT load `historical_pib` rows.
+  - Used a non-linear "deficit-restore" branch that could drop surplus profit when WC ≥ Base.
+  - Fell back to `base_wc` defaults whenever the requested month had no live data, instead of carrying the running chain forward.
+- **Fix**: Rewrote `calculate_working_capital_standing` to chain identically to `get_wc_table`:
+  - Same data sources: `daily_sales`, `expenses`, `monthly_commissions`, `commission_statements`, `historical_monthly_summary`, `historical_pib`, `wc_overrides`, `wc_month_overrides`, `wc_topups`.
+  - Same linear formula: `closing_wc = opening_wc + (sale − expenses − commission) + wc_adj + topup`.
+  - Same `effective_end_month` cap.
+  - Added explicit fallback: if requested month has no data, opening = closing = current chain value (carries forward).
+  - Kept `wc_used` / `wc_restored` semantics for the Protection-Mode badge logic.
+- **Verified via curl**: Both endpoints now agree on Jan 2026 (open=100000 from base, close=-252502 after Jan loss) and on Mar 2026 (open=-252502 chained from Jan close — no data months in between).
+- All consumers automatically benefit: `/center-accounts/summary`, MIS Dashboard (`mis_dashboard.py` line 1141), Owner Reports / PDF generator (`pdf_generator.py` line 456).
+
 ### [2026-04-27] Sales vs Expenses Charts (UI + PDF) on all 4 tabs
 - **On-screen chart card** added on every tab (`/daily-text` Daily | Weekly | Monthly | Yearly).
   - Renders a Recharts dual-bar chart (`BarChart` + 2 `Bar`s — Sales in `#800020` maroon, Expenses in `#C9A227` gold) with X-axis labels rotated when bars > 8.
