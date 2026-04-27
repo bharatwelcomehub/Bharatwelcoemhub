@@ -185,6 +185,20 @@ async def create_loan_entry(data: dict):
     
     await db.loan_entries.insert_one(loan_doc)
     
+    # Auto-create Other Income (memo) entry for the borrower center
+    try:
+        from routes.other_income import auto_create_loan_taken_income
+        await auto_create_loan_taken_income(
+            center=center,
+            amount=amount,
+            loan_date=data.get("loan_date"),
+            source_center=source_center or "External",
+            loan_id=loan_id,
+            created_by=user,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to auto-create Other Income for loan {loan_id}: {e}")
+    
     # Auto-create "Loan Given" mirror entry for the source center
     given_loan_id = ""
     if source_center:
@@ -471,6 +485,13 @@ async def delete_loan_entry(loan_id: str, data: dict):
     
     await db.loan_entries.delete_one({"loan_id": loan_id})
     
+    # Cascade: remove auto-generated Other Income rows linked to these loans
+    try:
+        from routes.other_income import cascade_delete_for_loan
+        await cascade_delete_for_loan(deleted_ids)
+    except Exception as e:
+        logger.warning(f"Other Income cascade delete failed: {e}")
+    
     logger.info(f"Loan entries deleted by {session.get('managerName')}: {deleted_ids}")
     
     return {
@@ -550,6 +571,12 @@ async def bulk_delete_loan_entries(data: dict):
     if loan_ids_to_delete:
         result = await db.loan_entries.delete_many({"loan_id": {"$in": list(loan_ids_to_delete)}})
         deleted_count = result.deleted_count
+        # Cascade: remove auto-generated Other Income rows
+        try:
+            from routes.other_income import cascade_delete_for_loan
+            await cascade_delete_for_loan(list(loan_ids_to_delete))
+        except Exception as e:
+            logger.warning(f"Other Income cascade delete failed: {e}")
     
     logger.info(
         f"Bulk loan delete by {session.get('managerName')}: "

@@ -2177,6 +2177,16 @@ set_loan_db(db)
 set_loan_verify_token_async(verify_token_async)
 app.include_router(loan_router)
 
+# Include Other Income router
+from routes.other_income import (
+    router as other_income_router,
+    set_db as set_other_income_db,
+    set_verify_token_async as set_other_income_verify_token_async,
+)
+set_other_income_db(db)
+set_other_income_verify_token_async(verify_token_async)
+app.include_router(other_income_router)
+
 # Include Employees router
 from routes.employees import router as employees_router, set_db as set_employees_db, set_verify_token as set_employees_verify_token, set_has_admin_access as set_employees_has_admin_access
 set_employees_db(db)

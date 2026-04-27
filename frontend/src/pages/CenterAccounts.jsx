@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save
+  Check, X, Shield, Save, Plus
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -73,6 +73,14 @@ export default function CenterAccounts() {
   
   // Modal states
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showOtherIncomeModal, setShowOtherIncomeModal] = useState(false);
+  const [otherIncomeForm, setOtherIncomeForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    amount: "",
+    category: "vendor_refund",
+    reason: "",
+  });
+  const [otherIncomeSaving, setOtherIncomeSaving] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -1387,11 +1395,78 @@ export default function CenterAccounts() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Other Income (Memo Only) */}
+                  {(accountSummary.other_income?.total > 0 || accountSummary.other_income?.rows?.length > 0) && (
+                    <div className="mt-6 p-4 rounded-lg border-2 border-emerald-200 bg-emerald-50/50" data-testid="other-income-block">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-emerald-800">Other Income (Memo Only)</h4>
+                          <p className="text-xs text-emerald-700/80">Loan taken, vendor refunds, repayments. Not added to Sales / P&L / WC.</p>
+                        </div>
+                        <span className="font-bold text-emerald-700">
+                          {formatCurrency(accountSummary.other_income?.total || 0, accountSummary.country)}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {(accountSummary.other_income?.rows || []).map((r) => (
+                          <div key={r.income_id} className="flex justify-between items-center px-3 py-1.5 bg-white rounded text-sm" data-testid={`oi-row-${r.income_id}`}>
+                            <span className="flex items-center gap-2">
+                              <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                {(r.category || "other").replace(/_/g, " ")}
+                              </span>
+                              <span className="text-muted-foreground">{r.date}</span>
+                              <span className="text-foreground">{r.reason}</span>
+                              {r.auto_generated && <span className="text-[9px] text-amber-700 bg-amber-100 px-1 rounded">AUTO</span>}
+                            </span>
+                            <span className="font-medium">{formatCurrency(r.amount, accountSummary.country)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Loans Given to Other Centers (Memo Only) */}
+                  {accountSummary.loans_given?.total > 0 && (
+                    <div className="mt-4 p-4 rounded-lg border-2 border-rose-200 bg-rose-50/50" data-testid="loans-given-block">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-rose-800">Loan Given to Other Center (Memo Only)</h4>
+                          <p className="text-xs text-rose-700/80">Cash given out as a loan to another center. Tracked in Loan Entries ledger.</p>
+                        </div>
+                        <span className="font-bold text-rose-700">
+                          {formatCurrency(accountSummary.loans_given?.total || 0, accountSummary.country)}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {(accountSummary.loans_given?.rows || []).map((r) => (
+                          <div key={r.loan_id} className="flex justify-between items-center px-3 py-1.5 bg-white rounded text-sm">
+                            <span className="flex items-center gap-2">
+                              <span className="text-[10px] uppercase tracking-wide text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded">Loan Given</span>
+                              <span className="text-muted-foreground">{r.loan_date}</span>
+                              <span className="text-foreground">{r.reason}</span>
+                            </span>
+                            <span className="font-medium">{formatCurrency(r.amount, accountSummary.country)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add Other Income button (admin / accounts) */}
+                  {(session?.is_super_admin || session?.is_admin || session?.role_key === "accountant" || session?.role_key === "accounts") && (
+                    <div className="mt-4 flex justify-end">
+                      <Button size="sm" variant="outline"
+                        className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                        onClick={() => setShowOtherIncomeModal(true)}
+                        data-testid="add-other-income-btn">
+                        <Plus className="w-4 h-4 mr-1" /> Add Other Income
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
-
-            {/* Commissions Tab — Upload-Driven */}
             <TabsContent value="commissions" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium" data-testid="commissions-header">Uploaded Commission Reports</h3>
@@ -2636,6 +2711,97 @@ export default function CenterAccounts() {
       )}
 
       {/* Upload Commission Excel Modal */}
+      <Dialog open={showOtherIncomeModal} onOpenChange={setShowOtherIncomeModal}>
+        <DialogContent className="max-w-md" data-testid="other-income-modal">
+          <DialogHeader>
+            <DialogTitle className="text-emerald-700 flex items-center gap-2">
+              <Plus className="w-5 h-5" /> Add Other Income
+            </DialogTitle>
+            <DialogDescription>
+              Memo entry for {selectedCenter}. Not added to Sales / P&L / WC.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Date *</Label>
+              <Input type="date" value={otherIncomeForm.date}
+                onChange={(e) => setOtherIncomeForm(p => ({ ...p, date: e.target.value }))}
+                data-testid="oi-date" />
+            </div>
+            <div>
+              <Label>Amount *</Label>
+              <Input type="number" min="0" step="0.01" value={otherIncomeForm.amount}
+                onChange={(e) => setOtherIncomeForm(p => ({ ...p, amount: e.target.value }))}
+                placeholder="0.00" data-testid="oi-amount" />
+            </div>
+            <div>
+              <Label>Category *</Label>
+              <Select value={otherIncomeForm.category}
+                onValueChange={(v) => setOtherIncomeForm(p => ({ ...p, category: v }))}>
+                <SelectTrigger data-testid="oi-category"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vendor_refund">Vendor Refund</SelectItem>
+                  <SelectItem value="franchisee_repayment">Franchisee Repayment</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                "Loan Taken" entries are auto-created when you log a new loan in Loan Entries.
+              </p>
+            </div>
+            <div>
+              <Label>Reason / Notes *</Label>
+              <Input value={otherIncomeForm.reason}
+                onChange={(e) => setOtherIncomeForm(p => ({ ...p, reason: e.target.value }))}
+                placeholder="Why is this an Other Income?" data-testid="oi-reason" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowOtherIncomeModal(false)} disabled={otherIncomeSaving}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={otherIncomeSaving || !otherIncomeForm.amount || !otherIncomeForm.reason}
+              onClick={async () => {
+                setOtherIncomeSaving(true);
+                try {
+                  const res = await fetch(`${API}/api/other-income/create`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      token: session?.token,
+                      center: selectedCenter,
+                      date: otherIncomeForm.date,
+                      amount: parseFloat(otherIncomeForm.amount) || 0,
+                      category: otherIncomeForm.category,
+                      reason: otherIncomeForm.reason,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.success) {
+                    toast.success("Other Income added");
+                    setShowOtherIncomeModal(false);
+                    setOtherIncomeForm({
+                      date: new Date().toISOString().split("T")[0],
+                      amount: "", category: "vendor_refund", reason: "",
+                    });
+                    await fetchAccountSummary();
+                  } else {
+                    toast.error(data.detail || "Failed to add Other Income");
+                  }
+                } catch {
+                  toast.error("Failed to add Other Income");
+                } finally {
+                  setOtherIncomeSaving(false);
+                }
+              }}
+              data-testid="oi-save-btn">
+              {otherIncomeSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Entry
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

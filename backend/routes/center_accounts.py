@@ -1443,6 +1443,16 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     wc_revenue_share_active = wc_standing["revenue_share_active"]
     wc_status = wc_standing["wc_status"]
     
+    # Other Income & Loans Given memo (does NOT affect P&L / WC / MG)
+    try:
+        from routes.other_income import get_other_income_summary, get_loans_given_summary
+        _other_income_memo = await get_other_income_summary(req.center, req.month)
+        _loans_given_memo = await get_loans_given_summary(req.center, req.month)
+    except Exception as _ex:
+        logger.warning(f"Other income / loans-given memo failed for {req.center}: {_ex}")
+        _other_income_memo = {"total": 0, "by_category": {}, "rows": []}
+        _loans_given_memo = {"total": 0, "count": 0, "rows": []}
+    
     # ==========================================
     # OPERATIONAL SUSTAINABILITY CHECK (NEW)
     # ==========================================
@@ -1651,6 +1661,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         "operational_sustainability": operational_sustainability,
         # Working Capital Status (NEW)
         "working_capital_status": working_capital_status,
+        # Other Income — memo only (does NOT affect P&L / WC / MG / Revenue Share)
+        "other_income": _other_income_memo,
+        # Loans given to other centers — memo only (no destination name)
+        "loans_given": _loans_given_memo,
         # Payout determination
         "payout": {
             "type": payable_type,

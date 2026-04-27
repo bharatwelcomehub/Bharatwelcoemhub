@@ -5,6 +5,28 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-27] Other Income (Memo-Only) + Loans Given memo on PIB / Sales Breakdown
+- **New collection**: `other_income` with fields `income_id`, `center`, `date`, `month`, `amount`, `category` (`loan_taken | vendor_refund | franchisee_repayment | other`), `reason`, `linked_loan_id`, `auto_generated`, `created_by`, `created_at`.
+- **New routes** at `/api/other-income/`:
+  - `POST /create` — manual entry by Admin / Accountant. Accepts categories `vendor_refund | franchisee_repayment | other` only. `loan_taken` is reserved for auto-creation.
+  - `POST /list` — by `center` (+ optional `month`). Franchise Owners restricted to own center.
+  - `POST /delete/{income_id}` — deletes manual rows. Auto-generated rows protected (must delete via the source loan, or Super Admin override).
+- **Auto-cascade with Loan Entries**:
+  - When a TAKEN loan is created via `/api/loan-entries/create`, an auto Other Income row is inserted on the borrower center (`category=loan_taken`, `reason="Loan taken from {source_center}"`, `linked_loan_id=loan_id`, `auto_generated=true`).
+  - When the loan is deleted (single or bulk), `cascade_delete_for_loan()` removes the linked auto Other Income rows automatically.
+- **Memo-only semantics** — does NOT affect Total Sales / P&L / WC chain / MG / Revenue Share. Strictly informational for accounting visibility.
+- **Center Accounts Summary endpoint** now returns:
+  - `other_income`: `{total, by_category, rows}`
+  - `loans_given`: `{total, count, rows}` — destination center name STRIPPED per requirement (rows show "Loan Given to Other Center" only).
+- **Frontend Sales Breakdown tab** (`/center-accounts`):
+  - New emerald "Other Income (Memo Only)" card with category badges, AUTO chip for auto-generated rows.
+  - New rose "Loan Given to Other Center (Memo Only)" card sourced from `loans_given` (anonymised destination).
+  - "Add Other Income" button (admin/accountant) opens a modal with date, amount, category dropdown (3 manual options), and reason — wired to `POST /create` and refreshes the summary on save.
+- Verified end-to-end via curl on live preview:
+  1. Manual `vendor_refund` Rs 2500 → appears in summary; reserved-category guard returns 400 for `loan_taken`.
+  2. Loan create Rs 75,000 PB-HSR ← PB-SN → auto Other Income row appears on PB-HSR; PB-SN summary shows `loans_given.total = 75000` with sanitized "Loan Given to Other Center" reason (no destination).
+  3. Loan delete → cascade removes the auto row, leaves the manual row untouched.
+
 ### [2026-04-27] WC Parity Fix — Standing Card / MIS / Owner Reports now match WC Breakdown table
 - **Bug**: Working Capital Standing card on `/center-accounts` showed Opening WC of `Rs. -21,63,635.24` for PB-MGT March 2026 while the Month-by-Month WC Breakdown table (correct) showed `Rs. -16,97,058`. Same divergence appeared on MIS Dashboard, Franchise Owner Dashboard, and downloaded Owner Report PDFs.
 - **Root cause**: `calculate_working_capital_standing` (powering Standing card / MIS / PDFs) used a different chain than `get_wc_table`:
