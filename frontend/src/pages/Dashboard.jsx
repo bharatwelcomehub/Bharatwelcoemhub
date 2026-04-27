@@ -289,6 +289,11 @@ export default function Dashboard() {
       return true;
     }
     if (item.superAdminOnly && !isSuperAdmin) return false;
+    // Sales Text Generator is available to Franchise Owners (read-only + PDF download)
+    if (item.path === "/daily-text") {
+      const isFranchiseOwner = session?.role_key === "franchise_owner" || userRoles.franchise === true;
+      if (isFranchiseOwner) return true;
+    }
     if (item.forAccounts) {
       return isAdmin || userRoles.accounting === true;
     }
@@ -326,6 +331,10 @@ export default function Dashboard() {
     if (category.roleKey) {
       // Special case: Accounting role gets sales_cash category access
       if (category.roleKey === "sales_cash" && userRoles.accounting) {
+        return true;
+      }
+      // Special case: Franchise Owners can see Sales & Cash category to access /daily-text
+      if (category.roleKey === "sales_cash" && (session?.role_key === "franchise_owner" || userRoles.franchise === true)) {
         return true;
       }
       return userRoles[category.roleKey] === true;

@@ -51,6 +51,24 @@ class MonthlyTextRequest(BaseModel):
     overrides: Optional[dict] = None
 
 
+class YearlyTextRequest(BaseModel):
+    token: str
+    center: str
+    year: int  # India: FY starting year (2026 = Apr 2026 → Mar 2027). International: calendar year.
+    overrides: Optional[dict] = None
+
+
+class PdfDownloadRequest(BaseModel):
+    token: str
+    center: str
+    period_type: str  # "daily" | "weekly" | "monthly" | "yearly"
+    # One of these depending on period_type:
+    date: Optional[str] = None       # for daily (YYYY-MM-DD)
+    week_date: Optional[str] = None  # for weekly (any date in the week)
+    month: Optional[str] = None      # for monthly (YYYY-MM)
+    year: Optional[int] = None       # for yearly
+
+
 @router.post("/generate-weekly")
 async def generate_weekly_text(req: WeeklyTextRequest):
     """Generate WhatsApp-style WEEKLY summary text aggregated from daily sales + expenses.
@@ -172,8 +190,372 @@ async def generate_monthly_text(req: MonthlyTextRequest):
     }
 
 
+async def _resolve_is_international(center: str) -> bool:
+    """Look up if a center is international (non-India)."""
+    center_doc = await db.centers.find_one({"code": center}, {"_id": 0}) or \
+                 await db.centers.find_one({"code": {"$regex": f"^{center}$", "$options": "i"}}, {"_id": 0})
+    return bool(center_doc and (center_doc.get("is_india_center") is False or
+                                 (center_doc.get("country") and center_doc.get("country") != "India")))
+
+
+@router.post("/generate-yearly")
+async def generate_yearly_text(req: YearlyTextRequest):
+    """Generate WhatsApp-style YEARLY summary aggregated from daily sales + expenses.
+    
+    Year period is determined by center country:
+      - India centers: Financial Year — Apr 1 (req.year) to Mar 31 (req.year + 1).
+        e.g. year=2026 → FY 2026-27 = 01 Apr 2026 → 31 Mar 2027.
+      - International centers (e.g. PB-PERTH): Calendar Year — Jan 1 to Dec 31.
+    """
+    from datetime import timedelta
+    
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+
+    center = req.center.upper()
+    is_admin = has_admin_access(session)
+    is_franchise_owner = session.get("role_key") == "franchise_owner"
+
+    if not is_admin:
+        user_center = session.get("center", "")
+        if user_center != center:
+            raise HTTPException(403, "You can only generate text for your own center")
+
+    if not isinstance(req.year, int) or req.year < 2015 or req.year > 2100:
+        raise HTTPException(400, "year must be a valid integer between 2015 and 2100")
+
+    is_international = await _resolve_is_international(center)
+    
+    if is_international:
+        # Calendar Year
+        first_day = datetime(req.year, 1, 1).date()
+        last_day = datetime(req.year, 12, 31).date()
+        period_label = f"CY {req.year} (Jan-Dec {req.year})"
+    else:
+        # Indian Financial Year: Apr 1 (year) → Mar 31 (year + 1)
+        first_day = datetime(req.year, 4, 1).date()
+        last_day = datetime(req.year + 1, 3, 31).date()
+        period_label = f"FY {req.year}-{str(req.year + 1)[-2:]} (Apr {req.year} - Mar {req.year + 1})"
+
+    total_days = (last_day - first_day).days + 1
+    date_strs = [(first_day + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(total_days)]
+
+    data, sales, expenses, _ = await _aggregate_period(center, date_strs)
+    data["year_start"] = first_day.strftime("%Y-%m-%d")
+    data["year_end"] = last_day.strftime("%Y-%m-%d")
+    data["year_label"] = period_label
+    data["fy_start_year"] = req.year
+    data["is_international"] = is_international
+
+    if req.overrides:
+        for key, val in req.overrides.items():
+            if key in data and val is not None:
+                data[key] = val
+            elif key == "expense_categories" and isinstance(val, list):
+                data["expense_categories"] = val
+
+    text = _format_period_whatsapp_text(data, period_type="year")
+
+    return {
+        "success": True,
+        "text": text,
+        "data": data,
+        "has_sales_data": len(sales) > 0,
+        "expense_count": len(expenses),
+        "sales_days": len(sales),
+        "center": center,
+        "year_start": data["year_start"],
+        "year_end": data["year_end"],
+        "year_label": period_label,
+        "is_international": is_international,
+        "can_edit": is_admin or not is_franchise_owner,
+    }
+
+
+@router.post("/download-pdf")
+async def download_text_pdf(req: PdfDownloadRequest):
+    """Download a branded PDF of the daily/weekly/monthly/yearly summary text.
+    
+    Available to all roles (Super Admin, Admin, Accountant, Center Manager, Franchise Owner)
+    — Franchise Owners are restricted to their own center.
+    """
+    from datetime import timedelta
+    import calendar
+    from fastapi.responses import Response
+    
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+
+    center = req.center.upper()
+    is_admin = has_admin_access(session)
+    
+    if not is_admin:
+        user_center = session.get("center", "")
+        if user_center != center:
+            raise HTTPException(403, "You can only download PDFs for your own center")
+
+    period_type = (req.period_type or "").lower()
+    if period_type not in ("daily", "weekly", "monthly", "yearly"):
+        raise HTTPException(400, "period_type must be one of: daily, weekly, monthly, yearly")
+
+    # Compute the data for the requested period
+    is_international = await _resolve_is_international(center)
+    
+    text_body = ""
+    period_label = ""
+    
+    if period_type == "daily":
+        if not req.date:
+            raise HTTPException(400, "date (YYYY-MM-DD) is required for daily PDF")
+        # Reuse the daily generation logic
+        sale = await db.daily_sales.find_one(
+            {"center": {"$regex": f"^{center}$", "$options": "i"}, "date": req.date}, {"_id": 0}
+        )
+        expenses = await db.expenses.find(
+            {"center": {"$regex": f"^{center}$", "$options": "i"}, "date": req.date}, {"_id": 0}
+        ).to_list(500)
+        online_expense = sum(float(e.get("amount", 0) or 0) for e in expenses
+                             if (e.get("payment_mode") or "CASH").upper() in ("ONLINE", "BANK", "UPI", "TRANSFER", "NEFT", "IMPS"))
+        cash_expense_total = sum(float(e.get("amount", 0) or 0) for e in expenses) - online_expense
+        d_data = {
+            "date": req.date, "opening_balance": 0, "deposit": 0, "withdrawal": 0,
+            "total_sale": 0, "card": 0, "phone_pay": 0, "swiggy": 0, "zomato": 0,
+            "due_amount": 0, "cash_sale": 0, "online_expense": round(online_expense, 2),
+            "cash_expense": round(cash_expense_total, 2), "cash_in_hand": 0,
+            "petty_cash_balance": 0, "total_guests": 0, "apc": 0,
+            "num_drinks": 0, "num_sides": 0, "cancelled_zomato": 0, "cancelled_swiggy": 0,
+        }
+        if sale:
+            d_data["opening_balance"] = float(sale.get("opening_balance", 0))
+            d_data["deposit"] = float(sale.get("deposited_in_bank", 0))
+            d_data["withdrawal"] = float(sale.get("cash_receipts", 0))
+            d_data["total_sale"] = float(sale.get("total_sale", 0))
+            d_data["card"] = float(sale.get("card_idfc", 0))
+            d_data["phone_pay"] = float(sale.get("bharat_pay", 0))
+            d_data["swiggy"] = float(sale.get("swiggy", 0))
+            d_data["zomato"] = float(sale.get("zomato", 0))
+            d_data["due_amount"] = float(sale.get("due_amount", 0))
+            d_data["cash_sale"] = float(sale.get("total_cash_sale", 0))
+            d_data["cash_in_hand"] = float(sale.get("closing_balance", 0))
+            d_data["petty_cash_balance"] = float(sale.get("petty_cash_closing", 0))
+            d_data["total_guests"] = int(sale.get("num_guests", 0))
+            d_data["apc"] = round(float(sale.get("avg_per_pax", 0)), 0)
+        try:
+            display_date = datetime.strptime(req.date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError:
+            display_date = req.date
+        text_body = _format_whatsapp_text(d_data, display_date)
+        period_label = f"Daily Report — {display_date}"
+    
+    elif period_type == "weekly":
+        if not req.week_date:
+            raise HTTPException(400, "week_date (YYYY-MM-DD) is required for weekly PDF")
+        try:
+            anchor = datetime.strptime(req.week_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(400, "week_date must be YYYY-MM-DD")
+        week_start = anchor - timedelta(days=anchor.weekday())
+        week_end = week_start + timedelta(days=6)
+        date_strs = [(week_start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+        data, _, _, _ = await _aggregate_period(center, date_strs)
+        data["week_start"] = week_start.strftime("%Y-%m-%d")
+        data["week_end"] = week_end.strftime("%Y-%m-%d")
+        text_body = _format_period_whatsapp_text(data, period_type="week")
+        period_label = f"Weekly Report — {week_start.strftime('%d %b %Y')} to {week_end.strftime('%d %b %Y')}"
+    
+    elif period_type == "monthly":
+        if not req.month:
+            raise HTTPException(400, "month (YYYY-MM) is required for monthly PDF")
+        try:
+            yr, mo = req.month.split("-")
+            yr_i, mo_i = int(yr), int(mo)
+            first_day = datetime(yr_i, mo_i, 1).date()
+            last_day_num = calendar.monthrange(yr_i, mo_i)[1]
+            last_day = datetime(yr_i, mo_i, last_day_num).date()
+        except (ValueError, AttributeError):
+            raise HTTPException(400, "month must be YYYY-MM")
+        date_strs = [(first_day + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(last_day_num)]
+        data, _, _, _ = await _aggregate_period(center, date_strs)
+        data["month_start"] = first_day.strftime("%Y-%m-%d")
+        data["month_end"] = last_day.strftime("%Y-%m-%d")
+        data["month"] = req.month
+        text_body = _format_period_whatsapp_text(data, period_type="month")
+        period_label = f"Monthly Report — {first_day.strftime('%B %Y')}"
+    
+    else:  # yearly
+        if not req.year or not isinstance(req.year, int):
+            raise HTTPException(400, "year (int) is required for yearly PDF")
+        if is_international:
+            first_day = datetime(req.year, 1, 1).date()
+            last_day = datetime(req.year, 12, 31).date()
+            period_label_inner = f"CY {req.year} (Jan-Dec {req.year})"
+        else:
+            first_day = datetime(req.year, 4, 1).date()
+            last_day = datetime(req.year + 1, 3, 31).date()
+            period_label_inner = f"FY {req.year}-{str(req.year + 1)[-2:]} (Apr {req.year} - Mar {req.year + 1})"
+        total_days = (last_day - first_day).days + 1
+        date_strs = [(first_day + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(total_days)]
+        data, _, _, _ = await _aggregate_period(center, date_strs)
+        data["year_start"] = first_day.strftime("%Y-%m-%d")
+        data["year_end"] = last_day.strftime("%Y-%m-%d")
+        data["year_label"] = period_label_inner
+        data["is_international"] = is_international
+        text_body = _format_period_whatsapp_text(data, period_type="year")
+        period_label = f"Yearly Report — {period_label_inner}"
+
+    # Look up center info for header
+    center_doc = await db.centers.find_one({"code": center}, {"_id": 0}) or \
+                 await db.centers.find_one({"code": {"$regex": f"^{center}$", "$options": "i"}}, {"_id": 0}) or {}
+    center_name = center_doc.get("name", center)
+
+    # Build branded PDF
+    pdf_bytes = _build_text_summary_pdf(
+        title="Sales Text Report",
+        period_label=period_label,
+        center_code=center,
+        center_name=center_name,
+        text_body=text_body,
+        manager_name=session.get("managerName", ""),
+    )
+    
+    safe_label = period_label.replace(" ", "_").replace("/", "-").replace("—", "-")
+    filename = f"{center}_{period_type}_{safe_label}.pdf"[:120] + ".pdf" if not f"{center}_{period_type}_{safe_label}".endswith(".pdf") else f"{center}_{period_type}.pdf"
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _build_text_summary_pdf(title: str, period_label: str, center_code: str,
+                             center_name: str, text_body: str, manager_name: str) -> bytes:
+    """Render a branded Purnabramha PDF containing the WhatsApp-style summary text."""
+    import io as _io
+    from pathlib import Path as _Path
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, Preformatted
+    )
+    
+    BRAND_MAROON = colors.HexColor("#800020")
+    BRAND_GOLD = colors.HexColor("#C9A227")
+    BRAND_NAVY = colors.HexColor("#1a365d")
+    LIGHT_GRAY = colors.HexColor("#f3f4f6")
+    
+    buf = _io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        topMargin=15 * mm, bottomMargin=15 * mm,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+    )
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="BrandTitle", fontSize=22, textColor=BRAND_MAROON,
+                              fontName="Helvetica-Bold", alignment=1, spaceAfter=2 * mm))
+    styles.add(ParagraphStyle(name="BrandSub", fontSize=10, textColor=BRAND_NAVY,
+                              fontName="Helvetica", alignment=1, spaceAfter=4 * mm))
+    styles.add(ParagraphStyle(name="ReportTitle", fontSize=14, textColor=BRAND_NAVY,
+                              fontName="Helvetica-Bold", spaceBefore=4 * mm, spaceAfter=2 * mm))
+    styles.add(ParagraphStyle(name="MetaLabel", fontSize=9, textColor=colors.gray,
+                              fontName="Helvetica"))
+    styles.add(ParagraphStyle(name="Body", fontSize=10, fontName="Courier",
+                              leading=14, textColor=colors.black))
+    styles.add(ParagraphStyle(name="Footer", fontSize=8, textColor=colors.gray,
+                              fontName="Helvetica-Oblique", alignment=1))
+
+    story = []
+    
+    # Header band: logo + brand name
+    logo_path = _Path("/app/backend/assets/pb_logo.png")
+    header_cells = []
+    if logo_path.exists():
+        try:
+            logo_img = Image(str(logo_path), width=20 * mm, height=20 * mm)
+            header_cells.append(logo_img)
+        except Exception:
+            header_cells.append(Paragraph("", styles["Normal"]))
+    else:
+        header_cells.append(Paragraph("", styles["Normal"]))
+
+    brand_block = [
+        Paragraph("Purnabramha", styles["BrandTitle"]),
+        Paragraph("Authentic Maharashtrian Cuisine | IntraPB Sales Report",
+                  styles["BrandSub"]),
+    ]
+    
+    header_tbl = Table(
+        [[header_cells[0], brand_block]],
+        colWidths=[28 * mm, 140 * mm],
+    )
+    header_tbl.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("LINEBELOW", (0, 0), (-1, -1), 1.5, BRAND_GOLD),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(header_tbl)
+    story.append(Spacer(1, 4 * mm))
+    
+    # Report title
+    story.append(Paragraph(title, styles["ReportTitle"]))
+    
+    # Meta info table
+    meta = [
+        ["Center:", f"{center_code} — {center_name}"],
+        ["Period:", period_label],
+        ["Generated:", datetime.now().strftime("%d %b %Y, %H:%M")],
+    ]
+    if manager_name:
+        meta.append(["Generated by:", manager_name])
+    meta_tbl = Table(meta, colWidths=[28 * mm, 140 * mm])
+    meta_tbl.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("TEXTCOLOR", (0, 0), (0, -1), BRAND_MAROON),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    story.append(meta_tbl)
+    story.append(Spacer(1, 4 * mm))
+    
+    # Body — preserve formatting & emoji
+    # Use Preformatted to maintain alignment of WhatsApp text
+    body_box = Preformatted(text_body, ParagraphStyle(
+        name="BodyPre", fontSize=10, fontName="Helvetica",
+        leading=14, textColor=colors.black,
+    ))
+    body_tbl = Table([[body_box]], colWidths=[170 * mm])
+    body_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), LIGHT_GRAY),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("BOX", (0, 0), (-1, -1), 0.5, BRAND_NAVY),
+    ]))
+    story.append(body_tbl)
+    
+    story.append(Spacer(1, 8 * mm))
+    story.append(Paragraph(
+        "This is a computer-generated report from the Purnabramha IntraPB platform. "
+        "All values are derived from the Sales Dashboard at the time of generation.",
+        styles["Footer"]
+    ))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.getvalue()
+
+
 async def _aggregate_period(center: str, date_strs: list):
-    """Shared aggregation for any list of dates (weekly/monthly).
+    """Shared aggregation for any list of dates (weekly/monthly/yearly).
     Returns (data_dict, sales_list, expenses_list, is_international_bool).
     """
     # Center info (for doordash visibility)
@@ -276,6 +658,8 @@ def _format_period_whatsapp_text(d: dict, period_type: str = "week") -> str:
             range_str = f"{ms.strftime('%B %Y')} (Monthly Summary)"
         except Exception:
             range_str = f"{d.get('month','')} (Monthly Summary)"
+    elif period_type == "year":
+        range_str = d.get("year_label") or f"{d.get('year_start','')} to {d.get('year_end','')} (Yearly Summary)"
     else:
         try:
             ws = _dt.strptime(d["week_start"], "%Y-%m-%d")
