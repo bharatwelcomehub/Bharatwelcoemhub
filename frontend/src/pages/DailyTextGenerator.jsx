@@ -82,6 +82,7 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
   const [textData, setTextData] = useState(null);
   const [editableData, setEditableData] = useState({});
   const [generatedText, setGeneratedText] = useState("");
+  const [showChart, setShowChart] = useState(false);
 
   const generateText = async () => {
     if (!selectedCenter) { toast.error("Select a center"); return; }
@@ -225,7 +226,7 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
                 className="border-rose-500 text-rose-600 hover:bg-rose-50"
                 onClick={() => downloadBrandedPdf({
                   session, center: selectedCenter, periodType: "daily",
-                  payload: { date: selectedDate },
+                  payload: { date: selectedDate, include_chart: showChart },
                   filenameHint: `${selectedCenter}_daily_${selectedDate}`,
                   onErr: (m) => toast.error(m), onOk: () => toast.success("PDF downloaded"),
                 })}
@@ -233,11 +234,21 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
                 <Download className="w-4 h-4 mr-2" /> Download PDF
               </Button>
             )}
+            {textData && (
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none px-3 py-2 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100"
+                data-testid="daily-show-chart-toggle">
+                <input type="checkbox" checked={showChart}
+                  onChange={(e) => setShowChart(e.target.checked)}
+                  className="cursor-pointer" />
+                <BarChart3 className="w-4 h-4 text-amber-700" />
+                <span className="text-amber-800 font-medium">Show Chart</span>
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {textData && (
+      {textData && showChart && (
         <Card className="border-2 border-amber-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
@@ -332,6 +343,7 @@ function WeeklyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
   const [editableData, setEditableData] = useState({});
   const [editableCategories, setEditableCategories] = useState([]);
   const [generatedText, setGeneratedText] = useState("");
+  const [showChart, setShowChart] = useState(false);
 
   const generate = async () => {
     if (!selectedCenter) { toast.error("Select a center"); return; }
@@ -497,7 +509,7 @@ function WeeklyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
                 className="border-rose-500 text-rose-600 hover:bg-rose-50"
                 onClick={() => downloadBrandedPdf({
                   session, center: selectedCenter, periodType: "weekly",
-                  payload: { week_date: weekDate },
+                  payload: { week_date: weekDate, include_chart: showChart },
                   filenameHint: `${selectedCenter}_weekly_${textData?.week_start || weekDate}`,
                   onErr: (m) => toast.error(m), onOk: () => toast.success("PDF downloaded"),
                 })}
@@ -505,11 +517,21 @@ function WeeklyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
                 <Download className="w-4 h-4 mr-2" /> Download PDF
               </Button>
             )}
+            {textData && (
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none px-3 py-2 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100"
+                data-testid="weekly-show-chart-toggle">
+                <input type="checkbox" checked={showChart}
+                  onChange={(e) => setShowChart(e.target.checked)}
+                  className="cursor-pointer" />
+                <BarChart3 className="w-4 h-4 text-amber-700" />
+                <span className="text-amber-800 font-medium">Show Chart</span>
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {textData && (
+      {textData && showChart && (
         <Card className="border-2 border-amber-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
@@ -626,6 +648,7 @@ function MonthlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }
   const [editableData, setEditableData] = useState({});
   const [editableCategories, setEditableCategories] = useState([]);
   const [generatedText, setGeneratedText] = useState("");
+  const [showChart, setShowChart] = useState(false);
 
   const generate = async () => {
     if (!selectedCenter) { toast.error("Select a center"); return; }
@@ -787,7 +810,7 @@ function MonthlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }
                 className="border-rose-500 text-rose-600 hover:bg-rose-50"
                 onClick={() => downloadBrandedPdf({
                   session, center: selectedCenter, periodType: "monthly",
-                  payload: { month: monthValue },
+                  payload: { month: monthValue, include_chart: showChart },
                   filenameHint: `${selectedCenter}_monthly_${monthValue}`,
                   onErr: (m) => toast.error(m), onOk: () => toast.success("PDF downloaded"),
                 })}
@@ -795,11 +818,21 @@ function MonthlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }
                 <Download className="w-4 h-4 mr-2" /> Download PDF
               </Button>
             )}
+            {textData && (
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none px-3 py-2 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100"
+                data-testid="monthly-show-chart-toggle">
+                <input type="checkbox" checked={showChart}
+                  onChange={(e) => setShowChart(e.target.checked)}
+                  className="cursor-pointer" />
+                <BarChart3 className="w-4 h-4 text-amber-700" />
+                <span className="text-amber-800 font-medium">Show Chart</span>
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {textData && (
+      {textData && showChart && (
         <Card className="border-2 border-amber-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
@@ -912,6 +945,7 @@ function YearlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
   const [editableData, setEditableData] = useState({});
   const [editableCategories, setEditableCategories] = useState([]);
   const [generatedText, setGeneratedText] = useState("");
+  const [showChart, setShowChart] = useState(false);
 
   const generate = async () => {
     if (!selectedCenter) { toast.error("Select a center"); return; }
@@ -1050,7 +1084,7 @@ function YearlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
                 className="border-rose-500 text-rose-600 hover:bg-rose-50"
                 onClick={() => downloadBrandedPdf({
                   session, center: selectedCenter, periodType: "yearly",
-                  payload: { year: parseInt(year, 10) },
+                  payload: { year: parseInt(year, 10), include_chart: showChart },
                   filenameHint: `${selectedCenter}_yearly_${year}`,
                   onErr: (m) => toast.error(m), onOk: () => toast.success("PDF downloaded"),
                 })}
@@ -1058,11 +1092,21 @@ function YearlyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit })
                 <Download className="w-4 h-4 mr-2" /> Download PDF
               </Button>
             )}
+            {textData && (
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none px-3 py-2 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100"
+                data-testid="yearly-show-chart-toggle">
+                <input type="checkbox" checked={showChart}
+                  onChange={(e) => setShowChart(e.target.checked)}
+                  className="cursor-pointer" />
+                <BarChart3 className="w-4 h-4 text-amber-700" />
+                <span className="text-amber-800 font-medium">Show Chart</span>
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {textData && (
+      {textData && showChart && (
         <Card className="border-2 border-amber-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-amber-700">

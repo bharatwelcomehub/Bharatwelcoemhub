@@ -67,6 +67,7 @@ class PdfDownloadRequest(BaseModel):
     week_date: Optional[str] = None  # for weekly (any date in the week)
     month: Optional[str] = None      # for monthly (YYYY-MM)
     year: Optional[int] = None       # for yearly
+    include_chart: bool = False      # opt-in graphical representation
 
 
 @router.post("/generate-weekly")
@@ -429,7 +430,7 @@ async def download_text_pdf(req: PdfDownloadRequest):
         center_name=center_name,
         text_body=text_body,
         manager_name=session.get("managerName", ""),
-        chart_series=chart_series,
+        chart_series=chart_series if req.include_chart else None,
     )
     
     safe_label = period_label.replace(" ", "_").replace("/", "-").replace("—", "-")
