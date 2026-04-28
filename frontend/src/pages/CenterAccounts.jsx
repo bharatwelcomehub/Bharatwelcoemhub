@@ -1923,6 +1923,150 @@ export default function CenterAccounts() {
                         </div>
                       </div>
                     )}
+
+                    {/* Cash Inflows row — Other Income + Loans Taken + Loans Given (always visible alongside WC) */}
+                    <div className="p-4 rounded-lg border-2 border-emerald-200 bg-emerald-50/50" data-testid="ot-other-income-block">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-emerald-800">Other Income</h4>
+                          <p className="text-xs text-emerald-700/80">
+                            Non-operating cash. Stays out of Sales/P&amp;L/MG; <strong>adjusts next-month Opening WC</strong>.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-emerald-700">
+                            {formatCurrency(accountSummary.other_income?.total || 0, accountSummary.country)}
+                          </span>
+                          {(session?.is_super_admin || session?.is_admin || session?.role_key === "accountant" || session?.role_key === "accounts") && (
+                            <Button size="sm" variant="outline"
+                              className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 h-8"
+                              onClick={() => setShowOtherIncomeModal(true)}
+                              data-testid="add-other-income-btn-top">
+                              <Plus className="w-3.5 h-3.5 mr-1" /> Add
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {(accountSummary.other_income?.rows || []).length === 0 ? (
+                        <p className="text-xs text-emerald-700/70 italic px-3 py-2">No Other Income entries this period.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {accountSummary.other_income.rows.map((r) => (
+                            <div key={r.income_id} className="flex justify-between items-center px-3 py-1.5 bg-white rounded text-sm" data-testid={`oi-row-top-${r.income_id}`}>
+                              <span className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="text-[10px] uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                                  {(r.category || "other").replace(/_/g, " ")}
+                                </span>
+                                <span className="text-muted-foreground shrink-0">{r.date}</span>
+                                <span className="text-foreground truncate">{r.reason}</span>
+                                {r.auto_generated && <span className="text-[9px] text-amber-700 bg-amber-100 px-1 rounded shrink-0">AUTO</span>}
+                              </span>
+                              <span className="flex items-center gap-2 shrink-0">
+                                <span className="font-medium">{formatCurrency(r.amount, accountSummary.country)}</span>
+                                {(session?.is_super_admin || session?.is_admin || session?.role_key === "accountant" || session?.role_key === "accounts") && !r.auto_generated && (
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50"
+                                    data-testid={`oi-delete-top-${r.income_id}`}
+                                    onClick={async () => {
+                                      if (!window.confirm(`Delete Other Income entry of ${formatCurrency(r.amount, accountSummary.country)}?`)) return;
+                                      try {
+                                        const resp = await fetch(`${API}/api/other-income/delete/${r.income_id}`, {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ token: session?.token }),
+                                        });
+                                        const dd = await resp.json();
+                                        if (resp.ok && dd.success) {
+                                          toast.success("Deleted");
+                                          await fetchAccountSummary();
+                                        } else {
+                                          toast.error(dd.detail || "Delete failed");
+                                        }
+                                      } catch { toast.error("Delete failed"); }
+                                    }}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                                {r.auto_generated && (
+                                  <span className="text-[9px] text-muted-foreground italic shrink-0">linked to loan</span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Loans Taken (borrower view) */}
+                    {accountSummary.loans_taken?.total > 0 && (
+                      <div className="p-4 rounded-lg border-2 border-amber-200 bg-amber-50/50" data-testid="ot-loans-taken-block">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-semibold text-amber-800">Loans Taken (this center)</h4>
+                            <p className="text-xs text-amber-700/80">Auto-added to Other Income above.</p>
+                          </div>
+                          <div className="text-right text-xs">
+                            <div><span className="text-muted-foreground">Total:</span> <span className="font-bold text-amber-700">{formatCurrency(accountSummary.loans_taken.total, accountSummary.country)}</span></div>
+                            <div><span className="text-muted-foreground">Repaid:</span> <span className="text-emerald-700 font-medium">{formatCurrency(accountSummary.loans_taken.repaid || 0, accountSummary.country)}</span></div>
+                            <div><span className="text-muted-foreground">Outstanding:</span> <span className="text-rose-700 font-bold">{formatCurrency(accountSummary.loans_taken.outstanding || 0, accountSummary.country)}</span></div>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          {(accountSummary.loans_taken.rows || []).map((r) => (
+                            <div key={r.loan_id} className="flex justify-between items-center px-3 py-1.5 bg-white rounded text-sm">
+                              <span className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="text-[10px] uppercase tracking-wide text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">From {r.source_center || "Ext"}</span>
+                                <span className="text-muted-foreground shrink-0">{r.loan_date}</span>
+                                <span className="text-foreground truncate">{r.reason}</span>
+                                {r.status === "fully_repaid" && <span className="text-[9px] text-emerald-700 bg-emerald-100 px-1 rounded shrink-0">FULLY REPAID</span>}
+                                {r.status === "partial" && <span className="text-[9px] text-amber-700 bg-amber-100 px-1 rounded shrink-0">PARTIAL</span>}
+                                {(!r.status || r.status === "outstanding" || r.status === "active") && <span className="text-[9px] text-rose-700 bg-rose-100 px-1 rounded shrink-0">OUTSTANDING</span>}
+                              </span>
+                              <span className="flex items-center gap-3 shrink-0 text-xs">
+                                <span><span className="text-muted-foreground">Amt:</span> <span className="font-medium">{formatCurrency(r.amount, accountSummary.country)}</span></span>
+                                <span><span className="text-muted-foreground">Repaid:</span> <span className="text-emerald-700">{formatCurrency(r.repaid, accountSummary.country)}</span></span>
+                                <span><span className="text-muted-foreground">Out:</span> <span className="text-rose-700 font-semibold">{formatCurrency(r.outstanding, accountSummary.country)}</span></span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Loans Given (lender view, anonymised) */}
+                    {accountSummary.loans_given?.total > 0 && (
+                      <div className="p-4 rounded-lg border-2 border-rose-200 bg-rose-50/50" data-testid="ot-loans-given-block">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-semibold text-rose-800">Loan Given to Other Center</h4>
+                            <p className="text-xs text-rose-700/80">Tracked in Loan Entries ledger.</p>
+                          </div>
+                          <div className="text-right text-xs">
+                            <div><span className="text-muted-foreground">Total:</span> <span className="font-bold text-rose-700">{formatCurrency(accountSummary.loans_given.total, accountSummary.country)}</span></div>
+                            <div><span className="text-muted-foreground">Repaid:</span> <span className="text-emerald-700 font-medium">{formatCurrency(accountSummary.loans_given.repaid || 0, accountSummary.country)}</span></div>
+                            <div><span className="text-muted-foreground">Outstanding:</span> <span className="text-rose-700 font-bold">{formatCurrency(accountSummary.loans_given.outstanding || 0, accountSummary.country)}</span></div>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          {(accountSummary.loans_given.rows || []).map((r) => (
+                            <div key={r.loan_id} className="flex justify-between items-center px-3 py-1.5 bg-white rounded text-sm">
+                              <span className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="text-[10px] uppercase tracking-wide text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded shrink-0">Loan Given</span>
+                                <span className="text-muted-foreground shrink-0">{r.loan_date}</span>
+                                <span className="text-foreground truncate">{r.reason}</span>
+                                {r.status === "fully_repaid" && <span className="text-[9px] text-emerald-700 bg-emerald-100 px-1 rounded shrink-0">FULLY REPAID</span>}
+                                {r.status === "partial" && <span className="text-[9px] text-amber-700 bg-amber-100 px-1 rounded shrink-0">PARTIAL</span>}
+                                {(!r.status || r.status === "outstanding" || r.status === "active") && <span className="text-[9px] text-rose-700 bg-rose-100 px-1 rounded shrink-0">OUTSTANDING</span>}
+                              </span>
+                              <span className="flex items-center gap-3 shrink-0 text-xs">
+                                <span><span className="text-muted-foreground">Amt:</span> <span className="font-medium">{formatCurrency(r.amount, accountSummary.country)}</span></span>
+                                <span><span className="text-muted-foreground">Repaid:</span> <span className="text-emerald-700">{formatCurrency(r.repaid, accountSummary.country)}</span></span>
+                                <span><span className="text-muted-foreground">Out:</span> <span className="text-rose-700 font-semibold">{formatCurrency(r.outstanding, accountSummary.country)}</span></span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -5,6 +5,11 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-28] Other Income / Loans Taken / Loans Given moved to a prominent always-visible spot
+- User feedback: blocks were buried inside Sales Breakdown tab so they didn't appear next to the Working Capital Standing card on the WC tab where users actually look.
+- **Fix**: rendered the same three blocks (Other Income with Add/Delete buttons, Loans Taken with source center + outstanding/repaid/status, Loans Given anonymised with outstanding/repaid/status) directly beneath the Working Capital Standing card on the Tax/WC tab. Test-ids: `ot-other-income-block`, `ot-loans-taken-block`, `ot-loans-given-block`, `add-other-income-btn-top`, `oi-row-top-{id}`, `oi-delete-top-{id}`.
+- **MIS WC parity verified** by curl across PB-MGT, PB-PERTH, PB-HSR, PB-SN for Jan 2026 — Table opening/closing exactly equal Standing card opening/closing. Since MIS calls the same `calculate_working_capital_standing()` function, MIS Dashboard / Owner Reports / PIB / Sales Breakdown all produce identical numbers.
+
 ### [2026-04-27] Cash Inflows (Non-Operating) surfaced on PIB / MIS / Owner Reports
 Closes the loop on Other Income visibility — same data, three audiences:
 - **PIB Report PDF** (`utils/pdf_generator.py` `build_pib_pdf`): new section **"4B. Cash Inflows (Non-Operating) & Inter-Center Loans"** rendered between Financial Summary (4) and Operational Sustainability (5). Lists every Other Income row by category (loan_taken auto-rows + manual vendor_refund / franchisee_repayment / other), every Loan Taken with `From {source_center}` + Repaid/Outstanding/Status, and every Loan Given anonymised as `To Other Center` with the same Repaid/Outstanding/Status. Disclaimer at the top: "These rows do NOT affect Sales / P&L / Revenue Share / MG. Other Income adjusts next month's Opening Working Capital." Verified by extracting PB-PERTH 2026-01 PDF text (8 KB, 200 OK) — section + auto + manual + loan-taken row all present.
