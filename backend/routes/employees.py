@@ -474,14 +474,14 @@ async def generate_employee_report(data: dict):
     y = draw_header(height - 0.4 * inch)
 
     for idx, emp in enumerate(employees):
-        # Check if we need a new page (each employee needs ~2.5 inches)
-        if y < 2.5 * inch:
+        # Check if we need a new page (each employee needs ~2.7 inches now with salary row)
+        if y < 2.7 * inch:
             c.showPage()
             y = draw_header(height - 0.4 * inch)
 
         # Employee card background
         card_top = y + 0.1 * inch
-        card_height = 2.0 * inch
+        card_height = 2.2 * inch
         c.setFillColor(HexColor("#F8FAFC"))
         c.setStrokeColor(HexColor("#E2E8F0"))
         c.roundRect(0.4 * inch, card_top - card_height, width - 0.8 * inch, card_height, 4, fill=1, stroke=1)
@@ -567,6 +567,22 @@ async def generate_employee_report(data: dict):
         c.drawString(left_x, text_y, f"Email: {emp.get('email', 'N/A')}")
         text_y -= 0.16 * inch
 
+        # Row 6 — Salary details
+        currency_sym = "Rs." if is_india else "$"
+        base_sal = emp.get("salaryBase", 0) or 0
+        curr_sal = emp.get("currentSalary", 0) or 0
+        try:
+            base_sal_str = f"{currency_sym} {float(base_sal):,.0f}" if base_sal else "N/A"
+        except (TypeError, ValueError):
+            base_sal_str = "N/A"
+        try:
+            curr_sal_str = f"{currency_sym} {float(curr_sal):,.0f}" if curr_sal else "N/A"
+        except (TypeError, ValueError):
+            curr_sal_str = "N/A"
+        c.drawString(left_x, text_y, f"Base Salary: {base_sal_str}")
+        c.drawString(right_col, text_y, f"Current Salary: {curr_sal_str}")
+        text_y -= 0.16 * inch
+
         y = card_top - card_height - 0.15 * inch
 
     # Footer
@@ -581,5 +597,139 @@ async def generate_employee_report(data: dict):
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@router.post("/employee_report_excel")
+async def generate_employee_report_excel(data: dict):
+    """Generate employee report as Excel (.xlsx) with full details + salary."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils import get_column_letter
+    
+    token = data.get("token")
+    session = verify_token(token)
+    if not session or not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can generate employee reports")
+    
+    center = (data.get("center") or "").upper()
+    query = {"center": center} if center else {}
+    
+    employees = await db.employees.find(query, {"_id": 0}).sort([("center", 1), ("name", 1)]).to_list(5000)
+    if not employees:
+        raise HTTPException(404, "No employees found")
+    
+    # Center country (if filtered) — for currency hint
+    is_india = True
+    if center:
+        cd = await db.centers.find_one({"code": center}, {"_id": 0, "country": 1, "is_india_center": 1})
+        if cd:
+            is_india = cd.get("is_india_center") is not False and (cd.get("country", "India").lower() == "india")
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Employees"
+    
+    # Header row
+    headers = [
+        "Center", "Employee Name", "Designation", "Gender", "Date of Joining",
+        "Mobile", "Email",
+        "Base Salary", "Current Salary",
+        "Bank Name", "Account Number", "IFSC",
+        "Aadhaar / TFN", "PAN / Passport", "Visa Type",
+        "Blood Group", "Remarks",
+    ]
+    ws.append(headers)
+    
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1A365D", end_color="1A365D", fill_type="solid")
+    border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1'),
+    )
+    for col_idx, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+    
+    # Data rows
+    for emp in employees:
+        is_india_row = True
+        if not center:
+            # Look up per-row country
+            cd2 = await db.centers.find_one(
+                {"code": (emp.get("center") or "").upper()},
+                {"_id": 0, "country": 1, "is_india_center": 1}
+            )
+            if cd2:
+                is_india_row = cd2.get("is_india_center") is not False and \
+                               (cd2.get("country", "India").lower() == "india")
+        else:
+            is_india_row = is_india
+        
+        ws.append([
+            emp.get("center", ""),
+            emp.get("name", ""),
+            emp.get("designation", ""),
+            emp.get("gender", ""),
+            emp.get("dateOfJoining", ""),
+            emp.get("mobile", ""),
+            emp.get("email", ""),
+            float(emp.get("salaryBase", 0) or 0),
+            float(emp.get("currentSalary", 0) or 0),
+            emp.get("bankName", ""),
+            emp.get("beneAccNo", ""),
+            emp.get("ifsc", ""),
+            emp.get("aadhaar") if is_india_row else emp.get("tfn", ""),
+            emp.get("pan") if is_india_row else emp.get("passport_number", ""),
+            "" if is_india_row else (emp.get("visa_type") or ""),
+            emp.get("blood_group", ""),
+            emp.get("remark", ""),
+        ])
+    
+    # Style data rows
+    money_fmt = '#,##0.00'
+    for row_idx in range(2, ws.max_row + 1):
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center", wrap_text=False)
+            if col_idx in (8, 9):  # Salary columns
+                cell.number_format = money_fmt
+                cell.alignment = Alignment(horizontal="right")
+    
+    # Column widths
+    widths = [10, 25, 18, 8, 13, 13, 25, 14, 14, 16, 18, 12, 16, 16, 12, 11, 25]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    
+    ws.freeze_panes = "A2"
+    
+    # Summary row at the bottom
+    summary_row = ws.max_row + 2
+    ws.cell(row=summary_row, column=1, value=f"Total Employees: {len(employees)}").font = Font(bold=True)
+    total_base = sum(float(e.get("salaryBase", 0) or 0) for e in employees)
+    total_curr = sum(float(e.get("currentSalary", 0) or 0) for e in employees)
+    ws.cell(row=summary_row, column=8, value=total_base).font = Font(bold=True)
+    ws.cell(row=summary_row, column=8).number_format = money_fmt
+    ws.cell(row=summary_row, column=9, value=total_curr).font = Font(bold=True)
+    ws.cell(row=summary_row, column=9).number_format = money_fmt
+    ws.cell(row=summary_row, column=2, value=f"Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')} | Center: {center or 'ALL'}").font = Font(italic=True, color="64748B")
+    
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    
+    from fastapi.responses import Response
+    filename = f"Employee_Report_{center or 'ALL'}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )

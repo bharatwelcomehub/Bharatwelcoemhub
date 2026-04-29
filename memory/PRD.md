@@ -5,6 +5,12 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-29] Employee Report — Salary details added + Excel export
+- **PDF report** (`POST /api/employee_report`): added a new "Base Salary / Current Salary" row inside each employee card. Card height bumped 2.0 → 2.2 inch and pagination threshold raised 2.5 → 2.7 inch to keep layout clean. Currency prefix is `Rs.` for India centers and `$` for international. Verified via PyPDF2 — both `Base Salary` and `Current Salary` strings present in extracted text.
+- **Excel report** (`POST /api/employee_report_excel`, NEW): generates a styled `.xlsx` with 17 columns — Center, Name, Designation, Gender, DoJ, Mobile, Email, **Base Salary**, **Current Salary**, Bank Name, Account No, IFSC, Aadhaar/TFN, PAN/Passport, Visa Type, Blood Group, Remarks. Indian-format number cells (`#,##0.00`) on salary columns, navy header row, frozen pane, alternating-row borders, and a bold summary row at the bottom showing total employee count + sum of Base/Current salaries. India vs International field handling (Aadhaar/PAN vs TFN/Passport+Visa) applied per-row by looking up the employee's center country.
+- **Frontend**: new emerald "Employee Report (Excel)" button next to the existing purple "Employee Report (PDF)" button on `/employees`. Both share the same `centerFilter` and `reportLoading` state. Test-id: `export-report-excel-btn`.
+- Verified via curl on PB-HSR: PDF 10 KB with salary lines; Excel 7 KB, 16 rows + summary row showing Total Employees: 16 and total Base Salary ₹2,55,000.
+
 ### [2026-04-28] Other Income / Loans Taken / Loans Given moved to a prominent always-visible spot
 - User feedback: blocks were buried inside Sales Breakdown tab so they didn't appear next to the Working Capital Standing card on the WC tab where users actually look.
 - **Fix**: rendered the same three blocks (Other Income with Add/Delete buttons, Loans Taken with source center + outstanding/repaid/status, Loans Given anonymised with outstanding/repaid/status) directly beneath the Working Capital Standing card on the Tax/WC tab. Test-ids: `ot-other-income-block`, `ot-loans-taken-block`, `ot-loans-given-block`, `add-other-income-btn-top`, `oi-row-top-{id}`, `oi-delete-top-{id}`.

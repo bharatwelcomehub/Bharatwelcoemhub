@@ -356,9 +356,43 @@ export default function Employees() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      toast.success("Employee Report downloaded!");
+      toast.success("Employee Report PDF downloaded!");
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to generate report");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  // Export Employee Report Excel
+  const exportEmployeeReportExcel = async () => {
+    setReportLoading(true);
+    try {
+      const res = await api.post("/employee_report_excel", {
+        token: session.token,
+        center: centerFilter || ""
+      }, { responseType: "blob" });
+      const contentType = res.headers["content-type"] || "";
+      if (contentType.includes("application/json")) {
+        const text = await res.data.text();
+        const json = JSON.parse(text);
+        toast.error(json.detail || "Failed to generate Excel");
+        return;
+      }
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Employee_Report_${centerFilter || "ALL"}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Employee Report Excel downloaded!");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to generate Excel");
     } finally {
       setReportLoading(false);
     }
@@ -505,7 +539,17 @@ export default function Employees() {
             data-testid="export-report-btn"
           >
             {reportLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-            Employee Report
+            Employee Report (PDF)
+          </Button>
+          <Button
+            onClick={exportEmployeeReportExcel}
+            disabled={reportLoading}
+            variant="outline"
+            className="border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+            data-testid="export-report-excel-btn"
+          >
+            {reportLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+            Employee Report (Excel)
           </Button>
           <Button 
             onClick={() => setShowBulkUpload(!showBulkUpload)} 
