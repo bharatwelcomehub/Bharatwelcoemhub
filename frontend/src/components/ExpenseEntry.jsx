@@ -1235,18 +1235,60 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                       )}
                     </td>
                     
-                    {/* Attachment Column */}
+                    {/* Attachment Column — clickable to view */}
                     <td className="py-2 px-2 text-center">
                       {exp.attachment_status === 'attached' ? (
-                        <Badge className="bg-green-100 text-green-800 text-xs gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          {exp.attachment_count || 1}
-                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 gap-1 hover:bg-green-50"
+                          title={`View ${exp.attachment_count || 1} attachment(s)`}
+                          data-testid={`view-bill-${exp.expense_id}`}
+                          onClick={() => {
+                            const atts = exp.direct_attachments || [];
+                            if (atts.length === 0) {
+                              toast.error("No attachment to view");
+                            } else if (atts.length === 1) {
+                              viewAttachment(atts[0].attachment_id);
+                            } else {
+                              // Multiple: open all tabs
+                              atts.forEach(a => viewAttachment(a.attachment_id));
+                            }
+                          }}
+                        >
+                          <Badge className="bg-green-100 text-green-800 text-xs gap-1 cursor-pointer hover:bg-green-200">
+                            <Eye className="w-3 h-3" />
+                            View ({exp.attachment_count || 1})
+                          </Badge>
+                        </Button>
                       ) : exp.attachment_status === 'attached_via_group' ? (
-                        <Badge className="bg-blue-100 text-blue-800 text-xs gap-1" title="Attached via Invoice Group">
-                          <FolderOpen className="w-3 h-3" />
-                          Grp
-                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 gap-1 hover:bg-blue-50"
+                          title={`Open invoice group (${exp.attachment_count || 0} bill)`}
+                          data-testid={`view-group-${exp.expense_id}`}
+                          onClick={() => {
+                            const atts = exp.group_attachments || [];
+                            if (atts.length === 0) {
+                              // Fall back: open group detail modal
+                              if (exp.invoice_group_id && typeof handleViewGroup === 'function') {
+                                handleViewGroup(exp.invoice_group_id);
+                              } else {
+                                toast.info("Attachment in an invoice group");
+                              }
+                            } else if (atts.length === 1) {
+                              viewAttachment(atts[0].attachment_id);
+                            } else {
+                              atts.forEach(a => viewAttachment(a.attachment_id));
+                            }
+                          }}
+                        >
+                          <Badge className="bg-blue-100 text-blue-800 text-xs gap-1 cursor-pointer hover:bg-blue-200" title="Attached via Invoice Group">
+                            <FolderOpen className="w-3 h-3" />
+                            Grp ({exp.attachment_count || ""})
+                          </Badge>
+                        </Button>
                       ) : (
                         <Badge variant="outline" className="text-xs text-red-600 border-red-300 gap-1">
                           <AlertTriangle className="w-3 h-3" />

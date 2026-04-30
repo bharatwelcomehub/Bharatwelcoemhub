@@ -5,6 +5,15 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-29] Expense Bill / Invoice attachment is now clickable + Owner Dashboard parity check
+- **Bill column on Expenses table is now clickable** — previously showed a static "None"/green/blue badge with no way to actually view the attached file. Now:
+  - **Attached** (direct): emerald "View (N)" button → opens the attachment in a new tab via `viewAttachment(attachment_id)`. Multiple attachments open multiple tabs.
+  - **Grp** (grouped invoice): blue "Grp (N)" button → opens the group's bill attachment(s); falls back to `handleViewGroup()` modal if attachments not present.
+  - **None**: unchanged red outline (no file to show).
+- **Backend** (`GET /api/sales/expenses`) now ships `direct_attachments` and `group_attachments` arrays on every expense row with `attachment_id`, `original_filename`, `file_size`, `content_type` so the UI can display file names and trigger downloads without a round-trip. Verified the new fields are always present (empty array when no attachment).
+- Test-ids: `view-bill-{expense_id}`, `view-group-{expense_id}`.
+- **Owner Dashboard data** — confirmed `FranchiseOwnerDashboard.jsx` calls `POST /mis/working-capital` which uses the same `calculate_working_capital_standing()` fn that was fixed for parity. Owner Dashboard, MIS Dashboard, Center Accounts Standing card, WC Breakdown Table, PIB and Owner Report PDFs therefore all share the same source of truth. Any remaining difference on the production site is because production hasn't been deployed with the recent WC parity fix yet — **click Deploy**.
+
 ### [2026-04-29] Employee Report — Salary details added + Excel export
 - **PDF report** (`POST /api/employee_report`): added a new "Base Salary / Current Salary" row inside each employee card. Card height bumped 2.0 → 2.2 inch and pagination threshold raised 2.5 → 2.7 inch to keep layout clean. Currency prefix is `Rs.` for India centers and `$` for international. Verified via PyPDF2 — both `Base Salary` and `Current Salary` strings present in extracted text.
 - **Excel report** (`POST /api/employee_report_excel`, NEW): generates a styled `.xlsx` with 17 columns — Center, Name, Designation, Gender, DoJ, Mobile, Email, **Base Salary**, **Current Salary**, Bank Name, Account No, IFSC, Aadhaar/TFN, PAN/Passport, Visa Type, Blood Group, Remarks. Indian-format number cells (`#,##0.00`) on salary columns, navy header row, frozen pane, alternating-row borders, and a bold summary row at the bottom showing total employee count + sum of Base/Current salaries. India vs International field handling (Aadhaar/PAN vs TFN/Passport+Visa) applied per-row by looking up the employee's center country.

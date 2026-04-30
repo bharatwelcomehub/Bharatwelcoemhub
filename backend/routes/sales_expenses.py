@@ -1296,6 +1296,17 @@ async def get_expenses(req: ExpenseQueryRequest):
         has_direct_attachment = bool(exp.get("attachments") and len(exp.get("attachments", [])) > 0)
         has_group_attachment = False
         group_info = None
+        direct_attachments = []
+        group_attachments = []
+        
+        # Load direct attachment details (for View/Download on the Bill column)
+        direct_att_ids = [a.get("attachment_id") for a in (exp.get("attachments") or []) if a.get("attachment_id")]
+        if direct_att_ids:
+            async for att in db.expense_attachments.find(
+                {"attachment_id": {"$in": direct_att_ids}, "is_deleted": {"$ne": True}},
+                {"_id": 0, "attachment_id": 1, "original_filename": 1, "file_size": 1, "content_type": 1}
+            ):
+                direct_attachments.append(att)
         
         if exp.get("invoice_group_id"):
             group = await db.invoice_groups.find_one(
@@ -1308,6 +1319,12 @@ async def get_expenses(req: ExpenseQueryRequest):
                     "vendor_name": group.get("vendor_name"),
                     "invoice_number": group.get("invoice_number")
                 }
+                # Also load group-level attachments so user can view them from expense row
+                async for att in db.expense_attachments.find(
+                    {"invoice_group_id": exp["invoice_group_id"], "is_deleted": {"$ne": True}},
+                    {"_id": 0, "attachment_id": 1, "original_filename": 1, "file_size": 1, "content_type": 1}
+                ):
+                    group_attachments.append(att)
         
         # Determine attachment status
         if has_direct_attachment:
@@ -1317,13 +1334,15 @@ async def get_expenses(req: ExpenseQueryRequest):
             exp_dict["attachment_source"] = "direct"
         elif has_group_attachment:
             exp_dict["attachment_status"] = "attached_via_group"
-            exp_dict["attachment_count"] = 0
+            exp_dict["attachment_count"] = len(group_attachments)
             exp_dict["attachment_source"] = "group"
         else:
             exp_dict["attachment_status"] = "missing"
             exp_dict["attachment_count"] = 0
             exp_dict["attachment_source"] = None
         
+        exp_dict["direct_attachments"] = direct_attachments
+        exp_dict["group_attachments"] = group_attachments
         exp_dict["is_grouped"] = bool(exp.get("invoice_group_id"))
         exp_dict["group_info"] = group_info
         
