@@ -83,7 +83,7 @@ const TableBooking = () => {
     return jsonFallback;
   }, [currentCenter, dbMenuItems]);
 
-  const showMenuSection = serviceType === 'pickup' || currentCenter?.country === 'Australia';
+  const showMenuSection = bookingType === 'regular' && menuData;
   const getMinDate = () => { const now = new Date(); now.setHours(now.getHours() + bookingRules.tableBooking.minAdvanceHours); return now.toISOString().split('T')[0]; };
   const getMaxDate = () => { const now = new Date(); now.setDate(now.getDate() + bookingRules.tableBooking.maxAdvanceDays); return now.toISOString().split('T')[0]; };
 
@@ -135,6 +135,11 @@ const TableBooking = () => {
       message += `💰 ${currentCenter?.country === 'Australia' ? '$40/person' : '₹490/person'}\n`;
       if (isCorporate) message += `🏢 *CORPORATE GROUP BOOKING*\n`;
       message += `\n`;
+    } else if (bookingType === 'unlimited-breakfast') {
+      message = `🌅 *UNLIMITED BREAKFAST BOOKING* 🌅\n━━━━━━━━━━━━━━━━\n\n`;
+      message += `🍳 *Unlimited Breakfast — $35/person*\n`;
+      message += `📋 Misal Pav, Sabudana Vada, Tarri Pohe, Chai/Coffee\n`;
+      message += `📅 Sat & Sun only | 9–10 AM | Non-sharable\n\n`;
     }
     message += `📍 ${currentCenter?.displayName}\n📅 ${bookingDate} ⏰ ${timeSlotLabel}\n`;
     message += `🍽️ ${serviceType === 'dine-in' ? 'Dine In' : 'Pickup'} | 👥 ${guestCount} guests\n`;
@@ -259,7 +264,7 @@ const TableBooking = () => {
               <div className="pearl-surface overflow-hidden" data-testid="booking-type-section">
                 <div className="bg-[#F8F5F0] border-b border-[#E8DFD0] p-4"><h3 className="flex items-center gap-2 text-[#B8962E] font-heading font-medium"><Leaf className="h-5 w-5" /> Booking Type</h3></div>
                 <div className="p-4">
-                  <div className="grid md:grid-cols-2 gap-3">
+                  <div className="grid md:grid-cols-3 gap-3">
                     <button
                       onClick={() => { setBookingType('regular'); setIsCorporate(false); }}
                       className={`p-4 rounded-lg border-2 text-left transition-all ${bookingType === 'regular' ? 'border-[#B8962E] bg-[#B8962E]/5' : 'border-[#E8DFD0] hover:border-[#B8962E]/30'}`}
@@ -277,6 +282,17 @@ const TableBooking = () => {
                       <p className="font-heading text-sm text-[#3D2314] flex items-center gap-1"><Leaf className="w-3.5 h-3.5 text-[#2E7D32]" /> Banana Leaf Thali</p>
                       <p className="text-[10px] text-[#7A6F65] font-body mt-1">Unlimited Maharashtrian thali | Tue, Wed, Thu | Lunch only</p>
                       <p className="text-xs text-[#2E7D32] font-body font-semibold mt-1">{selectedRegion === 'australia' ? '$40/person' : '₹490/person'}</p>
+                    </button>
+                    <button
+                      onClick={() => { setBookingType('unlimited-breakfast'); setServiceType('dine-in'); }}
+                      className={`p-4 rounded-lg border-2 text-left transition-all relative ${bookingType === 'unlimited-breakfast' ? 'border-[#E65100] bg-[#E65100]/5' : 'border-[#E8DFD0] hover:border-[#E65100]/30'}`}
+                      data-testid="type-unlimited-breakfast"
+                    >
+                      <span className="absolute -top-2 right-3 bg-[#E65100] text-white text-[8px] px-2 py-0.5 rounded-full font-body font-bold">PERTH</span>
+                      <p className="font-heading text-sm text-[#3D2314]">Unlimited Breakfast</p>
+                      <p className="text-[10px] text-[#7A6F65] font-body mt-1">Misal Pav, Sabudana Vada, Tarri Pohe, Chai/Coffee</p>
+                      <p className="text-[10px] text-[#7A6F65] font-body">Sat & Sun | 9–10 AM | Non-sharable</p>
+                      <p className="text-xs text-[#E65100] font-body font-semibold mt-1">$35/person</p>
                     </button>
                   </div>
                   {bookingType === 'banana-leaf' && (
@@ -325,21 +341,24 @@ const TableBooking = () => {
               {showMenuSection && menuData && (
                 <div className="pearl-surface overflow-hidden">
                   <div className="bg-[#F8F5F0] border-b border-[#E8DFD0] p-4"><h3 className="flex items-center gap-2 text-[#B8962E] font-heading font-medium"><ChefHat className="h-5 w-5" /> Step 4: Pre-Order Menu (Optional)</h3></div>
-                  <div className="p-6">
+                  <div className="p-4">
                     <p className="text-sm text-[#5C4A3A] mb-4 font-body">Select items + quantity. Pre-ordering helps us serve you faster!</p>
                     <div className="space-y-6">
-                      {menuData.categories.slice(0, 8).map(category => (
+                      {menuData.categories.map(category => (
                         <div key={category.id}>
                           <h4 className="font-heading font-medium text-[#B8962E] mb-3 pb-2 border-b border-[#E8DFD0]">{category.name}</h4>
-                          <div className="grid gap-2">
-                            {category.items.slice(0, 6).map(item => (
-                              <div key={item.id} className="flex items-center justify-between p-2 hover:bg-[#F8F5F0] transition-colors">
-                                <div className="flex items-center gap-2">
-                                  <Leaf className="h-4 w-4 text-[#B8962E]/40" />
-                                  <span className="text-sm text-[#2D1810] font-body">{item.name}</span>
+                          <div className="grid gap-3">
+                            {category.items.map(item => (
+                              <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8F5F0] transition-colors">
+                                {item.image_url && (
+                                  <img src={item.image_url} alt={item.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" onError={(e) => { e.target.style.display='none'; }} />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm text-[#2D1810] font-body font-medium">{item.name}</span>
+                                  {item.description && <p className="text-[10px] text-[#7A6F65] font-body truncate">{item.description}</p>}
                                   <span className="text-sm font-heading font-medium text-[#B8962E]">{formatPrice(item.price)}</span>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-shrink-0">
                                   <Button variant="outline" size="icon" className="h-7 w-7 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item.id, item.name, item.price, -1)} disabled={!cart[item.id]?.qty}><Minus className="h-3 w-3" /></Button>
                                   <span className="w-6 text-center text-sm font-body font-medium text-[#2D1810]">{cart[item.id]?.qty || 0}</span>
                                   <Button variant="outline" size="icon" className="h-7 w-7 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item.id, item.name, item.price, 1)}><Plus className="h-3 w-3" /></Button>
