@@ -282,6 +282,10 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ["  - DoorDash", f"{currency} {sales['doordash']:,.2f}", ""],
         ["Card Sales", f"{currency} {sales['card_sale']:,.2f}",
          f"{sales['card_sale']/max(sales['total_sale'],1)*100:.1f}%"],
+        ["PhonePe / UPI", f"{currency} {sales.get('bharat_pay', 0):,.2f}",
+         f"{sales.get('bharat_pay', 0)/max(sales['total_sale'],1)*100:.1f}%"],
+        ["Online Other", f"{currency} {sales.get('online_other', 0):,.2f}",
+         f"{sales.get('online_other', 0)/max(sales['total_sale'],1)*100:.1f}%"],
         ["Cash Sales", f"{currency} {sales['total_cash_sale']:,.2f}",
          f"{sales['total_cash_sale']/max(sales['total_sale'],1)*100:.1f}%"],
     ]

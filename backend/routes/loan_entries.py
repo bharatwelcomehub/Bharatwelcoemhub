@@ -135,25 +135,9 @@ async def create_loan_entry(data: dict):
         except Exception:
             pass
     
-    # Check if loan exceeds working capital
-    working_capital = franchise.get("working_capital", 0) if franchise else 0
-    
-    # Get existing outstanding loans for this center
-    existing_loans = await db.loan_entries.find({
-        "center": center,
-        "status": {"$ne": "fully_repaid"},
-        "loan_type": {"$ne": "given"}
-    }).to_list(100)
-    
-    total_outstanding = sum(
-        (loan.get("amount", 0) - loan.get("total_repaid", 0)) 
-        for loan in existing_loans
-    )
-    
-    if working_capital > 0 and (total_outstanding + amount) > working_capital:
-        raise HTTPException(400, 
-            f"Loan amount ({amount}) plus existing outstanding ({total_outstanding}) "
-            f"exceeds available working capital ({working_capital})")
+    # Note: Per business requirement, loan amounts are NOT capped by the center's
+    # working capital. Loans may be sourced from other centers or HQ, so any amount
+    # is allowed. We only validate that the amount is positive (already done above).
     
     # Create "Loan Taken" entry for the borrowing center
     loan_id = generate_loan_id(center)
@@ -177,7 +161,7 @@ async def create_loan_entry(data: dict):
         "status": "active",
         "total_repaid": 0,
         "repayments": [],
-        "working_capital_at_time": working_capital,
+        "working_capital_at_time": franchise.get("working_capital", 0) if franchise else 0,
         "created_at": now,
         "created_by": user,
         "updated_at": now

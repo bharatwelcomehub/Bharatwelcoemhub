@@ -5,6 +5,13 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] PIB Sales Summary + Loan WC cap removal
+- **PIB Report PDF — PhonePe / UPI row added**: `build_pib_pdf` in `utils/pdf_generator.py` Section 1 "SALES SUMMARY" now renders two additional rows between Card Sales and Cash Sales:
+  - `PhonePe / UPI` (sourced from `summary.sales.bharat_pay`)
+  - `Online Other` (sourced from `summary.sales.online_other`)
+  Both show currency amount + `% of Total`. Verified via PyPDF2 extraction: all labels ("PhonePe", "UPI", "Online Other", "Card Sales", "Cash Sales", "Aggregator Sales") present in rendered PDF.
+- **Loan Entries — Working Capital cap REMOVED**: `POST /api/loan-entries/create` in `routes/loan_entries.py` previously rejected loans where `(new amount + existing outstanding) > franchise.working_capital` with the error "Loan amount (X) plus existing outstanding (Y) exceeds available working capital (Z)". Per business rule, loans may be sourced from other centers or HQ, so amounts are no longer capped. The positive-amount check remains. `working_capital_at_time` is still stored on the loan doc for audit (snapshot of franchise WC at the time of entry).
+
 ### [2026-04-30] Expense Bill column always shows "None" — root-cause fix
 - **Bug**: User attached a bill via the paperclip icon, but the row still showed a red "None" badge. No View/Download icon ever appeared, even for previously linked bills.
 - **Root cause**: `db.expenses` documents have only `_id` (ObjectId) — they never had an `expense_id` string field, because `create_expense` set `record["expense_id"]` only in the response object, not in MongoDB. The upload endpoint then queried `db.expenses.update_one({"expense_id": expense_id}, ...)` which matched 0 documents, so `expenses.attachments` cache was never populated. The list endpoint was reading that empty cache → `attachment_status="missing"` → "None" badge.
