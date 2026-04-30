@@ -281,7 +281,7 @@ const TableBooking = () => {
                       <span className="absolute -top-2 right-3 bg-[#2E7D32] text-white text-[8px] px-2 py-0.5 rounded-full font-body font-bold">NEW</span>
                       <p className="font-heading text-sm text-[#3D2314] flex items-center gap-1"><Leaf className="w-3.5 h-3.5 text-[#2E7D32]" /> Banana Leaf Thali</p>
                       <p className="text-[10px] text-[#7A6F65] font-body mt-1">Unlimited Maharashtrian thali | Tue, Wed, Thu | Lunch only</p>
-                      <p className="text-xs text-[#2E7D32] font-body font-semibold mt-1">{selectedRegion === 'australia' ? '$40/person' : '₹490/person'}</p>
+                      <p className="text-xs text-[#2E7D32] font-body font-semibold mt-1">₹490/person | $40 (Perth)</p>
                     </button>
                     <button
                       onClick={() => { setBookingType('unlimited-breakfast'); setServiceType('dine-in'); }}
