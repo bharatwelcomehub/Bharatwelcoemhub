@@ -5,6 +5,49 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Ledgers Tab — CA-Ready Books of Accounts
+**A full Indian accounts-compliant ledger suite added under Center Accounts → Ledgers tab.**
+
+**Access**: Super Admin + Admin + Accounts role (key 'accounts' / 'cfo' / 'finance'). Franchise Owner can download only their own Franchise Owner Ledger once Accounts releases it.
+
+**10 ledger types generated** per Center by Month or FY (Apr–Mar), as PDF + Excel:
+1. **Sales Register** — daily breakdown: direct, Swiggy, Zomato, DoorDash, Card, UPI/PhonePe, Online Other, Cash, Total, GST @5% (inclusive).
+2. **Expense / Purchase Register** — date, description, category, payment mode, amount, bill-attached flag + category summary.
+3. **Cash Book** — daily: opening + cash sales + receipts (bank→cash) − cash expenses − deposits to bank = closing petty cash.
+4. **Bank Book** — uses `bank_transactions` if present; else derives deposits/withdrawals from daily_sales. Running balance.
+5. **Commission / Aggregator Ledger** — month × platform: gross, GST deduction, other deduction, commission total, net.
+6. **Loan / Counterparty Ledger** — per-counterparty (HQ / center) running ledger with principal, repayments, outstanding.
+7. **Payroll Register** — employee-wise base salary, current salary, bank/IFSC/PAN.
+8. **GST Summary** — Taxable value, Output GST, commission GST charged, net liability (ITC not auto-tagged — noted for CA).
+9. **Monthly P&L** — month-wise gross sales, GST, ex-GST, expenses, commissions, PBT.
+10. **Franchise Owner Ledger** — running current account with HQ (debit/credit/balance) built from revenue share %, MG, loans, loan repayments, commissions, WC top-ups, other income.
+
+**CA Bundle ZIP** (`POST /api/ledgers/bundle`): single-click download containing
+- `01_PDFs/` — all 10 ledgers as printable PDFs
+- `02_Excel/` — same 10 as editable xlsx
+- `03_Bills/` — every expense attachment for the period, organized by expense date
+- `00_README.txt` — notes on GST basis, ITC handling, payroll
+Verified: 67KB for a sparse month; 217KB for full FY with 22 files.
+
+**Franchise Owner release flow** (like PIB visibility):
+- Admin/Accounts clicks "Send to Owner" on the Owner Ledger card → `POST /api/ledgers/owner/release` marks `owner_report_visibility` collection with `report_type='owner_ledger'` + `released=true`.
+- Franchise Owner Dashboard gets a new "My Ledgers" button (fuchsia) → modal lists all released months with PDF / Excel download buttons. Backend endpoint `POST /api/ledgers/owner/list`.
+- Toggle to "Hide from Owner" also supported.
+
+**Files added/modified**:
+- NEW `backend/routes/ledgers.py` (~760 lines) — all builders + renderers + endpoints.
+- NEW `frontend/src/components/LedgersTab.jsx` — tab component with period selector, 10 ledger cards, bundle button, owner release.
+- `frontend/src/pages/CenterAccounts.jsx` — added `<BookOpen>` "Ledgers" tab trigger + content + `country` derived variable + `LedgersTab` import.
+- `frontend/src/pages/FranchiseOwnerDashboard.jsx` — added "My Ledgers" button + modal + `/api/ledgers/owner/list` fetch + `Dialog` import.
+- `backend/server.py` — registered ledgers router.
+
+**Verified via curl**:
+- `/api/ledgers/sales` JSON on PB-HSR Sep-2025: Total Rs 12.14 L (Swiggy 1.12L, Zomato 1.23L, Card 2.77L, UPI 6.61L, Cash 0.41L, GST 48,988).
+- FY2025-26 Total: Rs 1.38 Cr.
+- `/api/ledgers/owner` PB-HSR 2026-04: 3 rows, closing balance −80,000.
+- Release → visibility → list flow works; `released_by` captures the Admin's name.
+- Bundle ZIP HTTP 200 with all 22 files.
+
 ### [2026-04-30] Loan Entries — Counterparty Filter chips + Loan WC cap removal
 - **New**: On the Loan Entries page, above the Loan History list, a "Filter by Counterparty" row of chips now appears whenever there are 2+ distinct counterparties. Each chip shows: counterparty label (e.g., `← HQ / External`, `← PB-HSR`, `→ PB-SN`), loan count, and outstanding amount. Clicking a chip filters the loan list to that counterparty only. "All" chip resets the filter. The filter resets automatically when switching centers.
 - Taken loans are grouped by `source_center` (empty `source_center` → `HQ / External`). Given loans are grouped by `target_center`. Chip colors: blue for Taken, teal for Given, dark slate for the active chip.

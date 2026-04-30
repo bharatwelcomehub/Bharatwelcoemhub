@@ -14,8 +14,10 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save, Plus
+  Check, X, Shield, Save, Plus, BookOpen
 } from 'lucide-react';
+
+import LedgersTab from '@/components/LedgersTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -761,6 +763,7 @@ export default function CenterAccounts() {
   };
 
   const availablePlatforms = getCountry() === 'Australia' ? PLATFORMS.australia : PLATFORMS.india;
+  const country = getCountry();
 
   return (
     <div className="p-6 max-w-7xl mx-auto" data-testid="center-accounts-page">
@@ -911,6 +914,7 @@ export default function CenterAccounts() {
               <TabsTrigger value="share">Revenue/Profit Share</TabsTrigger>
               <TabsTrigger value="payout">MG & Payout</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
+              <TabsTrigger value="ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
               <TabsTrigger value="invoices" className="text-purple-600">Invoice Export</TabsTrigger>
             </TabsList>
 
@@ -2122,6 +2126,11 @@ export default function CenterAccounts() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Ledgers Tab — CA-ready books of accounts */}
+            <TabsContent value="ledgers" className="space-y-4">
+              <LedgersTab session={session} selectedCenter={selectedCenter} country={country} />
             </TabsContent>
 
             {/* MG & Payout Tab */}

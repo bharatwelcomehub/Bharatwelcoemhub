@@ -2177,6 +2177,12 @@ set_loan_db(db)
 set_loan_verify_token_async(verify_token_async)
 app.include_router(loan_router)
 
+# Include Ledgers router (CA-ready books)
+from routes.ledgers import router as ledgers_router, set_db as set_ledgers_db, set_verify_token as set_ledgers_verify_token
+set_ledgers_db(db)
+set_ledgers_verify_token(verify_token_sync)
+app.include_router(ledgers_router)
+
 # Include Other Income router
 from routes.other_income import (
     router as other_income_router,

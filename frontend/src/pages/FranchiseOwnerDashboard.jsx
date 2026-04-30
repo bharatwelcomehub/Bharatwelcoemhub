@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -86,6 +87,53 @@ export default function FranchiseOwnerDashboard() {
   const [workingCapital, setWorkingCapital] = useState(null);
   const [franchiseInfo, setFranchiseInfo] = useState(null);
   const [franchiseDocs, setFranchiseDocs] = useState([]);
+
+  // Owner Ledger (published by Admin/Accounts team)
+  const [showOwnerLedgers, setShowOwnerLedgers] = useState(false);
+  const [ownerLedgerMonths, setOwnerLedgerMonths] = useState([]);
+  const [ownerLedgerLoading, setOwnerLedgerLoading] = useState(false);
+
+  // Fetch released owner ledgers when modal opens
+  useEffect(() => {
+    if (!showOwnerLedgers || !session?.token || !selectedCenter) return;
+    const fetchOL = async () => {
+      setOwnerLedgerLoading(true);
+      try {
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const res = await fetch(`${API}/api/ledgers/owner/list`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: session.token, center: selectedCenter })
+        });
+        const data = await res.json();
+        setOwnerLedgerMonths(data.months || []);
+      } catch {
+        toast.error('Could not fetch released ledgers');
+      } finally {
+        setOwnerLedgerLoading(false);
+      }
+    };
+    fetchOL();
+  }, [showOwnerLedgers, session?.token, selectedCenter]);
+
+  const downloadOwnerLedger = async (month, fmt) => {
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const res = await fetch(`${API}/api/ledgers/owner`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, center: selectedCenter, period_type: 'month', month, fmt })
+      });
+      if (!res.ok) { toast.error('Download failed'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Owner_Ledger_${selectedCenter}_${month}.${fmt === 'excel' ? 'xlsx' : 'pdf'}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Download failed');
+    }
+  };
 
   // Only admin/super admin can see center dropdown
   useEffect(() => {
@@ -346,6 +394,15 @@ export default function FranchiseOwnerDashboard() {
             </Button>
             <Button variant="outline" size="sm" className="bg-slate-800/80 border-slate-600 text-white h-9" onClick={handleExportReport}>
               <Download className="w-4 h-4 mr-1" /> Export
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-fuchsia-600/90 border-fuchsia-500 text-white h-9 hover:bg-fuchsia-500"
+              onClick={() => setShowOwnerLedgers(true)}
+              data-testid="fo-owner-ledgers-btn"
+            >
+              <FileText className="w-4 h-4 mr-1" /> My Ledgers
             </Button>
           </div>
         </div>
@@ -635,6 +692,47 @@ export default function FranchiseOwnerDashboard() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Owner Ledger — released months modal */}
+      <Dialog open={showOwnerLedgers} onOpenChange={setShowOwnerLedgers}>
+        <DialogContent className="max-w-xl" data-testid="fo-owner-ledgers-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-fuchsia-600" />
+              My Ledgers — {selectedCenter}
+            </DialogTitle>
+            <DialogDescription>
+              Current-account statements between your Franchise and HQ, released by Accounts team.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {ownerLedgerLoading ? (
+              <div className="py-6 text-center text-slate-500 text-sm">Loading…</div>
+            ) : ownerLedgerMonths.length === 0 ? (
+              <div className="py-6 text-center text-slate-500 text-sm">
+                No ledgers have been released yet. Ask Accounts to release a month from the Ledgers tab.
+              </div>
+            ) : (
+              ownerLedgerMonths.map(m => (
+                <div key={m.month} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:border-fuchsia-400 transition">
+                  <div>
+                    <p className="font-medium text-sm">{m.month}</p>
+                    {m.released_at && <p className="text-xs text-slate-500">Released: {m.released_at.split('T')[0]}</p>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => downloadOwnerLedger(m.month, 'pdf')} data-testid={`fo-ol-pdf-${m.month}`}>
+                      <FileText className="w-3.5 h-3.5 mr-1" /> PDF
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => downloadOwnerLedger(m.month, 'excel')} data-testid={`fo-ol-excel-${m.month}`}>
+                      <Download className="w-3.5 h-3.5 mr-1" /> Excel
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
