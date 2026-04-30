@@ -243,7 +243,7 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [ ] Multi-language support
 
 ## Bug Fixes
-- [x] **Center Time Slots Relocated to Locations Tab** (Feb 2026) — Moved Admin "Center Booking Time Slots" management UI from the "Book" tab (which is for the digital reading book) into the **Locations** tab. Center list is now driven dynamically from `centers.json` so any newly allocated center automatically appears with time-slot configuration.
+- [x] **Locations + Time Slots Unified (Option A — End-to-End)** (Feb 2026) — Moved Center Time Slots out of "Book" tab and into per-card tabs ("Location Info" | "Time Slots") inside each Location card. Backend `Location` model extended with `center_id`, `display_name`, `state`, `currency`, `currency_symbol`, `services`. New `GET /api/centers` endpoint groups active locations by region for the Table Booking page. `TableBooking.js` now fetches from API (with `centers.json` fallback). One-time migration assigned center_id slugs to all 8 existing locations. **Adding a new center via Admin → Add Location → instantly appears on Table Booking and gets its own Time Slots tab.** Tested end-to-end (12/12 backend tests pass).
 - [x] Catering page: Desserts, Drinks, Sides selection was blocked ("Maximum 0 allowed") due to singular/plural key mismatch between package requirements JSON and frontend category keys (Apr 2026)
 - [x] Banner Set Active: Homepage now fetches hero image from database API `/api/hero-image` instead of hardcoded image, preventing theme reversion issues (Apr 2026)
 
