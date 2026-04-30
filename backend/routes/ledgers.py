@@ -400,20 +400,21 @@ async def build_payroll_register(center: str, months: List[str]) -> Dict[str, An
     total_base = 0.0
     total_current = 0.0
     for e in employees:
-        base = float(e.get("base_salary") or e.get("basic_salary") or 0)
-        current = float(e.get("current_salary") or e.get("salary") or base)
+        # Field names in DB are camelCase: salaryBase / currentSalary
+        base = float(e.get("salaryBase") or e.get("base_salary") or e.get("basic_salary") or 0)
+        current = float(e.get("currentSalary") or e.get("current_salary") or e.get("salary") or base)
         rows.append({
-            "employee_id": e.get("employee_id") or "",
+            "employee_id": e.get("employee_id") or e.get("emp_id") or "",
             "name": e.get("name") or "",
             "designation": e.get("designation") or e.get("role") or "",
-            "doj": e.get("date_of_joining") or e.get("doj") or "",
+            "doj": e.get("dateOfJoining") or e.get("date_of_joining") or e.get("doj") or "",
             "base_salary": base,
             "current_salary": current,
-            "bank_name": e.get("bank_name") or "",
-            "account_no": e.get("account_number") or e.get("bank_account") or "",
+            "bank_name": e.get("bankName") or e.get("bank_name") or "",
+            "account_no": e.get("beneAccNo") or e.get("account_number") or e.get("bank_account") or "",
             "ifsc": e.get("ifsc") or "",
-            "pan": e.get("pan") or "",
-            "aadhaar": e.get("aadhaar") or "",
+            "pan": e.get("pan") or e.get("PAN") or "",
+            "aadhaar": e.get("aadhaar") or e.get("aadhar") or "",
         })
         total_base += base
         total_current += current
@@ -493,15 +494,24 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
     """Running running-account statement between Franchise Owner & HQ, month-wise.
     Credit = amount owed by HQ to Franchise. Debit = amount owed by Franchise to HQ.
     """
-    # Get revenue share & MG from center_accounts summary per month
     rows: List[dict] = []
-    # We compute monthly aggregates inline; fetch franchise for rev share%
-    franchise = await db.franchises.find_one({"centers_mapped": center}, {"_id": 0}) or \
-                await db.franchises.find_one({"center": center}, {"_id": 0})
-    rev_pct = float(franchise.get("revenue_share_percent") or franchise.get("revenue_share") or 0) if franchise else 0
-    mg = float(franchise.get("monthly_guarantee") or franchise.get("mg") or 0) if franchise else 0
+    # Resolve franchise: centers.franchise_code → franchises.franchise_code
+    center_doc = await db.centers.find_one({"code": center}, {"_id": 0})
+    franchise = None
+    if center_doc and center_doc.get("franchise_code"):
+        franchise = await db.franchises.find_one({"franchise_code": center_doc["franchise_code"]}, {"_id": 0})
+    if not franchise:
+        # Legacy fallback patterns
+        franchise = await db.franchises.find_one({"centers_mapped": center}, {"_id": 0}) or \
+                    await db.franchises.find_one({"center": center}, {"_id": 0})
+    rev_pct = 0.0
+    mg = 0.0
+    if franchise:
+        rev_pct = float(franchise.get("revenue_share_percentage") or franchise.get("revenue_share_percent") or franchise.get("revenue_share") or 0)
+        mg = float(franchise.get("monthly_guarantee") or franchise.get("mg") or franchise.get("minimum_guarantee") or 0)
 
     running = 0.0
+    is_first_month = True
     for m in sorted(months):
         st, en = _month_range(m)
         sales = await _get_daily_sales(center, st, en)
@@ -537,8 +547,12 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         oi_total = sum(float(o.get("amount") or 0) for o in oi)
 
         # Build ledger entries for the month
-        entries = [
-            ("Opening Balance (HQ ↔ Franchise)", 0, 0, running, True),
+        # Only show "Opening Balance" once at the very start of the period
+        entries: List[Tuple[Any, ...]] = []
+        if is_first_month:
+            entries.append(("Opening Balance (HQ ↔ Franchise)", 0, 0, running, True))
+            is_first_month = False
+        entries += [
             (f"{m} — Revenue Share payable ({rev_pct}%)", rev_share, 0, None, False) if rev_share else None,
             (f"{m} — MG top-up (HQ → Franchise)", 0, mg_delta, None, False) if mg_delta else None,
             (f"{m} — Commissions charged", comm_total, 0, None, False) if comm_total else None,

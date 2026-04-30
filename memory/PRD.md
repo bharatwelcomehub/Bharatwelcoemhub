@@ -5,6 +5,20 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Ledgers — Self-verification fixes (Payroll + Owner Ledger)
+**Bugs found during FY2025-26 PB-HSR self-verification, all fixed:**
+
+1. **Payroll Register showed 0 salary for all employees** — DB stores salary as camelCase fields (`salaryBase`, `currentSalary`, `bankName`, `beneAccNo`, `dateOfJoining`) but the ledger builder was looking up snake_case. Fixed `build_payroll_register` to try camelCase first, snake_case as fallback. Now correctly shows 16 employees × Rs 2.55 L total monthly salary for PB-HSR.
+
+2. **Owner Ledger was empty** — Franchise lookup was using `centers_mapped` and `center` keys on the `franchises` collection, but the actual mapping is on the `centers` collection (`centers.franchise_code` → `franchises.franchise_code`). Also field name was `revenue_share_percentage` (not `revenue_share_percent`). Fixed both lookups. PB-HSR FY2025-26 Owner Ledger now shows 12 monthly revenue share entries → cumulative payable to HQ Rs 17,08,977.75.
+
+3. **Owner Ledger had duplicate "Opening Balance" rows** — fixed to render once at the start of the period only (was showing for every month). Row count went from 26 → 14 with cleaner running balance.
+
+4. **GST ITC pipeline verified end-to-end with real data**:
+   - Tagged 15 real Feb-2026 PB-HSR expenses with appropriate GST rates (Rent/Packaging/Housekeeping/Print 18%, Cylinder 5%, etc.) — Rs 10,984.73 ITC claimable.
+   - GST Summary correctly computes: Output GST 36,348 − Input GST (ITC) 10,985 = **Net Liability Rs 25,363** (vs. previously Rs 36,348 without ITC) → **30% reduction** in tax outflow.
+   - FY2025-26 cumulative: Sales taxable Rs 1.32 Cr, Output GST Rs 5.69 L, ITC Rs 10,985 (only Feb tagged), Net Liability Rs 5.58 L.
+
 ### [2026-04-30] Expense GST / ITC tagging — for CA reconciliation
 - **New optional fields on Expense Entry** form (India centers): Vendor Name, Vendor GSTIN, GST Rate (0/5/12/18/28), GST Amount (auto-derived).
 - **Auto-derivation** (inclusive basis): `gst_amount = amount × gst_rate / (100 + gst_rate)`. E.g., Rs 1180 @ 18% → GST Rs 180, Taxable Rs 1000. Client preview shows the computed value live; backend re-validates and persists. Both `create_expense` and `update_expense` endpoints support the new fields.
