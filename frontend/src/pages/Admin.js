@@ -2364,11 +2364,13 @@ const Admin = () => {
                   <p className="text-sm text-[#7A6F65] font-body mb-4">Configure booking time slots for each center. Changes reflect immediately for users.</p>
 
                   <div className="space-y-3">
-                    {['hsr-layout', 'sambhajinagar', 'hinjewadi', 'kharadi', 'dombivli', 'kalyan', 'thane', 'perth'].map(centerId => (
+                    {['pb-hsr', 'pb-sambhajinagar', 'pb-hinjawadi', 'pb-kharadi', 'pb-dombivli', 'pb-kalyan', 'pb-thane', 'pb-perth'].map(centerId => {
+                      const names = {'pb-hsr': 'HSR Layout', 'pb-sambhajinagar': 'Sambhajinagar', 'pb-hinjawadi': 'Hinjawadi', 'pb-kharadi': 'Kharadi', 'pb-dombivli': 'Dombivli', 'pb-kalyan': 'Kalyan', 'pb-thane': 'Thane', 'pb-perth': 'Perth'};
+                      return (
                       <div key={centerId} className="border border-[#E8DFD0] rounded-lg p-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-heading text-[#3D2314] capitalize">{centerId.replace('-', ' ')}</p>
+                            <p className="text-sm font-heading text-[#3D2314]">{names[centerId] || centerId}</p>
                             <p className="text-[10px] text-[#7A6F65] font-body">
                               {centerSlots[centerId] ? `${centerSlots[centerId].length} custom slots` : 'Using default slots'}
                             </p>
@@ -2403,7 +2405,8 @@ const Admin = () => {
                           </div>
                         )}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </CardContent>
               </Card>

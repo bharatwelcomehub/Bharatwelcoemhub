@@ -339,15 +339,21 @@ const TableBooking = () => {
 
               {/* Step 4 */}
               {showMenuSection && menuData && (
-                <div className="pearl-surface overflow-hidden">
-                  <div className="bg-[#F8F5F0] border-b border-[#E8DFD0] p-4"><h3 className="flex items-center gap-2 text-[#B8962E] font-heading font-medium"><ChefHat className="h-5 w-5" /> Step 4: Pre-Order Menu (Optional)</h3></div>
+                <details className="pearl-surface overflow-hidden" data-testid="preorder-section">
+                  <summary className="bg-[#F8F5F0] border-b border-[#E8DFD0] p-4 cursor-pointer list-none flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-[#B8962E] font-heading font-medium"><ChefHat className="h-5 w-5" /> Step 4: Pre-Order Menu (Optional)</h3>
+                    <span className="text-xs text-[#7A6F65] font-body">Tap to expand</span>
+                  </summary>
                   <div className="p-4">
                     <p className="text-sm text-[#5C4A3A] mb-4 font-body">Select items + quantity. Pre-ordering helps us serve you faster!</p>
                     <div className="space-y-6">
                       {menuData.categories.map(category => (
-                        <div key={category.id}>
-                          <h4 className="font-heading font-medium text-[#B8962E] mb-3 pb-2 border-b border-[#E8DFD0]">{category.name}</h4>
-                          <div className="grid gap-3">
+                        <details key={category.id} className="group">
+                          <summary className="font-heading font-medium text-[#B8962E] mb-2 pb-2 border-b border-[#E8DFD0] cursor-pointer list-none flex items-center justify-between">
+                            <span>{category.name}</span>
+                            <span className="text-xs text-[#7A6F65] font-body group-open:hidden">({category.items.length} items)</span>
+                          </summary>
+                          <div className="grid gap-3 mt-2">
                             {category.items.map(item => (
                               <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8F5F0] transition-colors">
                                 {item.image_url && (
@@ -366,11 +372,11 @@ const TableBooking = () => {
                               </div>
                             ))}
                           </div>
-                        </div>
+                        </details>
                       ))}
                     </div>
                   </div>
-                </div>
+                </details>
               )}
 
               {/* Special Requests */}
