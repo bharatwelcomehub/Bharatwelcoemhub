@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -183,6 +183,9 @@ const Admin = () => {
   const [newShayari, setNewShayari] = useState('');
   const [musicUploading, setMusicUploading] = useState(false);
   const [upiPayments, setUpiPayments] = useState([]);
+  const [centerSlots, setCenterSlots] = useState({});
+  const [editingSlots, setEditingSlots] = useState(null); // center_id being edited
+  const [slotsForm, setSlotsForm] = useState([]);
 
   // Get fresh token
   const getToken = () => localStorage.getItem('token') || token;
@@ -952,6 +955,12 @@ const Admin = () => {
           headers: { Authorization: `Bearer ${currentToken}` }
         });
         setUpiPayments(upi.data || []);
+        const slots = await axios.get(`${API}/admin/center-timeslots`, {
+          headers: { Authorization: `Bearer ${currentToken}` }
+        });
+        const slotsMap = {};
+        (slots.data || []).forEach(c => { slotsMap[c.center_id] = c.slots; });
+        setCenterSlots(slotsMap);
       }
     } catch {}
   };
@@ -976,6 +985,51 @@ const Admin = () => {
       toast.success('Payment rejected.');
       fetchBookSettings();
     } catch { toast.error('Failed to reject'); }
+  };
+
+  const saveCenterSlots = async (centerId) => {
+    const currentToken = getToken();
+    try {
+      await axios.put(`${API}/admin/center-timeslots/${centerId}`, { slots: slotsForm }, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success(`Time slots saved for ${centerId}`);
+      setEditingSlots(null);
+      fetchBookSettings();
+    } catch { toast.error('Failed to save'); }
+  };
+
+  const addSlotRow = () => {
+    const id = `slot-${Date.now()}`;
+    setSlotsForm(prev => [...prev, { id, label: '', start: '', end: '' }]);
+  };
+
+  const removeSlotRow = (idx) => {
+    setSlotsForm(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateSlotRow = (idx, field, value) => {
+    setSlotsForm(prev => prev.map((s, i) => {
+      if (i !== idx) return s;
+      const updated = { ...s, [field]: value };
+      if (field === 'start' || field === 'end') {
+        // Auto-generate label from start/end
+        if (updated.start && updated.end) {
+          const fmt = (t) => { const [h, m] = t.split(':'); const hr = parseInt(h); return `${hr > 12 ? hr - 12 : hr}:${m} ${hr >= 12 ? 'PM' : 'AM'}`; };
+          updated.label = `${fmt(updated.start)} – ${fmt(updated.end)}`;
+        }
+      }
+      return updated;
+    }));
+  };
+
+  const startEditingSlots = (centerId) => {
+    setEditingSlots(centerId);
+    setSlotsForm(centerSlots[centerId] || [
+      { id: 'slot-1', label: '12:00 PM – 1:00 PM', start: '12:00', end: '13:00' },
+      { id: 'slot-2', label: '1:00 PM – 2:00 PM', start: '13:00', end: '14:00' },
+      { id: 'slot-3', label: '7:00 PM – 8:00 PM', start: '19:00', end: '20:00' },
+    ]);
   };
 
   const saveBookSettings = async () => {
@@ -2297,6 +2351,59 @@ const Admin = () => {
                     {(!bookSettings.break_shayaris || bookSettings.break_shayaris.length === 0) && (
                       <p className="text-xs text-[#7A6F65]/60 italic font-body">No custom shayaris. Default ones will be shown.</p>
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Center Time Slots Management */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg"><Clock className="h-5 w-5 text-[#B8962E]" /> Center Time Slots</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-[#7A6F65] font-body mb-4">Configure booking time slots for each center. Changes reflect immediately for users.</p>
+
+                  <div className="space-y-3">
+                    {['hsr-layout', 'sambhajinagar', 'hinjewadi', 'kharadi', 'dombivli', 'kalyan', 'thane', 'perth'].map(centerId => (
+                      <div key={centerId} className="border border-[#E8DFD0] rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-heading text-[#3D2314] capitalize">{centerId.replace('-', ' ')}</p>
+                            <p className="text-[10px] text-[#7A6F65] font-body">
+                              {centerSlots[centerId] ? `${centerSlots[centerId].length} custom slots` : 'Using default slots'}
+                            </p>
+                          </div>
+                          <Button size="sm" onClick={() => startEditingSlots(centerId)} className="text-xs bg-[#B8962E] text-white hover:bg-[#D4AF37] h-7 px-3" data-testid={`edit-slots-${centerId}`}>
+                            {editingSlots === centerId ? 'Editing...' : 'Edit Slots'}
+                          </Button>
+                        </div>
+
+                        {editingSlots === centerId && (
+                          <div className="mt-3 space-y-2 border-t border-[#E8DFD0] pt-3">
+                            {slotsForm.map((slot, idx) => (
+                              <div key={slot.id} className="flex items-center gap-2">
+                                <Input type="time" value={slot.start} onChange={(e) => updateSlotRow(idx, 'start', e.target.value)} className="w-28 text-xs" />
+                                <span className="text-xs text-[#7A6F65]">to</span>
+                                <Input type="time" value={slot.end} onChange={(e) => updateSlotRow(idx, 'end', e.target.value)} className="w-28 text-xs" />
+                                <span className="flex-1 text-xs text-[#B8962E] font-body">{slot.label}</span>
+                                <button onClick={() => removeSlotRow(idx)} className="text-red-400 hover:text-red-600 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                            ))}
+                            <div className="flex gap-2 pt-2">
+                              <Button size="sm" onClick={addSlotRow} variant="outline" className="text-xs h-7 px-3 border-[#E8DFD0]">
+                                <Plus className="w-3 h-3 mr-1" /> Add Slot
+                              </Button>
+                              <Button size="sm" onClick={() => saveCenterSlots(centerId)} className="text-xs h-7 px-3 bg-[#2E7D32] text-white hover:bg-[#388E3C]">
+                                Save
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setEditingSlots(null)} className="text-xs h-7 px-3 border-[#E8DFD0]">
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

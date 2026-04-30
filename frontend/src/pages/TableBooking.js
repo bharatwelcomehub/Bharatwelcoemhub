@@ -39,6 +39,7 @@ const TableBooking = () => {
   const [cart, setCart] = useState({});
   const [showReview, setShowReview] = useState(false);
   const [dbMenuItems, setDbMenuItems] = useState([]);
+  const [centerTimeSlots, setCenterTimeSlots] = useState(null);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -46,6 +47,18 @@ const TableBooking = () => {
     };
     fetchMenu();
   }, []);
+
+  // Fetch center-specific time slots when center changes
+  useEffect(() => {
+    if (!selectedCenter) { setCenterTimeSlots(null); return; }
+    const fetchSlots = async () => {
+      try {
+        const res = await axios.get(`${API}/api/center-timeslots/${selectedCenter}`);
+        setCenterTimeSlots(res.data.slots);
+      } catch { setCenterTimeSlots(null); }
+    };
+    fetchSlots();
+  }, [selectedCenter]);
 
   const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
   const filteredCenters = useMemo(() => { if (!selectedRegion) return []; return selectedRegion === 'india' ? centersData.india : centersData.australia; }, [selectedRegion]);
@@ -77,7 +90,7 @@ const TableBooking = () => {
   // Check if booking is less than 1 hour from now
   const isUrgentBooking = useMemo(() => {
     if (!bookingDate || !selectedTimeSlot) return false;
-    const timeSlot = bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot);
+    const timeSlot = (centerTimeSlots || bookingRules.tableBooking.timeSlots).find(t => t.id === selectedTimeSlot);
     if (!timeSlot) return false;
     
     // Parse the time slot (e.g., "12:00 PM - 1:00 PM" or "12:00")
@@ -113,7 +126,7 @@ const TableBooking = () => {
   const formatPrice = (price) => { if (!menuData) return price; return `${menuData.currencySymbol}${price.toFixed(2)}`; };
 
   const generateWhatsAppMessage = () => {
-    const timeSlotLabel = bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label || '';
+    const timeSlotLabel = (centerTimeSlots || bookingRules.tableBooking.timeSlots).find(t => t.id === selectedTimeSlot)?.label || '';
     const celebrationLabel = bookingRules.tableBooking.celebrationOptions.find(c => c.id === celebration)?.label || '';
     let message = `🪔 *PURNABRAMHA TABLE BOOKING* 🪔\n━━━━━━━━━━━━━━━━\n\n`;
     if (bookingType === 'banana-leaf') {
@@ -283,7 +296,7 @@ const TableBooking = () => {
                 <div className="p-6 space-y-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div><Label className={labelCls}>Date *</Label><Input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} min={getMinDate()} max={getMaxDate()} className={inputCls} data-testid="booking-date" /></div>
-                    <div><Label className={labelCls}>Time Slot *</Label><Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}><SelectTrigger className={inputCls} data-testid="time-slot-select"><SelectValue placeholder="Select Time" /></SelectTrigger><SelectContent className="bg-white border-[#E8DFD0]">{bookingRules.tableBooking.timeSlots.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent></Select></div>
+                    <div><Label className={labelCls}>Time Slot *</Label><Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}><SelectTrigger className={inputCls} data-testid="time-slot-select"><SelectValue placeholder="Select Time" /></SelectTrigger><SelectContent className="bg-white border-[#E8DFD0]">{(centerTimeSlots || bookingRules.tableBooking.timeSlots).map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent></Select></div>
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div><Label className={labelCls}>Service Type *</Label><Select value={serviceType} onValueChange={setServiceType}><SelectTrigger className={inputCls} data-testid="service-type-select"><SelectValue placeholder="Select Service" /></SelectTrigger><SelectContent className="bg-white border-[#E8DFD0]"><SelectItem value="dine-in">Dine In</SelectItem><SelectItem value="pickup">Pickup</SelectItem></SelectContent></Select></div>
@@ -407,7 +420,7 @@ const TableBooking = () => {
               <div className="p-6 space-y-5">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="bg-[#F8F5F0] border border-[#E8DFD0] p-3"><p className="text-[#B8962E]/60 text-xs uppercase tracking-wider mb-1 font-body">Center</p><p className="font-body font-medium text-[#2D1810]">{currentCenter?.displayName}</p></div>
-                  <div className="bg-[#F8F5F0] border border-[#E8DFD0] p-3"><p className="text-[#B8962E]/60 text-xs uppercase tracking-wider mb-1 font-body">Date & Time</p><p className="font-body font-medium text-[#2D1810]">{bookingDate}</p><p className="text-[#7A6F65] text-xs mt-0.5 font-body">{bookingRules.tableBooking.timeSlots.find(t => t.id === selectedTimeSlot)?.label}</p></div>
+                  <div className="bg-[#F8F5F0] border border-[#E8DFD0] p-3"><p className="text-[#B8962E]/60 text-xs uppercase tracking-wider mb-1 font-body">Date & Time</p><p className="font-body font-medium text-[#2D1810]">{bookingDate}</p><p className="text-[#7A6F65] text-xs mt-0.5 font-body">{(centerTimeSlots || bookingRules.tableBooking.timeSlots).find(t => t.id === selectedTimeSlot)?.label}</p></div>
                   <div className="bg-[#F8F5F0] border border-[#E8DFD0] p-3"><p className="text-[#B8962E]/60 text-xs uppercase tracking-wider mb-1 font-body">Service</p><p className="font-body font-medium text-[#2D1810]">{serviceType === 'dine-in' ? 'Dine In' : 'Pickup'}</p><p className="text-[#7A6F65] text-xs mt-0.5 font-body">{guestCount} guests</p></div>
                   <div className="bg-[#F8F5F0] border border-[#E8DFD0] p-3"><p className="text-[#B8962E]/60 text-xs uppercase tracking-wider mb-1 font-body">Guest</p><p className="font-body font-medium text-[#2D1810]">{name}</p><p className="text-[#7A6F65] text-xs mt-0.5 font-body">{phone}</p></div>
                 </div>

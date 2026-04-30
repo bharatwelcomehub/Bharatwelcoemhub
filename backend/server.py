@@ -2507,6 +2507,51 @@ async def check_upi_status(payment_id: str, current_user: dict = Depends(get_cur
     return {"status": payment["status"]}
 
 
+# ===================== CENTER TIME SLOTS (Admin Configurable) =====================
+
+DEFAULT_TIME_SLOTS = [
+    {"id": "slot-1", "label": "12:00 PM – 1:00 PM", "start": "12:00", "end": "13:00"},
+    {"id": "slot-2", "label": "1:00 PM – 2:00 PM", "start": "13:00", "end": "14:00"},
+    {"id": "slot-3", "label": "2:00 PM – 3:00 PM", "start": "14:00", "end": "15:00"},
+    {"id": "slot-4", "label": "7:00 PM – 8:00 PM", "start": "19:00", "end": "20:00"},
+    {"id": "slot-5", "label": "8:00 PM – 9:00 PM", "start": "20:00", "end": "21:00"},
+    {"id": "slot-6", "label": "9:00 PM – 10:00 PM", "start": "21:00", "end": "22:00"},
+]
+
+@api_router.get("/center-timeslots/{center_id}")
+async def get_center_timeslots(center_id: str):
+    """Get time slots for a specific center. Falls back to defaults if not configured."""
+    custom = await db.center_timeslots.find_one({"center_id": center_id}, {"_id": 0})
+    if custom and custom.get("slots"):
+        return {"center_id": center_id, "slots": custom["slots"]}
+    return {"center_id": center_id, "slots": DEFAULT_TIME_SLOTS}
+
+
+@api_router.get("/admin/center-timeslots")
+async def admin_get_all_timeslots(current_user: dict = Depends(get_current_user)):
+    """Admin: Get all center time slot configurations."""
+    configs = await db.center_timeslots.find({}, {"_id": 0}).to_list(50)
+    return configs
+
+
+@api_router.put("/admin/center-timeslots/{center_id}")
+async def admin_update_timeslots(center_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: Update time slots for a specific center."""
+    body = await request.json()
+    slots = body.get("slots", [])
+
+    await db.center_timeslots.update_one(
+        {"center_id": center_id},
+        {"$set": {
+            "center_id": center_id,
+            "slots": slots,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    return {"message": f"Time slots updated for {center_id}"}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
