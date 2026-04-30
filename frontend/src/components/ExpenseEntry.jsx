@@ -95,7 +95,10 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
     description: "",
     amount: "",
     expense_type: "",
-    payment_mode: "CASH"
+    payment_mode: "CASH",
+    gst_rate: 0,
+    vendor_name: "",
+    vendor_gstin: ""
   });
   
   // Multiple new expense rows for batch add
@@ -240,7 +243,10 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
         description: newExpense.description,
         amount: parseFloat(newExpense.amount),
         expense_type: newExpense.expense_type,
-        payment_mode: newExpense.payment_mode || "CASH"
+        payment_mode: newExpense.payment_mode || "CASH",
+        gst_rate: parseFloat(newExpense.gst_rate) || 0,
+        vendor_name: newExpense.vendor_name || "",
+        vendor_gstin: newExpense.vendor_gstin || ""
       });
       
       console.log("ExpenseEntry: Expense added successfully", res.data);
@@ -249,7 +255,10 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
         description: "",
         amount: "",
         expense_type: "",
-        payment_mode: "CASH"
+        payment_mode: "CASH",
+        gst_rate: 0,
+        vendor_name: "",
+        vendor_gstin: ""
       });
       fetchExpenses();
     } catch (err) {
@@ -886,6 +895,61 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* GST / Vendor row — for ITC tagging (India). Optional but helps CA / GSTR-2 reconciliation. */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-3 pt-3 border-t border-dashed">
+            <div className="md:col-span-2 space-y-1">
+              <Label className="text-xs text-muted-foreground">Vendor Name (optional)</Label>
+              <Input
+                value={newExpense.vendor_name}
+                onChange={(e) => setNewExpense({ ...newExpense, vendor_name: e.target.value })}
+                placeholder="e.g., ABC Traders"
+                data-testid="expense-vendor-name"
+              />
+            </div>
+            <div className="md:col-span-1 space-y-1">
+              <Label className="text-xs text-muted-foreground">Vendor GSTIN (optional)</Label>
+              <Input
+                value={newExpense.vendor_gstin}
+                onChange={(e) => setNewExpense({ ...newExpense, vendor_gstin: e.target.value.toUpperCase() })}
+                placeholder="29ABCDE1234F1Z5"
+                maxLength={15}
+                data-testid="expense-vendor-gstin"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">GST Rate</Label>
+              <Select
+                value={String(newExpense.gst_rate ?? 0)}
+                onValueChange={(val) => setNewExpense({ ...newExpense, gst_rate: parseFloat(val) })}
+              >
+                <SelectTrigger data-testid="expense-gst-rate">
+                  <SelectValue placeholder="0%" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">0% (No GST)</SelectItem>
+                  <SelectItem value="5">5% (food / restaurants)</SelectItem>
+                  <SelectItem value="12">12%</SelectItem>
+                  <SelectItem value="18">18% (services / packaging)</SelectItem>
+                  <SelectItem value="28">28%</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">GST Amount (auto)</Label>
+              <Input
+                disabled
+                value={(() => {
+                  const rate = parseFloat(newExpense.gst_rate) || 0;
+                  const amt = parseFloat(newExpense.amount) || 0;
+                  if (rate <= 0 || amt <= 0) return "0.00";
+                  return ((amt * rate) / (100 + rate)).toFixed(2);
+                })()}
+                className="bg-muted text-muted-foreground"
+                data-testid="expense-gst-amount-preview"
+              />
             </div>
           </div>
           

@@ -121,6 +121,12 @@ class ExpenseCreate(BaseModel):
     expense_type: str  # Category
     payment_mode: str  # CASH, ONLINE UPI, ONLINE NEFT/IMPS
     notes: Optional[str] = ""
+    # GST / ITC tagging (India centers). Amount is tax-INCLUSIVE.
+    # gst_rate one of 0, 5, 12, 18, 28. gst_amount auto-derived if not provided.
+    gst_rate: Optional[float] = 0
+    gst_amount: Optional[float] = 0
+    vendor_name: Optional[str] = ""
+    vendor_gstin: Optional[str] = ""
 
 class ExpenseUpdate(BaseModel):
     description: Optional[str] = None
@@ -128,6 +134,10 @@ class ExpenseUpdate(BaseModel):
     expense_type: Optional[str] = None
     payment_mode: Optional[str] = None
     notes: Optional[str] = None
+    gst_rate: Optional[float] = None
+    gst_amount: Optional[float] = None
+    vendor_name: Optional[str] = None
+    vendor_gstin: Optional[str] = None
 
 class TokenRequest(BaseModel):
     token: str
@@ -1379,6 +1389,13 @@ async def create_expense(req: ExpenseCreate, token: str):
     record["center"] = req.center.upper()
     record["created_at"] = datetime.now(timezone.utc).isoformat()
     record["created_by"] = session.get("managerName", "Unknown")
+    # Auto-derive gst_amount from rate when not provided (inclusive basis)
+    rate = float(record.get("gst_rate") or 0)
+    amt = float(record.get("amount") or 0)
+    if rate > 0 and not record.get("gst_amount"):
+        record["gst_amount"] = round(amt * rate / (100 + rate), 2)
+    record["gst_rate"] = rate
+    record["gst_amount"] = round(float(record.get("gst_amount") or 0), 2)
     
     result = await db.expenses.insert_one(record)
     expense_id_str = str(result.inserted_id)
@@ -1436,6 +1453,16 @@ async def update_expense(expense_id: str, req: ExpenseUpdate, token: str):
     if update_data:
         update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         update_data["updated_by"] = session.get("managerName", "Unknown")
+        # Auto-derive gst_amount when rate is set/changed but amount explicitly omitted
+        new_rate = update_data.get("gst_rate", existing.get("gst_rate"))
+        new_amount_total = update_data.get("amount", existing.get("amount"))
+        if new_rate is not None and "gst_amount" not in update_data and new_amount_total:
+            try:
+                r = float(new_rate); a = float(new_amount_total)
+                if r > 0:
+                    update_data["gst_amount"] = round(a * r / (100 + r), 2)
+            except Exception:
+                pass
         
         await db.expenses.update_one(
             {"_id": obj_id},

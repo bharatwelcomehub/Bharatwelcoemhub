@@ -215,10 +215,18 @@ async def build_expense_register(center: str, start: str, end: str) -> Dict[str,
     by_cat: Dict[str, float] = {}
     by_mode: Dict[str, float] = {}
     total = 0.0
+    input_gst_total = 0.0
+    taxable_base_total = 0.0
     for e in expenses:
         cat = e.get("expense_type") or "Other"
         mode = e.get("payment_mode") or "UNKNOWN"
         amt = float(e.get("amount") or 0)
+        gst_rate = float(e.get("gst_rate") or 0)
+        gst_amt = float(e.get("gst_amount") or 0)
+        # Auto-derive for legacy rows where rate is set but amount is 0
+        if gst_rate > 0 and not gst_amt:
+            gst_amt = round(amt * gst_rate / (100 + gst_rate), 2)
+        taxable = max(0, amt - gst_amt)
         # attachment marker
         has_att = bool(e.get("attachments")) or bool(e.get("invoice_group_id"))
         rows.append({
@@ -226,13 +234,27 @@ async def build_expense_register(center: str, start: str, end: str) -> Dict[str,
             "description": e.get("description") or "",
             "category": cat,
             "payment_mode": mode,
+            "vendor_name": e.get("vendor_name") or "",
+            "vendor_gstin": e.get("vendor_gstin") or "",
+            "taxable_value": taxable,
+            "gst_rate": gst_rate,
+            "gst_amount": gst_amt,
             "amount": amt,
             "bill_attached": has_att,
         })
         by_cat[cat] = by_cat.get(cat, 0) + amt
         by_mode[mode] = by_mode.get(mode, 0) + amt
         total += amt
-    return {"rows": rows, "by_category": by_cat, "by_mode": by_mode, "total": total}
+        input_gst_total += gst_amt
+        taxable_base_total += taxable
+    return {
+        "rows": rows,
+        "by_category": by_cat,
+        "by_mode": by_mode,
+        "total": total,
+        "input_gst_total": round(input_gst_total, 2),
+        "taxable_base_total": round(taxable_base_total, 2),
+    }
 
 async def build_cash_book(center: str, start: str, end: str) -> Dict[str, Any]:
     sales = await _get_daily_sales(center, start, end)
@@ -423,15 +445,22 @@ async def build_gst_summary(center: str, start: str, end: str, months: List[str]
             taxable_v = total - gst
         taxable += taxable_v
         output_gst += gst
+    # Input GST (ITC) from expenses tagged with gst_rate / gst_amount
+    exp_data = await build_expense_register(center, start, end)
+    input_gst = exp_data.get("input_gst_total", 0.0)
+    itc_taxable = exp_data.get("taxable_base_total", 0.0)
     # Commission GST (input — reverse charge on aggregator commissions may apply; we show as info)
     comms = await _get_commissions(center, months)
     commission_gst = sum(float(c.get("gst_tax_deductions") or 0) for c in comms)
+    net_liability = round(max(0, output_gst - input_gst), 2)
     return {
         "output_gst": round(output_gst, 2),
         "taxable_value": round(taxable, 2),
+        "input_gst": round(input_gst, 2),
+        "itc_taxable_value": round(itc_taxable, 2),
         "commission_gst_charged": round(commission_gst, 2),
-        "net_liability": round(output_gst, 2),  # simplified; ITC requires expense GST tagging
-        "note": "Output GST computed at 5% on food service sales (inclusive). ITC from expenses not auto-tagged; please verify with your CA."
+        "net_liability": net_liability,
+        "note": "Output GST @ 5% on food sales (inclusive). Input GST (ITC) sourced from expenses where vendor GSTIN/rate is tagged. Please verify with your CA."
     }
 
 async def build_monthly_pnl(center: str, months: List[str]) -> Dict[str, Any]:
@@ -671,18 +700,27 @@ def _sales_to_excel(data: Dict[str, Any]) -> List[List[Any]]:
     return rows
 
 def _expense_to_table(data: Dict[str, Any]) -> List[List[str]]:
-    hdr = ["Date", "Description", "Category", "Mode", "Amount", "Bill"]
+    hdr = ["Date", "Vendor", "Description", "Category", "Mode", "Taxable", "GST %", "GST Amt", "Total", "Bill"]
     rows = [hdr]
     for r in data["rows"]:
-        rows.append([r["date"], r["description"], r["category"], r["payment_mode"], _inr(r["amount"]), "Yes" if r["bill_attached"] else "No"])
-    rows.append(["", "", "", "TOTAL", _inr(data["total"]), ""])
+        rows.append([
+            r["date"], r.get("vendor_name") or "-", r["description"], r["category"], r["payment_mode"],
+            _inr(r.get("taxable_value", 0)), f"{r.get('gst_rate', 0):.0f}%", _inr(r.get("gst_amount", 0)),
+            _inr(r["amount"]), "Yes" if r["bill_attached"] else "No"
+        ])
+    rows.append(["", "", "", "", "TOTAL", _inr(data.get("taxable_base_total", 0)), "", _inr(data.get("input_gst_total", 0)), _inr(data["total"]), ""])
     return rows
 
 def _expense_to_excel(data: Dict[str, Any]) -> List[List[Any]]:
-    rows = [["Date", "Description", "Category", "Mode", "Amount", "Bill Attached"]]
+    rows = [["Date", "Vendor", "Vendor GSTIN", "Description", "Category", "Mode", "Taxable Value", "GST Rate %", "GST Amount (ITC)", "Total Amount", "Bill Attached"]]
     for r in data["rows"]:
-        rows.append([r["date"], r["description"], r["category"], r["payment_mode"], r["amount"], "Yes" if r["bill_attached"] else "No"])
-    rows.append(["", "", "", "TOTAL", data["total"], ""])
+        rows.append([
+            r["date"], r.get("vendor_name") or "", r.get("vendor_gstin") or "",
+            r["description"], r["category"], r["payment_mode"],
+            r.get("taxable_value", 0), r.get("gst_rate", 0), r.get("gst_amount", 0),
+            r["amount"], "Yes" if r["bill_attached"] else "No"
+        ])
+    rows.append(["", "", "", "", "", "TOTAL", data.get("taxable_base_total", 0), "", data.get("input_gst_total", 0), data["total"], ""])
     return rows
 
 def _cash_to_table(data: Dict[str, Any]) -> List[List[str]]:
@@ -786,17 +824,25 @@ def _gst_to_table(data: Dict[str, Any]) -> List[List[str]]:
     hdr = ["Particulars", "Amount"]
     rows = [hdr,
             ["Taxable Value (Sales ex-GST)", _inr(data["taxable_value"])],
-            ["Output GST @ 5% (Food)", _inr(data["output_gst"])],
+            ["Output GST @ 5% (Food Sales)", _inr(data["output_gst"])],
+            ["", ""],
+            ["ITC — Taxable Value (Expenses ex-GST)", _inr(data.get("itc_taxable_value", 0))],
+            ["ITC — Input GST (from tagged expenses)", _inr(data.get("input_gst", 0))],
+            ["", ""],
             ["GST on Aggregator Commissions (info)", _inr(data["commission_gst_charged"])],
-            ["Net GST Liability (Output GST)", _inr(data["net_liability"])]]
+            ["Net GST Liability (Output − ITC)", _inr(data["net_liability"])]]
     return rows
 
 def _gst_to_excel(data: Dict[str, Any]) -> List[List[Any]]:
     return [["Particulars", "Amount"],
             ["Taxable Value (Sales ex-GST)", data["taxable_value"]],
-            ["Output GST @ 5% (Food)", data["output_gst"]],
+            ["Output GST @ 5% (Food Sales)", data["output_gst"]],
+            ["", ""],
+            ["ITC — Taxable Value (Expenses ex-GST)", data.get("itc_taxable_value", 0)],
+            ["ITC — Input GST (from tagged expenses)", data.get("input_gst", 0)],
+            ["", ""],
             ["GST on Aggregator Commissions (info)", data["commission_gst_charged"]],
-            ["Net GST Liability (Output GST)", data["net_liability"]]]
+            ["Net GST Liability (Output − ITC)", data["net_liability"]]]
 
 def _pnl_to_table(data: Dict[str, Any]) -> List[List[str]]:
     hdr = ["Month", "Sales (Gross)", "GST", "Sales (Ex-GST)", "Expenses", "Commissions", "PBT"]

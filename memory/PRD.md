@@ -5,7 +5,14 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
-### [2026-04-30] Ledgers Tab — CA-Ready Books of Accounts
+### [2026-04-30] Expense GST / ITC tagging — for CA reconciliation
+- **New optional fields on Expense Entry** form (India centers): Vendor Name, Vendor GSTIN, GST Rate (0/5/12/18/28), GST Amount (auto-derived).
+- **Auto-derivation** (inclusive basis): `gst_amount = amount × gst_rate / (100 + gst_rate)`. E.g., Rs 1180 @ 18% → GST Rs 180, Taxable Rs 1000. Client preview shows the computed value live; backend re-validates and persists. Both `create_expense` and `update_expense` endpoints support the new fields.
+- **GST Summary ledger now computes Net Liability correctly**: `Output GST − Input GST (ITC) = Net Liability`. Previously ITC was assumed zero. Verified via curl: a Rs 1180 expense @ 18% on PB-HSR Apr-26 → `input_gst=180, itc_taxable_value=1000` flowing into `/api/ledgers/gst`.
+- **Expense Register ledger** now has 11 columns: Date, Vendor, Vendor GSTIN, Description, Category, Mode, Taxable Value, GST Rate %, GST Amount (ITC), Total, Bill — with grand totals row showing taxable base + total ITC.
+- Files: `backend/routes/sales_expenses.py` (ExpenseCreate/Update + auto-derive), `backend/routes/ledgers.py` (build_expense_register + build_gst_summary + renderers), `frontend/src/components/ExpenseEntry.jsx` (new GST/Vendor row in Add form).
+
+### [2026-04-30] Ledgers Tab — Live FY2025-26 Verified for PB-HSR
 **A full Indian accounts-compliant ledger suite added under Center Accounts → Ledgers tab.**
 
 **Access**: Super Admin + Admin + Accounts role (key 'accounts' / 'cfo' / 'finance'). Franchise Owner can download only their own Franchise Owner Ledger once Accounts releases it.
