@@ -1290,23 +1290,28 @@ async def get_expenses(req: ExpenseQueryRequest):
     expenses = []
     async for exp in expenses_cursor:
         exp_dict = {k: v for k, v in exp.items() if k != "_id"}
-        exp_dict["expense_id"] = str(exp["_id"])  # Convert ObjectId to string
+        expense_id_str = str(exp["_id"])
+        exp_dict["expense_id"] = expense_id_str  # Convert ObjectId to string
         
-        # Add attachment status
-        has_direct_attachment = bool(exp.get("attachments") and len(exp.get("attachments", [])) > 0)
+        # Build list of identifiers this expense may be referenced by in expense_attachments
+        # (legacy expenses may use _id string; newer ones may have expense_id field)
+        possible_ids = [expense_id_str]
+        if exp.get("expense_id") and exp.get("expense_id") != expense_id_str:
+            possible_ids.append(exp.get("expense_id"))
+        
+        # Source of truth: query expense_attachments collection directly by expense_id.
+        # This works regardless of whether the cache field expenses.attachments was populated.
+        direct_attachments = []
+        async for att in db.expense_attachments.find(
+            {"expense_id": {"$in": possible_ids}, "is_deleted": {"$ne": True}},
+            {"_id": 0, "attachment_id": 1, "original_filename": 1, "file_size": 1, "content_type": 1, "mime_type": 1, "file_type": 1}
+        ):
+            direct_attachments.append(att)
+        
+        has_direct_attachment = len(direct_attachments) > 0
         has_group_attachment = False
         group_info = None
-        direct_attachments = []
         group_attachments = []
-        
-        # Load direct attachment details (for View/Download on the Bill column)
-        direct_att_ids = [a.get("attachment_id") for a in (exp.get("attachments") or []) if a.get("attachment_id")]
-        if direct_att_ids:
-            async for att in db.expense_attachments.find(
-                {"attachment_id": {"$in": direct_att_ids}, "is_deleted": {"$ne": True}},
-                {"_id": 0, "attachment_id": 1, "original_filename": 1, "file_size": 1, "content_type": 1}
-            ):
-                direct_attachments.append(att)
         
         if exp.get("invoice_group_id"):
             group = await db.invoice_groups.find_one(
@@ -1328,9 +1333,8 @@ async def get_expenses(req: ExpenseQueryRequest):
         
         # Determine attachment status
         if has_direct_attachment:
-            direct_count = len(exp.get("attachments", []))
             exp_dict["attachment_status"] = "attached"
-            exp_dict["attachment_count"] = direct_count
+            exp_dict["attachment_count"] = len(direct_attachments)
             exp_dict["attachment_source"] = "direct"
         elif has_group_attachment:
             exp_dict["attachment_status"] = "attached_via_group"
@@ -1377,8 +1381,15 @@ async def create_expense(req: ExpenseCreate, token: str):
     record["created_by"] = session.get("managerName", "Unknown")
     
     result = await db.expenses.insert_one(record)
-    record["expense_id"] = str(result.inserted_id)
+    expense_id_str = str(result.inserted_id)
+    record["expense_id"] = expense_id_str
     record.pop("_id", None)
+    
+    # Persist expense_id field on the document so attachment uploads (which match by expense_id) work reliably
+    await db.expenses.update_one(
+        {"_id": result.inserted_id},
+        {"$set": {"expense_id": expense_id_str}}
+    )
     
     # Update daily_sales petty_cash_closing if expense is CASH
     if req.payment_mode == "CASH":

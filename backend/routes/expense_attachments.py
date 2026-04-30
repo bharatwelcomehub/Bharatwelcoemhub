@@ -482,13 +482,18 @@ async def upload_attachment(
     
     # Update expense or group with attachment reference
     if expense_id:
-        await db.expenses.update_one(
-            {"expense_id": expense_id},
-            {
-                "$push": {"attachments": result["attachment_id"]},
-                "$set": {"has_attachment": True, "updated_at": datetime.now(timezone.utc).isoformat()}
-            }
-        )
+        # Try matching by expense_id field first; fall back to _id ObjectId for legacy records
+        update_payload = {
+            "$push": {"attachments": result["attachment_id"]},
+            "$set": {"has_attachment": True, "expense_id": expense_id, "updated_at": datetime.now(timezone.utc).isoformat()}
+        }
+        upd = await db.expenses.update_one({"expense_id": expense_id}, update_payload)
+        if upd.matched_count == 0:
+            try:
+                from bson import ObjectId
+                await db.expenses.update_one({"_id": ObjectId(expense_id)}, update_payload)
+            except Exception:
+                logger.warning(f"Could not link attachment {result['attachment_id']} to expense {expense_id} (no match by expense_id or _id)")
     
     if invoice_group_id:
         await db.invoice_groups.update_one(
@@ -669,17 +674,37 @@ async def delete_attachment(attachment_id: str, token: str):
     
     # Remove from expense attachments array
     if attachment.get("expense_id"):
-        await db.expenses.update_one(
-            {"expense_id": attachment["expense_id"]},
+        exp_id = attachment["expense_id"]
+        upd = await db.expenses.update_one(
+            {"expense_id": exp_id},
             {"$pull": {"attachments": attachment_id}}
         )
-        # Check if any attachments left
-        expense = await db.expenses.find_one({"expense_id": attachment["expense_id"]})
-        if expense and not expense.get("attachments"):
+        if upd.matched_count == 0:
+            try:
+                from bson import ObjectId
+                await db.expenses.update_one(
+                    {"_id": ObjectId(exp_id)},
+                    {"$pull": {"attachments": attachment_id}}
+                )
+            except Exception:
+                pass
+        # Check if any attachments left (in expense_attachments collection)
+        remaining = await db.expense_attachments.count_documents(
+            {"expense_id": exp_id, "is_deleted": {"$ne": True}}
+        )
+        if remaining == 0:
             await db.expenses.update_one(
-                {"expense_id": attachment["expense_id"]},
+                {"expense_id": exp_id},
                 {"$set": {"has_attachment": False}}
             )
+            try:
+                from bson import ObjectId
+                await db.expenses.update_one(
+                    {"_id": ObjectId(exp_id)},
+                    {"$set": {"has_attachment": False}}
+                )
+            except Exception:
+                pass
     
     # Remove from group attachments array
     if attachment.get("invoice_group_id"):

@@ -5,6 +5,18 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Expense Bill column always shows "None" — root-cause fix
+- **Bug**: User attached a bill via the paperclip icon, but the row still showed a red "None" badge. No View/Download icon ever appeared, even for previously linked bills.
+- **Root cause**: `db.expenses` documents have only `_id` (ObjectId) — they never had an `expense_id` string field, because `create_expense` set `record["expense_id"]` only in the response object, not in MongoDB. The upload endpoint then queried `db.expenses.update_one({"expense_id": expense_id}, ...)` which matched 0 documents, so `expenses.attachments` cache was never populated. The list endpoint was reading that empty cache → `attachment_status="missing"` → "None" badge.
+- **Fix**:
+  1. `/api/sales/expenses` list endpoint now queries `db.expense_attachments` directly by `expense_id` (which IS persisted on every attachment upload). This makes the source of truth the attachments collection, working for legacy + new + all centers.
+  2. `create_expense` now persists `expense_id = str(_id)` on the expense document so all future operations match.
+  3. Upload endpoint adds an ObjectId fallback (`{"_id": ObjectId(expense_id)}`) when `{"expense_id": ...}` doesn't match — handles legacy records.
+  4. Delete attachment uses the same fallback and re-checks remaining count via the attachments collection.
+  5. One-time backfill: 2,836 legacy expenses got `expense_id` field set to `str(_id)`.
+- **Verified** end-to-end via Python script: expense + attachment record → list endpoint returns `attachment_status: "attached"`, `attachment_count: 1`, `direct_attachments: [{attachment_id, original_filename}]`. Frontend already renders the green Eye "View (1)" button when these fields are present.
+- Files: `backend/routes/sales_expenses.py` (list + create), `backend/routes/expense_attachments.py` (upload + delete).
+
 ### [2026-04-29] Expense Bill / Invoice attachment is now clickable + Owner Dashboard parity check
 - **Bill column on Expenses table is now clickable** — previously showed a static "None"/green/blue badge with no way to actually view the attached file. Now:
   - **Attached** (direct): emerald "View (N)" button → opens the attachment in a new tab via `viewAttachment(attachment_id)`. Multiple attachments open multiple tabs.
