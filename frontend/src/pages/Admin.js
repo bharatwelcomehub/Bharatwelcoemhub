@@ -14,8 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import centersData from '@/config/centers.json';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const ALL_CENTERS = [...centersData.india, ...centersData.australia];
 
 const Admin = () => {
   const { user, token, login, logout } = useAuth();
@@ -2096,6 +2098,74 @@ const Admin = () => {
                 </Card>
               ))}
             </div>
+
+            {/* Center Time Slots Management - moved from Book tab */}
+            <Card className="mt-8 border-[#E8DFD0]" data-testid="center-time-slots-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Clock className="h-5 w-5 text-[#B8962E]" /> Center Booking Time Slots
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-[#7A6F65] font-body mb-4">
+                  Configure table-booking time slots for each center. Each newly allocated center automatically appears here so you can set its slots. Changes reflect immediately on the Table Booking page.
+                </p>
+
+                <div className="space-y-3">
+                  {ALL_CENTERS.map(center => {
+                    const centerId = center.id;
+                    return (
+                      <div key={centerId} className="border border-[#E8DFD0] rounded-lg p-3" data-testid={`center-slot-row-${centerId}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-heading text-[#3D2314]">
+                              {center.displayName || center.name}
+                              <span className="ml-2 text-[10px] text-[#B8962E]/80 font-body">({centerId})</span>
+                            </p>
+                            <p className="text-[10px] text-[#7A6F65] font-body">
+                              {centerSlots[centerId] ? `${centerSlots[centerId].length} custom slots` : 'Using default slots'}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => startEditingSlots(centerId)}
+                            className="text-xs bg-[#B8962E] text-white hover:bg-[#D4AF37] h-7 px-3"
+                            data-testid={`edit-slots-${centerId}`}
+                          >
+                            {editingSlots === centerId ? 'Editing...' : 'Edit Slots'}
+                          </Button>
+                        </div>
+
+                        {editingSlots === centerId && (
+                          <div className="mt-3 space-y-2 border-t border-[#E8DFD0] pt-3">
+                            {slotsForm.map((slot, idx) => (
+                              <div key={slot.id} className="flex items-center gap-2">
+                                <Input type="time" value={slot.start} onChange={(e) => updateSlotRow(idx, 'start', e.target.value)} className="w-28 text-xs" />
+                                <span className="text-xs text-[#7A6F65]">to</span>
+                                <Input type="time" value={slot.end} onChange={(e) => updateSlotRow(idx, 'end', e.target.value)} className="w-28 text-xs" />
+                                <span className="flex-1 text-xs text-[#B8962E] font-body">{slot.label}</span>
+                                <button onClick={() => removeSlotRow(idx)} className="text-red-400 hover:text-red-600 p-1" data-testid={`remove-slot-${centerId}-${idx}`}><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                            ))}
+                            <div className="flex gap-2 pt-2">
+                              <Button size="sm" onClick={addSlotRow} variant="outline" className="text-xs h-7 px-3 border-[#E8DFD0]" data-testid={`add-slot-${centerId}`}>
+                                <Plus className="w-3 h-3 mr-1" /> Add Slot
+                              </Button>
+                              <Button size="sm" onClick={() => saveCenterSlots(centerId)} className="text-xs h-7 px-3 bg-[#2E7D32] text-white hover:bg-[#388E3C]" data-testid={`save-slots-${centerId}`}>
+                                Save
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setEditingSlots(null)} className="text-xs h-7 px-3 border-[#E8DFD0]" data-testid={`cancel-slots-${centerId}`}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* VIDEOS TAB */}
@@ -2351,62 +2421,6 @@ const Admin = () => {
                     {(!bookSettings.break_shayaris || bookSettings.break_shayaris.length === 0) && (
                       <p className="text-xs text-[#7A6F65]/60 italic font-body">No custom shayaris. Default ones will be shown.</p>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Center Time Slots Management */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg"><Clock className="h-5 w-5 text-[#B8962E]" /> Center Time Slots</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-[#7A6F65] font-body mb-4">Configure booking time slots for each center. Changes reflect immediately for users.</p>
-
-                  <div className="space-y-3">
-                    {['pb-hsr', 'pb-sambhajinagar', 'pb-hinjawadi', 'pb-kharadi', 'pb-dombivli', 'pb-kalyan', 'pb-thane', 'pb-perth'].map(centerId => {
-                      const names = {'pb-hsr': 'HSR Layout', 'pb-sambhajinagar': 'Sambhajinagar', 'pb-hinjawadi': 'Hinjawadi', 'pb-kharadi': 'Kharadi', 'pb-dombivli': 'Dombivli', 'pb-kalyan': 'Kalyan', 'pb-thane': 'Thane', 'pb-perth': 'Perth'};
-                      return (
-                      <div key={centerId} className="border border-[#E8DFD0] rounded-lg p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-heading text-[#3D2314]">{names[centerId] || centerId}</p>
-                            <p className="text-[10px] text-[#7A6F65] font-body">
-                              {centerSlots[centerId] ? `${centerSlots[centerId].length} custom slots` : 'Using default slots'}
-                            </p>
-                          </div>
-                          <Button size="sm" onClick={() => startEditingSlots(centerId)} className="text-xs bg-[#B8962E] text-white hover:bg-[#D4AF37] h-7 px-3" data-testid={`edit-slots-${centerId}`}>
-                            {editingSlots === centerId ? 'Editing...' : 'Edit Slots'}
-                          </Button>
-                        </div>
-
-                        {editingSlots === centerId && (
-                          <div className="mt-3 space-y-2 border-t border-[#E8DFD0] pt-3">
-                            {slotsForm.map((slot, idx) => (
-                              <div key={slot.id} className="flex items-center gap-2">
-                                <Input type="time" value={slot.start} onChange={(e) => updateSlotRow(idx, 'start', e.target.value)} className="w-28 text-xs" />
-                                <span className="text-xs text-[#7A6F65]">to</span>
-                                <Input type="time" value={slot.end} onChange={(e) => updateSlotRow(idx, 'end', e.target.value)} className="w-28 text-xs" />
-                                <span className="flex-1 text-xs text-[#B8962E] font-body">{slot.label}</span>
-                                <button onClick={() => removeSlotRow(idx)} className="text-red-400 hover:text-red-600 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
-                              </div>
-                            ))}
-                            <div className="flex gap-2 pt-2">
-                              <Button size="sm" onClick={addSlotRow} variant="outline" className="text-xs h-7 px-3 border-[#E8DFD0]">
-                                <Plus className="w-3 h-3 mr-1" /> Add Slot
-                              </Button>
-                              <Button size="sm" onClick={() => saveCenterSlots(centerId)} className="text-xs h-7 px-3 bg-[#2E7D32] text-white hover:bg-[#388E3C]">
-                                Save
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => setEditingSlots(null)} className="text-xs h-7 px-3 border-[#E8DFD0]">
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                    })}
                   </div>
                 </CardContent>
               </Card>
