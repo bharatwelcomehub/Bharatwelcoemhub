@@ -5,6 +5,12 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Loan Entries — Counterparty Filter chips + Loan WC cap removal
+- **New**: On the Loan Entries page, above the Loan History list, a "Filter by Counterparty" row of chips now appears whenever there are 2+ distinct counterparties. Each chip shows: counterparty label (e.g., `← HQ / External`, `← PB-HSR`, `→ PB-SN`), loan count, and outstanding amount. Clicking a chip filters the loan list to that counterparty only. "All" chip resets the filter. The filter resets automatically when switching centers.
+- Taken loans are grouped by `source_center` (empty `source_center` → `HQ / External`). Given loans are grouped by `target_center`. Chip colors: blue for Taken, teal for Given, dark slate for the active chip.
+- Test-ids: `loan-source-filter-block`, `loan-filter-chip-all`, `loan-filter-chip-{key}`.
+- **Loan WC cap removed** (backend): `POST /api/loan-entries/create` no longer enforces `(new + outstanding) <= franchise.working_capital`. Verified via 3 consecutive loan creations (100k, 50k, 30k) all returning HTTP 200 where previously the 400 "exceeds available working capital" error would have been raised.
+
 ### [2026-04-30] PIB Sales Summary + Loan WC cap removal
 - **PIB Report PDF — PhonePe / UPI row added**: `build_pib_pdf` in `utils/pdf_generator.py` Section 1 "SALES SUMMARY" now renders two additional rows between Card Sales and Cash Sales:
   - `PhonePe / UPI` (sourced from `summary.sales.bharat_pay`)

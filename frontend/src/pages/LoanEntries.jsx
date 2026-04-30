@@ -70,6 +70,9 @@ export default function LoanEntries() {
   const [bulkMonth, setBulkMonth] = useState('');
   const [bulkForce, setBulkForce] = useState(false);
 
+  // Source filter (for grouping loans by who funded/received them)
+  const [sourceFilter, setSourceFilter] = useState('all'); // 'all' | '<source_key>'
+
   // Fetch centers
   const fetchCenters = useCallback(async () => {
     if (!token) return;
@@ -99,6 +102,7 @@ export default function LoanEntries() {
     if (!token || !selectedCenter) return;
     
     setLoading(true);
+    setSourceFilter('all');
     try {
       const res = await fetch(`${API}/api/loan-entries/list`, {
         method: 'POST',
@@ -484,6 +488,64 @@ export default function LoanEntries() {
             <CardDescription>All loan entries for {selectedCenter}</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Source / Counterparty Filter */}
+            {loans.length > 0 && (() => {
+              // Group loans by counterparty. For 'taken' → source_center (or 'HQ / External' when empty)
+              // For 'given' → target_center (or 'Other' when empty)
+              const groups = {};
+              loans.forEach(l => {
+                const isGiven = l.loan_type === 'given';
+                const key = isGiven
+                  ? (l.target_center || 'OTHER')
+                  : (l.source_center || 'HQ');
+                const label = isGiven
+                  ? `→ ${l.target_center_name || l.target_center || 'Other'}`
+                  : `← ${l.source_center_name || (l.source_center ? l.source_center : 'HQ / External')}`;
+                const g = groups[key] || { key, label, isGiven, count: 0, principal: 0, repaid: 0, outstanding: 0 };
+                g.count += 1;
+                g.principal += (l.amount || 0);
+                g.repaid += (l.total_repaid || 0);
+                g.outstanding += Math.max(0, (l.amount || 0) - (l.total_repaid || 0));
+                groups[key] = g;
+              });
+              const groupList = Object.values(groups).sort((a, b) => b.outstanding - a.outstanding);
+              if (groupList.length <= 1) return null;
+              return (
+                <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg" data-testid="loan-source-filter-block">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Building2 className="w-4 h-4 text-slate-600" />
+                    <span className="text-sm font-medium text-slate-700">Filter by Counterparty</span>
+                    <span className="text-xs text-slate-500">(grouped by source for Taken / target for Given)</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSourceFilter('all')}
+                      data-testid="loan-filter-chip-all"
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${sourceFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'}`}
+                    >
+                      All ({loans.length})
+                    </button>
+                    {groupList.map(g => (
+                      <button
+                        type="button"
+                        key={g.key}
+                        onClick={() => setSourceFilter(g.key)}
+                        data-testid={`loan-filter-chip-${g.key}`}
+                        title={`${g.count} loan(s) · Principal ${formatCurrency(g.principal, country)} · Outstanding ${formatCurrency(g.outstanding, country)}`}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition flex items-center gap-1.5 ${sourceFilter === g.key ? (g.isGiven ? 'bg-teal-600 text-white border-teal-600' : 'bg-blue-600 text-white border-blue-600') : (g.isGiven ? 'bg-teal-50 text-teal-700 border-teal-200 hover:border-teal-400' : 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-400')}`}
+                      >
+                        <span>{g.label}</span>
+                        <span className="opacity-75">· {g.count}</span>
+                        {g.outstanding > 0 && (
+                          <span className="opacity-90 font-semibold">· O/S {formatCurrency(g.outstanding, country).replace(/\.00$/, '')}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {loans.length === 0 ? (
               <div className="text-center py-12">
                 <Wallet className="w-16 h-16 mx-auto mb-4 text-gray-300" />
@@ -492,7 +554,12 @@ export default function LoanEntries() {
               </div>
             ) : (
               <div className="space-y-4">
-                {loans.map(loan => {
+                {loans.filter(l => {
+                  if (sourceFilter === 'all') return true;
+                  const isGiven = l.loan_type === 'given';
+                  const key = isGiven ? (l.target_center || 'OTHER') : (l.source_center || 'HQ');
+                  return key === sourceFilter;
+                }).map(loan => {
                   const outstanding = loan.amount - loan.total_repaid;
                   const repaidPercent = (loan.total_repaid / loan.amount) * 100;
                   const isGiven = loan.loan_type === "given";
