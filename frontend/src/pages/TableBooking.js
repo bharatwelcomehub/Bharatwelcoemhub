@@ -12,7 +12,7 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
 
-import centersData from '@/config/centers.json';
+import centersFallback from '@/config/centers.json';
 import bookingRules from '@/config/booking-rules.json';
 import indiaMenus from '@/config/menus-india.json';
 import perthMenus from '@/config/menus-perth.json';
@@ -40,12 +40,27 @@ const TableBooking = () => {
   const [showReview, setShowReview] = useState(false);
   const [dbMenuItems, setDbMenuItems] = useState([]);
   const [centerTimeSlots, setCenterTimeSlots] = useState(null);
+  const [centersData, setCentersData] = useState(centersFallback); // live centers from API, fallback to static
 
   useEffect(() => {
     const fetchMenu = async () => {
       try { const response = await axios.get(`${API}/api/menu`); setDbMenuItems(response.data); } catch (err) { console.log('Using fallback JSON menu'); }
     };
     fetchMenu();
+  }, []);
+
+  // Fetch live centers from backend (admin-managed locations)
+  useEffect(() => {
+    const fetchCenters = async () => {
+      try {
+        const res = await axios.get(`${API}/api/centers`);
+        const data = res.data || {};
+        if ((data.india?.length || 0) + (data.australia?.length || 0) > 0) {
+          setCentersData(data);
+        }
+      } catch { /* keep fallback */ }
+    };
+    fetchCenters();
   }, []);
 
   // Fetch center-specific time slots when center changes
@@ -60,8 +75,8 @@ const TableBooking = () => {
     fetchSlots();
   }, [selectedCenter]);
 
-  const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
-  const filteredCenters = useMemo(() => { if (!selectedRegion) return []; return selectedRegion === 'india' ? centersData.india : centersData.australia; }, [selectedRegion]);
+  const allCenters = useMemo(() => [...(centersData.india || []), ...(centersData.australia || [])], [centersData]);
+  const filteredCenters = useMemo(() => { if (!selectedRegion) return []; return selectedRegion === 'india' ? (centersData.india || []) : (centersData.australia || []); }, [selectedRegion, centersData]);
   const currentCenter = useMemo(() => allCenters.find(c => c.id === selectedCenter), [selectedCenter, allCenters]);
 
   const menuData = useMemo(() => {

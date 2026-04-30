@@ -14,10 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import centersData from '@/config/centers.json';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const ALL_CENTERS = [...centersData.india, ...centersData.australia];
 
 const Admin = () => {
   const { user, token, login, logout } = useAuth();
@@ -71,6 +69,7 @@ const Admin = () => {
   const [locations, setLocations] = useState([]);
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
+  const [activeLocationTab, setActiveLocationTab] = useState({}); // { [locationId]: 'info' | 'slots' }
   const [locationForm, setLocationForm] = useState({
     name: '',
     city: '',
@@ -79,7 +78,13 @@ const Admin = () => {
     phone: '',
     whatsapp: '',
     google_review_link: '',
-    is_active: true
+    is_active: true,
+    center_id: '',
+    display_name: '',
+    state: '',
+    currency: 'INR',
+    currency_symbol: '₹',
+    services: ['dine-in', 'pickup', 'tiffin', 'catering', 'unlimited-breakfast']
   });
 
   // Videos state
@@ -595,20 +600,31 @@ const Admin = () => {
     e.preventDefault();
     const currentToken = getToken();
     try {
+      // Auto-derive center_id from name if not provided, and currency from country
+      const payload = { ...locationForm };
+      if (!payload.center_id) payload.center_id = slugifyCenterId(payload.name);
+      const isAus = (payload.country || '').toLowerCase() === 'australia';
+      if (!payload.currency) payload.currency = isAus ? 'AUD' : 'INR';
+      if (!payload.currency_symbol) payload.currency_symbol = isAus ? '$' : '₹';
+      if (!payload.display_name) payload.display_name = payload.name;
+      if (!payload.services || payload.services.length === 0) {
+        payload.services = ['dine-in', 'pickup', 'tiffin', 'catering', 'unlimited-breakfast'];
+      }
+
       if (editingLocation) {
         await axios.put(
           `${API}/admin/locations/${editingLocation.id}`,
-          locationForm,
+          payload,
           { headers: { Authorization: `Bearer ${currentToken}` } }
         );
         toast.success('Location updated');
       } else {
         await axios.post(
           `${API}/admin/locations`,
-          locationForm,
+          payload,
           { headers: { Authorization: `Bearer ${currentToken}` } }
         );
-        toast.success('Location added');
+        toast.success('Location added — time slots will use defaults until configured');
       }
       setLocationDialogOpen(false);
       resetLocationForm();
@@ -622,8 +638,17 @@ const Admin = () => {
     setEditingLocation(null);
     setLocationForm({
       name: '', city: '', country: 'India', address: '',
-      phone: '', whatsapp: '', google_review_link: '', is_active: true
+      phone: '', whatsapp: '', google_review_link: '', is_active: true,
+      center_id: '', display_name: '', state: '',
+      currency: 'INR', currency_symbol: '₹',
+      services: ['dine-in', 'pickup', 'tiffin', 'catering', 'unlimited-breakfast']
     });
+  };
+
+  // Auto-generate center_id slug from name (e.g. "PB-Mysore" -> "pb-mysore")
+  const slugifyCenterId = (name) => {
+    if (!name) return '';
+    return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   };
 
   // Video CRUD
@@ -2056,116 +2081,146 @@ const Admin = () => {
           {/* LOCATIONS TAB */}
           <TabsContent value="locations">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="font-playfair text-xl font-semibold">Locations</h2>
+              <div>
+                <h2 className="font-playfair text-xl font-semibold">Locations & Centers</h2>
+                <p className="text-xs text-foreground/60 mt-1">Each location is a bookable center. Edit info or configure time slots inside each card.</p>
+              </div>
               <Button
                 onClick={() => { resetLocationForm(); setLocationDialogOpen(true); }}
                 className="rounded-full bg-primary"
+                data-testid="add-location-btn"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Location
               </Button>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {locations.map((loc) => (
-                <Card key={loc.id} className="border-[hsl(30,30%,88%)]">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center justify-between">
-                      {loc.name}
-                      <Badge variant={loc.is_active ? 'default' : 'secondary'}>
-                        {loc.country}
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-sm text-foreground/70">
-                    <p>{loc.city}</p>
-                    <p className="truncate">{loc.address}</p>
-                    <p className="mt-2">{loc.phone}</p>
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditingLocation(loc);
-                          setLocationForm(loc);
-                          setLocationDialogOpen(true);
-                        }}
-                      >
-                        <Edit className="h-4 w-4 mr-1" /> Edit
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Center Time Slots Management - moved from Book tab */}
-            <Card className="mt-8 border-[#E8DFD0]" data-testid="center-time-slots-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Clock className="h-5 w-5 text-[#B8962E]" /> Center Booking Time Slots
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-[#7A6F65] font-body mb-4">
-                  Configure table-booking time slots for each center. Each newly allocated center automatically appears here so you can set its slots. Changes reflect immediately on the Table Booking page.
-                </p>
-
-                <div className="space-y-3">
-                  {ALL_CENTERS.map(center => {
-                    const centerId = center.id;
-                    return (
-                      <div key={centerId} className="border border-[#E8DFD0] rounded-lg p-3" data-testid={`center-slot-row-${centerId}`}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-heading text-[#3D2314]">
-                              {center.displayName || center.name}
-                              <span className="ml-2 text-[10px] text-[#B8962E]/80 font-body">({centerId})</span>
-                            </p>
-                            <p className="text-[10px] text-[#7A6F65] font-body">
-                              {centerSlots[centerId] ? `${centerSlots[centerId].length} custom slots` : 'Using default slots'}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => startEditingSlots(centerId)}
-                            className="text-xs bg-[#B8962E] text-white hover:bg-[#D4AF37] h-7 px-3"
-                            data-testid={`edit-slots-${centerId}`}
-                          >
-                            {editingSlots === centerId ? 'Editing...' : 'Edit Slots'}
-                          </Button>
-                        </div>
-
-                        {editingSlots === centerId && (
-                          <div className="mt-3 space-y-2 border-t border-[#E8DFD0] pt-3">
-                            {slotsForm.map((slot, idx) => (
-                              <div key={slot.id} className="flex items-center gap-2">
-                                <Input type="time" value={slot.start} onChange={(e) => updateSlotRow(idx, 'start', e.target.value)} className="w-28 text-xs" />
-                                <span className="text-xs text-[#7A6F65]">to</span>
-                                <Input type="time" value={slot.end} onChange={(e) => updateSlotRow(idx, 'end', e.target.value)} className="w-28 text-xs" />
-                                <span className="flex-1 text-xs text-[#B8962E] font-body">{slot.label}</span>
-                                <button onClick={() => removeSlotRow(idx)} className="text-red-400 hover:text-red-600 p-1" data-testid={`remove-slot-${centerId}-${idx}`}><Trash2 className="w-3.5 h-3.5" /></button>
-                              </div>
-                            ))}
-                            <div className="flex gap-2 pt-2">
-                              <Button size="sm" onClick={addSlotRow} variant="outline" className="text-xs h-7 px-3 border-[#E8DFD0]" data-testid={`add-slot-${centerId}`}>
-                                <Plus className="w-3 h-3 mr-1" /> Add Slot
-                              </Button>
-                              <Button size="sm" onClick={() => saveCenterSlots(centerId)} className="text-xs h-7 px-3 bg-[#2E7D32] text-white hover:bg-[#388E3C]" data-testid={`save-slots-${centerId}`}>
-                                Save
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => setEditingSlots(null)} className="text-xs h-7 px-3 border-[#E8DFD0]" data-testid={`cancel-slots-${centerId}`}>
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {locations.map((loc) => {
+                const centerId = loc.center_id || loc.id;
+                const currentTab = activeLocationTab[loc.id] || 'info';
+                const slotsCount = centerSlots[centerId]?.length;
+                return (
+                  <Card key={loc.id} className="border-[#E8DFD0] overflow-hidden" data-testid={`location-card-${centerId}`}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex items-center justify-between gap-2">
+                        <span className="truncate">{loc.name}</span>
+                        <Badge variant={loc.is_active ? 'default' : 'secondary'} className="shrink-0">
+                          {loc.country}
+                        </Badge>
+                      </CardTitle>
+                      {loc.center_id && (
+                        <p className="text-[10px] text-[#B8962E] font-mono mt-1">{loc.center_id}</p>
+                      )}
+                    </CardHeader>
+                    <CardContent className="text-sm">
+                      {/* In-card tabs */}
+                      <div className="flex border-b border-[#E8DFD0] mb-3 -mx-1">
+                        <button
+                          type="button"
+                          onClick={() => setActiveLocationTab(p => ({ ...p, [loc.id]: 'info' }))}
+                          className={`px-3 py-1.5 text-xs font-heading border-b-2 transition-colors ${currentTab === 'info' ? 'border-[#B8962E] text-[#B8962E]' : 'border-transparent text-foreground/60 hover:text-foreground/80'}`}
+                          data-testid={`location-info-tab-${centerId}`}
+                        >
+                          <MapPin className="inline w-3 h-3 mr-1" /> Location Info
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveLocationTab(p => ({ ...p, [loc.id]: 'slots' }))}
+                          className={`px-3 py-1.5 text-xs font-heading border-b-2 transition-colors ${currentTab === 'slots' ? 'border-[#B8962E] text-[#B8962E]' : 'border-transparent text-foreground/60 hover:text-foreground/80'}`}
+                          data-testid={`location-slots-tab-${centerId}`}
+                        >
+                          <Clock className="inline w-3 h-3 mr-1" /> Time Slots
+                          {slotsCount > 0 && <span className="ml-1 text-[9px] bg-[#B8962E]/15 text-[#B8962E] px-1.5 py-0.5 rounded-full">{slotsCount}</span>}
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+
+                      {/* Info Tab */}
+                      {currentTab === 'info' && (
+                        <div className="text-foreground/70 space-y-1">
+                          <p>{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
+                          <p className="truncate" title={loc.address}>{loc.address}</p>
+                          <p className="mt-2">{loc.phone}</p>
+                          {loc.currency && (
+                            <p className="text-[10px] text-foreground/50">Currency: {loc.currency_symbol || ''} {loc.currency}</p>
+                          )}
+                          <div className="flex gap-2 mt-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditingLocation(loc);
+                                setLocationForm({
+                                  ...loc,
+                                  services: loc.services || ['dine-in', 'pickup', 'tiffin', 'catering', 'unlimited-breakfast']
+                                });
+                                setLocationDialogOpen(true);
+                              }}
+                              data-testid={`edit-location-${centerId}`}
+                            >
+                              <Edit className="h-4 w-4 mr-1" /> Edit
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Time Slots Tab */}
+                      {currentTab === 'slots' && (
+                        <div data-testid={`location-slots-pane-${centerId}`}>
+                          {!loc.center_id && (
+                            <div className="mb-3 p-2 bg-[#FFF5E6] border border-[#B8962E]/30 rounded text-[11px] text-[#7A6F65]">
+                              ⚠ This location has no <strong>Center ID</strong>. Click "Edit" on the Info tab to add one before configuring slots.
+                            </div>
+                          )}
+                          <p className="text-[11px] text-foreground/60 mb-3">
+                            {slotsCount ? `${slotsCount} custom slot${slotsCount === 1 ? '' : 's'} configured` : 'Using default slots (12pm–3pm, 7pm–10pm)'}
+                          </p>
+
+                          {editingSlots !== centerId ? (
+                            <Button
+                              size="sm"
+                              disabled={!loc.center_id}
+                              onClick={() => startEditingSlots(centerId)}
+                              className="text-xs bg-[#B8962E] text-white hover:bg-[#D4AF37] h-7 px-3 disabled:opacity-50"
+                              data-testid={`edit-slots-${centerId}`}
+                            >
+                              <Edit className="w-3 h-3 mr-1" /> Edit Time Slots
+                            </Button>
+                          ) : (
+                            <div className="space-y-2 border-t border-[#E8DFD0] pt-3">
+                              {slotsForm.map((slot, idx) => (
+                                <div key={slot.id} className="flex items-center gap-2">
+                                  <Input type="time" value={slot.start} onChange={(e) => updateSlotRow(idx, 'start', e.target.value)} className="w-24 text-xs" />
+                                  <span className="text-xs text-[#7A6F65]">–</span>
+                                  <Input type="time" value={slot.end} onChange={(e) => updateSlotRow(idx, 'end', e.target.value)} className="w-24 text-xs" />
+                                  <button onClick={() => removeSlotRow(idx)} className="text-red-400 hover:text-red-600 p-1 ml-auto" data-testid={`remove-slot-${centerId}-${idx}`}><Trash2 className="w-3.5 h-3.5" /></button>
+                                </div>
+                              ))}
+                              {slotsForm.length > 0 && (
+                                <p className="text-[10px] text-[#B8962E]/80 font-body italic">
+                                  {slotsForm.map(s => s.label).filter(Boolean).join(' · ')}
+                                </p>
+                              )}
+                              <div className="flex gap-2 pt-2 flex-wrap">
+                                <Button size="sm" onClick={addSlotRow} variant="outline" className="text-xs h-7 px-3 border-[#E8DFD0]" data-testid={`add-slot-${centerId}`}>
+                                  <Plus className="w-3 h-3 mr-1" /> Add
+                                </Button>
+                                <Button size="sm" onClick={() => saveCenterSlots(centerId)} className="text-xs h-7 px-3 bg-[#2E7D32] text-white hover:bg-[#388E3C]" data-testid={`save-slots-${centerId}`}>
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setEditingSlots(null)} className="text-xs h-7 px-3 border-[#E8DFD0]" data-testid={`cancel-slots-${centerId}`}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </TabsContent>
 
           {/* VIDEOS TAB */}
@@ -2589,6 +2644,7 @@ const Admin = () => {
                     value={locationForm.name}
                     onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
                     required
+                    data-testid="location-name-input"
                   />
                 </div>
                 <div>
@@ -2597,6 +2653,28 @@ const Admin = () => {
                     value={locationForm.city}
                     onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })}
                     required
+                    data-testid="location-city-input"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Center ID (slug) *</Label>
+                  <Input
+                    value={locationForm.center_id || ''}
+                    onChange={(e) => setLocationForm({ ...locationForm, center_id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                    placeholder={locationForm.name ? slugifyCenterId(locationForm.name) : 'pb-newcity'}
+                    data-testid="location-center-id-input"
+                  />
+                  <p className="text-[10px] text-foreground/60 mt-1">Used by Table Booking & Time Slots. Auto-generated if empty.</p>
+                </div>
+                <div>
+                  <Label>State</Label>
+                  <Input
+                    value={locationForm.state || ''}
+                    onChange={(e) => setLocationForm({ ...locationForm, state: e.target.value })}
+                    placeholder="e.g. Maharashtra"
+                    data-testid="location-state-input"
                   />
                 </div>
               </div>
@@ -2604,9 +2682,17 @@ const Admin = () => {
                 <Label>Country</Label>
                 <Select
                   value={locationForm.country}
-                  onValueChange={(value) => setLocationForm({ ...locationForm, country: value })}
+                  onValueChange={(value) => {
+                    const isAus = value === 'Australia';
+                    setLocationForm({
+                      ...locationForm,
+                      country: value,
+                      currency: isAus ? 'AUD' : 'INR',
+                      currency_symbol: isAus ? '$' : '₹'
+                    });
+                  }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger data-testid="location-country-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

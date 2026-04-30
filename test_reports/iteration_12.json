@@ -1,0 +1,47 @@
+{
+  "summary": "Tested Locations + Time Slots refactor and /api/centers driven Table Booking page. 12/12 backend tests pass. Table Booking UI verified end-to-end via Playwright: Region->India shows all 7 expected India centers from API; Region->Australia shows Perth. Admin UI: locations list HTML contains all 8 center_id slugs (verified via curl smoke + DOM); deeper Admin UI flows (per-card subtab clicks, 'Edit Time Slots' save) couldn't be exercised from automation because the global Auth 'Welcome to Purnabramha' modal overlays the Admin Login button on /admin and intercepts the click. Backend test suite covers admin save/persist of time slots and location create/update/centers integration end-to-end, so functionality is verified at the API level. 8 baseline locations remain intact; all TEST_ data cleaned up.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DELETE /api/admin/locations/{id}", "issue": "Endpoint not implemented (returns 405 Method Not Allowed). Hard delete not possible from UI; only soft-delete via PUT is_active=false works. Add an explicit DELETE handler for full CRUD parity."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "/admin route", "issue": "Generic auth 'Welcome to Purnabramha' modal auto-opens on /admin and overlays the Admin Login form, intercepting clicks on the Admin Login button. Modal X close button missing accessible label / data-testid which makes it un-dismissible from automation; manually a real user can close it, but it's an extra friction step on the dedicated admin URL.", "selector": "[role='dialog'] button (close 'X')", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_centers_locations.py",
+    "/app/test_reports/pytest/centers_locations_results.xml"
+  ],
+  "action_items": [
+    "Suppress the global Welcome auth modal on /admin route (admin has its own dedicated email/password form) OR add data-testid='admin-login-button' and ensure it has a higher z-index than the auth modal.",
+    "Add data-testid attributes on Admin Locations per-card sub-tabs ('locations-card-{center_id}-info-tab' / 'locations-card-{center_id}-timeslots-tab') and on 'Edit Time Slots'/'Add'/'Save' buttons to make admin flows automatable.",
+    "Implement DELETE /api/admin/locations/{id} for full CRUD parity (currently 405)."
+  ],
+  "critical_code_review_comments": [
+    "GET /api/centers correctly excludes _id and groups by country; defaults services / currency when missing — robust.",
+    "Location model's default services list is set via Field(default_factory=...) which is correct (avoids shared mutable default).",
+    "PUT /api/admin/locations/{id} uses raw $set with the request body — ensure the frontend never sends 'id' or 'center_id' as null on edit, otherwise it could blank out the slug. The center_id field is preserved correctly when not in payload (verified by test_update_location_preserves_data).",
+    "DEFAULT_TIME_SLOTS is returned for any unknown center_id — good UX; new centers immediately bookable.",
+    "No DELETE handler for /api/admin/locations/{id} — incomplete CRUD."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_centers_locations.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "Table Booking 100% verified; Admin UI partial (modal overlay blocks automated login)"
+  },
+  "test_credentials": {
+    "admin_email": "PBadmin@purnabramha.com",
+    "admin_password": "PB22052012"
+  },
+  "seed_data_creation": "Created+cleaned a transient TEST_ location (pb-test-*) during CRUD test. After cleanup verified 8 baseline locations: pb-hsr, pb-sambhajinagar, pb-kharadi, pb-hinjawadi, pb-thane, pb-dombivli, pb-kalyan, pb-perth.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite for centers/locations is at /app/backend/tests/test_centers_locations.py. Run with: pytest /app/backend/tests/test_centers_locations.py -v. The Welcome auth modal on /admin is the main blocker for automated admin UI testing — either dismiss it programmatically by clicking the 'Or use email & password instead' details and then directly clicking the underlying Admin Login button via JS, or have main agent suppress the modal on /admin route."
+}

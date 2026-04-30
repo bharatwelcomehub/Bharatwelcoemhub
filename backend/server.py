@@ -126,6 +126,13 @@ class Location(BaseModel):
     whatsapp: str
     google_review_link: Optional[str] = None
     is_active: bool = True
+    # Center / booking fields (used by Table Booking page)
+    center_id: Optional[str] = None  # e.g. "pb-hsr"; slug used by /api/center-timeslots
+    display_name: Optional[str] = None  # e.g. "HSR Layout, Bangalore"
+    state: Optional[str] = None
+    currency: Optional[str] = None  # "INR" or "AUD"
+    currency_symbol: Optional[str] = None  # "₹" or "$"
+    services: List[str] = Field(default_factory=lambda: ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"])
 
 class MenuItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -431,6 +438,37 @@ async def unsubscribe_push(current_user: dict = Depends(get_current_user)):
 async def get_locations():
     locations = await db.locations.find({"is_active": True}, {"_id": 0}).to_list(100)
     return [Location(**loc) for loc in locations]
+
+
+@api_router.get("/centers")
+async def get_centers():
+    """Public endpoint: returns active locations grouped by region for Table Booking.
+    Each center has the shape expected by the user-facing TableBooking page."""
+    locations = await db.locations.find({"is_active": True}, {"_id": 0}).to_list(100)
+    india, australia = [], []
+    for loc in locations:
+        country = (loc.get("country") or "").lower()
+        center_id = loc.get("center_id") or loc.get("id")
+        is_aus = "australia" in country
+        currency = loc.get("currency") or ("AUD" if is_aus else "INR")
+        currency_symbol = loc.get("currency_symbol") or ("$" if is_aus else "₹")
+        center = {
+            "id": center_id,
+            "name": loc.get("name", ""),
+            "displayName": loc.get("display_name") or loc.get("name", ""),
+            "city": loc.get("city", ""),
+            "state": loc.get("state", ""),
+            "country": loc.get("country", ""),
+            "whatsapp": loc.get("whatsapp", ""),
+            "phone": loc.get("phone", ""),
+            "address": loc.get("address", ""),
+            "currency": currency,
+            "currencySymbol": currency_symbol,
+            "isActive": loc.get("is_active", True),
+            "services": loc.get("services") or ["dine-in", "pickup", "tiffin", "catering", "unlimited-breakfast"],
+        }
+        (australia if is_aus else india).append(center)
+    return {"india": india, "australia": australia}
 
 @api_router.get("/menu", response_model=List[MenuItem])
 async def get_menu(category: Optional[str] = None, location_id: Optional[str] = None):
