@@ -243,6 +243,8 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [ ] Multi-language support
 
 ## Bug Fixes
+- [x] **Tiffin + Catering pages now DB-backed** (Feb 2026) — `Tiffin.js` now fetches `/api/centers`, `/api/tiffin-items`, `/api/tiffin-config` and builds the lunch-box/heavy-brunch/drink-addon arrays live from DB (category-partitioned); falls back to `tiffin-config.json` when DB is empty. `Catering.js` now fetches `/api/catering-packages` (packages + menuOptions in one call), dedupes by id, filters by region via `price_per_person_inr>0` / `price_per_person_aud>0`; falls back to `catering-packages.json` when DB is empty. Admin CRUD edits now reflect instantly for customers.
+- [x] **DELETE /api/admin/locations/{id}** (Feb 2026) — Full CRUD parity. Endpoint reads the location's `center_id` before delete, then cascades `center_timeslots` deletion by center_id (cascade bug found & fixed in same iteration). Admin Locations card has a red Delete button with confirmation dialog. 404 on missing, 401 without auth.
 - [x] **Promotions / Discount Combos + Unlimited Breakfast Sat/Sun gating** (Feb 2026) — Three new features:
   - **Everyday Brunch Combo** (online): 11:00–12:00, India + Perth, 10% off when cart has ≥1 Heavy Brunch/Bhakar Combo item + ≥1 Tea & Coffee/Drinks item.
   - **Evening Snack Combo** (online): 16:00–17:00, India only, 10% off when cart has ≥1 Snacks item + ≥1 item with "masala" in name.

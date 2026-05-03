@@ -600,15 +600,18 @@ async def update_location(location_id: str, location_data: dict, current_user: d
 
 @api_router.delete("/admin/locations/{location_id}")
 async def delete_location(location_id: str, current_user: dict = Depends(get_current_user)):
-    """Hard-delete a location and its center time-slot config (if any)."""
-    result = await db.locations.delete_one({"id": location_id})
-    if result.deleted_count == 0:
+    """Hard-delete a location and cascade delete its center time-slot config by center_id."""
+    # Capture center_id BEFORE deleting so cascade works correctly
+    loc = await db.locations.find_one({"id": location_id}, {"_id": 0})
+    if not loc:
         raise HTTPException(status_code=404, detail="Location not found")
-    # Cascade: remove center-specific timeslots if any
-    loc = None  # already deleted; center_id was on the doc
-    # Best-effort cascade using location_id-or-center_id match (no-op if absent)
-    await db.center_timeslots.delete_one({"center_id": location_id})
-    return {"message": "Location deleted", "id": location_id}
+    center_id = loc.get("center_id")
+    await db.locations.delete_one({"id": location_id})
+    # Cascade: remove center-specific timeslots for this center (if a center_id was set)
+    if center_id:
+        await db.center_timeslots.delete_one({"center_id": center_id})
+    logger.info(f"Location deleted by {current_user.get('email')}: id={location_id} center_id={center_id}")
+    return {"message": "Location deleted", "id": location_id, "center_id": center_id}
 
 # VIDEOS
 @api_router.get("/videos", response_model=List[Video])

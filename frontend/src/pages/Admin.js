@@ -1365,7 +1365,7 @@ const Admin = () => {
               <UtensilsCrossed className="h-4 w-4" />
               Catering ({cateringPackages.length})
             </TabsTrigger>
-            <TabsTrigger value="locations" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3">
+            <TabsTrigger value="locations" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="locations-admin-tab">
               <MapPin className="h-4 w-4" />
               Locations ({locations.length})
             </TabsTrigger>
