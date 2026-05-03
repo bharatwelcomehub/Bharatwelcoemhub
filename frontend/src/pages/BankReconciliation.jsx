@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
-import { Banknote, Upload, FileText, AlertTriangle, CheckCircle2, X, Plus } from 'lucide-react';
+import { Banknote, Upload, FileText, AlertTriangle, CheckCircle2, X, Plus, Layers, Loader2 } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -30,6 +31,13 @@ export default function BankReconciliation() {
   const [summary, setSummary] = useState(null);
   const [expenseCats, setExpenseCats] = useState([]);
   const [addDialog, setAddDialog] = useState(null);
+  // Bulk-add state for similar-narration mass update
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkExpenseType, setBulkExpenseType] = useState('');
+  const [bulkPaymentMode, setBulkPaymentMode] = useState('Bank Transfer');
+  const [bulkDescription, setBulkDescription] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -119,6 +127,34 @@ export default function BankReconciliation() {
       setAddDialog(null);
       loadSummary(activeUpload);
     } catch (e) { toast.error(e.message); }
+  };
+
+  const submitBulk = async () => {
+    if (!bulkExpenseType) { toast.error('Pick a category'); return; }
+    if (selectedIds.length === 0) { toast.error('No rows selected'); return; }
+    setBulkBusy(true);
+    try {
+      const res = await fetch(`${API}/api/bank-reconciliation/bulk-add-expense`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.token,
+          upload_id: activeUpload,
+          transaction_ids: selectedIds,
+          expense_type: bulkExpenseType,
+          payment_mode: bulkPaymentMode,
+          description: bulkDescription,
+        }),
+      });
+      const data = await res.json();
+      if (data.detail && !data.success) throw new Error(data.detail);
+      toast.success(data.message || `Bulk added ${data.added} expense(s)`);
+      setBulkDialogOpen(false);
+      setSelectedIds([]);
+      setBulkExpenseType('');
+      setBulkDescription('');
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+    finally { setBulkBusy(false); }
   };
 
   const ignoreTxn = async (txn) => {
@@ -240,10 +276,29 @@ export default function BankReconciliation() {
               </TabsList>
 
               <TabsContent value="unrecorded" className="mt-3">
+                {/* Bulk-add toolbar — appears when 1+ row(s) selected */}
+                {selectedIds.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 mb-3 bg-sky-50 border border-sky-200 rounded-lg" data-testid="br-bulk-toolbar">
+                    <div className="text-sm">
+                      <strong>{selectedIds.length}</strong> transaction(s) selected
+                      <span className="text-muted-foreground ml-2">· Total ₹{(summary.unrecorded || []).filter(t => selectedIds.includes(t.transaction_id)).reduce((a, t) => a + (t.debit_amount || 0), 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setSelectedIds([])} data-testid="br-bulk-clear">Clear</Button>
+                      <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setBulkDialogOpen(true)} data-testid="br-bulk-open">
+                        <Layers className="w-3.5 h-3.5 mr-1" /> Bulk Add as Expense ({selectedIds.length})
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {selectedIds.length === 0 && summary.unrecorded?.length > 1 && (
+                  <p className="text-xs text-slate-500 mb-2">💡 Tip: tick the checkboxes (or click on any narration text to auto-select all rows with the same narration) to bulk-add similar transactions in one click.</p>
+                )}
                 <TxnTable
                   rows={summary.unrecorded}
                   empty="All bank debits are reconciled!"
                   badgeColor="bg-amber-100 text-amber-700 border-amber-300"
+                  selection={{ selected: selectedIds, setSelected: setSelectedIds }}
                   actions={(txn) => (
                     <div className="flex gap-1 justify-end">
                       <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => openAdd(txn)} data-testid={`br-add-${txn.transaction_id}`}><Plus className="w-3 h-3 mr-1" /> Add</Button>
@@ -312,17 +367,98 @@ export default function BankReconciliation() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Add Dialog */}
+      <Dialog open={bulkDialogOpen} onOpenChange={(o) => !bulkBusy && setBulkDialogOpen(o)}>
+        <DialogContent className="max-w-lg" data-testid="br-bulk-dialog">
+          <DialogHeader>
+            <DialogTitle>Bulk Add as Expense</DialogTitle>
+            <DialogDescription>
+              Apply the same category to <strong>{selectedIds.length}</strong> selected transaction(s).
+              Each will become a separate expense row using its own date and amount.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Preview */}
+            <div className="max-h-48 overflow-y-auto border rounded p-2 bg-slate-50 text-xs space-y-1">
+              {(summary?.unrecorded || []).filter(t => selectedIds.includes(t.transaction_id)).slice(0, 8).map(t => (
+                <div key={t.transaction_id} className="flex justify-between">
+                  <span className="truncate max-w-[260px]" title={t.narration}>{t.transaction_date} · {t.narration}</span>
+                  <span className="font-semibold">{fmtINR(t.debit_amount)}</span>
+                </div>
+              ))}
+              {selectedIds.length > 8 && <p className="text-slate-500 italic">…and {selectedIds.length - 8} more</p>}
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Expense Category *</label>
+              <Select value={bulkExpenseType} onValueChange={setBulkExpenseType}>
+                <SelectTrigger data-testid="br-bulk-category"><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>
+                  {expenseCats.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Payment Mode</label>
+              <Select value={bulkPaymentMode} onValueChange={setBulkPaymentMode}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="UPI">UPI</SelectItem>
+                  <SelectItem value="Cheque">Cheque</SelectItem>
+                  <SelectItem value="Cash">Cash</SelectItem>
+                  <SelectItem value="Card">Card</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold">Description override (optional)</label>
+              <Input
+                value={bulkDescription}
+                onChange={e => setBulkDescription(e.target.value)}
+                placeholder="Leave blank to use each row's narration as-is"
+                data-testid="br-bulk-description"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">If blank, each expense uses its own bank narration.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkBusy}>Cancel</Button>
+            <Button onClick={submitBulk} disabled={bulkBusy || !bulkExpenseType} className="bg-blue-600 hover:bg-blue-700 text-white" data-testid="br-bulk-save">
+              {bulkBusy && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
+              {bulkBusy ? 'Adding...' : `Add ${selectedIds.length} Expense(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function TxnTable({ rows, empty, badgeColor, actions }) {
+function TxnTable({ rows, empty, badgeColor, actions, selection }) {
   if (!rows || rows.length === 0) return <p className="text-sm text-muted-foreground p-4">{empty}</p>;
+  const showSelect = !!selection;
+  const allOnPage = showSelect && rows.every(r => selection.selected.includes(r.transaction_id));
+  const toggleAll = () => {
+    if (allOnPage) selection.setSelected(selection.selected.filter(id => !rows.some(r => r.transaction_id === id)));
+    else selection.setSelected([...new Set([...selection.selected, ...rows.map(r => r.transaction_id)])]);
+  };
+  const toggleOne = (id) => {
+    if (selection.selected.includes(id)) selection.setSelected(selection.selected.filter(x => x !== id));
+    else selection.setSelected([...selection.selected, id]);
+  };
+  // Group similar narrations: stable hash on first 3 words / 30 chars
+  const narrationKey = (n) => (n || '').replace(/\s+/g, ' ').trim().slice(0, 30).toUpperCase();
   return (
     <div className="overflow-x-auto border rounded">
       <table className="w-full text-sm">
         <thead className="bg-slate-100 text-xs uppercase">
           <tr>
+            {showSelect && (
+              <th className="p-2 text-center w-8">
+                <Checkbox checked={allOnPage} onCheckedChange={toggleAll} data-testid="br-select-all" />
+              </th>
+            )}
             <th className="p-2 text-left">Date</th>
             <th className="p-2 text-left">Narration</th>
             <th className="p-2 text-right">Debit (₹)</th>
@@ -333,9 +469,25 @@ function TxnTable({ rows, empty, badgeColor, actions }) {
         </thead>
         <tbody>
           {rows.map((t) => (
-            <tr key={t.transaction_id} className="border-t hover:bg-slate-50">
+            <tr key={t.transaction_id} className={`border-t hover:bg-slate-50 ${showSelect && selection.selected.includes(t.transaction_id) ? 'bg-sky-50' : ''}`}>
+              {showSelect && (
+                <td className="p-2 text-center">
+                  <Checkbox checked={selection.selected.includes(t.transaction_id)} onCheckedChange={() => toggleOne(t.transaction_id)} data-testid={`br-select-${t.transaction_id}`} />
+                </td>
+              )}
               <td className="p-2 text-xs">{t.transaction_date}</td>
-              <td className="p-2 text-xs max-w-sm truncate" title={t.narration}>{t.narration}</td>
+              <td className="p-2 text-xs max-w-sm truncate" title={t.narration}>
+                <span className="cursor-pointer text-sky-700 underline-offset-2 hover:underline" title="Click to select all rows with same narration"
+                  onClick={(e) => {
+                    if (!showSelect) return;
+                    e.stopPropagation();
+                    const key = narrationKey(t.narration);
+                    const ids = rows.filter(r => narrationKey(r.narration) === key).map(r => r.transaction_id);
+                    selection.setSelected([...new Set([...selection.selected, ...ids])]);
+                  }}>
+                  {t.narration}
+                </span>
+              </td>
               <td className="p-2 text-right font-semibold">{fmtINR(t.debit_amount)}</td>
               <td className="p-2 text-xs text-sky-700">{t.suggested_category || '—'}</td>
               <td className="p-2 text-center">

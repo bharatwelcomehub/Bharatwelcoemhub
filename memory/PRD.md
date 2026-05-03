@@ -5,6 +5,22 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Bank Reconciliation — Bulk Add for Similar Narrations
+**User issue**: With 100+ unrecorded txns having repeating narrations (Salary debits, Card 2473 purchases, etc.), adding them one by one as expenses was very tedious.
+
+**Fix**:
+- New backend endpoint `POST /api/bank-reconciliation/bulk-add-expense` — accepts `{token, upload_id, transaction_ids[], expense_type, payment_mode, description}`. Each txn becomes its own expense row using its own date + amount. Common category + payment_mode + optional description applied to all. Returns `{added, skipped, errors[]}`.
+- Frontend: BankReconciliation page now has:
+  - **Checkboxes** on every Unrecorded row (header has "select all on page")
+  - **Click on any narration text** auto-selects every other row with the same narration prefix (first 30 chars, case-insensitive) — perfect for grouping all "VISA DEBIT PURCHASE CARD 2473" or "RTGS SALARY" entries in one click
+  - **Sticky bulk toolbar** at the top of the table when ≥1 row is selected: shows count + total ₹, plus "Bulk Add as Expense" button
+  - **Bulk Add Dialog**: shows preview list (up to 8 rows + "…and N more"), category dropdown (validated against Category Master), payment mode select, optional description override
+  - Tooltip below the toolbar (when no selection) explains the workflow
+- Validation: backend checks category exists in `expense_heads`, skips already-added txns, returns first 20 errors for surfacing.
+- Audit: each bulk-added expense logs `action: bulk_add_expense` to `expense_reconciliation_log`.
+
+**Files**: `backend/routes/bank_reconciliation.py` (new endpoint + Body import), `frontend/src/pages/BankReconciliation.jsx` (selection state, dialog, toolbar, narration-click grouping). Lint clean.
+
 ### [2026-04-30] Net Revenue chain visible in EVERY report/export — PIB, Payout Excel/PDF, Daily/Monthly/Yearly Text
 **User instruction**: "HOPE THE SAME IS AVAILABLE IN REPORT AND PIB MONTHLY AND ALL SALES TEXT GENERATOR AND ALL PLACES."
 

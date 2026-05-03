@@ -7,7 +7,7 @@ Bank Statement vs Expense Reconciliation Module
 - Maintains full audit trail
 """
 
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, Body
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -995,6 +995,96 @@ async def ignore_transaction(req: IgnoreRequest):
     })
 
     return {"success": True, "message": "Transaction ignored"}
+
+
+@router.post("/bulk-add-expense")
+async def bulk_add_expense(req: dict = Body(...)):
+    """Add multiple unrecorded bank transactions as expenses in one go.
+       Useful when many txns share the same narration (Salary, Card 2473, etc.).
+       Body: { token, upload_id, transaction_ids: [...], expense_type, payment_mode, description }
+       Each txn gets its own expense row with its own debit amount and date.
+    """
+    token = req.get("token")
+    session = await _get_session(token)
+    if not session:
+        return {"detail": "Authentication required"}
+
+    upload_id = req.get("upload_id")
+    txn_ids = req.get("transaction_ids") or []
+    expense_type = req.get("expense_type")
+    payment_mode = req.get("payment_mode") or "Bank Transfer"
+    common_description = (req.get("description") or "").strip()
+
+    if not upload_id or not txn_ids or not expense_type:
+        return {"detail": "upload_id, transaction_ids and expense_type are required"}
+
+    # Validate category once
+    cat_exists = await db.expense_heads.find_one({"name": expense_type, "is_active": {"$ne": False}})
+    if not cat_exists:
+        return {"detail": f"Category '{expense_type}' not found in Category Master"}
+
+    actor = session.get("name", session.get("mobile", ""))
+    added = 0
+    skipped = 0
+    errors: List[str] = []
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    for tid in txn_ids:
+        try:
+            txn = await db.bank_transactions.find_one(
+                {"transaction_id": tid, "upload_id": upload_id}, {"_id": 0}
+            )
+            if not txn:
+                skipped += 1
+                errors.append(f"{tid}: not found")
+                continue
+            if txn.get("match_status") == "added":
+                skipped += 1
+                continue
+            expense_id = str(uuid.uuid4())[:16]
+            await db.expenses.insert_one({
+                "expense_id": expense_id,
+                "center": txn["center"],
+                "date": txn["transaction_date"],
+                # Use common description if provided, else the txn's own narration
+                "description": common_description or txn.get("narration", ""),
+                "amount": txn["debit_amount"],
+                "expense_type": expense_type,
+                "payment_mode": payment_mode,
+                "reference_number": txn.get("reference_number", ""),
+                "source": "bank_reconciliation_bulk",
+                "bank_upload_id": upload_id,
+                "bank_transaction_id": tid,
+                "created_by": actor,
+                "created_at": now_iso,
+            })
+            await db.bank_transactions.update_one(
+                {"transaction_id": tid, "upload_id": upload_id},
+                {"$set": {"match_status": "added", "added_expense_id": expense_id}}
+            )
+            await db.expense_reconciliation_log.insert_one({
+                "upload_id": upload_id,
+                "bank_transaction_id": tid,
+                "matched_expense_id": expense_id,
+                "suggested_category": txn.get("suggested_category"),
+                "final_category": expense_type,
+                "action": "bulk_add_expense",
+                "reconciliation_status": "added",
+                "action_taken_by": actor,
+                "timestamp": now_iso,
+            })
+            added += 1
+        except Exception as e:
+            errors.append(f"{tid}: {str(e)[:80]}")
+            skipped += 1
+
+    return {
+        "success": True,
+        "added": added,
+        "skipped": skipped,
+        "errors": errors[:20],
+        "message": f"Bulk add complete: {added} expense(s) created, {skipped} skipped"
+    }
 
 
 @router.post("/summary")
