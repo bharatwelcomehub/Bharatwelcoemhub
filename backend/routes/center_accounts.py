@@ -1383,23 +1383,28 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     
     # Net Eligible Sales for GST = Total - Aggregators (Swiggy + Zomato + DoorDash).
     # Rate: 10% for Australia/Perth, 5% for India.
-    gst_rate = 0.10 if country == "Australia" else 0.05
+    # India: prices on receipts are GST-INCLUSIVE, so GST = eligible − eligible/1.05.
+    # Australia: 10% GST is also inclusive, so same treatment with 1.10 divisor.
     eligible_base = max(0.0, total_sale - aggregator_sale)
-    sales_gst_amount = round(eligible_base * gst_rate, 2)
+    if country == "Australia":
+        sales_gst_amount = round(eligible_base - eligible_base / 1.10, 2)
+    else:
+        # India: 5% inclusive on eligible (non-aggregator) sales
+        sales_gst_amount = round(eligible_base - eligible_base / 1.05, 2)
     
     if country == "Australia":
         # Australia historically booked GST as inclusive; we still deduct it
         # from revenue for profit-share so downstream formula is unchanged.
         sales_ex_gst = total_sale - sales_gst_amount
-        commission_gst = total_commission * gst_rate
+        commission_gst = total_commission * 0.10
         total_commission_with_gst = total_commission + commission_gst
         net_revenue = sales_ex_gst - total_expenses - total_commission_with_gst
     else:
-        # India: GST is added separately
-        sales_ex_gst = total_sale
+        # India: GST is INCLUSIVE in total_sale; remove it for accurate net revenue.
+        sales_ex_gst = total_sale - sales_gst_amount
         commission_gst = 0
         total_commission_with_gst = total_commission
-        net_revenue = total_sale - total_expenses - total_commission
+        net_revenue = sales_ex_gst - total_expenses - total_commission
     
     # Calculate share payable based on country
     # India: Revenue Share % from franchise settings (default 15% to Franchise Owner)
@@ -1412,21 +1417,21 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # India: Revenue share model
         # GST for Month M is booked as a liability (see gst_liabilities) and
         # paid in Month M+1 via the auto-created 'GST PAYMENT' expense row.
-        # Therefore we do NOT deduct GST from Month M Net Revenue — that would
-        # double-count it once here and again as an expense in M+1.
-        # NOTE: Expenses are NOT deducted for India revenue share calculation.
+        # We compute GST INCLUSIVE on eligible (non-aggregator) sales:
+        #   eligible = total_sale − (swiggy + zomato + doordash)
+        #   GST = eligible − eligible / 1.05
+        # Rationale: receipt prices already include 5% GST.
 
-        # GST is still COMPUTED (shown in Financial Summary for reference) at
-        # 5% on eligible sales (total − aggregator) when gst_applicable is ON.
-        gst_on_sales = round(max(0.0, total_sale - aggregator_sale) * 0.05, 2) if gst_applicable_india else 0
+        gst_on_sales = round(max(0.0, total_sale - aggregator_sale) - max(0.0, total_sale - aggregator_sale) / 1.05, 2) if gst_applicable_india else 0
 
-        # Net Revenue for India = Total Sales - Commissions (GST excluded: paid in M+1)
-        india_net_revenue = total_sale - total_commission
+        # Net Revenue for India = Total Sales - Commissions - GST on Sales
+        # (GST is removed because it's not the franchise's revenue — it's a pass-through to govt.)
+        india_net_revenue = total_sale - total_commission - gst_on_sales
 
         # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
         franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
         purnabramha_percentage = 100 - franchise_owner_percentage
-        # Calculate on Net Revenue (after commissions)
+        # Calculate on Net Revenue (after commissions + GST)
         purnabramha_share = india_net_revenue * (purnabramha_percentage / 100)
         franchise_owner_share = india_net_revenue * (franchise_owner_percentage / 100)
         share_type = "revenue_share"

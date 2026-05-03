@@ -5,6 +5,24 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Net Revenue + GST formula correction (per user spec)
+**User's request**:
+> 1. Net Revenue = Total Sale − Total Deduction − Total GST on Sale (currently total_deductions only had commissions; GST not subtracted from net revenue)
+> 2. GST = (Total Sale − Swiggy − Zomato − DoorDash) − (Eligible / 1.05)  [inclusive 5%]
+
+**Fixes**:
+1. **GST formula switched from EXCLUSIVE to INCLUSIVE** (5/105 carve-out): receipt prices in our system include GST, so the correct govt-payable is `eligible − eligible/1.05`. Earlier `eligible × 0.05` was over-stating GST by ~5% relative to receipt total.
+   - File: `backend/routes/sales_expenses.py::calculate_gst()` and `backend/routes/center_accounts.py` (sales_gst_amount + gst_on_sales).
+   - Same change applied for Australia/Perth at 1.10 divisor.
+2. **India `net_revenue` now subtracts `gst_on_sales`** in addition to commissions: `net_revenue = total_sale − total_commission − gst_on_sales`. Revenue share split for India is computed on this updated base, so franchise-owner share is no longer paid on the GST portion (which is govt money, not franchise revenue).
+3. **Frontend "Total Deductions" KPI card** now shows `commissions + sales_gst` (was just commissions). Sub-label added: "Commissions + GST on Sale".
+
+**Verified on PB-HSR Feb 2026 (real data)**:
+- Total Sales Rs 9,06,132 · Aggregator Rs 1,79,172 · Eligible Rs 7,26,960
+- GST (5% inclusive carve-out) = **Rs 34,617.14** ✓
+- Total Deductions = Commissions Rs 0 + GST Rs 34,617.14 = **Rs 34,617.14** ✓
+- Net Revenue = 9,06,132 − 0 − 34,617.14 = **Rs 8,71,514.86** ✓
+
 ### [2026-04-30] Ledgers — Self-verification fixes (Payroll + Owner Ledger)
 **Bugs found during FY2025-26 PB-HSR self-verification, all fixed:**
 

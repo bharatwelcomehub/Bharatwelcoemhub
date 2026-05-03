@@ -881,8 +881,14 @@ export default function CenterAccounts() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-orange-600">Total Deductions</p>
-                    <p className="text-2xl font-bold text-orange-800">
-                      {formatCurrency(accountSummary.commissions.total, accountSummary.country)}
+                    <p className="text-2xl font-bold text-orange-800" data-testid="kpi-total-deductions">
+                      {formatCurrency(
+                        (accountSummary.commissions?.total || 0) + (accountSummary.financial_summary?.sales_gst || 0),
+                        accountSummary.country
+                      )}
+                    </p>
+                    <p className="text-[10px] text-orange-700 mt-1">
+                      Commissions + GST on Sale
                     </p>
                   </div>
                   <CreditCard className="w-8 h-8 text-orange-400" />

@@ -244,22 +244,25 @@ def get_currency_symbol(center: str) -> str:
 
 def calculate_gst(total_sale: float, swiggy: float, zomato: float, center: str, doordash: float = 0) -> dict:
     """
-    Calculate GST using Net Eligible Sales formula (Apr 2026 rule).
+    Calculate GST using Net Eligible Sales formula on INCLUSIVE basis (Apr 2026 rule).
         Net Eligible Sales = Total − Swiggy − Zomato − DoorDash
-        GST = Net Eligible Sales × 5%  (India)
-             = Net Eligible Sales × 10% (Perth / outside-India)
+        India: GST = Eligible − Eligible / 1.05    (5% inclusive)
+        Perth: GST = Eligible − Eligible / 1.10    (10% inclusive)
+    Receipt prices are GST-inclusive in our system, so this gives the correct
+    govt-payable GST amount carved out of the receipt total.
     """
     gst_applicable_sale = max(0, float(total_sale) - float(swiggy or 0) - float(zomato or 0) - float(doordash or 0))
     if is_perth_center(center):
         gst_rate = 10
+        gst_amount = gst_applicable_sale - gst_applicable_sale / 1.10
     else:
         gst_rate = 5
-    gst_amount = gst_applicable_sale * (gst_rate / 100.0)
+        gst_amount = gst_applicable_sale - gst_applicable_sale / 1.05
     return {
         "gst_rate": gst_rate,
         "gst_amount": round(gst_amount, 2),
         "net_sale": round(gst_applicable_sale, 2),
-        "is_inclusive": False,
+        "is_inclusive": True,
         "currency": get_currency_symbol(center)
     }
 
