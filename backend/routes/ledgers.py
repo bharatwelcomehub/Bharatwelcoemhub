@@ -187,7 +187,9 @@ async def _get_bank_transactions(center: str, start: str, end: str) -> List[dict
 # Ledger builders (return dict with rows + totals)
 # =========================================================
 async def build_sales_register(center: str, start: str, end: str) -> Dict[str, Any]:
+    from utils.gst import gst_rate_for, carve_inclusive_gst
     sales = await _get_daily_sales(center, start, end)
+    rate = gst_rate_for(None, center)
     rows = []
     tot = {"direct": 0, "swiggy": 0, "zomato": 0, "doordash": 0, "card": 0, "upi": 0, "online_other": 0, "cash": 0, "total": 0, "gst": 0}
     for s in sales:
@@ -200,7 +202,9 @@ async def build_sales_register(center: str, start: str, end: str) -> Dict[str, A
         online_other = s.get("online_other") or 0
         cash = s.get("total_cash_sale") or 0
         total = s.get("total_sale") or (direct + swiggy + zomato + doordash + card + upi + online_other + cash)
-        gst = s.get("gst_amount") or round(total * 5 / 105, 2)
+        # Recompute GST from eligible (single source of truth, inclusive basis)
+        eligible = max(0.0, float(total) - float(swiggy) - float(zomato) - float(doordash))
+        gst = carve_inclusive_gst(eligible, rate)
         rows.append({
             "date": s.get("date"), "direct": direct, "swiggy": swiggy, "zomato": zomato,
             "doordash": doordash, "card": card, "upi": upi, "online_other": online_other,
@@ -432,20 +436,12 @@ async def build_payroll_register(center: str, months: List[str]) -> Dict[str, An
     }
 
 async def build_gst_summary(center: str, start: str, end: str, months: List[str]) -> Dict[str, Any]:
-    # Output GST from sales (India centers, 5% food service)
+    # Output GST: use shared utility (single source of truth, INCLUSIVE on eligible sales)
+    from utils.gst import compute_gst_from_rows
     sales = await _get_daily_sales(center, start, end)
-    taxable = 0.0
-    output_gst = 0.0
-    for s in sales:
-        total = s.get("total_sale") or 0
-        gst = s.get("gst_amount")
-        if gst is None:
-            gst = round(total * 5 / 105, 2)
-            taxable_v = total - gst
-        else:
-            taxable_v = total - gst
-        taxable += taxable_v
-        output_gst += gst
+    _gst_calc = compute_gst_from_rows(sales, country=None, center=center)
+    output_gst = _gst_calc["gst_amount"]
+    taxable = _gst_calc["eligible_base"] - output_gst  # taxable value (ex-GST)
     # Input GST (ITC) from expenses tagged with gst_rate / gst_amount
     exp_data = await build_expense_register(center, start, end)
     input_gst = exp_data.get("input_gst_total", 0.0)
@@ -457,14 +453,18 @@ async def build_gst_summary(center: str, start: str, end: str, months: List[str]
     return {
         "output_gst": round(output_gst, 2),
         "taxable_value": round(taxable, 2),
+        "eligible_base": round(_gst_calc["eligible_base"], 2),
+        "aggregator_sale": round(_gst_calc["aggregator_sale"], 2),
+        "total_sale": round(_gst_calc["total_sale"], 2),
         "input_gst": round(input_gst, 2),
         "itc_taxable_value": round(itc_taxable, 2),
         "commission_gst_charged": round(commission_gst, 2),
         "net_liability": net_liability,
-        "note": "Output GST @ 5% on food sales (inclusive). Input GST (ITC) sourced from expenses where vendor GSTIN/rate is tagged. Please verify with your CA."
+        "note": "Output GST = Eligible − Eligible/(1+rate). Eligible = Total Sale − Swiggy − Zomato − DoorDash. Input GST (ITC) sourced from tagged expenses. Verify with your CA."
     }
 
 async def build_monthly_pnl(center: str, months: List[str]) -> Dict[str, Any]:
+    from utils.gst import compute_gst_from_rows
     from_months = sorted(months)
     rows = []
     for m in from_months:
@@ -472,7 +472,8 @@ async def build_monthly_pnl(center: str, months: List[str]) -> Dict[str, Any]:
         sales = await _get_daily_sales(center, st, en)
         expenses = await _get_expenses(center, st, en)
         total_sale = sum((s.get("total_sale") or 0) for s in sales)
-        gst = sum((s.get("gst_amount") or round((s.get("total_sale") or 0) * 5 / 105, 2)) for s in sales)
+        # GST via single source of truth (inclusive, eligible-base)
+        gst = compute_gst_from_rows(sales, country=None, center=center)["gst_amount"]
         sales_ex_gst = total_sale - gst
         total_exp = sum((e.get("amount") or 0) for e in expenses)
         comms = await _get_commissions(center, [m])

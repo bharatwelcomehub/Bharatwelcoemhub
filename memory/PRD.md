@@ -5,6 +5,43 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] GST + Net Revenue formula — ONE source of truth, applied EVERYWHERE
+**User instruction**: change should reflect every screen, every report, every place; come from common DB; no hardcoding.
+
+**Single source of truth**: `backend/utils/gst.py` — three new helper functions:
+- `gst_rate_for(country, center)` — returns 5% for India, 10% for Perth/Australia
+- `carve_inclusive_gst(eligible_base, rate)` — `eligible − eligible / (1 + rate)` (INCLUSIVE basis)
+- `compute_gst_from_rows(rows, ...)` and `compute_gst_from_totals(...)` — delegate to the carve formula
+- `compute_net_revenue(total_sale, commissions, gst, expenses, country)` — single formula
+
+**Refactored to use shared utility (NO duplicate inline math anywhere)**:
+1. `backend/routes/sales_expenses.py::calculate_gst()` — now delegates to `compute_gst_from_totals`
+2. `backend/routes/center_accounts.py::get_center_account_summary()` — uses `compute_gst_from_totals` + `compute_net_revenue`; `share_calculation.total_deductions` is now `commissions + sales_gst` for ALL countries (was per-country split before)
+3. `backend/routes/ledgers.py::build_sales_register()`, `build_gst_summary()`, `build_monthly_pnl()` — all use `compute_gst_from_rows` / `carve_inclusive_gst`
+4. `backend/utils/pdf_generator.py` (PIB report) — fallback now uses `carve_inclusive_gst`
+5. `backend/routes/owner_reports.py::_compute_monthly_report()` — `pnl = total_sales − commissions − gst_amount` (was missing GST subtraction)
+6. `backend/routes/mis_dashboard.py::get_mis_overview()` — `profit = sales − commissions − gst − expenses`; new fields `net_revenue` and `total_deductions` exposed in `summary` block
+
+**Frontend** (`pages/CenterAccounts.jsx`): both KPI cards "Total Deductions" and "Total Deductions (incl. GST)" now compute `commissions + sales_gst` directly from the response.
+
+**Backfilled** 1,918 historical `daily_sales.gst_amount` rows with the new inclusive formula so any reader (MIS daily/weekly/monthly summaries, sales-trends charts, PIB drivers, etc.) automatically picks up the corrected numbers.
+
+**Cross-endpoint verification — PB-HSR Feb 2026** (real data):
+| Endpoint | GST | Net Revenue | Total Deductions |
+|---|---|---|---|
+| `/api/center-accounts/summary` | 34,617.14 | 8,71,514.86 | 34,617.14 |
+| `/api/mis/overview` | 34,617.14 | 8,71,514.86 | 34,617.14 |
+| `/api/ledgers/gst` | 34,617.14 | — | — |
+| `/api/ledgers/sales` | 34,617.17* | — | — |
+| `/api/ledgers/pnl` | 34,617.14 | — | — |
+*Per-day rounding (3 paise diff acceptable).
+
+**Cross-center verification**:
+- PB-HSR Dec 2025: Sales Rs 9,91,876 → Eligible 8,87,262 → GST Rs 42,250.57 (consistent across all 3 endpoints)
+- PB-PERTH Feb 2026 (10%): Sales Rs 31,183 → Eligible 21,471 → GST Rs 1,951.94 (consistent across all 3 endpoints)
+
+**Test updated**: `tests/test_gst_owner_pib.py::test_gst_math_india_5pct` switched from `eligible × 0.05` to `eligible − eligible / 1.05`.
+
 ### [2026-04-30] Net Revenue + GST formula correction (per user spec)
 **User's request**:
 > 1. Net Revenue = Total Sale − Total Deduction − Total GST on Sale (currently total_deductions only had commissions; GST not subtracted from net revenue)

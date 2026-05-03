@@ -1660,8 +1660,12 @@ export default function CenterAccounts() {
                   <CardContent className="p-4">
                     <p className="text-sm text-red-600">Total Deductions (incl. GST)</p>
                     <p className="text-xl font-bold text-red-800">
-                      {formatCurrency(accountSummary.commissions.total, accountSummary.country)}
+                      {formatCurrency(
+                        (accountSummary.commissions?.total || 0) + (accountSummary.financial_summary?.sales_gst || 0),
+                        accountSummary.country
+                      )}
                     </p>
+                    <p className="text-[10px] text-red-700 mt-1">Commissions + GST on Sale</p>
                   </CardContent>
                 </Card>
               </div>

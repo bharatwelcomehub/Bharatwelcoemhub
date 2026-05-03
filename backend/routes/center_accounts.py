@@ -1382,23 +1382,18 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     total_commission = total_aggregator_commission + card_commission
     
     # Net Eligible Sales for GST = Total - Aggregators (Swiggy + Zomato + DoorDash).
-    # Rate: 10% for Australia/Perth, 5% for India.
-    # India: prices on receipts are GST-INCLUSIVE, so GST = eligible − eligible/1.05.
-    # Australia: 10% GST is also inclusive, so same treatment with 1.10 divisor.
-    eligible_base = max(0.0, total_sale - aggregator_sale)
-    if country == "Australia":
-        sales_gst_amount = round(eligible_base - eligible_base / 1.10, 2)
-    else:
-        # India: 5% inclusive on eligible (non-aggregator) sales
-        sales_gst_amount = round(eligible_base - eligible_base / 1.05, 2)
+    # Use shared utility (single source of truth, INCLUSIVE basis).
+    from utils.gst import compute_gst_from_totals, compute_net_revenue
+    _gst_calc = compute_gst_from_totals(total_sale, aggregator_sale, country=country, center=req.center)
+    eligible_base = _gst_calc["eligible_base"]
+    sales_gst_amount = _gst_calc["gst_amount"]
     
     if country == "Australia":
-        # Australia historically booked GST as inclusive; we still deduct it
-        # from revenue for profit-share so downstream formula is unchanged.
+        # Australia: GST is inclusive in receipt; ex-GST = total − GST
         sales_ex_gst = total_sale - sales_gst_amount
         commission_gst = total_commission * 0.10
         total_commission_with_gst = total_commission + commission_gst
-        net_revenue = sales_ex_gst - total_expenses - total_commission_with_gst
+        net_revenue = compute_net_revenue(total_sale, total_commission, sales_gst_amount, total_expenses, country)
     else:
         # India: GST is INCLUSIVE in total_sale; remove it for accurate net revenue.
         sales_ex_gst = total_sale - sales_gst_amount
@@ -1417,16 +1412,12 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # India: Revenue share model
         # GST for Month M is booked as a liability (see gst_liabilities) and
         # paid in Month M+1 via the auto-created 'GST PAYMENT' expense row.
-        # We compute GST INCLUSIVE on eligible (non-aggregator) sales:
-        #   eligible = total_sale − (swiggy + zomato + doordash)
-        #   GST = eligible − eligible / 1.05
-        # Rationale: receipt prices already include 5% GST.
+        # GST formula: INCLUSIVE on eligible (non-aggregator) sales — single
+        # source of truth in utils/gst.py.
+        # Net Revenue = Total Sale − Commissions − GST on Sales.
 
-        gst_on_sales = round(max(0.0, total_sale - aggregator_sale) - max(0.0, total_sale - aggregator_sale) / 1.05, 2) if gst_applicable_india else 0
-
-        # Net Revenue for India = Total Sales - Commissions - GST on Sales
-        # (GST is removed because it's not the franchise's revenue — it's a pass-through to govt.)
-        india_net_revenue = total_sale - total_commission - gst_on_sales
+        gst_on_sales = sales_gst_amount if gst_applicable_india else 0
+        india_net_revenue = compute_net_revenue(total_sale, total_commission, gst_on_sales, 0, "India")
 
         # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
         franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
@@ -1674,7 +1665,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "type": share_type,
             "net_profit_or_sales": round(net_revenue_for_share, 2),
             "total_sales": round(total_sale, 2),
-            "total_deductions": round(total_commission + (gst_on_sales if country == "India" else total_expenses + total_commission), 2),
+            "total_deductions": round(total_commission + sales_gst_amount, 2),
             "wc_gated": not wc_revenue_share_active,
             "wc_status": wc_status,
             "franchise_owner": {

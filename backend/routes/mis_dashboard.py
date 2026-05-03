@@ -389,18 +389,22 @@ async def get_mis_overview(data: dict):
     except Exception as ov_err:
         logger.warning(f"MIS: WC override application failed: {ov_err}")
     
-    # Profit calculation: Sales - Expenses - Commissions
-    # NOTE: GST is NOT deducted from current-month profit. GST for Month M is
-    # booked as a liability and paid as a 'GST PAYMENT' expense row in Month M+1
-    # (see routes.gst_liabilities), so subtracting it here would double-count.
-    profit = total_sales - total_expenses - total_commissions
+    # Net Revenue & Profit calculation (per user requirement Apr-2026):
+    #   Net Revenue = Total Sale − Commissions − GST on Sale
+    #   Profit (op) = Net Revenue − Expenses
+    # GST is INCLUSIVE in receipt totals (carved out via shared utility),
+    # and is treated as a govt pass-through, NOT center revenue.
+    net_revenue = total_sales - total_commissions - total_gst
+    profit = net_revenue - total_expenses
     profit_margin = round((profit / total_sales * 100) if total_sales > 0 else 0, 2)
     
     # Calculate totals - Previous Period
     prev_total_sales = sum(float(s.get("total_sale", 0) or 0) for s in prev_sales_data)
     prev_total_expenses = sum(float(e.get("amount", 0) or 0) for e in prev_expenses_data)
-    prev_gst = round(sum(float(s.get("gst_amount", 0) or 0) for s in prev_sales_data), 2)
-    prev_profit = prev_total_sales - prev_total_expenses - prev_gst
+    prev_gst_calc = compute_gst_from_rows(prev_sales_data, country=None, center=(center if center and center != "all" else None))
+    prev_gst = prev_gst_calc["gst_amount"]
+    prev_net_revenue = prev_total_sales - prev_gst  # commissions assumed 0 for prev (matches existing baseline)
+    prev_profit = prev_net_revenue - prev_total_expenses
     
     # Calculate changes
     def calc_change(current, previous):
@@ -559,6 +563,8 @@ async def get_mis_overview(data: dict):
             "total_expenses": round(total_expenses, 2),
             "total_gst": total_gst,
             "total_commissions": total_commissions,
+            "total_deductions": round(total_commissions + total_gst, 2),
+            "net_revenue": round(net_revenue, 2),
             "profit": round(profit, 2),
             "profit_margin": profit_margin,
             "total_guests": total_guests,

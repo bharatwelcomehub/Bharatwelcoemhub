@@ -704,17 +704,18 @@ def build_gst_summary_pdf(summary: Dict[str, Any]) -> bytes:
     tax_rules = summary["tax_rules"]
 
     # Use the pre-computed GST (from financial_summary.sales_gst) which is
-    # already based on ELIGIBLE sales (Total − Swiggy − Zomato − DoorDash).
-    # Fallback to manual compute if missing.
+    # already based on ELIGIBLE sales (Total − Swiggy − Zomato − DoorDash)
+    # using the INCLUSIVE formula: GST = eligible − eligible / (1 + rate).
+    # Fallback uses the same shared utility to stay consistent.
     sales_total = float(summary["sales"].get("total_sale", 0) or 0)
     aggregator_total = float(summary["sales"].get("aggregator_sale", 0) or 0)
     eligible_base = max(0.0, sales_total - aggregator_total)
     sales_gst = float(summary.get("financial_summary", {}).get("sales_gst", 0) or 0)
-    if sales_gst == 0:  # fallback
-        if summary["country"] == "Australia":
-            sales_gst = eligible_base * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
-        else:
-            sales_gst = eligible_base * (tax_rules["sales_gst_rate"] / 100)
+    if sales_gst == 0:  # fallback — use shared utility (inclusive)
+        from utils.gst import carve_inclusive_gst
+        rate = (AUSTRALIA_GST_INCLUSIVE if summary["country"] == "Australia"
+                else tax_rules["sales_gst_rate"] / 100.0)
+        sales_gst = carve_inclusive_gst(eligible_base, rate)
 
     gst_data = [
         ["Description", "Taxable Amount", "GST Rate", "GST Amount"],

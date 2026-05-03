@@ -1,20 +1,24 @@
-"""GST calculation utilities.
+"""GST calculation utilities — single source of truth for sales GST.
 
-Correct formula (per business rules as of Apr 2026):
+Formula (per business rules as of Apr 2026):
 
     Net Eligible Sales = Total Sales − Swiggy − Zomato − DoorDash
-    GST = Net Eligible Sales × rate
-        where rate = 5% for India centers
+    GST = Eligible − Eligible / (1 + rate)   ← INCLUSIVE basis
+        where rate = 5%  for India centers
                    = 10% for Perth / outside-India centers
 
-IMPORTANT: GST is NOT calculated on the gross total sales. Aggregator-channel
-sales (Swiggy/Zomato/DoorDash) already have GST handled upstream by the
-platforms, so only the dine-in + card + UPI portion attracts restaurant GST.
+Receipt prices in our system are GST-INCLUSIVE, so this carves out the
+govt-payable GST already collected within the receipt amount.
+
+Aggregator-channel sales (Swiggy/Zomato/DoorDash) are excluded because the
+platforms remit GST to govt directly on those orders.
+
+Net Revenue (India) = Total Sale − Total Commissions − GST on Sale
 """
 from typing import Iterable, Optional
 
 INDIA_GST_RATE = 0.05
-PERTH_GST_RATE = 0.10    # Australia / outside-India
+PERTH_GST_RATE = 0.10
 OUTSIDE_INDIA_GST_RATE = 0.10
 
 
@@ -37,10 +41,21 @@ def eligible_base_from_daily_row(row: dict) -> float:
     return max(0.0, total - swiggy - zomato - doordash)
 
 
+def carve_inclusive_gst(eligible_base: float, rate: float) -> float:
+    """GST carved out from a GST-inclusive eligible amount.
+       gst = eligible − eligible / (1 + rate)
+    """
+    eligible = max(0.0, float(eligible_base))
+    if eligible <= 0 or rate <= 0:
+        return 0.0
+    return round(eligible - eligible / (1.0 + rate), 2)
+
+
 def compute_gst_from_rows(rows: Iterable[dict], country: Optional[str] = None, center: Optional[str] = None) -> dict:
     """Given a list of daily_sales rows, return:
-       {eligible_base, gst_amount, rate, total_sale, aggregator_sale}.
-    Falls back to `gst_amount` on the row if total_sale is 0 but gst_amount is set.
+       {eligible_base, gst_amount, rate, total_sale, aggregator_sale, stored_gst_sum}.
+
+    GST is computed INCLUSIVE: gst = eligible − eligible / (1 + rate).
     """
     rate = gst_rate_for(country, center)
     eligible = 0.0
@@ -57,10 +72,10 @@ def compute_gst_from_rows(rows: Iterable[dict], country: Optional[str] = None, c
             + float(r.get("doordash_sale", r.get("doordash", 0)) or 0)
         )
         stored_gst += float(r.get("gst_amount", 0) or 0)
-    gst = eligible * rate
+    gst = carve_inclusive_gst(eligible, rate)
     return {
         "eligible_base": round(eligible, 2),
-        "gst_amount": round(gst, 2),
+        "gst_amount": gst,
         "rate": rate,
         "total_sale": round(total, 2),
         "aggregator_sale": round(agg, 2),
@@ -75,6 +90,22 @@ def compute_gst_from_totals(total_sale: float, aggregator_sale: float,
     eligible = max(0.0, float(total_sale) - float(aggregator_sale))
     return {
         "eligible_base": round(eligible, 2),
-        "gst_amount": round(eligible * rate, 2),
+        "gst_amount": carve_inclusive_gst(eligible, rate),
         "rate": rate,
     }
+
+
+def compute_net_revenue(total_sale: float, total_commissions: float,
+                        gst_on_sales: float, total_expenses: float = 0.0,
+                        country: Optional[str] = None) -> float:
+    """Single source of truth for Net Revenue.
+
+    India  : Net Revenue = Total Sale − Commissions − GST  (expenses NOT subtracted; deducted in P&L only)
+    Outside: Net Revenue = (Sale − GST) − Expenses − Commissions × (1 + rate)
+    """
+    is_india = (not country) or str(country).lower() == "india"
+    if is_india:
+        return round(float(total_sale) - float(total_commissions) - float(gst_on_sales), 2)
+    rate = gst_rate_for(country, None)
+    sales_ex_gst = float(total_sale) - float(gst_on_sales)
+    return round(sales_ex_gst - float(total_expenses) - float(total_commissions) * (1.0 + rate), 2)

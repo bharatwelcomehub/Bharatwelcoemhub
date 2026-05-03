@@ -58,12 +58,14 @@ class TestGSTLiabilities:
             assert not row.get("paid")
 
     def test_gst_math_india_5pct(self, sa_token):
-        # Pick any PB-HSR month with sales, compute expected GST
+        # Pick any PB-HSR month with sales, compute expected GST (INCLUSIVE basis)
         rep = requests.post(f"{BASE_URL}/api/owner-reports/monthly-report",
                             json={"token": sa_token, "center": "PB-HSR", "month": "2026-03"}, timeout=30).json()
         if "gst" in rep:
             assert rep["gst"]["rate_pct"] == 5
-            expected = round((rep["gst"]["eligible_base"]) * 0.05, 2)
+            # Inclusive carve-out: gst = eligible − eligible / 1.05
+            eligible = float(rep["gst"]["eligible_base"])
+            expected = round(eligible - eligible / 1.05, 2)
             assert abs(rep["gst"]["gst_amount"] - expected) < 0.5
 
     def test_mark_and_unmark_paid_flow(self, sa_token):
