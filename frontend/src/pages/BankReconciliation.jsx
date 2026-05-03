@@ -177,6 +177,47 @@ export default function BankReconciliation() {
     } catch (e) { toast.error(e.message); }
   };
 
+  const resetTxn = async (txn, fromStatus, silent = false) => {
+    if (!silent) {
+      const msg = fromStatus === 'added'
+        ? 'Remove this expense and reset transaction to Unrecorded?'
+        : 'Undo Ignore — move this transaction back to Unrecorded?';
+      if (!window.confirm(msg)) return;
+    }
+    try {
+      const res = await fetch(`${API}/api/bank-reconciliation/reset-transaction`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.token,
+          upload_id: activeUpload,
+          transaction_id: txn.transaction_id,
+        }),
+      });
+      const data = await res.json();
+      if (data.detail && !data.success) throw new Error(data.detail);
+      if (!silent) toast.success(fromStatus === 'added' ? 'Expense removed; txn back to Unrecorded' : 'Undone; txn back to Unrecorded');
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const moveToIgnored = async (txn) => {
+    if (!window.confirm('Remove the linked expense and mark this transaction as Ignored?')) return;
+    try {
+      // First reset (deletes expense), then ignore
+      await fetch(`${API}/api/bank-reconciliation/reset-transaction`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, upload_id: activeUpload, transaction_id: txn.transaction_id }),
+      });
+      const reason = window.prompt('Reason for ignoring? (optional)') || '';
+      await fetch(`${API}/api/bank-reconciliation/ignore`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, upload_id: activeUpload, transaction_id: txn.transaction_id, reason }),
+      });
+      toast.success('Moved to Ignored');
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6" data-testid="bank-reconciliation-page">
       <div>
@@ -311,10 +352,46 @@ export default function BankReconciliation() {
                 <TxnTable rows={summary.matched} empty="No matched transactions yet." badgeColor="bg-green-100 text-green-700 border-green-300" />
               </TabsContent>
               <TabsContent value="added" className="mt-3">
-                <TxnTable rows={summary.added || []} empty="No transactions added as expense yet." badgeColor="bg-blue-100 text-blue-700 border-blue-300" />
+                <TxnTable
+                  rows={summary.added || []}
+                  empty="No transactions added as expense yet."
+                  badgeColor="bg-blue-100 text-blue-700 border-blue-300"
+                  actions={(txn) => (
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50"
+                        onClick={() => resetTxn(txn, 'added')}
+                        data-testid={`br-remove-${txn.transaction_id}`}>
+                        <X className="w-3 h-3 mr-1" /> Remove
+                      </Button>
+                      <Button size="sm" variant="outline" className="border-slate-300 text-slate-700"
+                        onClick={() => moveToIgnored(txn)}
+                        data-testid={`br-move-ignore-${txn.transaction_id}`}>
+                        Move to Ignore
+                      </Button>
+                    </div>
+                  )}
+                />
               </TabsContent>
               <TabsContent value="ignored" className="mt-3">
-                <TxnTable rows={summary.ignored || []} empty="No ignored transactions." badgeColor="bg-slate-100 text-slate-700 border-slate-300" />
+                <TxnTable
+                  rows={summary.ignored || []}
+                  empty="No ignored transactions."
+                  badgeColor="bg-slate-100 text-slate-700 border-slate-300"
+                  actions={(txn) => (
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                        onClick={() => resetTxn(txn, 'ignored')}
+                        data-testid={`br-undo-ignore-${txn.transaction_id}`}>
+                        Undo Ignore
+                      </Button>
+                      <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white"
+                        onClick={async () => { await resetTxn(txn, 'ignored', true); openAdd(txn); }}
+                        data-testid={`br-add-from-ignored-${txn.transaction_id}`}>
+                        <Plus className="w-3 h-3 mr-1" /> Add as Expense
+                      </Button>
+                    </div>
+                  )}
+                />
               </TabsContent>
             </Tabs>
           </CardContent>

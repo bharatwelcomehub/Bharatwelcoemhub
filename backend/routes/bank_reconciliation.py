@@ -997,6 +997,63 @@ async def ignore_transaction(req: IgnoreRequest):
     return {"success": True, "message": "Transaction ignored"}
 
 
+@router.post("/reset-transaction")
+async def reset_transaction(req: dict = Body(...)):
+    """Undo a previous Add/Ignore on a bank transaction.
+       - If status='added': delete the linked expense row, mark txn as 'unrecorded'.
+       - If status='ignored': clear ignore_reason, mark txn as 'unrecorded'.
+    """
+    token = req.get("token")
+    upload_id = req.get("upload_id")
+    transaction_id = req.get("transaction_id")
+    session = await _get_session(token)
+    if not session:
+        return {"detail": "Authentication required"}
+    if not upload_id or not transaction_id:
+        return {"detail": "upload_id and transaction_id are required"}
+
+    txn = await db.bank_transactions.find_one(
+        {"transaction_id": transaction_id, "upload_id": upload_id}, {"_id": 0}
+    )
+    if not txn:
+        return {"detail": "Transaction not found"}
+
+    actor = session.get("name", session.get("mobile", ""))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    prev_status = txn.get("match_status")
+    expense_id = txn.get("added_expense_id")
+
+    # If it was added, delete the expense row first
+    if prev_status == "added" and expense_id:
+        try:
+            from bson import ObjectId
+            await db.expenses.delete_one({"expense_id": expense_id})
+            # Also try by _id if expense_id field wasn't set on legacy rows
+            try:
+                await db.expenses.delete_one({"_id": ObjectId(expense_id)})
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    await db.bank_transactions.update_one(
+        {"transaction_id": transaction_id, "upload_id": upload_id},
+        {"$set": {"match_status": "unrecorded"},
+         "$unset": {"added_expense_id": "", "ignore_reason": ""}}
+    )
+    await db.expense_reconciliation_log.insert_one({
+        "upload_id": upload_id,
+        "bank_transaction_id": transaction_id,
+        "previous_status": prev_status,
+        "deleted_expense_id": expense_id if prev_status == "added" else None,
+        "action": "reset",
+        "reconciliation_status": "unrecorded",
+        "action_taken_by": actor,
+        "timestamp": now_iso,
+    })
+    return {"success": True, "message": "Transaction reset to unrecorded"}
+
+
 @router.post("/bulk-add-expense")
 async def bulk_add_expense(req: dict = Body(...)):
     """Add multiple unrecorded bank transactions as expenses in one go.
