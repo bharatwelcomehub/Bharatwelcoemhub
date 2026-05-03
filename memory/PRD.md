@@ -5,6 +5,15 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-03] BUG FIX — Bank Reconciliation page rendering blank
+**User issue**: `intra.purnabramha.com/bank-reconciliation` came up completely blank (white screen).
+
+**Root cause**: Recently added "Reset/Undo" dialog in `BankReconciliation.jsx` used `<DialogDescription>` JSX, but the import statement was missing this symbol. Result: ReferenceError at render time → React component crash → blank page.
+
+**Fix**: Added `DialogDescription` to the import on line 9 of `frontend/src/pages/BankReconciliation.jsx`. Verified by logging in as super admin on preview and rendering the page — Recent Uploads table loads correctly with all rows, no console errors.
+
+**Files**: `frontend/src/pages/BankReconciliation.jsx` (1-line import fix).
+
 ### [2026-04-30] Bank Reconciliation — Bulk Add for Similar Narrations
 **User issue**: With 100+ unrecorded txns having repeating narrations (Salary debits, Card 2473 purchases, etc.), adding them one by one as expenses was very tedious.
 
