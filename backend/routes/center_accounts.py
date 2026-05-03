@@ -2438,19 +2438,20 @@ async def get_payout_summary(data: dict = Body(...)):
             total_commission += new_val if new_val > 0 else old_val
         
         # Calculate Net Revenue / Net Profit based on country
-        # India: Net Revenue = Total Sales - Commissions (GST excluded, paid M+1)
-        # Outside India: Net Profit = Total Sales - Expenses - Commissions
+        # India : Net Revenue = Total Sales − Commissions − GST on Sales (Apr-2026 rule)
+        # Other : Net Profit  = (Sales − GST) − Expenses − Commissions
         franchise_country = franchise.get("country", "India") if franchise else "India"
 
+        # GST: shared utility, INCLUSIVE on eligible (non-aggregator) sales.
+        from utils.gst import compute_gst_from_rows
+        gst_calc = compute_gst_from_rows(sales_records, country=franchise_country, center=center)
+        gst_on_sales = gst_calc["gst_amount"]
+
         if franchise_country == "India":
-            # India: Net Revenue = Total Sales - Commissions
-            # GST is NOT deducted — it is booked as a liability in Month M and
-            # paid as an expense in Month M+1 (see gst_liabilities flow).
-            # Deducting it here would double-count.
-            net_revenue_for_share = max(0, total_sale - total_commission)
+            net_revenue_for_share = max(0, total_sale - total_commission - gst_on_sales)
         else:
-            # Outside India: Net Profit = Sales - Expenses - Commissions
-            net_revenue_for_share = max(0, total_sale - total_expenses - total_commission)
+            sales_ex_gst = total_sale - gst_on_sales
+            net_revenue_for_share = max(0, sales_ex_gst - total_expenses - total_commission)
         
         # Calculate FRANCHISE OWNER's share (this is what gets compared with MG)
         # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner) on NET REVENUE

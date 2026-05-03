@@ -5,6 +5,21 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Payout Summary — Revenue Share now subtracts GST from base
+**User issue**: Payout Summary showed Apr-2026 PB-KAL Revenue Share = ₹1,23,787.75 (= 15% × Sale − Comm), but expected = 15% × (Sale − Comm − GST) ≈ ₹1,17,874.
+
+**Root cause**: `/api/center-accounts/payout-summary` had its OWN duplicate net-revenue calc on lines 2440-2453 of `center_accounts.py` that did NOT subtract GST. The main `summary` endpoint had been fixed earlier but the payout endpoint kept the old "GST is paid in M+1, don't double count" formula.
+
+**Fix**: Replaced inline math with the shared `compute_gst_from_rows` utility + the corrected formula:
+- India: Net Rev = `Total Sales − Commissions − GST`
+- Outside: Net Profit = `(Sales − GST) − Expenses − Commissions`
+
+**Verified on PB-HSR Nov-2025 to Feb-2026**:
+- Nov-25: Sale 9,87,909 → GST 38,643.24 → Net Rev 9,49,266 → Rev Share **₹1,42,389.86** ✓
+- Dec-25: Sale 9,91,876 → GST 42,250.57 → Net Rev 9,49,625 → Rev Share **₹1,42,443.81** ✓
+
+**For PB-KAL Apr-2026 post-deploy**: Sale 8,27,928 → GST 39,425.14 → Comm 2,676.35 → Net Rev 7,85,826.51 → **Rev Share ₹1,17,873.98** (was ₹1,23,787.75).
+
 ### [2026-04-30] GST shown UNCONDITIONALLY in dashboard (decoupled from gst_applicable flag)
 **User issue**: PB-KAL Apr-2026 KPI cards showed Total Deductions ₹2,676.35 (commissions only) and Net Revenue ₹8,25,251.65 (Sales − Commissions only). GST was missing because the franchise has `gst_applicable=False` set, so the backend was zeroing out `sales_gst` in the response.
 
