@@ -1,0 +1,64 @@
+{
+  "summary": "Tested DELETE /api/admin/locations/{id}, Tiffin.js + Catering.js DB refactor, and ran regression over /api/promotions, /api/centers, /api/center-timeslots, /api/tiffin-config, /api/tiffin-items, /api/catering-packages, /api/locations, /api/menu. Backend: 14/15 pytest cases PASS — 401/403 without auth, 401/403 with bad token, 404 on nonexistent id, 200 on successful delete, 404 on double-delete, baseline 8 centers intact, catering packages return 4 India + 4 Australia with correct ₹450/600/750/950 and $35/45/55/70 prices, all regression endpoints 200 with expected shape. 1 FAILURE: cascade delete of center_timeslots does NOT work — the DELETE handler at /app/backend/server.py L604-611 queries center_timeslots by location_id (UUID) but documents are keyed by center_id (e.g. 'pb-hsr'), so custom timeslots are ORPHANED on location delete. Cleaned one orphan row during test teardown. Frontend: Tiffin page renders correctly for India+any-of-7 centers (₹299 fallback, 'Saturday & Sunday' days, Unlimited Breakfast section, 8–11 AM timings) and Australia+Perth ($35 per person subtitle confirmed via inner_text inspection). Catering page renders all 4 India packages with ₹450/600/750/950 pricing and 'Most Popular' badge. Admin 'delete-location-{center_id}' button exists in source (Admin.js L2224-2225) but couldn't be exercised end-to-end — the /admin Locations tab is reachable only via [role=tab] (no data-testid) and the global 'Welcome to Purnabramha' modal/ main-nav intercepts clicks (carry-over from iteration_13); API-level delete is fully covered.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "DELETE /api/admin/locations/{location_id}",
+        "issue": "Cascade delete of center_timeslots is BROKEN. server.py line 610 does `db.center_timeslots.delete_one({\"center_id\": location_id})` — but location_id is the location document's UUID, while center_timeslots are keyed by the human center_id (e.g. 'pb-hsr'). Result: when an admin deletes a location, its saved time-slots become orphaned in center_timeslots. Fix: fetch the location doc BEFORE delete_one to capture center_id, then cascade with {\"center_id\": <captured>}.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/admin Locations tab trigger",
+        "issues": [
+          "TabsTrigger value='locations' has no data-testid (Admin.js L1368). Other admin tabs have testids like tiffin-admin-tab, catering-admin-tab, promotions-admin-tab. Recommend adding data-testid='locations-admin-tab' for automation parity."
+        ]
+      },
+      {
+        "screen": "Global /admin route",
+        "issues": [
+          "'Welcome to Purnabramha' auth/intent modal still overlays /admin on first render (carry-over from iteration_13) — requires JS bypass in Playwright tests."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_locations_delete_and_pages.py",
+    "/app/test_reports/pytest/iter14_results.xml"
+  ],
+  "action_items": [
+    "FIX cascade delete bug: in DELETE /api/admin/locations/{location_id}, fetch the location first, read its center_id, then cascade delete center_timeslots by that center_id (and optionally center_hours / any other center-keyed collections). Current code silently fails the cascade.",
+    "Add data-testid='locations-admin-tab' to the Locations TabsTrigger in Admin.js L1368 for test parity.",
+    "Dismiss / suppress the 'Welcome to Purnabramha' modal on /admin so real users (and tests) don't have to manually close it."
+  ],
+  "critical_code_review_comments": [
+    "server.py L601-611 DELETE handler: the 'Best-effort cascade' comment acknowledges uncertainty — but the implementation is wrong (location_id vs center_id). Write a follow-up GET-before-DELETE or use $or match on both ids.",
+    "No audit/log entry is emitted on location hard-delete — consider at minimum a structured log line with actor email + center_id for traceability given this is destructive.",
+    "Admin.js handleDeleteLocation uses window.confirm — fine for MVP but inconsistent with shadcn Dialog patterns used elsewhere in the admin panel (e.g. hero image delete). Consider migrating to AlertDialog for consistency.",
+    "Tiffin.js correctly falls back to tiffin-config.json when /api/tiffin-config returns [] (DB empty). Pricing swap on Australia selection verified ($35 subtitle). No regression.",
+    "Catering.js correctly dedupes packages by id and filters by region via price_per_person_inr>0 / price_per_person_aud>0. All 4 tiers per region render. No regression.",
+    "catering_packages API returns 8 packages + 56 menu items as claimed by main agent; response shape {packages:{india, australia}, menuOptions:{...}} matches Catering.js expectations."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_locations_delete_and_pages.py (new)"
+  ],
+  "success_rate": {
+    "backend": "93.3% (14/15) — 1 failing test pinpoints the cascade-delete bug",
+    "frontend": "Tiffin + Catering flows verified visually and via DOM text extraction; Admin Locations delete button exists in source but end-to-end click not exercised due to tab/modal overlay"
+  },
+  "test_credentials": {
+    "admin_email": "PBadmin@purnabramha.com",
+    "admin_password": "PB22052012"
+  },
+  "seed_data_creation": "Test created (and cleaned up) 2 TEST locations with center_id prefix 'pb-test-del-' and 'pb-test-dd-'. One orphan center_timeslots row left behind by the cascade bug was manually deleted via motor script. Final DB state: 8 baseline locations only, no TEST_ remnants.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "After main agent fixes the cascade bug, re-run: `pytest /app/backend/tests/test_locations_delete_and_pages.py -v`. The only expected failing test currently is TestLocationDelete::test_create_then_delete_with_cascade — it asserts that custom timeslots saved for a deleted location's center_id no longer appear in GET /api/center-timeslots/{center_id}. The fix must read the location's center_id BEFORE delete_one, then cascade. Also recommend adding data-testid='locations-admin-tab' to Admin.js L1368 so a Playwright test can reliably reach the Locations tab and exercise the delete-location-{center_id} button end-to-end (the button itself is already correctly implemented with window.confirm). The 'Welcome to Purnabramha' modal overlay on /admin is still a carry-over nuisance for automation.",
+  "rca of the issue": "ROOT CAUSE: /app/backend/server.py line 610 — `await db.center_timeslots.delete_one({\"center_id\": location_id})` passes the location document's UUID (location_id) as the center_id filter. But center_timeslots documents use the human-readable center_id (e.g. 'pb-hsr', 'pb-test-del-1762999999'), so the filter never matches and the orphan row stays. REPRO: 1) POST /api/admin/locations with center_id='pb-test-x'; 2) PUT /api/admin/center-timeslots/pb-test-x with custom slots; 3) DELETE /api/admin/locations/{returned_id}; 4) GET /api/center-timeslots/pb-test-x — custom slots still present. FIX: `loc = await db.locations.find_one({\"id\": location_id}, {\"_id\": 0}); if not loc: raise HTTPException(404); cid = loc.get('center_id'); await db.locations.delete_one({'id': location_id}); if cid: await db.center_timeslots.delete_one({'center_id': cid})`."
+}

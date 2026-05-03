@@ -11,8 +11,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import axios from 'axios';
 
-import centersData from '@/config/centers.json';
-import cateringPackages from '@/config/catering-packages.json';
+import centersFallback from '@/config/centers.json';
+import cateringFallback from '@/config/catering-packages.json';
 import bookingRules from '@/config/booking-rules.json';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -38,19 +38,85 @@ const Catering = () => {
   const [staffCount, setStaffCount] = useState(2);
   const [staffHours, setStaffHours] = useState(2);
 
+  // Live DB-backed data (with static fallback)
+  const [centersData, setCentersData] = useState(centersFallback);
+  const [dbPackages, setDbPackages] = useState([]); // raw array of all packages (both regions combined)
+  const [dbCateringItems, setDbCateringItems] = useState([]); // raw array of all menu items
+
   useEffect(() => {
-    const fetchMenu = async () => { try { const r = await axios.get(`${API}/api/menu`); setDbMenuItems(r.data); } catch (e) {} };
-    fetchMenu();
+    const fetchAll = async () => {
+      try { const r = await axios.get(`${API}/api/menu`); setDbMenuItems(r.data); } catch {}
+      try {
+        const r = await axios.get(`${API}/api/centers`);
+        const d = r.data || {};
+        if ((d.india?.length || 0) + (d.australia?.length || 0) > 0) setCentersData(d);
+      } catch {}
+      // /api/catering-packages returns { packages: {india:[], australia:[]}, menuOptions: {cat: [items]} }
+      try {
+        const r = await axios.get(`${API}/api/catering-packages`);
+        const pkgs = r.data?.packages || {};
+        // The backend currently returns identical arrays for india/australia; dedupe by id and rely on price fields
+        const combined = [...(pkgs.india || []), ...(pkgs.australia || [])];
+        const dedup = Array.from(new Map(combined.map(p => [p.id, p])).values());
+        setDbPackages(dedup);
+        // Flatten menuOptions dict into a list of items with category
+        const mo = r.data?.menuOptions || {};
+        const items = [];
+        Object.entries(mo).forEach(([cat, arr]) => {
+          (arr || []).forEach(it => items.push({ ...it, category: cat }));
+        });
+        setDbCateringItems(items);
+      } catch {}
+    };
+    fetchAll();
   }, []);
 
-  const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
-  const filteredCenters = useMemo(() => { if (!selectedRegion) return []; return selectedRegion === 'india' ? centersData.india : centersData.australia; }, [selectedRegion]);
+  const allCenters = useMemo(() => [...(centersData.india || []), ...(centersData.australia || [])], [centersData]);
+  const filteredCenters = useMemo(() => { if (!selectedRegion) return []; return selectedRegion === 'india' ? (centersData.india || []) : (centersData.australia || []); }, [selectedRegion, centersData]);
   const currentCenter = useMemo(() => allCenters.find(c => c.id === selectedCenter), [selectedCenter, allCenters]);
 
   const isAustralia = currentCenter?.country === 'Australia';
   const currencySymbol = isAustralia ? '$' : '₹';
-  const packages = isAustralia ? cateringPackages.packages.australia : cateringPackages.packages.india;
-  const menuOptions = cateringPackages.menuOptions;
+
+  // Transform DB packages into per-region shape that the UI expects (id, name, description, pricePerPerson, isPopular, requirements)
+  const packages = useMemo(() => {
+    if (dbPackages && dbPackages.length > 0) {
+      const filtered = dbPackages
+        .filter(p => p.is_active !== false)
+        .filter(p => isAustralia ? (p.price_per_person_aud || 0) > 0 : (p.price_per_person_inr || 0) > 0)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          pricePerPerson: isAustralia ? (p.price_per_person_aud || 0) : (p.price_per_person_inr || 0),
+          isPopular: !!p.is_popular,
+          requirements: p.requirements || { starters: 0, mains: 0, special: 0, roti: 0, rice: 0, side: 0, dessert: 0, drink: 0, chutney: 0 },
+        }));
+      if (filtered.length > 0) return filtered;
+    }
+    // Fallback to static JSON
+    return isAustralia ? cateringFallback.packages.australia : cateringFallback.packages.india;
+  }, [dbPackages, isAustralia]);
+
+  // Transform DB menu items (category: starters/specialBhaji/simpleBhaji/desserts/roti/rice/drinks/sides/chutney)
+  // into the dictionary shape that the UI expects.
+  const menuOptions = useMemo(() => {
+    if (dbCateringItems && dbCateringItems.length > 0) {
+      const byCat = { starters: [], specialBhaji: [], simpleBhaji: [], desserts: [], roti: [], rice: [], drinks: [], sides: [], chutney: [] };
+      dbCateringItems.forEach(it => {
+        if (it.is_available === false) return;
+        const cat = it.category;
+        if (byCat[cat]) {
+          byCat[cat].push({ id: it.id, name: it.name, isVeg: it.is_veg ?? true, description: it.description || '', image_url: it.image_url || '' });
+        }
+      });
+      // Only use DB data if at least one category is populated
+      const anyPopulated = Object.values(byCat).some(arr => arr.length > 0);
+      if (anyPopulated) return byCat;
+    }
+    return cateringFallback.menuOptions;
+  }, [dbCateringItems]);
 
   const addonPricing = { crockery: { india: 3000, australia: 200 }, staff: { india: 300, australia: 50 } };
   const currentPackage = packages.find(p => p.id === selectedPackage);

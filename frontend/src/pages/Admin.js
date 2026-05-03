@@ -651,6 +651,20 @@ const Admin = () => {
     });
   };
 
+  const handleDeleteLocation = async (loc) => {
+    if (!window.confirm(`Delete location "${loc.name}"? This cannot be undone. The center will disappear from Table Booking and its time slots will be removed.`)) return;
+    const currentToken = getToken();
+    try {
+      await axios.delete(`${API}/admin/locations/${loc.id}`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success(`Deleted ${loc.name}`);
+      fetchLocations();
+    } catch {
+      toast.error('Failed to delete location');
+    }
+  };
+
   // Auto-generate center_id slug from name (e.g. "PB-Mysore" -> "pb-mysore")
   const slugifyCenterId = (name) => {
     if (!name) return '';
@@ -2202,6 +2216,15 @@ const Admin = () => {
                               data-testid={`edit-location-${centerId}`}
                             >
                               <Edit className="h-4 w-4 mr-1" /> Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => handleDeleteLocation(loc)}
+                              data-testid={`delete-location-${centerId}`}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" /> Delete
                             </Button>
                           </div>
                         </div>

@@ -8,10 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import axios from 'axios';
 
-import centersData from '@/config/centers.json';
-import tiffinConfig from '@/config/tiffin-config.json';
+import centersFallback from '@/config/centers.json';
+import tiffinConfigFallback from '@/config/tiffin-config.json';
 import bookingRules from '@/config/booking-rules.json';
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 const Tiffin = () => {
   const [selectedRegion, setSelectedRegion] = useState('');
@@ -25,22 +28,67 @@ const Tiffin = () => {
   const [unlimitedBreakfast, setUnlimitedBreakfast] = useState({ enabled: false, date: '', guests: 2 });
   const [showReview, setShowReview] = useState(false);
 
-  const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
-  const filteredCenters = useMemo(() => { if (!selectedRegion) return []; return selectedRegion === 'india' ? centersData.india : centersData.australia; }, [selectedRegion]);
+  // Live DB-backed data (with static fallback for robustness)
+  const [centersData, setCentersData] = useState(centersFallback);
+  const [dbTiffinItems, setDbTiffinItems] = useState([]);
+  const [dbTiffinConfig, setDbTiffinConfig] = useState(null);
+
+  useEffect(() => {
+    axios.get(`${API}/api/centers`).then(r => {
+      const d = r.data || {};
+      if ((d.india?.length || 0) + (d.australia?.length || 0) > 0) setCentersData(d);
+    }).catch(() => {});
+    axios.get(`${API}/api/tiffin-items`).then(r => setDbTiffinItems(r.data || [])).catch(() => {});
+    axios.get(`${API}/api/tiffin-config`).then(r => setDbTiffinConfig(r.data || null)).catch(() => {});
+  }, []);
+
+  const allCenters = useMemo(() => [...(centersData.india || []), ...(centersData.australia || [])], [centersData]);
+  const filteredCenters = useMemo(() => { if (!selectedRegion) return []; return selectedRegion === 'india' ? (centersData.india || []) : (centersData.australia || []); }, [selectedRegion, centersData]);
   const currentCenter = useMemo(() => allCenters.find(c => c.id === selectedCenter), [selectedCenter, allCenters]);
 
   const isAustralia = currentCenter?.country === 'Australia';
-  const pricing = isAustralia ? tiffinConfig.pricing.australia : tiffinConfig.pricing.india;
-  const lunchBoxOptions = isAustralia ? tiffinConfig.lunchBoxOptions.australia : tiffinConfig.lunchBoxOptions.india;
-  const heavyBrunchItems = isAustralia ? tiffinConfig.heavyBrunchItems.australia : tiffinConfig.heavyBrunchItems.india;
-  const drinkAddons = isAustralia ? tiffinConfig.drinkAddons.australia : tiffinConfig.drinkAddons.india;
+
+  // Helper: map DB tiffin_items (has category: lunch_box | heavy_brunch | drink_addon) into frontend arrays
+  const buildTiffinLists = () => {
+    if (!dbTiffinItems || dbTiffinItems.length === 0) return null;
+    const toOpt = (it) => ({
+      id: it.id,
+      name: it.name,
+      description: it.description || '',
+      price: isAustralia ? (it.price_aud || 0) : (it.price_inr || 0),
+      image_url: it.image_url || ''
+    });
+    const avail = dbTiffinItems.filter(it => it.is_available !== false && (isAustralia ? (it.price_aud || 0) > 0 : (it.price_inr || 0) > 0));
+    return {
+      lunchBox: avail.filter(it => it.category === 'lunch_box').map(toOpt),
+      heavyBrunch: avail.filter(it => it.category === 'heavy_brunch').map(toOpt),
+      drinkAddons: avail.filter(it => it.category === 'drink_addon').map(toOpt),
+    };
+  };
+  const dbLists = buildTiffinLists();
+
+  const pricing = isAustralia ? tiffinConfigFallback.pricing.australia : tiffinConfigFallback.pricing.india;
+  const lunchBoxOptions = (dbLists?.lunchBox?.length ? dbLists.lunchBox : (isAustralia ? tiffinConfigFallback.lunchBoxOptions.australia : tiffinConfigFallback.lunchBoxOptions.india));
+  const heavyBrunchItems = (dbLists?.heavyBrunch?.length ? dbLists.heavyBrunch : (isAustralia ? tiffinConfigFallback.heavyBrunchItems.australia : tiffinConfigFallback.heavyBrunchItems.india));
+  const drinkAddons = (dbLists?.drinkAddons?.length ? dbLists.drinkAddons : (isAustralia ? tiffinConfigFallback.drinkAddons.australia : tiffinConfigFallback.drinkAddons.india));
   const currencySymbol = isAustralia ? '$' : '₹';
-  const breakfastPricing = tiffinConfig.unlimitedBreakfast.pricing[isAustralia ? 'australia' : 'india'];
+
+  // Prefer DB tiffin_config for unlimited-breakfast pricing/days/description, fall back to JSON
+  const breakfastPricing = dbTiffinConfig
+    ? {
+        symbol: currencySymbol,
+        perPerson: isAustralia ? (dbTiffinConfig.unlimited_breakfast_price_aud || 35) : (dbTiffinConfig.unlimited_breakfast_price_inr || 299),
+      }
+    : tiffinConfigFallback.unlimitedBreakfast.pricing[isAustralia ? 'australia' : 'india'];
+  const breakfastDays = dbTiffinConfig?.unlimited_breakfast_days || tiffinConfigFallback.unlimitedBreakfast.availableDays || ['Saturday', 'Sunday'];
+  const breakfastTimings = dbTiffinConfig?.unlimited_breakfast_timings || tiffinConfigFallback.unlimitedBreakfast.timings || '8:00 AM - 11:00 AM';
+  const breakfastDescription = dbTiffinConfig?.unlimited_breakfast_description || tiffinConfigFallback.unlimitedBreakfast.description;
+  const breakfastIncludes = tiffinConfigFallback.unlimitedBreakfast.includes || [];
 
   const isBlackoutPeriod = useMemo(() => {
     if (!isAustralia) return false;
     const today = new Date();
-    return today >= new Date(tiffinConfig.blackoutDates.australia.start) && today <= new Date(tiffinConfig.blackoutDates.australia.end);
+    return today >= new Date(tiffinConfigFallback.blackoutDates.australia.start) && today <= new Date(tiffinConfigFallback.blackoutDates.australia.end);
   }, [isAustralia]);
 
   const getWeekOptions = () => {
@@ -147,7 +195,7 @@ const Tiffin = () => {
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <div className="bg-red-50 border border-red-200 p-4 flex gap-3 rounded-none">
               <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
-              <div className="text-red-700 font-body"><p className="font-semibold">Christmas & New Year Notice</p><p className="text-sm text-red-600">{tiffinConfig.blackoutDates.australia.message}</p></div>
+              <div className="text-red-700 font-body"><p className="font-semibold">Christmas & New Year Notice</p><p className="text-sm text-red-600">{tiffinConfigFallback.blackoutDates.australia.message}</p></div>
             </div>
           </motion.div>
         )}
@@ -178,12 +226,12 @@ const Tiffin = () => {
               <div className="pearl-surface overflow-hidden border-[#B8962E]/20">
                 <div className="bg-gradient-to-r from-[#B8962E]/10 to-[#B8962E]/5 border-b border-[#B8962E]/20 p-4">
                   <h3 className="flex items-center gap-2 text-[#B8962E] font-heading font-medium"><Coffee className="h-5 w-5" /> Unlimited Breakfast <Badge className="ml-2 bg-[#B8962E] text-white text-[10px]">Special</Badge></h3>
-                  <p className="text-xs text-[#5C4A3A] mt-1 font-body">{tiffinConfig.unlimitedBreakfast.description} - {tiffinConfig.unlimitedBreakfast.timings}</p>
+                  <p className="text-xs text-[#5C4A3A] mt-1 font-body">{breakfastDescription} - {breakfastTimings}</p>
                 </div>
                 <div className="p-6 bg-white">
                   <div className="flex items-start gap-3 mb-4">
                     <Checkbox id="unlimited-breakfast" checked={unlimitedBreakfast.enabled} onCheckedChange={(checked) => setUnlimitedBreakfast(prev => ({ ...prev, enabled: checked }))} className="border-[#E8DFD0] data-[state=checked]:bg-[#B8962E] data-[state=checked]:border-[#B8962E]" data-testid="unlimited-breakfast-checkbox" />
-                    <div><label htmlFor="unlimited-breakfast" className="font-body font-medium cursor-pointer text-[#2D1810]">Add Unlimited Breakfast</label><p className="text-sm text-[#5C4A3A] font-body">{breakfastPricing.symbol}{breakfastPricing.perPerson} per person - Available {tiffinConfig.unlimitedBreakfast.availableDays.join(' & ')}</p></div>
+                    <div><label htmlFor="unlimited-breakfast" className="font-body font-medium cursor-pointer text-[#2D1810]">Add Unlimited Breakfast</label><p className="text-sm text-[#5C4A3A] font-body">{breakfastPricing.symbol}{breakfastPricing.perPerson} per person - Available {breakfastDays.join(' & ')}</p></div>
                   </div>
                   {unlimitedBreakfast.enabled && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4 pl-7">
@@ -197,7 +245,7 @@ const Tiffin = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="p-3 bg-[#F8F5F0] border border-[#E8DFD0]"><p className="text-sm font-body font-medium text-[#B8962E]">Includes:</p><p className="text-xs text-[#5C4A3A] font-body">{tiffinConfig.unlimitedBreakfast.includes.join(' - ')}</p></div>
+                      <div className="p-3 bg-[#F8F5F0] border border-[#E8DFD0]"><p className="text-sm font-body font-medium text-[#B8962E]">Includes:</p><p className="text-xs text-[#5C4A3A] font-body">{breakfastIncludes.join(' - ')}</p></div>
                     </motion.div>
                   )}
                 </div>

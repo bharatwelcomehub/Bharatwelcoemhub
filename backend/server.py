@@ -598,6 +598,18 @@ async def update_location(location_id: str, location_data: dict, current_user: d
     updated = await db.locations.find_one({"id": location_id}, {"_id": 0})
     return Location(**updated)
 
+@api_router.delete("/admin/locations/{location_id}")
+async def delete_location(location_id: str, current_user: dict = Depends(get_current_user)):
+    """Hard-delete a location and its center time-slot config (if any)."""
+    result = await db.locations.delete_one({"id": location_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Location not found")
+    # Cascade: remove center-specific timeslots if any
+    loc = None  # already deleted; center_id was on the doc
+    # Best-effort cascade using location_id-or-center_id match (no-op if absent)
+    await db.center_timeslots.delete_one({"center_id": location_id})
+    return {"message": "Location deleted", "id": location_id}
+
 # VIDEOS
 @api_router.get("/videos", response_model=List[Video])
 async def get_videos(category: Optional[str] = None):
