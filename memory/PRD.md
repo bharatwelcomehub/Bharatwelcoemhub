@@ -5,6 +5,19 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] GST Liabilities — backfill + auto-recompute
+**Issue**: User reported PB-KAL Apr 2026 GST page showing ₹41,396 on ₹8,27,928 eligible (old `× 0.05`), should be ₹39,425.14 (new `eligible − eligible/1.05`).
+
+**Fix**:
+- Endpoint `POST /api/gst/recompute` (existing) — now uses the centralized `compute_gst_from_rows` from `utils/gst.py` (inclusive formula). Was already wired but stored data was stale.
+- **Backfilled 73 existing `gst_liabilities` rows** in preview DB to the new inclusive formula. Examples:
+  - PB-HSR 2025-05: ₹57,328.35 → ₹54,598.43
+  - PB-TH 2026-02: ₹31,531.10 → ₹30,029.62
+  - PB-KN 2025-06: ₹54,919.25 → ₹52,304.05
+- All 73 verified consistent: India centers @ 5% inclusive, PB-PERTH @ 10% inclusive.
+- User's exact example confirmed: ₹8,27,928 × inclusive 5% = **₹39,425.14** ✓
+- After deploying to production, click **"Recompute All"** on the GST Liabilities page once to update the production DB. Or call `POST /api/gst/recompute` (no body args) → recomputes everything from `daily_sales`.
+
 ### [2026-04-30] GST + Net Revenue formula — ONE source of truth, applied EVERYWHERE
 **User instruction**: change should reflect every screen, every report, every place; come from common DB; no hardcoding.
 
