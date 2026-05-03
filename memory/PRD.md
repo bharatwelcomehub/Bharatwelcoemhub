@@ -5,6 +5,21 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-03] Bank Reconciliation — Single source + label cleanup
+**User issue**: Bank Reconciliation existed in TWO places (sidebar `/bank-reconciliation` AND a tab inside Sales & Expenses), and the two were not state-synced. Action labels were inconsistent ("Remove", "Undo Ignore") instead of a clean "Delete".
+
+**Fix**:
+- **Removed** the duplicate Bank Reconciliation tab from `pages/SalesExpenses.jsx` (tab trigger + tab content + import).
+- **Deleted** the now-orphan component file `frontend/src/components/BankReconciliation.jsx`.
+- **Single entry point**: only the dedicated sidebar page `/bank-reconciliation` (rendered by `pages/BankReconciliation.jsx`) remains. Eliminates state-sync confusion entirely.
+- **Renamed action buttons** on contextual tabs (per user spec):
+  - Unrecorded: `Add` · `Ignore` (unchanged)
+  - Added: `Delete` (was "Remove") · `Move to Ignored`
+  - Ignored: `Delete` (was "Undo Ignore") · `Add as Expense`
+- "Delete" everywhere = soft reset → transaction goes back to Unrecorded.
+
+**Files**: `frontend/src/pages/SalesExpenses.jsx`, `frontend/src/pages/BankReconciliation.jsx`, deleted `frontend/src/components/BankReconciliation.jsx`. Lint clean. Verified: Sales & Expenses no longer shows the BR tab; standalone page renders correctly.
+
 ### [2026-05-03] BUG FIX — Bank Reconciliation page rendering blank
 **User issue**: `intra.purnabramha.com/bank-reconciliation` came up completely blank (white screen).
 

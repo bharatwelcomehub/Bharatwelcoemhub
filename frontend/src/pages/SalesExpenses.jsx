@@ -45,7 +45,7 @@ import SalesDataEntry from "@/components/SalesDataEntry";
 import ExpenseEntry from "@/components/ExpenseEntry";
 import FreezeControl from "@/components/FreezeControl";
 import SalesGridEditor from "@/components/SalesGridEditor";
-import BankReconciliation from "@/components/BankReconciliation";
+// Bank Reconciliation moved to dedicated /bank-reconciliation route (sidebar)
 import * as XLSX from "xlsx";
 
 // Check if center is international (non-India) — replaces hardcoded PB-PERTH check
@@ -1431,12 +1431,6 @@ export default function SalesExpenses() {
             Upload Excel
           </TabsTrigger>
           <TabsTrigger value="expense-entry" data-testid="tab-expense-entry">Expense Entry</TabsTrigger>
-          {canSeeBankRecon && (
-            <TabsTrigger value="bank-reconciliation" data-testid="tab-bank-reconciliation" className="text-amber-600">
-              <ArrowRightLeft className="w-4 h-4 mr-1" />
-              Bank Reconciliation
-            </TabsTrigger>
-          )}
           <TabsTrigger value="daily" data-testid="tab-daily">Daily Report</TabsTrigger>
           <TabsTrigger value="breakdown" data-testid="tab-breakdown">Payment Breakdown</TabsTrigger>
           {isSuperAdmin && (
@@ -1490,17 +1484,6 @@ export default function SalesExpenses() {
         <TabsContent value="expense-entry">
           <ExpenseEntry session={session} selectedCenter={selectedCenter} centersList={centers} />
         </TabsContent>
-
-        {/* Bank Statement Reconciliation Tab - Super Admin + Admin + Accounting */}
-        {canSeeBankRecon && (
-          <TabsContent value="bank-reconciliation">
-            <BankReconciliation 
-              session={session} 
-              selectedCenter={selectedCenter !== "all" ? selectedCenter : ""} 
-              centersList={centers}
-            />
-          </TabsContent>
-        )}
 
         {/* Freeze Control Tab - Super Admin Only */}
         {session?.is_super_admin && (

@@ -361,7 +361,7 @@ export default function BankReconciliation() {
                       <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50"
                         onClick={() => resetTxn(txn, 'added')}
                         data-testid={`br-remove-${txn.transaction_id}`}>
-                        <X className="w-3 h-3 mr-1" /> Remove
+                        <X className="w-3 h-3 mr-1" /> Delete
                       </Button>
                       <Button size="sm" variant="outline" className="border-slate-300 text-slate-700"
                         onClick={() => moveToIgnored(txn)}
@@ -379,10 +379,10 @@ export default function BankReconciliation() {
                   badgeColor="bg-slate-100 text-slate-700 border-slate-300"
                   actions={(txn) => (
                     <div className="flex gap-1 justify-end">
-                      <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                      <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50"
                         onClick={() => resetTxn(txn, 'ignored')}
                         data-testid={`br-undo-ignore-${txn.transaction_id}`}>
-                        Undo Ignore
+                        <X className="w-3 h-3 mr-1" /> Delete
                       </Button>
                       <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white"
                         onClick={async () => { await resetTxn(txn, 'ignored', true); openAdd(txn); }}
