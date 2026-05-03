@@ -5,6 +5,23 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Payout Summary table — Net Revenue chain visible
+**User issue**: Month-wise Payout Summary table only showed `Total Sales` then jumped straight to `Revenue Share`. User asked to see the calculation base (Net Revenue) since the 15% is computed on Net Revenue, not on Total Sales.
+
+**Fix**:
+- Backend `/api/center-accounts/payout-summary` now returns `gst_on_sales`, `total_commissions`, and `net_revenue` for each month.
+- Frontend table expanded from 10 → 13 columns: **Month · Total Sales · GST · Commissions · Net Revenue · Revenue Share · MG · Type · Payable · Paid · Pending · Status · Action**.
+- Net Revenue column is highlighted in blue + bold to make the calculation chain visible: Sales → minus GST → minus Comm = Net Rev → × 15% = Rev Share.
+
+**Verified on PB-HSR Dec-25 to Feb-26**:
+| Month | Sales | GST | Comm | Net Revenue | Rev Share |
+|---|---|---|---|---|---|
+| Dec-25 | 9,91,876 | 42,250.57 | 0 | 9,49,625.43 | 1,42,443.81 |
+| Jan-26 | 10,29,396 | 41,595.90 | 0 | 9,87,800.10 | 1,48,170.01 |
+| Feb-26 | 9,06,132 | 34,617.14 | 0 | 8,71,514.86 | 1,30,727.23 |
+
+**Expected on PB-KAL Apr-2026 after deploy**: 8,27,928 → GST 39,425.14 → Comm 2,676.35 → **Net Rev 7,85,826.51 → Rev Share ₹1,17,873.98**.
+
 ### [2026-04-30] Payout Summary — Revenue Share now subtracts GST from base
 **User issue**: Payout Summary showed Apr-2026 PB-KAL Revenue Share = ₹1,23,787.75 (= 15% × Sale − Comm), but expected = 15% × (Sale − Comm − GST) ≈ ₹1,17,874.
 

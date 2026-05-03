@@ -2579,6 +2579,9 @@ export default function CenterAccounts() {
                             <tr>
                               <th className="text-left py-3 px-4 font-medium text-gray-600">Month</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Total Sales</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">GST</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">Commissions</th>
+                              <th className="text-right py-3 px-4 font-medium text-gray-600">Net Revenue</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Revenue Share</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">MG</th>
                               <th className="text-center py-3 px-4 font-medium text-gray-600">Type</th>
@@ -2596,6 +2599,9 @@ export default function CenterAccounts() {
                                   {new Date(month.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
                                 </td>
                                 <td className="py-3 px-4 text-right">{formatCurrency(month.total_sales, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-orange-600">{formatCurrency(month.gst_on_sales || 0, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-rose-600">{formatCurrency(month.total_commissions || 0, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-blue-700 font-medium">{formatCurrency(month.net_revenue || 0, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-green-600">{formatCurrency(month.revenue_share, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-purple-600">{formatCurrency(month.mg_amount, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-center">

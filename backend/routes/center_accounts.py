@@ -2480,6 +2480,9 @@ async def get_payout_summary(data: dict = Body(...)):
         monthly_data.append({
             "month": month,
             "total_sales": round(total_sale, 2),
+            "gst_on_sales": round(gst_on_sales, 2),
+            "total_commissions": round(total_commission, 2),
+            "net_revenue": round(net_revenue_for_share, 2),
             "revenue_share": round(revenue_share, 2),
             "mg_amount": round(mg_amount, 2),
             "payable_type": payout_type,
