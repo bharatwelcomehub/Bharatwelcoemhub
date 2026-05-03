@@ -16,6 +16,7 @@ import centersFallback from '@/config/centers.json';
 import bookingRules from '@/config/booking-rules.json';
 import indiaMenus from '@/config/menus-india.json';
 import perthMenus from '@/config/menus-perth.json';
+import { evaluatePromotion } from '@/utils/promoEngine';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -41,6 +42,15 @@ const TableBooking = () => {
   const [dbMenuItems, setDbMenuItems] = useState([]);
   const [centerTimeSlots, setCenterTimeSlots] = useState(null);
   const [centersData, setCentersData] = useState(centersFallback); // live centers from API, fallback to static
+  const [promotions, setPromotions] = useState(null);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  // Promotions + minute-tick for live time-window updates
+  useEffect(() => {
+    axios.get(`${API}/api/promotions`).then(r => setPromotions(r.data)).catch(() => {});
+    const t = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -127,18 +137,39 @@ const TableBooking = () => {
     return diffHours > 0 && diffHours < 1;
   }, [bookingDate, selectedTimeSlot]);
 
-  const updateCart = (itemId, itemName, price, delta) => {
+  const updateCart = (itemId, itemName, price, delta, categoryName = '') => {
     setCart(prev => {
-      const current = prev[itemId] || { name: itemName, price, qty: 0 };
+      const current = prev[itemId] || { name: itemName, price, qty: 0, categoryName };
       const newQty = Math.max(0, current.qty + delta);
       if (newQty === 0) { const { [itemId]: _, ...rest } = prev; return rest; }
-      return { ...prev, [itemId]: { ...current, qty: newQty } };
+      return { ...prev, [itemId]: { ...current, name: itemName, price, categoryName: categoryName || current.categoryName, qty: newQty } };
     });
   };
 
   const cartTotal = useMemo(() => Object.values(cart).reduce((sum, item) => sum + (item.price * item.qty), 0), [cart]);
   const cartItemCount = useMemo(() => Object.values(cart).reduce((sum, item) => sum + item.qty, 0), [cart]);
   const formatPrice = (price) => { if (!menuData) return price; return `${menuData.currencySymbol}${price.toFixed(2)}`; };
+
+  // Evaluate active discount combo (only for "regular" booking type with menu cart)
+  const promoResult = useMemo(() => {
+    if (!promotions || !currentCenter || bookingType !== 'regular') return { applied: null, discount: 0 };
+    return evaluatePromotion({
+      cart,
+      promotions,
+      country: currentCenter.country,
+      now: new Date(nowTick),
+    });
+  }, [cart, promotions, currentCenter, bookingType, nowTick]);
+
+  const finalCartTotal = useMemo(() => Math.max(0, cartTotal - (promoResult.discount || 0)), [cartTotal, promoResult]);
+
+  // Saturday/Sunday gating for Unlimited Breakfast
+  const isWeekendBooking = useMemo(() => {
+    if (!bookingDate) return false;
+    const d = new Date(bookingDate + 'T00:00:00');
+    const day = d.getDay();
+    return day === 0 || day === 6; // Sun or Sat
+  }, [bookingDate]);
 
   const generateWhatsAppMessage = () => {
     const timeSlotLabel = (centerTimeSlots || bookingRules.tableBooking.timeSlots).find(t => t.id === selectedTimeSlot)?.label || '';
@@ -151,8 +182,9 @@ const TableBooking = () => {
       if (isCorporate) message += `🏢 *CORPORATE GROUP BOOKING*\n`;
       message += `\n`;
     } else if (bookingType === 'unlimited-breakfast') {
+      const isAus = currentCenter?.country === 'Australia';
       message = `🌅 *UNLIMITED BREAKFAST BOOKING* 🌅\n━━━━━━━━━━━━━━━━\n\n`;
-      message += `🍳 *Unlimited Breakfast — $35/person*\n`;
+      message += `🍳 *Unlimited Breakfast — ${isAus ? '$35' : '₹299'}/person*\n`;
       message += `📋 Misal Pav, Sabudana Vada, Tarri Pohe, Chai/Coffee\n`;
       message += `📅 Sat & Sun only | 9–10 AM | Non-sharable\n\n`;
     }
@@ -164,7 +196,11 @@ const TableBooking = () => {
     if (bookingType !== 'banana-leaf' && cartItemCount > 0) {
       message += `\n🛒 *Pre-Order:*\n`;
       Object.entries(cart).forEach(([id, item]) => { message += `• ${item.name} ×${item.qty} — ${formatPrice(item.price * item.qty)}\n`; });
-      message += `💰 *Total: ${formatPrice(cartTotal)}*\n`;
+      message += `Subtotal: ${formatPrice(cartTotal)}\n`;
+      if (promoResult.applied) {
+        message += `🎉 ${promoResult.label} (-${promoResult.pct}%): -${formatPrice(promoResult.discount)}\n`;
+      }
+      message += `💰 *Total: ${formatPrice(finalCartTotal)}*\n`;
     }
     if (specialRequests) message += `\n📝 ${specialRequests}\n`;
     message += `\n_Confirmation pending manager's reply_`;
@@ -298,17 +334,32 @@ const TableBooking = () => {
                       <p className="text-[10px] text-[#7A6F65] font-body mt-1">Unlimited | Tue, Wed, Thu | Lunch only | All Centers</p>
                       <p className="text-xs text-[#2E7D32] font-body font-semibold mt-1">₹490/person (India) | $40/person (Perth)</p>
                     </button>
-                    <button
-                      onClick={() => { setBookingType('unlimited-breakfast'); setServiceType('dine-in'); }}
-                      className={`p-4 rounded-lg border-2 text-left transition-all relative ${bookingType === 'unlimited-breakfast' ? 'border-[#E65100] bg-[#E65100]/5' : 'border-[#E8DFD0] hover:border-[#E65100]/30'}`}
-                      data-testid="type-unlimited-breakfast"
-                    >
-                      <span className="absolute -top-2 right-3 bg-[#E65100] text-white text-[8px] px-2 py-0.5 rounded-full font-body font-bold">PERTH</span>
-                      <p className="font-heading text-sm text-[#3D2314]">Unlimited Breakfast</p>
-                      <p className="text-[10px] text-[#7A6F65] font-body mt-1">Misal Pav, Sabudana Vada, Tarri Pohe, Chai/Coffee</p>
-                      <p className="text-[10px] text-[#7A6F65] font-body">Sat & Sun | 9–10 AM | Non-sharable</p>
-                      <p className="text-xs text-[#E65100] font-body font-semibold mt-1">$35/person</p>
-                    </button>
+                    {/* Unlimited Breakfast — only on Sat/Sun for ALL centers */}
+                    {(!bookingDate || isWeekendBooking) ? (
+                      <button
+                        onClick={() => { setBookingType('unlimited-breakfast'); setServiceType('dine-in'); }}
+                        className={`p-4 rounded-lg border-2 text-left transition-all relative ${bookingType === 'unlimited-breakfast' ? 'border-[#E65100] bg-[#E65100]/5' : 'border-[#E8DFD0] hover:border-[#E65100]/30'}`}
+                        data-testid="type-unlimited-breakfast"
+                      >
+                        <span className="absolute -top-2 right-3 bg-[#E65100] text-white text-[8px] px-2 py-0.5 rounded-full font-body font-bold">SAT/SUN</span>
+                        <p className="font-heading text-sm text-[#3D2314]">Unlimited Breakfast</p>
+                        <p className="text-[10px] text-[#7A6F65] font-body mt-1">Misal Pav, Sabudana Vada, Tarri Pohe, Chai/Coffee</p>
+                        <p className="text-[10px] text-[#7A6F65] font-body">Sat & Sun only | 9–10 AM | Non-sharable</p>
+                        <p className="text-xs text-[#E65100] font-body font-semibold mt-1">₹299/person (India) | $35/person (Perth)</p>
+                        {!bookingDate && <p className="text-[9px] text-[#B8962E] italic mt-1 font-body">Select a Sat/Sun date to enable</p>}
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="p-4 rounded-lg border-2 border-[#E8DFD0] text-left opacity-50 cursor-not-allowed"
+                        data-testid="type-unlimited-breakfast-disabled"
+                        title="Unlimited Breakfast is only available on Saturday & Sunday"
+                      >
+                        <p className="font-heading text-sm text-[#3D2314]">Unlimited Breakfast</p>
+                        <p className="text-[10px] text-[#7A6F65] font-body mt-1">Sat & Sun only — pick a weekend date</p>
+                        <p className="text-xs text-[#E65100] font-body font-semibold mt-1">₹299/person (India) | $35/person (Perth)</p>
+                      </button>
+                    )}
                   </div>
                   {bookingType === 'banana-leaf' && (
                     <div className="mt-3 flex items-center gap-3">
@@ -380,9 +431,9 @@ const TableBooking = () => {
                                   <span className="text-sm font-heading font-medium text-[#B8962E]">{formatPrice(item.price)}</span>
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
-                                  <Button variant="outline" size="icon" className="h-7 w-7 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item.id, item.name, item.price, -1)} disabled={!cart[item.id]?.qty}><Minus className="h-3 w-3" /></Button>
+                                  <Button variant="outline" size="icon" className="h-7 w-7 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item.id, item.name, item.price, -1, category.name)} disabled={!cart[item.id]?.qty}><Minus className="h-3 w-3" /></Button>
                                   <span className="w-6 text-center text-sm font-body font-medium text-[#2D1810]">{cart[item.id]?.qty || 0}</span>
-                                  <Button variant="outline" size="icon" className="h-7 w-7 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item.id, item.name, item.price, 1)}><Plus className="h-3 w-3" /></Button>
+                                  <Button variant="outline" size="icon" className="h-7 w-7 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item.id, item.name, item.price, 1, category.name)}><Plus className="h-3 w-3" /></Button>
                                 </div>
                               </div>
                             ))}
@@ -420,9 +471,28 @@ const TableBooking = () => {
                           </div>
                         ))}
                       </div>
-                      <div className="border-t border-[#E8DFD0] mt-4 pt-4 flex justify-between font-heading font-medium text-lg">
-                        <span className="text-[#2D1810]">Total:</span>
-                        <span className="text-[#B8962E]">{formatPrice(cartTotal)}</span>
+                      <div className="border-t border-[#E8DFD0] mt-4 pt-4 space-y-2">
+                        <div className="flex justify-between text-sm font-body">
+                          <span className="text-[#5C4A3A]">Subtotal:</span>
+                          <span className="text-[#2D1810]">{formatPrice(cartTotal)}</span>
+                        </div>
+                        {promoResult.applied && (
+                          <div className="flex justify-between text-sm font-body bg-[#F5FFF5] -mx-1 px-2 py-1 rounded border border-green-200" data-testid="tb-promo-applied">
+                            <span className="text-green-700 font-medium flex items-center gap-1">
+                              <Leaf className="h-3 w-3" /> {promoResult.label} ({promoResult.pct}% off)
+                            </span>
+                            <span className="text-green-700 font-medium">-{formatPrice(promoResult.discount)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between font-heading font-medium text-lg">
+                          <span className="text-[#2D1810]">Total:</span>
+                          <span className="text-[#B8962E]">{formatPrice(finalCartTotal)}</span>
+                        </div>
+                        {!promoResult.applied && promoResult.hints?.some(h => h.in_window) && (
+                          <p className="text-[10px] text-[#B8962E] italic font-body" data-testid="tb-promo-hint">
+                            {promoResult.hints.filter(h => h.in_window).map(h => `${h.label}: add the right combo & save ${h.pct}%`).join(' · ')}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -471,7 +541,11 @@ const TableBooking = () => {
                       {Object.entries(cart).map(([id, item]) => (
                         <div key={id} className="flex justify-between text-sm font-body"><span className="text-[#5C4A3A]">{item.name} x {item.qty}</span><span className="text-[#2D1810]">{formatPrice(item.price * item.qty)}</span></div>
                       ))}
-                      <div className="flex justify-between font-heading font-medium text-lg pt-2 border-t border-[#E8DFD0]"><span className="text-[#2D1810]">Total</span><span className="text-[#B8962E]">{formatPrice(cartTotal)}</span></div>
+                      <div className="flex justify-between text-sm font-body pt-2 border-t border-[#E8DFD0]"><span className="text-[#5C4A3A]">Subtotal</span><span className="text-[#2D1810]">{formatPrice(cartTotal)}</span></div>
+                      {promoResult.applied && (
+                        <div className="flex justify-between text-sm font-body text-green-700"><span>{promoResult.label} (-{promoResult.pct}%)</span><span>-{formatPrice(promoResult.discount)}</span></div>
+                      )}
+                      <div className="flex justify-between font-heading font-medium text-lg pt-1"><span className="text-[#2D1810]">Total</span><span className="text-[#B8962E]">{formatPrice(finalCartTotal)}</span></div>
                     </div>
                   </div>
                 )}

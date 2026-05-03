@@ -2590,6 +2590,66 @@ async def admin_update_timeslots(center_id: str, request: Request, current_user:
     return {"message": f"Time slots updated for {center_id}"}
 
 
+# ===================== PROMOTIONS / DISCOUNT COMBOS =====================
+DEFAULT_PROMOTIONS = {
+    "brunch": {
+        "enabled": True,
+        "label": "Everyday Brunch Combo",
+        "start_time": "11:00",
+        "end_time": "12:00",
+        "discount_pct": 10,
+        "regions": ["India", "Australia"],
+        "combo_categories": ["Heavy Brunch", "Bhakar Combo"],
+        "drink_categories": ["Tea & Coffee", "Drinks"],
+        "min_combo_qty": 1,
+        "min_drink_qty": 1,
+        "description": "Order 1 brunch combo + 1 tea/drink between 11 AM - 12 PM and get 10% off (online only)."
+    },
+    "evening_snack": {
+        "enabled": True,
+        "label": "Evening Snack Combo",
+        "start_time": "16:00",
+        "end_time": "17:00",
+        "discount_pct": 10,
+        "regions": ["India"],
+        "snack_categories": ["Snacks"],
+        "tea_keyword": "masala",
+        "min_snack_qty": 1,
+        "min_tea_qty": 1,
+        "description": "Order 1 snack + 1 masala tea between 4 PM - 5 PM and get 10% off (India, online only)."
+    }
+}
+
+
+@api_router.get("/promotions")
+async def get_promotions():
+    """Public: Returns active promotion config (brunch + evening snack combos)."""
+    doc = await db.promotion_settings.find_one({"_id_key": "global"}, {"_id": 0})
+    if not doc:
+        return DEFAULT_PROMOTIONS
+    # Merge with defaults so missing keys still work
+    out = {}
+    for key, default in DEFAULT_PROMOTIONS.items():
+        out[key] = {**default, **(doc.get(key) or {})}
+    return out
+
+
+@api_router.put("/admin/promotions")
+async def update_promotions(request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: Update brunch / evening snack promotion config."""
+    body = await request.json()
+    payload = {"_id_key": "global", "updated_at": datetime.now(timezone.utc).isoformat()}
+    for key in ["brunch", "evening_snack"]:
+        if key in body and isinstance(body[key], dict):
+            payload[key] = {**DEFAULT_PROMOTIONS[key], **body[key]}
+    await db.promotion_settings.update_one(
+        {"_id_key": "global"},
+        {"$set": payload},
+        upsert=True
+    )
+    return {"message": "Promotions updated", "promotions": {k: payload[k] for k in payload if k in ("brunch", "evening_snack")}}
+
+
 app.include_router(api_router)
 
 app.add_middleware(

@@ -16,6 +16,7 @@ import centersData from '@/config/centers.json';
 import indiaMenus from '@/config/menus-india.json';
 import perthMenus from '@/config/menus-perth.json';
 import bookingRules from '@/config/booking-rules.json';
+import { evaluatePromotion } from '@/utils/promoEngine';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -34,6 +35,15 @@ const Pickup = () => {
   const [showReview, setShowReview] = useState(false);
   const [dbMenuItems, setDbMenuItems] = useState([]);
   const [menuLoading, setMenuLoading] = useState(false);
+  const [promotions, setPromotions] = useState(null);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  // Fetch promotions on mount + tick every minute so window opens/closes auto-update
+  useEffect(() => {
+    axios.get(`${API}/api/promotions`).then(r => setPromotions(r.data)).catch(() => {});
+    const t = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, []);
 
   const allCenters = useMemo(() => [...centersData.india, ...centersData.australia], []);
   const filteredCenters = useMemo(() => {
@@ -103,12 +113,26 @@ const Pickup = () => {
       const current = prev[key] || { ...item, qty: 0 };
       const newQty = Math.max(0, current.qty + delta);
       if (newQty === 0) { const { [key]: _, ...rest } = prev; return rest; }
-      return { ...prev, [key]: { ...current, qty: newQty } };
+      // Persist categoryName/categoryId so promo engine can match
+      return { ...prev, [key]: { ...current, ...item, qty: newQty } };
     });
   };
 
   const cartTotal = useMemo(() => Object.values(cart).reduce((sum, item) => sum + (item.price * item.qty), 0), [cart]);
   const cartItemCount = useMemo(() => Object.values(cart).reduce((sum, item) => sum + item.qty, 0), [cart]);
+
+  // Evaluate active discount combo (recomputed on cart/promotions/time change)
+  const promoResult = useMemo(() => {
+    if (!promotions || !currentCenter) return { applied: null, discount: 0 };
+    return evaluatePromotion({
+      cart,
+      promotions,
+      country: currentCenter.country,
+      now: new Date(nowTick),
+    });
+  }, [cart, promotions, currentCenter, nowTick]);
+
+  const finalTotal = useMemo(() => Math.max(0, cartTotal - (promoResult.discount || 0)), [cartTotal, promoResult]);
   const formatPrice = (price) => `${currencySymbol}${price.toFixed(2)}`;
   const getMinDate = () => new Date().toISOString().split('T')[0];
   const getMaxDate = () => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; };
@@ -125,7 +149,11 @@ const Pickup = () => {
     message += `*📋 ORDER ITEMS:*\n`;
     Object.values(cart).forEach(item => { message += `• ${item.name} x${item.qty} = ${formatPrice(item.price * item.qty)}\n`; });
     message += `\n━━━━━━━━━━━━━━━\n`;
-    message += `*💰 ORDER TOTAL: ${formatPrice(cartTotal)}*\n`;
+    message += `Subtotal: ${formatPrice(cartTotal)}\n`;
+    if (promoResult.applied) {
+      message += `🎉 ${promoResult.label} (-${promoResult.pct}%): -${formatPrice(promoResult.discount)}\n`;
+    }
+    message += `*💰 ORDER TOTAL: ${formatPrice(finalTotal)}*\n`;
     if (specialInstructions) message += `\n📝 *Special Instructions:*\n${specialInstructions}\n`;
     message += `\n⚠️ _This is a pre-order request. Confirmation will be sent via WhatsApp from the center._`;
     return encodeURIComponent(message);
@@ -134,7 +162,7 @@ const Pickup = () => {
   const handleSubmit = () => {
     if (!selectedCenter || !name || !phone || !pickupDate || !pickupTime) { toast.error('Please fill all required fields'); return; }
     if (cartItemCount === 0) { toast.error('Please add items to your cart'); return; }
-    if (cartTotal < minOrder) { toast.error(`Minimum order amount is ${formatPrice(minOrder)}`); return; }
+    if (finalTotal < minOrder) { toast.error(`Minimum order amount is ${formatPrice(minOrder)}`); return; }
     setShowReview(true);
   };
 
@@ -324,12 +352,29 @@ const Pickup = () => {
                             </div>
                           ))}
                         </div>
-                        <div className="border-t border-[#E8DFD0] mt-4 pt-4">
+                        <div className="border-t border-[#E8DFD0] mt-4 pt-4 space-y-2">
+                          <div className="flex justify-between text-sm font-body">
+                            <span className="text-[#5C4A3A]">Subtotal:</span>
+                            <span className="text-[#2D1810]">{formatPrice(cartTotal)}</span>
+                          </div>
+                          {promoResult.applied && (
+                            <div className="flex justify-between text-sm font-body bg-[#F5FFF5] -mx-1 px-2 py-1 rounded border border-green-200" data-testid="promo-applied">
+                              <span className="text-green-700 font-medium flex items-center gap-1">
+                                <Leaf className="h-3 w-3" /> {promoResult.label} ({promoResult.pct}% off)
+                              </span>
+                              <span className="text-green-700 font-medium">-{formatPrice(promoResult.discount)}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between font-heading font-medium text-lg">
                             <span className="text-[#2D1810]">Total:</span>
-                            <span className="text-[#B8962E]">{formatPrice(cartTotal)}</span>
+                            <span className="text-[#B8962E]">{formatPrice(finalTotal)}</span>
                           </div>
-                          {cartTotal < minOrder && <p className="text-xs text-red-500 mt-1 font-body">Min order: {formatPrice(minOrder)}</p>}
+                          {!promoResult.applied && promoResult.hints?.some(h => h.in_window) && (
+                            <p className="text-[10px] text-[#B8962E] italic font-body" data-testid="promo-hint">
+                              {promoResult.hints.filter(h => h.in_window).map(h => `${h.label}: add the right combo & save ${h.pct}%`).join(' · ')}
+                            </p>
+                          )}
+                          {finalTotal < minOrder && <p className="text-xs text-red-500 mt-1 font-body">Min order: {formatPrice(minOrder)}</p>}
                         </div>
                       </>
                     ) : (
@@ -350,7 +395,7 @@ const Pickup = () => {
 
                 <Button onClick={handleSubmit}
                   className="w-full gold-glossy text-white py-6 text-sm rounded-none tracking-widest uppercase font-semibold border-0"
-                  disabled={!selectedCenter || !name || !phone || !pickupDate || !pickupTime || cartItemCount === 0 || cartTotal < minOrder}
+                  disabled={!selectedCenter || !name || !phone || !pickupDate || !pickupTime || cartItemCount === 0 || finalTotal < minOrder}
                   data-testid="pickup-submit-btn">
                   <MessageCircle className="h-5 w-5 mr-2" /> Place Order via WhatsApp
                 </Button>
@@ -401,7 +446,12 @@ const Pickup = () => {
                 </div>
                 <div className="bg-[#F8F5F0] border border-[#B8962E]/20 p-4 text-center">
                   <p className="text-[#B8962E]/60 text-xs uppercase tracking-wider mb-1 font-body">Order Total</p>
-                  <p className="text-3xl font-heading font-medium text-[#B8962E]">{formatPrice(cartTotal)}</p>
+                  {promoResult.applied && (
+                    <p className="text-xs text-green-700 font-body mb-1">
+                      Subtotal: {formatPrice(cartTotal)} · {promoResult.label} -{formatPrice(promoResult.discount)}
+                    </p>
+                  )}
+                  <p className="text-3xl font-heading font-medium text-[#B8962E]">{formatPrice(finalTotal)}</p>
                 </div>
                 {specialInstructions && (
                   <div className="border-t border-[#E8DFD0] pt-4">
@@ -425,7 +475,7 @@ const Pickup = () => {
       {cartItemCount > 0 && !showReview && (
         <div className="fixed bottom-4 left-4 right-4 lg:hidden z-50">
           <Button onClick={() => setShowCart(!showCart)} className="w-full gold-glossy text-white py-4 rounded-none font-semibold tracking-wider border-0">
-            <ShoppingCart className="h-5 w-5 mr-2" /> View Cart ({cartItemCount}) &bull; {formatPrice(cartTotal)}
+            <ShoppingCart className="h-5 w-5 mr-2" /> View Cart ({cartItemCount}) &bull; {formatPrice(finalTotal)}
           </Button>
         </div>
       )}

@@ -194,6 +194,10 @@ const Admin = () => {
   const [editingSlots, setEditingSlots] = useState(null); // center_id being edited
   const [slotsForm, setSlotsForm] = useState([]);
 
+  // Promotions state
+  const [promotions, setPromotions] = useState(null);
+  const [promoSaving, setPromoSaving] = useState(false);
+
   // Get fresh token
   const getToken = () => localStorage.getItem('token') || token;
 
@@ -216,6 +220,7 @@ const Admin = () => {
       fetchCateringPackages();
       fetchCateringMenuItems();
       fetchBookSettings();
+      fetchPromotions();
     }
   }, [token]);
 
@@ -236,6 +241,7 @@ const Admin = () => {
         fetchCateringPackages();
         fetchCateringMenuItems();
         fetchBookSettings();
+        fetchPromotions();
       }, 100);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
@@ -1059,6 +1065,39 @@ const Admin = () => {
     ]);
   };
 
+  // Promotions
+  const fetchPromotions = async () => {
+    try {
+      const res = await axios.get(`${API}/promotions`);
+      setPromotions(res.data);
+    } catch {}
+  };
+  const updatePromoField = (key, field, value) => {
+    setPromotions(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  };
+  const togglePromoRegion = (key, region) => {
+    setPromotions(prev => {
+      const cur = prev[key].regions || [];
+      const next = cur.includes(region) ? cur.filter(r => r !== region) : [...cur, region];
+      return { ...prev, [key]: { ...prev[key], regions: next } };
+    });
+  };
+  const savePromotions = async () => {
+    if (!promotions) return;
+    setPromoSaving(true);
+    const currentToken = getToken();
+    try {
+      await axios.put(`${API}/admin/promotions`, promotions, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      toast.success('Promotions saved — live for customers');
+    } catch {
+      toast.error('Failed to save promotions');
+    } finally {
+      setPromoSaving(false);
+    }
+  };
+
   const saveBookSettings = async () => {
     const currentToken = getToken();
     try {
@@ -1323,6 +1362,10 @@ const Admin = () => {
             <TabsTrigger value="book" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="book-admin-tab">
               <BookOpen className="h-4 w-4" />
               Book
+            </TabsTrigger>
+            <TabsTrigger value="promotions" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="promotions-admin-tab">
+              <Sparkles className="h-4 w-4" />
+              Promotions
             </TabsTrigger>
           </TabsList>
 
@@ -2489,6 +2532,158 @@ const Admin = () => {
                 Save Book Settings
               </Button>
             </div>
+          </TabsContent>
+
+          {/* PROMOTIONS TAB */}
+          <TabsContent value="promotions">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="font-playfair text-xl font-semibold">Promotions & Discount Combos</h2>
+                <p className="text-sm text-foreground/60 mt-1">Online-only auto-applied discounts. Customers see these on Pickup and Table Booking carts when conditions match.</p>
+              </div>
+              <Button
+                onClick={savePromotions}
+                disabled={promoSaving || !promotions}
+                className="rounded-full bg-[#B8962E] text-white hover:bg-[#D4AF37]"
+                data-testid="save-promotions-btn"
+              >
+                {promoSaving ? 'Saving...' : 'Save All Promotions'}
+              </Button>
+            </div>
+
+            {!promotions ? (
+              <p className="text-sm text-foreground/60 italic">Loading promotions…</p>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Brunch Combo Card */}
+                <Card className="border-[#E8DFD0]" data-testid="promo-brunch-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between text-lg">
+                      <span className="flex items-center gap-2"><Coffee className="h-5 w-5 text-[#B8962E]" /> {promotions.brunch?.label || 'Brunch Combo'}</span>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!promotions.brunch?.enabled}
+                          onChange={(e) => updatePromoField('brunch', 'enabled', e.target.checked)}
+                          data-testid="promo-brunch-enabled"
+                          className="w-4 h-4 accent-[#2E7D32]"
+                        />
+                        <span className={promotions.brunch?.enabled ? 'text-green-700' : 'text-foreground/50'}>
+                          {promotions.brunch?.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </label>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-xs text-foreground/60 italic">{promotions.brunch?.description}</p>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Start Time</Label>
+                        <Input type="time" value={promotions.brunch?.start_time || ''} onChange={(e) => updatePromoField('brunch', 'start_time', e.target.value)} data-testid="promo-brunch-start" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">End Time</Label>
+                        <Input type="time" value={promotions.brunch?.end_time || ''} onChange={(e) => updatePromoField('brunch', 'end_time', e.target.value)} data-testid="promo-brunch-end" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Discount %</Label>
+                      <Input type="number" min="0" max="100" value={promotions.brunch?.discount_pct || 0} onChange={(e) => updatePromoField('brunch', 'discount_pct', parseInt(e.target.value || '0'))} data-testid="promo-brunch-pct" />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Eligible Regions</Label>
+                      <div className="flex gap-2 mt-1">
+                        {['India', 'Australia'].map(r => (
+                          <label key={r} className="flex items-center gap-1.5 cursor-pointer text-xs px-2 py-1 border border-[#E8DFD0] rounded">
+                            <input type="checkbox" checked={(promotions.brunch?.regions || []).includes(r)} onChange={() => togglePromoRegion('brunch', r)} data-testid={`promo-brunch-region-${r}`} className="w-3.5 h-3.5 accent-[#B8962E]" />
+                            <span>{r}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Combo Categories (comma-separated)</Label>
+                      <Input value={(promotions.brunch?.combo_categories || []).join(', ')} onChange={(e) => updatePromoField('brunch', 'combo_categories', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="Heavy Brunch, Bhakar Combo" data-testid="promo-brunch-combo-cats" />
+                      <p className="text-[10px] text-foreground/50 mt-1">Cart needs ≥{promotions.brunch?.min_combo_qty || 1} item from these</p>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Drink Categories (comma-separated)</Label>
+                      <Input value={(promotions.brunch?.drink_categories || []).join(', ')} onChange={(e) => updatePromoField('brunch', 'drink_categories', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="Tea & Coffee, Drinks" data-testid="promo-brunch-drink-cats" />
+                      <p className="text-[10px] text-foreground/50 mt-1">+ ≥{promotions.brunch?.min_drink_qty || 1} drink from these</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Evening Snack Combo Card */}
+                <Card className="border-[#E8DFD0]" data-testid="promo-evening-snack-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between text-lg">
+                      <span className="flex items-center gap-2"><Coffee className="h-5 w-5 text-[#B8962E]" /> {promotions.evening_snack?.label || 'Evening Snack Combo'}</span>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!promotions.evening_snack?.enabled}
+                          onChange={(e) => updatePromoField('evening_snack', 'enabled', e.target.checked)}
+                          data-testid="promo-snack-enabled"
+                          className="w-4 h-4 accent-[#2E7D32]"
+                        />
+                        <span className={promotions.evening_snack?.enabled ? 'text-green-700' : 'text-foreground/50'}>
+                          {promotions.evening_snack?.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </label>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-xs text-foreground/60 italic">{promotions.evening_snack?.description}</p>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Start Time</Label>
+                        <Input type="time" value={promotions.evening_snack?.start_time || ''} onChange={(e) => updatePromoField('evening_snack', 'start_time', e.target.value)} data-testid="promo-snack-start" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">End Time</Label>
+                        <Input type="time" value={promotions.evening_snack?.end_time || ''} onChange={(e) => updatePromoField('evening_snack', 'end_time', e.target.value)} data-testid="promo-snack-end" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Discount %</Label>
+                      <Input type="number" min="0" max="100" value={promotions.evening_snack?.discount_pct || 0} onChange={(e) => updatePromoField('evening_snack', 'discount_pct', parseInt(e.target.value || '0'))} data-testid="promo-snack-pct" />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Eligible Regions</Label>
+                      <div className="flex gap-2 mt-1">
+                        {['India', 'Australia'].map(r => (
+                          <label key={r} className="flex items-center gap-1.5 cursor-pointer text-xs px-2 py-1 border border-[#E8DFD0] rounded">
+                            <input type="checkbox" checked={(promotions.evening_snack?.regions || []).includes(r)} onChange={() => togglePromoRegion('evening_snack', r)} data-testid={`promo-snack-region-${r}`} className="w-3.5 h-3.5 accent-[#B8962E]" />
+                            <span>{r}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Snack Categories (comma-separated)</Label>
+                      <Input value={(promotions.evening_snack?.snack_categories || []).join(', ')} onChange={(e) => updatePromoField('evening_snack', 'snack_categories', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="Snacks" data-testid="promo-snack-cats" />
+                      <p className="text-[10px] text-foreground/50 mt-1">Cart needs ≥{promotions.evening_snack?.min_snack_qty || 1} item from these</p>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Tea Match Keyword</Label>
+                      <Input value={promotions.evening_snack?.tea_keyword || ''} onChange={(e) => updatePromoField('evening_snack', 'tea_keyword', e.target.value)} placeholder="masala" data-testid="promo-snack-tea-keyword" />
+                      <p className="text-[10px] text-foreground/50 mt-1">+ ≥{promotions.evening_snack?.min_tea_qty || 1} item whose name contains this keyword (e.g. "masala" matches "Masala Tea")</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
