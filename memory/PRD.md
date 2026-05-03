@@ -5,6 +5,23 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] GST shown UNCONDITIONALLY in dashboard (decoupled from gst_applicable flag)
+**User issue**: PB-KAL Apr-2026 KPI cards showed Total Deductions ₹2,676.35 (commissions only) and Net Revenue ₹8,25,251.65 (Sales − Commissions only). GST was missing because the franchise has `gst_applicable=False` set, so the backend was zeroing out `sales_gst` in the response.
+
+**Fix**: In `center_accounts.py::get_center_account_summary` line 1422, removed the `if gst_applicable_india else 0` guard. GST is now computed unconditionally from sales receipts (inclusive carve-out from eligible base) and shown in:
+- `financial_summary.sales_gst`
+- `share_calculation.total_deductions` (= commissions + GST)
+- `financial_summary.net_revenue` (= Sales − Commissions − GST)
+
+The `gst_applicable` flag is now **only** used by the `gst_liabilities` collection to decide if a payable row should be created (i.e., govt-payment tracking). The dashboard math is consistent across every center regardless of the flag — matching user spec "GST same calculation everywhere".
+
+**Verified on PB-HSR Feb-2026 with flag forced to False**: Sales GST ₹34,617.14, Total Deductions ₹34,617.14, Net Revenue ₹8,71,514.86 — all correct. Flag restored to True after test.
+
+**Expected on PB-KAL Apr-2026 post-deploy** (Sale ₹8,27,928, Comm ₹2,676.35):
+- GST on Sale: ₹39,425.14 (eligible × 5/105)
+- Total Deductions: **₹42,101.49**  
+- Net Revenue: **₹7,85,826.51**
+
 ### [2026-04-30] Final GST consistency fix — WC Table + gst_applicable default
 **User issue**: Total Deductions KPI showed only commissions (excl. GST), and the WC Standing table column showed old-formula GST (₹41,396 vs the correct ₹39,425.14 from GST Reconciliation page).
 

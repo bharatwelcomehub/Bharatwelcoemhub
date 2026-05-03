@@ -1413,13 +1413,13 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     
     if country == "India":
         # India: Revenue share model
-        # GST for Month M is booked as a liability (see gst_liabilities) and
-        # paid in Month M+1 via the auto-created 'GST PAYMENT' expense row.
-        # GST formula: INCLUSIVE on eligible (non-aggregator) sales — single
-        # source of truth in utils/gst.py.
-        # Net Revenue = Total Sale − Commissions − GST on Sales.
-
-        gst_on_sales = sales_gst_amount if gst_applicable_india else 0
+        # GST is computed UNCONDITIONALLY for display consistency across all
+        # screens (KPI cards, WC Standing, GST Liabilities, Reports). The
+        # `gst_applicable` franchise flag only controls whether a payable
+        # liability row is created in the gst_liabilities collection — it does
+        # NOT change the math on the dashboard. This matches user spec
+        # "GST same calculation everywhere".
+        gst_on_sales = sales_gst_amount
         india_net_revenue = compute_net_revenue(total_sale, total_commission, gst_on_sales, 0, "India")
 
         # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
