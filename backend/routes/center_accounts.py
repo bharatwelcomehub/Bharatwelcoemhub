@@ -231,9 +231,9 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         {"$group": {"_id": "$month", "eligible_base": {"$sum": "$_eligible"}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
-    from utils.gst import gst_rate_for
+    from utils.gst import gst_rate_for, carve_inclusive_gst
     _rate_std = gst_rate_for(country, center_code)
-    gst_months = [{"_id": g["_id"], "total_gst": round(float(g.get("eligible_base", 0)) * _rate_std, 2)} for g in gst_months_raw]
+    gst_months = [{"_id": g["_id"], "total_gst": carve_inclusive_gst(float(g.get("eligible_base", 0)), _rate_std)} for g in gst_months_raw]
     
     # Get manual WC top-ups
     topups = await db_ref.wc_topups.find({"center": center_code}, {"_id": 0}).sort("date", 1).to_list(200)
@@ -577,9 +577,9 @@ async def get_wc_table(req: dict = Body(...)):
         {"$group": {"_id": "$month", "eligible_base": {"$sum": "$_eligible"}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
-    from utils.gst import gst_rate_for
+    from utils.gst import gst_rate_for, carve_inclusive_gst
     _rate = gst_rate_for(None, center)
-    gst_months = [{"_id": g["_id"], "total_gst": round(float(g.get("eligible_base", 0)) * _rate, 2)} for g in gst_months_raw]
+    gst_months = [{"_id": g["_id"], "total_gst": carve_inclusive_gst(float(g.get("eligible_base", 0)), _rate)} for g in gst_months_raw]
     
     # Get manual WC top-ups (audit log)
     topups = await db.wc_topups.find(
@@ -1406,7 +1406,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # Outside India: Fixed 80/20 split (80% to Franchise Owner, 20% to Purnabramha) on Profit
     
     # Check if GST is applicable for India (from franchise settings)
-    gst_applicable_india = franchise.get("gst_applicable", False) if franchise else False
+    # Default GST to APPLICABLE for India franchises (mandatory above ₹40L threshold,
+    # which all our centers exceed). Only treat as not-applicable if the franchise
+    # is explicitly flagged with gst_applicable=False.
+    gst_applicable_india = franchise.get("gst_applicable", True) if franchise else True
     
     if country == "India":
         # India: Revenue share model

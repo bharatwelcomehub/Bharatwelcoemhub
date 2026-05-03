@@ -5,6 +5,21 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Final GST consistency fix — WC Table + gst_applicable default
+**User issue**: Total Deductions KPI showed only commissions (excl. GST), and the WC Standing table column showed old-formula GST (₹41,396 vs the correct ₹39,425.14 from GST Reconciliation page).
+
+**Two root causes**:
+1. **WC Standing table & Center Accounts summary** had two extra inline `eligible_base × rate` (exclusive) calculations on lines 236 + 582 of `center_accounts.py` that bypassed `utils/gst.py`. Both now use `carve_inclusive_gst`.
+2. **`gst_applicable_india` defaulted to False** when the franchise document didn't have the field. This made `sales_gst = 0` for those franchises, so Total Deductions = commissions only and Net Revenue = Total Sales − commissions. Changed default to **True** (GST is mandatory in India above ₹40L turnover, which all our centers exceed).
+
+**Verification on PB-HSR Feb-2026**:
+- Center Accounts summary: GST ₹34,617.14, Deductions ₹34,617.14, Net Revenue ₹8,71,514.86 ✓
+- WC Table standing rows: Nov-25 ₹38,643.24, Dec-25 ₹42,250.57, Jan-26 ₹41,595.90, **Feb-26 ₹34,617.14** ✓ (matches gst-liabilities exactly)
+- KPI cards now correctly show Total Deductions = Commissions + GST
+- Frontend `(commissions.total || 0) + (financial_summary.sales_gst || 0)` returns the right amount
+
+After deploy + Recompute All on production GST Liabilities page, every screen will show identical GST numbers from the same shared utility.
+
 ### [2026-04-30] GST Liabilities — backfill + auto-recompute
 **Issue**: User reported PB-KAL Apr 2026 GST page showing ₹41,396 on ₹8,27,928 eligible (old `× 0.05`), should be ₹39,425.14 (new `eligible − eligible/1.05`).
 
