@@ -640,6 +640,15 @@ async def _aggregate_period(center: str, date_strs: list):
 
     apc = round(total_sale / total_guests, 0) if total_guests > 0 else 0
 
+    # GST + Net Revenue (single source of truth — applies to all periods)
+    from utils.gst import compute_gst_from_rows
+    gst_calc = compute_gst_from_rows(sales, country=None, center=center)
+    total_gst = gst_calc["gst_amount"]
+    total_aggregator = gst_calc["aggregator_sale"]
+    total_eligible = gst_calc["eligible_base"]
+    total_commission = sum(float(s.get("card_idfc_commission", 0) or 0) for s in sales)  # placeholder: monthly commissions reside in monthly_commissions
+    net_revenue = round(total_sale - total_commission - total_gst, 2)
+
     # Build chart series: sales vs expenses per bucket
     # Daily aggregations -> per-day series; long ranges -> auto-bucket by month
     chart_series = _build_chart_series(date_strs, sales, expenses)
@@ -664,6 +673,12 @@ async def _aggregate_period(center: str, date_strs: list):
         "is_international": is_international,
         "chart_series": chart_series,
         "total_expenses": round(online_expense_total + cash_expense_total, 2),
+        # New fields: surface GST chain so summaries everywhere stay consistent
+        "total_gst": round(total_gst, 2),
+        "total_aggregator_sale": round(total_aggregator, 2),
+        "total_eligible_sale": round(total_eligible, 2),
+        "total_commissions": round(total_commission, 2),
+        "net_revenue": net_revenue,
     }
     return data, sales, expenses, is_international
 
@@ -859,6 +874,13 @@ def _format_period_whatsapp_text(d: dict, period_type: str = "week") -> str:
         f"↪️ Total Online Expenses = {fmt(d['total_online_expenses'])}",
         f"↪️ APC = {int(d.get('apc') or 0)}",
         f"↪️ Total No. Of Guest = {int(d.get('total_guests') or 0)}",
+        "",
+        "💰 Net Revenue Calculation",
+        f"↪️ Aggregator Sales (excl. from GST) = {fmt(d.get('total_aggregator_sale', 0))}",
+        f"↪️ Eligible Sales for GST = {fmt(d.get('total_eligible_sale', 0))}",
+        f"↪️ GST on Eligible Sales = {fmt(d.get('total_gst', 0))}",
+        f"↪️ Total Commissions = {fmt(d.get('total_commissions', 0))}",
+        f"➡️ NET REVENUE = {fmt(d.get('net_revenue', 0))}",
     ]
     return "\n".join(lines)
 
@@ -952,6 +974,13 @@ async def generate_daily_text(req: TextGenRequest):
         data["total_guests"] = int(sale.get("num_guests", 0))
         data["apc"] = round(float(sale.get("avg_per_pax", 0)), 0)
         data["online_expense"] = round(online_expense, 2) or 0
+        # GST + Net Revenue (single source of truth, inclusive carve-out)
+        from utils.gst import compute_gst_from_rows
+        gst_calc = compute_gst_from_rows([sale], country=None, center=center)
+        data["gst"] = gst_calc["gst_amount"]
+        data["aggregator_sale"] = gst_calc["aggregator_sale"]
+        data["eligible_sale"] = gst_calc["eligible_base"]
+        data["net_revenue"] = round(data["total_sale"] - gst_calc["gst_amount"], 2)
 
     # Apply manual overrides (only non-zero overrides, to prevent reset)
     if req.overrides:
@@ -1014,5 +1043,11 @@ def _format_whatsapp_text(data: dict, display_date: str) -> str:
         f"18. No of sides sold = {int(data['num_sides'])}",
         f"    Cancelled Zomato Order = {int(data['cancelled_zomato'])}",
         f"19. Cancelled Swiggy Order = {int(data['cancelled_swiggy'])}",
+        "",
+        "💰 Net Revenue Calculation",
+        f"   Aggregator Sales (Swiggy+Zomato+DoorDash) = {fmt(data.get('aggregator_sale', 0))}",
+        f"   Eligible Sales (excl. aggregators) = {fmt(data.get('eligible_sale', 0))}",
+        f"   GST on Eligible Sales (5% incl.) = {fmt(data.get('gst', 0))}",
+        f"   ➡️ NET REVENUE = {fmt(data.get('net_revenue', 0))}",
     ]
     return "\n".join(lines)

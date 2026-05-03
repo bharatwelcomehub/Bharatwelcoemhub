@@ -5,6 +5,28 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-04-30] Net Revenue chain visible in EVERY report/export — PIB, Payout Excel/PDF, Daily/Monthly/Yearly Text
+**User instruction**: "HOPE THE SAME IS AVAILABLE IN REPORT AND PIB MONTHLY AND ALL SALES TEXT GENERATOR AND ALL PLACES."
+
+**Updated all consumer-facing exports to show the same Net Revenue chain**:
+
+1. **PIB Report (Section 4 Financial Summary)** — `pdf_generator.py::build_pib_pdf`
+   - Old: Total Sales − Expenses − Commissions = Net Revenue (with GST as memo)
+   - New: Total Sales − Commissions − GST on Eligible Sales (5% inclusive) = NET REVENUE; Expenses shown separately as info only
+2. **PIB Section 5 (Operational Sustainability)** — same fix applied: GST now `Less: GST on Eligible Sales`. `operational_balance` formula updated in `center_accounts.py` to subtract GST.
+3. **Month-wise Payout Summary Excel** (`build_mg_payout_excel`) — added 3 columns: GST, Commissions, Net Revenue. Now 12 cols. TOTAL row sums all.
+4. **Month-wise Payout Summary PDF** (`build_mg_payout_pdf`) — added Net Rev, GST, Comm columns. 12 cols total with adjusted column widths.
+5. **Monthly Text Generator** — appends "Net Revenue Calculation" block with Aggregator Sales / Eligible Sales / GST / Total Commissions / NET REVENUE.
+6. **Yearly Text Generator** — same block.
+7. **Daily Text Generator** — appends per-day Net Revenue Calculation block (Aggregator + Eligible + GST + Net Revenue) on each daily summary.
+
+**Daily/Monthly/Yearly text use shared `compute_gst_from_rows`** — single source of truth.
+
+**Verified PB-HSR Feb-26**:
+- PIB: NET REVENUE = ₹8,71,514.86, OPERATIONAL BALANCE updated, Revenue Share Base shown as ₹8,71,514.86
+- Payout Excel TOTAL row (Dec25–Feb26): Sales 29,27,404 / GST 1,18,463.61 / Comm 0 / Net Rev 28,08,940.39 / Rev Share 4,21,341.06
+- Monthly Text: shows full chain block at the end
+
 ### [2026-04-30] Payout Summary table — Net Revenue chain visible
 **User issue**: Month-wise Payout Summary table only showed `Total Sales` then jumped straight to `Revenue Share`. User asked to see the calculation base (Net Revenue) since the 15% is computed on Net Revenue, not on Total Sales.
 

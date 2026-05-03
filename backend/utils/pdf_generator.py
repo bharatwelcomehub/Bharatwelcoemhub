@@ -365,19 +365,18 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     fin_data = [
         ["Description", "Amount"],
         ["Total Sales", f"{currency} {fin['total_sales']:,.2f}"],
-        ["Less: Total Expenses", f"({currency} {fin['total_expenses']:,.2f})"],
         ["Less: Total Commissions", f"({currency} {fin['total_commissions']:,.2f})"],
     ]
-    # GST is booked as a liability for Month M and paid as an expense in
-    # Month M+1 — so it is NOT deducted from Net Revenue here (to avoid
-    # double-counting). The GST amount is shown as a memo line for audit.
+    # GST on Sales — INCLUSIVE carve-out (5% India, 10% Australia/Perth) on
+    # eligible non-aggregator sales. Subtracted from Net Revenue per Apr-2026 rule.
     if gst_on_sales > 0:
         gst_rate_label = "5%" if summary.get("country") == "India" else "10%"
         fin_data.append([
-            f"Memo: GST on Sales ({gst_rate_label}) — booked as liability, paid next month",
-            f"{currency} {gst_on_sales:,.2f}",
+            f"Less: GST on Eligible Sales ({gst_rate_label} inclusive)",
+            f"({currency} {gst_on_sales:,.2f})",
         ])
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
+    fin_data.append(["Less: Total Expenses (info)", f"({currency} {fin['total_expenses']:,.2f})"])
     fin_data.append(["", ""])
     fin_data.append(["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"])
     wc_st = fin.get("wc_standing", {})
@@ -503,9 +502,10 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     ]
     gst_liability = ops.get("gst_on_sales", 0)
     if gst_liability > 0:
+        gst_label_rate = "5%" if summary.get("country") == "India" else "10%"
         ops_data.append([
-            "Memo: GST liability for this month (paid next month, appears in M+1 expenses)",
-            f"{currency} {gst_liability:,.2f}",
+            f"Less: GST on Eligible Sales ({gst_label_rate} inclusive)",
+            f"({currency} {gst_liability:,.2f})",
         ])
     ops_data.append(["", ""])
     ops_data.append(["OPERATIONAL BALANCE", f"{currency} {ops.get('operational_balance', 0):,.2f}"])
@@ -813,6 +813,9 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
         rows.append({
             "Month": month_label,
             "Total Sales": m.get("total_sales", 0),
+            "GST": m.get("gst_on_sales", 0),
+            "Commissions": m.get("total_commissions", 0),
+            "Net Revenue": m.get("net_revenue", 0),
             "Revenue Share": m.get("revenue_share", 0),
             "MG Amount": m.get("mg_amount", 0),
             "Type": "MG" if m.get("payable_type") == "mg" else "Revenue Share",
@@ -824,6 +827,9 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
     rows.append({
         "Month": "TOTAL",
         "Total Sales": sum(m.get("total_sales", 0) for m in monthly_data),
+        "GST": sum(m.get("gst_on_sales", 0) for m in monthly_data),
+        "Commissions": sum(m.get("total_commissions", 0) for m in monthly_data),
+        "Net Revenue": sum(m.get("net_revenue", 0) for m in monthly_data),
         "Revenue Share": totals.get("revenue_share", 0),
         "MG Amount": totals.get("mg", 0),
         "Type": "",
@@ -907,7 +913,7 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     elements.append(summary_table)
     elements.append(Spacer(1, 16))
 
-    table_header = ["Month", "Total Sales", "Rev Share", "MG", "Type", "Payable", "Paid", "Pending", "Status"]
+    table_header = ["Month", "Total Sales", "GST", "Comm", "Net Rev", "Rev Share", "MG", "Type", "Payable", "Paid", "Pending", "Status"]
     table_rows: List[List[Any]] = [table_header]
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
@@ -915,6 +921,9 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         table_rows.append([
             month_label,
             f'{m.get("total_sales", 0):,.0f}',
+            f'{m.get("gst_on_sales", 0):,.0f}',
+            f'{m.get("total_commissions", 0):,.0f}',
+            f'{m.get("net_revenue", 0):,.0f}',
             f'{m.get("revenue_share", 0):,.0f}',
             f'{m.get("mg_amount", 0):,.0f}',
             ptype,
@@ -926,6 +935,9 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     table_rows.append([
         "TOTAL",
         f'{sum(m.get("total_sales", 0) for m in monthly_data):,.0f}',
+        f'{sum(m.get("gst_on_sales", 0) for m in monthly_data):,.0f}',
+        f'{sum(m.get("total_commissions", 0) for m in monthly_data):,.0f}',
+        f'{sum(m.get("net_revenue", 0) for m in monthly_data):,.0f}',
         f'{totals.get("revenue_share", 0):,.0f}',
         f'{totals.get("mg", 0):,.0f}',
         "",
@@ -935,16 +947,16 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         "",
     ])
 
-    data_table = Table(table_rows, colWidths=[55, 65, 60, 60, 35, 65, 60, 60, 45], repeatRows=1)
+    data_table = Table(table_rows, colWidths=[44, 50, 38, 38, 50, 50, 42, 28, 50, 42, 45, 38], repeatRows=1)
     table_style = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTSIZE", (0, 0), (-1, 0), 7),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 1), (-1, -1), 7),
+        ("FONTSIZE", (0, 1), (-1, -1), 6.5),
         ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("ALIGN", (4, 0), (4, -1), "CENTER"),
+        ("ALIGN", (7, 0), (7, -1), "CENTER"),
         ("ALIGN", (-1, 0), (-1, -1), "CENTER"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 4),

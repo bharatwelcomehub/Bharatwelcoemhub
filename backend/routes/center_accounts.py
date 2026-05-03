@@ -1491,7 +1491,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # auto-created 'GST PAYMENT' expense row — so it naturally flows through
     # M+1 expenses. Subtracting it here would double-count the cash impact.
     gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount  # kept for display only
-    operational_balance = total_sale - total_expenses - total_commission
+    # Operational balance: Sales − Expenses − Commissions − GST on Sales
+    # (GST is a govt pass-through, not center revenue)
+    operational_balance = total_sale - total_expenses - total_commission - sales_gst_amount
     
     operational_sustainability = {
         "total_sales": round(total_sale, 2),
