@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import SEOHead from '@/components/SEOHead';
+import PromoTimer from '@/components/PromoTimer';
 import { useSEO } from '@/contexts/SEOContext';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -97,6 +98,9 @@ const Home = () => {
           </div>
         </motion.div>
       )}
+
+      {/* Promo Combo Banner (Live countdown) */}
+      <PromoTimer variant="banner" region="India" />
 
       {/* HERO — Elegant Light Theme */}
       <section className="relative min-h-[90vh] overflow-hidden" data-testid="hero-section">

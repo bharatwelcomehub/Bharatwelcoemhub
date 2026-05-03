@@ -1096,6 +1096,33 @@ const Admin = () => {
       return { ...prev, [key]: { ...prev[key], regions: next } };
     });
   };
+  // Live-status evaluator for admin Promotions tab (re-renders every 60s via nowTick)
+  const [promoNowTick, setPromoNowTick] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setPromoNowTick(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, []);
+  const getPromoLiveStatus = (promo) => {
+    if (!promo) return { status: 'off', label: 'Disabled', color: 'bg-gray-300 text-gray-700' };
+    if (!promo.enabled) return { status: 'off', label: 'Disabled', color: 'bg-gray-300 text-gray-700' };
+    const now = new Date(promoNowTick);
+    const cur = now.getHours() * 60 + now.getMinutes();
+    const toMin = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return (h||0)*60 + (m||0); };
+    const s = toMin(promo.start_time);
+    const e = toMin(promo.end_time);
+    const fmtDur = (mins) => {
+      if (mins <= 0) return 'now';
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    };
+    if (cur >= s && cur < e) {
+      return { status: 'live', label: `LIVE NOW — ${fmtDur(e - cur)} left`, color: 'bg-green-600 text-white animate-pulse' };
+    }
+    const minsUntil = s > cur ? (s - cur) : (s + 24*60 - cur);
+    return { status: 'scheduled', label: `Starts in ${fmtDur(minsUntil)}`, color: 'bg-[#B8962E]/20 text-[#B8962E]' };
+  };
   const savePromotions = async () => {
     if (!promotions) return;
     setPromoSaving(true);
@@ -2582,7 +2609,20 @@ const Admin = () => {
                 <Card className="border-[#E8DFD0]" data-testid="promo-brunch-card">
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between text-lg">
-                      <span className="flex items-center gap-2"><Coffee className="h-5 w-5 text-[#B8962E]" /> {promotions.brunch?.label || 'Brunch Combo'}</span>
+                      <span className="flex items-center gap-2 flex-wrap">
+                        <Coffee className="h-5 w-5 text-[#B8962E]" /> {promotions.brunch?.label || 'Brunch Combo'}
+                        {(() => {
+                          const st = getPromoLiveStatus(promotions.brunch);
+                          return (
+                            <span
+                              className={`text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full ${st.color}`}
+                              data-testid="promo-brunch-status"
+                            >
+                              {st.label}
+                            </span>
+                          );
+                        })()}
+                      </span>
                       <label className="flex items-center gap-2 cursor-pointer text-xs">
                         <input
                           type="checkbox"
@@ -2646,7 +2686,20 @@ const Admin = () => {
                 <Card className="border-[#E8DFD0]" data-testid="promo-evening-snack-card">
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between text-lg">
-                      <span className="flex items-center gap-2"><Coffee className="h-5 w-5 text-[#B8962E]" /> {promotions.evening_snack?.label || 'Evening Snack Combo'}</span>
+                      <span className="flex items-center gap-2 flex-wrap">
+                        <Coffee className="h-5 w-5 text-[#B8962E]" /> {promotions.evening_snack?.label || 'Evening Snack Combo'}
+                        {(() => {
+                          const st = getPromoLiveStatus(promotions.evening_snack);
+                          return (
+                            <span
+                              className={`text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full ${st.color}`}
+                              data-testid="promo-snack-status"
+                            >
+                              {st.label}
+                            </span>
+                          );
+                        })()}
+                      </span>
                       <label className="flex items-center gap-2 cursor-pointer text-xs">
                         <input
                           type="checkbox"

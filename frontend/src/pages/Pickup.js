@@ -17,6 +17,7 @@ import indiaMenus from '@/config/menus-india.json';
 import perthMenus from '@/config/menus-perth.json';
 import bookingRules from '@/config/booking-rules.json';
 import { evaluatePromotion } from '@/utils/promoEngine';
+import PromoTimer from '@/components/PromoTimer';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -196,6 +197,10 @@ const Pickup = () => {
 
       {!showReview ? (
         <div className="container mx-auto px-6 lg:px-12 py-10">
+          {/* Live combo promo timer */}
+          <div className="mb-6">
+            <PromoTimer variant="sticky" region={currentCenter?.country === 'Australia' ? 'Australia' : 'India'} />
+          </div>
           <div className="grid lg:grid-cols-4 gap-6">
             {/* Sidebar - Order Details */}
             <div className="lg:col-span-1 space-y-6">
