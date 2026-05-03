@@ -513,12 +513,12 @@ const MenuItemCard = ({ item, cart, updateCart, formatPrice }) => {
       <div className="flex items-center gap-2">
         {inCart > 0 ? (
           <>
-            <Button variant="outline" size="icon" className="h-8 w-8 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item, -1)}><Minus className="h-4 w-4" /></Button>
-            <span className="w-8 text-center font-body font-semibold text-[#2D1810]">{inCart}</span>
-            <Button variant="outline" size="icon" className="h-8 w-8 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item, 1)}><Plus className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" className="h-8 w-8 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item, -1)} data-testid={`pickup-decrement-${item.id}`}><Minus className="h-4 w-4" /></Button>
+            <span className="w-8 text-center font-body font-semibold text-[#2D1810]" data-testid={`pickup-qty-${item.id}`}>{inCart}</span>
+            <Button variant="outline" size="icon" className="h-8 w-8 border-[#E8DFD0] text-[#5C4A3A] hover:text-[#B8962E] hover:border-[#B8962E]/30 rounded-none" onClick={() => updateCart(item, 1)} data-testid={`pickup-increment-${item.id}`}><Plus className="h-4 w-4" /></Button>
           </>
         ) : (
-          <Button variant="outline" size="sm" className="border-[#B8962E]/30 text-[#B8962E] hover:bg-[#B8962E] hover:text-white rounded-none text-xs tracking-wider" onClick={() => updateCart(item, 1)}>
+          <Button variant="outline" size="sm" className="border-[#B8962E]/30 text-[#B8962E] hover:bg-[#B8962E] hover:text-white rounded-none text-xs tracking-wider" onClick={() => updateCart(item, 1)} data-testid={`pickup-add-${item.id}`}>
             <Plus className="h-4 w-4 mr-1" /> Add
           </Button>
         )}

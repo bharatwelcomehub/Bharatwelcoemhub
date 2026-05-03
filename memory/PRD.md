@@ -243,6 +243,13 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [ ] Multi-language support
 
 ## Bug Fixes
+- [x] **Promotions / Discount Combos + Unlimited Breakfast Sat/Sun gating** (Feb 2026) — Three new features:
+  - **Everyday Brunch Combo** (online): 11:00–12:00, India + Perth, 10% off when cart has ≥1 Heavy Brunch/Bhakar Combo item + ≥1 Tea & Coffee/Drinks item.
+  - **Evening Snack Combo** (online): 16:00–17:00, India only, 10% off when cart has ≥1 Snacks item + ≥1 item with "masala" in name.
+  - **Unlimited Breakfast** on Table Booking now gated by selected booking date (Sat/Sun only, all centers, ₹299 / $35).
+  - Discounts auto-apply on both Pickup and Table Booking carts; visible green banner with subtotal/discount/total.
+  - **Admin → Promotions tab** controls everything: enable/disable, edit times, %, regions, eligible categories.
+  - New endpoints: `GET /api/promotions` (public), `PUT /api/admin/promotions` (admin). Tested: 13/13 backend pytest + 9/9 evaluator + 100% UI gating tests pass.
 - [x] **Locations + Time Slots Unified (Option A — End-to-End)** (Feb 2026) — Moved Center Time Slots out of "Book" tab and into per-card tabs ("Location Info" | "Time Slots") inside each Location card. Backend `Location` model extended with `center_id`, `display_name`, `state`, `currency`, `currency_symbol`, `services`. New `GET /api/centers` endpoint groups active locations by region for the Table Booking page. `TableBooking.js` now fetches from API (with `centers.json` fallback). One-time migration assigned center_id slugs to all 8 existing locations. **Adding a new center via Admin → Add Location → instantly appears on Table Booking and gets its own Time Slots tab.** Tested end-to-end (12/12 backend tests pass).
 - [x] Catering page: Desserts, Drinks, Sides selection was blocked ("Maximum 0 allowed") due to singular/plural key mismatch between package requirements JSON and frontend category keys (Apr 2026)
 - [x] Banner Set Active: Homepage now fetches hero image from database API `/api/hero-image` instead of hardcoded image, preventing theme reversion issues (Apr 2026)
