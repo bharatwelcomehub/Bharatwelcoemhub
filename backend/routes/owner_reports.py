@@ -176,9 +176,15 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
     # GST is removed because it's a govt pass-through, not center revenue.
     # Expenses are NOT subtracted at owner-report level (expenses are reviewed
     # separately in the expense breakdown).
-    
+
+    # Country detection — needed to surface Profitability for Australia centers.
+    center_doc = await db.centers.find_one({"code": center}, {"_id": 0, "country": 1})
+    country = (center_doc or {}).get("country") or ("Australia" if str(center).upper().endswith("-PERTH") else "India")
+    profitability = round(pnl - total_expenses, 2) if country == "Australia" else None
+
     return {
         "center": center, "month": month,
+        "country": country,
         "sales": {
             "total": total_sales, "cash": cash, "online": online,
             "swiggy": round(sum(float(r.get("swiggy_sale", r.get("swiggy", 0)) or 0) for r in sales), 2),
@@ -206,6 +212,7 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
             "by_platform": commission_breakdown,
         },
         "pnl": pnl,
+        "profitability": profitability,
     }
 
 

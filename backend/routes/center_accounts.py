@@ -2447,19 +2447,21 @@ async def get_payout_summary(data: dict = Body(...)):
         
         # Calculate Net Revenue / Net Profit based on country
         # India : Net Revenue = Total Sales − Commissions − GST on Sales (Apr-2026 rule)
-        # Other : Net Profit  = (Sales − GST) − Expenses − Commissions
+        # Other : Profitability = Net Revenue − Expenses
+        #         where Net Revenue = Sales − GST − Commissions × (1 + 10%)
+        # 80/20 profit share is applied on Profitability for AUS.
         franchise_country = franchise.get("country", "India") if franchise else "India"
 
         # GST: shared utility, INCLUSIVE on eligible (non-aggregator) sales.
-        from utils.gst import compute_gst_from_rows
+        from utils.gst import compute_gst_from_rows, compute_net_revenue
         gst_calc = compute_gst_from_rows(sales_records, country=franchise_country, center=center)
         gst_on_sales = gst_calc["gst_amount"]
 
         if franchise_country == "India":
             net_revenue_for_share = max(0, total_sale - total_commission - gst_on_sales)
         else:
-            sales_ex_gst = total_sale - gst_on_sales
-            net_revenue_for_share = max(0, sales_ex_gst - total_expenses - total_commission)
+            net_revenue_aus = compute_net_revenue(total_sale, total_commission, gst_on_sales, 0, franchise_country)
+            net_revenue_for_share = max(0, round(net_revenue_aus - total_expenses, 2))
         
         # Calculate FRANCHISE OWNER's share (this is what gets compared with MG)
         # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner) on NET REVENUE

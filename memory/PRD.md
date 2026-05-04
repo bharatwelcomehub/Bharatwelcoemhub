@@ -5,6 +5,22 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Australia Profitability chain mirrored across PIB / Owner Reports / Excel
+**User ask**: Make the new "Sales − Deductions = Net Revenue, Net Revenue − Expenses = Profitability, 80/20 on Profitability" chain visible in offline exports too.
+
+**Updates (Australia / Outside-IN only — India unchanged)**:
+- **PIB PDF (`utils/pdf_generator.py::build_pib_pdf`)** — Section 4 now prints:
+  - Total Sales → Less: Commissions → Less: Commission GST (10%) → Less: GST on Eligible Sales (10%) → **NET REVENUE** (gold-highlighted) → Less: Total Expenses → **PROFITABILITY (Base for 80/20 Split)** (green-highlighted).
+  - Section 7 base label changed from "Net Revenue" → "Profitability" for profit_share centers.
+- **Owner Reports**:
+  - Backend (`routes/owner_reports.py`) now returns `country` + `profitability` (Sales − Comm − GST − Expenses) for Australia.
+  - Frontend (`pages/OwnerReports.jsx`) shows a 5th emerald "Profitability" KPI card for Australia centers; renames "Net P/L" → "Net Revenue" and adds subtitle "Sales − Comm − GST".
+- **Backend MG/Payout aggregator** (`routes/center_accounts.py` line 2448-2462): Australia branch now computes `net_revenue_for_share = max(0, NetRev − Expenses)` using the centralized `compute_net_revenue` helper. This keeps the MG Payout Excel/PDF columns in sync with the new model (80% × Profitability for Franchise Owner share).
+
+**Verification**: Generated live PIB PDF via `/api/center-accounts/generate-pib` for PB-PERTH 2026-04. `pdfminer` confirmed the rendered PDF contains "NET REVENUE", "PROFITABILITY", "Less: Total Expenses", and "Section 7: PROFIT SHARE CALCULATION (80/20 SPLIT) … Profitability (Base for Calculation)".
+
+**Files**: `backend/utils/pdf_generator.py`, `backend/routes/owner_reports.py`, `backend/routes/center_accounts.py`, `frontend/src/pages/OwnerReports.jsx`. Lint clean.
+
 ### [2026-05-04] Australia (PB-PERTH) — Net Revenue / Profitability split + 80/20 on Profitability
 **User issue (with screenshot)**: For Perth Australia, "Net Revenue" was showing 3,467.19 on Sales 36,310 — incorrect. User spec:
 1. **Net Revenue = Total Sales − Total Deductions ONLY** (no expenses)

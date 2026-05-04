@@ -362,11 +362,18 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     story.append(Paragraph("4. FINANCIAL SUMMARY", styles["PIBSection"]))
     fin = summary["financial_summary"]
     gst_on_sales = fin.get("sales_gst", 0)
+    is_australia = summary.get("country") == "Australia"
     fin_data = [
         ["Description", "Amount"],
         ["Total Sales", f"{currency} {fin['total_sales']:,.2f}"],
         ["Less: Total Commissions", f"({currency} {fin['total_commissions']:,.2f})"],
     ]
+    # Australia: also show 10% commission GST as a separate deduction line
+    if is_australia and float(fin.get("commission_gst", 0) or 0) > 0:
+        fin_data.append([
+            "Less: Commission GST (10%)",
+            f"({currency} {fin['commission_gst']:,.2f})",
+        ])
     # GST on Sales — INCLUSIVE carve-out (5% India, 10% Australia/Perth) on
     # eligible non-aggregator sales. Subtracted from Net Revenue per Apr-2026 rule.
     if gst_on_sales > 0:
@@ -376,7 +383,13 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             f"({currency} {gst_on_sales:,.2f})",
         ])
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
-    fin_data.append(["Less: Total Expenses (info)", f"({currency} {fin['total_expenses']:,.2f})"])
+    if is_australia:
+        # Australia: show explicit Profitability chain after Net Revenue
+        fin_data.append(["Less: Total Expenses", f"({currency} {fin['total_expenses']:,.2f})"])
+        prof_value = fin.get("profitability", fin['net_revenue'] - fin['total_expenses'])
+        fin_data.append(["PROFITABILITY (Base for 80/20 Split)", f"{currency} {prof_value:,.2f}"])
+    else:
+        fin_data.append(["Less: Total Expenses (info)", f"({currency} {fin['total_expenses']:,.2f})"])
     fin_data.append(["", ""])
     fin_data.append(["Working Capital (Security Deposit)", f"{currency} {fin['working_capital']:,.2f}"])
     wc_st = fin.get("wc_standing", {})
@@ -401,13 +414,15 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             fin_data.append(["*** REVENUE SHARE & MG: CLOSED ***", "WC below 50% threshold"])
 
     net_revenue_row_idx = 5 if len(fin_data) > 5 else len(fin_data) - 3
-    # Find NET REVENUE row accurately
+    profitability_row_idx = None
+    # Find NET REVENUE / PROFITABILITY rows accurately
     for i, r in enumerate(fin_data):
         if r and r[0] == "NET REVENUE":
             net_revenue_row_idx = i
-            break
+        elif r and r[0].startswith("PROFITABILITY"):
+            profitability_row_idx = i
     fin_table = Table(fin_data, colWidths=[280, 170])
-    fin_table.setStyle(TableStyle([
+    fin_style = [
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTNAME", (0, net_revenue_row_idx), (-1, net_revenue_row_idx), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
@@ -417,7 +432,11 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    ]
+    if profitability_row_idx is not None:
+        fin_style.append(("FONTNAME", (0, profitability_row_idx), (-1, profitability_row_idx), "Helvetica-Bold"))
+        fin_style.append(("BACKGROUND", (0, profitability_row_idx), (-1, profitability_row_idx), colors.HexColor("#c8e6c9")))
+    fin_table.setStyle(TableStyle(fin_style))
     story.append(fin_table)
     story.append(Spacer(1, 15))
 
@@ -561,7 +580,8 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     # --- 7. Revenue/Profit Share Calculation -------------------------------
     share = summary["share_calculation"]
-    base_label = "Net Revenue" if share["type"] == "profit_share" else "Total Sales"
+    # For Australia (profit_share) the base is Profitability (NetRev − Expenses).
+    base_label = "Profitability" if share["type"] == "profit_share" else "Total Sales"
     wc_gated = share.get("wc_gated", False)
     section_title = f"7. {share['type'].upper().replace('_', ' ')} CALCULATION"
     if wc_gated:
