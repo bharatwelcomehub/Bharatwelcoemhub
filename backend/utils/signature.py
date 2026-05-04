@@ -47,61 +47,59 @@ def signature_block(country: Optional[str] = "India",
 
     entity_style = ParagraphStyle(
         "SigEntity", fontName="Helvetica-Bold", fontSize=11, leading=14,
-        alignment=1,  # center
+        alignment=0,  # left
         textColor=colors.HexColor("#0F172A"),
     )
     name_style = ParagraphStyle(
-        "SigName", fontName="Helvetica-Bold", fontSize=13, leading=16,
-        alignment=1, textColor=colors.HexColor("#0B1E3F"),
+        "SigName", fontName="Helvetica-Bold", fontSize=12, leading=15,
+        alignment=0, textColor=colors.HexColor("#0B1E3F"),
     )
     role_style = ParagraphStyle(
-        "SigRole", fontName="Helvetica", fontSize=10, leading=13,
-        alignment=1, textColor=colors.HexColor("#1e293b"),
+        "SigRole", fontName="Helvetica", fontSize=9.5, leading=12,
+        alignment=0, textColor=colors.HexColor("#1e293b"),
     )
     sub_style = ParagraphStyle(
-        "SigSub", fontName="Helvetica-Oblique", fontSize=9, leading=12,
-        alignment=1, textColor=colors.HexColor("#475569"),
+        "SigSub", fontName="Helvetica-Oblique", fontSize=8.5, leading=11,
+        alignment=0, textColor=colors.HexColor("#475569"),
     )
 
-    # Signature image — large and centered. Cropped asset is 453×359 (1.26 ratio).
+    # Signature image — left aligned, 2" wide. Cropped asset is 453×359 (1.26 ratio).
     if _SIG_PATH.exists():
         try:
-            sig_w = 3.0 * inch
-            sig_h = sig_w * (359.0 / 453.0)  # preserve aspect → ~2.38 inches tall
+            sig_w = 2.0 * inch
+            sig_h = sig_w * (359.0 / 453.0)  # ~1.58 inch tall
             sig_img = Image(str(_SIG_PATH), width=sig_w, height=sig_h)
-            sig_img.hAlign = "CENTER"
+            sig_img.hAlign = "LEFT"
         except Exception:
             sig_img = Paragraph("[signature unavailable]", sub_style)
     else:
         sig_img = Paragraph("[signature unavailable]", sub_style)
 
-    inner = [
-        Spacer(1, 6),
+    # Stack flowables, all left-aligned. NOT inside a card — clean letterhead look.
+    block = [
+        Spacer(1, 24),
         Paragraph(f"For <b>{entity}</b>", entity_style),
         Spacer(1, 4),
         sig_img,
-        HRFlowable(width="60%", thickness=0.6, color=colors.HexColor("#94a3b8"),
-                   spaceBefore=0, spaceAfter=4, hAlign="CENTER"),
+        Spacer(1, 4),
         Paragraph("Shashikant Pande", name_style),
         Paragraph("CFO (Head of Accounts)", role_style),
         Paragraph("Purnabramha Accounts", role_style),
         Paragraph(entity, role_style),
         Spacer(1, 2),
         Paragraph(f"<i>{label}</i>", sub_style),
-        Spacer(1, 4),
     ]
 
-    # Wrap inner stack inside a bordered table cell for a "stamped card" look
-    card = Table([[inner]], colWidths=[5.6 * inch])
-    card.hAlign = "CENTER"
-    card.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#cbd5e1")),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fafbfc")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 16),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 16),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    # Wrap in a left-anchored 2-column table so the block stays on the left
+    # and the right side is intentionally empty (professional letterhead style).
+    wrap = Table([[block, ""]], colWidths=[3.4 * inch, 4.4 * inch])
+    wrap.hAlign = "LEFT"
+    wrap.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-    return [Spacer(1, 22), card, Spacer(1, 8)]
+    return [wrap, Spacer(1, 6)]
