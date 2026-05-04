@@ -47,6 +47,12 @@ class IgnoreRequest(BaseModel):
     reason: Optional[str] = ""
     token: str
 
+class BulkIgnoreRequest(BaseModel):
+    transaction_ids: list[str]
+    upload_id: str
+    reason: Optional[str] = ""
+    token: str
+
 class ExportRequest(BaseModel):
     upload_id: str
     token: str
@@ -995,6 +1001,40 @@ async def ignore_transaction(req: IgnoreRequest):
     })
 
     return {"success": True, "message": "Transaction ignored"}
+
+
+@router.post("/bulk-ignore")
+async def bulk_ignore_transactions(req: BulkIgnoreRequest):
+    """Mark multiple transactions as intentionally ignored in one shot."""
+    session = await _get_session(req.token)
+    if not session:
+        return {"detail": "Authentication required"}
+    if not req.transaction_ids:
+        return {"detail": "No transactions selected"}
+
+    result = await db.bank_transactions.update_many(
+        {"transaction_id": {"$in": req.transaction_ids}, "upload_id": req.upload_id},
+        {"$set": {"match_status": "ignored", "ignore_reason": req.reason or ""}},
+    )
+    actor = session.get("name", session.get("mobile", ""))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if result.modified_count:
+        await db.expense_reconciliation_log.insert_many([
+            {
+                "upload_id": req.upload_id,
+                "bank_transaction_id": tid,
+                "action": "ignore",
+                "reason": req.reason or "",
+                "reconciliation_status": "ignored",
+                "action_taken_by": actor,
+                "timestamp": now_iso,
+            } for tid in req.transaction_ids
+        ])
+    return {
+        "success": True,
+        "message": f"{result.modified_count} transaction(s) ignored",
+        "ignored_count": result.modified_count,
+    }
 
 
 @router.post("/reset-transaction")

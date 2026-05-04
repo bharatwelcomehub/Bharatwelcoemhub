@@ -5,6 +5,25 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Bank Reconciliation — Bulk Ignore + Category Dropdown bug fix
+**User issues (with screenshot)**:
+1. Category dropdown blank in "Bulk Add as Expense" modal.
+2. Need a "Bulk Ignore" action for selecting multiple unrecorded transactions.
+
+**Fix 1 — Categories not loading**:
+- Frontend was calling `POST /api/category-master/expense-heads` with token. **No such endpoint exists**.
+- Actual endpoint: `GET /api/sales/expense-heads` (no auth, returns 35 standard heads or DB-customised list).
+- Updated `pages/BankReconciliation.jsx` to call the correct endpoint. Verified live: `count: 35` heads loaded.
+
+**Fix 2 — Bulk Ignore**:
+- New backend endpoint `POST /api/bank-reconciliation/bulk-ignore` (`routes/bank_reconciliation.py`):
+  - Accepts `{ transaction_ids[], upload_id, reason, token }`.
+  - `update_many` flips `match_status: ignored` for all selected txns + writes one audit log row per txn.
+  - Returns `ignored_count` for the toast.
+- Frontend: new red-outline "Bulk Ignore (N)" button next to "Bulk Add as Expense" in the selection toolbar (Unrecorded tab). Prompts for a reason once and applies to all selected rows.
+
+**Files**: `backend/routes/bank_reconciliation.py`, `frontend/src/pages/BankReconciliation.jsx`. Lint clean. UI smoke-test green.
+
 ### [2026-05-04] Franchise Owner read-only access to all docs + Full Net Revenue/GST chain in PDFs
 **User asks**:
 1. Franchise Owner Dashboard should expose ALL documents (LIC, agreements, KYC) — read-only, no edits.

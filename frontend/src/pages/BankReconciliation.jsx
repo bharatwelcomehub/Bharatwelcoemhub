@@ -52,12 +52,10 @@ export default function BankReconciliation() {
         if (list.length && !center) setCenter(list[0]);
       } catch { /* ignore */ }
       try {
-        const res = await fetch(`${API}/api/category-master/expense-heads`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: session.token }),
-        });
+        const res = await fetch(`${API}/api/sales/expense-heads`);
         const data = await res.json();
-        setExpenseCats((data.expense_heads || data.rows || data.categories || []).map(c => c.name || c));
+        const heads = data.expense_heads || data.rows || data.categories || [];
+        setExpenseCats(heads.map(c => c.name || c).filter(Boolean));
       } catch { /* ignore */ }
     })();
   }, [session, center]);
@@ -175,6 +173,30 @@ export default function BankReconciliation() {
       toast.success('Transaction ignored');
       loadSummary(activeUpload);
     } catch (e) { toast.error(e.message); }
+  };
+
+  const bulkIgnore = async () => {
+    if (selectedIds.length === 0) return;
+    const reason = window.prompt(`Reason for ignoring ${selectedIds.length} selected transaction(s)?`);
+    if (!reason) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch(`${API}/api/bank-reconciliation/bulk-ignore`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transaction_ids: selectedIds,
+          upload_id: activeUpload,
+          reason,
+          token: session.token,
+        }),
+      });
+      const data = await res.json();
+      if (data.detail && !data.success) throw new Error(data.detail);
+      toast.success(`${data.ignored_count || selectedIds.length} transaction(s) ignored`);
+      setSelectedIds([]);
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+    finally { setBulkBusy(false); }
   };
 
   const resetTxn = async (txn, fromStatus, silent = false) => {
@@ -326,6 +348,11 @@ export default function BankReconciliation() {
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => setSelectedIds([])} data-testid="br-bulk-clear">Clear</Button>
+                      <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50"
+                        onClick={bulkIgnore} disabled={bulkBusy}
+                        data-testid="br-bulk-ignore">
+                        <X className="w-3.5 h-3.5 mr-1" /> Bulk Ignore ({selectedIds.length})
+                      </Button>
                       <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setBulkDialogOpen(true)} data-testid="br-bulk-open">
                         <Layers className="w-3.5 h-3.5 mr-1" /> Bulk Add as Expense ({selectedIds.length})
                       </Button>
