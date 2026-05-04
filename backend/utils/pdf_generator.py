@@ -690,6 +690,14 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     story.append(Paragraph(tax_note, styles["PIBBody"]))
     story.append(Spacer(1, 30))
 
+    # Authorised signatory block (CFO of Accounts) — keyed off center country
+    try:
+        from utils.signature import signature_block
+        story.extend(signature_block(country=summary.get("country") or "India",
+                                     label="Authorised Signatory · Accounts"))
+    except Exception:
+        pass
+
     story.append(Paragraph(
         f"Generated on {datetime.now().strftime('%d-%b-%Y %H:%M')} | Purnabramha - Manaswini Foods Pvt. Ltd.",
         ParagraphStyle("Footer", fontSize=8, alignment=TA_CENTER, textColor=colors.grey),

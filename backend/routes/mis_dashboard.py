@@ -2140,6 +2140,14 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
         elements.append(inflow_t)
         elements.append(Spacer(1, 10))
 
+    # ── AUTHORISED SIGNATORY ──
+    try:
+        from utils.signature import signature_block
+        center_country = "Australia" if is_intl else "India"
+        elements.extend(signature_block(country=center_country, label="Authorised Signatory · Accounts"))
+    except Exception:
+        pass
+
     # ── FOOTER ──
     elements.append(HRFlowable(width="100%", thickness=0.5, color=MID_GRAY, spaceBefore=16))
     generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")

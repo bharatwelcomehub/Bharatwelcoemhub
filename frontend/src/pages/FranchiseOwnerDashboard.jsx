@@ -118,6 +118,30 @@ export default function FranchiseOwnerDashboard() {
     fetchOL();
   }, [showOwnerLedgers, session?.token, selectedCenter]);
 
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+  const [previewTitle, setPreviewTitle] = useState("");
+
+  const previewLedger = async (month, ltype) => {
+    try {
+      const API = process.env.REACT_APP_BACKEND_URL;
+      const res = await fetch(`${API}/api/ledgers/${ltype}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, center: selectedCenter, period_type: 'month', month, fmt: 'pdf' })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Preview failed');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setPreviewBlobUrl(url);
+      setPreviewTitle(`${ledgerLabels[ltype] || ltype} — ${selectedCenter} · ${month}`);
+    } catch {
+      toast.error('Preview failed');
+    }
+  };
+
   const downloadLedger = async (month, ltype, fmt) => {
     try {
       const API = process.env.REACT_APP_BACKEND_URL;
@@ -879,6 +903,7 @@ export default function FranchiseOwnerDashboard() {
                       <div key={lt} className="flex items-center justify-between px-2 py-1.5 bg-slate-50 rounded text-xs hover:bg-slate-100">
                         <span className="text-slate-700">{ledgerLabels[lt] || lt}</span>
                         <div className="flex gap-1">
+                          <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => previewLedger(m.month, lt)} data-testid={`fo-preview-${lt}-${m.month}`}>Preview</Button>
                           <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => downloadLedger(m.month, lt, 'pdf')} data-testid={`fo-dl-${lt}-${m.month}-pdf`}>PDF</Button>
                           <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => downloadLedger(m.month, lt, 'excel')} data-testid={`fo-dl-${lt}-${m.month}-xls`}>Excel</Button>
                         </div>
@@ -887,6 +912,31 @@ export default function FranchiseOwnerDashboard() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inline Preview modal */}
+      <Dialog open={!!previewBlobUrl} onOpenChange={(o) => { if (!o) { if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); } }}>
+        <DialogContent className="max-w-5xl h-[85vh] p-0 flex flex-col" data-testid="fo-preview-modal">
+          <DialogHeader className="px-5 py-3 border-b border-slate-200">
+            <DialogTitle className="text-base">{previewTitle || "Preview"}</DialogTitle>
+            <DialogDescription className="text-xs">View the ledger before downloading. Use the buttons below to save it.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {previewBlobUrl && (
+              <iframe title="ledger-preview" src={previewBlobUrl} className="w-full h-full" data-testid="fo-preview-frame" />
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => { if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); }} data-testid="fo-preview-close">Close</Button>
+            {previewBlobUrl && (
+              <a href={previewBlobUrl} download={`${previewTitle.replace(/[^a-z0-9]+/gi, '_')}.pdf`} data-testid="fo-preview-download">
+                <Button size="sm" className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
+                  <FileDown className="w-4 h-4 mr-1" /> Download PDF
+                </Button>
+              </a>
             )}
           </div>
         </DialogContent>

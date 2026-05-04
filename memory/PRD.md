@@ -5,6 +5,41 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Authorised Signature on all Accounts reports + Preview before download + Strict revoke gating
+**User asks**: 
+1. Add Shashikant Pande / CFO signature block to all ledger PDFs (CA bundle, franchise-owner copy, individuals) AND all Accounts reports.
+2. Preview ledger before downloading — both Franchise Owner Dashboard and Center Accounts.
+3. Once Accounts revokes a release, the franchisee should not see ANY ledgers for that month.
+
+**Implementation**:
+
+**1. Signature block** — new `backend/utils/signature.py::signature_block(country, label)` returns a reportlab Table with:
+- Caption: "For <Entity>"
+- Name: **Shashikant Pande**
+- Role: **CFO (Head of Accounts)**
+- Org line: **Purnabramha Accounts**
+- Entity: **Manaswini Foods Pvt Ltd** (India centers) OR **Purnabramha LLC Pty Ltd** (Australia / outside-IN) — auto-detected by country
+- Right-side: actual signature image stored at `/app/backend/assets/signature_kaka.png` (rendered at 2"×1.56")
+
+**Wired into**:
+- `routes/ledgers.py::_render_pdf` — covers ALL 10 ledger PDFs (Sales, Expense, Cash, Bank, Commission, Loans, Payroll, GST, P&L, Owner) AND the CA Bundle ZIP (re-uses the same renderer for individual + bundled).
+- `utils/pdf_generator.py::build_pib_pdf` — Center Accounts monthly PIB report.
+- `routes/mis_dashboard.py::_build_franchise_pdf` — MIS Franchise PDF.
+
+**Verified live**: PB-HSR sales ledger PDF contains "Shashikant Pande", "CFO", "Manaswini Foods" (×2). PB-PERTH PIB contains "Shashikant Pande", "CFO", "Purnabramha LLC Pty" (×2). Country switch works automatically.
+
+**2. Preview before download** — both surfaces:
+- **Center Accounts → Ledgers tab** (`components/LedgersTab.jsx`): each ledger card now has 3 buttons in order — `Preview · PDF · Excel`. Preview opens a 5xl-wide modal with the PDF rendered inline in an iframe, plus a "Download PDF" CTA inside the modal.
+- **Franchise Owner Dashboard → My Ledgers** (`pages/FranchiseOwnerDashboard.jsx`): same 3-button row per ledger, same preview modal.
+- Both modals revoke their object URL on close to prevent memory leaks.
+
+**3. Strict revoke gating** — already correct in code; verified during this task:
+- `routes/owner_reports.py::set_visibility` flips `owner_report_visibility.ready: True/False` via the Send/Hide toggle.
+- `routes/ledgers.py::owner/list` only includes a month if `vis.ready === True` (full report) OR explicit `report_type=owner_ledger; released=True` (legacy owner ledger). Once revoked → both false → month omitted from response → not visible to franchise owner.
+- Per-ledger `/api/ledgers/<type>` endpoints also recheck `vis.ready` before returning content for franchise-owner sessions; returns 403 with a friendly message after revoke.
+
+**Files**: `backend/utils/signature.py` (new), `backend/assets/signature_kaka.png` (new), `backend/routes/ledgers.py`, `backend/utils/pdf_generator.py`, `backend/routes/mis_dashboard.py`, `frontend/src/components/LedgersTab.jsx`, `frontend/src/pages/FranchiseOwnerDashboard.jsx`. Lint clean. UI verified live.
+
 ### [2026-05-04] MIS Dashboard — Total Deductions / Net Revenue / Revenue Share parity
 **User ask**: Same Total Deductions + Net Revenue + correct Revenue Share fix that just landed on Owner Dashboard, but applied to **Accounts → MIS Dashboard** as well.
 

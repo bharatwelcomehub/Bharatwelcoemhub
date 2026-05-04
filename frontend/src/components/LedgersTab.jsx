@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   BookOpen, FileText, FileSpreadsheet, Archive, Calendar, Loader2,
@@ -66,6 +67,31 @@ export default function LedgersTab({ session, selectedCenter, country }) {
     else body.fy_start_year = parseInt(fyStartYear, 10);
     return body;
   }, [token, selectedCenter, periodType, selectedMonth, fyStartYear]);
+
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+  const [previewTitle, setPreviewTitle] = useState("");
+
+  const previewLedger = async (ledgerKey) => {
+    if (!selectedCenter) { toast.error('Select a center'); return; }
+    setBusy(`${ledgerKey}-preview`);
+    try {
+      const body = { ...buildBody(), fmt: 'pdf' };
+      const res = await fetch(`${API}/api/ledgers/${ledgerKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Preview failed' }));
+        throw new Error(err.detail || 'Preview failed');
+      }
+      const blob = await res.blob();
+      setPreviewBlobUrl(URL.createObjectURL(blob));
+      setPreviewTitle(`${ledgerKey.toUpperCase()} — ${selectedCenter} · ${periodLabel}`);
+    } catch (e) {
+      toast.error(e.message || 'Preview failed');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const downloadLedger = async (ledgerKey, fmt) => {
     if (!selectedCenter) { toast.error('Select a center'); return; }
@@ -246,6 +272,10 @@ export default function LedgersTab({ session, selectedCenter, country }) {
             </CardHeader>
             <CardContent className="pt-2">
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => previewLedger(l.key)} disabled={busy === `${l.key}-preview`} data-testid={`ledger-${l.key}-preview`}>
+                  {busy === `${l.key}-preview` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
+                  Preview
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => downloadLedger(l.key, 'pdf')} disabled={busy === `${l.key}-pdf`} data-testid={`ledger-${l.key}-pdf`}>
                   {busy === `${l.key}-pdf` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1" />}
                   PDF
@@ -290,6 +320,31 @@ export default function LedgersTab({ session, selectedCenter, country }) {
           </ul>
         </CardContent>
       </Card>
+
+      {/* Inline Preview modal */}
+      <Dialog open={!!previewBlobUrl} onOpenChange={(o) => { if (!o) { if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); } }}>
+        <DialogContent className="max-w-5xl h-[85vh] p-0 flex flex-col" data-testid="ledger-preview-modal">
+          <DialogHeader className="px-5 py-3 border-b border-slate-200">
+            <DialogTitle className="text-base">{previewTitle || "Preview"}</DialogTitle>
+            <DialogDescription className="text-xs">View the ledger before downloading.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {previewBlobUrl && (
+              <iframe title="ledger-preview" src={previewBlobUrl} className="w-full h-full" data-testid="ledger-preview-frame" />
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => { if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); }} data-testid="ledger-preview-close">Close</Button>
+            {previewBlobUrl && (
+              <a href={previewBlobUrl} download={`${previewTitle.replace(/[^a-z0-9]+/gi, '_')}.pdf`} data-testid="ledger-preview-download">
+                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  <FileText className="w-4 h-4 mr-1" /> Download PDF
+                </Button>
+              </a>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
