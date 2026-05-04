@@ -1393,13 +1393,17 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         sales_ex_gst = total_sale - sales_gst_amount
         commission_gst = total_commission * 0.10
         total_commission_with_gst = total_commission + commission_gst
-        net_revenue = compute_net_revenue(total_sale, total_commission, sales_gst_amount, total_expenses, country)
+        # Net Revenue = Sales − Deductions (GST + Commissions inc commission GST). Expenses NOT here.
+        net_revenue = compute_net_revenue(total_sale, total_commission, sales_gst_amount, 0, country)
+        # Profitability = Net Revenue − Total Expenses → drives 80/20 profit share.
+        profitability = round(net_revenue - total_expenses, 2)
     else:
         # India: GST is INCLUSIVE in total_sale; remove it for accurate net revenue.
         sales_ex_gst = total_sale - sales_gst_amount
         commission_gst = 0
         total_commission_with_gst = total_commission
         net_revenue = sales_ex_gst - total_expenses - total_commission
+        profitability = net_revenue  # India: profitability not separately surfaced
     
     # Calculate share payable based on country
     # India: Revenue Share % from franchise settings (default 15% to Franchise Owner)
@@ -1433,14 +1437,15 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         net_revenue_for_share = india_net_revenue
     else:
         # Outside India (Australia, etc.): Profit share model - FIXED 80/20 split
-        # 80% to Franchise Owner, 20% to Purnabramha (on net profit after ALL deductions)
+        # 80% to Franchise Owner, 20% to Purnabramha (on PROFITABILITY, not Net Revenue)
+        # Profitability = Net Revenue − Total Expenses. Net Revenue = Sales − Deductions.
         franchise_owner_percentage = 80
         purnabramha_percentage = 20
-        profit_before_share = net_revenue  # Uses full net_revenue (sales - expenses - commissions)
+        profit_before_share = profitability  # Net Revenue minus total expenses
         purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
         franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
         share_type = "profit_share"
-        net_revenue_for_share = net_revenue
+        net_revenue_for_share = profitability
     
     # Apply GST on Purnabramha's share (payable by franchise to Purnabramha)
     # For India: Calculate 18% GST for display/informational purposes but DO NOT add to total payable
@@ -1660,7 +1665,8 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "total_commissions": round(total_commission, 2),
             "commission_gst": round(commission_gst, 2) if country == "Australia" else 0,
             "total_commissions_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),
-            "net_revenue": round(net_revenue_for_share, 2),
+            "net_revenue": round(net_revenue, 2),
+            "profitability": round(profitability, 2),
             "working_capital": round(working_capital, 2),
             "loans_outstanding": round(total_loans_outstanding, 2),
             "working_capital_available": wc_standing["closing_wc"],
@@ -1670,7 +1676,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "type": share_type,
             "net_profit_or_sales": round(net_revenue_for_share, 2),
             "total_sales": round(total_sale, 2),
-            "total_deductions": round(total_commission + sales_gst_amount, 2),
+            "total_deductions": round(total_commission_with_gst + sales_gst_amount, 2),
             "wc_gated": not wc_revenue_share_active,
             "wc_status": wc_status,
             "franchise_owner": {

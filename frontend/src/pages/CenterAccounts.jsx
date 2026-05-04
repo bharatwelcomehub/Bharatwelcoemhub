@@ -847,7 +847,7 @@ export default function CenterAccounts() {
           )}
 
           {/* Key Metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className={`grid grid-cols-2 ${accountSummary.country === "Australia" ? "md:grid-cols-5" : "md:grid-cols-4"} gap-4 mb-6`}>
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -883,12 +883,15 @@ export default function CenterAccounts() {
                     <p className="text-sm text-orange-600">Total Deductions</p>
                     <p className="text-2xl font-bold text-orange-800" data-testid="kpi-total-deductions">
                       {formatCurrency(
-                        (accountSummary.commissions?.total || 0) + (accountSummary.financial_summary?.sales_gst || 0),
+                        (accountSummary.country === "Australia"
+                          ? (accountSummary.commissions?.total_with_gst || accountSummary.commissions?.total || 0)
+                          : (accountSummary.commissions?.total || 0)
+                        ) + (accountSummary.financial_summary?.sales_gst || 0),
                         accountSummary.country
                       )}
                     </p>
                     <p className="text-[10px] text-orange-700 mt-1">
-                      Commissions + GST on Sale
+                      {accountSummary.country === "Australia" ? "Commissions (incl GST) + GST on Sale" : "Commissions + GST on Sale"}
                     </p>
                   </div>
                   <CreditCard className="w-8 h-8 text-orange-400" />
@@ -901,14 +904,36 @@ export default function CenterAccounts() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-green-600">Net Revenue</p>
-                    <p className="text-2xl font-bold text-green-800">
+                    <p className="text-2xl font-bold text-green-800" data-testid="kpi-net-revenue">
                       {formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}
+                    </p>
+                    <p className="text-[10px] text-green-700 mt-1">
+                      {accountSummary.country === "Australia" ? "Sales − Deductions" : "Sales − GST − Commissions"}
                     </p>
                   </div>
                   <TrendingUp className="w-8 h-8 text-green-400" />
                 </div>
               </CardContent>
             </Card>
+
+            {accountSummary.country === "Australia" && (
+              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-emerald-700">Profitability</p>
+                      <p className="text-2xl font-bold text-emerald-900" data-testid="kpi-profitability">
+                        {formatCurrency(accountSummary.financial_summary.profitability ?? 0, accountSummary.country)}
+                      </p>
+                      <p className="text-[10px] text-emerald-700 mt-1">
+                        Net Revenue − Expenses · 80/20 base
+                      </p>
+                    </div>
+                    <TrendingUp className="w-8 h-8 text-emerald-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Main Content Tabs */}
@@ -1777,17 +1802,9 @@ export default function CenterAccounts() {
                           <span>Total Sales (GST Inclusive)</span>
                           <span>{formatCurrency(accountSummary.financial_summary.total_sales, accountSummary.country)}</span>
                         </div>
-                        <div className="flex justify-between text-sm text-gray-500">
-                          <span className="pl-4">Less: Sales GST (10%)</span>
-                          <span>-{formatCurrency(accountSummary.financial_summary.sales_gst, accountSummary.country)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm font-medium border-t pt-1">
-                          <span>Sales (Ex GST)</span>
-                          <span>{formatCurrency(accountSummary.financial_summary.sales_ex_gst, accountSummary.country)}</span>
-                        </div>
                         <div className="flex justify-between text-sm text-red-600">
-                          <span>Less: Expenses</span>
-                          <span>-{formatCurrency(accountSummary.financial_summary.total_expenses, accountSummary.country)}</span>
+                          <span>Less: Sales GST (10%)</span>
+                          <span>-{formatCurrency(accountSummary.financial_summary.sales_gst, accountSummary.country)}</span>
                         </div>
                         <div className="flex justify-between text-sm text-red-600">
                           <span>Less: Commission</span>
@@ -1798,14 +1815,23 @@ export default function CenterAccounts() {
                           <span>-{formatCurrency(accountSummary.financial_summary.commission_gst, accountSummary.country)}</span>
                         </div>
                         <div className="border-t-2 border-dashed border-gray-300 my-1" />
-                        <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-                          <span className="text-green-800 font-bold">= Net Profit (for Share Calculation)</span>
-                          <span className="text-green-900 font-bold text-lg">{formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}</span>
+                        <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                          <span className="text-green-800 font-semibold">= Net Revenue (Sales − Deductions)</span>
+                          <span className="text-green-900 font-bold">{formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-red-600">
+                          <span>Less: Total Expenses</span>
+                          <span>-{formatCurrency(accountSummary.financial_summary.total_expenses, accountSummary.country)}</span>
+                        </div>
+                        <div className="border-t-2 border-dashed border-gray-300 my-1" />
+                        <div className="flex justify-between items-center bg-emerald-50 border border-emerald-300 rounded-lg px-4 py-3">
+                          <span className="text-emerald-800 font-bold">= Profitability (Base for 80/20 Split)</span>
+                          <span className="text-emerald-900 font-bold text-lg" data-testid="aus-profitability">{formatCurrency(accountSummary.financial_summary.profitability ?? 0, accountSummary.country)}</span>
                         </div>
                         <div className="flex items-start gap-2 mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                           <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                           <p className="text-xs text-amber-800">
-                            <strong>Profit Share GST:</strong> 10% GST is applied on profit share for Australia.
+                            <strong>Profit Share GST:</strong> 10% GST is applied on Purnabramha's 20% profit share for Australia.
                           </p>
                         </div>
                       </div>

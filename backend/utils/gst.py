@@ -100,12 +100,14 @@ def compute_net_revenue(total_sale: float, total_commissions: float,
                         country: Optional[str] = None) -> float:
     """Single source of truth for Net Revenue.
 
-    India  : Net Revenue = Total Sale − Commissions − GST  (expenses NOT subtracted; deducted in P&L only)
-    Outside: Net Revenue = (Sale − GST) − Expenses − Commissions × (1 + rate)
+    India     : Net Revenue = Total Sale − Commissions − GST   (expenses NOT subtracted; deducted in P&L only)
+    Outside-IN: Net Revenue = Total Sale − GST − Commissions × (1 + rate)
+                              (i.e. Sales minus Deductions only — expenses are NOT subtracted here.
+                               Profitability = Net Revenue − Expenses is computed separately and
+                               drives the 80/20 profit share.)
     """
     is_india = (not country) or str(country).lower() == "india"
     if is_india:
         return round(float(total_sale) - float(total_commissions) - float(gst_on_sales), 2)
     rate = gst_rate_for(country, None)
-    sales_ex_gst = float(total_sale) - float(gst_on_sales)
-    return round(sales_ex_gst - float(total_expenses) - float(total_commissions) * (1.0 + rate), 2)
+    return round(float(total_sale) - float(gst_on_sales) - float(total_commissions) * (1.0 + rate), 2)

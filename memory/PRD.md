@@ -5,6 +5,28 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Australia (PB-PERTH) — Net Revenue / Profitability split + 80/20 on Profitability
+**User issue (with screenshot)**: For Perth Australia, "Net Revenue" was showing 3,467.19 on Sales 36,310 — incorrect. User spec:
+1. **Net Revenue = Total Sales − Total Deductions ONLY** (no expenses)
+2. **Profitability = Net Revenue − Total Expenses**
+3. **Profit Split = 80% Franchisee / 20% Purnabramha LLC** on Profitability
+
+**Fix (Australia / Outside-India only — India behaviour unchanged)**:
+- `utils/gst.py::compute_net_revenue` for Outside-IN now returns `Total Sale − GST − Commissions × (1 + rate)` (expenses removed from this formula).
+- `routes/center_accounts.py` Australia branch:
+  - Computes `profitability = net_revenue − total_expenses`.
+  - 80/20 share now uses `profitability` (was `net_revenue`).
+  - `financial_summary.net_revenue` (Sales − Deductions) and `financial_summary.profitability` (NetRev − Expenses) both exposed in the API.
+  - `share_calculation.total_deductions` now includes commission GST (10%) so `Sales − Deductions = Net Revenue` matches exactly.
+- Frontend `CenterAccounts.jsx`:
+  - KPI grid expands to 5 columns for Australia. New "Profitability" card (emerald) sits beside "Net Revenue".
+  - Total Deductions card now includes commission GST for Australia (label: "Commissions (incl GST) + GST on Sale").
+  - Net Revenue card subtitle: "Sales − Deductions" (AUS) / "Sales − GST − Commissions" (India).
+  - Profit Calculation Breakdown reordered: Sales → Less GST → Less Comm → Less Comm GST = **Net Revenue** → Less Expenses = **Profitability (Base for 80/20 Split)**.
+- Math sanity-checked: `Sales − Deductions = Net Revenue` and `NetRev − Expenses = Profitability` and `80%/20% × Profitability = franchise/PB shares` all OK.
+
+**Files**: `backend/utils/gst.py`, `backend/routes/center_accounts.py`, `frontend/src/pages/CenterAccounts.jsx`. Lint clean.
+
 ### [2026-05-03] Bank Reconciliation — Single source + label cleanup
 **User issue**: Bank Reconciliation existed in TWO places (sidebar `/bank-reconciliation` AND a tab inside Sales & Expenses), and the two were not state-synced. Action labels were inconsistent ("Remove", "Undo Ignore") instead of a clean "Delete".
 
