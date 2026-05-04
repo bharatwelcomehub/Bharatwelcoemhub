@@ -4,7 +4,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { FileText, AlertCircle, Download, TrendingUp, TrendingDown } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
+import { FileText, AlertCircle, Download, Eye, TrendingUp, TrendingDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -32,6 +33,71 @@ export default function OwnerReports() {
   const [month, setMonth] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+  const [previewTitle, setPreviewTitle] = useState('');
+
+  // Common helper — fetch a PDF and either trigger download or show preview modal.
+  const fetchReportPdf = async (r, mode) => {
+    try {
+      const res = await fetch(`${API}/api/${r.endpoint || 'center-accounts'}/${r.path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, center, month: `${year}-${month}` }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Failed' }));
+        throw new Error(err.detail || 'Failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (mode === 'preview') {
+        setPreviewBlobUrl(url);
+        setPreviewTitle(`${r.label} — ${center} · ${year}-${month}`);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${r.label.replace(/\s+/g, '_')}_${center}_${year}-${month}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast.success(`${r.label} downloaded`);
+      }
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const fetchMgPdf = async (mode) => {
+    try {
+      const res = await fetch(`${API}/api/center-accounts/export-mg-payout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.token, center,
+          from_month: `${year}-${month}`, to_month: `${year}-${month}`,
+          format: 'pdf',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Failed' }));
+        throw new Error(err.detail || 'Failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (mode === 'preview') {
+        setPreviewBlobUrl(url);
+        setPreviewTitle(`MG Report — ${center} · ${year}-${month}`);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `MG_Report_${center}_${year}-${month}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast.success('MG Report downloaded');
+      }
+    } catch (e) { toast.error(e.message); }
+  };
 
   useEffect(() => {
     // Staff (Admin / Super Admin / Accountant) can pick any center — fetch
@@ -277,81 +343,48 @@ export default function OwnerReports() {
           <Card data-testid="or-downloads">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2"><Download className="w-4 h-4" /> Download Reports (PDF)</CardTitle>
-              <CardDescription>Pre-formatted statements for {center} · {year}-{month}</CardDescription>
+              <CardDescription>Pre-formatted statements for {center} · {year}-{month}. Click <strong>Preview</strong> to view inline before downloading.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
                 {[
-                  { id: 'pib', label: 'PIB Report', path: 'generate-pib', color: 'bg-[#8B0000] hover:bg-[#6B0000] text-white' },
-                  { id: 'gst', label: 'GST Summary', path: 'generate-gst-summary', color: 'bg-amber-600 hover:bg-amber-700 text-white' },
-                  { id: 'comm', label: 'Commission Summary', path: 'generate-commission-summary', color: 'bg-emerald-700 hover:bg-emerald-800 text-white' },
-                  { id: 'bank', label: 'Bank Statement', path: 'generate-bank-statement', color: 'bg-sky-700 hover:bg-sky-800 text-white' },
+                  { id: 'pib', label: 'PIB Report', path: 'generate-pib', endpoint: 'center-accounts', color: 'bg-[#8B0000] hover:bg-[#6B0000] text-white' },
+                  { id: 'gst', label: 'GST Summary', path: 'generate-gst-summary', endpoint: 'center-accounts', color: 'bg-amber-600 hover:bg-amber-700 text-white' },
+                  { id: 'comm', label: 'Commission Summary', path: 'generate-commission-summary', endpoint: 'center-accounts', color: 'bg-emerald-700 hover:bg-emerald-800 text-white' },
+                  { id: 'bank', label: 'Bank Statement', path: 'generate-bank-statement', endpoint: 'center-accounts', color: 'bg-sky-700 hover:bg-sky-800 text-white' },
                 ].map(r => (
-                  <Button
-                    key={r.id}
-                    className={r.color}
-                    data-testid={`or-dl-${r.id}`}
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(`${API}/api/center-accounts/${r.path}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ token: session.token, center, month: `${year}-${month}` }),
-                        });
-                        if (!res.ok) {
-                          const err = await res.json().catch(() => ({ detail: 'Download failed' }));
-                          throw new Error(err.detail || 'Download failed');
-                        }
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${r.label.replace(/\s+/g, '_')}_${center}_${year}-${month}.pdf`;
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        URL.revokeObjectURL(url);
-                        toast.success(`${r.label} downloaded`);
-                      } catch (e) { toast.error(e.message); }
-                    }}
-                  >
-                    <Download className="w-4 h-4 mr-2" /> {r.label}
-                  </Button>
+                  <div key={r.id} className="flex flex-col gap-1.5">
+                    <Button
+                      className={r.color}
+                      data-testid={`or-dl-${r.id}`}
+                      onClick={() => fetchReportPdf(r, 'download')}
+                    >
+                      <Download className="w-4 h-4 mr-2" /> {r.label}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                      data-testid={`or-preview-${r.id}`}
+                      onClick={() => fetchReportPdf(r, 'preview')}
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" /> Preview
+                    </Button>
+                  </div>
                 ))}
                 {/* MG Report — uses a different endpoint (accepts from_month/to_month) */}
-                <Button
-                  className="bg-indigo-700 hover:bg-indigo-800 text-white"
-                  data-testid="or-dl-mg"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(`${API}/api/center-accounts/export-mg-payout`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          token: session.token, center,
-                          from_month: `${year}-${month}`, to_month: `${year}-${month}`,
-                          format: 'pdf',
-                        }),
-                      });
-                      if (!res.ok) {
-                        const err = await res.json().catch(() => ({ detail: 'Download failed' }));
-                        throw new Error(err.detail || 'Download failed');
-                      }
-                      const blob = await res.blob();
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `MG_Report_${center}_${year}-${month}.pdf`;
-                      document.body.appendChild(a);
-                      a.click();
-                      a.remove();
-                      URL.revokeObjectURL(url);
-                      toast.success('MG Report downloaded');
-                    } catch (e) { toast.error(e.message); }
-                  }}
-                >
-                  <Download className="w-4 h-4 mr-2" /> MG Report
-                </Button>
+                <div className="flex flex-col gap-1.5">
+                  <Button
+                    className="bg-indigo-700 hover:bg-indigo-800 text-white"
+                    data-testid="or-dl-mg"
+                    onClick={() => fetchMgPdf('download')}
+                  >
+                    <Download className="w-4 h-4 mr-2" /> MG Report
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-xs h-7" data-testid="or-preview-mg" onClick={() => fetchMgPdf('preview')}>
+                    <Eye className="w-3.5 h-3.5 mr-1" /> Preview
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -466,6 +499,31 @@ export default function OwnerReports() {
           )}
         </>
       )}
+
+      {/* Inline Preview modal */}
+      <Dialog open={!!previewBlobUrl} onOpenChange={(o) => { if (!o) { if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); } }}>
+        <DialogContent className="max-w-5xl h-[85vh] p-0 flex flex-col" data-testid="or-preview-modal">
+          <DialogHeader className="px-5 py-3 border-b border-slate-200">
+            <DialogTitle className="text-base">{previewTitle || 'Preview'}</DialogTitle>
+            <DialogDescription className="text-xs">View the report inline before downloading.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {previewBlobUrl && (
+              <iframe title="report-preview" src={previewBlobUrl} className="w-full h-full" data-testid="or-preview-frame" />
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200">
+            <Button variant="outline" size="sm" onClick={() => { if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); }} data-testid="or-preview-close">Close</Button>
+            {previewBlobUrl && (
+              <a href={previewBlobUrl} download={`${previewTitle.replace(/[^a-z0-9]+/gi, '_')}.pdf`} data-testid="or-preview-download">
+                <Button size="sm" className="bg-[#8B0000] hover:bg-[#6B0000] text-white">
+                  <Download className="w-4 h-4 mr-1" /> Download PDF
+                </Button>
+              </a>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
