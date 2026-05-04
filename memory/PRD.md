@@ -5,6 +5,24 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Owner/Franchise Dashboard — Total Deductions + Net Revenue + Revenue Share fix
+**User issue (with screenshot, PB-KAL April 2026)**: Dashboard had no "Total Deductions" KPI, and Revenue Share showed −₹2,110 (15% of *Net Profit* = −14,069 × 0.15) instead of 15% × Net Revenue (~₹1,17,890).
+
+**Root cause** (`pages/FranchiseOwnerDashboard.jsx` line 353): `netRevenue = netProfit × pct` was wrong. Net Revenue should be `Sales − Commissions − GST` and Revenue Share = `pct × Net Revenue`.
+
+**Fix**:
+- New centralized computations at top of component:
+  ```js
+  totalDeductions = totalCommissions + totalGst
+  netRevenue      = totalSales − totalDeductions
+  revenueShareAmount = netRevenue × revenueSharePct/100
+  ```
+- KPI strip rebuilt as 10 cards in correct accountant order: Total Sales · Total Expenses · Commissions · **GST on Sales** (fuchsia) · **Total Deductions** (orange) · **Net Revenue** (cyan) · **Net Profit (P&L)** · Working Capital · Avg/Bill · **Revenue Share (X% × Net Rev)**.
+- Excel export rebuilt as Sales → Less Comm → Less GST → = Total Deductions → = Net Revenue → Less Expenses → = Net Profit → Revenue Share Payable.
+- For PB-KAL April 2026 (Sales 8,28,000 · Comm 2,676 · GST 39,392): Net Revenue = ₹7,85,932 · Revenue Share (15%) = ₹1,17,890.
+
+**Files**: `frontend/src/pages/FranchiseOwnerDashboard.jsx`. Lint clean. UI verified.
+
 ### [2026-05-04] Loan Entries — TAKEN vs GIVEN bug fix (Dombivali)
 **User issue (with screenshot, PB-DV)**: "Loans Outstanding" tile showed ₹22,99,517 with 12 active loans, but Dombivali only ever **gave** loans (to HSR/MGT/Sambhajinagar/Thane) — outstanding (taken) should be ₹0. Conversely, "Loans Given" tile showed ₹0.
 

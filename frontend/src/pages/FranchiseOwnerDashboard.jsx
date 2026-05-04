@@ -303,14 +303,26 @@ export default function FranchiseOwnerDashboard() {
   const handleExportReport = () => {
     if (!overview?.summary) return;
     const sm = overview.summary;
+    const sharePct = franchiseInfo?.revenue_share_percentage || 0;
+    const totalSales = sm?.total_sales || 0;
+    const totalComm = sm?.total_commissions || 0;
+    const totalGst = sm?.total_gst || 0;
+    const totalDeductions = totalComm + totalGst;
+    const netRev = totalSales - totalDeductions;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
       ["Franchise Report - Purnabramha"], ["Center", selectedCenter], ["Period", period], [],
       ["Metric", "Value"],
-      ["Total Sales", sm?.total_sales], ["Total Expenses", sm?.total_expenses],
-      ["Commissions", sm?.total_commissions], ["GST", sm?.total_gst],
-      ["Net Profit", sm?.profit], ["Revenue Share %", franchiseInfo?.revenue_share_percentage || 0],
-      ["Net Revenue (Franchise Share)", (sm?.profit || 0) * ((franchiseInfo?.revenue_share_percentage || 0) / 100)],
+      ["Total Sales", totalSales],
+      ["Less: Commissions", totalComm],
+      ["Less: GST on Sales", totalGst],
+      ["= Total Deductions", totalDeductions],
+      ["= Net Revenue (Sales − Deductions)", netRev],
+      ["Less: Total Expenses", sm?.total_expenses || 0],
+      ["= Net Profit (P&L)", sm?.profit || 0],
+      [],
+      ["Revenue Share %", sharePct],
+      [`Revenue Share Payable (${sharePct}% × Net Revenue)`, netRev * (sharePct / 100)],
     ]);
     XLSX.utils.book_append_sheet(wb, ws, "Summary");
     XLSX.writeFile(wb, `Franchise_Report_${selectedCenter}_${period}.xlsx`);
@@ -350,17 +362,28 @@ export default function FranchiseOwnerDashboard() {
   const ch = overview?.changes;
   const revenueSharePct = franchiseInfo?.revenue_share_percentage || 0;
   const netProfit = sm?.profit || 0;
-  const netRevenue = netProfit * (revenueSharePct / 100);
+  // Per Apr-2026 rule:
+  //   Total Deductions  = Commissions + GST on Sales
+  //   Net Revenue       = Total Sales − Total Deductions   (NOT minus expenses)
+  //   Revenue Share     = revenue_share_pct × Net Revenue  (NOT × Net Profit)
+  const totalCommissions = sm?.total_commissions || 0;
+  const totalGst = sm?.total_gst || 0;
+  const totalDeductions = totalCommissions + totalGst;
+  const netRevenue = (sm?.total_sales || 0) - totalDeductions;
+  const revenueShareAmount = netRevenue * (revenueSharePct / 100);
   const trends = salesData;
 
   const kpiCards = sm ? [
     { label: "Total Sales", value: sm.total_sales, change: ch?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50" },
     { label: "Total Expenses", value: sm.total_expenses, change: ch?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50" },
-    { label: "Commissions", displayValue: formatFullCurrency(sm.total_commissions || 0, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
-    { label: "Net Profit", displayValue: formatFullCurrency(netProfit, isIntl), change: ch?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
+    { label: "Commissions", displayValue: formatFullCurrency(totalCommissions, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
+    { label: "GST on Sales", displayValue: formatFullCurrency(totalGst, isIntl), icon: Receipt, gradient: "from-fuchsia-600 to-fuchsia-400", textColor: "text-fuchsia-50" },
+    { label: "Total Deductions", displayValue: formatFullCurrency(totalDeductions, isIntl), icon: Receipt, gradient: "from-orange-600 to-orange-400", textColor: "text-orange-50" },
+    { label: "Net Revenue", displayValue: formatFullCurrency(netRevenue, isIntl), icon: Activity, gradient: netRevenue >= 0 ? "from-cyan-700 to-cyan-500" : "from-rose-700 to-rose-500", textColor: "text-cyan-50" },
+    { label: "Net Profit (P&L)", displayValue: formatFullCurrency(netProfit, isIntl), change: ch?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
     { label: "Working Capital", displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
     { label: "Avg / Bill", displayValue: formatFullCurrency(sm.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
-    { label: `Revenue Share (${revenueSharePct}%)`, displayValue: formatFullCurrency(netRevenue, isIntl), icon: Percent, gradient: netRevenue >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
+    { label: `Revenue Share (${revenueSharePct}% × Net Rev)`, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
   ] : [];
 
   // Allow admin/super-admin, franchise owners, and users with franchise role
