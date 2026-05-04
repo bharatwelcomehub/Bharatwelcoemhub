@@ -1399,10 +1399,12 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         profitability = round(net_revenue - total_expenses, 2)
     else:
         # India: GST is INCLUSIVE in total_sale; remove it for accurate net revenue.
+        # Net Revenue = Total Sale − Commissions − GST on Sales (Apr-2026 rule).
+        # Expenses are NOT subtracted from Net Revenue (reviewed in P&L separately).
         sales_ex_gst = total_sale - sales_gst_amount
         commission_gst = 0
         total_commission_with_gst = total_commission
-        net_revenue = sales_ex_gst - total_expenses - total_commission
+        net_revenue = compute_net_revenue(total_sale, total_commission, sales_gst_amount, 0, country)
         profitability = net_revenue  # India: profitability not separately surfaced
     
     # Calculate share payable based on country
@@ -1480,8 +1482,11 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             get_other_income_summary, get_loans_given_summary, get_loans_taken_summary
         )
         _other_income_memo = await get_other_income_summary(req.center, req.month)
-        _loans_given_memo = await get_loans_given_summary(req.center, req.month)
-        _loans_taken_memo = await get_loans_taken_summary(req.center, req.month)
+        # Loans given/taken: show ALL active loans for this center (cumulative balance-sheet view)
+        # — not just loans created in the selected month. This matches the user's mental model
+        # where "Loan Given Outstanding" should reflect the running balance.
+        _loans_given_memo = await get_loans_given_summary(req.center, None)
+        _loans_taken_memo = await get_loans_taken_summary(req.center, None)
     except Exception as _ex:
         logger.warning(f"Other income / loans memo failed for {req.center}: {_ex}")
         _other_income_memo = {"total": 0, "by_category": {}, "rows": []}

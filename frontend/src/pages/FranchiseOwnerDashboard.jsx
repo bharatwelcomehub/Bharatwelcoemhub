@@ -93,6 +93,8 @@ export default function FranchiseOwnerDashboard() {
   const [ownerLedgerMonths, setOwnerLedgerMonths] = useState([]);
   const [ownerLedgerLoading, setOwnerLedgerLoading] = useState(false);
 
+  const [ledgerLabels, setLedgerLabels] = useState({});
+
   // Fetch released owner ledgers when modal opens
   useEffect(() => {
     if (!showOwnerLedgers || !session?.token || !selectedCenter) return;
@@ -106,6 +108,7 @@ export default function FranchiseOwnerDashboard() {
         });
         const data = await res.json();
         setOwnerLedgerMonths(data.months || []);
+        setLedgerLabels(data.ledger_labels || {});
       } catch {
         toast.error('Could not fetch released ledgers');
       } finally {
@@ -115,19 +118,23 @@ export default function FranchiseOwnerDashboard() {
     fetchOL();
   }, [showOwnerLedgers, session?.token, selectedCenter]);
 
-  const downloadOwnerLedger = async (month, fmt) => {
+  const downloadLedger = async (month, ltype, fmt) => {
     try {
       const API = process.env.REACT_APP_BACKEND_URL;
-      const res = await fetch(`${API}/api/ledgers/owner`, {
+      const res = await fetch(`${API}/api/ledgers/${ltype}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: session.token, center: selectedCenter, period_type: 'month', month, fmt })
       });
-      if (!res.ok) { toast.error('Download failed'); return; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Download failed');
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Owner_Ledger_${selectedCenter}_${month}.${fmt === 'excel' ? 'xlsx' : 'pdf'}`;
+      a.download = `${ltype}_${selectedCenter}_${month}.${fmt === 'excel' ? 'xlsx' : 'pdf'}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -695,37 +702,45 @@ export default function FranchiseOwnerDashboard() {
 
       {/* Owner Ledger — released months modal */}
       <Dialog open={showOwnerLedgers} onOpenChange={setShowOwnerLedgers}>
-        <DialogContent className="max-w-xl" data-testid="fo-owner-ledgers-modal">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="fo-owner-ledgers-modal">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-fuchsia-600" />
               My Ledgers — {selectedCenter}
             </DialogTitle>
             <DialogDescription>
-              Current-account statements between your Franchise and HQ, released by Accounts team.
+              Statutory ledgers and account statements for your franchise. Each month is unlocked once Accounts releases the monthly report.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {ownerLedgerLoading ? (
               <div className="py-6 text-center text-slate-500 text-sm">Loading…</div>
             ) : ownerLedgerMonths.length === 0 ? (
               <div className="py-6 text-center text-slate-500 text-sm">
-                No ledgers have been released yet. Ask Accounts to release a month from the Ledgers tab.
+                No ledgers have been released yet. Ask Accounts to release a monthly report from the Owner Reports page.
               </div>
             ) : (
               ownerLedgerMonths.map(m => (
-                <div key={m.month} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:border-fuchsia-400 transition">
-                  <div>
-                    <p className="font-medium text-sm">{m.month}</p>
-                    {m.released_at && <p className="text-xs text-slate-500">Released: {m.released_at.split('T')[0]}</p>}
+                <div key={m.month} className="border border-slate-200 rounded-lg p-3" data-testid={`fo-month-${m.month}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-sm text-slate-800">{m.month}</p>
+                      {m.released_at && <p className="text-[10px] text-slate-500">Released: {String(m.released_at).split('T')[0]}</p>}
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${m.report_ready ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {m.report_ready ? 'Full Report Released' : 'Owner Ledger Only'}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => downloadOwnerLedger(m.month, 'pdf')} data-testid={`fo-ol-pdf-${m.month}`}>
-                      <FileText className="w-3.5 h-3.5 mr-1" /> PDF
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => downloadOwnerLedger(m.month, 'excel')} data-testid={`fo-ol-excel-${m.month}`}>
-                      <Download className="w-3.5 h-3.5 mr-1" /> Excel
-                    </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {(m.available_ledgers || []).map(lt => (
+                      <div key={lt} className="flex items-center justify-between px-2 py-1.5 bg-slate-50 rounded text-xs hover:bg-slate-100">
+                        <span className="text-slate-700">{ledgerLabels[lt] || lt}</span>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => downloadLedger(m.month, lt, 'pdf')} data-testid={`fo-dl-${lt}-${m.month}-pdf`}>PDF</Button>
+                          <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => downloadLedger(m.month, lt, 'excel')} data-testid={`fo-dl-${lt}-${m.month}-xls`}>Excel</Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))

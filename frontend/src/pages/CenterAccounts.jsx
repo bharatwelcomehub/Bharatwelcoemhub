@@ -1398,6 +1398,12 @@ export default function CenterAccounts() {
                             <span>Cash Sales</span>
                             <span className="font-medium">{formatCurrency(accountSummary.sales.total_cash_sale, accountSummary.country)}</span>
                           </div>
+                          {(accountSummary.sales.bharat_pay || 0) > 0 && (
+                            <div className="flex justify-between items-center p-2 bg-indigo-50 rounded" data-testid="sales-row-bharatpe">
+                              <span>PhonePe / BharatPe (UPI)</span>
+                              <span className="font-medium">{formatCurrency(accountSummary.sales.bharat_pay, accountSummary.country)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 

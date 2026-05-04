@@ -1021,7 +1021,22 @@ def _type_endpoint(ltype: str):
                 raise HTTPException(403, "Not authorized for Franchise Owner Ledger")
         else:
             if not _has_ledger_access(session):
-                raise HTTPException(403, "Ledgers are restricted to Super Admin / Admin / Accounts roles")
+                # Franchise owner: allow if Accounts has released the report for this center+month
+                # (covers single-month period_type='month'; FY view always restricted to staff).
+                allowed = False
+                if (_is_franchise_owner(session)
+                    and (session.get("franchise_center") == req.center or session.get("center") == req.center)
+                    and (req.period_type or "").lower() == "month"
+                    and req.month):
+                    vis = await db.owner_report_visibility.find_one(
+                        {"center": req.center, "month": req.month,
+                         "report_type": {"$exists": False}},
+                        {"_id": 0}
+                    )
+                    if vis and vis.get("ready"):
+                        allowed = True
+                if not allowed:
+                    raise HTTPException(403, "This ledger is not available — ask Accounts to release the monthly report first")
         data, label, _start, _end, _months = await _fetch_ledger_data(req, ltype)
         fmt = (req.fmt or "pdf").lower()
         if fmt == "json":
@@ -1188,17 +1203,55 @@ async def check_owner_ledger_visibility(req: dict = Body(...)):
 
 @router.post("/owner/list")
 async def list_released_owner_ledgers(req: dict = Body(...)):
-    """Franchise owner calls this to see what months have been released for them."""
+    """Franchise owner calls this to see what months have been released for them.
+    Returns months where either:
+      - owner_report_visibility {ready: True}  (full monthly report released → all ledgers unlocked)
+      - or owner_report_visibility {report_type:"owner_ledger", released: True}  (legacy owner ledger only)
+    Each entry indicates which ledger types are accessible.
+    """
     session = verify_token(req.get("token"))
     _check(session)
     # Resolve center: franchise owner uses franchise_center/center
     center = (req.get("center") or session.get("franchise_center") or session.get("center") or "").upper()
     if not center:
         raise HTTPException(400, "center required")
+    # Pull both visibility flavours
     docs = await db.owner_report_visibility.find(
-        {"center": center, "report_type": "owner_ledger", "released": True}, {"_id": 0}
-    ).sort("month", -1).to_list(60)
-    return {"success": True, "center": center, "months": [{"month": d.get("month"), "released_at": d.get("released_at")} for d in docs]}
+        {"center": center}, {"_id": 0}
+    ).sort("month", -1).to_list(120)
+    by_month: dict = {}
+    for d in docs:
+        m = d.get("month")
+        if not m:
+            continue
+        rec = by_month.setdefault(m, {
+            "month": m, "released_at": None,
+            "report_ready": False, "owner_ledger_released": False,
+        })
+        rt = d.get("report_type") or "monthly_report"
+        if rt == "owner_ledger" and d.get("released"):
+            rec["owner_ledger_released"] = True
+            rec["released_at"] = d.get("released_at") or rec["released_at"]
+        elif d.get("ready"):
+            rec["report_ready"] = True
+            rec["released_at"] = d.get("released_at") or d.get("updated_at") or rec["released_at"]
+    months = []
+    for m in sorted(by_month.keys(), reverse=True):
+        rec = by_month[m]
+        # Available ledger types for this month
+        if rec["report_ready"]:
+            avail = list(LEDGER_TYPES.keys())  # All ledgers unlocked
+        elif rec["owner_ledger_released"]:
+            avail = ["owner"]
+        else:
+            continue
+        rec["available_ledgers"] = avail
+        months.append(rec)
+    return {
+        "success": True, "center": center,
+        "months": months,
+        "ledger_labels": LEDGER_TYPES,
+    }
 
 @router.post("/types")
 async def list_ledger_types(req: dict = Body(...)):

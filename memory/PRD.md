@@ -5,6 +5,22 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] CRITICAL BUG FIX — India Net Revenue + 3 Center Account fixes
+**User issue (with screenshot, PB-KAL April 2026)**: Net Revenue showed −14,069.31 on Sales 8,27,928 with Deductions 42,101.49. Math impossible. Plus 3 more issues reported.
+
+**Root cause for Net Revenue**: My previous Outside-IN fix accidentally kept the legacy line `net_revenue = sales_ex_gst − total_expenses − total_commission` for India. Then I changed `financial_summary.net_revenue` to use this `net_revenue` variable (instead of `india_net_revenue`), which made the API return Sales − Comm − GST − **Expenses** for India centers. With Kalyan's 7.99L expenses, this drove Net Revenue negative.
+
+**Fixes**:
+1. **India Net Revenue** (`routes/center_accounts.py` ~line 1402): Now uses centralized `compute_net_revenue(total_sale, total_commission, sales_gst_amount, 0, "India")` — Expenses are NOT subtracted. Verified: Kalyan 8,27,928 − 42,101.49 = **₹7,85,826.51**.
+2. **PhonePe / BharatPe row in Sales Breakdown** (`pages/CenterAccounts.jsx`): Backend already returns `sales.bharat_pay`. Added an indigo-50 row "PhonePe / BharatPe (UPI)" beneath Cash Sales when value > 0.
+3. **Loans Given/Taken now cumulative** (`routes/center_accounts.py` ~line 1485): Was filtering by selected month so older 22-lakh loans created in earlier months disappeared. Now passes `month=None` to `get_loans_given_summary` / `get_loans_taken_summary`, returning all-time outstanding (correct balance-sheet view).
+4. **Ledgers in Franchise Owner Dashboard** — gated on monthly report release:
+   - Backend (`routes/ledgers.py`): Each `/api/ledgers/<type>` endpoint now allows franchise owners to download ANY of the 10 ledger types if `owner_report_visibility` for that center+month has `ready: True`. Otherwise 403 with helpful message.
+   - `/api/ledgers/owner/list` updated to return both classes of release (full monthly report ready vs legacy owner-ledger-only) plus `available_ledgers` per month and human labels.
+   - Frontend (`pages/FranchiseOwnerDashboard.jsx`): "My Ledgers" dialog now shows each released month as an expandable card listing ALL 10 unlocked ledger types (Sales Register, Expense Register, Cash, Bank, Commission, Loans, Payroll, GST, P&L, Owner Ledger) with PDF + Excel download buttons. Released months are tagged "Full Report Released" or "Owner Ledger Only".
+
+**Files**: `backend/routes/center_accounts.py`, `backend/routes/ledgers.py`, `frontend/src/pages/CenterAccounts.jsx`, `frontend/src/pages/FranchiseOwnerDashboard.jsx`. Lint clean.
+
 ### [2026-05-04] Australia Profitability chain mirrored across PIB / Owner Reports / Excel
 **User ask**: Make the new "Sales − Deductions = Net Revenue, Net Revenue − Expenses = Profitability, 80/20 on Profitability" chain visible in offline exports too.
 
