@@ -401,36 +401,53 @@ async def get_loan_summary(data: dict):
     
     # Get all loans for this center
     loans = await db.loan_entries.find({"center": center}, {"_id": 0}).to_list(500)
-    
-    # Calculate totals
-    total_loaned = sum(loan.get("amount", 0) for loan in loans)
-    total_repaid = sum(loan.get("total_repaid", 0) for loan in loans)
-    total_outstanding = total_loaned - total_repaid
-    
-    # Available working capital
-    available_working_capital = working_capital - total_outstanding
-    
+
+    # Split by direction. "Outstanding" KPI must reflect only TAKEN loans
+    # (money this center owes others). GIVEN loans are reported separately.
+    loans_taken = [l for l in loans if l.get("loan_type", "taken") != "given"]
+    loans_given = [l for l in loans if l.get("loan_type") == "given"]
+
+    total_taken = sum(loan.get("amount", 0) for loan in loans_taken)
+    total_taken_repaid = sum(loan.get("total_repaid", 0) for loan in loans_taken)
+    total_taken_outstanding = total_taken - total_taken_repaid
+
+    total_given = sum(loan.get("amount", 0) for loan in loans_given)
+    total_given_repaid = sum(loan.get("total_repaid", 0) for loan in loans_given)
+    total_given_outstanding = total_given - total_given_repaid
+
+    # Working-capital utilisation is driven by TAKEN loans only
+    available_working_capital = working_capital - total_taken_outstanding
+
     # Recent loans (last 5)
     recent_loans = sorted(loans, key=lambda x: x.get("created_at", ""), reverse=True)[:5]
-    
-    # Active loans
-    active_loans = [l for l in loans if l.get("status") in ["active", "partially_repaid"]]
-    
+
+    # Active loans counter (TAKEN only — matches the "Loans Outstanding" KPI label)
+    active_loans = [l for l in loans_taken if l.get("status") in ["active", "partially_repaid"]]
+    active_given = [l for l in loans_given if l.get("status") in ["active", "partially_repaid"]]
+
     return {
         "success": True,
         "center": center,
         "working_capital": {
             "total": working_capital,
-            "utilized": total_outstanding,
+            "utilized": total_taken_outstanding,
             "available": available_working_capital,
-            "utilization_percentage": (total_outstanding / working_capital * 100) if working_capital > 0 else 0
+            "utilization_percentage": (total_taken_outstanding / working_capital * 100) if working_capital > 0 else 0
         },
         "loans": {
-            "total_loaned": total_loaned,
-            "total_repaid": total_repaid,
-            "total_outstanding": total_outstanding,
+            "total_loaned": total_taken,
+            "total_repaid": total_taken_repaid,
+            "total_outstanding": total_taken_outstanding,
             "active_count": len(active_loans),
-            "total_count": len(loans)
+            "total_count": len(loans_taken)
+        },
+        "summary": {
+            "total_taken": total_taken,
+            "total_taken_outstanding": total_taken_outstanding,
+            "total_given": total_given,
+            "total_given_repaid": total_given_repaid,
+            "total_given_outstanding": total_given_outstanding,
+            "active_given_count": len(active_given),
         },
         "recent_loans": recent_loans,
         "active_loans": active_loans

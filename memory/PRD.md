@@ -5,6 +5,24 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Loan Entries — TAKEN vs GIVEN bug fix (Dombivali)
+**User issue (with screenshot, PB-DV)**: "Loans Outstanding" tile showed ₹22,99,517 with 12 active loans, but Dombivali only ever **gave** loans (to HSR/MGT/Sambhajinagar/Thane) — outstanding (taken) should be ₹0. Conversely, "Loans Given" tile showed ₹0.
+
+**Root cause**: `/api/loan-entries/summary` was summing ALL loan rows (regardless of `loan_type`) into `total_outstanding`. So GIVEN loans were polluting the TAKEN KPI and reducing Available Capital. The `summary.total_given` field that the UI reads from didn't even exist on this endpoint — only on `/list`.
+
+**Fix (`routes/loan_entries.py::get_loan_summary`)**:
+- Splits rows into `loans_taken` (`loan_type != "given"`) and `loans_given` (`loan_type == "given"`).
+- `loans.total_outstanding` and `loans.active_count` now reflect TAKEN only — drives the "Loans Outstanding" red KPI and "X active loans" subtitle.
+- `working_capital.utilized` and `available` now subtract TAKEN outstanding only — Dombivali's full ₹9L WC stays available.
+- New `summary` block exposes `total_given`, `total_given_repaid`, `total_given_outstanding`, `active_given_count` — matching the keys the existing UI reads for the teal "Loans Given" tile.
+
+**Result for PB-DV on production**:
+- Loans Outstanding: ₹0 · 0 active loans ✓
+- Loans Given: ₹22,99,517 · Outstanding: ₹22,99,517 ✓
+- Available Capital: ₹9,00,000 (full WC) ✓
+
+**Files**: `backend/routes/loan_entries.py`. Lint warnings pre-existing.
+
 ### [2026-05-04] Bank Reconciliation — Bulk Ignore + Category Dropdown bug fix
 **User issues (with screenshot)**:
 1. Category dropdown blank in "Bulk Add as Expense" modal.
