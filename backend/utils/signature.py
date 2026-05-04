@@ -1,8 +1,8 @@
 """Signature block utility for accounts reports.
 
-Returns a reportlab Table that renders the company stamp + signature image
-alongside the signatory's name / title / entity. Used at the end of every
-ledger PDF (CA bundle, franchise-owner copy, individual ledgers).
+Renders a large, authoritative signatory card at the bottom of every Accounts
+PDF report. The signature image sits between the entity header and the
+signatory's name/title — giving a stamped, official feel.
 
 Australian centers (PB-PERTH, etc.) are signed under Purnabramha LLC Pty Ltd;
 all other centers are signed under Manaswini Foods Pvt Ltd.
@@ -14,9 +14,9 @@ from typing import Optional
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import Image, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import Image, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
-_SIG_PATH = Path(__file__).resolve().parent.parent / "assets" / "signature_kaka.png"
+_SIG_PATH = Path(__file__).resolve().parent.parent / "assets" / "signature_kaka_cropped.png"
 
 
 def _entity_for_country(country: Optional[str]) -> str:
@@ -26,61 +26,82 @@ def _entity_for_country(country: Optional[str]) -> str:
 
 
 def signature_block(country: Optional[str] = "India",
-                    label: str = "Authorised Signatory",
-                    width_inch: float = 2.0):
+                    label: str = "Authorised Signatory"):
     """Return a list of flowables to append at the bottom of any report PDF.
 
-    Layout (single row, two columns):
-      [ small caption "For <Entity>"     ]   [ signature image ]
-      [ "Shashikant Pande"               ]
-      [ "CFO (Head of Accounts)"         ]
-      [ "Purnabramha Accounts"           ]
-      [ "<Entity>"                       ]
+    Layout (single centered card, ~5.6 inches wide):
+
+      ┌──────────────────────────────────────────────┐
+      │             For <Entity>                     │
+      │                                              │
+      │           [  SIGNATURE IMAGE  ]              │   <-- centered, big
+      │       ─────────────────────────────          │
+      │           Shashikant Pande                   │   <-- bold, larger
+      │           CFO (Head of Accounts)             │
+      │           Purnabramha Accounts               │
+      │           <Entity>                           │
+      │           Authorised Signatory               │
+      └──────────────────────────────────────────────┘
     """
     entity = _entity_for_country(country)
-    caption = ParagraphStyle(
-        "SigCaption", fontName="Helvetica", fontSize=8, leading=11,
-        textColor=colors.HexColor("#475569"),
+
+    entity_style = ParagraphStyle(
+        "SigEntity", fontName="Helvetica-Bold", fontSize=11, leading=14,
+        alignment=1,  # center
+        textColor=colors.HexColor("#0F172A"),
     )
-    name = ParagraphStyle(
-        "SigName", fontName="Helvetica-Bold", fontSize=10, leading=13,
-        textColor=colors.HexColor("#1e293b"),
+    name_style = ParagraphStyle(
+        "SigName", fontName="Helvetica-Bold", fontSize=13, leading=16,
+        alignment=1, textColor=colors.HexColor("#0B1E3F"),
     )
-    role = ParagraphStyle(
-        "SigRole", fontName="Helvetica", fontSize=9, leading=12,
-        textColor=colors.HexColor("#334155"),
+    role_style = ParagraphStyle(
+        "SigRole", fontName="Helvetica", fontSize=10, leading=13,
+        alignment=1, textColor=colors.HexColor("#1e293b"),
+    )
+    sub_style = ParagraphStyle(
+        "SigSub", fontName="Helvetica-Oblique", fontSize=9, leading=12,
+        alignment=1, textColor=colors.HexColor("#475569"),
     )
 
-    text_cell = [
-        Paragraph(f"For <b>{entity}</b>", caption),
-        Spacer(1, 26),
-        Paragraph("Shashikant Pande", name),
-        Paragraph("CFO (Head of Accounts)", role),
-        Paragraph("Purnabramha Accounts", role),
-        Paragraph(entity, role),
-        Paragraph(f"<i>{label}</i>", caption),
-    ]
-
+    # Signature image — large and centered. Cropped asset is 453×359 (1.26 ratio).
     if _SIG_PATH.exists():
         try:
-            img = Image(str(_SIG_PATH), width=width_inch * inch, height=width_inch * 0.78 * inch)
-            img.hAlign = "RIGHT"
-            sig_cell = img
+            sig_w = 3.0 * inch
+            sig_h = sig_w * (359.0 / 453.0)  # preserve aspect → ~2.38 inches tall
+            sig_img = Image(str(_SIG_PATH), width=sig_w, height=sig_h)
+            sig_img.hAlign = "CENTER"
         except Exception:
-            sig_cell = Paragraph("[signature]", caption)
+            sig_img = Paragraph("[signature unavailable]", sub_style)
     else:
-        sig_cell = Paragraph("[signature]", caption)
+        sig_img = Paragraph("[signature unavailable]", sub_style)
 
-    tbl = Table(
-        [[text_cell, sig_cell]],
-        colWidths=[3.2 * inch, 2.6 * inch],
-    )
-    tbl.setStyle(TableStyle([
+    inner = [
+        Spacer(1, 6),
+        Paragraph(f"For <b>{entity}</b>", entity_style),
+        Spacer(1, 4),
+        sig_img,
+        HRFlowable(width="60%", thickness=0.6, color=colors.HexColor("#94a3b8"),
+                   spaceBefore=0, spaceAfter=4, hAlign="CENTER"),
+        Paragraph("Shashikant Pande", name_style),
+        Paragraph("CFO (Head of Accounts)", role_style),
+        Paragraph("Purnabramha Accounts", role_style),
+        Paragraph(entity, role_style),
+        Spacer(1, 2),
+        Paragraph(f"<i>{label}</i>", sub_style),
+        Spacer(1, 4),
+    ]
+
+    # Wrap inner stack inside a bordered table cell for a "stamped card" look
+    card = Table([[inner]], colWidths=[5.6 * inch])
+    card.hAlign = "CENTER"
+    card.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#cbd5e1")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fafbfc")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 16),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 16),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
-    return [Spacer(1, 18), tbl, Spacer(1, 6)]
+
+    return [Spacer(1, 22), card, Spacer(1, 8)]

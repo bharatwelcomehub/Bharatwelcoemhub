@@ -5,6 +5,25 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Signature block — bigger, centered, authoritative
+**User issue (with screenshot)**: Earlier signature block was a small 2-column layout with the stamp tucked into a corner — looked weak.
+
+**Redesign (`backend/utils/signature.py`)**:
+- Cropped the source asset from 1414×2000 (mostly white space) → tight 453×359 crop saved as `signature_kaka_cropped.png`. Stamp + signature now fill the frame.
+- New layout: a single **5.6" wide bordered card** (light grey background, soft border) centered on the page.
+- Stack inside the card (all centered):
+  1. `For <b>Entity</b>` header (bold)
+  2. **Stamp + Signature image at 3" × 2.4"** — large, dominant, between the entity header and the typed details
+  3. Horizontal divider line
+  4. **Shashikant Pande** (13pt bold, navy)
+  5. CFO (Head of Accounts)
+  6. Purnabramha Accounts
+  7. Entity name (Manaswini Foods Pvt Ltd / Purnabramha LLC Pty Ltd — auto-switched by country)
+  8. *Authorised Signatory · Accounts* (italic caption)
+- Verified live by re-rendering the same PB-KAL May 2026 sales ledger PDF and image-analysing the result: signatory block now reads as professional, authoritative, and properly centered.
+
+**Files**: `backend/assets/signature_kaka_cropped.png` (new), `backend/utils/signature.py`. No other code changes — every consumer (10 ledgers, CA bundle, PIB, MIS Franchise PDF) automatically picks up the new look since they all call the same helper.
+
 ### [2026-05-04] Authorised Signature on all Accounts reports + Preview before download + Strict revoke gating
 **User asks**: 
 1. Add Shashikant Pande / CFO signature block to all ledger PDFs (CA bundle, franchise-owner copy, individuals) AND all Accounts reports.
