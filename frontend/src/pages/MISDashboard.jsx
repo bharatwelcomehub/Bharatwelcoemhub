@@ -52,7 +52,8 @@ import {
   Download,
   FileText,
   IndianRupee,
-  Activity
+  Activity,
+  Percent
 } from "lucide-react";
 import { api } from "@/lib/api";
 import * as XLSX from "xlsx";
@@ -193,8 +194,15 @@ export default function MISDashboard() {
     const pl = overview?.period?.start + " to " + overview?.period?.end;
     const s = overview?.summary;
     const ws1 = XLSX.utils.aoa_to_sheet([["MIS Report - Purnabramha"], ["Center", cl], ["Period", pl], [], ["Metric", "Value"],
-      ["Total Sales", s?.total_sales], ["Cash Sales", s?.total_cash_sales], ["Online Sales", s?.total_online_sales],
-      ["Total Expenses", s?.total_expenses], ["GST", s?.total_gst],
+      ["Total Sales", s?.total_sales],
+      ["Cash Sales", s?.total_cash_sales],
+      ["Online Sales", s?.total_online_sales],
+      ["Less: Commissions", s?.total_commissions || 0],
+      ["Less: GST on Sales", s?.total_gst || 0],
+      ["= Total Deductions", (s?.total_commissions || 0) + (s?.total_gst || 0)],
+      ["= Net Revenue (Sales − Deductions)", (s?.total_sales || 0) - ((s?.total_commissions || 0) + (s?.total_gst || 0))],
+      ["Less: Total Expenses", s?.total_expenses],
+      ["= Net Profit (P&L)", s?.profit || 0],
       ["Total Guests", s?.total_guests], ["Total Bills", s?.total_bills],
       ["Avg per Guest", s?.avg_per_guest], ["Avg per Bill", s?.avg_per_bill],
       ["Working Capital", workingCapital?.available_working_capital || "N/A"]]);
@@ -288,13 +296,30 @@ export default function MISDashboard() {
   const centerObj = centersList.find(c => c.code === selectedCenter);
   const isIntl = centerObj?.is_india_center === false;
 
+  // Per Apr-2026 rule (mirrors Owner/Franchise dashboard):
+  //   Total Deductions  = Commissions + GST on Sales
+  //   Net Revenue       = Total Sales − Total Deductions
+  //   Revenue Share     = revenue_share_pct × Net Revenue   (NOT × Net Profit)
+  // Default revenue_share_pct = 15% (India). The per-center mix is applied in PIB exports.
+  const totalCommissions = s?.total_commissions || 0;
+  const totalGst = s?.total_gst || 0;
+  const totalDeductions = totalCommissions + totalGst;
+  const totalSales = s?.total_sales || 0;
+  const netRevenue = totalSales - totalDeductions;
+  const defaultSharePct = selectedCenter === "all" ? 15 : (centerObj?.revenue_share_percentage ?? 15);
+  const revenueShareAmount = netRevenue * (defaultSharePct / 100);
+
   const kpiCards = s ? [
     { label: "Total Sales", value: s.total_sales, change: overview?.changes?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50", changeBad: false },
     { label: "Total Expenses", value: s.total_expenses, change: overview?.changes?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50", changeBad: true },
-    { label: "Commissions", value: null, displayValue: formatFullCurrency(s.total_commissions || 0, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
-    { label: "Net Profit", value: null, displayValue: formatFullCurrency(s.profit || 0, isIntl), change: overview?.changes?.profit_change, icon: Activity, gradient: s.profit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
+    { label: "Commissions", value: null, displayValue: formatFullCurrency(totalCommissions, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
+    { label: "GST on Sales", value: null, displayValue: formatFullCurrency(totalGst, isIntl), icon: Receipt, gradient: "from-fuchsia-600 to-fuchsia-400", textColor: "text-fuchsia-50" },
+    { label: "Total Deductions", value: null, displayValue: formatFullCurrency(totalDeductions, isIntl), icon: Receipt, gradient: "from-orange-600 to-orange-400", textColor: "text-orange-50" },
+    { label: "Net Revenue", value: null, displayValue: formatFullCurrency(netRevenue, isIntl), icon: Activity, gradient: netRevenue >= 0 ? "from-cyan-700 to-cyan-500" : "from-rose-700 to-rose-500", textColor: "text-cyan-50" },
+    { label: "Net Profit (P&L)", value: null, displayValue: formatFullCurrency(s.profit || 0, isIntl), change: overview?.changes?.profit_change, icon: Activity, gradient: s.profit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
     { label: "Working Capital", value: null, displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
     { label: "Avg / Bill", value: null, displayValue: formatFullCurrency(s.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
+    { label: `Revenue Share (${defaultSharePct}% × Net Rev)`, value: null, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
   ] : [];
 
   return (

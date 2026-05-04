@@ -5,6 +5,19 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] MIS Dashboard — Total Deductions / Net Revenue / Revenue Share parity
+**User ask**: Same Total Deductions + Net Revenue + correct Revenue Share fix that just landed on Owner Dashboard, but applied to **Accounts → MIS Dashboard** as well.
+
+**Fix (`pages/MISDashboard.jsx`)**:
+- Same central calc: `Total Deductions = Commissions + GST` · `Net Revenue = Sales − Total Deductions` · `Revenue Share = pct × Net Revenue`.
+- KPI strip rebuilt to **10 cards** mirroring Owner Dashboard order: Sales · Expenses · Commissions · **GST on Sales** · **Total Deductions** · **Net Revenue** · **Net Profit (P&L)** · WC · Avg/Bill · **Revenue Share (X% × Net Rev)**. Default share % = 15 (India) — falls back to per-center `revenue_share_percentage` when a single center is selected.
+- Excel export sheet rewritten as the same accountant chain: Sales → Less Comm → Less GST → = Total Deductions → = Net Revenue → Less Expenses → = Net Profit.
+- `Percent` icon added to lucide-react import.
+
+**Bulk Ignore reminder**: User saw production screenshot still missing Bulk Ignore — the fix from earlier this session is already in preview (verified rendering in toolbar). Just needs the Deploy click.
+
+**Files**: `frontend/src/pages/MISDashboard.jsx`. Lint clean. UI verified live.
+
 ### [2026-05-04] Owner/Franchise Dashboard — Total Deductions + Net Revenue + Revenue Share fix
 **User issue (with screenshot, PB-KAL April 2026)**: Dashboard had no "Total Deductions" KPI, and Revenue Share showed −₹2,110 (15% of *Net Profit* = −14,069 × 0.15) instead of 15% × Net Revenue (~₹1,17,890).
 
