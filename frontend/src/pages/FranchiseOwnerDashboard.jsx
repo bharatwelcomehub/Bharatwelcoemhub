@@ -255,6 +255,51 @@ export default function FranchiseOwnerDashboard() {
     } catch { toast.error("Download failed"); }
   };
 
+  const downloadFranchiseDoc = async (doc) => {
+    try {
+      const fc = franchiseInfo?.franchise_code;
+      if (!fc) { toast.error("Franchise not linked"); return; }
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/franchises/documents/download/${fc}/${doc.document_id}?token=${encodeURIComponent(session?.token || "")}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || "Download failed");
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = doc.original_name || doc.file_name || "document";
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch { toast.error("Download failed"); }
+  };
+
+  const downloadAgreement = async () => {
+    try {
+      const fc = franchiseInfo?.franchise_code;
+      if (!fc) { toast.error("Franchise not linked"); return; }
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/franchises/generate-agreement/${fc}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: session?.token, format: "pdf" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || "Agreement download failed");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `FOCO_Agreement_${fc}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Agreement download failed"); }
+  };
+
   const handleExportReport = () => {
     if (!overview?.summary) return;
     const sm = overview.summary;
@@ -643,16 +688,91 @@ export default function FranchiseOwnerDashboard() {
 
           {/* DOCUMENTS TAB */}
           <TabsContent value="documents" className="space-y-4">
+            {/* Auto-generated Agreement */}
             <Card className="bg-white border-slate-200/60 rounded-xl">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5" /> Franchise Documents
+                  <FileText className="w-5 h-5 text-amber-700" /> Franchise Agreement
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-4 rounded-lg border border-amber-200 bg-amber-50/40" data-testid="fo-agreement-row">
+                  <div>
+                    <p className="font-medium text-sm">Auto-Generated FOCO Agreement</p>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Comprehensive franchise agreement (60+ pages). Generated on demand from your latest franchise record.
+                    </p>
+                    {franchiseInfo?.agreement_start_date && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Term: {franchiseInfo.agreement_start_date} → {franchiseInfo.agreement_end_date || "—"}
+                      </p>
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={downloadAgreement} disabled={!franchiseInfo?.franchise_code} data-testid="fo-download-agreement-btn">
+                    <FileDown className="w-4 h-4 mr-1" /> Download Agreement PDF
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Franchise-level uploaded docs (LIC, GST, agreements, KYC, etc.) */}
+            <Card className="bg-white border-slate-200/60 rounded-xl">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-fuchsia-600" /> Franchise Records (LIC, KYC, Agreements, etc.)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(franchiseInfo?.documents?.length || 0) === 0 ? (
+                  <p className="text-center py-6 text-slate-500 text-sm" data-testid="fo-no-franchise-docs">
+                    No franchise records uploaded yet by Admin.
+                  </p>
+                ) : (
+                  <div className="space-y-3" data-testid="fo-franchise-docs-list">
+                    {(franchiseInfo.documents || []).map((doc) => (
+                      <div
+                        key={doc.document_id}
+                        className="flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                        data-testid={`fo-fr-doc-${doc.document_id}`}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="p-2 rounded-lg bg-fuchsia-50">
+                            <FileText className="w-5 h-5 text-fuchsia-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{doc.original_name || doc.file_name}</p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {doc.document_type && (
+                                <Badge variant="outline" className="text-xs uppercase">{doc.document_type}</Badge>
+                              )}
+                              {doc.uploaded_at && (
+                                <span className="text-xs text-slate-500">Uploaded: {String(doc.uploaded_at).split('T')[0]}</span>
+                              )}
+                            </div>
+                            {doc.description && <p className="text-xs text-slate-500 mt-1">{doc.description}</p>}
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => downloadFranchiseDoc(doc)} data-testid={`fo-download-fr-doc-${doc.document_id}`}>
+                          <FileDown className="w-4 h-4 mr-1" /> Download
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* General center documents (bills, certificates uploaded via Documents module) */}
+            <Card className="bg-white border-slate-200/60 rounded-xl">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5" /> Other Documents
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {franchiseDocs.length === 0 ? (
-                  <p className="text-center py-8 text-slate-500" data-testid="fo-no-docs">
-                    No documents available for this franchise.
+                  <p className="text-center py-6 text-slate-500 text-sm" data-testid="fo-no-docs">
+                    No additional documents available for this franchise.
                   </p>
                 ) : (
                   <div className="space-y-3" data-testid="fo-documents-list">

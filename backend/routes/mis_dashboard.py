@@ -1375,6 +1375,8 @@ def _build_kpi_cards_table(kpi_list, sym="₹"):
         "Total Sales": colors.HexColor("#059669"),
         "Total Expenses": colors.HexColor("#DC2626"),
         "Commissions": colors.HexColor("#7C3AED"),
+        "GST on Sales": colors.HexColor("#9333EA"),
+        "Net Revenue": colors.HexColor("#0E7490"),
         "Net Profit": colors.HexColor("#047857"),
         "Net Profit (Loss)": colors.HexColor("#B91C1C"),
         "Working Capital": colors.HexColor("#D97706"),
@@ -1967,7 +1969,10 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
     changes = overview_data.get("changes", {})
     profit = s.get("profit", 0)
     available_wc = wc_data.get("available_working_capital", 0) if wc_data else 0
-    net_revenue = profit * (revenue_share_pct / 100) if revenue_share_pct else 0
+    # Net Revenue = Total Sales − Commissions − GST (per Apr-2026 rule).
+    # Revenue Share is computed on Net Revenue (NOT profit).
+    net_revenue_base = s.get("net_revenue", 0)
+    revenue_share_amount = net_revenue_base * (revenue_share_pct / 100) if revenue_share_pct else 0
 
     kpi_list = [
         {"label": "Total Sales", "value": fmt_short(s.get("total_sales")),
@@ -1975,11 +1980,14 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
         {"label": "Total Expenses", "value": fmt_short(s.get("total_expenses")),
          "change": f"{changes.get('expenses_change', 0):+.1f}% vs prev"},
         {"label": "Commissions", "value": fmt_short(s.get("total_commissions")), "change": ""},
+        {"label": "GST on Sales", "value": fmt_short(s.get("total_gst")), "change": "Govt pass-through"},
+        {"label": "Net Revenue", "value": fmt_short(net_revenue_base), "change": "Sales − Comm − GST"},
         {"label": "Net Profit" if profit >= 0 else "Net Profit (Loss)", "value": fmt_short(profit),
          "change": f"{changes.get('profit_change', 0):+.1f}% vs prev", "raw_value": profit},
         {"label": "Working Capital", "value": fmt_short(available_wc), "change": ""},
         {"label": "Avg / Bill", "value": fmt_short(s.get("avg_per_bill")), "change": ""},
-        {"label": "Revenue Share", "value": fmt_short(net_revenue), "change": f"{revenue_share_pct}% of profit"},
+        {"label": "Revenue Share", "value": fmt_short(revenue_share_amount),
+         "change": f"{revenue_share_pct}% of Net Revenue"},
     ]
 
     card_tables = _build_kpi_cards_table(kpi_list, sym)
@@ -2009,14 +2017,15 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
     # ── FINANCIAL SUMMARY TABLE ──
     elements.append(Paragraph("Financial Summary", section_style))
     summary_rows = [
-        [Paragraph("<b>Metric</b>", normal_style), Paragraph("<b>Value</b>", normal_style), Paragraph("<b>vs Prev</b>", normal_style)],
+        [Paragraph("<b>Metric</b>", normal_style), Paragraph("<b>Value</b>", normal_style), Paragraph("<b>vs Prev / Note</b>", normal_style)],
         ["Total Sales", fmt(s.get("total_sales")), f"{changes.get('sales_change', 0):+.1f}%"],
-        ["Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
-        ["Commissions", fmt(s.get("total_commissions")), ""],
-        ["GST", fmt(s.get("total_gst")), ""],
-        ["Net Profit", fmt(profit), f"{changes.get('profit_change', 0):+.1f}%"],
+        ["Less: Total Commissions", fmt(s.get("total_commissions")), ""],
+        ["Less: GST on Sales", fmt(s.get("total_gst")), "Govt pass-through"],
+        ["= Net Revenue", fmt(net_revenue_base), "Sales − Comm − GST"],
+        ["Less: Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
+        ["= Net Profit", fmt(profit), f"{changes.get('profit_change', 0):+.1f}%"],
         ["Working Capital", fmt(available_wc), f"as of {wc_data.get('up_to_month', '')}"],
-        [f"Revenue Share ({revenue_share_pct}%)", fmt(net_revenue), ""],
+        [f"Revenue Share Payable ({revenue_share_pct}% × Net Revenue)", fmt(revenue_share_amount), ""],
         ["Avg per Bill", fmt(s.get("avg_per_bill")), ""],
     ]
 

@@ -5,6 +5,40 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-04] Franchise Owner read-only access to all docs + Full Net Revenue/GST chain in PDFs
+**User asks**:
+1. Franchise Owner Dashboard should expose ALL documents (LIC, agreements, KYC) — read-only, no edits.
+2. All report PDFs must clearly show Net Revenue + GST + Revenue Share + Commission details.
+
+**Documents — Franchise Owner Dashboard (`pages/FranchiseOwnerDashboard.jsx`)**:
+- Documents tab now has 3 sections:
+  - **Franchise Agreement**: one-click "Download Agreement PDF" button that calls `/api/franchises/generate-agreement/{code}` (60+ page comprehensive FOCO agreement, generated on-demand from current franchise record).
+  - **Franchise Records (LIC, KYC, Agreements)**: lists everything in `franchiseInfo.documents`. Each row has tag + uploaded-date + download button (no edit/upload controls).
+  - **Other Documents**: existing general documents tab (bills, certificates) — unchanged.
+- All download flows are strictly read-only.
+
+**Backend authorization (`routes/franchises.py`)**:
+- `/franchises/documents/download/{code}/{doc_id}` and `/franchises/generate-agreement/{code}` switched from admin-only to `check_access_with_franchise`. Franchise owners can ONLY download for their own franchise (verified by matching `session.franchise_code`); admins/SA/accounting unrestricted as before.
+
+**PDF reports — Net Revenue / GST / Comm / Rev Share chain (`routes/mis_dashboard.py::_build_franchise_pdf`)**:
+- **Bug fix**: `Revenue Share` was computed as `profit × rev_share_pct` (wrong — that's profit-share, not revenue-share). Now correctly = `Net Revenue × rev_share_pct` where Net Revenue = Sales − Commissions − GST.
+- **New KPI cards**: "GST on Sales" (purple) and "Net Revenue" (cyan) added alongside Sales/Expenses/Commissions/Profit/WC/Avg-per-Bill/Revenue-Share — 9 cards total.
+- **Financial Summary table** rewritten as an accountant-friendly chain:
+  ```
+  Total Sales
+  Less: Total Commissions
+  Less: GST on Sales
+  = Net Revenue                    (Sales − Comm − GST)
+  Less: Total Expenses
+  = Net Profit
+  Working Capital
+  Revenue Share Payable (X% × Net Revenue)
+  Avg per Bill
+  ```
+- Verified via `/api/mis/franchise-pdf` + `pdfminer`: rendered PDF contains "Net Revenue" 4×, "GST on Sales" 2×, "= Net Revenue" 1×, "Less: Total Commissions" 1×, "Less: GST on Sales" 1×, "Revenue Share" 3×.
+
+**Files**: `backend/routes/franchises.py`, `backend/routes/mis_dashboard.py`, `frontend/src/pages/FranchiseOwnerDashboard.jsx`. Lint clean (warnings are pre-existing). UI smoke-test green.
+
 ### [2026-05-04] CRITICAL BUG FIX — India Net Revenue + 3 Center Account fixes
 **User issue (with screenshot, PB-KAL April 2026)**: Net Revenue showed −14,069.31 on Sales 8,27,928 with Deductions 42,101.49. Math impossible. Plus 3 more issues reported.
 

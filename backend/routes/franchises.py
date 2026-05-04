@@ -819,11 +819,18 @@ async def upload_document(
 
 @router.get("/documents/download/{franchise_code}/{document_id}")
 async def download_document(franchise_code: str, document_id: str, token: str):
-    """Download a document"""
-    session = await check_access(token)
-    
+    """Download a document. Admin/Accounts can download any; franchise owners only their own."""
+    session = await check_access_with_franchise(token)
+    fc = franchise_code.upper()
+    # Franchise owner: must own this franchise
+    if session.get("role_key") == "franchise_owner" and not (
+        session.get("is_super_admin") or session.get("is_admin") or (session.get("roles") or {}).get("accounting")
+    ):
+        owner_fc = (session.get("franchise_code") or "").upper()
+        if not owner_fc or owner_fc != fc:
+            raise HTTPException(403, "You can only download documents for your own franchise")
     franchise = await db.franchises.find_one(
-        {"franchise_code": franchise_code.upper()},
+        {"franchise_code": fc},
         {"_id": 0, "documents": 1}
     )
     
@@ -951,14 +958,23 @@ def format_currency_words(amount, country="India"):
 
 @router.post("/generate-agreement/{franchise_code}")
 async def generate_agreement(franchise_code: str, data: dict):
-    """Generate a comprehensive FOCO Franchise Agreement PDF (60+ pages)"""
+    """Generate a comprehensive FOCO Franchise Agreement PDF (60+ pages).
+    Admin/Accounts can generate for any; franchise owners only for their own."""
     token = data.get("token")
     output_format = data.get("format", "pdf")  # pdf or docx
     
-    session = await check_access(token)
+    session = await check_access_with_franchise(token)
+    fc = franchise_code.upper()
+    # Franchise owner ownership check
+    if session.get("role_key") == "franchise_owner" and not (
+        session.get("is_super_admin") or session.get("is_admin") or (session.get("roles") or {}).get("accounting")
+    ):
+        owner_fc = (session.get("franchise_code") or "").upper()
+        if not owner_fc or owner_fc != fc:
+            raise HTTPException(403, "You can only download the agreement for your own franchise")
     
     franchise = await db.franchises.find_one(
-        {"franchise_code": franchise_code.upper()},
+        {"franchise_code": fc},
         {"_id": 0}
     )
     
