@@ -5,6 +5,25 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-06] Daily Duty Roster — new page for Center Managers
+**User ask**: A daily duty roster per center, mirroring the WhatsApp screenshot they currently send manually. Center Manager fills it; share to WhatsApp group as image or text.
+
+**Backend** (`routes/duty_roster.py`, new):
+- `POST /api/duty-roster/get` — auto-pulls active employees for the center, groups them by designation (Manager / Service / Kitchen / Housekeeping / Others), merges any saved roster for the date.
+- `POST /api/duty-roster/save` — upserts the roster doc keyed by `{center, date}`, persists rows with `updated_at` / `updated_by` for audit.
+- `POST /api/duty-roster/history` — last 60 saved dates per center.
+- Access: Super Admin, Admin, Accounts → any center; Center Manager → own center only.
+- Status codes match the screenshot: time strings (Present), `LEAVE`, `W` (Weekly Off), `A` (Absent).
+
+**Frontend** (`pages/DutyRoster.jsx`, new — sidebar link "Daily Duty Roster" under Attendance):
+- Center + Date selectors (Manager locked to own center).
+- Editable groups: Manager → Service → Kitchen → Housekeeping → Others. Per row: Duty Time, In Time, Status dropdown. "Add ad-hoc" for trainees not in master.
+- **Live WhatsApp-styled preview** matching the user's reference image: yellow `PURNABRAMHA / DD/MM/YY` header, blue group bands, bordered table with SR.NO / NAME / DESIGNATION / DUTY TIME / IN TIME columns.
+- Share buttons: **Copy Text** (multi-line WA-friendly), **Copy Image** (PNG → clipboard via html2canvas, one-tap paste), **Download PNG** (browser fallback).
+- "Last saved … by …" badge for audit visibility.
+
+**Verified live**: `GET` returned 16 PB-HSR employees grouped correctly. `SAVE` upserted 3 rows. UI renders with yellow/blue layout matching the reference. Lint clean.
+
 ### [2026-05-04] Signature block — bigger, centered, authoritative
 **User issue (with screenshot)**: Earlier signature block was a small 2-column layout with the stamp tucked into a corner — looked weak.
 

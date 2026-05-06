@@ -2296,6 +2296,12 @@ set_dt_verify_token(verify_token)
 set_dt_has_admin_access(has_admin_access)
 app.include_router(dt_router)
 
+# Daily Duty Roster module (per-center attendance tracker for managers)
+from routes.duty_roster import router as roster_router, set_db as set_roster_db, set_verify_token as set_roster_verify_token
+set_roster_db(db)
+set_roster_verify_token(verify_token)
+app.include_router(roster_router)
+
 # Social Media Planner module
 from routes.social_media import router as sm_router, set_db as set_sm_db, set_verify_token as set_sm_verify_token, set_has_admin_access as set_sm_has_admin_access, set_upload_fn as set_sm_upload_fn
 set_sm_db(db)

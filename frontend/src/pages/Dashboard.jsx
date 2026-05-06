@@ -49,6 +49,7 @@ import {
 import Attendance from "@/pages/Attendance";
 import Employees from "@/pages/Employees";
 import Salary from "@/pages/Salary";
+import DutyRoster from "@/pages/DutyRoster";
 import BhojanGuru from "@/pages/BhojanGuru";
 import GuestResponse from "@/pages/GuestResponse";
 import RecipeAdmin from "@/pages/RecipeAdmin";
@@ -97,6 +98,7 @@ const menuCategories = [
       { path: "/international-roster", icon: CalendarDays, label: "Intl Roster", roleKey: "attendance", forInternational: true },
       { path: "/employee-transfers", icon: ArrowRightLeft, label: "Transfers", roleKey: "attendance" },
       { path: "/attendance-dashboard", icon: BarChart3, label: "Attendance Dashboard", forAdmin: true },
+      { path: "/duty-roster", icon: Calendar, label: "Daily Duty Roster", roleKey: "attendance" },
     ]
   },
   {
@@ -499,6 +501,7 @@ export default function Dashboard() {
             <Route path="/international-roster" element={<InternationalRoster />} />
             <Route path="/employee-transfers" element={<EmployeeTransfers />} />
             <Route path="/attendance-dashboard" element={<AttendanceDashboard />} />
+            <Route path="/duty-roster" element={<DutyRoster />} />
             <Route path="/sales" element={<SalesExpenses />} />
             <Route path="/expense-heads" element={<ExpenseHeads />} />
             <Route path="/guest-response" element={<GuestResponse />} />
