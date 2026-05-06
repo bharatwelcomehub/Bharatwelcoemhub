@@ -94,7 +94,9 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
         token: session.token, center: selectedCenter, date: selectedDate, overrides,
       });
       setTextData(res.data);
-      setEditableData(res.data.data || {});
+      const fresh = computeDerived(res.data.data || {}, new Set());
+      setEditedKeys(new Set());
+      setEditableData(fresh);
       setGeneratedText(res.data.text || "");
     } catch (e) {
       toast.error(e.response?.data?.detail || "Failed to generate text");
@@ -109,7 +111,9 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
         token: session.token, center: selectedCenter, date: selectedDate,
       });
       setTextData(res.data);
-      setEditableData(res.data.data || {});
+      const fresh = computeDerived(res.data.data || {}, new Set());
+      setEditedKeys(new Set());
+      setEditableData(fresh);
       setGeneratedText(res.data.text || "");
       toast.success("Refreshed from stored data");
     } catch (e) {
@@ -149,8 +153,58 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
     setGeneratedText(lines.join("\n"));
   };
 
+  // Recompute derived fields based on user edits.
+  // Derived fields:
+  //   cash_sale     = total_sale − card − phone_pay − swiggy − zomato − due_amount
+  //   apc           = total_sale / total_guests
+  //   cash_in_hand  = opening_balance + cash_sale − cash_expense − deposit − withdrawal
+  // Each one is auto-updated unless the user has explicitly typed a value
+  // (we track those via editedKeys).
+  const num = (v) => Number(v) || 0;
+  const computeDerived = (data, editedKeys = new Set()) => {
+    const next = { ...data };
+    const ts = num(next.total_sale);
+    const card = num(next.card);
+    const pp = num(next.phone_pay);
+    const sw = num(next.swiggy);
+    const zo = num(next.zomato);
+    const due = num(next.due_amount);
+    const op = num(next.opening_balance);
+    const dep = num(next.deposit);
+    const wd = num(next.withdrawal);
+    const cexp = num(next.cash_expense);
+    const tg = num(next.total_guests);
+
+    if (!editedKeys.has("cash_sale")) {
+      next.cash_sale = Math.max(0, Math.round(ts - card - pp - sw - zo - due));
+    }
+    if (!editedKeys.has("apc")) {
+      next.apc = tg > 0 ? Math.round(ts / tg) : 0;
+    }
+    if (!editedKeys.has("cash_in_hand")) {
+      next.cash_in_hand = Math.round(op + num(next.cash_sale) - cexp - dep - wd);
+    }
+    return next;
+  };
+
+  // Track which keys the user has explicitly overridden
+  const [editedKeys, setEditedKeys] = useState(new Set());
+
+  const updateField = (key, value) => {
+    setEditedKeys(prev => {
+      // If user clears the field, treat as auto again
+      const next = new Set(prev);
+      if (value === "" || value === null) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    setEditableData(p => computeDerived({ ...p, [key]: value }, new Set([...editedKeys, key])));
+  };
+
+  // Recompute derived whenever raw data is loaded / refreshed
   useEffect(() => {
-    if (Object.keys(editableData).length > 0) regenerateFromEdits();
+    if (Object.keys(editableData).length === 0) return;
+    regenerateFromEdits();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editableData]);
 
@@ -161,8 +215,6 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
       setTimeout(() => setCopied(false), 2000);
     });
   };
-
-  const updateField = (key, value) => setEditableData(p => ({ ...p, [key]: value }));
 
   const fields = [
     { key: "opening_balance", label: "Opening Bal" },
@@ -291,15 +343,27 @@ function DailyTab({ session, centersList, isAdmin, isFranchiseOwner, canEdit }) 
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
-                  {fields.map(f => (
-                    <div key={f.key} className="flex items-center gap-2">
-                      <Label className="text-[11px] w-28 text-right text-muted-foreground shrink-0">{f.label}</Label>
-                      <Input type="number" value={editableData[f.key] ?? ""} className="h-8 text-xs"
-                        onChange={e => updateField(f.key, parseFloat(e.target.value) || 0)}
-                        data-testid={`field-${f.key}`} />
-                    </div>
-                  ))}
+                  {fields.map(f => {
+                    const isDerived = ["cash_sale", "apc", "cash_in_hand"].includes(f.key);
+                    const isAuto = isDerived && !editedKeys.has(f.key);
+                    return (
+                      <div key={f.key} className="flex items-center gap-2">
+                        <Label className="text-[11px] w-28 text-right text-muted-foreground shrink-0">{f.label}</Label>
+                        <div className="relative flex-1">
+                          <Input type="number" value={editableData[f.key] ?? ""} className={`h-8 text-xs ${isAuto ? "bg-emerald-50 border-emerald-200" : ""}`}
+                            onChange={e => updateField(f.key, parseFloat(e.target.value) || 0)}
+                            data-testid={`field-${f.key}`} />
+                          {isAuto && (
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-emerald-600 font-semibold pointer-events-none" title="Auto-calculated from above fields">AUTO</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+                <p className="text-[10px] text-muted-foreground mt-3">
+                  Fields tagged <span className="text-emerald-600 font-semibold">AUTO</span> recalculate live from your edits (Cash Sale = Sale − Card − UPI − Swiggy − Zomato − Due · APC = Sale ÷ Guests · Cash In Hand = Opening + Cash Sale − Cash Exp − Deposit − Withdrawal). Type in any AUTO field to override; clear it to switch back to auto.
+                </p>
               </CardContent>
             </Card>
           )}
