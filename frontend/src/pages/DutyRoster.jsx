@@ -140,9 +140,11 @@ export default function DutyRoster() {
       setSavedAt(d.updated_at);
       setSavedBy(d.updated_by);
       if (d.attendance_locked) {
-        toast.success(`Roster saved (${d.saved} rows). Attendance NOT updated — month is locked.`);
+        toast.success(`Roster saved (${d.saved} rows). Attendance NOT updated — ${date.slice(0,7)} is locked.`);
       } else if ((d.attendance_synced ?? 0) > 0) {
-        toast.success(`Roster saved · ${d.attendance_synced} attendance record(s) auto-updated`);
+        toast.success(`Roster saved · ${d.attendance_synced} attendance record(s) auto-updated for ${center} on ${date}`);
+      } else if ((d.attendance_synced ?? 0) === 0) {
+        toast.success(`Roster saved (${d.saved} rows). No attendance records updated — set a Status (Present / Leave / W / A) on at least one row first.`);
       } else {
         toast.success(`Roster saved (${d.saved} rows)`);
       }

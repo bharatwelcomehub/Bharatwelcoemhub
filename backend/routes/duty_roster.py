@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/duty-roster", tags=["Duty Roster"])
 
 db = None
 verify_token = None
+verify_token_async = None
 
 
 def set_db(_db):
@@ -34,6 +35,25 @@ def set_db(_db):
 def set_verify_token(func):
     global verify_token
     verify_token = func
+
+
+def set_verify_token_async(func):
+    global verify_token_async
+    verify_token_async = func
+
+
+async def _verify(token: str):
+    """Prefer async verifier (DB-backed; survives restarts), fall back to sync."""
+    if verify_token_async:
+        try:
+            sess = await verify_token_async(token)
+            if sess:
+                return sess
+        except Exception:
+            pass
+    if verify_token:
+        return verify_token(token)
+    return None
 
 
 # -- Designation → group mapping (drives the section bands in the printed roster)
@@ -95,7 +115,7 @@ class SaveRosterRequest(BaseModel):
 @router.post("/get")
 async def get_roster(req: GetRosterRequest):
     """Return current employee list (grouped) + saved roster for center+date."""
-    session = verify_token(req.token)
+    session = await _verify(req.token)
     _check_access(session, req.center)
 
     code = req.center.upper()
@@ -170,7 +190,7 @@ async def get_roster(req: GetRosterRequest):
 @router.post("/save")
 async def save_roster(req: SaveRosterRequest):
     """Persist the manager's edits. Replaces the rows array atomically."""
-    session = verify_token(req.token)
+    session = await _verify(req.token)
     _check_access(session, req.center)
 
     code = req.center.upper()
@@ -286,7 +306,7 @@ async def save_roster(req: SaveRosterRequest):
 @router.post("/history")
 async def list_history(payload: dict = Body(...)):
     """Return the list of dates that already have a saved roster (for the date-picker chip strip)."""
-    session = verify_token(payload.get("token"))
+    session = await _verify(payload.get("token"))
     center = (payload.get("center") or "").upper()
     _check_access(session, center)
     docs = await db.duty_rosters.find(

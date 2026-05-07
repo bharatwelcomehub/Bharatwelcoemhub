@@ -5,6 +5,25 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-07] Duty Roster auth hardening + clearer attendance-sync toast
+**User issue**: Reports that Duty Roster → Attendance auto-sync was failing for PB-HW, PB-KN and PB-PERTH ("attendance is not getting saved").
+
+**Investigation**:
+- Verified DB end-to-end: PB-PERTH had 1 saved roster (2 rows) and matching `attendance` rows with `source='duty_roster'`. PB-HSR likewise OK. **PB-HW & PB-KN had ZERO saved rosters** — managers never successfully reached `/save`.
+- Re-ran the full happy path with a real super-admin token against PB-HW: GET returned 16-employee pool, SAVE returned `attendance_synced: 2`, attendance collection persisted both rows. Backend logic is correct.
+- **Root cause of intermittent failures**: `routes/duty_roster.py` was wired to the *sync* `verify_token` which only checks the in-memory `otp_store`. After any backend restart (deploys, supervisor cycles), all in-flight session tokens silently 401 against duty-roster endpoints — even though the same tokens work for every other route that uses `verify_token_async` (DB-backed). PB-HW / PB-KN managers (email-OTP) were the most likely victims because they re-login less often.
+
+**Fix (`backend/routes/duty_roster.py` + `backend/server.py`)**:
+- Added `set_verify_token_async` setter + internal `_verify()` helper that prefers async DB-backed verification, falls back to sync. All three endpoints (`/get`, `/save`, `/history`) now use it.
+- Wired `set_roster_verify_token_async(verify_token_async)` in `server.py`.
+- Tokens persist across server restarts now — matches the rest of the modern routes.
+
+**Frontend toast clarity (`pages/DutyRoster.jsx`)**:
+- Save toast now names the center + date explicitly: "Roster saved · N attendance record(s) auto-updated for PB-HW on 2026-05-09".
+- When `attendance_synced=0` we now tell the manager why: "set a Status (Present / Leave / W / A) on at least one row first" — addresses the silent "I clicked Save but nothing happened" UX.
+
+**Verified**: `python` test against `/api/duty-roster/save` for PB-HW → `attendance_synced: 2`; subsequent `db.attendance.find(...)` returned both rows with `source='duty_roster'`. Backend lint clean.
+
 ### [2026-05-06] Daily Duty Roster — new page for Center Managers
 **User ask**: A daily duty roster per center, mirroring the WhatsApp screenshot they currently send manually. Center Manager fills it; share to WhatsApp group as image or text.
 
