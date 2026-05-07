@@ -41,6 +41,7 @@ export default function DutyRoster() {
   const [rows, setRows] = useState([]);
   const [savedAt, setSavedAt] = useState(null);
   const [savedBy, setSavedBy] = useState("");
+  const [employeePool, setEmployeePool] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const previewRef = useRef(null);
@@ -78,6 +79,9 @@ export default function DutyRoster() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail || "Failed to load roster");
       setRows(d.rows || []);
+      // Pool comes straight from db.employees (untouched), so removing a row
+      // doesn't shrink the pool — staff stays available for re-adding.
+      setEmployeePool(d.pool || []);
       setSavedAt(d.updated_at || null);
       setSavedBy(d.updated_by || "");
     } catch (e) { toast.error(e.message); }
@@ -99,12 +103,29 @@ export default function DutyRoster() {
   const updateRow = (idxAbs, patch) => {
     setRows(prev => prev.map((r, i) => (i === idxAbs ? { ...r, ...patch } : r)));
   };
-  const addAdHoc = (group) => {
+
+  // Pool of employees not yet on the roster (for the "Add staff" dropdown).
+  // Strictly comes from the active employee list of THIS center — no free typing.
+  const usedNames = useMemo(() => new Set(rows.map(r => (r.name || "").toUpperCase())), [rows]);
+  const availablePool = useMemo(
+    () => employeePool.filter(e => !usedNames.has((e.name || "").toUpperCase())),
+    [employeePool, usedNames]
+  );
+
+  const addEmployeeToRoster = (key) => {
+    // Key is employee_id when available, else name (matches the SelectItem value)
+    const emp = employeePool.find(e => (e.employee_id || e.name) === key);
+    if (!emp) return;
     setRows(prev => [...prev, {
-      employee_id: "", name: "", designation: "", group,
-      duty_time: "", in_time: "", status: "PRESENT", ad_hoc: true,
+      employee_id: emp.employee_id,
+      name: emp.name,
+      designation: emp.designation,
+      group: emp.group,
+      duty_time: "", in_time: "", status: "PRESENT",
     }]);
+    toast.success(`${emp.name} added`);
   };
+
   const removeRow = (idxAbs) => setRows(prev => prev.filter((_, i) => i !== idxAbs));
 
   const saveRoster = async () => {
@@ -229,6 +250,32 @@ export default function DutyRoster() {
               <ImageIcon className="w-4 h-4 mr-1" /> Download PNG
             </Button>
           </div>
+
+          {/* Strict employee dropdown — only employees from THIS center, no free typing */}
+          <div className="mt-4 pt-4 border-t border-slate-200 flex items-end gap-2 flex-wrap">
+            <div className="space-y-1 flex-1 min-w-[260px]">
+              <Label className="text-xs">Add staff to roster (only employees of {center || "—"})</Label>
+              <Select value="" onValueChange={addEmployeeToRoster}>
+                <SelectTrigger className="w-full" data-testid="dr-add-employee">
+                  <SelectValue placeholder={availablePool.length === 0 ? "All staff already on roster" : `Pick a name (${availablePool.length} available)`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePool.length === 0 ? (
+                    <SelectItem value="__none" disabled>All employees already added</SelectItem>
+                  ) : (
+                    availablePool.map(e => (
+                      <SelectItem key={e.employee_id || e.name} value={e.employee_id || e.name}>
+                        {e.name}{e.designation ? `  (${e.designation})` : ""}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-[11px] text-slate-500 self-center">
+              Names are pulled from the Employee master for {center || "—"}. To add a new person, register them in HR Management → Employees first.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -242,10 +289,7 @@ export default function DutyRoster() {
             return (
               <div key={g} className="mb-5">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">{g}</h3>
-                  <Button size="sm" variant="ghost" onClick={() => addAdHoc(g)} data-testid={`dr-add-${g}`}>
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add ad-hoc
-                  </Button>
+                  <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">{g} <span className="text-xs text-slate-400 font-normal">({items.length})</span></h3>
                 </div>
                 {items.length === 0 ? (
                   <p className="text-xs text-slate-400 italic">No staff in this group.</p>
@@ -267,21 +311,13 @@ export default function DutyRoster() {
                         {items.map((r, i) => {
                           const idxAbs = rows.indexOf(r);
                           return (
-                            <tr key={`${g}-${i}`} className="border-t border-slate-100 hover:bg-slate-50/50">
+                            <tr key={`${g}-row-${i}`} className="border-t border-slate-100 hover:bg-slate-50/50">
                               <td className="px-2 py-1 text-xs text-slate-500">{i + 1}</td>
                               <td className="px-2 py-1">
-                                {r.ad_hoc ? (
-                                  <Input value={r.name} onChange={e => updateRow(idxAbs, { name: e.target.value.toUpperCase() })} className="h-8 text-xs" placeholder="Name" />
-                                ) : (
-                                  <span className="text-sm font-medium">{r.name}</span>
-                                )}
+                                <span className="text-sm font-medium uppercase">{r.name}</span>
                               </td>
                               <td className="px-2 py-1">
-                                {r.ad_hoc ? (
-                                  <Input value={r.designation} onChange={e => updateRow(idxAbs, { designation: e.target.value.toUpperCase() })} className="h-8 text-xs" placeholder="Designation" />
-                                ) : (
-                                  <span className="text-xs text-slate-600">{r.designation}</span>
-                                )}
+                                <span className="text-xs text-slate-600 uppercase">{r.designation || "—"}</span>
                               </td>
                               <td className="px-2 py-1">
                                 <Input value={r.duty_time} onChange={e => updateRow(idxAbs, { duty_time: e.target.value })} placeholder="08:30" className="h-8 text-xs font-mono" data-testid={`dr-row-duty-${idxAbs}`} />
@@ -298,11 +334,9 @@ export default function DutyRoster() {
                                 </Select>
                               </td>
                               <td className="px-2 py-1 text-right">
-                                {r.ad_hoc && (
-                                  <Button size="sm" variant="ghost" onClick={() => removeRow(idxAbs)} className="h-7 w-7 p-0">
-                                    <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                                  </Button>
-                                )}
+                                <Button size="sm" variant="ghost" onClick={() => removeRow(idxAbs)} className="h-7 w-7 p-0" title="Remove from today's roster">
+                                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                </Button>
                               </td>
                             </tr>
                           );

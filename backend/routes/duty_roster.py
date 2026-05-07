@@ -140,6 +140,16 @@ async def get_roster(req: GetRosterRequest):
         "center": code,
         "date": req.date,
         "rows": rows,
+        # Strict employee pool for this center — used by the frontend "Add staff"
+        # dropdown so managers cannot type in arbitrary names.
+        "pool": [
+            {
+                "employee_id": e.get("employeeId", ""),
+                "name": (e.get("name") or "").upper(),
+                "designation": (e.get("designation") or "").upper(),
+                "group": _group_for(e.get("designation") or ""),
+            } for e in employees
+        ],
         "saved": bool(saved),
         "updated_at": (saved or {}).get("updated_at"),
         "updated_by": (saved or {}).get("updated_by"),
