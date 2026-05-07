@@ -5,6 +5,29 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-07] Employee KYC docs + photos — uploads now persist & are viewable everywhere
+**User report (with screenshot, production)**: "Passport / PAN card photos are not getting updated. After the green success message there's no way to see the documents / photo for the selected employee. Reports should also have those links and images."
+
+**Root cause**:
+- Emergent Object Storage's `GET /objects/{path}/url` endpoint returns **500 Internal Server Error**, so `upload_photo()` was silently storing an empty string in `photo_url` / `aadhaar_doc_url` / etc. PUT succeeded → file landed in storage → DB had no usable URL → frontend "Uploaded" badge appeared but no preview/View link could ever work.
+- Per the integration playbook, Emergent Object Storage has **no presigned-URL support**: every file render must stream through our backend with explicit auth.
+
+**Fix** (`backend/routes/employees.py` + `frontend/src/pages/Employees.jsx` + `backend/.env`):
+- New `fetch_object(path)` helper alongside `upload_photo()`.
+- New endpoint **`GET /api/employee_file_serve?path=...&token=...`** — auth-checked (Admin/SA/Accounts only), namespace-restricted to `purnabramha/employee_photos/...` and `.../employee_docs/...`, streams bytes back inline so browsers render images and PDFs in-tab.
+- `employee_upload_photo` and `employee_upload_document` now persist only the storage `path` (e.g. `photo_path`, `aadhaar_doc_path`, plus `*_content_type` and `*_uploaded_at`). The token is **never** baked into the DB — the View URL is rebuilt on every click using the current session token, so links never go stale or leak across admins.
+- Frontend `DocUploadBtn`: now takes `hasPath`, shows a green emerald **"View"** button (opens in new tab) + an **"Uploaded"** badge whenever a path exists; the Attach button label flips to **"Replace"** so re-uploads are obvious. Photo `<img>` builds its `src` from `photo_path` via the same helper.
+- After a successful upload `formData` (and `selectedEmp`) are updated immediately so the View button appears without a page reload.
+- `PUBLIC_APP_URL=https://intra.purnabramha.com` added to `backend/.env` so reports embed working links.
+
+**Reports — clickable hyperlinks now everywhere**:
+- **PDF Employee Report** (`/api/employee_report`): each employee card now ends with a "Documents:" row showing clickable blue `[Aadhaar] [PAN/TFN] [Passport] [Visa] [Photo]` labels, each wired to the auth-checked serve URL with the requesting admin's token. The card photo itself is now fetched via `fetch_object(photo_path)` (with legacy public-URL fallback). Card height bumped 2.2" → 2.45" to fit the new row.
+- **Excel Employee Report** (`/api/employee_report_excel`): five new columns appended — `Photo · Aadhaar Doc · PAN/TFN Doc · Passport Doc · Visa Doc`. Each cell renders as a blue underlined "Open" hyperlink pointing to `https://intra.purnabramha.com/api/employee_file_serve?...`. Legacy rows (where DB had a relative serve URL with an old uploader token) are auto-rebuilt with the report-requester's current token before being written into the workbook.
+
+**Verified end-to-end**: Uploaded a real PDF for `JAYANTI PRANAV KATHALE` → DB persisted only the path (no token) → serve endpoint streamed back 200 / `application/pdf` → bad-path probe correctly 400-rejected → PDF report grew from 4998→5415 bytes (Documents row added) → Excel report has 22 cols (was 17) with working "Open" hyperlinks.
+
+⚠️ **Production note**: User is testing on `intra.purnabramha.com`. The fix is on PREVIEW. Click **Deploy** to push to production, then any newly uploaded photo/doc will show a working View link and reports will include hyperlinks.
+
 ### [2026-05-07] Duty Roster auth hardening + clearer attendance-sync toast
 **User issue**: Reports that Duty Roster → Attendance auto-sync was failing for PB-HW, PB-KN and PB-PERTH ("attendance is not getting saved").
 

@@ -3,7 +3,8 @@
 # Employee CRUD Operations
 # =======================================
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -56,6 +57,10 @@ def init_photo_storage():
     return photo_storage_key
 
 def upload_photo(path: str, data: bytes, content_type: str) -> str:
+    """Upload bytes to Emergent Object Storage. Returns the canonical storage
+    path (NOT a public URL — the storage API has no presigned URL support, so
+    files must always be streamed back through our backend via
+    ``/api/employee_file_serve``)."""
     key = init_photo_storage()
     resp = requests.put(
         f"{STORAGE_URL}/objects/{path}",
@@ -63,18 +68,20 @@ def upload_photo(path: str, data: bytes, content_type: str) -> str:
         data=data, timeout=120,
     )
     resp.raise_for_status()
-    result = resp.json()
-    return result.get("url", result.get("public_url", ""))
+    result = resp.json() or {}
+    # Always return the path we stored at — that's the source of truth.
+    return result.get("path") or path
 
-def get_photo_url(path: str) -> str:
+
+def fetch_object(path: str) -> tuple[bytes, str]:
+    """Download bytes from Emergent Object Storage. Returns (content, content_type)."""
     key = init_photo_storage()
     resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}/url",
-        headers={"X-Storage-Key": key}, timeout=30,
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key}, timeout=60,
     )
-    if resp.status_code == 200:
-        return resp.json().get("url", "")
-    return ""
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 # =======================================
 # PYDANTIC MODELS
@@ -358,20 +365,28 @@ async def employee_upload_photo(
     path = f"purnabramha/employee_photos/{center.upper()}/{safe_name}.{ext}"
 
     try:
-        url = upload_photo(path, content, file.content_type)
+        stored_path = upload_photo(path, content, file.content_type)
     except Exception as e:
         logger.error(f"Photo upload failed: {e}")
         raise HTTPException(500, f"Failed to upload photo: {str(e)}")
 
-    # Update employee record with photo URL
+    # Persist only the storage path on the employee — the serve URL is built
+    # client-side at view time using the *current* session token (so the View
+    # link always works for whichever admin is logged in, never carrying a
+    # stale uploader token).
     result = await db.employees.update_one(
         {"name": employee_name.strip().upper(), "center": center.upper()},
-        {"$set": {"photo_url": url, "photo_path": path, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {
+            "photo_path": stored_path,
+            "photo_content_type": file.content_type,
+            "photo_uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }},
     )
 
     return {
         "success": True,
-        "photo_url": url,
+        "photo_path": stored_path,
         "message": f"Photo uploaded for {employee_name}",
         "matched": result.matched_count > 0
     }
@@ -408,24 +423,69 @@ async def employee_upload_document(
     path = f"purnabramha/employee_docs/{center.upper()}/{safe_name}/{doc_type}.{ext}"
 
     try:
-        url = upload_photo(path, content, file.content_type)
+        stored_path = upload_photo(path, content, file.content_type)
     except Exception as e:
         logger.error(f"Document upload failed: {e}")
         raise HTTPException(500, f"Failed to upload document: {str(e)}")
 
-    url_field = f"{doc_type}_url"
+    # Persist only the storage path; serve URL is constructed at view time.
+    path_field = f"{doc_type}_path"
+    ct_field = f"{doc_type}_content_type"
     result = await db.employees.update_one(
         {"name": employee_name.strip().upper(), "center": center.upper()},
-        {"$set": {url_field: url, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {
+            path_field: stored_path,
+            ct_field: file.content_type,
+            f"{doc_type}_uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+        }},
     )
 
     return {
         "success": True,
-        "doc_url": url,
+        "doc_path": stored_path,
         "doc_type": doc_type,
         "message": f"{doc_type} uploaded for {employee_name}",
         "matched": result.matched_count > 0
     }
+
+
+@router.get("/employee_file_serve")
+async def employee_file_serve(
+    path: str = Query(..., description="Storage path returned at upload time"),
+    token: str = Query(..., description="Auth token (passed via query so img/anchor tags work)"),
+):
+    """Stream a previously-uploaded employee photo or KYC document back to the
+    browser. The Emergent Object Storage API has no presigned-URL support, so
+    every render of an employee's photo / Aadhaar / PAN / Passport / Visa goes
+    through this auth-checked endpoint. Token is accepted as a query string
+    parameter so plain ``<img src>`` and ``window.open(url)`` calls work.
+    """
+    session = verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+
+    # Only Admin / Super-Admin / Accounts can pull employee documents.
+    if not has_admin_access(session):
+        raise HTTPException(403, "Only Admin can view employee documents")
+
+    # Hard guard: storage path must live inside our employee namespace.
+    if not (path.startswith("purnabramha/employee_photos/") or
+            path.startswith("purnabramha/employee_docs/")):
+        raise HTTPException(400, "Invalid storage path")
+
+    try:
+        content, content_type = fetch_object(path)
+    except Exception as e:
+        logger.error(f"Failed to fetch employee file {path}: {e}")
+        raise HTTPException(404, "File not found in storage")
+
+    # Inline display so the browser renders images/PDFs in-tab.
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Content-Disposition": f'inline; filename="{path.rsplit("/", 1)[-1]}"'},
+    )
 
 
 @router.post("/employee_report")
@@ -474,14 +534,14 @@ async def generate_employee_report(data: dict):
     y = draw_header(height - 0.4 * inch)
 
     for idx, emp in enumerate(employees):
-        # Check if we need a new page (each employee needs ~2.7 inches now with salary row)
-        if y < 2.7 * inch:
+        # Check if we need a new page (each employee needs ~3.0 inches now with KYC links row)
+        if y < 3.0 * inch:
             c.showPage()
             y = draw_header(height - 0.4 * inch)
 
         # Employee card background
         card_top = y + 0.1 * inch
-        card_height = 2.2 * inch
+        card_height = 2.45 * inch
         c.setFillColor(HexColor("#F8FAFC"))
         c.setStrokeColor(HexColor("#E2E8F0"))
         c.roundRect(0.4 * inch, card_top - card_height, width - 0.8 * inch, card_height, 4, fill=1, stroke=1)
@@ -493,8 +553,25 @@ async def generate_employee_report(data: dict):
         photo_h = 1.2 * inch
 
         photo_url = emp.get("photo_url", "")
+        photo_path_emp = emp.get("photo_path", "")
         photo_drawn = False
-        if photo_url:
+        # Prefer fetching by storage path (no auth roundtrip needed and works
+        # whether the stored value is a public URL or a backend-served path).
+        if photo_path_emp:
+            try:
+                import tempfile
+                content, _ct = fetch_object(photo_path_emp)
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                c.drawImage(tmp_path, photo_x, photo_y, width=photo_w, height=photo_h,
+                            preserveAspectRatio=True, mask='auto')
+                photo_drawn = True
+                os.unlink(tmp_path)
+            except Exception:
+                photo_drawn = False
+        # Legacy fallback: if only a public URL was stored, fetch it directly.
+        if (not photo_drawn) and photo_url and photo_url.startswith("http"):
             try:
                 import tempfile
                 req = urllib.request.Request(photo_url, headers={"User-Agent": "Mozilla/5.0"})
@@ -581,6 +658,50 @@ async def generate_employee_report(data: dict):
             curr_sal_str = "N/A"
         c.drawString(left_x, text_y, f"Base Salary: {base_sal_str}")
         c.drawString(right_col, text_y, f"Current Salary: {curr_sal_str}")
+        text_y -= 0.18 * inch
+
+        # Row 7 — KYC Document hyperlinks (clickable in PDF)
+        # We render a small label per uploaded document; each is wrapped in a
+        # clickable rectangle pointing to a backend serve URL built with the
+        # requesting admin's session token (so the link works for them in any
+        # PDF viewer that can open hyperlinks).
+        public_base = (os.environ.get("PUBLIC_APP_URL") or "").rstrip("/")
+        req_token = data.get("token") or ""
+
+        def _serve_url_for(p):
+            if not p or not public_base or not req_token:
+                return ""
+            from urllib.parse import quote
+            return f"{public_base}/api/employee_file_serve?path={quote(p, safe='')}&token={quote(req_token, safe='')}"
+
+        doc_specs = [
+            ("Aadhaar", _serve_url_for(emp.get("aadhaar_doc_path"))),
+            ("PAN/TFN", _serve_url_for(emp.get("pan_doc_path"))),
+            ("Passport", _serve_url_for(emp.get("passport_doc_path"))),
+            ("Visa", _serve_url_for(emp.get("visa_doc_path"))),
+            ("Photo", _serve_url_for(emp.get("photo_path"))),
+        ]
+        attached = [(lbl, u) for lbl, u in doc_specs if u]
+        if attached:
+            c.setFont("Helvetica", 7)
+            c.setFillColor(HexColor("#1E40AF"))
+            c.drawString(left_x, text_y, "Documents:")
+            cx = left_x + 0.55 * inch
+            for lbl, url in attached:
+                txt = f"[{lbl}]"
+                tw = c.stringWidth(txt, "Helvetica", 7)
+                c.drawString(cx, text_y, txt)
+                try:
+                    c.linkURL(url, (cx, text_y - 1, cx + tw, text_y + 8), relative=0, thickness=0)
+                except Exception:
+                    pass
+                cx += tw + 0.08 * inch
+            c.setFillColor(HexColor("#000000"))
+        else:
+            c.setFont("Helvetica-Oblique", 7)
+            c.setFillColor(HexColor("#94A3B8"))
+            c.drawString(left_x, text_y, "Documents: (none uploaded)")
+            c.setFillColor(HexColor("#000000"))
         text_y -= 0.16 * inch
 
         y = card_top - card_height - 0.15 * inch
@@ -640,6 +761,7 @@ async def generate_employee_report_excel(data: dict):
         "Bank Name", "Account Number", "IFSC",
         "Aadhaar / TFN", "PAN / Passport", "Visa Type",
         "Blood Group", "Remarks",
+        "Photo", "Aadhaar Doc", "PAN/TFN Doc", "Passport Doc", "Visa Doc",
     ]
     ws.append(headers)
     
@@ -691,10 +813,22 @@ async def generate_employee_report_excel(data: dict):
             "" if is_india_row else (emp.get("visa_type") or ""),
             emp.get("blood_group", ""),
             emp.get("remark", ""),
+            # Document slots: prefer storage path (built into a serve URL below)
+            # and fall back to legacy public URL for back-compat.
+            emp.get("photo_path") or emp.get("photo_url", "") or "",
+            emp.get("aadhaar_doc_path") or emp.get("aadhaar_doc_url", "") or "",
+            emp.get("pan_doc_path") or emp.get("pan_doc_url", "") or "",
+            emp.get("passport_doc_path") or emp.get("passport_doc_url", "") or "",
+            emp.get("visa_doc_path") or emp.get("visa_doc_url", "") or "",
         ])
     
     # Style data rows
     money_fmt = '#,##0.00'
+    from openpyxl.styles import Font as _Font
+    link_font = _Font(color="1E40AF", underline="single", size=10)
+    public_base = (os.environ.get("PUBLIC_APP_URL") or "").rstrip("/")
+    req_token = data.get("token") or ""
+    from urllib.parse import quote as _q
     for row_idx in range(2, ws.max_row + 1):
         for col_idx in range(1, len(headers) + 1):
             cell = ws.cell(row=row_idx, column=col_idx)
@@ -703,9 +837,39 @@ async def generate_employee_report_excel(data: dict):
             if col_idx in (8, 9):  # Salary columns
                 cell.number_format = money_fmt
                 cell.alignment = Alignment(horizontal="right")
+            # Make doc URL columns (18-22) clickable hyperlinks showing "Open"
+            if col_idx >= 18 and col_idx <= 22:
+                val = cell.value
+                full = ""
+                if val and isinstance(val, str):
+                    if val.startswith("http"):
+                        # legacy public URL — keep as-is
+                        full = val
+                    elif val.startswith("/api/"):
+                        # legacy stored serve URL (with old uploader's token) —
+                        # rebuild with current admin's token
+                        # Format: /api/employee_file_serve?path=...&token=...
+                        try:
+                            from urllib.parse import urlparse, parse_qs
+                            qs = parse_qs(urlparse(val).query)
+                            path_val = (qs.get("path") or [""])[0]
+                            if path_val and public_base and req_token:
+                                full = f"{public_base}/api/employee_file_serve?path={_q(path_val, safe='')}&token={_q(req_token, safe='')}"
+                        except Exception:
+                            full = ""
+                    elif public_base and req_token:
+                        # path string — build fresh serve URL
+                        full = f"{public_base}/api/employee_file_serve?path={_q(val, safe='')}&token={_q(req_token, safe='')}"
+                if full.startswith("http"):
+                    cell.hyperlink = full
+                    cell.value = "Open"
+                    cell.font = link_font
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                else:
+                    cell.value = ""
     
     # Column widths
-    widths = [10, 25, 18, 8, 13, 13, 25, 14, 14, 16, 18, 12, 16, 16, 12, 11, 25]
+    widths = [10, 25, 18, 8, 13, 13, 25, 14, 14, 16, 18, 12, 16, 16, 12, 11, 25, 8, 10, 10, 10, 8]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     

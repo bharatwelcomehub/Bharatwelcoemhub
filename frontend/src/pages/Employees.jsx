@@ -26,7 +26,8 @@ import {
   CheckCircle,
   Camera,
   FileText,
-  Paperclip
+  Paperclip,
+  Eye
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -83,6 +84,11 @@ export default function Employees() {
     passport_number: "",
     visa_type: "",
     photo_url: "",
+    photo_path: "",
+    aadhaar_doc_path: "",
+    pan_doc_path: "",
+    passport_doc_path: "",
+    visa_doc_path: "",
   });
 
   // Reset form
@@ -91,7 +97,8 @@ export default function Employees() {
       name: "", center: "", designation: "", currentSalary: "", salaryBase: "",
       bankName: "", beneAccNo: "", ifsc: "", mobile: "", email: "", gender: "",
       dateOfJoining: "", remark: "", aadhaar: "", pan: "", tfn: "", blood_group: "",
-      passport_number: "", visa_type: "", photo_url: "",
+      passport_number: "", visa_type: "", photo_url: "", photo_path: "",
+      aadhaar_doc_path: "", pan_doc_path: "", passport_doc_path: "", visa_doc_path: "",
     });
     setSelectedEmp(null);
     setEditMode(false);
@@ -159,6 +166,11 @@ export default function Employees() {
       passport_number: emp.passport_number || "",
       visa_type: emp.visa_type || "",
       photo_url: emp.photo_url || "",
+      photo_path: emp.photo_path || "",
+      aadhaar_doc_path: emp.aadhaar_doc_path || "",
+      pan_doc_path: emp.pan_doc_path || "",
+      passport_doc_path: emp.passport_doc_path || "",
+      visa_doc_path: emp.visa_doc_path || "",
     });
   };
 
@@ -286,8 +298,11 @@ export default function Employees() {
       const res = await fetch(`${API_URL}/api/employee_upload_photo`, { method: "POST", body: fd });
       const data = await res.json();
       if (data.success) {
-        setFormData(prev => ({ ...prev, photo_url: data.photo_url }));
-        toast.success("Photo uploaded!");
+        setFormData(prev => ({ ...prev, photo_path: data.photo_path || prev.photo_path, photo_url: "" }));
+        if (selectedEmp) {
+          setSelectedEmp(prev => prev ? { ...prev, photo_path: data.photo_path } : prev);
+        }
+        toast.success("Photo uploaded — preview shown above");
         loadEmployees();
       } else {
         toast.error(data.detail || "Photo upload failed");
@@ -319,7 +334,15 @@ export default function Employees() {
       const res = await fetch(`${API_URL}/api/employee_upload_document`, { method: "POST", body: fd });
       const data = await res.json();
       if (data.success) {
-        toast.success(`${docType.replace("_doc", "").toUpperCase()} document uploaded!`);
+        // Reflect the new path in form state immediately so the View link
+        // appears right after upload (URL is built fresh at click time using
+        // the current session token — never staled to the uploader's token).
+        const pathField = `${docType}_path`; // aadhaar_doc_path / pan_doc_path / etc.
+        setFormData(prev => ({ ...prev, [pathField]: data.doc_path || prev[pathField] }));
+        if (selectedEmp) {
+          setSelectedEmp(prev => prev ? { ...prev, [pathField]: data.doc_path } : prev);
+        }
+        toast.success(`${docType.replace("_doc", "").toUpperCase()} document uploaded — click View to open it`);
         loadEmployees();
       } else {
         toast.error(data.detail || "Document upload failed");
@@ -486,9 +509,17 @@ export default function Employees() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Doc upload button helper
-  const DocUploadBtn = ({ docType, label, hasUrl }) => (
-    <div className="flex items-center gap-2">
+  // Doc upload button helper — shows Attach action + a clickable View link
+  // (opens the stored Aadhaar / PAN / Passport / Visa file in a new tab) once
+  // the document has been uploaded for this employee. The View URL is built
+  // fresh at click-time using the current session token so it never goes stale.
+  const buildServeUrl = (path) => {
+    if (!path) return "";
+    return `${API_URL}/api/employee_file_serve?path=${encodeURIComponent(path)}&token=${encodeURIComponent(session.token)}`;
+  };
+
+  const DocUploadBtn = ({ docType, label, hasPath }) => (
+    <div className="flex items-center gap-2 flex-wrap">
       <div className="relative">
         <input
           type="file"
@@ -504,10 +535,20 @@ export default function Employees() {
           className="text-xs h-7"
         >
           {docUploading[docType] ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Paperclip className="w-3 h-3 mr-1" />}
-          {label}
+          {hasPath ? `Replace ${label.replace("Attach ", "")}` : label}
         </Button>
       </div>
-      {hasUrl && <Badge variant="outline" className="text-green-600 text-xs h-5">Uploaded</Badge>}
+      {hasPath && (
+        <Button
+          variant="outline" size="sm" type="button"
+          className="text-xs h-7 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+          onClick={() => window.open(buildServeUrl(hasPath), "_blank", "noopener,noreferrer")}
+          data-testid={`view-${docType}`}
+        >
+          <Eye className="w-3 h-3 mr-1" /> View
+        </Button>
+      )}
+      {hasPath && <Badge variant="outline" className="text-emerald-700 text-xs h-5">Uploaded</Badge>}
     </div>
   );
 
@@ -770,7 +811,7 @@ export default function Employees() {
                 <Input value={formData.aadhaar} onChange={(e) => updateField("aadhaar", e.target.value)}
                   placeholder="1234 5678 9012" data-testid="emp-aadhaar" />
                 <DocUploadBtn docType="aadhaar_doc" label="Attach Aadhaar"
-                  hasUrl={selectedEmp?.aadhaar_doc_url} />
+                  hasPath={formData.aadhaar_doc_path} />
               </div>
               <div className="space-y-2">
                 <Label>PAN / TFN</Label>
@@ -785,7 +826,7 @@ export default function Employees() {
                   </div>
                 </div>
                 <DocUploadBtn docType="pan_doc" label="Attach PAN/TFN"
-                  hasUrl={selectedEmp?.pan_doc_url} />
+                  hasPath={formData.pan_doc_path} />
               </div>
               <div className="space-y-2">
                 <Label>Passport Number</Label>
@@ -793,7 +834,7 @@ export default function Employees() {
                   onChange={(e) => updateField("passport_number", e.target.value)}
                   placeholder="A1234567" data-testid="emp-passport" />
                 <DocUploadBtn docType="passport_doc" label="Attach Passport"
-                  hasUrl={selectedEmp?.passport_doc_url} />
+                  hasPath={formData.passport_doc_path} />
               </div>
               <div className="space-y-2">
                 <Label>Visa Type</Label>
@@ -804,7 +845,7 @@ export default function Employees() {
                   {VISA_TYPES.map(v => <option key={v} value={v}>{v || "Select"}</option>)}
                 </select>
                 <DocUploadBtn docType="visa_doc" label="Attach Visa"
-                  hasUrl={selectedEmp?.visa_doc_url} />
+                  hasPath={formData.visa_doc_path} />
               </div>
               <div className="space-y-2">
                 <Label>Blood Group (Optional)</Label>
@@ -818,8 +859,14 @@ export default function Employees() {
               <div className="space-y-2">
                 <Label>Passport Photo</Label>
                 <div className="flex items-center gap-3">
-                  {formData.photo_url ? (
-                    <img src={formData.photo_url} alt="Employee" className="w-12 h-14 object-cover rounded border" />
+                  {(formData.photo_path || formData.photo_url) ? (
+                    <img
+                      src={formData.photo_path
+                        ? buildServeUrl(formData.photo_path)
+                        : (formData.photo_url.startsWith("http") ? formData.photo_url : `${API_URL}${formData.photo_url}`)}
+                      alt="Employee"
+                      className="w-12 h-14 object-cover rounded border"
+                    />
                   ) : (
                     <div className="w-12 h-14 rounded border bg-muted flex items-center justify-center">
                       <Camera className="w-5 h-5 text-muted-foreground" />
