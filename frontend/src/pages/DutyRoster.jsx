@@ -139,7 +139,13 @@ export default function DutyRoster() {
       if (!res.ok) throw new Error(d.detail || "Save failed");
       setSavedAt(d.updated_at);
       setSavedBy(d.updated_by);
-      toast.success(`Roster saved (${d.saved} rows)`);
+      if (d.attendance_locked) {
+        toast.success(`Roster saved (${d.saved} rows). Attendance NOT updated — month is locked.`);
+      } else if ((d.attendance_synced ?? 0) > 0) {
+        toast.success(`Roster saved · ${d.attendance_synced} attendance record(s) auto-updated`);
+      } else {
+        toast.success(`Roster saved (${d.saved} rows)`);
+      }
     } catch (e) { toast.error(e.message); }
     finally { setSaving(false); }
   };
@@ -216,6 +222,14 @@ export default function DutyRoster() {
         <Badge variant="outline" className="text-xs" data-testid="dr-saved-status">
           {savedAt ? `Last saved ${new Date(savedAt).toLocaleString()} by ${savedBy}` : "Not saved yet"}
         </Badge>
+      </div>
+
+      {/* Auto-sync notice */}
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 flex items-start gap-2" data-testid="dr-attendance-notice">
+        <span className="mt-0.5">✓</span>
+        <span>
+          <strong>Attendance auto-update:</strong> when you click <strong>Save Roster</strong>, today's attendance is written automatically — Present (with time) → <code className="px-1 bg-emerald-100 rounded">P</code>, LEAVE → <code className="px-1 bg-emerald-100 rounded">L</code>, W → <code className="px-1 bg-emerald-100 rounded">WO</code>, A → <code className="px-1 bg-emerald-100 rounded">A</code>. HR / Payroll instantly see the day. (Skipped if the month is locked.)
+        </span>
       </div>
 
       {/* Controls */}

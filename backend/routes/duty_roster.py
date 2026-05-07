@@ -189,7 +189,87 @@ async def save_roster(req: SaveRosterRequest):
         }},
         upsert=True,
     )
-    return {"success": True, "saved": len(cleaned), "updated_at": now, "updated_by": actor}
+
+    # ── AUTO-SYNC TO ATTENDANCE ──────────────────────────────────────────────
+    # As soon as the manager saves the roster, mirror each row into the
+    # attendance collection so HR / Payroll see the day's status without
+    # re-typing. Mapping: PRESENT/<time> → P · LEAVE → L · W → WO · A → A · HD → HD.
+    # Existing attendance rows for the same day+center+employee are upserted.
+    # If the month has been locked (`attendance_locks`), we silently skip
+    # attendance writes — the roster itself still saves.
+    att_synced = 0
+    att_skipped_locked = False
+    try:
+        month_key = req.date[:7]
+        lock = None
+        try:
+            lock = await db.attendance_locks.find_one(
+                {"$or": [
+                    {"month": month_key, "center": code},
+                    {"month": month_key, "scope": "global"},
+                ]},
+                {"_id": 0},
+            )
+        except Exception:
+            lock = None
+
+        if lock and lock.get("locked"):
+            att_skipped_locked = True
+        else:
+            STATUS_MAP = {
+                "PRESENT": "P", "P": "P",
+                "LEAVE": "L", "L": "L",
+                "W": "WO", "WO": "WO", "WEEKLY OFF": "WO",
+                "A": "A", "ABSENT": "A",
+                "HD": "HD", "HALF": "HD", "HALF DAY": "HD",
+            }
+            ts = datetime.now(timezone.utc).isoformat()
+            actor_mob = session.get("mobile", "")
+            for r in cleaned:
+                raw = (r.get("status") or "").upper().strip()
+                # Treat any HH:MM time string as PRESENT
+                mapped = STATUS_MAP.get(raw)
+                if not mapped and (":" in raw or raw.replace(".", "").isdigit()):
+                    mapped = "P"
+                if not mapped:
+                    # No status specified — skip (don't accidentally mark absent)
+                    continue
+                notes = ""
+                if mapped == "P":
+                    dt = (r.get("duty_time") or "").strip()
+                    it = (r.get("in_time") or "").strip()
+                    if dt or it:
+                        notes = f"Duty {dt or '-'} · In {it or '-'}"
+                await db.attendance.update_one(
+                    {"date": req.date, "center": code, "employeeName": r["name"]},
+                    {"$set": {
+                        "date": req.date,
+                        "center": code,
+                        "employeeName": r["name"],
+                        "designation": r.get("designation", ""),
+                        "status": mapped,
+                        "notes": notes,
+                        "submittedByMobile": actor_mob,
+                        "source": "duty_roster",
+                        "timestamp": ts,
+                    }},
+                    upsert=True,
+                )
+                att_synced += 1
+    except Exception as e:
+        # Roster save must succeed even if attendance sync hiccups
+        att_skipped_locked = False
+        att_synced = -1
+        print(f"[duty_roster] attendance sync error: {e}")
+
+    return {
+        "success": True,
+        "saved": len(cleaned),
+        "attendance_synced": att_synced,
+        "attendance_locked": att_skipped_locked,
+        "updated_at": now,
+        "updated_by": actor,
+    }
 
 
 @router.post("/history")
