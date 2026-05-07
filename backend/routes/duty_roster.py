@@ -59,12 +59,23 @@ def _check_access(session: dict, center: str) -> None:
     if session.get("is_super_admin") or session.get("is_admin"):
         return
     roles = session.get("roles") or {}
+    # Accounts staff get global access
     if roles.get("accounting"):
         return
-    role_key = (session.get("role_key") or "").lower()
+    # Center-scoped access: any session whose center matches the requested
+    # center is allowed (Center Manager + any sub-role with attendance/ops/HR).
+    # We deliberately do NOT require role_key='center_manager' here because
+    # legacy manager docs may not have role_key set yet — they still have a
+    # valid `center` and `roles` map.
     sess_center = (session.get("center") or session.get("franchise_center") or "").upper()
-    if role_key in ("center_manager", "manager") and sess_center == (center or "").upper():
-        return
+    target = (center or "").upper()
+    if sess_center and sess_center == target:
+        # Manager must have at least one operational role to edit the roster.
+        if any(roles.get(k) for k in ("attendance", "operations", "ops", "hr", "sales_cash", "mgt")):
+            return
+        # Or has an explicit center_manager role_key
+        if (session.get("role_key") or "").lower() in ("center_manager", "manager"):
+            return
     raise HTTPException(403, "Center Manager / Admin / Accounts only")
 
 
