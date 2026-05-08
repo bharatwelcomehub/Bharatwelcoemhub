@@ -5,6 +5,28 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-07] International Weekly Attendance — Cash vs Online salary split (CA-ready)
+**User ask** (with screenshot, PB-PERTH Week 18 page): every weekly salary is paid either as cash or online; the screen + the downloaded weekly report should show that split so the CA can deduct cash salaries from the bank-paid total.
+
+**Backend** (`routes/international_attendance.py`):
+- New `international_weekly_pay_mode` collection — per-week override keyed by `(center, year, week, employee_id)`. Default `online` when not set.
+- `AttendanceEntry` Pydantic model now accepts an optional `pay_mode` (`cash` | `online`) — `/save` upserts it to the override collection without touching the per-day attendance rows.
+- `/week-data` joins the overrides into the response and adds `summary.total_cash` + `summary.total_online` alongside the existing `total_payroll`.
+- `/export/weekly-excel` rewritten from CSV → real **multi-sheet XLSX** (`openpyxl`):
+  - **Sheet 1 "Weekly Payroll"**: existing daily-hours grid + new **Pay Mode** column (Cash badge in amber, Online badge in blue) + a tinted SUMMARY block listing Total Cash, Total Online, Grand Total + an italic note "Total Online is what the CA books in payroll. Total Cash is paid in cash and should be deducted from the bank-paid total."
+  - **Sheet 2 "Cash Salaries"**: only the Cash-paid employees with a TOTAL CASH SALARY (deduct from bank-paid total) row at the bottom in highlighted amber. If no one is on cash, shows "No cash-paid employees this week."
+
+**Frontend** (`pages/InternationalAttendance.jsx`):
+- New `editedPayModes` dirty-state map; `getPayMode(emp)` / `handlePayModeChange()` helpers.
+- New **"Pay Mode"** column in the weekly attendance table — coloured `<select>` (Cash = amber, Online = blue) per row, defaults to Online.
+- Save now sends `pay_mode` for every employee so toggles persist immediately.
+- Weekly Summary footer expanded from 3 cards → **5 cards**: Total Staff · Total Hours · Total Cash (amber) · Total Online (blue) · Grand Total (emerald) with the same accountant-friendly footnote.
+- Weekly export download switched from `.csv` → `.xlsx` with the toast "Weekly report exported (with Cash / Online split)".
+
+**Verified end-to-end** on PB-PERTH Week 18 (live backend): `/week-data` returned `pay_mode` per employee + `total_cash/total_online` in summary; saving with `pay_mode='cash'` for 1 of 3 employees persisted to `international_weekly_pay_mode` (`pay_mode_updates: 3`); refetch showed `cash_employees=1`; weekly XLSX export has both sheets, Pay Mode column at position 13, Cash Salaries sheet correctly empties when no cash entries qualify. Lint clean both sides.
+
+⚠️ **Production note**: Click **Deploy** to push to `intra.purnabramha.com`. After deploy: Pay Mode column appears, defaults to Online for all rows, managers can flip per-week, and the new XLSX export flows the split into the CA's view.
+
 ### [2026-05-07] Employee KYC docs + photos — uploads now persist & are viewable everywhere
 **User report (with screenshot, production)**: "Passport / PAN card photos are not getting updated. After the green success message there's no way to see the documents / photo for the selected employee. Reports should also have those links and images."
 

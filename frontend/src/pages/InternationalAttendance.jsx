@@ -84,6 +84,7 @@ export default function InternationalAttendance() {
   const [employees, setEmployees] = useState([]);
   const [weekDates, setWeekDates] = useState([]);
   const [editedHours, setEditedHours] = useState({});
+  const [editedPayModes, setEditedPayModes] = useState({}); // {employee_id: "cash"|"online"}
   const [hasChanges, setHasChanges] = useState(false);
   const [summary, setSummary] = useState({ total_staff: 0, total_hours: 0, total_payroll: 0 });
   
@@ -186,6 +187,7 @@ export default function InternationalAttendance() {
         setWeekDates(data.week_dates || []);
         setSummary(data.summary || { total_staff: 0, total_hours: 0, total_payroll: 0 });
         setEditedHours({});
+        setEditedPayModes({});
         setHasChanges(false);
       } else {
         toast.error(data.detail || "Failed to load attendance");
@@ -229,6 +231,20 @@ export default function InternationalAttendance() {
     return employee.hours?.[day] || 0;
   };
 
+  // Pay mode (Cash / Online) — read with edited override falling back to the
+  // saved value, default "online" so existing salaried staff keep behaving the
+  // same. Managers can flip it per-week directly in the table.
+  const getPayMode = (employee) => {
+    const edited = editedPayModes[employee.employee_id];
+    if (edited) return edited;
+    return (employee.pay_mode || "online").toLowerCase();
+  };
+
+  const handlePayModeChange = (employeeId, value) => {
+    setEditedPayModes(prev => ({ ...prev, [employeeId]: value }));
+    setHasChanges(true);
+  };
+
   // Calculate employee totals with edits
   const calculateEmployeeTotals = (employee) => {
     const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -245,21 +261,29 @@ export default function InternationalAttendance() {
     return { totalHours: Math.round(totalHours * 100) / 100, weeklySalary: Math.round(weeklySalary * 100) / 100 };
   };
 
-  // Calculate overall summary with edits
+  // Calculate overall summary with edits — splits payroll into cash vs online
+  // so the CA can deduct cash from the bank-paid figure.
   const calculateSummary = () => {
     let totalHours = 0;
     let totalPayroll = 0;
-    
+    let totalCash = 0;
+    let totalOnline = 0;
+
     for (const emp of employees) {
       const { totalHours: empHours, weeklySalary } = calculateEmployeeTotals(emp);
       totalHours += empHours;
       totalPayroll += weeklySalary;
+      const pm = getPayMode(emp);
+      if (pm === "cash") totalCash += weeklySalary;
+      else totalOnline += weeklySalary;
     }
-    
+
     return {
       total_staff: employees.length,
       total_hours: Math.round(totalHours * 100) / 100,
-      total_payroll: Math.round(totalPayroll * 100) / 100
+      total_payroll: Math.round(totalPayroll * 100) / 100,
+      total_cash: Math.round(totalCash * 100) / 100,
+      total_online: Math.round(totalOnline * 100) / 100,
     };
   };
 
@@ -272,13 +296,16 @@ export default function InternationalAttendance() {
     
     setSaving(true);
     try {
-      // Build entries from edited hours
+      // Build entries from edited hours + edited pay modes. We always send the
+      // currently-displayed pay_mode (edited or saved) so the backend can keep
+      // the per-week override collection in sync.
       const entries = employees.map(emp => ({
         employee_id: emp.employee_id,
         hours: {
           ...emp.hours,
           ...(editedHours[emp.employee_id] || {})
-        }
+        },
+        pay_mode: getPayMode(emp),
       }));
       
       const res = await fetch(`${API}/api/international-attendance/save`, {
@@ -373,9 +400,9 @@ export default function InternationalAttendance() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${selectedCenter}_Weekly_Payroll_Week${week}_${MONTHS[month-1].label}_${year}.csv`;
+      a.download = `${selectedCenter}_Weekly_Payroll_Week${week}_${MONTHS[month-1].label}_${year}.xlsx`;
       a.click();
-      toast.success("Weekly report exported");
+      toast.success("Weekly report exported (with Cash / Online split)");
     } catch (err) {
       toast.error("Failed to export");
     } finally {
@@ -744,12 +771,13 @@ export default function InternationalAttendance() {
                           <th className="text-right py-3 px-2 font-medium w-20">Total Hrs</th>
                           <th className="text-right py-3 px-2 font-medium w-20">Rate</th>
                           <th className="text-right py-3 px-2 font-medium w-24">Salary</th>
+                          <th className="text-center py-3 px-2 font-medium w-28">Pay Mode</th>
                         </tr>
                       </thead>
                       <tbody>
                         {employees.map((emp, idx) => {
                           const { totalHours, weeklySalary } = calculateEmployeeTotals(emp);
-                          const isEdited = !!editedHours[emp.employee_id];
+                          const isEdited = !!editedHours[emp.employee_id] || editedPayModes[emp.employee_id] !== undefined;
                           
                           return (
                             <tr key={emp.employee_id} className={`border-t ${idx % 2 === 0 ? '' : 'bg-gray-50/50'} ${isEdited ? 'bg-amber-50' : ''}`}>
@@ -807,6 +835,27 @@ export default function InternationalAttendance() {
                               <td className="py-2 px-2 text-right font-bold text-green-600">
                                 {weeklySalary > 0 ? formatCurrency(weeklySalary) : "-"}
                               </td>
+                              <td className="py-2 px-2 text-center">
+                                {(() => {
+                                  const pm = getPayMode(emp);
+                                  const edited = editedPayModes[emp.employee_id] !== undefined;
+                                  return (
+                                    <select
+                                      value={pm}
+                                      onChange={(e) => handlePayModeChange(emp.employee_id, e.target.value)}
+                                      className={`h-8 px-2 text-xs rounded-md border font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                                        pm === "cash"
+                                          ? "bg-amber-50 border-amber-300 text-amber-800 focus:ring-amber-400"
+                                          : "bg-blue-50 border-blue-300 text-blue-800 focus:ring-blue-400"
+                                      } ${edited ? "ring-2 ring-amber-300" : ""}`}
+                                      data-testid={`pay-mode-${emp.employee_id}`}
+                                    >
+                                      <option value="online">Online</option>
+                                      <option value="cash">Cash</option>
+                                    </select>
+                                  );
+                                })()}
+                              </td>
                             </tr>
                           );
                         })}
@@ -817,29 +866,45 @@ export default function InternationalAttendance() {
               </CardContent>
             </Card>
 
-            {/* Weekly Summary */}
+            {/* Weekly Summary — splits payroll into Cash vs Online so the CA
+                can deduct cash from the bank-paid figure at a glance. */}
             {employees.length > 0 && (
               <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
                 <CardContent className="pt-4">
-                  <div className="grid grid-cols-3 gap-6 text-center">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
                     <div>
-                      <div className="text-3xl font-bold text-purple-700">{currentSummary.total_staff}</div>
-                      <div className="text-sm text-purple-600 flex items-center justify-center gap-1">
-                        <Users className="w-4 h-4" /> Total Staff
+                      <div className="text-2xl font-bold text-purple-700" data-testid="summary-staff">{currentSummary.total_staff}</div>
+                      <div className="text-xs text-purple-600 flex items-center justify-center gap-1">
+                        <Users className="w-3 h-3" /> Total Staff
                       </div>
                     </div>
                     <div>
-                      <div className="text-3xl font-bold text-blue-700">{currentSummary.total_hours}</div>
-                      <div className="text-sm text-blue-600 flex items-center justify-center gap-1">
-                        <Clock className="w-4 h-4" /> Total Hours
+                      <div className="text-2xl font-bold text-blue-700" data-testid="summary-hours">{currentSummary.total_hours}</div>
+                      <div className="text-xs text-blue-600 flex items-center justify-center gap-1">
+                        <Clock className="w-3 h-3" /> Total Hours
                       </div>
                     </div>
-                    <div>
-                      <div className="text-3xl font-bold text-green-700">{formatCurrency(currentSummary.total_payroll)}</div>
-                      <div className="text-sm text-green-600 flex items-center justify-center gap-1">
-                        <DollarSign className="w-4 h-4" /> Total Payroll
+                    <div className="bg-amber-50 rounded-md py-2 px-3 border border-amber-200">
+                      <div className="text-2xl font-bold text-amber-800" data-testid="summary-cash">{formatCurrency(currentSummary.total_cash || 0)}</div>
+                      <div className="text-xs text-amber-700 flex items-center justify-center gap-1">
+                        <DollarSign className="w-3 h-3" /> Total Cash
                       </div>
                     </div>
+                    <div className="bg-blue-50 rounded-md py-2 px-3 border border-blue-200">
+                      <div className="text-2xl font-bold text-blue-800" data-testid="summary-online">{formatCurrency(currentSummary.total_online || 0)}</div>
+                      <div className="text-xs text-blue-700 flex items-center justify-center gap-1">
+                        <DollarSign className="w-3 h-3" /> Total Online
+                      </div>
+                    </div>
+                    <div className="bg-emerald-50 rounded-md py-2 px-3 border border-emerald-200">
+                      <div className="text-2xl font-bold text-emerald-800" data-testid="summary-grand">{formatCurrency(currentSummary.total_payroll)}</div>
+                      <div className="text-xs text-emerald-700 flex items-center justify-center gap-1">
+                        <DollarSign className="w-3 h-3" /> Grand Total
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground italic mt-3 text-center">
+                    Tip: "Total Online" is what the CA books in payroll. "Total Cash" is paid in cash and should be deducted from the bank-paid total.
                   </div>
                 </CardContent>
               </Card>

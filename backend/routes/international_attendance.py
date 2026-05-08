@@ -63,6 +63,10 @@ class WeekAttendanceRequest(BaseModel):
 class AttendanceEntry(BaseModel):
     employee_id: str
     hours: Dict[str, float]  # {"mon": 8, "tue": 7.5, "wed": 0, ...}
+    pay_mode: Optional[str] = None  # "cash" | "online" — when present, persisted
+                                    # to `international_weekly_pay_mode` so the
+                                    # CA can deduct cash salaries from the
+                                    # bank-paid total.
 
 class SaveAttendanceRequest(BaseModel):
     token: str
@@ -639,6 +643,18 @@ async def get_week_attendance(req: WeekAttendanceRequest):
         "center": {"$in": variants},
         "date": {"$in": valid_dates}
     }, {"_id": 0}).to_list(5000)
+
+    # Pull per-week pay mode overrides (Cash / Online) — keyed by
+    # (center, year, week, employee_id). If none set yet, every employee
+    # defaults to "online" so existing salaried staff continue to behave the
+    # same; managers can flip to "cash" per-week as needed.
+    pay_mode_records = await db.international_weekly_pay_mode.find({
+        "center": {"$in": variants},
+        "year": req.year,
+        "week": req.week,
+    }, {"_id": 0}).to_list(2000)
+    pay_mode_map = {pr["employee_id"]: (pr.get("pay_mode") or "online").lower()
+                    for pr in pay_mode_records}
     
     # Create lookup map
     attendance_map = {}
@@ -668,7 +684,7 @@ async def get_week_attendance(req: WeekAttendanceRequest):
                 hours[day] = None  # Date outside month
         
         weekly_salary = total_hours * hourly_rate
-        
+
         employee_data.append({
             "employee_id": emp_id,
             "employee_name": emp.get("name", "Unknown"),
@@ -679,14 +695,20 @@ async def get_week_attendance(req: WeekAttendanceRequest):
             "gross_hourly_rate": float(emp.get("gross_hourly_rate", 0) or 0),
             "hours": hours,
             "total_hours": round(total_hours, 2),
-            "weekly_salary": round(weekly_salary, 2)
+            "weekly_salary": round(weekly_salary, 2),
+            "pay_mode": pay_mode_map.get(emp_id, "online"),
         })
-    
-    # Calculate summary
+
+    # Calculate summary — split payroll between cash and online so the CA can
+    # see exactly how much hits the bank statement vs how much is paid in cash.
     total_staff = len(employee_data)
     total_hours = sum(e["total_hours"] for e in employee_data)
     total_payroll = sum(e["weekly_salary"] for e in employee_data)
-    
+    total_cash = sum(e["weekly_salary"] for e in employee_data
+                     if (e.get("pay_mode") or "online").lower() == "cash")
+    total_online = sum(e["weekly_salary"] for e in employee_data
+                       if (e.get("pay_mode") or "online").lower() != "cash")
+
     return {
         "success": True,
         "center": req.center,
@@ -699,7 +721,9 @@ async def get_week_attendance(req: WeekAttendanceRequest):
         "summary": {
             "total_staff": total_staff,
             "total_hours": round(total_hours, 2),
-            "total_payroll": round(total_payroll, 2)
+            "total_payroll": round(total_payroll, 2),
+            "total_cash": round(total_cash, 2),
+            "total_online": round(total_online, 2),
         }
     }
 
@@ -728,8 +752,37 @@ async def save_attendance(req: SaveAttendanceRequest):
     
     saved_count = 0
     warnings = []
-    
+    pay_mode_updates = 0
+
     for entry in req.entries:
+        # Persist per-week pay mode (Cash / Online) when provided. Stored on a
+        # dedicated collection keyed by (center, year, week, employee_id) so
+        # the per-day attendance rows stay clean.
+        if entry.pay_mode is not None:
+            pm = (entry.pay_mode or "online").strip().lower()
+            if pm not in ("cash", "online"):
+                pm = "online"
+            await db.international_weekly_pay_mode.update_one(
+                {
+                    "center": {"$in": search_variants},
+                    "year": req.year,
+                    "week": req.week,
+                    "employee_id": entry.employee_id,
+                },
+                {"$set": {
+                    "center": save_center,
+                    "year": req.year,
+                    "month": req.month,
+                    "week": req.week,
+                    "employee_id": entry.employee_id,
+                    "pay_mode": pm,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_by": session.get("managerName", "Unknown"),
+                }},
+                upsert=True,
+            )
+            pay_mode_updates += 1
+
         for i, day in enumerate(day_names):
             date = week_dates[i]
             if not date:
@@ -781,11 +834,12 @@ async def save_attendance(req: SaveAttendanceRequest):
             saved_count += 1
     
     logger.info(f"International attendance saved: {req.center} Week {req.week}/{req.month}/{req.year} - {saved_count} records by {session.get('managerName')}")
-    
+
     return {
         "success": True,
         "message": "Attendance saved successfully",
         "saved_count": saved_count,
+        "pay_mode_updates": pay_mode_updates,
         "warnings": warnings if warnings else None
     }
 
@@ -885,40 +939,76 @@ async def get_monthly_report(req: MonthlyReportRequest):
 
 @router.post("/export/weekly-excel")
 async def export_weekly_excel(req: WeekAttendanceRequest):
-    """Export weekly payroll as CSV"""
+    """Export weekly payroll as a real .xlsx with two sheets:
+
+    1) **Weekly Payroll** — main sheet with daily hours, hourly rate, weekly
+       salary AND a "Pay Mode" column (Cash / Online). Footer block lists
+       Total Cash, Total Online and Grand Total so the CA can immediately
+       deduct the cash salaries from the bank-paid total.
+    2) **Cash Salaries** — only employees whose pay mode = Cash for the week
+       (memo sheet for the CA).
+    """
     if not verify_token:
         raise HTTPException(500, "Server configuration error")
-    
+
     session = verify_token(req.token)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
-    
+
     # Access control
     access = await check_international_access(session, req.center)
     if not access["allowed"]:
         raise HTTPException(403, access.get("error", "Access denied"))
-    
+
     # Get week data
     week_data = await get_week_attendance(req)
-    
-    # Create CSV
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Header
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Weekly Payroll"
+
     month_name = datetime(req.year, req.month, 1).strftime("%B")
-    writer.writerow([f"Weekly Payroll Report - {req.center}"])
-    writer.writerow([f"Month: {month_name} {req.year}, Week {req.week}"])
-    writer.writerow([])
-    
+    title_font = Font(bold=True, size=13, color="FFFFFF")
+    title_fill = PatternFill(start_color="1A365D", end_color="1A365D", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+    header_fill = PatternFill(start_color="334155", end_color="334155", fill_type="solid")
+    money_fmt = '#,##0.00'
+    border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1'),
+    )
+
+    # Title rows
+    ws.append([f"Weekly Payroll Report — {req.center}"])
+    ws.cell(row=1, column=1).font = title_font
+    ws.cell(row=1, column=1).fill = title_fill
+    ws.append([f"{month_name} {req.year} · Week {req.week}"])
+    ws.cell(row=2, column=1).font = Font(italic=True, color="64748B")
+    ws.append([])
+
     # Column headers
-    headers = ["Employee Name", "Category", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", 
-               "Total Hours", "Hourly Rate", "Weekly Salary"]
-    writer.writerow(headers)
-    
+    headers = ["Employee Name", "Category", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+               "Total Hours", "Hourly Rate", "Weekly Salary", "Pay Mode"]
+    ws.append(headers)
+    header_row = ws.max_row
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=header_row, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+
     # Data rows
+    cash_rows = []
     for emp in week_data["employees"]:
-        row = [
+        pm = (emp.get("pay_mode") or "online").lower()
+        ws.append([
             emp["employee_name"],
             emp["category"],
             emp["hours"].get("mon", 0),
@@ -929,25 +1019,125 @@ async def export_weekly_excel(req: WeekAttendanceRequest):
             emp["hours"].get("sat", 0),
             emp["hours"].get("sun", 0),
             emp["total_hours"],
-            f"${emp['hourly_rate']:.2f}",
-            f"${emp['weekly_salary']:.2f}"
-        ]
-        writer.writerow(row)
-    
-    # Summary
-    writer.writerow([])
-    writer.writerow(["Summary"])
-    writer.writerow(["Total Staff", week_data["summary"]["total_staff"]])
-    writer.writerow(["Total Hours", week_data["summary"]["total_hours"]])
-    writer.writerow(["Total Payroll", f"${week_data['summary']['total_payroll']:.2f}"])
-    
-    output.seek(0)
-    
-    filename = f"{req.center}_Weekly_Payroll_Week{req.week}_{month_name}_{req.year}.csv"
-    
+            float(emp["hourly_rate"] or 0),
+            float(emp["weekly_salary"] or 0),
+            "Cash" if pm == "cash" else "Online",
+        ])
+        if pm == "cash" and (emp.get("weekly_salary") or 0) > 0:
+            cash_rows.append(emp)
+
+    # Style data rows
+    for row_idx in range(header_row + 1, ws.max_row + 1):
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center",
+                                       horizontal="center" if col_idx >= 3 else "left")
+            if col_idx in (11, 12):  # Hourly Rate, Weekly Salary
+                cell.number_format = money_fmt
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            if col_idx == 13:  # Pay Mode badge colour
+                if cell.value == "Cash":
+                    cell.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+                    cell.font = Font(bold=True, color="92400E")
+                else:
+                    cell.fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+                    cell.font = Font(bold=True, color="1E40AF")
+
+    # Summary block — Cash / Online / Grand Total
+    summary = week_data["summary"]
+    ws.append([])
+    ws.append(["SUMMARY"])
+    ws.cell(row=ws.max_row, column=1).font = Font(bold=True, size=11)
+
+    def _kv(label, value, money=False, color=None):
+        ws.append([label, value])
+        ws.cell(row=ws.max_row, column=1).font = Font(bold=True)
+        if money:
+            ws.cell(row=ws.max_row, column=2).number_format = money_fmt
+        if color:
+            ws.cell(row=ws.max_row, column=2).font = Font(bold=True, color=color)
+
+    _kv("Total Staff", summary.get("total_staff", 0))
+    _kv("Total Hours", summary.get("total_hours", 0))
+    _kv("Total Cash Salary",   summary.get("total_cash", 0),   money=True, color="92400E")
+    _kv("Total Online Salary", summary.get("total_online", 0), money=True, color="1E40AF")
+    _kv("Grand Total Payroll", summary.get("total_payroll", 0), money=True, color="047857")
+    ws.append([])
+    note = ws.cell(row=ws.max_row + 1, column=1,
+                   value="Note: 'Total Online Salary' is what the CA books in payroll. 'Total Cash Salary' is paid in cash and should be deducted from the bank-paid total.")
+    note.font = Font(italic=True, color="64748B", size=9)
+    ws.merge_cells(start_row=note.row, start_column=1, end_row=note.row, end_column=len(headers))
+
+    # Column widths
+    widths = [22, 14, 7, 7, 7, 7, 7, 7, 7, 12, 13, 14, 11]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "C5"
+
+    # ── Sheet 2 — Cash Salaries ──────────────────────────────────────────────
+    ws2 = wb.create_sheet("Cash Salaries")
+    ws2.append([f"Cash Salaries — {req.center} · {month_name} {req.year} · Week {req.week}"])
+    ws2.cell(row=1, column=1).font = title_font
+    ws2.cell(row=1, column=1).fill = title_fill
+    ws2.append([])
+    ws2.append(["Employee Name", "Category", "Total Hours", "Hourly Rate", "Cash Salary"])
+    for col_idx in range(1, 6):
+        cell = ws2.cell(row=ws2.max_row, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+
+    cash_total = 0.0
+    for emp in cash_rows:
+        ws2.append([
+            emp["employee_name"],
+            emp["category"],
+            emp["total_hours"],
+            float(emp["hourly_rate"] or 0),
+            float(emp["weekly_salary"] or 0),
+        ])
+        cash_total += float(emp["weekly_salary"] or 0)
+
+    for row_idx in range(4, ws2.max_row + 1):
+        for col_idx in range(1, 6):
+            cell = ws2.cell(row=row_idx, column=col_idx)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center",
+                                       horizontal="center" if col_idx >= 3 else "left")
+            if col_idx in (4, 5):
+                cell.number_format = money_fmt
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+
+    ws2.append([])
+    ws2.append(["TOTAL CASH SALARY (deduct from bank-paid total)", "", "", "", cash_total])
+    tot_cell = ws2.cell(row=ws2.max_row, column=1)
+    tot_cell.font = Font(bold=True, color="92400E")
+    val_cell = ws2.cell(row=ws2.max_row, column=5)
+    val_cell.font = Font(bold=True, color="92400E")
+    val_cell.number_format = money_fmt
+    val_cell.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+
+    if not cash_rows:
+        ws2.append([])
+        empty = ws2.cell(row=ws2.max_row + 1, column=1,
+                        value="No cash-paid employees this week.")
+        empty.font = Font(italic=True, color="64748B")
+
+    for i, w in enumerate([28, 16, 14, 14, 16], start=1):
+        ws2.column_dimensions[get_column_letter(i)].width = w
+
+    # Save & return
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"{req.center}_Weekly_Payroll_Week{req.week}_{month_name}_{req.year}.xlsx"
+
     return StreamingResponse(
-        io.BytesIO(output.getvalue().encode()),
-        media_type="text/csv",
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
