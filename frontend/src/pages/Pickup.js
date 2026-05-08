@@ -182,7 +182,7 @@ const Pickup = () => {
   const labelCls = "text-[#5C4A3A] font-body text-xs tracking-wider uppercase";
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] overflow-x-hidden">
+    <div className="min-h-screen bg-[#FDFBF7]">
       {/* Hero */}
       <section className="relative py-16 border-b border-[#E8DFD0]">
         <div className="absolute inset-0 bg-[#F8F5F0]" />
@@ -232,7 +232,7 @@ const Pickup = () => {
             </div>
 
             {/* Sidebar - Order Details (desktop always visible; mobile only when toggled) */}
-            <div className={`lg:col-span-1 space-y-6 ${mobileDetailsOpen ? 'block' : 'hidden lg:block'}`}>
+            <div className={`lg:col-span-1 space-y-6 min-w-0 ${mobileDetailsOpen ? 'block' : 'hidden lg:block'}`}>
               <div className="lg:sticky lg:top-24 pearl-surface overflow-hidden">
                 <div className="bg-[#F8F5F0] border-b border-[#E8DFD0] p-4">
                   <h3 className="flex items-center gap-2 text-[#B8962E] font-heading text-lg font-medium">
@@ -294,7 +294,7 @@ const Pickup = () => {
             </div>
 
             {/* Main Content - Menu */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-2 space-y-4 min-w-0">
               <div className="sticky top-20 z-10 bg-[#FDFBF7]/95 backdrop-blur-sm py-4 space-y-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#7A6F65]" />
@@ -325,7 +325,7 @@ const Pickup = () => {
               {menuData ? (
                 <div className="space-y-6">
                   {activeCategory ? (
-                    <div className="grid gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       {filteredItems.map(item => (<MenuItemCard key={item.id} item={item} cart={cart} updateCart={updateCart} formatPrice={formatPrice} />))}
                     </div>
                   ) : (
@@ -337,7 +337,7 @@ const Pickup = () => {
                           <h3 className="font-heading font-medium text-lg text-[#B8962E] mb-3 flex items-center gap-2">
                             <ChefHat className="h-5 w-5" />{category.name}
                           </h3>
-                          <div className="grid gap-3">
+                          <div className="grid grid-cols-1 gap-3">
                             {categoryItems.map(item => (<MenuItemCard key={item.id} item={item} cart={cart} updateCart={updateCart} formatPrice={formatPrice} />))}
                           </div>
                         </div>
@@ -626,8 +626,8 @@ const MenuItemCard = ({ item, cart, updateCart, formatPrice }) => {
   const inCart = cart[item.id]?.qty || 0;
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      className="flex items-center justify-between p-3 bg-white border border-[#E8DFD0] hover:border-[#B8962E]/30 transition-all hover:shadow-md">
-      <div className="flex items-center gap-3 flex-1">
+      className="flex items-center justify-between p-3 bg-white border border-[#E8DFD0] hover:border-[#B8962E]/30 transition-all hover:shadow-md min-w-0">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
         {item.image_url ? (
           <img src={item.image_url} alt={item.name} className="w-12 h-12 object-cover flex-shrink-0 border border-[#E8DFD0]"
             onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
