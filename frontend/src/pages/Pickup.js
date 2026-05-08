@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, MapPin, Phone, MessageCircle, Plus, Minus, Leaf, Search, X, ChefHat, AlertCircle, Loader2 } from 'lucide-react';
+import { ShoppingCart, MapPin, Phone, MessageCircle, Plus, Minus, Leaf, Search, X, ChefHat, AlertCircle, Loader2, ChevronDown, ChevronUp, CheckCircle2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import axios from 'axios';
 
@@ -33,6 +34,7 @@ const Pickup = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
   const [showCart, setShowCart] = useState(false);
+  const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [dbMenuItems, setDbMenuItems] = useState([]);
   const [menuLoading, setMenuLoading] = useState(false);
@@ -196,15 +198,42 @@ const Pickup = () => {
       </section>
 
       {!showReview ? (
-        <div className="container mx-auto px-6 lg:px-12 py-10">
+        <div className="container mx-auto px-3 sm:px-6 lg:px-12 py-6 lg:py-10 pb-24 lg:pb-10">
           {/* Live combo promo timer */}
-          <div className="mb-6">
+          <div className="mb-4 lg:mb-6">
             <PromoTimer variant="sticky" region={currentCenter?.country === 'Australia' ? 'Australia' : 'India'} />
           </div>
           <div className="grid lg:grid-cols-4 gap-6">
-            {/* Sidebar - Order Details */}
-            <div className="lg:col-span-1 space-y-6">
-              <div className="sticky top-24 pearl-surface overflow-hidden">
+            {/* MOBILE: Compact Order Details summary (collapsible) */}
+            <div className="lg:hidden -mx-2 px-2">
+              <button
+                type="button"
+                onClick={() => setMobileDetailsOpen(o => !o)}
+                className="w-full flex items-center justify-between bg-white border border-[#E8DFD0] px-4 py-3 rounded-none shadow-sm"
+                data-testid="mobile-details-toggle"
+              >
+                <div className="flex items-center gap-2 text-left min-w-0">
+                  <MapPin className="h-4 w-4 text-[#B8962E] shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-wider text-[#7A6F65] font-body leading-tight">Order Details</p>
+                    <p className="text-sm font-heading text-[#2D1810] truncate">
+                      {currentCenter?.displayName || 'Tap to choose center'}
+                      {pickupDate && pickupTime && (
+                        <span className="text-[#7A6F65] font-body"> · {pickupDate} {pickupTime}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {mobileDetailsOpen
+                  ? <ChevronUp className="h-4 w-4 text-[#5C4A3A] shrink-0" />
+                  : <ChevronDown className="h-4 w-4 text-[#5C4A3A] shrink-0" />
+                }
+              </button>
+            </div>
+
+            {/* Sidebar - Order Details (desktop always visible; mobile only when toggled) */}
+            <div className={`lg:col-span-1 space-y-6 ${mobileDetailsOpen ? 'block' : 'hidden lg:block'}`}>
+              <div className="lg:sticky lg:top-24 pearl-surface overflow-hidden">
                 <div className="bg-[#F8F5F0] border-b border-[#E8DFD0] p-4">
                   <h3 className="flex items-center gap-2 text-[#B8962E] font-heading text-lg font-medium">
                     <MapPin className="h-5 w-5" /> Order Details
@@ -327,8 +356,8 @@ const Pickup = () => {
               )}
             </div>
 
-            {/* Right Sidebar - Cart */}
-            <div className="lg:col-span-1">
+            {/* Right Sidebar - Cart (desktop only — mobile uses bottom-sheet) */}
+            <div className="hidden lg:block lg:col-span-1">
               <div className="sticky top-24 space-y-4">
                 <div className="pearl-surface overflow-hidden">
                   <div className="bg-[#F8F5F0] border-b border-[#B8962E]/20 p-4 flex items-center justify-between">
@@ -477,12 +506,117 @@ const Pickup = () => {
         </div>
       )}
 
-      {cartItemCount > 0 && !showReview && (
-        <div className="fixed bottom-4 left-4 right-4 lg:hidden z-50">
-          <Button onClick={() => setShowCart(!showCart)} className="w-full gold-glossy text-white py-4 rounded-none font-semibold tracking-wider border-0">
-            <ShoppingCart className="h-5 w-5 mr-2" /> View Cart ({cartItemCount}) &bull; {formatPrice(finalTotal)}
-          </Button>
-        </div>
+      {/* MOBILE: Floating cart button + Bottom sheet */}
+      {!showReview && currentCenter && (
+        <>
+          <div className="fixed bottom-4 left-4 right-4 lg:hidden z-40">
+            <Button
+              onClick={() => setShowCart(true)}
+              className="w-full gold-glossy text-white py-5 rounded-none font-semibold tracking-wider border-0 shadow-2xl flex items-center justify-between px-5"
+              data-testid="mobile-view-cart-btn"
+            >
+              <span className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                <span>{cartItemCount === 0 ? 'View Order' : `View Order (${cartItemCount})`}</span>
+              </span>
+              <span className="font-heading">{formatPrice(finalTotal)}</span>
+            </Button>
+          </div>
+
+          <Sheet open={showCart} onOpenChange={setShowCart}>
+            <SheetContent
+              side="bottom"
+              className="lg:hidden h-[85vh] p-0 bg-[#FDFBF7] border-t-2 border-[#B8962E] flex flex-col"
+              data-testid="mobile-cart-sheet"
+            >
+              <SheetHeader className="px-5 py-4 border-b border-[#E8DFD0] bg-[#F8F5F0] shrink-0 flex-row items-center justify-between space-y-0">
+                <SheetTitle className="flex items-center gap-2 text-[#B8962E] font-heading text-lg">
+                  <ShoppingCart className="h-5 w-5" /> Your Order ({cartItemCount})
+                </SheetTitle>
+                {cartItemCount > 0 && (
+                  <Button variant="ghost" size="sm" className="text-[#7A6F65] hover:text-red-600 hover:bg-transparent" onClick={clearCart} data-testid="mobile-clear-cart">
+                    <Trash2 className="h-4 w-4 mr-1" /> Clear
+                  </Button>
+                )}
+              </SheetHeader>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                {cartItemCount === 0 ? (
+                  <div className="text-center py-12 text-[#7A6F65]">
+                    <ShoppingCart className="h-14 w-14 mx-auto mb-3 opacity-30" />
+                    <p className="font-body text-sm">Your cart is empty</p>
+                    <p className="font-body text-xs mt-1">Add items from the menu to see them here.</p>
+                  </div>
+                ) : (
+                  Object.values(cart).map(item => (
+                    <div key={item.id} className="flex items-start gap-3 bg-white border border-[#E8DFD0] p-3 rounded-none">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-body font-medium text-[#2D1810] text-sm">{item.name}</p>
+                        <p className="text-[#7A6F65] font-body text-xs mt-0.5">{formatPrice(item.price)} each · {formatPrice(item.price * item.qty)}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button variant="outline" size="icon" className="h-8 w-8 border-[#E8DFD0] rounded-none" onClick={() => updateCart(item, -1)} data-testid={`mobile-cart-decrement-${item.id}`}><Minus className="h-3.5 w-3.5" /></Button>
+                        <span className="w-7 text-center text-[#2D1810] font-body font-semibold">{item.qty}</span>
+                        <Button variant="outline" size="icon" className="h-8 w-8 border-[#E8DFD0] rounded-none" onClick={() => updateCart(item, 1)} data-testid={`mobile-cart-increment-${item.id}`}><Plus className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Sticky footer: totals + WhatsApp CTA */}
+              <div className="border-t border-[#E8DFD0] bg-white px-5 pt-4 pb-5 space-y-3 shrink-0">
+                {cartItemCount > 0 && (
+                  <div className="space-y-1.5 text-sm font-body">
+                    <div className="flex justify-between"><span className="text-[#5C4A3A]">Subtotal</span><span className="text-[#2D1810]">{formatPrice(cartTotal)}</span></div>
+                    {promoResult.applied && (
+                      <div className="flex justify-between text-green-700 bg-[#F5FFF5] -mx-2 px-2 py-1 rounded border border-green-200">
+                        <span className="font-medium flex items-center gap-1"><Leaf className="h-3 w-3" /> {promoResult.label} ({promoResult.pct}% off)</span>
+                        <span className="font-medium">-{formatPrice(promoResult.discount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-heading font-medium text-lg pt-1 border-t border-[#E8DFD0]">
+                      <span className="text-[#2D1810]">Total</span>
+                      <span className="text-[#B8962E]">{formatPrice(finalTotal)}</span>
+                    </div>
+                    {finalTotal > 0 && finalTotal < minOrder && <p className="text-xs text-red-500 font-body">Min order: {formatPrice(minOrder)}</p>}
+                  </div>
+                )}
+
+                {/* Order to: <Center> reminder */}
+                {currentCenter && (
+                  <div className="flex items-center gap-2 text-xs text-[#5C4A3A] font-body bg-[#F8F5F0] border border-[#E8DFD0] px-3 py-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-[#B8962E] shrink-0" />
+                    <span className="truncate">Sending to <strong className="text-[#2D1810]">{currentCenter.displayName}</strong></span>
+                  </div>
+                )}
+
+                {/* Validation feedback */}
+                {(!selectedCenter || !name || !phone || !pickupDate || !pickupTime) && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowCart(false); setMobileDetailsOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="w-full text-xs font-body text-[#B8962E] underline text-center"
+                    data-testid="mobile-fill-details-link"
+                  >
+                    ⓘ Fill order details (name, phone, date, time) to enable WhatsApp
+                  </button>
+                )}
+
+                <Button
+                  onClick={() => { setShowCart(false); handleSubmit(); }}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white py-5 rounded-none font-semibold tracking-wider border-0 disabled:opacity-50"
+                  disabled={!selectedCenter || !name || !phone || !pickupDate || !pickupTime || cartItemCount === 0 || finalTotal < minOrder}
+                  data-testid="mobile-place-order-btn"
+                >
+                  <MessageCircle className="h-5 w-5 mr-2" /> Send Order via WhatsApp
+                </Button>
+
+                <p className="text-[10px] text-center text-[#7A6F65] italic font-body">{bookingRules.pickup.disclaimer}</p>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
       )}
     </div>
   );
