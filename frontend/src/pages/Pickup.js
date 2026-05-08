@@ -182,7 +182,7 @@ const Pickup = () => {
   const labelCls = "text-[#5C4A3A] font-body text-xs tracking-wider uppercase";
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7]">
+    <div className="min-h-screen bg-[#FDFBF7] overflow-x-hidden">
       {/* Hero */}
       <section className="relative py-16 border-b border-[#E8DFD0]">
         <div className="absolute inset-0 bg-[#F8F5F0]" />
