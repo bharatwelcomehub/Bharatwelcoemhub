@@ -1300,10 +1300,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
     direct_sale = sum((r.get("sale_pbm", 0) or 0) + (r.get("sale_other", 0) or 0) for r in sales_records)
     
-    # Aggregator sales
-    swiggy_sale = sum(r.get("swiggy", 0) or 0 for r in sales_records)
-    zomato_sale = sum(r.get("zomato", 0) or 0 for r in sales_records)
-    doordash_sale = sum(r.get("doordash", 0) or 0 for r in sales_records)
+    # Aggregator sales — read both new (swiggy_sale) and legacy (swiggy) field
+    # names so the eligible-sales base matches what utils.gst / PIB compute.
+    # Fixes the bug where Center Accounts page showed GST = 49,149.71 (5%
+    # inclusive on FULL sale) while MIS showed 46,133.14 (5% on eligible) for
+    # the same month.
+    swiggy_sale = sum(r.get("swiggy_sale", r.get("swiggy", 0)) or 0 for r in sales_records)
+    zomato_sale = sum(r.get("zomato_sale", r.get("zomato", 0)) or 0 for r in sales_records)
+    doordash_sale = sum(r.get("doordash_sale", r.get("doordash", 0)) or 0 for r in sales_records)
     aggregator_sale = swiggy_sale + zomato_sale + doordash_sale
     
     # Card/Online sales

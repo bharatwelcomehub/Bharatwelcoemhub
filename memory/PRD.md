@@ -5,6 +5,35 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] CRITICAL FIX — Center Accounts page was reading aggregator sales from wrong field; GST now matches MIS & PIB exactly
+**User report**: "GST on Sale" and "GST on Eligible Sales" show different values; MIS and Dashboard for Accounts show different GST calculations. Reset both to: GST = 5% on eligible sales (NOT on direct sales).
+
+**Two issues found, both fixed**:
+
+**1. Calculation divergence — REAL bug**
+- `routes/center_accounts.py:1304-1306` was reading aggregator sales as `r.get("swiggy", 0)` / `zomato` / `doordash` (legacy field names), but the actual `daily_sales` documents store them as `swiggy_sale` / `zomato_sale` / `doordash_sale`. So `aggregator_sale` summed to 0 → `eligible_base = total_sale` → GST was 5% inclusive on the FULL sale instead of on (Sale − Aggregator).
+- For the same dataset that gave PIB ₹46,133.14, Center Accounts page returned ₹49,149.71 — the ₹3,016.57 gap user observed.
+- **Fix**: same fallback pattern as `utils/gst.py::eligible_base_from_daily_row` — `r.get("swiggy_sale", r.get("swiggy", 0))` etc. Now Center Accounts reads aggregator from BOTH possible field names.
+
+**2. Label inconsistency** — "GST on Sales" misled users into thinking it was 5% on the full sale, when it's actually 5% inclusive on eligible base. Renamed to **"GST on Eligible Sales (5% incl.)"** everywhere:
+- MIS Dashboard KPI card + Excel export
+- Franchise Owner Dashboard KPI card + Excel export
+- MIS Franchise PDF KPI card + Financial Summary table row
+- Center Accounts Net Revenue waterfall (Less: row)
+- Center Accounts deductions sub-labels
+
+**Verified end-to-end** with synthetic PB-DV April 2026 reproduction:
+
+| Source | GST | Net Revenue |
+|---|---|---|
+| PIB (truth) | ₹46,133.14 | ₹9,86,010.86 |
+| MIS Dashboard | ₹46,133.14 ✓ | ₹9,86,010.86 ✓ |
+| Center Accounts | ₹46,133.14 ✓ | ₹9,86,010.86 ✓ |
+
+All three APIs now use the **same formula** (`carve_inclusive_gst(eligible, rate)` from `utils/gst.py`) and the **same DB collection** (`daily_sales`), with consistent field-name fallback. No hardcoded numbers.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy: every dashboard, every PDF, every Excel will show GST as "GST on Eligible Sales (5% incl.)" with identical values across MIS, Center Accounts, Franchise Owner Dashboard and PIB.
+
 ### [2026-05-09] CRITICAL FIX — MIS Dashboard / Owner Dashboard GST was double-counted (numbers now match PIB)
 **User report** (with PB-DV April 2026 PIB attached): "MIS report for company and Owner dashboard show different reporting numbers — should be the same as the PIB.pdf."
 

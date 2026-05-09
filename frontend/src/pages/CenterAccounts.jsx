@@ -891,7 +891,7 @@ export default function CenterAccounts() {
                       )}
                     </p>
                     <p className="text-[10px] text-orange-700 mt-1">
-                      {accountSummary.country === "Australia" ? "Commissions (incl GST) + GST on Sale" : "Commissions + GST on Sale"}
+                      {accountSummary.country === "Australia" ? "Commissions (incl GST) + GST on Eligible Sales" : "Commissions + GST on Eligible Sales"}
                     </p>
                   </div>
                   <CreditCard className="w-8 h-8 text-orange-400" />
@@ -1696,7 +1696,7 @@ export default function CenterAccounts() {
                         accountSummary.country
                       )}
                     </p>
-                    <p className="text-[10px] text-red-700 mt-1">Commissions + GST on Sale</p>
+                    <p className="text-[10px] text-red-700 mt-1">Commissions + GST on Eligible Sales</p>
                   </CardContent>
                 </Card>
               </div>
@@ -1762,10 +1762,10 @@ export default function CenterAccounts() {
                           <span className="font-semibold text-gray-900">{formatCurrency(accountSummary.financial_summary.total_sales, accountSummary.country)}</span>
                         </div>
 
-                        {/* Step 2: Less GST on Sales (5%) */}
+                        {/* Step 2: Less GST on Eligible Sales (5% inclusive) — same formula as PIB */}
                         {accountSummary.financial_summary.sales_gst > 0 && (
                           <div className="flex justify-between text-sm items-center text-red-600">
-                            <span className="pl-4">Less: GST on Sales (5%)</span>
+                            <span className="pl-4">Less: GST on Eligible Sales (5% incl.)</span>
                             <span className="font-medium">- {formatCurrency(accountSummary.financial_summary.sales_gst, accountSummary.country)}</span>
                           </div>
                         )}
