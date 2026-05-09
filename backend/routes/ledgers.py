@@ -513,6 +513,8 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
 
     running = 0.0
     is_first_month = True
+    total_rev_share = 0.0  # accumulated for Final Payout block
+    total_mg_topup = 0.0
     for m in sorted(months):
         st, en = _month_range(m)
         sales = await _get_daily_sales(center, st, en)
@@ -520,6 +522,8 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         eligible = sum((s.get("total_sale") or 0) - (s.get("swiggy") or 0) - (s.get("zomato") or 0) - (s.get("doordash") or 0) for s in sales)
         rev_share = round(eligible * rev_pct / 100, 2)
         mg_delta = max(0, mg - rev_share)  # HQ owes franchisee extra if rev_share < MG
+        total_rev_share += rev_share
+        total_mg_topup += mg_delta
 
         # Commissions (debit to franchise — commission flows to platforms)
         comms = await _get_commissions(center, [m])
@@ -586,6 +590,8 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
     return {
         "rows": rows,
         "closing_balance": running,
+        "total_rev_share": round(total_rev_share, 2),
+        "total_mg_topup": round(total_mg_topup, 2),
         "franchise": {
             "code": (franchise or {}).get("franchise_code"),
             "name": (franchise or {}).get("franchise_name"),
@@ -985,6 +991,30 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
                                                     ["Revenue Share %", f"{f.get('revenue_share_percent', 0)}%"],
                                                     ["Monthly Guarantee (MG)", _inr(f.get("monthly_guarantee", 0))],
                                                     ["Closing Balance", _inr(data.get("closing_balance", 0))]]))
+
+            # Final Payout block — mirrors PIB Section 8B & MIS Franchise PDF.
+            # Combines Revenue Share + GST so the gross-of-tax invoiceable
+            # amount stays consistent across all 3 reports the owner sees.
+            total_rs = float(data.get("total_rev_share") or 0)
+            if total_rs > 0:
+                if (country or "India").lower() == "india":
+                    cgst = round(total_rs * 9 / 100, 2)
+                    sgst = round(total_rs * 9 / 100, 2)
+                    sections.append(("Final Payout (Revenue Share + GST)", [
+                        ["Description", "Amount"],
+                        [f"Revenue Share Payable for {label}", _inr(total_rs)],
+                        ["Add: CGST @ 9%", _inr(cgst)],
+                        ["Add: SGST @ 9%", _inr(sgst)],
+                        ["Total Final Payout (incl. 18% GST)", _inr(round(total_rs + cgst + sgst, 2))],
+                    ]))
+                else:
+                    gst_amt = round(total_rs * 10 / 100, 2)
+                    sections.append(("Final Payout (Profit Share + GST)", [
+                        ["Description", "Amount"],
+                        [f"Profit Share Payable for {label}", _inr(total_rs)],
+                        ["Add: GST @ 10%", _inr(gst_amt)],
+                        ["Total Final Payout (incl. 10% GST)", _inr(round(total_rs + gst_amt, 2))],
+                    ]))
         else:
             sections = [("Data", [[str(data)]])]
         pdf = _render_pdf(title, subtitle, sections, country=country)

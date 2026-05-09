@@ -2046,6 +2046,56 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
     elements.append(t)
     elements.append(Spacer(1, 10))
 
+    # ── FINAL PAYOUT (Revenue Share + GST) ──
+    # Mirrors the new "8B. FINAL PAYOUT" block on the PIB so the gross-of-tax
+    # figure stays consistent across PIB, MIS Franchise PDF and Owner Ledger.
+    # India: CGST 9% + SGST 9% = 18%. Australia: GST 10%. Skipped if intl
+    # without GST or revenue_share = 0.
+    if revenue_share_amount and revenue_share_amount > 0:
+        if is_intl:
+            share_gst_rate = 10.0
+            payout_rows = [
+                [Paragraph("<b>Description</b>", normal_style), Paragraph("<b>Amount</b>", normal_style)],
+                ["Profit Share Payable", fmt(revenue_share_amount)],
+                [f"Add: GST @ {share_gst_rate:.0f}%", fmt(revenue_share_amount * share_gst_rate / 100)],
+                [f"Total Final Payout (incl. {share_gst_rate:.0f}% GST)",
+                 fmt(revenue_share_amount * (1 + share_gst_rate / 100))],
+            ]
+        else:
+            half = 9.0
+            cgst = revenue_share_amount * half / 100
+            sgst = revenue_share_amount * half / 100
+            payout_rows = [
+                [Paragraph("<b>Description</b>", normal_style), Paragraph("<b>Amount</b>", normal_style)],
+                ["Revenue Share Payable", fmt(revenue_share_amount)],
+                [f"Add: CGST @ {half:.0f}%", fmt(cgst)],
+                [f"Add: SGST @ {half:.0f}%", fmt(sgst)],
+                ["Total Final Payout (incl. 18% GST)", fmt(revenue_share_amount + cgst + sgst)],
+            ]
+        elements.append(Paragraph("Final Payout (Revenue Share + GST)", section_style))
+        pt = Table(payout_rows, colWidths=[280, 180])
+        pt.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, -1), (-1, -1), SAFFRON),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(pt)
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph(
+            "<i>This is the gross-of-tax amount to be invoiced / paid to the Franchise Owner.</i>",
+            small_style))
+        elements.append(Spacer(1, 10))
+
     # ── EXPENSE BREAKDOWN ──
     exp_types = expense_data.get("by_type", []) if expense_data else []
     if exp_types:

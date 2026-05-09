@@ -5,6 +5,29 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-07] Final Payout (Revenue Share + GST) rolled into MIS Franchise PDF & Owner Ledger PDF
+**User ask**: keep the gross-of-GST number consistent across the three documents the Franchise Owner sees — already shipped on the PIB (Section 8B); now add the same block to the MIS Franchise PDF and the Owner Ledger PDF.
+
+**MIS Franchise PDF** (`routes/mis_dashboard.py::_build_franchise_pdf`):
+- New "Final Payout (Revenue Share + GST)" table inserted right after the Financial Summary section.
+- India centers: Revenue Share Payable → Add: CGST 9% → Add: SGST 9% → **Total Final Payout (incl. 18% GST)** highlighted in saffron.
+- Australia / international centers: Profit Share Payable → Add: GST 10% → **Total Final Payout (incl. 10% GST)**.
+- Skipped silently when revenue_share_amount = 0 so reports for centers without an active franchise contract stay clean.
+
+**Owner Ledger PDF** (`routes/ledgers.py`):
+- `build_franchise_owner_ledger()` now also returns `total_rev_share` and `total_mg_topup` (sums across all months in the period).
+- `_render_ledger("owner", ...)` appends a "Final Payout (Revenue Share + GST)" section after Franchise Details with the same India / non-India split. Section title shows the period, e.g. "Revenue Share Payable for 2025-08".
+
+**Verified end-to-end on PB-HSR Aug 2025**:
+- Revenue Share = ₹220,872.15
+- CGST 9% = ₹19,878.49 (= 220,872.15 × 0.09 ✓)
+- SGST 9% = ₹19,878.49
+- **Final Payout (incl. 18% GST) = ₹260,629.13** (= 220,872.15 × 1.18 ✓)
+
+Both PDFs render the new block; signature footer (Manaswini Foods Pvt Ltd / CFO Shashikant Pande) still appears below correctly. Lint clean (only pre-existing project warnings).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy: any newly-generated PIB, MIS Franchise PDF, and Owner Ledger PDF will all show the same Final Payout figure — matching what the CA invoices.
+
 ### [2026-05-07] PIB Report — new "Final Payout (Revenue Share + GST)" block
 **User ask** (with screenshot): Section 9 (Tax Rules Applied) is correct. They wanted a separate block *before* Section 9 that adds CGST 9% + SGST 9% on top of the Revenue Share so the final invoice-able amount shows on its own.
 
