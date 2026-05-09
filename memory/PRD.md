@@ -5,6 +5,22 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] Franchise Owner Dashboard — new "Final Payout (incl. 18% GST)" KPI card
+**User ask**: surface the gross-of-GST invoiceable amount as its own KPI on the dashboard, right next to Revenue Share, so owners and CA catch any MG-trigger month at a glance — no PDF download needed.
+
+**Fix** (`frontend/src/pages/FranchiseOwnerDashboard.jsx`):
+- Reads `monthly_guarantee` (with fallbacks `mg` / `minimum_guarantee`) from `franchiseInfo` (already returned by `/api/franchises/by-center/:code`).
+- Computes `payoutBase = MAX(revenueShareAmount, monthlyGuarantee)` — same logic as PIB Section 8B / MIS Franchise PDF / Owner Ledger PDF.
+- New emerald KPI card *"Final Payout (incl. 18% GST)"* (10% for intl) with `Wallet` icon, placed immediately after the existing Revenue Share card.
+- A small sub-badge under the value tells the story:
+  - When MG wins: *"MG paid (₹X > Rev Share)"* — flags the exact months CA needs to invoice off MG.
+  - Otherwise: *"Base: ₹X"* — confirms the figure is `revenueShareAmount × 1.18`.
+- Sub-badge rendering is generic (`kpi.subBadge`) so any future card can reuse the same chip.
+
+**Verified**: lint clean. Existing KPI layout (`md:grid-cols-4 lg:grid-cols-7`) absorbs the new 10th card without overflow. Number on the dashboard now matches PIB Section 8B + MIS Franchise PDF + Owner Ledger PDF for the same period.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, owners see the Final Payout figure inline; MG-winning months are visually flagged (white-on-emerald sub-chip) without anyone having to open a PDF.
+
 ### [2026-05-07] Final Payout — payout base now correctly = MAX(Revenue Share, MG); GST applied on that
 **User correction**: The 18% GST should be calculated on whichever of Revenue Share or Monthly Guarantee is higher (= the actual payout), NOT on the bare revenue share.
 

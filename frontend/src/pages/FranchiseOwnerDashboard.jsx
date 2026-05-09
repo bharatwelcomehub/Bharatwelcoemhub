@@ -395,6 +395,20 @@ export default function FranchiseOwnerDashboard() {
   const totalDeductions = totalCommissions + totalGst;
   const netRevenue = (sm?.total_sales || 0) - totalDeductions;
   const revenueShareAmount = netRevenue * (revenueSharePct / 100);
+  // Final Payout: payout base = MAX(Revenue Share, Monthly Guarantee). GST is
+  // computed on that base — matches PIB Section 8B / MIS Franchise PDF /
+  // Owner Ledger PDF so the dashboard, screen and downloaded reports always
+  // show the same gross-of-GST invoiceable figure.
+  const monthlyGuarantee = parseFloat(
+    franchiseInfo?.monthly_guarantee
+    ?? franchiseInfo?.mg
+    ?? franchiseInfo?.minimum_guarantee
+    ?? 0
+  ) || 0;
+  const payoutBase = Math.max(revenueShareAmount, monthlyGuarantee);
+  const isMgPayout = monthlyGuarantee > revenueShareAmount && payoutBase > 0;
+  const finalGstRate = isIntl ? 10 : 18;
+  const finalPayoutAmount = payoutBase * (1 + finalGstRate / 100);
   const trends = salesData;
 
   const kpiCards = sm ? [
@@ -408,6 +422,18 @@ export default function FranchiseOwnerDashboard() {
     { label: "Working Capital", displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
     { label: "Avg / Bill", displayValue: formatFullCurrency(sm.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
     { label: `Revenue Share (${revenueSharePct}% × Net Rev)`, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
+    {
+      label: `Final Payout (incl. ${finalGstRate}% GST)`,
+      displayValue: formatFullCurrency(finalPayoutAmount, isIntl),
+      icon: Wallet,
+      gradient: "from-emerald-700 to-emerald-500",
+      textColor: "text-emerald-50",
+      // Sub-badge surfaces the MG-trigger condition — exactly the cases the CA
+      // needs to flag. Falls back to the breakdown otherwise.
+      subBadge: isMgPayout
+        ? `MG paid (₹${monthlyGuarantee.toLocaleString()} > Rev Share)`
+        : `Base: ${formatFullCurrency(payoutBase, isIntl)}`,
+    },
   ] : [];
 
   // Allow admin/super-admin, franchise owners, and users with franchise role
@@ -548,6 +574,11 @@ export default function FranchiseOwnerDashboard() {
                     <Icon className={`w-4 h-4 ${kpi.textColor} opacity-60`} />
                   </div>
                   <p className={`text-lg font-bold ${kpi.textColor} tracking-tight`}>{displayVal}</p>
+                  {kpi.subBadge && (
+                    <div className={`inline-block mt-1 px-1.5 py-0.5 rounded bg-white/15 text-[10px] font-medium ${kpi.textColor} opacity-90 truncate max-w-full`}>
+                      {kpi.subBadge}
+                    </div>
+                  )}
                   {kpi.change !== undefined && kpi.change !== null && (
                     <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${kpi.textColor} opacity-70`}>
                       {kpi.change > 0 ? <ArrowUpRight className="w-3 h-3" /> : kpi.change < 0 ? <ArrowDownRight className="w-3 h-3" /> : null}
