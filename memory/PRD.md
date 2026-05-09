@@ -5,6 +5,33 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] CRITICAL FIX — TWO more bugs in MIS Dashboard / FO Dashboard GST (now byte-identical to GST Summary report)
+**User report** (production screenshots, PB-DV April 2026): GST Summary report correctly shows ₹46,133.14, but the MIS Dashboard and Franchise Owner Dashboard both show ₹55,984.74.
+
+**Two stacked bugs** in `routes/mis_dashboard.py` (both fixed):
+
+**Bug A — `gst_target` WC override was being ADDED to formula GST** (lines 350–401):
+- The "WC table override" merge read its source bucket from the legacy `daily_sales.gst_amount` field — which is 0 for centers like PB-DV that never wrote the legacy field.
+- Logic: `new_gst = formula_gst − source_bucket + gst_target` → `46,133.14 − 0 + 55,984.74 ≈ 102K` (or with a partial override, the +₹9,851 we observed).
+- Fix: **removed the `gst_target` override path entirely** from the dashboard merge. GST is now formula-only — the same `carve_inclusive_gst(eligible, rate)` used by the PIB and GST Summary report. `commission_target` overrides remain (legitimate manual entry).
+
+**Bug B — per-center breakdown used non-inclusive formula** (line 494):
+- Old: `cd["gst"] = eligible_base × rate` → 968,795.94 × 5% = **₹48,439.80** ❌
+- Correct: `cd["gst"] = eligible_base − eligible_base/(1+rate)` → **₹46,133.14** ✓ (matches PIB)
+- Fix: replaced with `carve_inclusive_gst(...)` helper so per-center matches top-level.
+
+**Verified end-to-end** with the worst-case scenario (sales rows present, no `gst_amount`, **stored override of ₹55,984.74**):
+
+| Metric | Old | New | PIB / GST Summary (truth) |
+|---|---|---|---|
+| Top-level `total_gst` | ₹55,984.74 ❌ | ₹46,133.14 ✓ | ₹46,133.14 |
+| Per-center `gst` | ₹48,439.80 ❌ | ₹46,133.14 ✓ | ₹46,133.14 |
+| `net_revenue` | ₹9,54,571.75 ❌ | ₹9,86,010.86 ✓ | ₹9,86,010.86 |
+
+**Cascade**: This also fixes Revenue Share, Final Payout (incl. 18% GST), and Net Profit (P&L) on both dashboards — every downstream KPI now derives from the correct GST.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, refresh the MIS Dashboard / Franchise Owner Dashboard for PB-DV April 2026 — you'll see ₹46,133.14 (GST), ₹9,64,423.35 (Net Rev), ₹1,44,663.50 (Revenue Share), ₹1,70,702.94 (Final Payout) — all matching the PIB and the GST Summary PDF the user attached.
+
 ### [2026-05-09] CRITICAL FIX — Center Accounts page was reading aggregator sales from wrong field; GST now matches MIS & PIB exactly
 **User report**: "GST on Sale" and "GST on Eligible Sales" show different values; MIS and Dashboard for Accounts show different GST calculations. Reset both to: GST = 5% on eligible sales (NOT on direct sales).
 

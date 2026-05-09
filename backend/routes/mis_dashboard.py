@@ -347,9 +347,14 @@ async def get_mis_overview(data: dict):
     except Exception as comm_err:
         logger.warning(f"MIS: commission calc failed: {comm_err}")
     
-    # Apply WC table overrides (commission_target / gst_target) so Sales/
-    # Expenses/Commission/GST summaries match the Center Accounts WC table.
-    # Expenses already include INTRA CENTER ADJUSTMENT rows from db.expenses.
+    # Apply WC table overrides (commission_target only) so Commission summaries
+    # match the Center Accounts WC table. GST is intentionally NOT overridable
+    # — it must always equal the formula `eligible_base × rate / (1+rate)` so
+    # the dashboards stay byte-identical to the PIB / GST Summary report. A
+    # legacy `gst_target` value stored against a (center, month) used to be
+    # added on top of the formula here (because the source bucket read the
+    # blank `gst_amount` field), causing PB-DV Apr-2026 to show ₹55,984.74 on
+    # the dashboard while the GST Summary correctly showed ₹46,133.14.
     try:
         ov_map = await fetch_wc_overrides(center, start_date, end_date)
         # Per-month source aggregates (center, month) for the current period
@@ -364,10 +369,7 @@ async def get_mis_overview(data: dict):
                     continue
                 buckets[(c, m)] = buckets.get((c, m), 0) + float(r.get(value_key, 0) or 0)
             return buckets
-        
-        # GST source bucket: from daily_sales.gst_amount
-        gst_src_buckets = _month_bucket(sales_data, "gst_amount")
-        
+
         # Commission source bucket: from comm_records grouped by (center, month)
         comm_src_buckets = {}
         try:
@@ -383,21 +385,17 @@ async def get_mis_overview(data: dict):
                 comm_src_buckets[(cc, mm)] = comm_src_buckets.get((cc, mm), 0) + v
         except Exception:
             pass
-        
-        def _apply_overrides(ov, gst_total, comm_total, gst_buckets, comm_buckets):
-            new_gst = gst_total
+
+        def _apply_commission_overrides(ov, comm_total, comm_buckets):
             new_comm = comm_total
             for (cc, mm), o in ov.items():
-                gt = o.get("gst_target")
                 ct = o.get("commission_target")
-                if gt is not None:
-                    new_gst = new_gst - gst_buckets.get((cc, mm), 0) + float(gt)
                 if ct is not None:
                     new_comm = new_comm - comm_buckets.get((cc, mm), 0) + float(ct)
-            return round(new_gst, 2), round(new_comm, 2)
-        
-        total_gst, total_commissions = _apply_overrides(
-            ov_map, total_gst, total_commissions, gst_src_buckets, comm_src_buckets
+            return round(new_comm, 2)
+
+        total_commissions = _apply_commission_overrides(
+            ov_map, total_commissions, comm_src_buckets
         )
     except Exception as ov_err:
         logger.warning(f"MIS: WC override application failed: {ov_err}")
@@ -487,27 +485,28 @@ async def get_mis_overview(data: dict):
     except Exception as comm_err:
         logger.error(f"MIS center commission calc failed: {comm_err}", exc_info=True)
     
-    # Apply per-center GST = eligible_base × rate (5% India, 10% Perth) BEFORE
-    # overrides, so that override logic still works uniformly.
+    # Apply per-center GST using the SAME inclusive formula as the top-level
+    # `total_gst` and the PIB / GST Summary report:
+    #   gst = eligible_base − eligible_base / (1 + rate)
+    # The previous `eligible × rate` was a non-inclusive 5% which gave
+    # ₹48,439.80 instead of the correct ₹46,133.14 — a silent ₹2,306 over-
+    # statement per center that broke parity with the rest of the dashboard.
     try:
-        from utils.gst import gst_rate_for as _gst_rate_for
+        from utils.gst import gst_rate_for as _gst_rate_for, carve_inclusive_gst as _carve
         for cc, cd in centers_data.items():
             rate = _gst_rate_for(None, cc)
-            cd["gst"] = round(cd.get("_eligible_base", 0) * rate, 2)
+            cd["gst"] = _carve(cd.get("_eligible_base", 0), rate)
     except Exception:
         pass
     
-    # Apply WC-table per-center overrides to centers_data (commissions/gst)
+    # Apply WC-table per-center overrides to centers_data — commissions only.
+    # GST is intentionally NOT overridden here (formula is single source of
+    # truth — see comment above on the global merge).
     try:
         for (cc, mm), o in ov_map.items():
             if cc not in centers_data:
                 continue
-            gt = o.get("gst_target")
             ct = o.get("commission_target")
-            if gt is not None:
-                centers_data[cc]["gst"] = round(
-                    centers_data[cc].get("gst", 0) - gst_src_buckets.get((cc, mm), 0) + float(gt), 2
-                )
             if ct is not None:
                 centers_data[cc]["commissions"] = round(
                     centers_data[cc].get("commissions", 0) - comm_src_buckets.get((cc, mm), 0) + float(ct), 2
