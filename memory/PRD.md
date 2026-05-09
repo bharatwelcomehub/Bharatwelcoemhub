@@ -5,6 +5,20 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-07] PIB Report — new "Final Payout (Revenue Share + GST)" block
+**User ask** (with screenshot): Section 9 (Tax Rules Applied) is correct. They wanted a separate block *before* Section 9 that adds CGST 9% + SGST 9% on top of the Revenue Share so the final invoice-able amount shows on its own.
+
+**Fix** (`backend/utils/pdf_generator.py::build_pib_pdf`):
+- New **8B. FINAL PAYOUT (Revenue Share + GST)** block inserted between Section 8 (Payout Determination) and Section 9 (Tax Rules), only when `share_gst_rate > 0` and a positive payable exists.
+- For India centers (rate 18%): rows are `Revenue Share Payable` → `Add: CGST @ 9%` → `Add: SGST @ 9%` → **Total Final Payout (incl. 18% GST)** highlighted in maroon.
+- For Australia / outside-IN: rows are `Profit Share Payable` → `Add: GST @ 10%` → **Total Final Payout (incl. 10% GST)**.
+- Italic footnote: *"This is the gross-of-tax amount to be invoiced / paid to the Franchise Owner. The GST split below is reproduced under Section 9 for reference."*
+- Wrapped in try/except so the new block is purely additive — any rendering hiccup falls back to the existing Section 9 without breaking the PIB.
+
+**Verified** on PB-HSR Apr 2026 PDF: Revenue Share ₹89,729.91 → CGST ₹8,075.69 → SGST ₹8,075.69 → **Final Payout ₹105,881.29** (= 89,729.91 × 1.18). Section 9 (Tax Rules) still appears afterwards unchanged. Lint clean.
+
+⚠️ Click **Deploy** to push to production. After deploy, every newly generated PIB will include this Final Payout block before the Tax Rules section.
+
 ### [2026-05-07] International Weekly Attendance — Cash vs Online salary split (CA-ready)
 **User ask** (with screenshot, PB-PERTH Week 18 page): every weekly salary is paid either as cash or online; the screen + the downloaded weekly report should show that split so the CA can deduct cash salaries from the bank-paid total.
 

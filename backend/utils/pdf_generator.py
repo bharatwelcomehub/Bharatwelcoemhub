@@ -676,6 +676,69 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ))
         story.append(Spacer(1, 15))
 
+        # --- 8B. Final Payout (Revenue Share + GST) -------------------------
+        # Section 9 already captures the tax rules; users wanted the final
+        # invoice-able amount (Revenue Share + CGST 9% + SGST 9% for India,
+        # Profit Share + GST for Australia) shown explicitly *before* Section
+        # 9 so the franchise owner / CA can see what to invoice / pay in one
+        # number.
+        try:
+            tax_rules_block = summary.get("tax_rules", {}) or {}
+            share_gst_rate = float(tax_rules_block.get("share_gst_rate") or 0)
+            payable_amount = float(payout.get("amount") or 0)
+            if share_gst_rate > 0 and payable_amount > 0:
+                country_block = (tax_rules_block.get("country") or "").lower()
+                if country_block == "india":
+                    half = share_gst_rate / 2.0
+                    cgst = round(payable_amount * half / 100.0, 2)
+                    sgst = round(payable_amount * half / 100.0, 2)
+                    total_gst = round(cgst + sgst, 2)
+                    final_total = round(payable_amount + total_gst, 2)
+                    final_label = "Total Final Payout (incl. 18% GST)"
+                    final_data = [
+                        ["Description", "Amount"],
+                        ["Revenue Share Payable",        f"{currency} {payable_amount:,.2f}"],
+                        [f"Add: CGST @ {half:.0f}%",     f"{currency} {cgst:,.2f}"],
+                        [f"Add: SGST @ {half:.0f}%",     f"{currency} {sgst:,.2f}"],
+                        [final_label,                    f"{currency} {final_total:,.2f}"],
+                    ]
+                else:
+                    # Australia / outside-IN — single-line GST add-on
+                    gst_amount = round(payable_amount * share_gst_rate / 100.0, 2)
+                    final_total = round(payable_amount + gst_amount, 2)
+                    final_data = [
+                        ["Description", "Amount"],
+                        ["Profit Share Payable",                              f"{currency} {payable_amount:,.2f}"],
+                        [f"Add: GST @ {share_gst_rate:.0f}%",                 f"{currency} {gst_amount:,.2f}"],
+                        [f"Total Final Payout (incl. {share_gst_rate:.0f}% GST)", f"{currency} {final_total:,.2f}"],
+                    ]
+
+                story.append(Paragraph("8B. FINAL PAYOUT (Revenue Share + GST)", styles["PIBSection"]))
+                final_table = Table(final_data, colWidths=[280, 170])
+                final_table.setStyle(TableStyle([
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("BACKGROUND", (0, -1), (-1, -1), BRAND_MAROON),
+                    ("TEXTCOLOR", (0, -1), (-1, -1), colors.white),
+                    ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]))
+                story.append(final_table)
+                story.append(Spacer(1, 6))
+                story.append(Paragraph(
+                    "<i>This is the gross-of-tax amount to be invoiced / paid to the Franchise Owner. "
+                    "The GST split below is reproduced under Section 9 for reference.</i>",
+                    styles["PIBBody"],
+                ))
+                story.append(Spacer(1, 15))
+        except Exception:
+            # Final-payout block is purely additive; never block PIB rendering
+            pass
+
     # --- 9. Tax Rules -------------------------------------------------------
     story.append(Paragraph("9. TAX RULES APPLIED", styles["PIBSection"]))
     tax_rules = summary["tax_rules"]
