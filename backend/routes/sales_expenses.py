@@ -2536,9 +2536,17 @@ async def upload_sales_data(
                                   record["doordash"] + record["online_other"])
                     record["total_online_sale"] = total_online
                     record["total_cash_sale"] = record["total_sale"] - total_online
-                    
-                    # GST calculation (5% of total sale)
-                    record["gst_amount"] = round(max(0, record["total_sale"] - (record.get("swiggy_sale", record.get("swiggy", 0)) or 0) - (record.get("zomato_sale", record.get("zomato", 0)) or 0) - (record.get("doordash_sale", record.get("doordash", 0)) or 0)) * 0.05, 2)
+
+                    # GST = inclusive 5% (India) / 10% (intl) carved out of
+                    # eligible base. Routed through the canonical helper so
+                    # this row's `gst_amount` matches what PIB / MIS / Center
+                    # Accounts compute on the fly. Previously this stored
+                    # ``eligible × rate`` (non-inclusive on-top), giving
+                    # ₹48,439.80 vs the correct ₹46,133.14 for PB-DV-style
+                    # data — a silent ₹2,306 over-statement per row.
+                    from utils.gst import eligible_base_from_daily_row, carve_inclusive_gst, gst_rate_for
+                    _rate = gst_rate_for(None, record.get("center"))
+                    record["gst_amount"] = carve_inclusive_gst(eligible_base_from_daily_row(record), _rate)
                     
                     # Averages
                     if record["num_guests"] > 0:
@@ -2797,7 +2805,10 @@ async def upload_custom_format_data(
                                   record["doordash"] + record["online_other"])
                     record["total_online_sale"] = total_online
                     record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
-                    record["gst_amount"] = round(max(0, record["total_sale"] - (record.get("swiggy_sale", record.get("swiggy", 0)) or 0) - (record.get("zomato_sale", record.get("zomato", 0)) or 0) - (record.get("doordash_sale", record.get("doordash", 0)) or 0)) * 0.05, 2)
+                    # GST: inclusive carve via canonical helper (single source of truth)
+                    from utils.gst import eligible_base_from_daily_row, carve_inclusive_gst, gst_rate_for
+                    _rate = gst_rate_for(None, record.get("center"))
+                    record["gst_amount"] = carve_inclusive_gst(eligible_base_from_daily_row(record), _rate)
                     
                     # Calculate closing balance + petty cash closing (TWO SEPARATE TRACKS)
                     ob = record["opening_balance"]
@@ -2978,7 +2989,10 @@ async def upload_custom_format_data(
                                       record["doordash"] + record["online_other"])
                         record["total_online_sale"] = total_online
                         record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
-                        record["gst_amount"] = round(max(0, record["total_sale"] - (record.get("swiggy_sale", record.get("swiggy", 0)) or 0) - (record.get("zomato_sale", record.get("zomato", 0)) or 0) - (record.get("doordash_sale", record.get("doordash", 0)) or 0)) * 0.05, 2)
+                        # GST: inclusive carve via canonical helper (single source of truth)
+                        from utils.gst import eligible_base_from_daily_row, carve_inclusive_gst, gst_rate_for
+                        _rate = gst_rate_for(None, record.get("center"))
+                        record["gst_amount"] = carve_inclusive_gst(eligible_base_from_daily_row(record), _rate)
                         
                         # Calculate closing balance + petty cash closing (TWO SEPARATE TRACKS)
                         ob = record["opening_balance"]

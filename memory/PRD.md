@@ -5,6 +5,39 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] One-shot formula audit — every GST / Net Rev / Rev Share / Final Payout calculation now routes through `utils/gst.py`
+**User ask** (after the 4th formula-divergence bug this week): do an audit pass and replace any remaining private formulas with the canonical helpers.
+
+**Audit scope**: scanned every `routes/*.py`, `utils/*.py`, and `frontend/src/pages/*.jsx` for hardcoded GST/share rates (`0.05`, `0.10`, `0.15`, `0.18`), inclusive-carve denominators (`1.05`, `1.18`), and grossup multipliers (`× 1.18`, `× 1.10`).
+
+**Findings & fixes** — 5 private formulas replaced:
+
+1. **`sales_expenses.py:2541`** — daily_sales `gst_amount` write path used `eligible × 0.05` (5% on top, ₹48,439.80) instead of inclusive carve (₹46,133.14). For ₹9,68,796 eligible base this silently over-stated GST by ₹2,306 per row.
+   - Fix: route through `carve_inclusive_gst(eligible_base_from_daily_row(record), gst_rate_for(None, center))`.
+2. **`sales_expenses.py:2800`** — same bug in second write path. Fixed identically.
+3. **`sales_expenses.py:2981`** — same bug in third write path. Fixed identically.
+4. **`center_accounts.py:1398`** — Australia commission GST grossup hardcoded `× 0.10`. Now reads from `gst_rate_for("Australia", None)` so the rate is centrally managed.
+5. **`center_accounts.py::calculate_taxes()`** (lines 1212-1259) — the legacy helper had `gst = amount × 0.05` for India sales (5% on top, wrong). Now both AU and India sales branches route through `carve_inclusive_gst(amount, gst_rate_for(country, None))`. Revenue/profit-share branches unchanged (they're correctly GST-on-top, not inclusive carve).
+
+**No private formulas left in frontend** — `FranchiseOwnerDashboard.jsx`, `MISDashboard.jsx`, `CenterAccounts.jsx` all derive from `franchiseInfo` data + `isIntl` flag.
+
+**Verified end-to-end** with PB-DV April 2026 reproduction (Total Sales ₹10,32,144, Swiggy ₹63,348, Commissions ₹21,587.51):
+
+| Surface | GST | Net Revenue | Rev Share | Final Payout |
+|---|---|---|---|---|
+| PIB (truth) | ₹46,133.14 | ₹9,64,423.35 | ₹1,44,663.50 | ₹1,70,702.94 |
+| MIS Dashboard | ✓ | ✓ | (cascades) | (cascades) |
+| Center Accounts | ✓ | ✓ | (cascades) | (cascades) |
+| Owner Ledger PDF | ✓ | ✓ | ✓ | ✓ |
+
+**Single source of truth** — every GST calculation now flows through one of:
+- `utils.gst.carve_inclusive_gst(eligible, rate)` for inclusive 5%/10% carve
+- `utils.gst.compute_gst_from_rows(rows, country, center)` for batch GST from daily_sales
+- `utils.gst.compute_net_revenue(total, comm, gst, _, country)` for Net Revenue
+- `utils.gst.gst_rate_for(country, center)` for the rate constant
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, every screen + every PDF + every Excel + the daily_sales rows themselves will produce identical GST/Net Rev/Rev Share/Final Payout for the same data.
+
 ### [2026-05-09] Owner Ledger PDF — Revenue Share + GST grossup now matches PIB to the rupee
 **User report** (PB-DV April 2026 PDF screenshot): Owner Ledger shows Rev Share ₹1,45,319.40 and no 18% GST grossup, while every other surface (PIB, MIS, FO Dashboard) shows ₹1,44,663.50 + 18% GST = ₹1,70,702.94 Final Payout.
 

@@ -1210,7 +1210,13 @@ def get_country_from_center(center: dict) -> str:
     return "India"
 
 def calculate_taxes(amount: float, country: str, tax_type: str = "sales") -> dict:
-    """Calculate taxes based on country rules"""
+    """Calculate taxes based on country rules.
+
+    Routes through ``utils.gst.carve_inclusive_gst`` for sales (inclusive carve)
+    and uses share-rate constants for revenue/profit share grossup. Avoids the
+    private ``amount * 0.05`` formula that historically over-stated India sales
+    GST as 5%-on-top instead of the correct 5%-inclusive carve.
+    """
     result = {
         "base_amount": amount,
         "gst_amount": 0,
@@ -1218,27 +1224,31 @@ def calculate_taxes(amount: float, country: str, tax_type: str = "sales") -> dic
         "sgst": 0,
         "total_with_gst": amount
     }
-    
+
+    from utils.gst import carve_inclusive_gst, gst_rate_for
+
     if country == "Australia":
         if tax_type == "sales":
-            # GST is inclusive in Australia - extract GST from total
-            gst = amount * AUSTRALIA_GST_INCLUSIVE / (1 + AUSTRALIA_GST_INCLUSIVE)
-            result["gst_amount"] = round(gst, 2)
+            # AU sale is inclusive — carve GST out via canonical helper.
+            rate = gst_rate_for("Australia", None)
+            gst = carve_inclusive_gst(amount, rate)
+            result["gst_amount"] = gst
             result["base_amount"] = round(amount - gst, 2)
             result["total_with_gst"] = amount
         elif tax_type == "profit_share":
-            # Add 10% GST on profit share
-            gst = amount * AUSTRALIA_GST_ON_PROFIT_SHARE
-            result["gst_amount"] = round(gst, 2)
+            gst = round(amount * AUSTRALIA_GST_ON_PROFIT_SHARE, 2)
+            result["gst_amount"] = gst
             result["total_with_gst"] = round(amount + gst, 2)
     else:  # India
         if tax_type == "sales":
-            # 5% GST on food sales
-            gst = amount * INDIA_GST_ON_SALES
-            result["gst_amount"] = round(gst, 2)
-            result["total_with_gst"] = round(amount + gst, 2)
+            # India sale is inclusive of 5% GST — use canonical inclusive carve.
+            rate = gst_rate_for("India", None)
+            gst = carve_inclusive_gst(amount, rate)
+            result["gst_amount"] = gst
+            result["base_amount"] = round(amount - gst, 2)
+            result["total_with_gst"] = amount
         elif tax_type == "revenue_share":
-            # 18% GST (9% CGST + 9% SGST) on revenue share
+            # 18% GST (9% CGST + 9% SGST) on revenue share — canonical
             cgst = amount * INDIA_CGST
             sgst = amount * INDIA_SGST
             result["cgst"] = round(cgst, 2)
@@ -1395,7 +1405,10 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     if country == "Australia":
         # Australia: GST is inclusive in receipt; ex-GST = total − GST
         sales_ex_gst = total_sale - sales_gst_amount
-        commission_gst = total_commission * 0.10
+        # Commission GST grossup uses the canonical rate (10% for AU/intl)
+        from utils.gst import gst_rate_for
+        _au_rate = gst_rate_for(country, None)
+        commission_gst = round(total_commission * _au_rate, 2)
         total_commission_with_gst = total_commission + commission_gst
         # Net Revenue = Sales − Deductions (GST + Commissions inc commission GST). Expenses NOT here.
         net_revenue = compute_net_revenue(total_sale, total_commission, sales_gst_amount, 0, country)
