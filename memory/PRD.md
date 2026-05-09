@@ -5,6 +5,32 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] CRITICAL FIX — MIS Dashboard / Owner Dashboard GST was double-counted (numbers now match PIB)
+**User report** (with PB-DV April 2026 PIB attached): "MIS report for company and Owner dashboard show different reporting numbers — should be the same as the PIB.pdf."
+
+**Comparison** (PB-DV April 2026):
+| Metric | PIB (truth) | Old dashboard | Δ |
+|---|---|---|---|
+| GST on Sales | ₹46,133.14 | ₹55,984.74 | +₹9,851.60 ❌ |
+| Net Revenue | ₹9,64,423.35 | ₹9,54,571.75 | -₹9,851.60 ❌ |
+| Revenue Share 15% | ₹1,44,663.50 | ₹1,43,185.76 | -₹1,477 ❌ |
+| Final Payout (incl. 18% GST) | ₹1,70,702.94 | ₹1,68,959.20 | -₹1,743 ❌ |
+| Net Profit (P&L) | -₹1,50,893.65 | -₹1,60,745.25 | -₹9,851.60 ❌ |
+
+**Root cause** (`routes/mis_dashboard.py:223-227`): The "skip PIB-GST add when live data exists" check was gated on `daily_sales.gst_amount > 0`. But the new (Apr-2026) GST formula derives GST inclusive from `eligible_base = total_sale − swiggy − zomato − doordash` — it **does not need** the legacy `gst_amount` field. Centers that have daily_sales rows but with `gst_amount=0` (e.g. PB-DV) had:
+1. ✅ Live formula correctly computed ₹46,133.14
+2. ❌ Then `historical_pib.total_gst_on_revenue` (₹9,851.60) was ADDED on top — double-counting → ₹55,984.74
+
+The over-stated GST cascaded into Net Revenue, Revenue Share, Final Payout, Net Profit — explaining all 5 mismatches.
+
+**Fix**: dedupe rule changed to: a (center, month) is "covered by live data" whenever the daily_sales rows have **any eligible_base > 0** (or the legacy `gst_amount` for back-compat). For those months the PIB-imported GST is skipped.
+
+**Verified end-to-end** with a synthetic reproduction of the exact PB-DV scenario (Sales ₹10,32,144, Swiggy ₹63,348, PIB GST ₹9,851.60):
+- Old: total_gst = ₹55,984.74 ❌ → New: total_gst = **₹46,133.14** ✓
+- Net Revenue, Revenue Share, Final Payout all flow through correctly.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, the MIS Dashboard, MIS Franchise PDF, and Franchise Owner Dashboard (incl. the Final Payout KPI card) will all match the PIB to the rupee.
+
 ### [2026-05-09] Franchise Owner Dashboard — new "Final Payout (incl. 18% GST)" KPI card
 **User ask**: surface the gross-of-GST invoiceable amount as its own KPI on the dashboard, right next to Revenue Share, so owners and CA catch any MG-trigger month at a glance — no PDF download needed.
 

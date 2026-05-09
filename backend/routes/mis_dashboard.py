@@ -220,11 +220,24 @@ async def get_mis_overview(data: dict):
         if center and center != "all":
             _pq["center"] = center
         pib_rows = await db.historical_pib.find(_pq, {"_id": 0}).to_list(1000)
-        # Live GST per (center, month): don't add PIB where live gst already exists
+        # Live-data dedupe: a month is "covered by live data" whenever the
+        # daily_sales rows for that (center, month) have ANY eligible base —
+        # because compute_gst_from_rows() already carved 5%/10% inclusive GST
+        # out of those rows. The legacy `gst_amount > 0` check missed this,
+        # which double-counted GST for centers that don't manually store
+        # gst_amount on each row (e.g. PB-DV April 2026: live formula = ₹46,133
+        # AND historical_pib added another ₹9,851 → ₹55,984 wrong total).
         live_gst_months: set = set()
         for s in sales_data:
-            if float(s.get("gst_amount", 0) or 0) > 0:
-                live_gst_months.add((s.get("center", ""), (s.get("date") or "")[:7]))
+            cm = (s.get("center", ""), (s.get("date") or "")[:7])
+            base = (
+                float(s.get("total_sale", 0) or 0)
+                - float(s.get("swiggy_sale", s.get("swiggy", 0)) or 0)
+                - float(s.get("zomato_sale", s.get("zomato", 0)) or 0)
+                - float(s.get("doordash_sale", s.get("doordash", 0)) or 0)
+            )
+            if base > 0 or float(s.get("gst_amount", 0) or 0) > 0:
+                live_gst_months.add(cm)
         pib_gst_add = 0.0
         pib_gst_by_center: dict = {}
         for p in pib_rows:
