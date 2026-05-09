@@ -5,6 +5,25 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] One-shot DB recompute script — `daily_sales.gst_amount` aligned with canonical inclusive carve
+**Why**: yesterday's audit fixed the 5 *write paths* that were storing GST as 5%-on-top instead of inclusive carve. But every historical row in `daily_sales` still has the old (wrong) value stored in `gst_amount`. Dashboards compute GST on the fly so they already show the right number — but anything that reads the stored field directly (a future report, an export, a downstream consumer) gets the wrong figure.
+
+**Script**: `backend/scripts/recompute_gst_amount.py`
+- For every `daily_sales` row, computes canonical GST via `carve_inclusive_gst(eligible_base_from_daily_row(row), gst_rate_for(country, center))`.
+- Compares to stored `gst_amount`. Updates only when they diverge by more than ₹0.01.
+- Stamps `_gst_amount_legacy` (original value) + `_gst_recomputed_at` (timestamp) on each updated row → fully reversible.
+- **DRY-RUN by default**. Pass `--apply` to commit. Idempotent — safe to re-run.
+
+**Verified on preview**: 2,210 rows scanned, 3 diverged (₹0.77 total drift), all corrected. Re-run found 0 diverged → idempotent confirmed.
+
+**Production rollout**: Requires shell access to the production container after deploying the latest code.
+```
+cd /app/backend && python scripts/recompute_gst_amount.py            # dry-run
+cd /app/backend && python scripts/recompute_gst_amount.py --apply    # commit
+```
+
+If shell access isn't available, I can wire this up as an admin-only API endpoint on request.
+
 ### [2026-05-09] One-shot formula audit — every GST / Net Rev / Rev Share / Final Payout calculation now routes through `utils/gst.py`
 **User ask** (after the 4th formula-divergence bug this week): do an audit pass and replace any remaining private formulas with the canonical helpers.
 
