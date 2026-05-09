@@ -5,6 +5,31 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] Owner Ledger PDF — Revenue Share + GST grossup now matches PIB to the rupee
+**User report** (PB-DV April 2026 PDF screenshot): Owner Ledger shows Rev Share ₹1,45,319.40 and no 18% GST grossup, while every other surface (PIB, MIS, FO Dashboard) shows ₹1,44,663.50 + 18% GST = ₹1,70,702.94 Final Payout.
+
+**Root cause** (`routes/ledgers.py::build_franchise_owner_ledger`): same formula-divergence pattern we've seen 3 times now:
+- It used its own private formula `(Total − Aggregator) × rev_pct` without subtracting GST or commissions.
+- Field-name bug carried over (read `swiggy` instead of `swiggy_sale`).
+- The 18% GST grossup row was missing from the running ledger entries — so the running balance never reflected the gross-of-tax invoiceable amount.
+
+**Fix** — three changes, all targeting parity with the canonical formula:
+1. Replaced the inline calculation with `utils.gst.compute_net_revenue(total_sale, comm_total, gst_amount, 0, country)` — the same helper PIB / MIS / Center Accounts already use.
+2. GST is computed via `compute_gst_from_rows(...)` (single source of truth) — same inclusive 5%/10% on eligible base.
+3. Added a new ledger row **"GST on Revenue Share @ 18%"** that posts the grossup amount immediately after the Revenue Share debit, so the running balance now mirrors the Final Payout block at the bottom of the PDF.
+
+**Verified end-to-end** (synthetic PB-DV April 2026 reproduction):
+
+| Row | Old | New | PIB (truth) |
+|---|---|---|---|
+| Revenue Share payable (15%) | ₹1,45,319.40 ❌ | **₹1,44,663.50** ✓ | ₹1,44,663.50 |
+| GST on Revenue Share @ 18% | (missing) | **₹26,039.43** ✓ | ₹26,039.43 |
+| Total Final Payout (incl. 18% GST) | (missing in running ledger) | **₹1,70,702.94** ✓ | ₹1,70,702.94 |
+
+The "Final Payout (Payout × GST)" summary table at the bottom of the PDF (added earlier) was already correct; now the running ledger entries above it match it row-for-row, and both equal what the dashboards show.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, regenerate the PB-DV Owner Ledger PDF for April 2026 — every line matches the PIB.
+
 ### [2026-05-09] Loan totals now match Loan Entries page across Center Accounts, MIS Dashboard & FO Dashboard
 **User report** (production screenshots, PB-DV): Center Accounts shows Loans Given = ₹100, while the actual Loan Entries page shows ₹26,39,617 outstanding ₹22,99,517. Same divergence on MIS Dashboard. Asked: loan numbers must come from the Loan feature; same on every screen.
 

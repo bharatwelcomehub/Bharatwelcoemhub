@@ -498,6 +498,7 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
     rows: List[dict] = []
     # Resolve franchise: centers.franchise_code → franchises.franchise_code
     center_doc = await db.centers.find_one({"code": center}, {"_id": 0})
+    country = (center_doc.get("country") if center_doc else None) or "India"
     franchise = None
     if center_doc and center_doc.get("franchise_code"):
         franchise = await db.franchises.find_one({"franchise_code": center_doc["franchise_code"]}, {"_id": 0})
@@ -518,16 +519,29 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
     for m in sorted(months):
         st, en = _month_range(m)
         sales = await _get_daily_sales(center, st, en)
-        # Eligible sales = Total - Swiggy - Zomato - DoorDash
-        eligible = sum((s.get("total_sale") or 0) - (s.get("swiggy") or 0) - (s.get("zomato") or 0) - (s.get("doordash") or 0) for s in sales)
-        rev_share = round(eligible * rev_pct / 100, 2)
+
+        # ── Use the SAME formula as PIB / MIS Dashboard / Center Accounts ──
+        # Single source of truth = utils.gst.compute_net_revenue:
+        #   India     : Net Rev = Total Sale − Commissions − GST
+        #   Outside-IN: Net Rev = Total Sale − GST − Commissions × (1 + rate)
+        # Revenue Share = Net Revenue × rev_pct%
+        from utils.gst import compute_gst_from_rows, compute_net_revenue
+        total_sales = sum((s.get("total_sale") or 0) for s in sales)
+        gst_calc = compute_gst_from_rows(sales, country=country, center=center)
+        gst_amount = float(gst_calc.get("gst_amount") or 0)
+
+        comms = await _get_commissions(center, [m])
+        comm_total = sum(
+            (float(c.get("gst_tax_deductions") or 0) + float(c.get("other_deductions") or 0))
+            or float(c.get("commission_amount") or 0)
+            for c in comms
+        )
+
+        net_revenue = max(0.0, compute_net_revenue(total_sales, comm_total, gst_amount, 0, country))
+        rev_share = round(net_revenue * rev_pct / 100, 2)
         mg_delta = max(0, mg - rev_share)  # HQ owes franchisee extra if rev_share < MG
         total_rev_share += rev_share
         total_mg_topup += mg_delta
-
-        # Commissions (debit to franchise — commission flows to platforms)
-        comms = await _get_commissions(center, [m])
-        comm_total = sum((float(c.get("gst_tax_deductions") or 0) + float(c.get("other_deductions") or 0)) or float(c.get("commission_amount") or 0) for c in comms)
 
         # Loans taken / given / repayments in this month
         loans = await _get_loan_entries(center, [m])
@@ -557,8 +571,20 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         if is_first_month:
             entries.append(("Opening Balance (HQ ↔ Franchise)", 0, 0, running, True))
             is_first_month = False
+        # GST grossup on Revenue Share — what the franchise actually invoices
+        # (Final Payout = Rev Share × 1.18 for India, ×1.10 for Australia).
+        # This makes the running balance match the Final Payout block in the
+        # PDF and what every other dashboard shows. Skipped when MG > Rev Share
+        # because in that case MG (a fixed sum, no GST grossup on top) is paid.
+        if (country or "India").lower() == "india":
+            share_gst_rate = 18.0
+        else:
+            share_gst_rate = 10.0
+        share_gst_amount = round(rev_share * share_gst_rate / 100, 2) if rev_share else 0.0
+
         entries += [
             (f"{m} — Revenue Share payable ({rev_pct}%)", rev_share, 0, None, False) if rev_share else None,
+            (f"{m} — GST on Revenue Share @ {share_gst_rate:.0f}%", share_gst_amount, 0, None, False) if share_gst_amount else None,
             (f"{m} — MG top-up (HQ → Franchise)", 0, mg_delta, None, False) if mg_delta else None,
             (f"{m} — Commissions charged", comm_total, 0, None, False) if comm_total else None,
             (f"{m} — Loan taken from HQ", 0, loan_taken, None, False) if loan_taken else None,
