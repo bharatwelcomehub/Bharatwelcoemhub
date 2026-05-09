@@ -234,13 +234,22 @@ async def get_other_income_summary(center: str, month: Optional[str] = None) -> 
 
 
 async def get_loans_given_summary(center: str, month: Optional[str] = None) -> dict:
-    """Used by PIB to render the 'Loan Given to Other Center' memo (no destination name)."""
+    """Used by PIB / dashboards to render the 'Loan Given to Other Center'
+    memo (no destination name).
+
+    Loans are balance-sheet items (cumulative ledger), NOT period flows. So
+    the optional ``month`` argument is interpreted as **"include all loans
+    given on or before the last day of this month"** — the same lifetime view
+    the Loan Entries page shows. This guarantees Center Accounts, MIS
+    Dashboard, Franchise Owner Dashboard and the Loan Entries page all show
+    the same Loans Given total / outstanding for any given period.
+    """
     if db is None:
         return {"total": 0, "count": 0, "rows": [], "outstanding": 0, "repaid": 0}
     query = {"center": {"$regex": f"^{center}$", "$options": "i"}, "loan_type": "given"}
     if month:
-        # loan_date format YYYY-MM-DD
-        query["loan_date"] = {"$regex": f"^{month}-"}
+        # cumulative — every loan given on or before YYYY-MM-31
+        query["loan_date"] = {"$lte": f"{month}-31"}
     loans = await db.loan_entries.find(query, {"_id": 0}).to_list(2000)
     total = round(sum(float(le.get("amount", 0) or 0) for le in loans), 2)
     repaid_total = round(sum(float(le.get("total_repaid", 0) or 0) for le in loans), 2)
@@ -265,14 +274,21 @@ async def get_loans_given_summary(center: str, month: Optional[str] = None) -> d
 
 
 async def get_loans_taken_summary(center: str, month: Optional[str] = None) -> dict:
-    """Used by PIB to render the 'Loan Taken' memo for the borrower center.
-    Includes source center name and outstanding/repaid status.
+    """Used by PIB / dashboards to render the 'Loan Taken' memo for the
+    borrower center. Includes source center name and outstanding/repaid
+    status.
+
+    Same cumulative-up-to-month semantics as ``get_loans_given_summary`` —
+    loans are balance-sheet items, not period flows, so the ``month`` arg
+    means "include every loan taken on or before YYYY-MM-31". This keeps
+    the Loan Entries page, Center Accounts, MIS Dashboard, FO Dashboard and
+    PIB all showing the same Loans Taken total / outstanding.
     """
     if db is None:
         return {"total": 0, "count": 0, "rows": [], "outstanding": 0, "repaid": 0}
     query = {"center": {"$regex": f"^{center}$", "$options": "i"}, "loan_type": "taken"}
     if month:
-        query["loan_date"] = {"$regex": f"^{month}-"}
+        query["loan_date"] = {"$lte": f"{month}-31"}
     loans = await db.loan_entries.find(query, {"_id": 0}).to_list(2000)
     total = round(sum(float(le.get("amount", 0) or 0) for le in loans), 2)
     repaid_total = round(sum(float(le.get("total_repaid", 0) or 0) for le in loans), 2)

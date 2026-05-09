@@ -5,6 +5,28 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-09] Loan totals now match Loan Entries page across Center Accounts, MIS Dashboard & FO Dashboard
+**User report** (production screenshots, PB-DV): Center Accounts shows Loans Given = ₹100, while the actual Loan Entries page shows ₹26,39,617 outstanding ₹22,99,517. Same divergence on MIS Dashboard. Asked: loan numbers must come from the Loan feature; same on every screen.
+
+**Root cause** (`routes/other_income.py`):
+- `get_loans_given_summary(center, month)` and `get_loans_taken_summary(center, month)` filtered loans to **only those CREATED in that month** (`loan_date.startswith(month)`).
+- When the user selected April 2026 on the dashboard, the only April loan was ₹100 (the rest were given Jan–Mar) → dashboards showed ₹100 while Loan Entries page (lifetime) correctly showed ₹26,39,617.
+- Loans are balance-sheet items (cumulative ledger), not period flows — the month filter was semantically wrong.
+
+**Fix**: changed both functions to **cumulative-up-to-month** semantics — `loan_date <= "{month}-31"`. Now any loan created on or before the end of the selected period is included, exactly matching what the Loan Entries page (lifetime) shows when end-of-period = today.
+
+**Verified end-to-end** with synthetic PB-HSR scenario (14 historical loans Jan–Mar totalling ₹26,39,517 + 1 April loan ₹100):
+
+| Surface | Loans Given Total | Outstanding |
+|---|---|---|
+| Loan Entries page | ₹26,39,618.00 | ₹23,39,518.00 |
+| MIS Dashboard (Apr 2026) | ₹26,39,618.00 ✓ | ₹23,39,518.00 ✓ |
+| Center Accounts (Apr 2026) | ₹26,39,618.00 ✓ | ₹23,39,518.00 ✓ |
+
+Verified semantics also work for older periods — selecting Jan 2026 correctly shows only the 1 loan from Jan; Feb shows 2; Mar/Apr show all 14 (cumulative). Other Income (a true period flow) unaffected.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy: Center Accounts page, MIS Dashboard "Cash Inflows" card, and Franchise Owner Dashboard will all show the **same** Loans Taken / Loans Given / Outstanding numbers as the Loan Entries page.
+
 ### [2026-05-09] CRITICAL FIX — TWO more bugs in MIS Dashboard / FO Dashboard GST (now byte-identical to GST Summary report)
 **User report** (production screenshots, PB-DV April 2026): GST Summary report correctly shows ₹46,133.14, but the MIS Dashboard and Franchise Owner Dashboard both show ₹55,984.74.
 
