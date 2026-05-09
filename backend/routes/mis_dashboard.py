@@ -2046,33 +2046,36 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
     elements.append(t)
     elements.append(Spacer(1, 10))
 
-    # ── FINAL PAYOUT (Revenue Share + GST) ──
-    # Mirrors the new "8B. FINAL PAYOUT" block on the PIB so the gross-of-tax
-    # figure stays consistent across PIB, MIS Franchise PDF and Owner Ledger.
-    # India: CGST 9% + SGST 9% = 18%. Australia: GST 10%. Skipped if intl
-    # without GST or revenue_share = 0.
-    if revenue_share_amount and revenue_share_amount > 0:
+    # ── FINAL PAYOUT (Payout × GST) ──
+    # Payout = MAX(Revenue Share, Monthly Guarantee). GST is then applied on
+    # that payout amount, NOT on the bare revenue share. Mirrors the new "8B.
+    # FINAL PAYOUT" block on the PIB so the gross-of-tax figure stays
+    # consistent across PIB, MIS Franchise PDF and Owner Ledger.
+    monthly_guarantee = float(franchise_info.get("monthly_guarantee", 0) or 0)
+    payout_base = max(revenue_share_amount or 0, monthly_guarantee)
+    if payout_base > 0:
+        is_mg_payout = monthly_guarantee > (revenue_share_amount or 0)
         if is_intl:
             share_gst_rate = 10.0
             payout_rows = [
                 [Paragraph("<b>Description</b>", normal_style), Paragraph("<b>Amount</b>", normal_style)],
-                ["Profit Share Payable", fmt(revenue_share_amount)],
-                [f"Add: GST @ {share_gst_rate:.0f}%", fmt(revenue_share_amount * share_gst_rate / 100)],
+                [f"{'Monthly Guarantee (paid — higher than Profit Share)' if is_mg_payout else 'Profit Share Payable'}", fmt(payout_base)],
+                [f"Add: GST @ {share_gst_rate:.0f}%", fmt(payout_base * share_gst_rate / 100)],
                 [f"Total Final Payout (incl. {share_gst_rate:.0f}% GST)",
-                 fmt(revenue_share_amount * (1 + share_gst_rate / 100))],
+                 fmt(payout_base * (1 + share_gst_rate / 100))],
             ]
         else:
             half = 9.0
-            cgst = revenue_share_amount * half / 100
-            sgst = revenue_share_amount * half / 100
+            cgst = payout_base * half / 100
+            sgst = payout_base * half / 100
             payout_rows = [
                 [Paragraph("<b>Description</b>", normal_style), Paragraph("<b>Amount</b>", normal_style)],
-                ["Revenue Share Payable", fmt(revenue_share_amount)],
+                [f"{'Monthly Guarantee (paid — higher than Revenue Share)' if is_mg_payout else 'Revenue Share Payable'}", fmt(payout_base)],
                 [f"Add: CGST @ {half:.0f}%", fmt(cgst)],
                 [f"Add: SGST @ {half:.0f}%", fmt(sgst)],
-                ["Total Final Payout (incl. 18% GST)", fmt(revenue_share_amount + cgst + sgst)],
+                ["Total Final Payout (incl. 18% GST)", fmt(payout_base + cgst + sgst)],
             ]
-        elements.append(Paragraph("Final Payout (Revenue Share + GST)", section_style))
+        elements.append(Paragraph("Final Payout (Payout × GST)", section_style))
         pt = Table(payout_rows, colWidths=[280, 180])
         pt.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
@@ -2092,7 +2095,7 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
         elements.append(pt)
         elements.append(Spacer(1, 4))
         elements.append(Paragraph(
-            "<i>This is the gross-of-tax amount to be invoiced / paid to the Franchise Owner.</i>",
+            "<i>Payout = MAX(Revenue Share, Monthly Guarantee). GST is computed on this payout amount.</i>",
             small_style))
         elements.append(Spacer(1, 10))
 

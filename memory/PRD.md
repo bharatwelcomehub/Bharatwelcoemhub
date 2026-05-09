@@ -5,6 +5,23 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-07] Final Payout — payout base now correctly = MAX(Revenue Share, MG); GST applied on that
+**User correction**: The 18% GST should be calculated on whichever of Revenue Share or Monthly Guarantee is higher (= the actual payout), NOT on the bare revenue share.
+
+**Fix**:
+- **Owner Ledger PDF** (`routes/ledgers.py`): now adds `total_rev_share + total_mg_topup` per period (= MAX(rev_share, MG) per month, summed) and applies CGST 9% + SGST 9% on that base. When MG > Rev Share the section header reads e.g. "Payout for 2025-08 (MG ₹279,127.85 + Rev Share ₹220,872.15)".
+- **MIS Franchise PDF** (`routes/mis_dashboard.py::_build_franchise_pdf`): now reads `monthly_guarantee` from `franchise_info`, computes `payout_base = max(revenue_share_amount, monthly_guarantee)`, and labels the row "Monthly Guarantee (paid — higher than Revenue Share)" or "Revenue Share Payable" accordingly. Footnote updated to *"Payout = MAX(Revenue Share, Monthly Guarantee). GST is computed on this payout amount."*
+- **PIB PDF Section 8B** (`utils/pdf_generator.py`): already used `payout.amount` (the resolved payout), but the row label said "Revenue Share Payable" even when MG won. Now flips to "Monthly Guarantee Payout (MG > Rev Share)" when `mg_amount > revenue_share_amount` and the payout matches MG — consistent labelling across all three docs.
+
+**Verified live on PB-HSR Aug 2025 with MG=₹500,000, Rev Share=₹220,872.15**:
+- Payout base = ₹500,000 (MG wins) ✓
+- CGST 9% = ₹45,000 ✓ · SGST 9% = ₹45,000
+- **Final Payout (incl. 18% GST) = ₹590,000** (= 500,000 × 1.18 ✓)
+
+The number now matches across PIB Section 8B, MIS Franchise PDF, and Owner Ledger PDF. CFO signature footer renders correctly. Lint clean (only pre-existing warnings).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, all three reports use the same payout base (MAX of MG / Rev Share) for the GST calculation — invoiceable amount stays consistent end-to-end.
+
 ### [2026-05-07] Final Payout (Revenue Share + GST) rolled into MIS Franchise PDF & Owner Ledger PDF
 **User ask**: keep the gross-of-GST number consistent across the three documents the Franchise Owner sees — already shipped on the PIB (Section 8B); now add the same block to the MIS Franchise PDF and the Owner Ledger PDF.
 

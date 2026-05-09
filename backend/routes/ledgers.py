@@ -993,27 +993,39 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
                                                     ["Closing Balance", _inr(data.get("closing_balance", 0))]]))
 
             # Final Payout block — mirrors PIB Section 8B & MIS Franchise PDF.
-            # Combines Revenue Share + GST so the gross-of-tax invoiceable
-            # amount stays consistent across all 3 reports the owner sees.
+            # Payout base = Revenue Share + MG top-up = MAX(rev_share, MG) per
+            # month, then summed across the period. GST is applied on that
+            # payout, NOT on the bare revenue share. Skip silently when the
+            # franchise has no payout (no revenue share AND no MG top-up).
             total_rs = float(data.get("total_rev_share") or 0)
-            if total_rs > 0:
+            total_mg = float(data.get("total_mg_topup") or 0)
+            payout_base = total_rs + total_mg
+            if payout_base > 0:
                 if (country or "India").lower() == "india":
-                    cgst = round(total_rs * 9 / 100, 2)
-                    sgst = round(total_rs * 9 / 100, 2)
-                    sections.append(("Final Payout (Revenue Share + GST)", [
+                    cgst = round(payout_base * 9 / 100, 2)
+                    sgst = round(payout_base * 9 / 100, 2)
+                    payout_label = (f"Payout for {label} "
+                                    f"(MG ₹{total_mg:,.2f} + Rev Share ₹{total_rs:,.2f})"
+                                    if total_mg > 0 else
+                                    f"Revenue Share Payable for {label}")
+                    sections.append(("Final Payout (Payout × GST)", [
                         ["Description", "Amount"],
-                        [f"Revenue Share Payable for {label}", _inr(total_rs)],
+                        [payout_label, _inr(payout_base)],
                         ["Add: CGST @ 9%", _inr(cgst)],
                         ["Add: SGST @ 9%", _inr(sgst)],
-                        ["Total Final Payout (incl. 18% GST)", _inr(round(total_rs + cgst + sgst, 2))],
+                        ["Total Final Payout (incl. 18% GST)", _inr(round(payout_base + cgst + sgst, 2))],
                     ]))
                 else:
-                    gst_amt = round(total_rs * 10 / 100, 2)
-                    sections.append(("Final Payout (Profit Share + GST)", [
+                    gst_amt = round(payout_base * 10 / 100, 2)
+                    payout_label = (f"Payout for {label} "
+                                    f"(MG ${total_mg:,.2f} + Profit Share ${total_rs:,.2f})"
+                                    if total_mg > 0 else
+                                    f"Profit Share Payable for {label}")
+                    sections.append(("Final Payout (Payout × GST)", [
                         ["Description", "Amount"],
-                        [f"Profit Share Payable for {label}", _inr(total_rs)],
+                        [payout_label, _inr(payout_base)],
                         ["Add: GST @ 10%", _inr(gst_amt)],
-                        ["Total Final Payout (incl. 10% GST)", _inr(round(total_rs + gst_amt, 2))],
+                        ["Total Final Payout (incl. 10% GST)", _inr(round(payout_base + gst_amt, 2))],
                     ]))
         else:
             sections = [("Data", [[str(data)]])]

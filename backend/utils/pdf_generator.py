@@ -695,9 +695,16 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                     total_gst = round(cgst + sgst, 2)
                     final_total = round(payable_amount + total_gst, 2)
                     final_label = "Total Final Payout (incl. 18% GST)"
+                    # Label the base row honestly: if MG > Rev Share, the
+                    # payout reflects MG, not the bare revenue share.
+                    mg_amount = float(payout.get("mg_amount") or 0)
+                    rev_amount = float(payout.get("revenue_share_amount") or 0)
+                    base_label = ("Monthly Guarantee Payout (MG > Rev Share)"
+                                  if mg_amount > rev_amount and abs(payable_amount - mg_amount) < 0.01
+                                  else "Revenue Share Payable")
                     final_data = [
                         ["Description", "Amount"],
-                        ["Revenue Share Payable",        f"{currency} {payable_amount:,.2f}"],
+                        [base_label,                     f"{currency} {payable_amount:,.2f}"],
                         [f"Add: CGST @ {half:.0f}%",     f"{currency} {cgst:,.2f}"],
                         [f"Add: SGST @ {half:.0f}%",     f"{currency} {sgst:,.2f}"],
                         [final_label,                    f"{currency} {final_total:,.2f}"],
