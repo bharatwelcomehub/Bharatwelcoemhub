@@ -5,6 +5,32 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] Franchise document center auto-tagging + Ledgers visible without report load
+**User reports** (production):
+1. Documents uploaded from Franchise Management got tagged with the uploader's center (`PB-MGT`) instead of the franchise's actual operating center (e.g. `PB-DV` for FR-004 Dombivli) → invisible on the Document Management page when filtered by the operating center.
+2. Ledgers section under Franchise Reports wasn't visible (it required a successful report load first; on production the report wasn't loading for any center).
+
+**Backend** (`routes/documents.py`):
+- `/documents/upload` now auto-resolves the correct center for `level=franchise` uploads via the `centers.franchise_code` link (picks first non-MGT center attached to the franchise). Even if a buggy frontend sends the wrong `center`, the doc gets tagged correctly.
+- Verified: uploading with `center=PB-MGT, franchise_code=FR-TEST-INDIA` correctly stores `center=PB-HSR` in the DB.
+
+**Frontend** (`pages/FranchiseManagement.jsx`):
+- Document upload now also computes the franchise center on the client side from `selectedFranchise.center_code/home_center/centers[0]` so the form displays the right center pre-flight.
+
+**Migration** (`scripts/fix_franchise_doc_centers.py`):
+- One-shot script to retro-fix already-tagged documents in production. Dry-run by default; pass `--apply` to commit. Uses centers→franchise reverse-lookup, picks first non-MGT center.
+- Preview DB has 0 mis-tagged docs (verified). Production user will run on production after deploy.
+
+**Frontend Ledgers placement** (`pages/OwnerReports.jsx`):
+- Moved the embedded `<LedgersTab>` OUTSIDE the `{report && ...}` conditional, so the full Ledgers UI (Sales Register / Expense / Cash Book / Bank Book / Commission / Loans / Payroll / GST / P&L / Owner + CA Bundle ZIP) renders as soon as a center is selected — independent of whether the monthly summary loads.
+- Verified via screenshot: PB-HSR selected (no Load Report click) → Ledgers section visible with all controls.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, run on production:
+```bash
+python /app/backend/scripts/fix_franchise_doc_centers.py            # dry-run to see what'll change
+python /app/backend/scripts/fix_franchise_doc_centers.py --apply    # commit
+```
+
 ### [2026-05-10] Canonical commission helper + Ledgers section in Owner Reports
 **User mandate**: "Calculate ONCE and display from same database. ALL MIS dashboards, MG, Revenue, P/L should look the same everywhere." Plus: add Ledgers section to Franchise Reports, gated until Accounts releases the month.
 
