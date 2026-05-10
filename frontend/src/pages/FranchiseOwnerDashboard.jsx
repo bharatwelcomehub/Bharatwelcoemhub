@@ -234,7 +234,11 @@ export default function FranchiseOwnerDashboard() {
         api.post("/mis/overview", params).catch(() => ({ data: {} })),
         api.post("/mis/sales-trends", { ...params, group_by: "daily" }).catch(() => ({ data: { trends: [] } })),
         api.post("/mis/expense-analysis", params).catch(() => ({ data: {} })),
-        api.post("/mis/working-capital", { token: session.token, center }).catch(() => ({ data: {} })),
+        // Working Capital MUST use the SAME period as the rest of the dashboard
+        // so the WC card matches MIS Dashboard / Center Accounts for the same
+        // month. Previously this passed only {token, center} so it always
+        // returned the current real-time month, drifting from the others.
+        api.post("/mis/working-capital", params).catch(() => ({ data: {} })),
       ]);
 
       setOverview(ovRes.data);

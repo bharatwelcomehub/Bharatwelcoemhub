@@ -33,6 +33,27 @@ def login() -> str:
     return r.json()["token"]
 
 
+def fetch_wc_table(token: str, center: str) -> Dict[str, Any]:
+    r = requests.post(f"{API}/api/center-accounts/wc-table",
+                      json={"token": token, "center": center})
+    r.raise_for_status()
+    return r.json()
+
+
+def fetch_working_capital(token: str, center: str, month: str) -> Dict[str, Any]:
+    from datetime import date
+    import calendar
+    y, mo = map(int, month.split("-"))
+    last = calendar.monthrange(y, mo)[1]
+    r = requests.post(f"{API}/api/mis/working-capital", json={
+        "token": token, "period": "custom", "center": center,
+        "custom_start": f"{y:04d}-{mo:02d}-01",
+        "custom_end": f"{y:04d}-{mo:02d}-{last:02d}",
+    })
+    r.raise_for_status()
+    return r.json()
+
+
 def fetch_owner_report(token: str, center: str, month: str) -> Dict[str, Any]:
     r = requests.post(f"{API}/api/owner-reports/monthly-report",
                       json={"token": token, "center": center, "month": month})
@@ -91,6 +112,8 @@ def audit(center: str, month: str) -> int:
     ca = fetch_center_accounts(token, center, month)
     mis = fetch_mis_overview(token, center, month)
     payout = fetch_payout_summary(token, center, month)
+    wc_mis = fetch_working_capital(token, center, month)
+    wc_table = fetch_wc_table(token, center)
 
     # Extract numbers (defensive — schemas evolved over time)
     owner_sales = f(owner.get("sales", {}).get("total"))
@@ -149,6 +172,31 @@ def audit(center: str, month: str) -> int:
         ("Eligible Rev Share Base", [("Owner Reports", owner_elig),
                                      ("Net Revenue ↑", owner_net_rev)]),
     ]
+
+    # Working Capital — must match across Center Accounts WC card, MIS Dashboard
+    # WC KPI, FO Dashboard WC card (uses /mis/working-capital with same month),
+    # and the final row of the WC Breakdown table.
+    ca_wc = ca.get("working_capital_status", {}) or {}
+    ca_current_wc = f(ca_wc.get("current_wc"))
+    mis_avail_wc = f(wc_mis.get("available_working_capital"))
+    mis_center_wc = f(((wc_mis.get("centers") or [{}])[0]).get("current_wc"))
+    rows_wc = wc_table.get("rows") or []
+    target_row = None
+    for r_ in reversed(rows_wc):
+        if r_.get("month") <= month:
+            target_row = r_
+            break
+    # Only include WC Breakdown if a row exists for this month (skip when the
+    # center is a management/non-franchise center where the breakdown table is
+    # empty by design).
+    wc_metrics = [
+        ("Center Accounts card", ca_current_wc),
+        ("MIS WC endpoint", mis_avail_wc),
+        ("MIS WC centers[0]", mis_center_wc),
+    ]
+    if target_row is not None:
+        wc_metrics.append(("WC Breakdown table", f(target_row.get("balance_wc"))))
+    rows.append(("Working Capital (closing)", wc_metrics))
 
     failures = 0
     for metric, values in rows:
