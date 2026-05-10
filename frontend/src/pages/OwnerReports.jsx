@@ -390,7 +390,7 @@ export default function OwnerReports() {
           </Card>
 
           {/* Top row — key metrics */}
-          <div className={`grid grid-cols-2 ${report.country === 'Australia' ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4`} data-testid="or-kpi-cards">
+          <div className={`grid grid-cols-2 ${report.country === 'Australia' ? 'md:grid-cols-6' : 'md:grid-cols-6'} gap-4`} data-testid="or-kpi-cards">
             <Card><CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Sales</p>
               <p className="text-xl font-bold">{fmtINR(report.sales.total)}</p>
@@ -406,13 +406,28 @@ export default function OwnerReports() {
               <p className="text-xl font-bold">{fmtINR(report.gst.gst_amount)}</p>
               <p className="text-[10px] text-muted-foreground mt-1">Base: {fmtINR(report.gst.eligible_base)} · {report.gst.liability_paid ? <Badge className="bg-green-100 text-green-700 border-green-300 ml-1">Paid</Badge> : <Badge className="bg-amber-100 text-amber-700 border-amber-300 ml-1">Payable</Badge>}</p>
             </CardContent></Card>
-            <Card><CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">{report.country === 'Australia' ? 'Net Revenue' : 'Net P/L'}</p>
-              <p className={`text-xl font-bold ${report.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {report.pnl >= 0 ? <TrendingUp className="inline w-4 h-4 mr-1" /> : <TrendingDown className="inline w-4 h-4 mr-1" />}
-                {fmtINR(report.pnl)}
+            <Card data-testid="or-net-revenue-card"><CardContent className="p-4">
+              <p className="text-xs text-muted-foreground">{report.country === 'Australia' ? 'Net Revenue' : 'Net Revenue'}</p>
+              <p className={`text-xl font-bold ${(report.net_revenue ?? report.pnl) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {(report.net_revenue ?? report.pnl) >= 0 ? <TrendingUp className="inline w-4 h-4 mr-1" /> : <TrendingDown className="inline w-4 h-4 mr-1" />}
+                {fmtINR(report.net_revenue ?? report.pnl)}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">Sales − Comm − GST</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Sales − Comm (incl. GST) − GST</p>
+            </CardContent></Card>
+            <Card data-testid="or-eligible-rev-share-card"><CardContent className="p-4">
+              <p className="text-xs text-indigo-700">Eligible Rev Share Base</p>
+              <p className={`text-xl font-bold ${(report.eligible_rev_share_base ?? 0) >= 0 ? 'text-indigo-700' : 'text-red-600'}`}>
+                {fmtINR(report.eligible_rev_share_base ?? 0)}
+              </p>
+              <p className="text-[10px] text-indigo-700 mt-1">Sales − Comm − Comm GST − GST</p>
+            </CardContent></Card>
+            <Card data-testid="or-net-pl-card"><CardContent className="p-4">
+              <p className="text-xs text-muted-foreground">Net P/L</p>
+              <p className={`text-xl font-bold ${(report.net_pl ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {(report.net_pl ?? 0) >= 0 ? <TrendingUp className="inline w-4 h-4 mr-1" /> : <TrendingDown className="inline w-4 h-4 mr-1" />}
+                {fmtINR(report.net_pl ?? 0)}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1">Net Revenue − Expenses</p>
             </CardContent></Card>
             {report.country === 'Australia' && (
               <Card data-testid="or-profitability-card"><CardContent className="p-4">

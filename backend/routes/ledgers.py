@@ -516,6 +516,11 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
     is_first_month = True
     total_rev_share = 0.0  # accumulated for Final Payout block
     total_mg_topup = 0.0
+    # Accumulators for the "Eligible Rev Share Base" breakout in the PDF.
+    period_total_sales = 0.0
+    period_total_commission_base = 0.0  # commission excl. commission GST
+    period_total_commission_gst = 0.0
+    period_total_gst_on_sales = 0.0
     for m in sorted(months):
         st, en = _month_range(m)
         sales = await _get_daily_sales(center, st, en)
@@ -536,6 +541,13 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
             or float(c.get("commission_amount") or 0)
             for c in comms
         )
+        # Track commission GST separately so the PDF can show the explicit
+        # "Eligible Rev Share Base = Sales − Comm − Comm GST − GST" breakout.
+        comm_gst_only = sum(float(c.get("gst_tax_deductions") or 0) for c in comms)
+        period_total_sales += float(total_sales or 0)
+        period_total_commission_base += float(comm_total) - float(comm_gst_only)
+        period_total_commission_gst += float(comm_gst_only)
+        period_total_gst_on_sales += float(gst_amount or 0)
 
         net_revenue = max(0.0, compute_net_revenue(total_sales, comm_total, gst_amount, 0, country))
         rev_share = round(net_revenue * rev_pct / 100, 2)
@@ -618,6 +630,19 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         "closing_balance": running,
         "total_rev_share": round(total_rev_share, 2),
         "total_mg_topup": round(total_mg_topup, 2),
+        "period_totals": {
+            "total_sales": round(period_total_sales, 2),
+            "total_commission_base": round(period_total_commission_base, 2),
+            "total_commission_gst": round(period_total_commission_gst, 2),
+            "total_gst_on_sales": round(period_total_gst_on_sales, 2),
+            "eligible_rev_share_base": round(
+                period_total_sales
+                - period_total_commission_base
+                - period_total_commission_gst
+                - period_total_gst_on_sales,
+                2,
+            ),
+        },
         "franchise": {
             "code": (franchise or {}).get("franchise_code"),
             "name": (franchise or {}).get("franchise_name"),
@@ -1017,6 +1042,21 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
                                                     ["Revenue Share %", f"{f.get('revenue_share_percent', 0)}%"],
                                                     ["Monthly Guarantee (MG)", _inr(f.get("monthly_guarantee", 0))],
                                                     ["Closing Balance", _inr(data.get("closing_balance", 0))]]))
+
+            # Eligible Rev Share Base — explicit formula breakout right before
+            # the Final Payout block, so the franchise owner can trace exactly
+            # how the payout base is calculated:
+            #   Sales − Commission − Commission GST − GST on Sales
+            pt = data.get("period_totals") or {}
+            if pt and pt.get("total_sales", 0) > 0:
+                sections.append(("Net Revenue Calculation", [
+                    ["Description", "Amount"],
+                    ["Total Sales", _inr(pt.get("total_sales", 0))],
+                    ["Less: Commission (excl. GST)", _inr(pt.get("total_commission_base", 0))],
+                    ["Less: Commission GST", _inr(pt.get("total_commission_gst", 0))],
+                    ["Less: GST on Eligible Sales", _inr(pt.get("total_gst_on_sales", 0))],
+                    ["Eligible Rev Share Base (Net Revenue)", _inr(pt.get("eligible_rev_share_base", 0))],
+                ]))
 
             # Final Payout block — mirrors PIB Section 8B & MIS Franchise PDF.
             # Payout base = Revenue Share + MG top-up = MAX(rev_share, MG) per

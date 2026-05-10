@@ -154,13 +154,28 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         by_cat[k] = by_cat.get(k, 0) + float(e.get("amount", 0) or 0)
     expense_breakdown = [{"category": k, "amount": round(v, 2)} for k, v in sorted(by_cat.items(), key=lambda kv: -kv[1])]
     
-    # Commissions
+    # Commissions — sum every commission-related field the same way Center Accounts
+    # and the MG Payout report do, so all surfaces show identical figures.
+    # Includes platform commission + commission GST + TDS withheld at source.
     comms = await db.monthly_commissions.find(
         {"center": center, "month": month}, {"_id": 0}
     ).to_list(100)
-    total_commission = round(sum(float(c.get("other_deductions", 0) or 0) for c in comms), 2)
+    def _comm_total(c: dict) -> float:
+        return (
+            float(c.get("commission_amount", 0) or 0)
+            + float(c.get("other_deductions", 0) or 0)
+            + float(c.get("gst_tax_deductions", 0) or 0)
+            + float(c.get("tds", 0) or 0)
+        )
+    total_commission = round(sum(_comm_total(c) for c in comms), 2)
+    # Commission GST component (kept separate so we can show "Eligible Rev Share Base"
+    # = Sales − Commission − Commission GST − GST). For most India centers this comes
+    # from the gst_tax_deductions field on the upload; the rate fallback is 18%.
+    commission_gst_uploaded = round(sum(float(c.get("gst_tax_deductions", 0) or 0) for c in comms), 2)
+    commission_gst = commission_gst_uploaded
     commission_breakdown = [
-        {"platform": c.get("platform"), "gross": round(float(c.get("gross_amount", 0)), 2),
+        {"platform": c.get("platform"),
+         "gross": round(float(c.get("gross_amount", 0)), 2),
          "commission": round(float(c.get("other_deductions", 0)), 2),
          "net_payout": round(float(c.get("net_payout", 0)), 2)}
         for c in comms
@@ -171,16 +186,25 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         {"center": center, "month": month}, {"_id": 0}
     )
     
-    pnl = round(total_sales - total_commission - gst_amount, 2)
-    # Owner-facing P/L = Total Sales − Commissions − GST on Sales (per Apr-2026 rule).
-    # GST is removed because it's a govt pass-through, not center revenue.
-    # Expenses are NOT subtracted at owner-report level (expenses are reviewed
-    # separately in the expense breakdown).
+    # Net Revenue = Total Sales − (Commission incl. comm GST) − GST on Sales
+    # GST is removed because it's a govt pass-through. Expenses are NOT subtracted
+    # at this level — see net_pl below for actual P/L.
+    net_revenue = round(total_sales - total_commission - gst_amount, 2)
+    # Backwards-compat alias (existing consumers still read 'pnl' = Net Revenue).
+    pnl = net_revenue
 
     # Country detection — needed to surface Profitability for Australia centers.
     center_doc = await db.centers.find_one({"code": center}, {"_id": 0, "country": 1})
     country = (center_doc or {}).get("country") or ("Australia" if str(center).upper().endswith("-PERTH") else "India")
-    profitability = round(pnl - total_expenses, 2) if country == "Australia" else None
+    # Net P/L = Net Revenue − Expenses (true P/L, what the franchise actually earns)
+    net_pl = round(net_revenue - total_expenses, 2)
+    # For Australia: Profitability is the 80/20 base (Net Revenue − Expenses) — equivalent to net_pl.
+    profitability = net_pl if country == "Australia" else None
+    # Eligible Rev Share Base — explicit breakout for the dashboard:
+    #   = Sales − Commission − Commission GST − GST on Sales
+    # For India this equals net_revenue (since total_commission already includes
+    # commission GST via the sum-of-deduction-fields above).
+    eligible_rev_share_base = round(total_sales - (total_commission - commission_gst) - commission_gst - gst_amount, 2)
 
     return {
         "center": center, "month": month,
@@ -209,9 +233,13 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         },
         "commissions": {
             "total": total_commission,
+            "commission_gst": commission_gst,
             "by_platform": commission_breakdown,
         },
-        "pnl": pnl,
+        "pnl": pnl,                                  # = net_revenue (kept for back-compat)
+        "net_revenue": net_revenue,
+        "net_pl": net_pl,                            # true P/L: net_revenue − expenses
+        "eligible_rev_share_base": eligible_rev_share_base,
         "profitability": profitability,
     }
 

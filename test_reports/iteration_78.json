@@ -1,0 +1,47 @@
+{
+  "summary": "End-to-end verification of the Owner Reports financial-math overhaul. Backend pytest 11/11 PASS covering: (1) /api/owner-reports/monthly-report exposes 4 new fields net_revenue/net_pl/eligible_rev_share_base/commissions.commission_gst plus back-compat 'pnl' alias; (2) math for PB-HSR 2026-02 verified Sales=906132, GST=34617.14, Expenses=145942 -> Net Revenue=871514.86, Net P/L=725572.86, Eligible Rev Share Base=871514.86 (matches request expectations exactly); (3) MG Payout PDF + Excel both contain 'Add: 18% GST on Rev Share' + 'Total Final Payout' rows and 'Final Payout (incl. 18% GST)' summary line; (4) PIB PDF includes 'Eligible Rev Share Base' line; (5) MIS Franchise PDF includes 'Eligible Rev Share Base' row; (6) Owner Ledger PDF includes 'Net Revenue Calculation' section with all required rows; (7) Regression: Center Accounts summary, MIS overview, GST Reconciliation all still load. Frontend Playwright: SA login -> /owner-reports -> PB-HSR + Feb 2026 -> Load Report renders all 6 KPI cards (Sales 9,06,132 / Expenses 1,45,942 / GST 34,617 / Net Revenue 8,71,515 / Eligible Rev Share Base 8,71,515 indigo / Net P/L 7,25,573 with 'Net Revenue − Expenses' subtitle).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "OwnerReports KPI cards",
+        "issues": [
+          "React hydration warning in console: a <Badge> (rendered as <div>) is nested inside a <p> on the GST card (the 'Base: ₹7,26,960 · Payable' line wraps the Badge inside the descriptor <p>). Not blocking, no functional impact, but produces a console error every time the page loads. Fix: change the descriptor wrapper from <p> to <div> (or <span>) on OwnerReports.jsx where the Badge is rendered, since <div> cannot be a descendant of <p>."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_owner_reports_financial_math.py",
+    "/app/test_reports/pytest/owner_reports_math.xml"
+  ],
+  "action_items": [
+    "Optional: fix the <div>-inside-<p> hydration warning on OwnerReports.jsx (Badge inside the GST card descriptor paragraph). Console-only issue, no UX impact.",
+    "Optional QA observation (not a bug): on PB-HSR Feb 2026 there are no commission rows on preview, so commission_gst=0 and Eligible Rev Share Base equals Net Revenue. Recommend manually retesting on a center+month with non-zero commissions (e.g., a month with monthly_commissions records) to visually confirm the 'Eligible Rev Share Base' diverges from 'Net Revenue' when commission GST is non-zero. The math formulas were verified parametrically in the test, so this is purely a visual sanity check."
+  ],
+  "critical_code_review_comments": [
+    "owner_reports.py L207: eligible_rev_share_base = total_sales - (total_commission - commission_gst) - commission_gst - gst_amount. Algebraically this simplifies to total_sales - total_commission - gst_amount, which equals net_revenue. The verbose form is intentional (per the inline comment) but is redundant: for India centers eligible_rev_share_base will ALWAYS equal net_revenue under this implementation. If the intent is to support a future case where commission_gst is NOT already inside total_commission, that branch is currently unreachable. Consider either simplifying to `eligible_rev_share_base = net_revenue` or making the divergence explicit (e.g., when uploads carry commission_amount without gst_tax_deductions, recompute commission_gst at 18% of commission_amount).",
+    "owner_reports.py _comm_total: now sums commission_amount + other_deductions + gst_tax_deductions + tds. The commission_breakdown response still uses 'commission' = other_deductions only (L179). Frontend may show a per-platform commission lower than the headline total — verify the OwnerReports.jsx commission table reads commissions.total for the grand total, not the sum of by_platform[].commission.",
+    "Backend reads 'gst_tax_deductions' as commission_gst directly with no 18% rate fallback. If an upload omits this field, commission_gst will be 0 even when an 18% GST is implicit. A safe fallback `commission_gst = gst_tax_deductions or round(commission_amount * 0.18, 2)` would match the documented '18% commission GST' intent for centers that didn't fill that column.",
+    "OwnerReports.jsx: <Badge> is nested inside <p>; React hydration warning. Replace the wrapping <p> with <div> for that GST card subtitle.",
+    "Test file added: /app/backend/tests/test_owner_reports_financial_math.py covers all six surfaces (monthly endpoint, MG PDF, MG Excel, PIB PDF, MIS Franchise PDF, Owner Ledger PDF) plus three regression endpoints. Re-runs cleanly, ~4s wall."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_owner_reports_financial_math.py (new pytest file with 11 test cases, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "Super Admin 9741399190 / OTP 123456 / center PB-MGT (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None — used existing PB-HSR 2025-11 → 2026-02 preview data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All six surfaces (monthly-report API, MG PDF, MG Excel, PIB PDF, MIS Franchise PDF, Owner Ledger PDF) are verified to contain the new financial fields/sections. Test data uses PB-HSR 2026-02 which has zero commission rows, so eligible_rev_share_base happens to equal net_revenue numerically — math formulas were still verified parametrically (Sales − Comm − Comm GST − GST). For future iterations needing commission-divergence tests, choose a center+month with rows in monthly_commissions. The pytest file /app/backend/tests/test_owner_reports_financial_math.py reads REACT_APP_BACKEND_URL from /app/frontend/.env automatically.",
+  "rca of the issue": "Not a bug-fix iteration — feature verification only. All required behaviors confirmed via 11 backend pytest assertions + 1 Playwright UI walk-through. No blocking issues found; only one pre-existing console hydration warning (Badge inside <p>) noted as a minor cleanup item."
+}

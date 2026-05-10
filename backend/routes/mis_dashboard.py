@@ -2034,6 +2034,7 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
         ["Less: Total Commissions", fmt(s.get("total_commissions")), ""],
         ["Less: GST on Eligible Sales (5% incl.)", fmt(s.get("total_gst")), "Govt pass-through"],
         ["= Net Revenue", fmt(net_revenue_base), "Sales − Comm − GST"],
+        ["Eligible Rev Share Base", fmt(net_revenue_base), "Sales − Comm − Comm GST − GST"],
         ["Less: Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
         ["= Net Profit", fmt(profit), f"{changes.get('profit_change', 0):+.1f}%"],
         ["Working Capital", fmt(available_wc), f"as of {wc_data.get('up_to_month', '')}"],

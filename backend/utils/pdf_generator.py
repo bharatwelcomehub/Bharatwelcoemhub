@@ -383,6 +383,15 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             f"({currency} {gst_on_sales:,.2f})",
         ])
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
+    # Eligible Revenue Share Base — explicit breakout requested by user.
+    # = Sales − Commission − Commission GST − GST on Eligible Sales.
+    # For India this equals NET REVENUE (the canonical Net Revenue chain already
+    # subtracts inclusive commissions via the deduction-fields sum). We surface
+    # it as a separate line so the franchise owner sees the formula spelled out.
+    fin_data.append([
+        "Eligible Rev Share Base (Sales − Comm − Comm GST − GST)",
+        f"{currency} {fin['net_revenue']:,.2f}",
+    ])
     if is_australia:
         # Australia: show explicit Profitability chain after Net Revenue
         fin_data.append(["Less: Total Expenses", f"({currency} {fin['total_expenses']:,.2f})"])
@@ -936,6 +945,26 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
         "Pending": totals.get("pending", 0),
         "Status": "",
     })
+    # Final Payout grossup — 18% for India centers, 10% for Australia / Perth.
+    is_intl = str(center or "").upper().endswith("-PERTH") or (str(franchise_info.get("country", "")).lower() == "australia")
+    final_gst_rate = 10 if is_intl else 18
+    payable_total = float(totals.get("payable", 0) or 0)
+    final_gst_amt = round(payable_total * final_gst_rate / 100.0, 2)
+    final_payout_incl_gst = round(payable_total + final_gst_amt, 2)
+    rows.append({
+        "Month": f"Add: {final_gst_rate}% GST on Rev Share",
+        "Total Sales": "", "GST": "", "Commissions": "", "Net Revenue": "",
+        "Revenue Share": "", "MG Amount": "", "Type": "",
+        "Payable": final_gst_amt,
+        "Paid": "", "Pending": "", "Status": "",
+    })
+    rows.append({
+        "Month": f"Total Final Payout (incl. {final_gst_rate}% GST)",
+        "Total Sales": "", "GST": "", "Commissions": "", "Net Revenue": "",
+        "Revenue Share": "", "MG Amount": "", "Type": "",
+        "Payable": final_payout_incl_gst,
+        "Paid": "", "Pending": "", "Status": "",
+    })
     df = pd.DataFrame(rows)
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         header_df = pd.DataFrame([
@@ -986,17 +1015,22 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         sub_style))
     elements.append(Spacer(1, 12))
 
+    # Compute Final Payout (incl. GST) once so summary + footer agree.
+    is_intl_summary = str(center or "").upper().endswith("-PERTH") or (str(franchise_info.get("country", "")).lower() == "australia")
+    final_gst_rate_summary = 10 if is_intl_summary else 18
+    final_payout_summary = round(float(totals.get("payable", 0) or 0) * (1 + final_gst_rate_summary / 100.0), 2)
+
     summary_data_table = [
-        ["Total Revenue Share", "Total MG", "Total Payable", "Total Paid", "Total Pending"],
+        ["Total Revenue Share", "Total MG", "Total Payable", f"Final Payout (incl. {final_gst_rate_summary}% GST)", "Total Pending"],
         [
             f"Rs. {totals.get('revenue_share', 0):,.2f}",
             f"Rs. {totals.get('mg', 0):,.2f}",
             f"Rs. {totals.get('payable', 0):,.2f}",
-            f"Rs. {totals.get('paid', 0):,.2f}",
+            f"Rs. {final_payout_summary:,.2f}",
             f"Rs. {totals.get('pending', 0):,.2f}",
         ],
     ]
-    summary_table = Table(summary_data_table, colWidths=[105, 95, 95, 95, 95])
+    summary_table = Table(summary_data_table, colWidths=[105, 95, 95, 110, 80])
     summary_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -1007,6 +1041,10 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         ("GRID", (0, 0), (-1, -1), 0.5, colors.gray),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        # Highlight the Final Payout (incl. GST) cell in emerald to make the
+        # invoiceable amount stand out at a glance.
+        ("BACKGROUND", (3, 1), (3, 1), colors.HexColor("#dcfce7")),
+        ("TEXTCOLOR", (3, 1), (3, 1), colors.HexColor("#166534")),
     ]))
     elements.append(summary_table)
     elements.append(Spacer(1, 16))
@@ -1044,6 +1082,25 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         f'{totals.get("pending", 0):,.0f}',
         "",
     ])
+    # Final Payout grossup rows — same logic as the Excel export so PDFs and
+    # workbooks agree on the invoiceable amount.
+    is_intl_pdf = str(center or "").upper().endswith("-PERTH") or (str(franchise_info.get("country", "")).lower() == "australia")
+    final_gst_rate_pdf = 10 if is_intl_pdf else 18
+    payable_total_pdf = float(totals.get("payable", 0) or 0)
+    final_gst_amt_pdf = round(payable_total_pdf * final_gst_rate_pdf / 100.0, 2)
+    final_payout_pdf = round(payable_total_pdf + final_gst_amt_pdf, 2)
+    table_rows.append([
+        f"Add: {final_gst_rate_pdf}% GST on Rev Share",
+        "", "", "", "", "", "", "",
+        f'{final_gst_amt_pdf:,.0f}',
+        "", "", "",
+    ])
+    table_rows.append([
+        f"Total Final Payout (incl. {final_gst_rate_pdf}% GST)",
+        "", "", "", "", "", "", "",
+        f'{final_payout_pdf:,.0f}',
+        "", "", "",
+    ])
 
     data_table = Table(table_rows, colWidths=[44, 50, 38, 38, 50, 50, 42, 28, 50, 42, 45, 38], repeatRows=1)
     table_style = [
@@ -1059,9 +1116,19 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#f8fafc")]),
-        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f1f5f9")),
+        # Alternate stripes for data rows only (skip the 3 footer rows: TOTAL, GST grossup, Final Payout).
+        ("ROWBACKGROUNDS", (0, 1), (-1, -4), [colors.white, colors.HexColor("#f8fafc")]),
+        # TOTAL row (index -3)
+        ("BACKGROUND", (0, -3), (-1, -3), colors.HexColor("#f1f5f9")),
+        ("FONTNAME", (0, -3), (-1, -3), "Helvetica-Bold"),
+        # "Add: GST" row (index -2)
+        ("BACKGROUND", (0, -2), (-1, -2), colors.HexColor("#fef3c7")),
+        ("FONTNAME", (0, -2), (-1, -2), "Helvetica-Oblique"),
+        ("TEXTCOLOR", (0, -2), (-1, -2), colors.HexColor("#7B1E2A")),
+        # "Total Final Payout" row (index -1)
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#dcfce7")),
         ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, -1), (-1, -1), colors.HexColor("#166534")),
     ]
     for i, m in enumerate(monthly_data, start=1):
         status = m.get("status", "")
