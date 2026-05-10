@@ -5,6 +5,40 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] Working Capital — single canonical chain across all 5 surfaces
+**User report** (production audit): PB-HSR Apr 2026 showed **5 different Working Capital values** across 5 surfaces — Center Accounts top card ₹19,40,182, Operational Balance −₹15,35,468, WC Breakdown table −₹37,16,882, MIS Dashboard ₹19,40,182, FO Dashboard ₹20,74,838. User confirmed the cumulative chained value (−₹37L) is the truth.
+
+**Root causes**:
+1. The cumulative WC chain was implemented TWICE — once in `calculate_working_capital_standing` (used by Center Accounts WC card / MIS / FO) and once in `get_wc_table` (used by WC Breakdown). They had drifted on override semantics.
+2. FO Dashboard called `/mis/working-capital` **without period params**, so it always used real-time current month while the rest of the dashboard used the user-selected period.
+
+**Fix — single source of truth**:
+- New `backend/utils/wc_chain.py::compute_wc_chain()` — sole place where the chain runs:
+  ```
+  for each month M:
+    closing_wc[M] = opening_wc[M] + pnl[M] + wc_adj + topup + other_income
+    pnl[M]        = sale - expenses - commission   (GST NOT subtracted; M+1 expense)
+  ```
+  Documents the override semantics: `commission_target` overrides commission; `gst_target` is display-only (never subtracted); `wc_adjustment` is explicit delta; `expense_adjustment` is audit-trail only.
+- Both `calculate_working_capital_standing` and `get_wc_table` refactored to call this single helper. By construction they cannot drift.
+- `FranchiseOwnerDashboard.jsx` now passes `period/custom_start/custom_end` params to `/mis/working-capital` so the FO WC card uses the user-selected period (matches MIS Dashboard).
+
+**Operational Balance card** (single-month P/L flow, currently −₹15.35L for Apr 2026) — kept as-is per user choice. It's the flow, distinct from the cumulative stock.
+
+**Audit extension** — `scripts/audit_financial_parity.py` now compares Working Capital across:
+- Center Accounts → `working_capital_status.current_wc`
+- MIS WC endpoint → `available_working_capital`
+- MIS WC `centers[0].current_wc`
+- WC Breakdown table last row `balance_wc`
+
+**Verified end-to-end** by testing agent (`/app/test_reports/iteration_81.json`):
+- 24/24 month-center audit combos PASS (PB-MGT/PB-DV/PB-PERTH/PB-HSR × Nov 2025–Apr 2026)
+- New pytest `test_iteration81_wc_parity.py` 12/12 PASS
+- FO Dashboard WC card visually shows canonical ₹58,01,340.41 for PB-HSR — equal to all 3 other surfaces
+- Existing financial parity tests still pass (16/16)
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, the same PB-HSR Apr 2026 should show the same WC value (canonical chained closing) across Center Accounts card, MIS Dashboard, FO Dashboard, and the WC Breakdown table.
+
 ### [2026-05-10] Download access fixes — Super Admin bypass + FO 500→403
 **Reported issues** (production):
 1. Downloads on Franchise Reports (Owner Reports) page not appearing
