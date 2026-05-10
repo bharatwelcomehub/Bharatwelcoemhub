@@ -5,6 +5,42 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] Canonical commission helper + Ledgers section in Owner Reports
+**User mandate**: "Calculate ONCE and display from same database. ALL MIS dashboards, MG, Revenue, P/L should look the same everywhere." Plus: add Ledgers section to Franchise Reports, gated until Accounts releases the month.
+
+**The drift problem caught by audit**:
+Before this iteration, four surfaces each had their own commission summation:
+- Owner Reports summed `commission_amount + other_deductions + gst_tax_deductions + tds`
+- MIS Dashboard summed `gst_tax_deductions + other_deductions OR (commission_amount + gst_on_commission)` AND applied WC overrides
+- MG Payout summed `commission_statements` (legacy) + `monthly_commissions` with old fallback formula, NO overrides
+- Center Accounts /summary used `commission_by_platform.deduction` aggregation, NO overrides
+
+→ **PB-MGT 2026-01 showed ₹55,501 on MIS but ₹0 on every other surface.**
+→ **PB-PERTH 2026-02 showed ₹2,172.52 on Center Accounts but ₹1,975.02 elsewhere** (AU 10% grossup applied inconsistently).
+
+**The fix — single source of truth** (`backend/utils/commissions.py`):
+- New `get_total_commissions(db, center, month)` helper.
+- Resolution order: WC override → uploaded `monthly_commissions` (sums all 4 fields) → legacy `commission_statements`.
+- Auto-detects country from `db.centers`; for Australia applies 10% commission GST grossup (since AU uploads typically don't carry `gst_tax_deductions`).
+- All 4 surfaces (Owner Reports, Center Accounts /summary, Center Accounts /payout-summary, MIS Dashboard) refactored to call this single helper.
+- Removed legacy "post-hoc WC override" code in MIS Dashboard (was a band-aid).
+- Removed double-grossup in Center Accounts AU branch (helper now returns inclusive total directly).
+
+**Audit script** (`backend/scripts/audit_financial_parity.py`):
+- Takes `<CENTER> <MONTH>` args; exits 0 on parity, 1 on drift.
+- Compares Owner Reports / Center Accounts / MIS / MG Payout for byte-identity (₹1 tolerance).
+- ✅ **Verified PASS on all 24 month/center combinations** (PB-MGT, PB-DV, PB-PERTH, PB-HSR × Nov 2025 → Apr 2026).
+
+**Ledgers section under Franchise Reports** (`frontend/src/pages/OwnerReports.jsx` + `LedgersTab.jsx`):
+- Owner Reports now embeds `<LedgersTab readOnly={!session.is_super_admin && !session.is_admin && !session.roles.accounting} />` after the financial summary.
+- Read-only mode hides admin controls (CA Bundle ZIP download, Send-to-Owner / Hide release toggle) and shows a "View Only" notice.
+- Server-side gate at `/api/ledgers/{type}` already returns 403 for franchise owners until the Accounts team releases the month — no extra UI gating needed.
+- Super Admin / Admin / Accounts users still see the full LedgersTab (since the readOnly check inverts to false for them).
+
+**Pytest regression**: `/app/backend/tests/test_financial_parity_canonical.py` — 15/15 pass + audit 4/4 pass (`/app/test_reports/iteration_79.json`).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`.
+
 ### [2026-05-10] Owner Reports — Net Revenue / Net P/L split, Eligible Rev Share Base card, MG Payout GST grossup
 **User report** (production screenshots, PB-DV April 2026):
 1. The "Net P/L" KPI card on Owner Reports actually shows Net Revenue (no expenses subtracted) AND the commission total used (₹15,900) excludes the 18% commission GST (~₹5,688) — i.e. it should be ₹21,588.
