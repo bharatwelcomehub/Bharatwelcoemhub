@@ -3,6 +3,9 @@ import centersData from '@/config/centers.json';
 
 const SEOContext = createContext();
 
+// Static data (computed ONCE at module load — NOT on every render)
+const ALL_CENTERS = [...centersData.india, ...centersData.australia];
+
 // Center coordinates for distance calculation
 const centerCoordinates = {
   'pb-hsr': { lat: 12.9121, lng: 77.6446, city: 'Bangalore' },
@@ -28,6 +31,26 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+// Pure function — does not depend on component state
+const findNearestCenterFn = (lat, lng) => {
+  let nearest = null;
+  let minDistance = Infinity;
+
+  Object.entries(centerCoordinates).forEach(([centerId, coords]) => {
+    const distance = calculateDistance(lat, lng, coords.lat, coords.lng);
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = {
+        ...ALL_CENTERS.find(c => c.id === centerId),
+        distance: Math.round(distance),
+        coordinates: coords
+      };
+    }
+  });
+
+  return nearest;
+};
+
 export const SEOProvider = ({ children }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [nearestCenter, setNearestCenter] = useState(null);
@@ -36,27 +59,8 @@ export const SEOProvider = ({ children }) => {
   const [showLocationBanner, setShowLocationBanner] = useState(true);
   const [locationLoading, setLocationLoading] = useState(false);
 
-  const allCenters = [...centersData.india, ...centersData.australia];
-
-  // Find nearest center based on coordinates
-  const findNearestCenter = useCallback((lat, lng) => {
-    let nearest = null;
-    let minDistance = Infinity;
-
-    Object.entries(centerCoordinates).forEach(([centerId, coords]) => {
-      const distance = calculateDistance(lat, lng, coords.lat, coords.lng);
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearest = {
-          ...allCenters.find(c => c.id === centerId),
-          distance: Math.round(distance),
-          coordinates: coords
-        };
-      }
-    });
-
-    return nearest;
-  }, [allCenters]);
+  // Stable reference (no deps — uses module-level constants)
+  const findNearestCenter = useCallback((lat, lng) => findNearestCenterFn(lat, lng), []);
 
   // Request location permission
   const requestLocationPermission = useCallback(() => {
@@ -73,7 +77,7 @@ export const SEOProvider = ({ children }) => {
         setUserLocation({ lat: latitude, lng: longitude });
         setLocationPermission('granted');
         
-        const nearest = findNearestCenter(latitude, longitude);
+        const nearest = findNearestCenterFn(latitude, longitude);
         if (nearest) {
           setNearestCenter(nearest);
           setCurrentCity(nearest.city);
@@ -100,9 +104,9 @@ export const SEOProvider = ({ children }) => {
         maximumAge: 600000 // 10 minutes
       }
     );
-  }, [findNearestCenter]);
+  }, []);
 
-  // Check for stored location on mount
+  // Check for stored location on mount (runs ONCE)
   useEffect(() => {
     const stored = localStorage.getItem('purnabramha_location');
     if (stored) {
@@ -112,7 +116,7 @@ export const SEOProvider = ({ children }) => {
         if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
           setUserLocation({ lat, lng });
           setLocationPermission('granted');
-          const nearest = findNearestCenter(lat, lng);
+          const nearest = findNearestCenterFn(lat, lng);
           if (nearest) {
             setNearestCenter(nearest);
             setCurrentCity(nearest.city);
@@ -123,7 +127,7 @@ export const SEOProvider = ({ children }) => {
         console.error('Error parsing stored location:', e);
       }
     }
-  }, [findNearestCenter]);
+  }, []);  // ← empty deps so this only runs ONCE on mount, NOT on every render
 
   // Dismiss location banner
   const dismissLocationBanner = () => {
@@ -150,7 +154,7 @@ export const SEOProvider = ({ children }) => {
   // Get all unique cities for internal linking
   const getAllCities = () => {
     const cities = new Set();
-    allCenters.forEach(center => {
+    ALL_CENTERS.forEach(center => {
       cities.add(center.city);
     });
     return Array.from(cities);
@@ -167,7 +171,7 @@ export const SEOProvider = ({ children }) => {
     dismissLocationBanner,
     getSEOCity,
     getAllCities,
-    allCenters
+    allCenters: ALL_CENTERS
   };
 
   return (
