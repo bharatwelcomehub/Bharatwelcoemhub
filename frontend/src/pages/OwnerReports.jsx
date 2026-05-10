@@ -156,6 +156,13 @@ export default function OwnerReports() {
 
   const visible = report?.visibility?.ready;
   const notReadyReason = report?.visibility?.reason || 'Current month in progress. Accounts team has not yet approved visibility.';
+  // Staff (Super Admin / Admin / Accounts) can always download / view reports
+  // regardless of whether the month has been released to franchise owners.
+  // Franchise owners only get downloads after release. This mirrors the
+  // server-side gate at /api/center-accounts/generate-* and /api/ledgers/*.
+  const canBypassRelease = !!(session?.is_super_admin || session?.is_admin
+    || session?.role_key === 'accountant' || session?.roles?.accounting);
+  const canDownload = visible || canBypassRelease;
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6" data-testid="owner-reports-page">
@@ -251,8 +258,9 @@ export default function OwnerReports() {
         </CardContent>
       </Card>
 
-      {/* Visibility gate */}
-      {report && !visible && (
+      {/* Visibility gate — only block franchise owners with no release. Staff
+          see the admin_bypass banner instead and full data + downloads. */}
+      {report && !visible && !canBypassRelease && (
         <Card className="border-amber-300 bg-amber-50 dark:bg-amber-900/10" data-testid="or-gated-banner">
           <CardContent className="p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-700 mt-0.5" />
@@ -338,7 +346,8 @@ export default function OwnerReports() {
         </Card>
       )}
 
-      {report && visible && (
+      {report && visible && !canBypassRelease && null}
+      {report && canDownload && (
         <>
           {/* Download Reports — PDFs */}
           <Card data-testid="or-downloads">

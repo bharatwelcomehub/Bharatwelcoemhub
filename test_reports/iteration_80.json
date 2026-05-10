@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 80 — Downloads access control regression testing. Verified the fix to FO ledger 500 -> 403, SA bypass for unreleased months on Owner Reports / Center Accounts / Ledgers, owner-ledger always allowed for FO, FO franchise-pdf range download works, and FO is correctly gated on /owner-reports for unreleased months. Audit script for PB-HSR 2026-02 still passes (no regression).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/owner-reports as Franchise Owner on unreleased month",
+        "issues": [
+          "Top 5 download cards (PIB/GST/Comm/Bank/MG) are correctly hidden, but the lower 'Ledgers — Released by Accounts' section still renders ledger cards (Sales Register, Expense Register, Cash Book, Bank Book) with PDF/Excel buttons enabled. Clicking them is server-side blocked (403 verified) so it is safe, but UX renders clickable buttons that will show an error toast. Consider hiding/disabling these ledger cards when gated for FO consistency."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration80_download_access.py",
+    "/app/test_reports/pytest/iteration80_download_access.xml"
+  ],
+  "action_items": [
+    "(Optional UX) On /owner-reports as franchise owner with gated month, also hide or disable the lower Ledger cards (Sales Register / Expense / Cash Book / Bank Book PDF + Excel buttons) since the server returns 403 — match the gating already applied to the top 5 download cards."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routes/ledgers.py _has_ledger_access (line 39) now correctly handles roles as dict OR list — defensive coding is good and fully covers the FO session shape.",
+    "Owner ledger gate (line 1147-1149) correctly grants access to the franchise owner of that center independent of release state — matches business expectation.",
+    "Other ledgers gate (line 1150-1178) correctly checks BOTH (a) general visibility (report_type missing, ready=true) and (b) explicit owner_ledger release (report_type='owner_ledger', released=true) — covers the dual-release model.",
+    "/app/frontend/src/pages/OwnerReports.jsx canBypassRelease + canDownload at line 162-167 is well factored. Banner gating at canBypassRelease (admin) vs visible (gated banner only for FO) is correct."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (3/3 scenarios)"},
+  "test_credentials": "Super Admin: 9741399190 / 123456 / PB-MGT. Franchise Owner: 8888888888 / 123456 / PB-HSR.",
+  "seed_data_creation": "None; the test fixture revokes general visibility and owner_ledger release for PB-HSR 2026-02 to ensure the unreleased state, but uses production data shape.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 10 backend tests pass. New regression test file at /app/backend/tests/test_iteration80_download_access.py covers FO/SA access matrix for ledgers + center-accounts + mis franchise-pdf. Audit_financial_parity.py PB-HSR 2026-02 still PASSES (no math regression from access-check fix). One minor UX inconsistency noted — ledger cards still render for gated FO but are server-side protected (403).",
+  "rca_of_the_issue": "Original 500 was an AttributeError in _has_ledger_access — code assumed roles was a list of dicts but franchise-owner sessions store roles as a dict (key->bool). Fix added isinstance(roles, dict) handling. Verified that FO session.roles is dict-shaped via login response. Also fixed the ledger gate to honor explicit owner_ledger release (report_type='owner_ledger') in addition to general visibility, so Accounts can selectively release ledgers without unlocking the full Owner Report. Frontend OwnerReports gating moved from `visible` to `canDownload = visible || canBypassRelease`, allowing SA/Admin/Accounts to see download buttons even on unreleased months."
+}

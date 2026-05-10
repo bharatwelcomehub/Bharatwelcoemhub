@@ -45,10 +45,21 @@ def _has_ledger_access(session: dict) -> bool:
     role_key = (session.get("role_key") or "").lower()
     if role_key in ACCOUNTS_ROLES:
         return True
-    # Legacy: check roles list
-    for r in (session.get("roles") or []):
-        if (r.get("key") or r.get("name") or "").lower() in ACCOUNTS_ROLES:
+    # roles can be either a dict (key→bool, current schema) or a legacy list of
+    # dicts. Handle both shapes defensively — the franchise-owner sessions store
+    # a dict, which used to throw AttributeError ('str' object has no attribute 'get').
+    roles = session.get("roles")
+    if isinstance(roles, dict):
+        if roles.get("accounting") or roles.get("accounts") or roles.get("finance"):
             return True
+    elif isinstance(roles, list):
+        for r in roles:
+            if isinstance(r, dict):
+                if (r.get("key") or r.get("name") or "").lower() in ACCOUNTS_ROLES:
+                    return True
+            elif isinstance(r, str):
+                if r.lower() in ACCOUNTS_ROLES:
+                    return True
     return False
 
 def _is_franchise_owner(session: dict) -> bool:
@@ -1145,12 +1156,23 @@ def _type_endpoint(ltype: str):
                     and (session.get("franchise_center") == req.center or session.get("center") == req.center)
                     and (req.period_type or "").lower() == "month"
                     and req.month):
-                    vis = await db.owner_report_visibility.find_one(
+                    # Either:
+                    #   (a) the general monthly Owner Report has been released
+                    #       (no report_type, ready=True), or
+                    #   (b) Accounts explicitly released ledgers for this month
+                    #       (report_type='owner_ledger', released=True)
+                    # unlocks ledger downloads for the franchise owner.
+                    vis_general = await db.owner_report_visibility.find_one(
                         {"center": req.center, "month": req.month,
                          "report_type": {"$exists": False}},
                         {"_id": 0}
                     )
-                    if vis and vis.get("ready"):
+                    vis_ledger = await db.owner_report_visibility.find_one(
+                        {"center": req.center, "month": req.month,
+                         "report_type": "owner_ledger"},
+                        {"_id": 0}
+                    )
+                    if (vis_general and vis_general.get("ready")) or (vis_ledger and vis_ledger.get("released")):
                         allowed = True
                 if not allowed:
                     raise HTTPException(403, "This ledger is not available — ask Accounts to release the monthly report first")
