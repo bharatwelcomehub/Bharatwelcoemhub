@@ -84,6 +84,9 @@ import DailyTextGenerator from "@/pages/DailyTextGenerator";
 import SocialMediaPlanner from "@/pages/SocialMediaPlanner";
 import BillDownload from "@/pages/BillDownload";
 import InternationalRoster from "@/pages/InternationalRoster";
+import MenuConfig from "@/pages/MenuConfig";
+
+const API = process.env.REACT_APP_BACKEND_URL || "";
 
 // Menu categories structure
 const menuCategories = [
@@ -150,7 +153,7 @@ const menuCategories = [
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
       { path: "/master-data", icon: Database, label: "Master Data", forMGT: true },
-      { path: "/menu-config", icon: Settings, label: "Menu Config", superAdminOnly: true },
+      { path: "/menu-config", icon: LayoutGrid, label: "Menu Customization", superAdminOnly: true },
       { path: "/social-media", icon: Share2, label: "Social Media Planner", forMGT: true },
     ]
   },
@@ -201,20 +204,58 @@ const menuCategories = [
       { path: "/food-safety", icon: Shield, label: "Food Safety", forInternational: true },
     ]
   },
+  {
+    id: "help",
+    label: "Help & Resources",
+    icon: BookOpen,
+    items: [
+      { path: "/user-manuals", icon: BookOpen, label: "User Manuals" },
+    ]
+  },
 ];
 
 export default function Dashboard() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations", "billing", "food_safety"]);
+  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations", "billing", "food_safety", "help", "accounts"]);
   const [centersList, setCentersList] = useState([]);
+  const [menuOverrides, setMenuOverrides] = useState({ categories: {}, items: {} });
   
   // Fetch centers from DB on mount
   useEffect(() => {
     if (session?.token) {
       fetchCentersFromDB(session.token).then(setCentersList);
     }
+  }, [session?.token]);
+
+  // Fetch menu overrides on mount + on window focus (so non-Super-Admins see
+  // changes immediately after a Super Admin saves, without re-login).
+  useEffect(() => {
+    if (!session?.token) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API}/api/menu-config?token=${encodeURIComponent(session.token)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setMenuOverrides({
+            categories: data.categories || {},
+            items: data.items || {},
+          });
+        }
+      } catch (_) { /* ignore */ }
+    };
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    const interval = setInterval(load, 60000); // refresh every minute as safety net
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      clearInterval(interval);
+    };
   }, [session?.token]);
   
   // Check user access levels (RBAC-driven, no hardcoding)
@@ -239,6 +280,41 @@ export default function Dashboard() {
   // Check if user has accounting role (can view all centers in Sales & Cash)
   const hasAccountingRole = userRoles.accounting === true;
 
+  // Map session/userRoles → set of role identifiers used by Menu Customization.
+  // This is the single mapping every override role-check goes through.
+  const userRoleKeys = (() => {
+    const keys = new Set();
+    if (isSuperAdmin) keys.add("super_admin");
+    if (isAdmin) { keys.add("admin"); keys.add("mgt"); }
+    if (userRoles.accounting === true) keys.add("accounting");
+    if (userRoles.attendance === true) keys.add("attendance");
+    if (userRoles.sales_cash === true) keys.add("sales_cash");
+    if (userRoles.hr === true) keys.add("hr");
+    if (userRoles.operations === true) keys.add("operations");
+    if (userRoles.franchise === true) keys.add("franchise");
+    if (userRoles.billing === true) keys.add("billing");
+    if (userRoles.mgt === true) keys.add("mgt");
+    const rk = session?.role_key || "";
+    if (rk) keys.add(rk);
+    if (rk === "franchise_owner") keys.add("franchise");
+    // International matches users from non-India centers
+    const centerCode = session?.center || "";
+    const isIntl = session?.is_india_center === false ||
+      (session?.is_india_center !== true && (centersList.find(c => c.code === centerCode)?.is_india_center === false));
+    if (isIntl) keys.add("international");
+    return keys;
+  })();
+
+  // Returns an override-driven access decision, or null if no override exists.
+  // visible_roles=[] (empty array) explicitly hides the entry from everyone except Super Admin.
+  const overrideAccess = (overrideEntry) => {
+    if (!overrideEntry || overrideEntry.visible_roles === undefined) return null;
+    if (isSuperAdmin) return true; // Super admin always sees everything (no lock-out)
+    const allowed = overrideEntry.visible_roles || [];
+    if (allowed.length === 0) return false;
+    return allowed.some(r => userRoleKeys.has(r));
+  };
+
   // Toggle category expansion
   const toggleCategory = (categoryId) => {
     setExpandedCategories(prev => 
@@ -250,6 +326,10 @@ export default function Dashboard() {
 
   // Check if user has access to an item based on their assigned roles
   const hasAccess = (item) => {
+    // Super Admin override check first (an override may explicitly hide for everyone but SA)
+    const itemOverride = menuOverrides.items?.[item.path];
+    const ov = overrideAccess(itemOverride);
+    if (ov !== null) return ov;
     if (isSuperAdmin) return true; // Super Admin has full access
     if (item.forMGT) return isAdmin; // Management items require Admin access
     if (item.forAdmin) {
@@ -310,6 +390,9 @@ export default function Dashboard() {
 
   // Check if user has access to a category
   const hasCategoryAccess = (category) => {
+    const catOverride = menuOverrides.categories?.[category.id];
+    const ov = overrideAccess(catOverride);
+    if (ov !== null) return ov;
     if (isSuperAdmin) return true;
     if (category.forMGT) return isAdmin;
     if (category.forInternational) {
@@ -344,8 +427,47 @@ export default function Dashboard() {
     return true;
   };
 
+  // Apply DB-driven menu overrides:
+  //  - re-parent items (if override.category_id differs from default)
+  //  - reorder categories and items by override.order (smaller first; nulls last, stable original order)
+  //  - then apply role-based access filtering
+  const applyMenuOverrides = () => {
+    // Build a fresh structure where items can be moved across categories
+    const itemOverrides = menuOverrides.items || {};
+    const catOverrides = menuOverrides.categories || {};
+
+    // Phase 1: gather items grouped by their effective parent category.
+    const itemsByCat = {};
+    menuCategories.forEach(cat => { itemsByCat[cat.id] = []; });
+    menuCategories.forEach((cat, catIdx) => {
+      cat.items.forEach((item, itemIdx) => {
+        const ov = itemOverrides[item.path] || {};
+        const parent = ov.category_id && itemsByCat[ov.category_id] !== undefined ? ov.category_id : cat.id;
+        const order = ov.order !== undefined && ov.order !== null ? ov.order : (catIdx * 1000 + itemIdx);
+        itemsByCat[parent].push({ ...item, _order: order });
+      });
+    });
+
+    // Phase 2: sort items inside each category by _order, then strip _order.
+    Object.keys(itemsByCat).forEach(cid => {
+      itemsByCat[cid].sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
+      itemsByCat[cid] = itemsByCat[cid].map(({ _order, ...rest }) => rest);
+    });
+
+    // Phase 3: produce an ordered list of categories with their items, applying category override.order.
+    const catsWithOrder = menuCategories.map((cat, idx) => {
+      const ov = catOverrides[cat.id] || {};
+      const order = ov.order !== undefined && ov.order !== null ? ov.order : idx;
+      return { ...cat, _order: order, items: itemsByCat[cat.id] || [] };
+    });
+    catsWithOrder.sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
+    return catsWithOrder.map(({ _order, ...rest }) => rest);
+  };
+
+  const orderedCategories = applyMenuOverrides();
+
   // Filter categories and items based on access
-  const filteredCategories = menuCategories
+  const filteredCategories = orderedCategories
     .filter(cat => hasCategoryAccess(cat))
     .map(cat => ({
       ...cat,
@@ -525,6 +647,7 @@ export default function Dashboard() {
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
             <Route path="/master-data" element={<MasterDataManagement />} />
+            <Route path="/menu-config" element={<MenuConfig />} />
             <Route path="/user-manuals" element={<UserManuals />} />
             <Route path="/menu-management" element={<MenuManagement />} />
             <Route path="/franchise-dashboard" element={<FranchiseOwnerDashboard />} />

@@ -2340,6 +2340,12 @@ app.include_router(gst_router)
 from routes.owner_reports import router as owner_reports_router
 app.include_router(owner_reports_router)
 
+# Menu Configuration (Super Admin sidebar customization)
+from routes.menu_config import router as menu_config_router, set_db as set_menu_config_db, set_verify_token as set_menu_config_verify_token
+set_menu_config_db(db)
+set_menu_config_verify_token(verify_token)
+app.include_router(menu_config_router)
+
 
 
 @app.on_event("startup")
