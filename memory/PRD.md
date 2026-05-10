@@ -5,6 +5,29 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] Super Admin — Dynamic sidebar customization + User Manuals on sidebar
+**User ask** (carried over from previous fork): Make User Manuals downloadable from a sidebar entry available to all roles, move Social Media Planner to Management, and let Super Admins reorder menu placing & adjust role alignment without code changes.
+
+**Backend** (`backend/routes/menu_config.py`, new):
+- New MongoDB collection `menu_configs` (single doc `_id='global'`) stores override deltas only — defaults stay in code so the system always has a sane fallback.
+- `GET /api/menu-config?token=...` — any authenticated user reads the current overrides.
+- `POST /api/menu-config/save` — Super Admin only; replaces overrides; sanitizes role identifiers against a fixed whitelist (14 roles).
+- `POST /api/menu-config/reset` — Super Admin only; deletes the override doc.
+- `GET /api/menu-config/valid-roles?token=...` — returns the 14 role identifiers + display labels for the UI to render checkboxes.
+
+**Frontend**:
+- `frontend/src/lib/menuDefaults.js` (new) — labels-only mirror of the sidebar structure, used by the customization page.
+- `frontend/src/pages/MenuConfig.jsx` (new) — Super Admin page: each category card has up/down arrows + 14-role checkboxes; each item row has up/down arrows, "Move to category" dropdown, and per-role checkboxes; "Reset to defaults" + "Save Configuration" buttons.
+- `frontend/src/pages/Dashboard.jsx` — fetches `/api/menu-config` on mount, on window focus, and every 60s, and applies overrides via two helpers: `applyMenuOverrides()` (re-parents items, sorts categories+items) and `overrideAccess()` (DB-driven role allowlist supersedes code defaults). Super Admin bypasses any override (always sees everything).
+- New "Help & Resources" sidebar category at the bottom containing User Manuals — visible to all roles by default.
+- "Menu Customization" item added under Management (Super Admin only).
+
+**Verified end-to-end** by testing agent (`/app/test_reports/iteration_77.json`):
+- Backend: 10/10 pytest pass — all 4 endpoints, auth gating (401 invalid token, 403 non-SA), persistence, role sanitization.
+- Frontend: SA can open `/menu-config`, sees 10 categories × 14 role checkboxes × 40 move-to-category dropdowns; Save + Reset both fire success toasts. Franchise Owner correctly sees Help & Resources → User Manuals but NOT Menu Customization, and is blocked from `/menu-config` route. `/user-manuals` page renders all 4 role cards (Super Admin / Center Manager / Accountant / Franchise Owner) + Complete User Manual.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy: Super Admins can reorganize menus from the UI without redeployment, and User Manuals appear on every authenticated user's sidebar under Help & Resources.
+
 ### [2026-05-09] One-shot DB recompute script — `daily_sales.gst_amount` aligned with canonical inclusive carve
 **Why**: yesterday's audit fixed the 5 *write paths* that were storing GST as 5%-on-top instead of inclusive carve. But every historical row in `daily_sales` still has the old (wrong) value stored in `gst_amount`. Dashboards compute GST on the fly so they already show the right number — but anything that reads the stored field directly (a future report, an export, a downstream consumer) gets the wrong figure.
 
