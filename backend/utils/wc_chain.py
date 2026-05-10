@@ -12,7 +12,11 @@ The chain semantics — these are the AUTHORITATIVE rules:
         pnl[M]         = sale[M] - expenses[M] - commission[M]
                          (GST is M+1 expense, NOT subtracted from M's P/L)
         closing_wc[M]  = opening_wc[M] + pnl[M] + wc_adjustment[M]
-                         + topup[M] + other_income[M]
+                         + topup[M]
+                         (Other Income is MEMO-ONLY — NOT added to chain.
+                          A loan taken is a liability, not real WC; auto-tagged
+                          loan_taken entries on db.other_income would otherwise
+                          mask negative WC as "Healthy".)
 
 Override semantics:
     * `commission_target` (per-month wc_overrides): replaces the source
@@ -97,7 +101,12 @@ async def compute_wc_chain(
         topup = float(topups_by_month.get(month, 0) or 0)
         oi = float(other_income_by_month.get(month, 0) or 0)
 
-        closing_wc = opening_wc + pnl + wc_adj + topup + oi
+        # Other Income (esp. auto-tagged "loan_taken") is intentionally NOT
+        # added to closing_wc. A loan is a liability, not real working capital.
+        # Adding it would mask a negative WC as "Healthy" (e.g. base 9L, P/L
+        # cumulative -46L, loan taken 16L → false 'Healthy 216%' instead of
+        # true 'Critical -413%'). Surface it on the dashboard as memo only.
+        closing_wc = opening_wc + pnl + wc_adj + topup
 
         # WC used / restored counters (used by Status card)
         month_used = abs(pnl) if pnl < 0 else 0.0

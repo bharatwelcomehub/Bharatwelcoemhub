@@ -415,8 +415,18 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             fin_data.append(["Total Effective Loans", f"{currency} {wc_st['total_effective_loans']:,.2f}"])
         wc_pct = wc_st.get("wc_percentage", 100)
         wc_status = wc_st.get("wc_status", "healthy")
-        status_label = ("HEALTHY" if wc_status == "healthy"
-                        else "RESTORING" if wc_status == "restoring" else "CLOSED (Below 50%)")
+        # Map status to PIB label. "protection" status fires when WC ≤ 50% of base
+        # (which includes the case where WC has gone negative — e.g. base 9L,
+        # closing -37L → wc_pct = -413%). Show that as CRITICAL so the franchise
+        # owner immediately sees the WC has been wiped out, not "Healthy".
+        if wc_status == "healthy":
+            status_label = "HEALTHY"
+        elif wc_status == "restoring":
+            status_label = "RESTORING"
+        elif wc_pct < 0:
+            status_label = "CRITICAL (WC Depleted)"
+        else:
+            status_label = "PROTECTION (Below 50%)"
         fin_data.append(["WC Status", f"{wc_pct:.0f}% - {status_label}"])
         if not wc_st.get("revenue_share_active", True) and fin.get("working_capital", 0) > 0:
             fin_data.append(["", ""])
@@ -461,8 +471,9 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         story.append(Paragraph("4B. CASH INFLOWS (NON-OPERATING) & INTER-CENTER LOANS",
                                styles["PIBSection"]))
         story.append(Paragraph(
-            "These rows do NOT affect Sales / P&amp;L / Revenue Share / MG. "
-            "Other Income adjusts next month's Opening Working Capital.",
+            "<b>Memo only.</b> These rows do NOT affect Sales / P&amp;L / Revenue Share / MG / "
+            "Working Capital. Loans taken are liabilities — they do not increase real WC, "
+            "even though cash flows in. Repayment is tracked separately on the Loan Ledger.",
             styles["PIBNote"] if "PIBNote" in styles.byName else styles["BodyText"],
         ))
         story.append(Spacer(1, 4))
@@ -477,7 +488,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                     "Other Income",
                     cat.replace("_", " ").title(),
                     f"{currency} {float(amt or 0):,.2f}",
-                    "Adds to next-month Opening WC",
+                    "Memo only · does NOT alter WC",
                 ])
 
         # Loans taken (borrower's own PIB — source center SHOWN)

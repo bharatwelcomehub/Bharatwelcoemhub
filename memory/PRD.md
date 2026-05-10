@@ -5,6 +5,33 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] WC chain — Other Income (loan_taken) NO LONGER inflates Working Capital
+**User report**: PB-HSR PIB Report on production showed "Closing WC ₹19,40,182 — Healthy 216%" while the WC Breakdown table showed **−₹37,16,882**. Root cause from the user's screenshot: a ₹16,00,000 "Other Income — Loan Taken" entry was being added to Closing WC, making a depleted WC look healthy. User: *"how can it be healthy when WC is negative?"*
+
+**Fix** (`backend/utils/wc_chain.py`):
+- Removed `+ other_income[M]` from the canonical chain. New formula:
+  ```
+  closing_wc[M] = opening_wc[M] + pnl[M] + wc_adjustment[M] + topup[M]
+  ```
+- A loan taken is a liability — the cash flows in but it's not real working capital. Repayment is already tracked separately on the Loan Ledger.
+- `topup` (explicit equity injection) stays in the chain — that IS real WC.
+- Other Income is now strictly **memo-only** on dashboards and PIB Section 4B.
+
+**PIB PDF cosmetic** (`utils/pdf_generator.py`):
+- Section 4B note updated to *"Memo only · does NOT alter WC. Loans taken are liabilities."*
+- Per-row Status column changed from "Adds to next-month Opening WC" → "Memo only · does NOT alter WC".
+- WC Status label now shows **"CRITICAL (WC Depleted)"** when wc_pct < 0 instead of falling through to "CLOSED (Below 50%)" — so the franchise owner immediately sees the WC has been wiped out.
+
+**Verified**:
+- Injected ₹16L loan_taken Other Income for PB-HSR Apr 2026 → closing_wc unchanged at ₹58,01,340.41 (was ₹74,01,340 before fix). Other Income surfaces as memo on the response only.
+- 12/12 audit cases PASS (PB-MGT/PB-DV/PB-PERTH/PB-HSR × Apr-2026, Feb-2026, Dec-2025).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, PB-HSR PIB will show:
+- Current Working Capital: **−₹37,16,882** (matches WC Breakdown)
+- WC % vs Base: **−413%**
+- Status: **CRITICAL (WC Depleted)** in red
+- Section 4B Other Income: ₹16,00,000 (memo only · does NOT alter WC)
+
 ### [2026-05-10] Working Capital — single canonical chain across all 5 surfaces
 **User report** (production audit): PB-HSR Apr 2026 showed **5 different Working Capital values** across 5 surfaces — Center Accounts top card ₹19,40,182, Operational Balance −₹15,35,468, WC Breakdown table −₹37,16,882, MIS Dashboard ₹19,40,182, FO Dashboard ₹20,74,838. User confirmed the cumulative chained value (−₹37L) is the truth.
 
