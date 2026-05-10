@@ -306,99 +306,52 @@ async def get_mis_overview(data: dict):
         logger.warning(f"MIS: historical merge failed: {hx}")
         hist_by_center = {}
     
-    # Commission calculation (from monthly_commissions uploads)
+    # Commission calculation — uses canonical helper from utils/commissions.py
+    # so every surface (MIS, Center Accounts, Owner Reports, MG Payout) shows
+    # the same figure. Honours WC override → uploaded → legacy in that order.
     total_commissions = 0.0
+    comm_records = []  # kept for backward-compat with later code that reads buckets
     try:
-        # Derive month strings from the period
         from datetime import datetime as dt_cls
+        from utils.commissions import get_total_commissions
         period_start = dt_cls.strptime(start_date, "%Y-%m-%d")
         period_end = dt_cls.strptime(end_date, "%Y-%m-%d")
-        # Collect all months in the range
-        months_in_range = set()
+        months_in_range = []
         cur = period_start.replace(day=1)
         while cur <= period_end:
-            months_in_range.add(cur.strftime("%Y-%m"))
+            months_in_range.append(cur.strftime("%Y-%m"))
             if cur.month == 12:
                 cur = cur.replace(year=cur.year + 1, month=1)
             else:
                 cur = cur.replace(month=cur.month + 1)
 
+        # Build the list of (center, month) pairs to aggregate
         if center != "all":
-            comm_records = await db.monthly_commissions.find(
-                {"center": center, "month": {"$in": list(months_in_range)}},
-                {"_id": 0, "center": 1, "gst_tax_deductions": 1, "other_deductions": 1, "commission_amount": 1, "gst_on_commission": 1},
-            ).to_list(500)
-            total_commissions = sum(
-                r.get("gst_tax_deductions", 0) + r.get("other_deductions", 0)
-                or (r.get("commission_amount", 0) + r.get("gst_on_commission", 0))
-                for r in comm_records
-            )
+            pairs = [(center, m) for m in months_in_range]
         else:
-            comm_records = await db.monthly_commissions.find(
-                {"month": {"$in": list(months_in_range)}},
-                {"_id": 0, "center": 1, "gst_tax_deductions": 1, "other_deductions": 1, "commission_amount": 1, "gst_on_commission": 1},
-            ).to_list(5000)
-            total_commissions = sum(
-                r.get("gst_tax_deductions", 0) + r.get("other_deductions", 0)
-                or (r.get("commission_amount", 0) + r.get("gst_on_commission", 0))
-                for r in comm_records
+            # Multi-center: pick up every center that has uploaded commissions
+            distinct_centers = await db.monthly_commissions.distinct(
+                "center", {"month": {"$in": months_in_range}}
             )
+            override_centers = await db.wc_overrides.distinct(
+                "center", {"month": {"$in": months_in_range}}
+            )
+            all_centers = set(distinct_centers) | set(override_centers)
+            pairs = [(c, m) for c in all_centers for m in months_in_range]
+
+        for c, m in pairs:
+            res = await get_total_commissions(db, c, m)
+            total_commissions += res["total"]
+            comm_records.extend(res["rows"])
         total_commissions = round(total_commissions, 2)
     except Exception as comm_err:
         logger.warning(f"MIS: commission calc failed: {comm_err}")
     
-    # Apply WC table overrides (commission_target only) so Commission summaries
-    # match the Center Accounts WC table. GST is intentionally NOT overridable
-    # — it must always equal the formula `eligible_base × rate / (1+rate)` so
-    # the dashboards stay byte-identical to the PIB / GST Summary report. A
-    # legacy `gst_target` value stored against a (center, month) used to be
-    # added on top of the formula here (because the source bucket read the
-    # blank `gst_amount` field), causing PB-DV Apr-2026 to show ₹55,984.74 on
-    # the dashboard while the GST Summary correctly showed ₹46,133.14.
-    try:
-        ov_map = await fetch_wc_overrides(center, start_date, end_date)
-        # Per-month source aggregates (center, month) for the current period
-        # so we can subtract the source value and add the override value.
-        def _month_bucket(rows, value_key, center_key="center"):
-            buckets = {}
-            for r in rows:
-                c = r.get(center_key, "") or ""
-                d = r.get("date", "") or ""
-                m = d[:7] if d else ""
-                if not m:
-                    continue
-                buckets[(c, m)] = buckets.get((c, m), 0) + float(r.get(value_key, 0) or 0)
-            return buckets
-
-        # Commission source bucket: from comm_records grouped by (center, month)
-        comm_src_buckets = {}
-        try:
-            for r in comm_records:
-                cc = r.get("center", "") or ""
-                mm = r.get("month", "") or ""
-                if not mm:
-                    continue
-                v = (
-                    r.get("gst_tax_deductions", 0) + r.get("other_deductions", 0)
-                    or (r.get("commission_amount", 0) + r.get("gst_on_commission", 0))
-                )
-                comm_src_buckets[(cc, mm)] = comm_src_buckets.get((cc, mm), 0) + v
-        except Exception:
-            pass
-
-        def _apply_commission_overrides(ov, comm_total, comm_buckets):
-            new_comm = comm_total
-            for (cc, mm), o in ov.items():
-                ct = o.get("commission_target")
-                if ct is not None:
-                    new_comm = new_comm - comm_buckets.get((cc, mm), 0) + float(ct)
-            return round(new_comm, 2)
-
-        total_commissions = _apply_commission_overrides(
-            ov_map, total_commissions, comm_src_buckets
-        )
-    except Exception as ov_err:
-        logger.warning(f"MIS: WC override application failed: {ov_err}")
+    # NOTE: WC commission_target overrides have ALREADY been applied inside
+    # utils/commissions.get_total_commissions(). The block below was the legacy
+    # post-hoc override application which used to drift from Center Accounts
+    # / Owner Reports / MG Payout. Keeping the comment block as breadcrumb.
+    # ov_map was previously fetched here; commission application is now centralised.
     
     # Net Revenue & Profit calculation (per user requirement Apr-2026):
     #   Net Revenue = Total Sale − Commissions − GST on Sale
@@ -499,20 +452,19 @@ async def get_mis_overview(data: dict):
     except Exception:
         pass
     
-    # Apply WC-table per-center overrides to centers_data — commissions only.
-    # GST is intentionally NOT overridden here (formula is single source of
-    # truth — see comment above on the global merge).
+    # Recompute per-center commissions using the canonical helper so the
+    # per-center breakdown matches the top-level total. WC overrides are
+    # already baked in by get_total_commissions().
     try:
-        for (cc, mm), o in ov_map.items():
-            if cc not in centers_data:
-                continue
-            ct = o.get("commission_target")
-            if ct is not None:
-                centers_data[cc]["commissions"] = round(
-                    centers_data[cc].get("commissions", 0) - comm_src_buckets.get((cc, mm), 0) + float(ct), 2
-                )
+        from utils.commissions import get_total_commissions as _gtc
+        for cc in list(centers_data.keys()):
+            cc_total = 0.0
+            for m in months_in_range:
+                _r = await _gtc(db, cc, m)
+                cc_total += _r["total"]
+            centers_data[cc]["commissions"] = round(cc_total, 2)
     except Exception as ov2_err:
-        logger.warning(f"MIS: per-center WC override application failed: {ov2_err}")
+        logger.warning(f"MIS: per-center commission canonical recompute failed: {ov2_err}")
     
     # Calculate profit for each center
     for c in centers_data:

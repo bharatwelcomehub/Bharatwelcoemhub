@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { FileText, AlertCircle, Download, Eye, TrendingUp, TrendingDown } from 'lucide-react';
 import { toast } from 'sonner';
+import LedgersTab from '../components/LedgersTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -516,6 +517,18 @@ export default function OwnerReports() {
                 </table>
               </CardContent>
             </Card>
+          )}
+
+          {/* Ledgers Section — same UI as Center Accounts; gated server-side
+              for franchise owners (must be released by Accounts). Admin/SA/Accounts
+              always see; franchise owners only see when month is released. */}
+          {center && (
+            <LedgersTab
+              session={session}
+              selectedCenter={center}
+              country={report.country}
+              readOnly={!session?.is_super_admin && !session?.is_admin && !(session?.roles?.accounting === true)}
+            />
           )}
         </>
       )}

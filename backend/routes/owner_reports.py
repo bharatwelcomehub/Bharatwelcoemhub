@@ -154,32 +154,14 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         by_cat[k] = by_cat.get(k, 0) + float(e.get("amount", 0) or 0)
     expense_breakdown = [{"category": k, "amount": round(v, 2)} for k, v in sorted(by_cat.items(), key=lambda kv: -kv[1])]
     
-    # Commissions — sum every commission-related field the same way Center Accounts
-    # and the MG Payout report do, so all surfaces show identical figures.
-    # Includes platform commission + commission GST + TDS withheld at source.
-    comms = await db.monthly_commissions.find(
-        {"center": center, "month": month}, {"_id": 0}
-    ).to_list(100)
-    def _comm_total(c: dict) -> float:
-        return (
-            float(c.get("commission_amount", 0) or 0)
-            + float(c.get("other_deductions", 0) or 0)
-            + float(c.get("gst_tax_deductions", 0) or 0)
-            + float(c.get("tds", 0) or 0)
-        )
-    total_commission = round(sum(_comm_total(c) for c in comms), 2)
-    # Commission GST component (kept separate so we can show "Eligible Rev Share Base"
-    # = Sales − Commission − Commission GST − GST). Prefer the explicit
-    # gst_tax_deductions field on the upload; if a row lacks that field, fall back
-    # to 18% of the base commission_amount so the rule documented in the UI
-    # ("18% GST on commission") is always honoured for India.
-    def _comm_gst(c: dict) -> float:
-        gtd = float(c.get("gst_tax_deductions", 0) or 0)
-        if gtd > 0:
-            return gtd
-        base = float(c.get("commission_amount", 0) or 0)
-        return round(base * 0.18, 2) if base > 0 else 0.0
-    commission_gst = round(sum(_comm_gst(c) for c in comms), 2)
+    # Commissions — single source of truth: utils/commissions.py.
+    # Honours WC overrides (commission_target), then uploaded monthly_commissions,
+    # then legacy commission_statements. Identical to MIS / Center Accounts / MG.
+    from utils.commissions import get_total_commissions
+    comm_result = await get_total_commissions(db, center, month)
+    total_commission = comm_result["total"]
+    commission_gst = comm_result["commission_gst"]
+    comms = comm_result["rows"]
     commission_breakdown = [
         {"platform": c.get("platform"),
          "gross": round(float(c.get("gross_amount", 0)), 2),

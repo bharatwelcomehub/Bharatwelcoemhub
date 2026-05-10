@@ -40,7 +40,7 @@ const colorClasses = (c) => ({
   fuchsia: 'border-fuchsia-200 bg-fuchsia-50 hover:border-fuchsia-400',
 }[c] || 'border-slate-200 bg-slate-50 hover:border-slate-400');
 
-export default function LedgersTab({ session, selectedCenter, country }) {
+export default function LedgersTab({ session, selectedCenter, country, readOnly = false }) {
   const token = session?.token;
   const [periodType, setPeriodType] = useState('month');
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -192,10 +192,12 @@ export default function LedgersTab({ session, selectedCenter, country }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <BookOpen className="w-5 h-5 text-indigo-600" />
-            Ledgers — CA-Ready Books of Accounts
+            {readOnly ? 'Ledgers — Released by Accounts' : 'Ledgers — CA-Ready Books of Accounts'}
           </CardTitle>
           <CardDescription>
-            Indian accounting books for {selectedCenter || 'selected center'}. Super Admin / Admin / Accounts access only.
+            {readOnly
+              ? `View-only access to ledgers for ${selectedCenter || 'your center'}. Available only after the Accounts team releases the month.`
+              : `Indian accounting books for ${selectedCenter || 'selected center'}. Super Admin / Admin / Accounts access only.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -232,20 +234,27 @@ export default function LedgersTab({ session, selectedCenter, country }) {
             <div>
               <Button
                 onClick={downloadBundle}
-                disabled={bundleBusy || !selectedCenter}
+                disabled={bundleBusy || !selectedCenter || readOnly}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
                 data-testid="ledger-bundle-btn"
+                style={readOnly ? { display: 'none' } : {}}
               >
                 {bundleBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
                 Download CA Bundle (ZIP)
               </Button>
-              <p className="text-[10px] text-slate-500 mt-1">All ledgers + Excel + PDF + Bills</p>
+              {!readOnly && <p className="text-[10px] text-slate-500 mt-1">All ledgers + Excel + PDF + Bills</p>}
+              {readOnly && (
+                <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md p-2">
+                  <strong>View Only.</strong> Ledgers visible only after Accounts releases this month.
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Info banner */}
+      {!readOnly && (
       <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
         <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
         <div className="text-amber-800">
@@ -253,6 +262,16 @@ export default function LedgersTab({ session, selectedCenter, country }) {
           Output GST is computed at 5% on food sales (inclusive). <strong>Input GST (ITC) from vendor bills is not auto-tagged</strong> — please reconcile with your CA. Fixed Asset register not maintained in app.
         </div>
       </div>
+      )}
+      {readOnly && ownerReleasedStatus === 'hidden' && periodType === 'month' && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm" data-testid="ledger-not-released-banner">
+          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div className="text-amber-800">
+            <strong>Not yet released by Accounts.</strong> The selected month has not been flagged as ready by the Accounts team.
+            Ledger downloads will return "not available" until the month is released. Please check back later or contact your CA.
+          </div>
+        </div>
+      )}
 
       {/* Ledger cards */}
       <div className="grid md:grid-cols-2 gap-4">
@@ -284,7 +303,7 @@ export default function LedgersTab({ session, selectedCenter, country }) {
                   {busy === `${l.key}-excel` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />}
                   Excel
                 </Button>
-                {l.key === 'owner' && periodType === 'month' && (
+                {l.key === 'owner' && periodType === 'month' && !readOnly && (
                   <Button
                     size="sm"
                     onClick={toggleOwnerRelease}
@@ -304,6 +323,7 @@ export default function LedgersTab({ session, selectedCenter, country }) {
       </div>
 
       {/* CA Bundle contents */}
+      {!readOnly && (
       <Card className="border-dashed border-2 border-indigo-200">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
@@ -320,6 +340,7 @@ export default function LedgersTab({ session, selectedCenter, country }) {
           </ul>
         </CardContent>
       </Card>
+      )}
 
       {/* Inline Preview modal */}
       <Dialog open={!!previewBlobUrl} onOpenChange={(o) => { if (!o) { if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); } }}>

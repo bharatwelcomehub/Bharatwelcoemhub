@@ -1,0 +1,38 @@
+{
+  "summary": "Verified canonical commission helper produces byte-identical numbers across Owner Reports / Center Accounts / MIS / MG Payout, plus Ledgers section under Owner Reports works for Super Admin. Audit script (audit_financial_parity.py) PASS for all 4 mandated cases: PB-MGT 2026-02, PB-DV 2026-04, PB-PERTH 2026-02, PB-HSR 2026-02 — every surface matches to the rupee. New backend pytest 15/15 PASS (1 skipped — PB-DV 2026-04 has no monthly_data row): owner-reports returns net_revenue/net_pl/eligible_rev_share_base/commissions.commission_gst; commission totals byte-equal across the 4 surfaces; payout-summary net_revenue not clamped (matches owner-reports value); PB-PERTH AU grossup confirmed at exactly ₹2,172.52 across Owner Reports / Center Accounts / MIS / MG Payout; MG Payout PDF generates as a real PDF (with format='pdf'); commission_by_platform aggregation still present (no regression). Frontend Playwright: Super Admin login -> /owner-reports -> select PB-HSR + Feb 2026 -> Load Report -> Ledgers section 'Ledgers — CA-Ready Books of Accounts' renders below the financial summary cards with all 10 ledger cards visible (Sales Register, Expense/Purchase Register, Cash Book, Bank Book, Commission/Aggregator Ledger, Loan/Counterparty Ledger, Payroll Register, GST Summary, Monthly P&L, Franchise Owner Ledger), each with Preview/PDF/Excel buttons. Sales ledger Preview click opens the inline preview modal (data-testid=ledger-preview-modal) with iframe (data-testid=ledger-preview-frame) successfully.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_financial_parity_canonical.py",
+    "/app/test_reports/pytest/financial_parity.xml"
+  ],
+  "action_items": [
+    "(Optional, NOT a regression) Two ledger card data-testid values appear non-canonical when matched against the spec's 10 keys: 'expense' and 'pl' both returned 0 hits in my test, while their cards are visibly present in the screenshot. The actual testids used in the cards are likely 'expenses' and 'monthly_pl' (or similar). If the spec calls for exact testid keys [sales, expense, cash, bank, commission, loans, payroll, gst, pl, owner], main agent may want to align LedgersTab.jsx testids accordingly. This does not affect functionality — every card renders and the preview/PDF/excel buttons work."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/utils/commissions.py is now the single source of truth — clean and well-documented. All 3 callers (owner_reports.py, center_accounts.py /summary + /payout-summary, mis_dashboard.py) consistently route through get_total_commissions, which is the right design.",
+    "audit_financial_parity.py is a great regression guard — recommend wiring this into CI for the 4-6 most-trafficked center+month combinations.",
+    "test_payout_summary_net_revenue_canonical[PB-DV-2026-04] returned no monthly_data row from /payout-summary — consider whether the endpoint should still return an empty monthly_data[0] stub for months with no commission rows, vs. returning [] (current behaviour). Either is fine, my test handles both via skip.",
+    "PB-PERTH AU 10% grossup verified: ₹1,975.02 base × 1.10 = ₹2,172.52 — present and consistent on all 4 surfaces. The AU branch correctly stops double-applying the grossup (per the changelog in commissions.py)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_financial_parity_canonical.py (new pytest file — 16 tests across 4 cases, 15 pass + 1 skipped)"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 pass + audit 4/4 pass; 1 expected skip)",
+    "frontend": "100% (Ledgers section renders, all 10 cards visible, Sales preview modal opens with iframe)"
+  },
+  "test_credentials": "Super Admin 9741399190 / OTP 123456 / center PB-MGT (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None — used existing PB-MGT, PB-DV, PB-PERTH, PB-HSR data per audit specs.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Canonical commission helper is the single source of truth. The pytest file /app/backend/tests/test_financial_parity_canonical.py reads REACT_APP_BACKEND_URL from /app/frontend/.env automatically and runs in ~7s. The audit script at /app/backend/scripts/audit_financial_parity.py takes <CENTER> <MONTH> args and exits 0 on parity, 1 on drift. For future iterations involving any commission math change, run BOTH the pytest and the audit script against the 4 standard cases. Frontend Ledgers section is at the bottom of /owner-reports after Load Report — testid='ledgers-tab' and individual cards via 'ledger-card-<key>'. Note: 2 of the 10 testid keys checked (expense, pl) didn't match what's in LedgersTab.jsx — main agent may want to confirm testid naming convention.",
+  "rca of the issue": "Not a bug-fix iteration — feature regression verification only. The canonical commission helper consolidation works as designed: every surface now reads the same number from get_total_commissions(), and the audit script proves byte-identity across all 4 cases. Ledgers section under Owner Reports renders correctly for Super Admin role with all 10 ledger cards and a working Preview modal."
+}

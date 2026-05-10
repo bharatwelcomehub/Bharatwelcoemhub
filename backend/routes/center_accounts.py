@@ -1387,13 +1387,25 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         commission_by_platform["phonepe"]["deduction"] +
         commission_by_platform["cards"]["deduction"]
     )
+
+    # ==========================================
+    # Canonical commission total (single source of truth across all surfaces).
+    # The by-platform breakdown above stays for the UI; the total below is
+    # what every dashboard / report MUST display so figures stay byte-identical.
+    # Reads WC override → uploaded → legacy in that order. See utils/commissions.
+    # ==========================================
+    from utils.commissions import get_total_commissions
+    _comm_canon = await get_total_commissions(db, req.center, month_str)
+    canonical_total_commission = _comm_canon["total"]
+    canonical_commission_gst = _comm_canon["commission_gst"]
+    commission_override_applied = _comm_canon["override_applied"]
     
     # ==========================================
     # 4. Calculate Financial Summary with GST
     # ==========================================
     
-    # Total commission
-    total_commission = total_aggregator_commission + card_commission
+    # Total commission — use canonical helper so every surface agrees.
+    total_commission = canonical_total_commission
     
     # Net Eligible Sales for GST = Total - Aggregators (Swiggy + Zomato + DoorDash).
     # Use shared utility (single source of truth, INCLUSIVE basis).
@@ -1405,13 +1417,12 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     if country == "Australia":
         # Australia: GST is inclusive in receipt; ex-GST = total − GST
         sales_ex_gst = total_sale - sales_gst_amount
-        # Commission GST grossup uses the canonical rate (10% for AU/intl)
-        from utils.gst import gst_rate_for
-        _au_rate = gst_rate_for(country, None)
-        commission_gst = round(total_commission * _au_rate, 2)
-        total_commission_with_gst = total_commission + commission_gst
-        # Net Revenue = Sales − Deductions (GST + Commissions inc commission GST). Expenses NOT here.
-        net_revenue = compute_net_revenue(total_sale, total_commission, sales_gst_amount, 0, country)
+        # Commission GST (10% AU) is already baked into total_commission by the
+        # canonical helper. Read base + GST split from the helper output.
+        commission_gst = canonical_commission_gst
+        total_commission_with_gst = total_commission  # already inclusive
+        # Net Revenue = Sales − Deductions (GST + inclusive commissions). Expenses NOT here.
+        net_revenue = round(total_sale - total_commission - sales_gst_amount, 2)
         # Profitability = Net Revenue − Total Expenses → drives 80/20 profit share.
         profitability = round(net_revenue - total_expenses, 2)
     else:
@@ -1419,7 +1430,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # Net Revenue = Total Sale − Commissions − GST on Sales (Apr-2026 rule).
         # Expenses are NOT subtracted from Net Revenue (reviewed in P&L separately).
         sales_ex_gst = total_sale - sales_gst_amount
-        commission_gst = 0
+        # Use canonical commission GST split so all surfaces report the same
+        # comm GST figure (not 0 anymore — matches Owner Reports / MIS).
+        commission_gst = canonical_commission_gst
         total_commission_with_gst = total_commission
         net_revenue = compute_net_revenue(total_sale, total_commission, sales_gst_amount, 0, country)
         profitability = net_revenue  # India: profitability not separately surfaced
@@ -2448,24 +2461,11 @@ async def get_payout_summary(data: dict = Body(...)):
         }, {"amount": 1}).to_list(500)
         total_expenses = sum(e.get("amount", 0) or 0 for e in expense_records)
         
-        # Get commissions for this month - check both collections
-        # 1. From commission_statements (legacy)
-        commission_records = await db.commission_statements.find({
-            "center": center,
-            "settlement_period_start": {"$gte": start_date},
-            "settlement_period_end": {"$lt": end_date}
-        }, {"commission_charged": 1}).to_list(100)
-        total_commission = sum(c.get("commission_charged", 0) or 0 for c in commission_records)
-        
-        # 2. From monthly_commissions (uploaded Excel data)
-        monthly_comm_records = await db.monthly_commissions.find({
-            "center": center,
-            "month": month
-        }, {"gst_tax_deductions": 1, "other_deductions": 1, "commission_amount": 1, "gst_on_commission": 1}).to_list(100)
-        for mc in monthly_comm_records:
-            new_val = (mc.get("gst_tax_deductions", 0) or 0) + (mc.get("other_deductions", 0) or 0)
-            old_val = (mc.get("commission_amount", 0) or 0) + (mc.get("gst_on_commission", 0) or 0)
-            total_commission += new_val if new_val > 0 else old_val
+        # Get commissions for this month — canonical helper (single source
+        # of truth across all surfaces). Honours WC override → uploaded → legacy.
+        from utils.commissions import get_total_commissions
+        _payout_comm = await get_total_commissions(db, center, month)
+        total_commission = _payout_comm["total"]
         
         # Calculate Net Revenue / Net Profit based on country
         # India : Net Revenue = Total Sales − Commissions − GST on Sales (Apr-2026 rule)
@@ -2480,10 +2480,16 @@ async def get_payout_summary(data: dict = Body(...)):
         gst_on_sales = gst_calc["gst_amount"]
 
         if franchise_country == "India":
-            net_revenue_for_share = max(0, total_sale - total_commission - gst_on_sales)
+            net_revenue = round(total_sale - total_commission - gst_on_sales, 2)
+            net_revenue_for_share = max(0, net_revenue)
         else:
-            net_revenue_aus = compute_net_revenue(total_sale, total_commission, gst_on_sales, 0, franchise_country)
-            net_revenue_for_share = max(0, round(net_revenue_aus - total_expenses, 2))
+            # AU: total_commission from canonical helper is ALREADY inclusive of
+            # 10% commission GST. Net Revenue (no expenses subtracted) matches
+            # the canonical chain across all surfaces; the 80/20 share is on
+            # Profitability = Net Revenue − Expenses (computed below).
+            net_revenue = round(total_sale - total_commission - gst_on_sales, 2)
+            # Share-bearing base clamped at 0 (no negative payouts).
+            net_revenue_for_share = max(0, round(net_revenue - total_expenses, 2))
         
         # Calculate FRANCHISE OWNER's share (this is what gets compared with MG)
         # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner) on NET REVENUE
@@ -2514,7 +2520,7 @@ async def get_payout_summary(data: dict = Body(...)):
             "total_sales": round(total_sale, 2),
             "gst_on_sales": round(gst_on_sales, 2),
             "total_commissions": round(total_commission, 2),
-            "net_revenue": round(net_revenue_for_share, 2),
+            "net_revenue": round(net_revenue, 2),  # Sales − Comm − GST (canonical)
             "revenue_share": round(revenue_share, 2),
             "mg_amount": round(mg_amount, 2),
             "payable_type": payout_type,
