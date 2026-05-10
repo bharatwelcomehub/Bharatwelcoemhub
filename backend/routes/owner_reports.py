@@ -169,10 +169,17 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         )
     total_commission = round(sum(_comm_total(c) for c in comms), 2)
     # Commission GST component (kept separate so we can show "Eligible Rev Share Base"
-    # = Sales − Commission − Commission GST − GST). For most India centers this comes
-    # from the gst_tax_deductions field on the upload; the rate fallback is 18%.
-    commission_gst_uploaded = round(sum(float(c.get("gst_tax_deductions", 0) or 0) for c in comms), 2)
-    commission_gst = commission_gst_uploaded
+    # = Sales − Commission − Commission GST − GST). Prefer the explicit
+    # gst_tax_deductions field on the upload; if a row lacks that field, fall back
+    # to 18% of the base commission_amount so the rule documented in the UI
+    # ("18% GST on commission") is always honoured for India.
+    def _comm_gst(c: dict) -> float:
+        gtd = float(c.get("gst_tax_deductions", 0) or 0)
+        if gtd > 0:
+            return gtd
+        base = float(c.get("commission_amount", 0) or 0)
+        return round(base * 0.18, 2) if base > 0 else 0.0
+    commission_gst = round(sum(_comm_gst(c) for c in comms), 2)
     commission_breakdown = [
         {"platform": c.get("platform"),
          "gross": round(float(c.get("gross_amount", 0)), 2),

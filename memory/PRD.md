@@ -5,6 +5,40 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] Owner Reports — Net Revenue / Net P/L split, Eligible Rev Share Base card, MG Payout GST grossup
+**User report** (production screenshots, PB-DV April 2026):
+1. The "Net P/L" KPI card on Owner Reports actually shows Net Revenue (no expenses subtracted) AND the commission total used (₹15,900) excludes the 18% commission GST (~₹5,688) — i.e. it should be ₹21,588.
+2. Need a new "Eligible Rev Share Base" card with explicit formula: Sales − Commission − Commission GST − GST.
+3. The MG Payout Report's Total Payable should add 18% GST grossup on the Revenue Share so the gross-of-tax invoiceable figure (₹1,70,703 = ₹1,44,663.50 × 1.18) shows up.
+
+**Backend** (`routes/owner_reports.py`):
+- `total_commission` now sums `commission_amount + other_deductions + gst_tax_deductions + tds` (matches Center Accounts / MG Payout) instead of just `other_deductions`. PB-DV Apr 2026 jumps from ₹15,900 → ₹21,588 — same as the MG Payout report's Comm column.
+- New response fields: `net_revenue` (Sales − Comm − GST), `net_pl` (Net Revenue − Expenses), `eligible_rev_share_base` (Sales − Comm − Comm GST − GST), `commissions.commission_gst` (uploaded `gst_tax_deductions`, with fallback `commission_amount × 18%` when the upload omits the field).
+- `pnl` field kept as alias to `net_revenue` for back-compat.
+
+**Frontend** (`pages/OwnerReports.jsx`):
+- Card renamed: "Net P/L" → **"Net Revenue"** (subtitle "Sales − Comm (incl. GST) − GST").
+- New indigo card **"Eligible Rev Share Base"** (subtitle "Sales − Comm − Comm GST − GST").
+- New green/red card **"Net P/L"** (= Net Revenue − Expenses, subtitle "Net Revenue − Expenses").
+- KPI grid expanded to `md:grid-cols-6`. Hydration warning fixed (Badge inside `<p>` → `<div>`).
+
+**MG Payout Report** (`utils/pdf_generator.py::build_mg_payout_excel` + `build_mg_payout_pdf`):
+- Summary tile (top of PDF) now shows **"Final Payout (incl. 18% GST)"** column = Total Payable × 1.18 (or × 1.10 for AU/Perth), highlighted in emerald.
+- Below the TOTAL row in the monthly table: **"Add: 18% GST on Rev Share"** (amber-highlighted, italic) + **"Total Final Payout (incl. 18% GST)"** (emerald, bold).
+- Excel mirrors the same two extra rows.
+
+**Eligible Rev Share Base in offline reports** — added to all three:
+- **PIB PDF** (`utils/pdf_generator.py::build_pib_pdf` Section 4) — line directly below NET REVENUE.
+- **MIS Franchise PDF** (`routes/mis_dashboard.py::_build_franchise_pdf`) — row in Financial Summary directly below "= Net Revenue".
+- **Owner Ledger PDF** (`routes/ledgers.py::build_franchise_owner_ledger` + render) — new "Net Revenue Calculation" section above Final Payout: Total Sales → Less Commission (excl. GST) → Less Commission GST → Less GST on Eligible Sales → Eligible Rev Share Base.
+
+**Verified end-to-end** by testing agent (`/app/test_reports/iteration_78.json`):
+- Backend pytest 11/11 PASS — math chain verified (PB-HSR 2026-02 Sales=906132 → Net Revenue=871514.86 → Net P/L=725572.86).
+- Frontend Playwright PASS — 6 KPI cards render correctly with proper labels and values.
+- All 4 PDFs (MG Payout, PIB, MIS Franchise, Owner Ledger) contain the new sections.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`.
+
 ### [2026-05-10] Super Admin — Dynamic sidebar customization + User Manuals on sidebar
 **User ask** (carried over from previous fork): Make User Manuals downloadable from a sidebar entry available to all roles, move Social Media Planner to Management, and let Super Admins reorder menu placing & adjust role alignment without code changes.
 

@@ -404,7 +404,7 @@ export default function OwnerReports() {
             <Card><CardContent className="p-4">
               <p className="text-xs text-muted-foreground">GST ({report.gst.rate_pct}% of eligible)</p>
               <p className="text-xl font-bold">{fmtINR(report.gst.gst_amount)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Base: {fmtINR(report.gst.eligible_base)} · {report.gst.liability_paid ? <Badge className="bg-green-100 text-green-700 border-green-300 ml-1">Paid</Badge> : <Badge className="bg-amber-100 text-amber-700 border-amber-300 ml-1">Payable</Badge>}</p>
+              <div className="text-[10px] text-muted-foreground mt-1">Base: {fmtINR(report.gst.eligible_base)} · {report.gst.liability_paid ? <Badge className="bg-green-100 text-green-700 border-green-300 ml-1">Paid</Badge> : <Badge className="bg-amber-100 text-amber-700 border-amber-300 ml-1">Payable</Badge>}</div>
             </CardContent></Card>
             <Card data-testid="or-net-revenue-card"><CardContent className="p-4">
               <p className="text-xs text-muted-foreground">{report.country === 'Australia' ? 'Net Revenue' : 'Net Revenue'}</p>
