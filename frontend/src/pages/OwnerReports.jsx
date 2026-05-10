@@ -478,11 +478,11 @@ export default function OwnerReports() {
                         <td className="px-3 py-2 text-right font-mono font-semibold">{fmtINR(p.net_payout)}</td>
                       </tr>
                     ))}
-                    <tr className="bg-muted/50 font-semibold">
+                    <tr className="bg-muted/50 font-semibold" data-testid="or-commissions-total">
                       <td className="px-3 py-2">Total</td>
-                      <td></td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtINR(report.commissions.by_platform.reduce((s, p) => s + (p.gross || 0), 0))}</td>
                       <td className="px-3 py-2 text-right font-mono text-red-700">-{fmtINR(report.commissions.total)}</td>
-                      <td></td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtINR(report.commissions.by_platform.reduce((s, p) => s + (p.net_payout || 0), 0))}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -507,6 +507,11 @@ export default function OwnerReports() {
                         <td className="px-3 py-2 text-right text-muted-foreground">{report.expenses.total ? ((e.amount / report.expenses.total) * 100).toFixed(1) : 0}%</td>
                       </tr>
                     ))}
+                    <tr className="bg-muted/50 font-semibold border-t-2 border-slate-300" data-testid="or-expense-total">
+                      <td className="px-3 py-2">TOTAL</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmtINR(report.expenses.total)}</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">100.0%</td>
+                    </tr>
                   </tbody>
                 </table>
               </CardContent>
