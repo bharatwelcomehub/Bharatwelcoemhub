@@ -150,7 +150,8 @@ const menuCategories = [
       { path: "/managers", icon: UserCog, label: "Managers", forMGT: true },
       { path: "/role-management", icon: Shield, label: "Role Management", forMGT: true },
       { path: "/master-data", icon: Database, label: "Master Data", forMGT: true },
-      { path: "/user-manuals", icon: BookOpen, label: "User Manuals", forMGT: true },
+      { path: "/menu-config", icon: Settings, label: "Menu Config", superAdminOnly: true },
+      { path: "/social-media", icon: Share2, label: "Social Media Planner", forMGT: true },
     ]
   },
   {
@@ -163,7 +164,6 @@ const menuCategories = [
       { path: "/owner-reports", icon: FileText, label: "Owner Reports", forFranchise: true },
       { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
       { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
-      { path: "/social-media", icon: Share2, label: "Social Media Planner", forFranchise: true },
       { path: "/bill-download", icon: Download, label: "Bill Download", forFranchise: true },
       { path: "/documents", icon: FileCheck2, label: "Documents", forFranchise: true, franchiseAdminOnly: true },
     ]
