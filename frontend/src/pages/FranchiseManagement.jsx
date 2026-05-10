@@ -364,7 +364,17 @@ export default function FranchiseManagement() {
     try {
       const formDataUpload = new FormData();
       formDataUpload.append("token", session?.token);
-      formDataUpload.append("center", session?.center || "PB-MGT");
+      // Tag the document with the FRANCHISE's home center, not the uploader's
+      // center. Selecting a franchise from the management page implies the doc
+      // belongs to that franchise's operating center (e.g., FR-004 → PB-DV),
+      // even when uploaded by Super Admin sitting on PB-MGT.
+      const franchiseCenter =
+        selectedFranchise?.center_code
+        || selectedFranchise?.home_center
+        || (Array.isArray(selectedFranchise?.centers) && selectedFranchise.centers[0])
+        || session?.center
+        || "PB-MGT";
+      formDataUpload.append("center", franchiseCenter);
       formDataUpload.append("category_id", uploadData.document_type);
       formDataUpload.append("level", "franchise");
       formDataUpload.append("franchise_code", selectedFranchise.franchise_code);

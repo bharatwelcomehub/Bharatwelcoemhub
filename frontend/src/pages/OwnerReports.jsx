@@ -518,19 +518,21 @@ export default function OwnerReports() {
               </CardContent>
             </Card>
           )}
-
-          {/* Ledgers Section — same UI as Center Accounts; gated server-side
-              for franchise owners (must be released by Accounts). Admin/SA/Accounts
-              always see; franchise owners only see when month is released. */}
-          {center && (
-            <LedgersTab
-              session={session}
-              selectedCenter={center}
-              country={report.country}
-              readOnly={!session?.is_super_admin && !session?.is_admin && !(session?.roles?.accounting === true)}
-            />
-          )}
         </>
+      )}
+
+      {/* Ledgers Section — same UI as Center Accounts; lives OUTSIDE the
+          {report && ...} block so it shows as soon as a center is selected,
+          even if the monthly report fails to load. Server-side /api/ledgers/*
+          gates by role: Super Admin / Admin / Accounts always see; franchise
+          owners see only after Accounts releases the month. */}
+      {center && (
+        <LedgersTab
+          session={session}
+          selectedCenter={center}
+          country={report?.country}
+          readOnly={!session?.is_super_admin && !session?.is_admin && !(session?.roles?.accounting === true)}
+        />
       )}
 
       {/* Inline Preview modal */}

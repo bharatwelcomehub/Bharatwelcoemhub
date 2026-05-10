@@ -230,6 +230,23 @@ async def upload_document(
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(400, f"File too large. Max size: {MAX_FILE_SIZE // (1024*1024)}MB")
 
+    # Auto-correct center when uploading a franchise-level document. Earlier
+    # versions of the franchise mgmt page tagged the uploader's center on the
+    # doc (e.g. PB-MGT) instead of the franchise's home center (e.g. PB-DV),
+    # which made docs invisible on the Document Management page when filtered
+    # by the actual operating center. Resolve via the centers→franchise link.
+    if level == "franchise" and franchise_code:
+        fc_norm = franchise_code.upper().strip()
+        # Look up centers attached to this franchise; skip the MGT pseudo-center.
+        linked_centers = await db.centers.find(
+            {"franchise_code": fc_norm}, {"_id": 0, "code": 1}
+        ).to_list(50)
+        codes = [c.get("code", "").upper() for c in linked_centers if c.get("code")]
+        codes_non_mgt = [c for c in codes if c and c != "PB-MGT"]
+        target = (codes_non_mgt[0] if codes_non_mgt else (codes[0] if codes else None))
+        if target:
+            center = target
+
     # Validate category
     category = await db.document_categories.find_one({"category_id": category_id}, {"_id": 0})
     if not category:
