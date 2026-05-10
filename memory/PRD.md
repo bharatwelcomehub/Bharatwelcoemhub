@@ -5,6 +5,30 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] Download access fixes — Super Admin bypass + FO 500→403
+**Reported issues** (production):
+1. Downloads on Franchise Reports (Owner Reports) page not appearing
+2. Owner's Dashboard report-range download not working
+3. Ledger downloads for franchise owners returning errors
+
+**Root causes found**:
+1. `OwnerReports.jsx` gated all download buttons behind `visible = report.visibility.ready`. Super Admins on production can preview unreleased data but couldn't see download buttons → "downloads broken".
+2. `routes/ledgers.py::_has_ledger_access` assumed `session.roles` was a list of dicts — franchise-owner sessions store it as a dict (`{accounting: true, ...}`). Threw `AttributeError: 'str' object has no attribute 'get'` → 500 instead of clean 403.
+3. Ledger gate only checked the general monthly Owner Report release, not the explicit `owner_ledger` release.
+
+**Fixes**:
+- `OwnerReports.jsx`: added `canBypassRelease = is_super_admin || is_admin || roles.accounting` and `canDownload = visible || canBypassRelease`. Download buttons + Ledgers section now render for staff regardless of release; gated banner only for franchise owners.
+- `routes/ledgers.py::_has_ledger_access`: now handles `roles` as dict OR list defensively.
+- Ledger access gate: honors BOTH (a) general visibility (`report_type` missing, `ready=true`) AND (b) explicit `owner_ledger` release (`report_type=owner_ledger`, `released=true`).
+- Ledgers section hidden for franchise owners on unreleased months (no dead buttons).
+
+**Verified** by testing agent (`/app/test_reports/iteration_80.json`):
+- Backend 10/10 PASS — full FO/SA access matrix for ledgers, center-accounts PDFs, MIS franchise-pdf.
+- Frontend 3/3 scenarios — SA bypass + FO range download + FO gating banner all work.
+- Audit script for PB-HSR 2026-02 still PASSES — no math regression from the access-check fix.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`.
+
 ### [2026-05-10] Franchise document center auto-tagging + Ledgers visible without report load
 **User reports** (production):
 1. Documents uploaded from Franchise Management got tagged with the uploader's center (`PB-MGT`) instead of the franchise's actual operating center (e.g. `PB-DV` for FR-004 Dombivli) → invisible on the Document Management page when filtered by the operating center.
