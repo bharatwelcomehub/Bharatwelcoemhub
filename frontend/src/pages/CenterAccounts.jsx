@@ -323,6 +323,8 @@ export default function CenterAccounts() {
         opening_wc: openingWc,
         balance_wc: balanceWc,
         diff_wc: balanceWc,
+        topup,
+        other_income: Number(r.other_income) || 0,
         rev_share_status: rev,
         // flag rows where user has pending unsaved changes
         _dirty: (
@@ -1164,7 +1166,7 @@ export default function CenterAccounts() {
                       <CardTitle className="text-base flex items-center gap-2">
                         <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
                       </CardTitle>
-                      <CardDescription>P/L = Sale − Expenses − Commission. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L + WC Adj. GST is shown for reference — it's paid as an expense in the following month (M+1).</CardDescription>
+                      <CardDescription>P/L = Sale − Expenses − Commission. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L + WC Adj + Topup. GST is shown for reference — it's paid as an expense in the following month (M+1). <strong>Other Income (incl. Loans Taken) is memo only and does NOT alter WC</strong> — a loan is a liability, not real WC.</CardDescription>
                     </div>
                     <Button size="sm" disabled={wcSaving || wcLoading} onClick={async () => {
                       if (!wcTableData?.rows) return;
@@ -1273,6 +1275,8 @@ export default function CenterAccounts() {
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-blue-50">Working Capital</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-green-50">Bal. WC</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-cyan-50">Diff of WC</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-emerald-50" title="WC Top-ups affect chain. Negative = WC withdrawal.">Topup</th>
+                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-yellow-50" title="Other Income / Loans Taken — memo only, does NOT alter WC chain.">Other Inc (memo)</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-purple-50" title="Editable">WC Adj</th>
                             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">Rev Share</th>
                           </tr>
@@ -1335,6 +1339,8 @@ export default function CenterAccounts() {
                                 <td className="px-2 py-2 text-right font-mono text-xs bg-blue-50/50 font-medium">{fmt(row.opening_wc)}</td>
                                 <td className="px-2 py-2 text-right font-mono text-xs bg-green-50/50 font-bold">{fmt(row.balance_wc)}</td>
                                 <td className="px-2 py-2 text-right font-mono text-xs bg-cyan-50/50 font-bold">{fmt(row.diff_wc || row.balance_wc)}</td>
+                                <td className={`px-2 py-2 text-right font-mono text-xs bg-emerald-50/50 ${(row.topup || 0) < 0 ? 'text-red-600 font-semibold' : ''}`}>{row.topup ? fmt(row.topup) : '–'}</td>
+                                <td className="px-2 py-2 text-right font-mono text-xs bg-yellow-50/40 text-gray-500">{row.other_income ? fmt(row.other_income) : '–'}</td>
                                 <td className="px-2 py-2 text-right bg-purple-50/50">
                                   <input type="number"
                                     className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
