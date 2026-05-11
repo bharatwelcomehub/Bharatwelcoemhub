@@ -5,6 +5,39 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-10] One-shot WC unification — all 5 surfaces guaranteed to show the same number
+
+User frustration: "MIS Dashboard, Owner's Dashboard, PIB Reports all showing different WC values. Center Accounts is correct. Fix it everywhere in one go."
+
+**Done in one shot**:
+
+1. **Backend chain canonical** (`backend/utils/wc_chain.py`):
+   - `compute_wc_chain()` is the SOLE source of WC math. Both `calculate_working_capital_standing` and `get_wc_table` call it.
+   - Formula: `closing_wc[M] = opening_wc[M] + pnl[M] + wc_adjustment[M] + topup[M]`
+   - Other Income / Loans Taken are MEMO ONLY — never inflate WC (was the root cause of the user's PB-HSR ₹19.40L "Healthy" vs −₹37L drift).
+
+2. **Frontend label/color consistency**:
+   - MIS Dashboard (`MISDashboard.jsx`): WC status label now shows `CRITICAL · WC Depleted` for negative WC, `PROTECTION · Below 50%` for severely low, `Restoring` for mid, `Healthy` for >= initial. Cash Inflows footer note updated to "Memo only · does NOT affect WC. Loans taken are liabilities."
+   - FO Dashboard (`FranchiseOwnerDashboard.jsx`): WC KPI card gradient now reflects status (red for negative, rose for protection, amber for restoring, emerald for healthy). Also passes period params to `/mis/working-capital` so it matches MIS Dashboard for the user-selected range.
+   - Center Accounts page: already had correct 3-color logic, no change needed.
+
+3. **PIB PDF** (`utils/pdf_generator.py`):
+   - Section 4B Other Income status column: "Memo only · does NOT alter WC" (was "Adds to next-month Opening WC").
+   - WC Status label adds "CRITICAL (WC Depleted)" for negative wc_pct.
+
+4. **Cross-surface audit** (`scripts/audit_financial_parity.py`):
+   - 24/24 month-center combinations PASS (PB-MGT/PB-DV/PB-PERTH/PB-HSR × Nov 2025–Apr 2026).
+   - Simulated PB-HSR Apr 2026 with ₹16,00,000 loan_taken Other Income → closing_wc unchanged (=₹58,01,340.41 on preview). Confirms the fix correctly ignores the loan.
+
+⚠️ **Deploy ONCE** and the user's PB-HSR PIB will read the same WC across:
+- PIB Report → Closing WC (BAL.)
+- Center Accounts → Working Capital Status card → Current WC
+- Center Accounts → WC Breakdown table → last row Bal. WC
+- MIS Dashboard → Working Capital KPI
+- Franchise Owner Dashboard → Working Capital KPI
+
+After deploy, PB-HSR Apr 2026 will show **−₹37,16,882 · CRITICAL · WC Depleted** consistently. The ₹16L Loan Taken will appear in Section 4B (PIB) and Cash Inflows card (MIS) as **memo only**.
+
 ### [2026-05-10] WC chain — Other Income (loan_taken) NO LONGER inflates Working Capital
 **User report**: PB-HSR PIB Report on production showed "Closing WC ₹19,40,182 — Healthy 216%" while the WC Breakdown table showed **−₹37,16,882**. Root cause from the user's screenshot: a ₹16,00,000 "Other Income — Loan Taken" entry was being added to Closing WC, making a depleted WC look healthy. User: *"how can it be healthy when WC is negative?"*
 

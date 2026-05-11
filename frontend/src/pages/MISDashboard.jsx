@@ -687,13 +687,20 @@ export default function MISDashboard() {
             </div>
             <div className="rounded-xl p-5 bg-white border border-slate-200">
               <p className="text-xs font-medium text-slate-500 mb-1">WC vs Initial</p>
-              <p className={`text-2xl font-bold ${(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'text-green-600' : 'text-red-600'}`}>
-                {workingCapital?.initial_working_capital > 0 
+              <p className={`text-2xl font-bold ${((workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0)) ? 'text-green-600' : ((workingCapital?.available_working_capital || 0) > 0) ? 'text-amber-600' : 'text-red-600'}`}>
+                {workingCapital?.initial_working_capital > 0
                   ? `${((workingCapital?.available_working_capital || 0) / workingCapital.initial_working_capital * 100).toFixed(0)}%`
                   : 'N/A'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                {(workingCapital?.available_working_capital || 0) >= (workingCapital?.initial_working_capital || 0) ? 'Healthy' : 'Below initial deposit'}
+                {(() => {
+                  const cur = workingCapital?.available_working_capital || 0;
+                  const init = workingCapital?.initial_working_capital || 0;
+                  if (cur < 0) return 'CRITICAL · WC Depleted';
+                  if (cur <= init * 0.5) return 'PROTECTION · Below 50%';
+                  if (cur < init) return 'Restoring';
+                  return 'Healthy';
+                })()}
               </p>
             </div>
           </div>
@@ -708,8 +715,8 @@ export default function MISDashboard() {
                   <Wallet className="w-4 h-4 text-emerald-500" /> Cash Inflows (Non-Operating) & Inter-Center Loans
                 </CardTitle>
                 <p className="text-xs text-slate-500">
-                  Does <strong>not</strong> affect Sales / P&amp;L / Revenue Share.
-                  Other Income adjusts next-month Opening Working Capital.
+                  <strong>Memo only.</strong> Does <strong>not</strong> affect Sales / P&amp;L / Revenue Share /
+                  Working Capital. Loans taken are liabilities — they appear here for reporting but do not increase real WC.
                 </p>
               </CardHeader>
               <CardContent>
