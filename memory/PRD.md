@@ -1353,7 +1353,30 @@ All 3 pages wired into sidebar; test-ids present throughout (`or-release-all-btn
 ### [2026-04-16] International Attendance Calendar Weeks
 ### [2026-04-16] Salary Fixes + Food Safety Tablet UI
 
+### [2026-05-11] Overseas (non-India) Profit Share + 5% MFPL Royalty
+- **New canonical helper** `/app/backend/utils/overseas_share.py`:
+  - `is_overseas(country)`: any country != "India"
+  - `compute_overseas_share(eligible_profit, net_sales)`: 80/20 split + 5% MFPL
+  - `compute_cumulative_mfpl(db, center, up_to_month)`: walks daily_sales, accrues
+- **Overseas rules (PB-PERTH / Australia):**
+  - **No Minimum Guarantee (MG)** — `mg_calculation=null`, MG card hidden
+  - **Eligible Profit** = Sales − GST − Commission − CommGST − Expenses
+  - **Profit Share**: Franchise Owner 80%, Purnabramha LLC 20% (on Eligible Profit)
+  - **MFPL Royalty** = 5% × Net Sales (Sales − GST) → accrued as cumulative liability, paid=0
+- **Surfaces updated:**
+  - Backend: `/api/center-accounts/summary` (returns `overseas_share` + `mfpl_royalty`), `/api/center-accounts/payout-summary` (mg=0 for overseas), `/api/ledgers/owner` (Profit Share rows, no MG top-up, MFPL accrued field)
+  - PDFs: PIB Section 8 + 8B, Owner Ledger PDF — overseas variant
+  - Frontend: `CenterAccounts.jsx` tab renamed "Payout" for overseas, new "Overseas Profit Share & MFPL Royalty" card + "Final Payout (incl. 10% GST)" card; `FranchiseOwnerDashboard.jsx` uses 80% + MFPL sub-badge for overseas
+- **India behaviour preserved unchanged** (MG vs Revenue Share comparison intact)
+- **Audit:** `audit_financial_parity.py PB-PERTH 2026-01` & `PB-HSR 2026-01` → ALL SURFACES MATCH
+- **Tests:** 9/9 backend pytest pass at `/app/backend/tests/test_iteration82_overseas_profit_share.py`
+
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
 - (P1) Code freeze preparation audit
+- (P1) Live recompute of P/L & WC cascade in WC Breakdown table on Sales/Comm/Expense edit
+- (P2) Inline audit log expansion for Topups in WC table
+- (P2) Add "Backfill role_key" admin script/button
+- (P2) Auto-categorization/heuristics for Bank Recon
 - (P2) Image Upload for Recipes, Franchise Deal Simulator, Menu card PDF, PDF refactoring, 7-year retention deletion prompt
+- (P2) MFPL royalty *payment* tracking (collection + paid-down accrual) once MFPL starts taking the royalty
