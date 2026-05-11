@@ -1534,28 +1534,67 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             purnabramha_share_with_tax = calculate_taxes(purnabramha_share, country, share_type)
     
     # ==========================================
-    # Calculate MG (Minimum Guarantee)
+    # Calculate MG (Minimum Guarantee) — India-only.
+    # Overseas centers do NOT have an MG; they use a fixed 80/20 profit share
+    # plus a separately-accrued 5% MFPL royalty liability. See utils.overseas_share.
     # ==========================================
+    from utils.overseas_share import (
+        is_overseas, compute_overseas_share, compute_cumulative_mfpl,
+    )
+    overseas_flag = is_overseas(country)
+
     mg_data = None
     payable_type = "revenue_share"  # Default
     franchise_owner_share_for_comparison = franchise_owner_share
     payable_amount = franchise_owner_share_for_comparison
-    
-    if franchise:
+    overseas_share_data = None
+    mfpl_data = None
+
+    if overseas_flag:
+        # Overseas (e.g., Australia): No MG. Fixed 80/20 on eligible profit
+        # (= `profitability` = Sales − GST − Commission − CommGST − Expenses).
+        # 5% MFPL royalty accrued as a separate liability on Net Sales.
+        net_sales_for_royalty = max(0.0, total_sale - sales_gst_amount)
+        overseas_share_data = compute_overseas_share(profitability, net_sales_for_royalty)
+        try:
+            mfpl_data = await compute_cumulative_mfpl(db, req.center, req.month)
+        except Exception as _ex:
+            logger.warning(f"MFPL cumulative calc failed for {req.center}: {_ex}")
+            mfpl_data = {
+                "monthly": [], "cumulative_mfpl": overseas_share_data["mfpl_royalty"],
+                "cumulative_net_sales": net_sales_for_royalty,
+                "paid_mfpl": 0.0, "outstanding_mfpl": overseas_share_data["mfpl_royalty"],
+                "applicable": True, "pct": 5.0,
+            }
+
+        # In Protection Mode (WC < 50%) the 80/20 was already adjusted above to
+        # operate on operational_balance — keep that and just label as profit_share.
+        payable_type = "profit_share_protection" if protection_mode else "profit_share"
+        payable_amount = franchise_owner_share
+        if protection_mode and operational_balance <= 0:
+            payable_type = "wc_protection_no_payout"
+            payable_amount = 0
+        if not payout_reason:
+            payout_reason = (
+                f"Profit Share 80/20 on Eligible Profit "
+                f"({round(profitability, 2)}). MFPL 5% royalty accrued separately."
+            )
+    elif franchise:
+        # India: keep MG vs Revenue Share comparison (legacy logic).
         total_investment = float(franchise.get("total_investment", 0) or 0)
         franchise_fee_val = float(franchise.get("franchise_fee", 0) or 0)
         working_capital_val = float(franchise.get("working_capital", 0) or 0)
-        
+
         if total_investment <= 0:
             total_investment = franchise_fee_val + working_capital_val
-        
+
         setup_costs = franchise.get("setup_costs", {})
         if not isinstance(setup_costs, dict):
             setup_costs = {}
-        
+
         mg_data = calculate_mg(total_investment, setup_costs, franchise_fee_val, working_capital_val)
         monthly_mg = mg_data.get("monthly_mg", 0)
-        
+
         if protection_mode:
             # In Protection Mode: MG is BLOCKED, only revenue share applies
             payable_type = "revenue_share_protection"
@@ -1568,12 +1607,12 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             if monthly_mg > franchise_owner_share_for_comparison:
                 payable_type = "minimum_guarantee"
                 payable_amount = monthly_mg
-                # In Normal Mode, if operational balance is negative, WC absorbs loss but MG still payable if WC >= 50%
-            # Revenue Share >= MG: pay revenue share (default)
-    
+
     if not payout_reason:
         if payable_type == "minimum_guarantee":
             payout_reason = f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(franchise_owner_share, 2)})"
+        elif payable_type in ("profit_share", "profit_share_protection"):
+            pass  # set above
         else:
             payout_reason = f"Revenue Share ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
     
@@ -1656,8 +1695,11 @@ async def get_center_account_summary(req: AccountPeriodRequest):
                 "gst_applicable": gst_applicable_india if country == "India" else True
             }
         },
-        # MG (Minimum Guarantee) calculation
+        # MG (Minimum Guarantee) calculation — India only; null for overseas
         "mg_calculation": mg_data,
+        # Overseas-only: 80/20 profit share + 5% MFPL royalty accrual
+        "overseas_share": overseas_share_data,
+        "mfpl_royalty": mfpl_data,
         # Operational Sustainability Check (NEW)
         "operational_sustainability": operational_sustainability,
         # Working Capital Status (NEW)
@@ -1673,6 +1715,8 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "type": payable_type,
             "amount": round(payable_amount, 2),
             "mg_amount": round(mg_data.get("monthly_mg", 0), 2) if mg_data else 0,
+            "mfpl_royalty_amount": (overseas_share_data["mfpl_royalty"] if overseas_share_data else 0),
+            "mfpl_cumulative_outstanding": (mfpl_data.get("outstanding_mfpl", 0) if mfpl_data else 0),
             "revenue_share_amount": round(franchise_owner_share, 2),
             "original_revenue_share": round(original_franchise_owner_share, 2),
             "wc_gated": protection_mode,
@@ -2283,22 +2327,25 @@ async def get_payout_summary(data: dict = Body(...)):
     
     # Get franchise info for MG calculation
     franchise = await get_franchise_for_center(center)
-    
-    # Calculate MG if franchise exists
+    center_doc = await db.centers.find_one({"code": center}, {"_id": 0, "country": 1, "is_india_center": 1})
+
+    # Calculate MG if franchise exists — but only for India centers.
+    # Overseas (Australia etc.) does NOT have an MG; fixed 80/20 profit share applies.
     mg_amount = 0
-    if franchise:
+    franchise_country_for_mg = (center_doc.get("country") if center_doc else None) or "India"
+    if franchise and franchise_country_for_mg.lower() == "india":
         # Use total_investment field if set, otherwise fallback to franchise_fee + working_capital
         total_investment = float(franchise.get("total_investment", 0) or 0)
         franchise_fee = float(franchise.get("franchise_fee", 0) or 0)
         working_capital = float(franchise.get("working_capital", 0) or 0)
-        
+
         if total_investment <= 0:
             total_investment = franchise_fee + working_capital
-        
+
         setup_costs = franchise.get("setup_costs", {})
         if not isinstance(setup_costs, dict):
             setup_costs = {}
-        
+
         # Calculate MG (now includes franchise_fee and working_capital as deductions)
         mg_data = calculate_mg(total_investment, setup_costs, franchise_fee, working_capital)
         mg_amount = mg_data.get("monthly_mg", 0)

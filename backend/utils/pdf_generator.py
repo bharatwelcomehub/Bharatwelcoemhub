@@ -649,29 +649,47 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     # --- 8. Payout Determination -------------------------------------------
     payout = summary.get("payout", {})
+    overseas_pdf = (summary.get("country") or "India").lower() != "india"
+    overseas_share_pdf = summary.get("overseas_share") or {}
+    mfpl_pdf = summary.get("mfpl_royalty") or {}
     if payout:
         story.append(Paragraph("8. PAYOUT DETERMINATION", styles["PIBSection"]))
         payout_data = [
             ["Description", "Amount"],
             ["Operational Balance", f"{currency} {payout.get('operational_balance', 0):,.2f}"],
-            ["MG (Minimum Guarantee)", f"{currency} {payout.get('mg_amount', 0):,.2f}"],
-            ["Franchise Owner Revenue Share", f"{currency} {payout.get('revenue_share_amount', 0):,.2f}"],
-            ["", ""],
         ]
+        if overseas_pdf:
+            payout_data.append(["Eligible Profit (Sales − GST − Comm − CommGST − Exp)",
+                                f"{currency} {overseas_share_pdf.get('eligible_profit', 0):,.2f}"])
+            payout_data.append(["Franchise Owner Share (80%)",
+                                f"{currency} {overseas_share_pdf.get('owner_share', 0):,.2f}"])
+            payout_data.append(["Purnabramha LLC Share (20%)",
+                                f"{currency} {overseas_share_pdf.get('franchisor_share', 0):,.2f}"])
+            payout_data.append(["MFPL Royalty Accrued (5% Net Sales)",
+                                f"{currency} {overseas_share_pdf.get('mfpl_royalty', 0):,.2f}"])
+        else:
+            payout_data.append(["MG (Minimum Guarantee)", f"{currency} {payout.get('mg_amount', 0):,.2f}"])
+            payout_data.append(["Franchise Owner Revenue Share", f"{currency} {payout.get('revenue_share_amount', 0):,.2f}"])
+        payout_data.append(["", ""])
         if payout.get("protection_mode"):
             if payout.get("operational_balance", 0) > 0:
                 payout_data.append(["PAYABLE (REVENUE SHARE - PROTECTION MODE)", f"{currency} {payout.get('amount', 0):,.2f}"])
                 if payout.get("wc_recovery_amount", 0) > 0:
                     payout_data.append(["WC Recovery Amount", f"{currency} {payout.get('wc_recovery_amount', 0):,.2f}"])
-                payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
+                if not overseas_pdf:
+                    payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
             else:
                 payout_data.append(["PAYABLE", f"{currency} 0.00"])
-                payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
+                if not overseas_pdf:
+                    payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
             payout_data.append(["Reason", payout.get("reason", "")])
         else:
             payout_data.append([f"PAYABLE ({payout.get('type', 'revenue_share').replace('_', ' ').upper()})",
                                 f"{currency} {payout.get('amount', 0):,.2f}"])
             payout_data.append(["Reason", payout.get("reason", "")])
+        # Index of the main PAYABLE row (varies depending on overseas vs India / protection mode)
+        _payable_idx = next((i for i, r in enumerate(payout_data)
+                             if r and isinstance(r[0], str) and r[0].startswith("PAYABLE")), len(payout_data) - 2)
         payout_table = Table(payout_data, colWidths=[280, 170])
         payout_style = [
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -683,9 +701,9 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
         ]
         if payout.get("protection_mode"):
-            payout_style.append(("BACKGROUND", (0, 5), (-1, 5), colors.HexColor("#ffcdd2")))
+            payout_style.append(("BACKGROUND", (0, _payable_idx), (-1, _payable_idx), colors.HexColor("#ffcdd2")))
         else:
-            payout_style.append(("BACKGROUND", (0, 5), (-1, 5), BRAND_GOLD))
+            payout_style.append(("BACKGROUND", (0, _payable_idx), (-1, _payable_idx), BRAND_GOLD))
         payout_table.setStyle(TableStyle(payout_style))
         story.append(payout_table)
         story.append(Spacer(1, 10))
@@ -730,15 +748,23 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                         [final_label,                    f"{currency} {final_total:,.2f}"],
                     ]
                 else:
-                    # Australia / outside-IN — single-line GST add-on
+                    # Australia / outside-IN — single-line GST add-on. Overseas
+                    # has no MG; always label as Profit Share. MFPL accrued is
+                    # added as a separate liability row.
                     gst_amount = round(payable_amount * share_gst_rate / 100.0, 2)
                     final_total = round(payable_amount + gst_amount, 2)
                     final_data = [
                         ["Description", "Amount"],
-                        ["Profit Share Payable",                              f"{currency} {payable_amount:,.2f}"],
+                        ["Profit Share Payable (80% of Eligible Profit)",     f"{currency} {payable_amount:,.2f}"],
                         [f"Add: GST @ {share_gst_rate:.0f}%",                 f"{currency} {gst_amount:,.2f}"],
                         [f"Total Final Payout (incl. {share_gst_rate:.0f}% GST)", f"{currency} {final_total:,.2f}"],
                     ]
+                    _mfpl_outstanding = float(mfpl_pdf.get("outstanding_mfpl") or 0)
+                    if _mfpl_outstanding > 0:
+                        final_data.append([
+                            "MFPL Royalty Liability (cumulative, 5% Net Sales)",
+                            f"{currency} {_mfpl_outstanding:,.2f}",
+                        ])
 
                 story.append(Paragraph("8B. FINAL PAYOUT (Revenue Share + GST)", styles["PIBSection"]))
                 final_table = Table(final_data, colWidths=[280, 170])

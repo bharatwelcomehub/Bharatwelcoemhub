@@ -388,31 +388,41 @@ export default function FranchiseOwnerDashboard() {
   const isIntl = centerObj?.is_india_center === false || centerObj?.country === "Australia";
   const sm = overview?.summary;
   const ch = overview?.changes;
-  const revenueSharePct = franchiseInfo?.revenue_share_percentage || 0;
+  // Revenue/Profit share %: overseas is a fixed 80% to the franchise owner.
+  // India uses the configured % from franchise settings (default 15%).
+  const revenueSharePct = isIntl ? 80 : (franchiseInfo?.revenue_share_percentage || 0);
   const netProfit = sm?.profit || 0;
   // Per Apr-2026 rule:
   //   Total Deductions  = Commissions + GST on Sales
   //   Net Revenue       = Total Sales − Total Deductions   (NOT minus expenses)
   //   Revenue Share     = revenue_share_pct × Net Revenue  (NOT × Net Profit)
+  // Overseas (Australia) override:
+  //   Eligible Profit   = Net Revenue − Total Expenses     (Sales − GST − Comm − CommGST − Exp)
+  //   Profit Share      = 80% × Eligible Profit
+  //   MFPL Royalty 5%   = 5% × Net Sales (Sales − GST) — accrued, not paid
   const totalCommissions = sm?.total_commissions || 0;
   const totalGst = sm?.total_gst || 0;
+  const totalExpenses = sm?.total_expenses || 0;
   const totalDeductions = totalCommissions + totalGst;
   const netRevenue = (sm?.total_sales || 0) - totalDeductions;
-  const revenueShareAmount = netRevenue * (revenueSharePct / 100);
-  // Final Payout: payout base = MAX(Revenue Share, Monthly Guarantee). GST is
-  // computed on that base — matches PIB Section 8B / MIS Franchise PDF /
-  // Owner Ledger PDF so the dashboard, screen and downloaded reports always
-  // show the same gross-of-GST invoiceable figure.
-  const monthlyGuarantee = parseFloat(
+  const eligibleProfit = isIntl ? Math.max(0, netRevenue - totalExpenses) : netRevenue;
+  const revenueShareAmount = eligibleProfit * (revenueSharePct / 100);
+  // Final Payout: payout base = MAX(Revenue Share, Monthly Guarantee) for India.
+  // Overseas has NO MG — base is just the 80% profit share.
+  const monthlyGuarantee = isIntl ? 0 : (parseFloat(
     franchiseInfo?.monthly_guarantee
     ?? franchiseInfo?.mg
     ?? franchiseInfo?.minimum_guarantee
     ?? 0
-  ) || 0;
-  const payoutBase = Math.max(revenueShareAmount, monthlyGuarantee);
-  const isMgPayout = monthlyGuarantee > revenueShareAmount && payoutBase > 0;
+  ) || 0);
+  const payoutBase = isIntl ? revenueShareAmount : Math.max(revenueShareAmount, monthlyGuarantee);
+  const isMgPayout = !isIntl && (monthlyGuarantee > revenueShareAmount) && payoutBase > 0;
   const finalGstRate = isIntl ? 10 : 18;
   const finalPayoutAmount = payoutBase * (1 + finalGstRate / 100);
+  // Overseas-only: 5% MFPL royalty (accrued liability)
+  const mfplRoyaltyMonth = isIntl
+    ? Math.round(((sm?.total_sales || 0) - totalGst) * 5 * 100) / 10000  // /100 then round to 2dp
+    : 0;
   const trends = salesData;
 
   const kpiCards = sm ? [
@@ -425,18 +435,20 @@ export default function FranchiseOwnerDashboard() {
     { label: "Net Profit (P&L)", displayValue: formatFullCurrency(netProfit, isIntl), change: ch?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
     { label: "Working Capital", displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: (workingCapital?.available_working_capital || 0) < 0 ? "from-red-700 to-red-500" : (workingCapital?.available_working_capital || 0) < (workingCapital?.initial_working_capital || 0) * 0.5 ? "from-rose-700 to-rose-500" : (workingCapital?.available_working_capital || 0) < (workingCapital?.initial_working_capital || 0) ? "from-amber-600 to-amber-400" : "from-emerald-600 to-emerald-400", textColor: "text-amber-50" },
     { label: "Avg / Bill", displayValue: formatFullCurrency(sm.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
-    { label: `Revenue Share (${revenueSharePct}% × Net Rev)`, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
+    { label: `${isIntl ? 'Profit' : 'Revenue'} Share (${revenueSharePct}% × ${isIntl ? 'Eligible Profit' : 'Net Rev'})`, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
     {
       label: `Final Payout (incl. ${finalGstRate}% GST)`,
       displayValue: formatFullCurrency(finalPayoutAmount, isIntl),
       icon: Wallet,
       gradient: "from-emerald-700 to-emerald-500",
       textColor: "text-emerald-50",
-      // Sub-badge surfaces the MG-trigger condition — exactly the cases the CA
-      // needs to flag. Falls back to the breakdown otherwise.
-      subBadge: isMgPayout
-        ? `MG paid (₹${monthlyGuarantee.toLocaleString()} > Rev Share)`
-        : `Base: ${formatFullCurrency(payoutBase, isIntl)}`,
+      // Sub-badge surfaces the MG-trigger condition (India). Overseas has no MG;
+      // we show the MFPL royalty accrual instead.
+      subBadge: isIntl
+        ? `+ MFPL accrued: ${formatFullCurrency(mfplRoyaltyMonth, isIntl)} (memo)`
+        : (isMgPayout
+            ? `MG paid (₹${monthlyGuarantee.toLocaleString()} > Rev Share)`
+            : `Base: ${formatFullCurrency(payoutBase, isIntl)}`),
     },
   ] : [];
 
@@ -745,7 +757,7 @@ export default function FranchiseOwnerDashboard() {
                       { label: "Legal Entity", value: franchiseInfo.legal_entity || franchiseInfo.company_name || franchiseInfo.legal_entity_name },
                       { label: "Agreement Start", value: franchiseInfo.agreement_start_date },
                       { label: "Agreement End", value: franchiseInfo.agreement_end_date },
-                      { label: "Revenue Share %", value: `${revenueSharePct}%` },
+                      { label: `${isIntl ? 'Profit' : 'Revenue'} Share %`, value: `${revenueSharePct}%` },
                       { label: "City", value: franchiseInfo.city },
                       { label: "State", value: franchiseInfo.state },
                       { label: "Address", value: franchiseInfo.address },

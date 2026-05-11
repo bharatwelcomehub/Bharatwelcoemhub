@@ -522,11 +522,19 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
     if franchise:
         rev_pct = float(franchise.get("revenue_share_percentage") or franchise.get("revenue_share_percent") or franchise.get("revenue_share") or 0)
         mg = float(franchise.get("monthly_guarantee") or franchise.get("mg") or franchise.get("minimum_guarantee") or 0)
+    # Overseas centers do NOT have an MG — they use a fixed 80/20 profit share
+    # with a 5% MFPL royalty accrued separately. Set rev_pct=80, mg=0.
+    from utils.overseas_share import is_overseas as _is_overseas, MFPL_ROYALTY_PCT
+    _overseas = _is_overseas(country)
+    if _overseas:
+        rev_pct = 80.0
+        mg = 0.0
 
     running = 0.0
     is_first_month = True
     total_rev_share = 0.0  # accumulated for Final Payout block
     total_mg_topup = 0.0
+    total_mfpl_accrued = 0.0  # overseas-only: cumulative MFPL royalty
     # Accumulators for the "Eligible Rev Share Base" breakout in the PDF.
     period_total_sales = 0.0
     period_total_commission_base = 0.0  # commission excl. commission GST
@@ -561,10 +569,23 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         period_total_gst_on_sales += float(gst_amount or 0)
 
         net_revenue = max(0.0, compute_net_revenue(total_sales, comm_total, gst_amount, 0, country))
-        rev_share = round(net_revenue * rev_pct / 100, 2)
-        mg_delta = max(0, mg - rev_share)  # HQ owes franchisee extra if rev_share < MG
+        if _overseas:
+            # Overseas: Eligible Profit = Sales − GST − Commission − CommGST − Expenses
+            # (commission already includes CommGST for AU). Share Owner = 80% × Eligible Profit.
+            exp_rows = await _get_expenses(center, st, en)
+            month_expenses = sum(float(e.get("amount") or 0) for e in exp_rows)
+            eligible_profit_local = max(0.0, total_sales - gst_amount - comm_total - month_expenses)
+            rev_share = round(eligible_profit_local * 80.0 / 100.0, 2)
+            mg_delta = 0.0
+            # 5% MFPL royalty on Net Sales (Sales − GST)
+            mfpl_accrued_month = round(max(0.0, total_sales - gst_amount) * MFPL_ROYALTY_PCT / 100.0, 2)
+        else:
+            rev_share = round(net_revenue * rev_pct / 100, 2)
+            mg_delta = max(0, mg - rev_share)  # HQ owes franchisee extra if rev_share < MG
+            mfpl_accrued_month = 0.0
         total_rev_share += rev_share
         total_mg_topup += mg_delta
+        total_mfpl_accrued += mfpl_accrued_month
 
         # Loans taken / given / repayments in this month
         loans = await _get_loan_entries(center, [m])
@@ -606,9 +627,9 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         share_gst_amount = round(rev_share * share_gst_rate / 100, 2) if rev_share else 0.0
 
         entries += [
-            (f"{m} — Revenue Share payable ({rev_pct}%)", rev_share, 0, None, False) if rev_share else None,
-            (f"{m} — GST on Revenue Share @ {share_gst_rate:.0f}%", share_gst_amount, 0, None, False) if share_gst_amount else None,
-            (f"{m} — MG top-up (HQ → Franchise)", 0, mg_delta, None, False) if mg_delta else None,
+            (f"{m} — {'Profit Share' if _overseas else 'Revenue Share'} payable ({rev_pct:g}%)", rev_share, 0, None, False) if rev_share else None,
+            (f"{m} — GST on {'Profit' if _overseas else 'Revenue'} Share @ {share_gst_rate:.0f}%", share_gst_amount, 0, None, False) if share_gst_amount else None,
+            (f"{m} — MG top-up (HQ → Franchise)", 0, mg_delta, None, False) if (mg_delta and not _overseas) else None,
             (f"{m} — Commissions charged", comm_total, 0, None, False) if comm_total else None,
             (f"{m} — Loan taken from HQ", 0, loan_taken, None, False) if loan_taken else None,
             (f"{m} — Loan given to HQ/other", loan_given, 0, None, False) if loan_given else None,
@@ -641,6 +662,9 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         "closing_balance": running,
         "total_rev_share": round(total_rev_share, 2),
         "total_mg_topup": round(total_mg_topup, 2),
+        "total_mfpl_accrued": round(total_mfpl_accrued, 2),
+        "overseas": _overseas,
+        "country": country,
         "period_totals": {
             "total_sales": round(period_total_sales, 2),
             "total_commission_base": round(period_total_commission_base, 2),
@@ -1047,12 +1071,18 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
         elif ltype == "owner":
             sections = [("Franchise Owner — Running Account with HQ", _owner_ledger_to_table(data))]
             f = data.get("franchise", {})
-            sections.append(("Franchise Details", [["Field", "Value"],
-                                                    ["Franchise Code", f.get("code") or "-"],
-                                                    ["Franchise Name", f.get("name") or "-"],
-                                                    ["Revenue Share %", f"{f.get('revenue_share_percent', 0)}%"],
-                                                    ["Monthly Guarantee (MG)", _inr(f.get("monthly_guarantee", 0))],
-                                                    ["Closing Balance", _inr(data.get("closing_balance", 0))]]))
+            _overseas_owner = bool(data.get("overseas"))
+            franchise_details = [["Field", "Value"],
+                                 ["Franchise Code", f.get("code") or "-"],
+                                 ["Franchise Name", f.get("name") or "-"],
+                                 ["Revenue / Profit Share %", f"{f.get('revenue_share_percent', 0)}%"]]
+            if _overseas_owner:
+                franchise_details.append(["MFPL Royalty (cumulative accrued)",
+                                          _inr(data.get("total_mfpl_accrued", 0))])
+            else:
+                franchise_details.append(["Monthly Guarantee (MG)", _inr(f.get("monthly_guarantee", 0))])
+            franchise_details.append(["Closing Balance", _inr(data.get("closing_balance", 0))])
+            sections.append(("Franchise Details", franchise_details))
 
             # Eligible Rev Share Base — explicit formula breakout right before
             # the Final Payout block, so the franchise owner can trace exactly
@@ -1076,6 +1106,7 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
             # franchise has no payout (no revenue share AND no MG top-up).
             total_rs = float(data.get("total_rev_share") or 0)
             total_mg = float(data.get("total_mg_topup") or 0)
+            total_mfpl = float(data.get("total_mfpl_accrued") or 0)
             payout_base = total_rs + total_mg
             if payout_base > 0:
                 if (country or "India").lower() == "india":
@@ -1094,16 +1125,20 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
                     ]))
                 else:
                     gst_amt = round(payout_base * 10 / 100, 2)
-                    payout_label = (f"Payout for {label} "
-                                    f"(MG ${total_mg:,.2f} + Profit Share ${total_rs:,.2f})"
-                                    if total_mg > 0 else
-                                    f"Profit Share Payable for {label}")
-                    sections.append(("Final Payout (Payout × GST)", [
+                    # Overseas: Profit Share only (no MG). Show MFPL accrued as a separate liability row.
+                    payout_label = f"Profit Share Payable for {label}"
+                    final_rows = [
                         ["Description", "Amount"],
                         [payout_label, _inr(payout_base)],
                         ["Add: GST @ 10%", _inr(gst_amt)],
                         ["Total Final Payout (incl. 10% GST)", _inr(round(payout_base + gst_amt, 2))],
-                    ]))
+                    ]
+                    if total_mfpl > 0:
+                        final_rows.append([
+                            "MFPL Royalty Accrued (cumulative liability, 5% of Net Sales)",
+                            _inr(total_mfpl),
+                        ])
+                    sections.append(("Final Payout (Payout × GST)", final_rows))
         else:
             sections = [("Data", [[str(data)]])]
         pdf = _render_pdf(title, subtitle, sections, country=country)

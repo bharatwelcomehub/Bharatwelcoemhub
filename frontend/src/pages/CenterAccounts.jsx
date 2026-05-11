@@ -945,7 +945,7 @@ export default function CenterAccounts() {
               <TabsTrigger value="sales">Sales Breakdown</TabsTrigger>
               <TabsTrigger value="commissions">Commissions</TabsTrigger>
               <TabsTrigger value="share">Revenue/Profit Share</TabsTrigger>
-              <TabsTrigger value="payout">MG & Payout</TabsTrigger>
+              <TabsTrigger value="payout">{accountSummary?.country && accountSummary.country !== 'India' ? 'Payout' : 'MG & Payout'}</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
               <TabsTrigger value="ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
               <TabsTrigger value="invoices" className="text-purple-600">Invoice Export</TabsTrigger>
@@ -2198,8 +2198,85 @@ export default function CenterAccounts() {
                   </div>
                 </div>
               )}
-              {/* MG Calculation Card */}
-              {accountSummary.mg_calculation && (
+              {/* Overseas Profit Share Panel — replaces MG for non-India centers */}
+              {accountSummary.country !== 'India' && accountSummary.overseas_share && (
+                <Card className="border-2 border-emerald-300" data-testid="overseas-profit-share">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Wallet className="w-5 h-5 text-emerald-700" />
+                      Overseas Profit Share & MFPL Royalty
+                    </CardTitle>
+                    <CardDescription>
+                      Fixed 80/20 split on Eligible Profit (Sales − GST − Commission − Commission GST − Expenses). 5% MFPL royalty accrued on Net Sales as a payable liability.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-emerald-50 rounded-lg space-y-2">
+                        <p className="text-sm font-medium text-emerald-700">Eligible Profit (this month)</p>
+                        <p className="text-3xl font-bold text-emerald-800" data-testid="overseas-eligible-profit">
+                          {formatCurrency(accountSummary.overseas_share.eligible_profit, accountSummary.country)}
+                        </p>
+                        <p className="text-xs text-emerald-600">= Sales − GST − Commission − Commission GST − Expenses</p>
+                      </div>
+                      <div className="p-4 bg-sky-50 rounded-lg space-y-2">
+                        <p className="text-sm font-medium text-sky-700">Eligible Revenue (Net Sales)</p>
+                        <p className="text-3xl font-bold text-sky-800" data-testid="overseas-eligible-revenue">
+                          {formatCurrency(accountSummary.overseas_share.eligible_revenue, accountSummary.country)}
+                        </p>
+                        <p className="text-xs text-sky-600">= Sales − GST (basis for 5% MFPL royalty)</p>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <Card className="border-2 border-green-400 bg-green-50">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs text-gray-600">Franchise Owner ({accountSummary.overseas_share.owner_pct}%)</p>
+                          <p className="text-2xl font-bold text-green-700" data-testid="overseas-owner-share">
+                            {formatCurrency(accountSummary.overseas_share.owner_share, accountSummary.country)}
+                          </p>
+                          <Badge className="mt-1 bg-green-600">Payable</Badge>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-2 border-indigo-400 bg-indigo-50">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs text-gray-600">Purnabramha LLC ({accountSummary.overseas_share.franchisor_pct}%)</p>
+                          <p className="text-2xl font-bold text-indigo-700" data-testid="overseas-franchisor-share">
+                            {formatCurrency(accountSummary.overseas_share.franchisor_share, accountSummary.country)}
+                          </p>
+                          <Badge className="mt-1 bg-indigo-600">Franchisor</Badge>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-2 border-amber-400 bg-amber-50">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs text-gray-600">MFPL Royalty ({accountSummary.overseas_share.mfpl_royalty_pct}%)</p>
+                          <p className="text-2xl font-bold text-amber-700" data-testid="overseas-mfpl-monthly">
+                            {formatCurrency(accountSummary.overseas_share.mfpl_royalty, accountSummary.country)}
+                          </p>
+                          <Badge className="mt-1 bg-amber-600">Accrued (not paid)</Badge>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {accountSummary.mfpl_royalty && accountSummary.mfpl_royalty.applicable && (
+                      <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg" data-testid="mfpl-cumulative">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-amber-900">MFPL Liability Outstanding (cumulative)</p>
+                            <p className="text-xs text-amber-700">5% royalty accrued across {(accountSummary.mfpl_royalty.monthly || []).length} months. Not yet paid.</p>
+                          </div>
+                          <p className="text-2xl font-bold text-amber-800" data-testid="mfpl-outstanding-amount">
+                            {formatCurrency(accountSummary.mfpl_royalty.outstanding_mfpl, accountSummary.country)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* MG Calculation Card — India only */}
+              {accountSummary.country === 'India' && accountSummary.mg_calculation && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -2383,8 +2460,8 @@ export default function CenterAccounts() {
                 </Card>
               )}
 
-              {/* Payout Determination Card */}
-              {accountSummary.payout && (
+              {/* Payout Determination Card — India only (MG vs Revenue Share). Overseas uses the Overseas Profit Share card above. */}
+              {accountSummary.country === 'India' && accountSummary.payout && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -2466,6 +2543,37 @@ export default function CenterAccounts() {
                     </p>
                   </div>
                 </div>
+              )}
+
+              {/* Final Payout (incl. GST) — Overseas */}
+              {accountSummary.country !== 'India' && accountSummary.overseas_share && accountSummary.share_calculation?.purnabramha && (
+                <Card className="border-2 border-blue-300" data-testid="overseas-final-payout">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Wallet className="w-5 h-5 text-blue-700" />
+                      Final Payout (incl. 10% GST on Franchisor Share) — {accountSummary.period}
+                    </CardTitle>
+                    <CardDescription>
+                      Owner gets 80% of Eligible Profit. Purnabramha LLC invoices 20% + 10% GST. MFPL royalty is accrued separately as a liability.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between"><span>Franchise Owner Payout (80%)</span>
+                        <span className="font-medium text-green-700">{formatCurrency(accountSummary.overseas_share.owner_share, accountSummary.country)}</span></div>
+                      <div className="flex justify-between"><span>Purnabramha LLC Share (20%)</span>
+                        <span className="font-medium">{formatCurrency(accountSummary.share_calculation.purnabramha.base_amount, accountSummary.country)}</span></div>
+                      <div className="flex justify-between"><span className="pl-4 text-gray-500">Add: GST @ 10%</span>
+                        <span className="text-gray-700">{formatCurrency(accountSummary.share_calculation.purnabramha.gst_amount, accountSummary.country)}</span></div>
+                      <div className="flex justify-between border-t pt-2"><span className="font-medium">Purnabramha LLC Invoice (incl. GST)</span>
+                        <span className="font-bold text-indigo-700">{formatCurrency(accountSummary.share_calculation.purnabramha.total_payable, accountSummary.country)}</span></div>
+                      <div className="flex justify-between"><span>MFPL Royalty Accrued (5% of Net Sales)</span>
+                        <span className="font-medium text-amber-700">{formatCurrency(accountSummary.overseas_share.mfpl_royalty, accountSummary.country)}</span></div>
+                      <div className="flex justify-between bg-amber-50 px-2 py-1 rounded"><span className="font-medium">MFPL Liability Outstanding (cumulative)</span>
+                        <span className="font-bold text-amber-800">{formatCurrency(accountSummary.mfpl_royalty?.outstanding_mfpl || 0, accountSummary.country)}</span></div>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Working Capital Standing in MG & Payout */}

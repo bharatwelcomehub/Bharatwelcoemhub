@@ -1,0 +1,60 @@
+{
+  "summary": "Iteration 82 — Overseas (non-India) Profit Share & MFPL Royalty for PB-PERTH end-to-end verification. All 9 pytest backend tests pass: /api/center-accounts/summary returns country=Australia + overseas_share (eligible_profit AUD 21,145.82 / owner 80% AUD 16,916.66 / franchisor 20% AUD 4,229.16) + mfpl_royalty (monthly + cumulative AUD 4,399.27 + outstanding AUD 4,399.27 paid=0) + payout.type=profit_share and mg_calculation=null. India PB-HSR /summary preserves mg_calculation (MG/month Rs. 89,729.91) with overseas_share=null + mfpl_royalty=null. /payout-summary zeros MG for PERTH (franchise.mg_amount=0, totals.mg=0, monthly_data[*].mg_amount=0) and preserves MG fields for HSR. /ledgers/owner JSON returns data.overseas=true + total_mfpl_accrued>0 + 'Profit Share payable (80%)' + 'GST on Profit Share @ 10%' rows for PERTH; data.overseas=false + Revenue Share/MG top-up rows for HSR. /ledgers/owner fmt=pdf returns valid %PDF (>50KB) for PERTH. /center-accounts/generate-pib returns valid %PDF for both PERTH and HSR. audit_financial_parity.py: ALL SURFACES MATCH for both PB-PERTH 2026-01 (sales/GST/net rev/WC all 4 surfaces identical) and PB-HSR 2026-01 (sales/expenses/GST/commission/net rev/net P/L/WC). Frontend visually confirmed: PERTH shows 'Payout' tab + overseas-profit-share card + overseas-final-payout card + NO MG card; HSR shows 'MG & Payout' tab + Minimum Guarantee Calculation card + NO overseas-profit-share card.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration82_overseas_profit_share.py",
+    "/app/test_reports/pytest/iteration82.xml",
+    "/app/backend/scripts/audit_financial_parity.py"
+  ],
+  "audit_results": {
+    "PB-PERTH_2026-01": "PASS — Sales/GST/Net Revenue/WC all 4 surfaces identical (Sales AUD 23,061 / GST AUD 1,915.18 / Net Rev AUD 21,145.82 / WC AUD 992,836.95)",
+    "PB-HSR_2026-01": "PASS — Sales/Expenses/GST/Commission/Net Rev/Net P/L/WC all surfaces identical (Sales ₹10,29,396 / Net P/L ₹5,75,538.10 / WC ₹50,39,150.41)"
+  },
+  "backend_test_results": {
+    "TestSummaryOverseas::test_perth_summary_overseas_payload": "PASS",
+    "TestSummaryIndia::test_hsr_summary_india_payload": "PASS",
+    "TestPayoutSummary::test_perth_payout_zero_mg": "PASS",
+    "TestPayoutSummary::test_hsr_payout_mg_preserved": "PASS",
+    "TestOwnerLedger::test_perth_owner_ledger_json": "PASS",
+    "TestOwnerLedger::test_hsr_owner_ledger_json": "PASS",
+    "TestOwnerLedger::test_perth_owner_ledger_pdf": "PASS",
+    "TestGeneratePIB::test_perth_pib_pdf": "PASS",
+    "TestGeneratePIB::test_hsr_pib_pdf": "PASS",
+    "total": "9/9 passed in 1.53s"
+  },
+  "frontend_verification": {
+    "PB-PERTH_payout_tab": "Tab labelled 'Payout' (renamed from 'MG & Payout'). data-testid='overseas-profit-share' present; card shows Eligible Profit AUD 21,145.82, Eligible Revenue (Net Sales) AUD 21,145.82, Franchise Owner (80%) AUD 16,916.66 Payable, Purnabramha LLC (20%) AUD 4,229.16, MFPL Royalty (5%) AUD 1,057.29 (Accrued, not paid), MFPL Liability Outstanding (cumulative) AUD 4,399.27. data-testid='overseas-final-payout' present. NO Minimum Guarantee card. KPI strip on top shows 'Profitability' card with '80/20 base' subtitle instead of MG.",
+    "PB-HSR_payout_tab": "Tab labelled 'MG & Payout' unchanged. 'Minimum Guarantee (MG) Calculation' card present with Investment Breakdown (Net Investment Rs. 46,50,000) and Monthly MG (EMI) Rs. 89,729.91. data-testid='overseas-profit-share' NOT present.",
+    "fo_dashboard_perth_context": "NOT EXERCISED in this run — there is no overseas FO test account in /app/memory/test_credentials.md (only 8888888888 → PB-HSR/India is registered). The 80/20 vs 15% revenue share branching is verified at API layer (overseas_share endpoint returns owner_pct=80) and in the Super-Admin-viewed Center Accounts UI for PB-PERTH. Adding an overseas FO test account would let us validate the FO Dashboard 'Revenue/Profit Share %' badge directly."
+  },
+  "action_items": [
+    "[LOW] Consider adding an overseas Franchise Owner test account (e.g. mobile→PB-PERTH mapping) to test_credentials.md so future testing agents can directly verify FranchiseOwnerDashboard.jsx isIntl branch (80/20 badge + 'MFPL accrued' sub-badge). Backend 80/20 logic already verified."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/utils/overseas_share.py — clean single-source-of-truth helper. is_overseas() defensively normalizes country casing/whitespace; compute_overseas_share() rounds at 2dp; compute_cumulative_mfpl() walks daily_sales month-by-month via compute_gst_from_rows so MFPL accrual stays canonical with the GST module. Constants OWNER_PCT=80 / FRANCHISOR_PCT=20 / MFPL_ROYALTY_PCT=5 are file-level and importable.",
+    "Defensive max(0.0, …) on eligible_profit prevents negative-profit shares from appearing as 'Owner share' obligations — good (loss months simply yield AUD 0 share which is the right business semantics).",
+    "paid_mfpl is hardcoded to 0.0 in compute_cumulative_mfpl; the 'Future:' comment correctly anticipates a payment-tracking collection. Once payments are tracked, outstanding = cumulative − paid will Just Work.",
+    "Audit script audit_financial_parity.py correctly skips the India-only 'Eligible Rev Share Base == Net Revenue' check for AU (`if owner.get('country','India') != 'Australia'`) — preserves cross-country parity audit without false positives.",
+    "PIB generator and FO Ledger PDF both render for PERTH without errors (>50KB output) — confirms the overseas branch is wired through pdf_generator and ledgers.py builders."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration82_overseas_profit_share.py (new)",
+    "/app/test_reports/iteration_82.json (new)",
+    "/app/test_reports/pytest/iteration82.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (9/9 pytest + 2/2 audit centers)", "frontend": "100% (PERTH & HSR Center Accounts MG/Payout tab verified visually)"},
+  "test_credentials": "Super Admin: 9741399190 / 123456 / PB-MGT (used for both backend and frontend tests). Franchise Owner: 8888888888 / 123456 / PB-HSR (India only — no overseas FO account exists).",
+  "seed_data_creation": "None — used existing production-shape data for PB-PERTH (AUD 23,061 Jan-2026 sales) and PB-HSR (₹10,29,396 Jan-2026 sales).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 82 fully verified Overseas Profit Share & 5% MFPL Royalty for PB-PERTH while ensuring India PB-HSR MG/Revenue-Share logic is unchanged. The single source of truth /app/backend/utils/overseas_share.py exposes compute_overseas_share() (sync, 80/20 split + 5% MFPL) and compute_cumulative_mfpl() (async, walks daily_sales for cumulative liability). is_overseas(country) drives every branch. Backend tests live in /app/backend/tests/test_iteration82_overseas_profit_share.py (9 tests, all passing). audit_financial_parity.py PB-PERTH 2026-01 and PB-HSR 2026-01 both exit 0 with all surfaces matching. Frontend: PB-PERTH MG&Payout tab is renamed 'Payout' and shows overseas-profit-share + overseas-final-payout cards; PB-HSR keeps 'MG & Payout' tab + Minimum Guarantee Calculation card. Only un-validated surface is the FranchiseOwnerDashboard isIntl branch which requires an overseas FO test account (does not currently exist in test_credentials.md).",
+  "rca_of_the_issue": "Not a bug — this iteration added a new feature: overseas (non-India) franchise economics. The implementation correctly bifurcates by country: overseas centers get a fixed 80/20 profit share on Eligible Profit (Sales − GST − Commission − CommGST − Expenses) with a 5% MFPL royalty accrued cumulatively as a liability (paid=0 always for now), and explicitly NO MG. India centers retain the existing MG vs Revenue Share logic. The financial parity audit confirms numerical agreement across every surface (Center Accounts, Owner Reports, MIS, Payout Summary, WC table) for both an overseas (PB-PERTH) and an Indian (PB-HSR) center in the same period."
+}
