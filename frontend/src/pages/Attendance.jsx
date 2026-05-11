@@ -20,13 +20,26 @@ import {
   Wallet,
   Lock,
   Users,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Trash2
 } from "lucide-react";
 
 export default function Attendance() {
   const { session } = useAuth();
   const isMGT = isAdminUser(session);
-  
+
+  // Centers list for MGT/Super Admin who can edit any center's attendance
+  const [centersList, setCentersList] = useState([]);
+  const [activeCenter, setActiveCenter] = useState(session?.center || "");
+
+  useEffect(() => {
+    if (!isMGT) return;
+    api.post("/centers", { token: session.token }).then(res => {
+      const cs = (res.data?.centers || []).filter(c => c.code && c.code !== "PB-MGT");
+      setCentersList(cs);
+    }).catch(() => {});
+  }, [isMGT, session?.token]);
+
   // Daily state
   const [date, setDate] = useState(getTodayISO());
   const [dailyRows, setDailyRows] = useState([]);
@@ -48,7 +61,7 @@ export default function Attendance() {
     try {
       const res = await api.post("/payroll_status", {
         token: session.token,
-        center: session.center,
+        center: activeCenter,
         month: month
       });
       setPayrollLocked(res.data.locked);
@@ -67,7 +80,7 @@ export default function Attendance() {
     try {
       const res = await api.post("/employees", {
         token: session.token,
-        center: session.center
+        center: activeCenter
       });
       const employees = res.data.employees || [];
       setDailyRows(employees.map(e => ({
@@ -96,12 +109,12 @@ export default function Attendance() {
       const [attRes, advRes] = await Promise.all([
         api.post("/attendance_by_date", {
           token: session.token,
-          center: session.center,
+          center: activeCenter,
           date: date
         }),
         api.post("/advances_by_date", {
           token: session.token,
-          center: session.center,
+          center: activeCenter,
           date: date
         })
       ]);
@@ -153,7 +166,7 @@ export default function Attendance() {
       // Save attendance
       const attRes = await api.post("/bulk_attendance", {
         token: session.token,
-        center: session.center,
+        center: activeCenter,
         date: date,
         rows: dailyRows.map(r => ({
           employeeName: r.name,
@@ -170,7 +183,7 @@ export default function Attendance() {
       if (advRows.length > 0) {
         const advRes = await api.post("/bulk_advances", {
           token: session.token,
-          center: session.center,
+          center: activeCenter,
           date: date,
           rows: advRows.map(r => ({
             employeeName: r.name,
@@ -207,7 +220,7 @@ export default function Attendance() {
     try {
       const res = await api.post("/attendance_month", {
         token: session.token,
-        center: session.center,
+        center: activeCenter,
         month: month
       });
       setMonthlyGrid(res.data.grid || []);
@@ -258,7 +271,7 @@ export default function Attendance() {
       
       const res = await api.post("/bulk_attendance_month", {
         token: session.token,
-        center: session.center,
+        center: activeCenter,
         month: month,
         cells
       });
@@ -278,7 +291,7 @@ export default function Attendance() {
     try {
       await api.post("/lock_payroll", {
         token: session.token,
-        center: session.center,
+        center: activeCenter,
         month: month
       });
       toast.success("Payroll locked!");
@@ -295,7 +308,7 @@ export default function Attendance() {
       const advMonth = date.slice(0, 7);
       const res = await api.post("/advances_by_month", {
         token: session.token,
-        center: session.center,
+        center: activeCenter,
         month: advMonth
       });
       setAdvances(res.data.rows || []);
@@ -309,11 +322,28 @@ export default function Attendance() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-primary">Attendance Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Daily + Monthly Attendance Management for {session?.center}
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Attendance Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Daily + Monthly Attendance Management for {activeCenter || "—"}
+          </p>
+        </div>
+        {isMGT && centersList.length > 0 && (
+          <div className="flex items-center gap-2" data-testid="attendance-center-selector">
+            <Label className="text-sm">Center:</Label>
+            <Select value={activeCenter} onValueChange={setActiveCenter}>
+              <SelectTrigger className="w-56 h-9">
+                <SelectValue placeholder="Select center" />
+              </SelectTrigger>
+              <SelectContent>
+                {centersList.map(c => (
+                  <SelectItem key={c.code} value={c.code}>{c.code} — {c.name || c.code}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Payroll status banner */}
@@ -679,6 +709,7 @@ export default function Attendance() {
                         <th className="text-left p-3 text-xs font-bold">Employee</th>
                         <th className="text-left p-3 text-xs font-bold">Amount</th>
                         <th className="text-left p-3 text-xs font-bold">Mode</th>
+                        <th className="text-right p-3 text-xs font-bold">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -690,6 +721,32 @@ export default function Attendance() {
                             <Badge variant="secondary">₹{adv.advanceAmount}</Badge>
                           </td>
                           <td className="p-3 text-sm text-muted-foreground">{adv.mode}</td>
+                          <td className="p-3 text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                              disabled={payrollLocked}
+                              onClick={async () => {
+                                if (!window.confirm(`Delete advance of ₹${adv.advanceAmount} for ${adv.employeeName} on ${adv.date}?`)) return;
+                                try {
+                                  await api.post("/delete_advance", {
+                                    token: session.token,
+                                    center: activeCenter,
+                                    date: adv.date,
+                                    employeeName: adv.employeeName,
+                                  });
+                                  toast.success("Advance deleted");
+                                  loadAdvances();
+                                } catch (e) {
+                                  toast.error(e.response?.data?.detail || "Failed to delete");
+                                }
+                              }}
+                              data-testid={`delete-advance-${idx}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

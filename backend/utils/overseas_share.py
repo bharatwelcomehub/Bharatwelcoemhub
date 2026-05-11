@@ -29,6 +29,10 @@ from typing import Dict, Any, Optional
 OWNER_PCT = 80.0
 FRANCHISOR_PCT = 20.0
 MFPL_ROYALTY_PCT = 5.0
+# MFPL accrual starts from this month (current FY start, April-2026). Months
+# before this date are NOT included in the cumulative liability — the royalty
+# only begins from FY 2026-27 as decided by management.
+MFPL_ACCRUAL_START_MONTH = "2026-04"
 
 
 def is_overseas(country: Optional[str]) -> bool:
@@ -105,6 +109,10 @@ async def compute_cumulative_mfpl(db, center_code: str, up_to_month: Optional[st
     cum_mfpl = 0.0
     cum_net = 0.0
     for m in sorted(rows_by_month.keys()):
+        # Apply the FY-start gate: only accrue from MFPL_ACCRUAL_START_MONTH
+        # onwards. Months before this are skipped entirely.
+        if m < MFPL_ACCRUAL_START_MONTH:
+            continue
         rows = rows_by_month[m]
         total_sales = sum(float(r.get("total_sale") or 0) for r in rows)
         gst_calc = compute_gst_from_rows(rows, country=country, center=center_code)

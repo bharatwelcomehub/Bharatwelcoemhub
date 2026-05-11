@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save, Plus, BookOpen
+  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail
 } from 'lucide-react';
 
 import LedgersTab from '@/components/LedgersTab';
@@ -692,6 +692,75 @@ export default function CenterAccounts() {
   // Download PDF report
   const [pibPreview, setPibPreview] = useState(null);      // PIB preview data for view-before-download
   const [pibPreviewLoading, setPibPreviewLoading] = useState(false);
+  // Generic PDF preview (GST / Commission) — fetches the PDF blob and renders inline
+  const [pdfPreview, setPdfPreview] = useState(null);  // { url, title, reportType } | null
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
+
+  // Email Pack — generate the monthly email body + ZIP bundle
+  const [emailPack, setEmailPack] = useState(null); // { subject, body, attachments, zip_url, zip_filename }
+  const [emailPackLoading, setEmailPackLoading] = useState(false);
+
+  const openEmailPack = async () => {
+    if (!selectedCenter || !selectedMonth) { toast.error('Please select center and month'); return; }
+    setEmailPackLoading(true);
+    setEmailPack({});
+    try {
+      // 1) Generate email text + attachment metadata
+      const metaRes = await fetch(`${API}/api/center-accounts/email-pack`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth, format: 'json' }),
+      });
+      if (!metaRes.ok) {
+        const err = await metaRes.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to build email pack');
+      }
+      const meta = await metaRes.json();
+      // 2) Fetch the ZIP bundle as blob and create object URL
+      const zipRes = await fetch(`${API}/api/center-accounts/email-pack`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth, format: 'zip' }),
+      });
+      if (!zipRes.ok) {
+        const err = await zipRes.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to build ZIP');
+      }
+      const blob = await zipRes.blob();
+      const url = window.URL.createObjectURL(blob);
+      setEmailPack({ ...meta, zip_url: url });
+      toast.success('Email pack ready');
+    } catch (e) {
+      toast.error(e.message || 'Failed');
+      setEmailPack(null);
+    } finally {
+      setEmailPackLoading(false);
+    }
+  };
+
+  const openPdfPreview = async (reportType) => {
+    if (!selectedCenter || !selectedMonth) { toast.error('Please select center and month'); return; }
+    const endpoints = { gst: 'generate-gst-summary', commission: 'generate-commission-summary' };
+    const titles = { gst: 'GST Summary', commission: 'Commission Summary' };
+    setPdfPreviewLoading(true);
+    setPdfPreview({ loading: true, title: titles[reportType], reportType });
+    try {
+      const res = await fetch(`${API}/api/center-accounts/${endpoints[reportType]}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to load preview');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      setPdfPreview({ url, title: titles[reportType], reportType });
+    } catch (e) {
+      toast.error(e.message || 'Failed');
+      setPdfPreview(null);
+    } finally {
+      setPdfPreviewLoading(false);
+    }
+  };
 
   const openPibPreview = async () => {
     if (!selectedCenter || !selectedMonth) { toast.error('Please select center and month'); return; }
@@ -2133,45 +2202,89 @@ export default function CenterAccounts() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid md:grid-cols-3 gap-4">
-                    <Card className="border-2 hover:border-blue-300 transition-colors cursor-pointer" onClick={() => downloadReport('pib')}>
+                    <Card className="border-2 hover:border-blue-300 transition-colors">
                       <CardContent className="p-6 text-center">
                         <FileText className="w-12 h-12 mx-auto mb-3 text-blue-600" />
                         <h4 className="font-medium">PIB Report</h4>
                         <p className="text-sm text-gray-500 mt-1">Complete Profit & Income Balance</p>
-                        <Button className="mt-4 w-full" variant="outline" disabled={!accountSummary?.franchise?.linked}>
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </Button>
+                        <div className="flex gap-2 mt-4">
+                          <Button className="flex-1" variant="outline" disabled={!accountSummary?.franchise?.linked}
+                                  onClick={() => openPibPreview()} data-testid="pib-preview-btn">
+                            <Eye className="w-4 h-4 mr-1" />Preview
+                          </Button>
+                          <Button className="flex-1" disabled={!accountSummary?.franchise?.linked}
+                                  onClick={() => downloadReport('pib')} data-testid="pib-download-btn">
+                            <Download className="w-4 h-4 mr-1" />Download
+                          </Button>
+                        </div>
                         {!accountSummary?.franchise?.linked && (
                           <p className="text-xs text-red-500 mt-2">Link franchise first</p>
                         )}
                       </CardContent>
                     </Card>
 
-                    <Card className="border-2 hover:border-green-300 transition-colors cursor-pointer" onClick={() => downloadReport('gst')}>
+                    <Card className="border-2 hover:border-green-300 transition-colors">
                       <CardContent className="p-6 text-center">
                         <Calculator className="w-12 h-12 mx-auto mb-3 text-green-600" />
                         <h4 className="font-medium">GST Summary</h4>
                         <p className="text-sm text-gray-500 mt-1">Tax calculation breakdown</p>
-                        <Button className="mt-4 w-full" variant="outline">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </Button>
+                        <div className="flex gap-2 mt-4">
+                          <Button className="flex-1" variant="outline"
+                                  onClick={() => openPdfPreview('gst')} data-testid="gst-preview-btn">
+                            <Eye className="w-4 h-4 mr-1" />Preview
+                          </Button>
+                          <Button className="flex-1"
+                                  onClick={() => downloadReport('gst')} data-testid="gst-download-btn">
+                            <Download className="w-4 h-4 mr-1" />Download
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
 
-                    <Card className="border-2 hover:border-orange-300 transition-colors cursor-pointer" onClick={() => downloadReport('commission')}>
+                    <Card className="border-2 hover:border-orange-300 transition-colors">
                       <CardContent className="p-6 text-center">
                         <CreditCard className="w-12 h-12 mx-auto mb-3 text-orange-600" />
                         <h4 className="font-medium">Commission Summary</h4>
                         <p className="text-sm text-gray-500 mt-1">Aggregator & card commissions</p>
-                        <Button className="mt-4 w-full" variant="outline">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </Button>
+                        <div className="flex gap-2 mt-4">
+                          <Button className="flex-1" variant="outline"
+                                  onClick={() => openPdfPreview('commission')} data-testid="commission-preview-btn">
+                            <Eye className="w-4 h-4 mr-1" />Preview
+                          </Button>
+                          <Button className="flex-1"
+                                  onClick={() => downloadReport('commission')} data-testid="commission-download-btn">
+                            <Download className="w-4 h-4 mr-1" />Download
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   </div>
+
+                  {/* Monthly Email Pack — generates an email + ZIP of all monthly attachments */}
+                  <Card className="mt-6 border-2 border-rose-200 bg-rose-50/40">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0">
+                            <Mail className="w-6 h-6 text-rose-700" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-rose-900">Monthly Franchise Email Pack</h4>
+                            <p className="text-sm text-rose-700 mt-1">
+                              Generates a ready-to-send email body + ZIP bundle with PIB, GST, Commission, Owner Ledger PDFs and any uploaded aggregator / bank statement files. Just preview, copy and send.
+                            </p>
+                          </div>
+                        </div>
+                        <Button onClick={() => openEmailPack()} disabled={!accountSummary?.franchise?.linked}
+                                className="bg-rose-700 hover:bg-rose-800 text-white" data-testid="email-pack-btn">
+                          <Mail className="w-4 h-4 mr-2" />Generate Email + Bundle
+                        </Button>
+                      </div>
+                      {!accountSummary?.franchise?.linked && (
+                        <p className="text-xs text-rose-600 mt-2">Link franchise to this center first.</p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -3634,6 +3747,100 @@ export default function CenterAccounts() {
               data-testid="pib-preview-download"
             >
               <Download className="w-4 h-4 mr-1" /> Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generic PDF Preview (GST / Commission) */}
+      <Dialog open={!!pdfPreview} onOpenChange={(open) => {
+        if (!open) {
+          if (pdfPreview?.url) window.URL.revokeObjectURL(pdfPreview.url);
+          setPdfPreview(null);
+        }
+      }}>
+        <DialogContent className="max-w-5xl max-h-[90vh]" data-testid="pdf-preview-dialog">
+          <DialogHeader>
+            <DialogTitle>{pdfPreview?.title} — {selectedCenter} · {selectedMonth}</DialogTitle>
+            <DialogDescription>Review the report, then click Download to save.</DialogDescription>
+          </DialogHeader>
+          {pdfPreviewLoading || pdfPreview?.loading ? (
+            <div className="py-16 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin inline-block mr-2" />Loading preview…</div>
+          ) : pdfPreview?.url ? (
+            <iframe src={pdfPreview.url} className="w-full" style={{ height: '70vh' }} title={pdfPreview.title} data-testid="pdf-preview-iframe" />
+          ) : (
+            <p className="text-sm text-muted-foreground py-8">No data to preview.</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              if (pdfPreview?.url) window.URL.revokeObjectURL(pdfPreview.url);
+              setPdfPreview(null);
+            }}>Close</Button>
+            <Button onClick={() => {
+              if (!pdfPreview?.url) return;
+              const a = document.createElement('a');
+              a.href = pdfPreview.url;
+              a.download = `${pdfPreview.title.replace(/\s/g, '_')}_${selectedCenter}_${selectedMonth}.pdf`;
+              a.click();
+              toast.success('Downloaded');
+            }} className="bg-[#8B0000] hover:bg-[#6B0000]" disabled={!pdfPreview?.url}>
+              <Download className="w-4 h-4 mr-1" /> Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Pack Dialog */}
+      <Dialog open={!!emailPack} onOpenChange={(open) => { if (!open) setEmailPack(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="email-pack-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Mail className="w-5 h-5 text-rose-700" /> Monthly Email Pack — {selectedCenter} · {selectedMonth}</DialogTitle>
+            <DialogDescription>Beautifully formatted email + ZIP bundle (PIB, GST, Commission, Owner Ledger + uploads) ready to send.</DialogDescription>
+          </DialogHeader>
+          {emailPackLoading ? (
+            <div className="py-12 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin inline-block mr-2" />Building bundle…</div>
+          ) : emailPack ? (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs uppercase tracking-wider">Subject</Label>
+                <Input readOnly value={emailPack.subject || ''} className="font-medium" data-testid="email-pack-subject" />
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wider">Body</Label>
+                <textarea
+                  readOnly
+                  value={emailPack.body || ''}
+                  className="w-full min-h-[280px] p-3 rounded border bg-muted/30 font-mono text-xs leading-relaxed"
+                  data-testid="email-pack-body"
+                />
+              </div>
+              <div className="rounded-lg border p-3 bg-rose-50/40">
+                <p className="text-xs font-semibold text-rose-900 mb-1">Bundle Contents ({(emailPack.attachments || []).length} files)</p>
+                <ul className="text-xs space-y-0.5">
+                  {(emailPack.attachments || []).map((a, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <FileText className="w-3 h-3 text-rose-700" /> {a.filename} <span className="text-muted-foreground">({a.size_kb} KB)</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailPack(null)}>Close</Button>
+            <Button variant="outline" disabled={!emailPack} onClick={() => {
+              navigator.clipboard.writeText(`Subject: ${emailPack.subject}\n\n${emailPack.body}`);
+              toast.success('Email subject + body copied');
+            }} data-testid="email-pack-copy">
+              Copy Email Text
+            </Button>
+            <Button disabled={!emailPack} onClick={() => {
+              const a = document.createElement('a');
+              a.href = emailPack.zip_url; a.download = emailPack.zip_filename || `Email_Pack_${selectedCenter}_${selectedMonth}.zip`;
+              a.click();
+              toast.success('Bundle downloaded');
+            }} className="bg-rose-700 hover:bg-rose-800 text-white" data-testid="email-pack-download">
+              <Download className="w-4 h-4 mr-1" /> Download ZIP Bundle
             </Button>
           </DialogFooter>
         </DialogContent>

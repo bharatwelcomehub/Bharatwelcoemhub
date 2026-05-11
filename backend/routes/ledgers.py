@@ -524,7 +524,7 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         mg = float(franchise.get("monthly_guarantee") or franchise.get("mg") or franchise.get("minimum_guarantee") or 0)
     # Overseas centers do NOT have an MG — they use a fixed 80/20 profit share
     # with a 5% MFPL royalty accrued separately. Set rev_pct=80, mg=0.
-    from utils.overseas_share import is_overseas as _is_overseas, MFPL_ROYALTY_PCT
+    from utils.overseas_share import is_overseas as _is_overseas, MFPL_ROYALTY_PCT, MFPL_ACCRUAL_START_MONTH
     _overseas = _is_overseas(country)
     if _overseas:
         rev_pct = 80.0
@@ -577,8 +577,12 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
             eligible_profit_local = max(0.0, total_sales - gst_amount - comm_total - month_expenses)
             rev_share = round(eligible_profit_local * 80.0 / 100.0, 2)
             mg_delta = 0.0
-            # 5% MFPL royalty on Net Sales (Sales − GST)
-            mfpl_accrued_month = round(max(0.0, total_sales - gst_amount) * MFPL_ROYALTY_PCT / 100.0, 2)
+            # 5% MFPL royalty on Net Sales (Sales − GST) — only from FY-start
+            # (MFPL_ACCRUAL_START_MONTH). Months before this do not accrue.
+            if m >= MFPL_ACCRUAL_START_MONTH:
+                mfpl_accrued_month = round(max(0.0, total_sales - gst_amount) * MFPL_ROYALTY_PCT / 100.0, 2)
+            else:
+                mfpl_accrued_month = 0.0
         else:
             rev_share = round(net_revenue * rev_pct / 100, 2)
             mg_delta = max(0, mg - rev_share)  # HQ owes franchisee extra if rev_share < MG

@@ -6,7 +6,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from decimal import Decimal, ROUND_HALF_UP
@@ -1554,8 +1554,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # Overseas (e.g., Australia): No MG. Fixed 80/20 on eligible profit
         # (= `profitability` = Sales − GST − Commission − CommGST − Expenses).
         # 5% MFPL royalty accrued as a separate liability on Net Sales.
+        # Royalty starts from FY-start (MFPL_ACCRUAL_START_MONTH) — months
+        # before this date do NOT accrue any liability.
+        from utils.overseas_share import MFPL_ACCRUAL_START_MONTH
         net_sales_for_royalty = max(0.0, total_sale - sales_gst_amount)
         overseas_share_data = compute_overseas_share(profitability, net_sales_for_royalty)
+        if (req.month or "") < MFPL_ACCRUAL_START_MONTH:
+            # Zero out per-month MFPL for pre-FY-start months
+            overseas_share_data["mfpl_royalty"] = 0.0
         try:
             mfpl_data = await compute_cumulative_mfpl(db, req.center, req.month)
         except Exception as _ex:
@@ -1979,6 +1985,251 @@ async def generate_commission_summary(req: PIBGenerateRequest):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=Commission_Summary_{summary['center']}_{summary['period']}.pdf"}
     )
+
+
+# =======================================
+# MONTHLY EMAIL PACK — text + ZIP bundle
+# =======================================
+class EmailPackRequest(BaseModel):
+    token: str
+    center: str
+    month: str
+    format: str = "json"  # 'json' (metadata only) or 'zip' (download bundle)
+
+
+def _format_currency_inr_or_aud(amount: float, country: str) -> str:
+    if (country or "India").lower() == "australia":
+        return f"AUD {amount:,.2f}"
+    return f"₹ {amount:,.2f}"
+
+
+def _build_monthly_email_text(summary: dict) -> Tuple[str, str]:
+    """Compose the monthly email subject + body for the franchise owner.
+
+    Tone:
+      - Warm, classic Indian business salutation ("Jai Hind Namaskar Team <Name>")
+      - Honest about result (profit ⇒ celebrate togetherness; loss ⇒ reassure that
+        the team will work it out together)
+      - Closes with classic regards from Purnabramha Accounts team
+    """
+    from datetime import datetime as _dt
+    country = summary.get("country") or "India"
+    period = summary.get("period") or ""
+    try:
+        month_label = _dt.strptime(period + "-01", "%Y-%m-%d").strftime("%B %Y")
+    except Exception:
+        month_label = period
+    fin = summary.get("financial_summary") or {}
+    franchise = summary.get("franchise") or {}
+    franchise_name = (franchise.get("name") or franchise.get("legal_entity")
+                      or summary.get("center_name") or summary.get("center") or "Franchise")
+    # Decide if profit or loss
+    is_overseas_local = (country or "India").lower() != "india"
+    if is_overseas_local:
+        ovs = summary.get("overseas_share") or {}
+        net_metric = float(ovs.get("eligible_profit") or 0)
+    else:
+        # India: net P/L = profit
+        net_metric = float(fin.get("profitability") or fin.get("net_revenue") or 0) \
+            - float(fin.get("total_expenses") or 0)
+
+    is_profit = net_metric >= 0
+    total_sales = float(fin.get("total_sales") or 0)
+    total_exp = float(fin.get("total_expenses") or 0)
+    gst_amt = float(fin.get("sales_gst") or 0)
+    comm = float(fin.get("total_commissions") or 0)
+
+    fmt = lambda v: _format_currency_inr_or_aud(v, country)
+
+    subject = f"Purnabramha — {franchise_name} | Monthly P&L Report · {month_label}"
+
+    if is_profit:
+        sentiment_block = (
+            f"It gives us immense joy to share that {franchise_name} closed {month_label} on a positive note. "
+            f"Eligible profit stands at {fmt(net_metric)} — a beautiful reflection of the team's hard work, "
+            f"discipline, and unity. Let us stay together, celebrate this momentum, and continue serving our "
+            f"customers with the same warmth that brought us here."
+        )
+    else:
+        sentiment_block = (
+            f"This month, {franchise_name} has shown a shortfall of {fmt(abs(net_metric))} on the operational P&L. "
+            f"Please do not be disheartened — every brand walks through such cycles. We are one Purnabramha family; "
+            f"we will sit together, look at the levers (sales mix, expenses, aggregator commissions), and bring "
+            f"the numbers back into the green. Your dedication is what defines us, not a single month's figure."
+        )
+
+    attachments_line = (
+        "1. PIB Report (Profit & Income Balance)\n"
+        "2. GST Summary\n"
+        "3. Commission Summary (Aggregator & Card)\n"
+        "4. Franchise Owner Ledger (HQ ↔ Franchise running account)\n"
+        "5. Bank Activity Statement (derived from sales & expenses)\n"
+        "6. Aggregator / Bank uploaded files (where available)"
+    )
+
+    body = (
+        f"Jai Hind Namaskar Team {franchise_name},\n\n"
+        f"Trust this note finds you in good health and high spirits.\n\n"
+        f"Please find attached the monthly accounting pack for {month_label}. "
+        f"A quick glance at the headline figures:\n\n"
+        f"   • Total Sales         : {fmt(total_sales)}\n"
+        f"   • Total Expenses      : {fmt(total_exp)}\n"
+        f"   • Total Commissions   : {fmt(comm)}\n"
+        f"   • GST on Sales        : {fmt(gst_amt)}\n"
+        f"   • Eligible Profit/P&L : {fmt(net_metric)}\n\n"
+        f"{sentiment_block}\n\n"
+        f"Attachments enclosed in this email:\n{attachments_line}\n\n"
+        f"Should anything need a deeper look, we will align over our next call — "
+        f"every line item is open for discussion and improvement.\n\n"
+        f"With warm regards and gratitude,\n"
+        f"— Purnabramha Accounts Team\n"
+        f"   Manaswini Foods Pvt. Ltd. / Purnabramha LLC Pty. Ltd."
+    )
+    return subject, body
+
+
+async def _collect_uploaded_attachments(center_code: str, month: str) -> List[dict]:
+    """Pull uploaded aggregator / bank-statement files for the given month
+    from the `documents` collection so they can be included in the email ZIP.
+    """
+    docs = []
+    try:
+        month_prefix = month  # "YYYY-MM"
+        cur = db.documents.find({
+            "center": center_code.upper(),
+            "is_deleted": {"$ne": True},
+            "created_at": {"$regex": f"^{month_prefix}"},
+        }, {"_id": 0})
+        async for d in cur:
+            docs.append(d)
+    except Exception as _ex:
+        logger.warning(f"email-pack uploaded attachments lookup failed for {center_code}: {_ex}")
+    return docs
+
+
+@router.post("/email-pack")
+async def generate_email_pack(req: EmailPackRequest):
+    """Build the monthly franchise email + ZIP bundle.
+
+    format=json → returns { subject, body, attachments: [{filename, size_kb}] }
+    format=zip  → returns a ZIP file with all attachments and an EMAIL.txt
+    """
+    session = await check_access(req.token)
+    await enforce_owner_visibility(session, req.center, req.month)
+
+    summary_req = AccountPeriodRequest(token=req.token, center=req.center, month=req.month)
+    summary_response = await get_center_account_summary(summary_req)
+    summary = summary_response["summary"]
+    if not summary.get("franchise", {}).get("linked"):
+        raise HTTPException(400, "Center is not linked to a franchise. Cannot generate email pack.")
+
+    subject, body = _build_monthly_email_text(summary)
+
+    # Generate the 4 core PDFs in-process (no extra HTTP calls)
+    from utils.pdf_generator import (
+        build_pib_pdf, build_gst_summary_pdf, build_commission_summary_pdf,
+    )
+    files: List[Tuple[str, bytes, str]] = []  # (filename, content, content_type)
+    try:
+        files.append((
+            f"PIB_{req.center}_{req.month}.pdf",
+            build_pib_pdf(summary), "application/pdf",
+        ))
+    except Exception as _e:
+        logger.warning(f"email-pack PIB failed: {_e}")
+    try:
+        files.append((
+            f"GST_Summary_{req.center}_{req.month}.pdf",
+            build_gst_summary_pdf(summary), "application/pdf",
+        ))
+    except Exception as _e:
+        logger.warning(f"email-pack GST failed: {_e}")
+    try:
+        files.append((
+            f"Commission_Summary_{req.center}_{req.month}.pdf",
+            build_commission_summary_pdf(summary), "application/pdf",
+        ))
+    except Exception as _e:
+        logger.warning(f"email-pack Commission failed: {_e}")
+
+    # Franchise Owner ledger PDF — reuse ledgers helpers
+    try:
+        from routes.ledgers import build_franchise_owner_ledger, _render_pdf, _owner_ledger_to_table, _inr
+        owner_data = await build_franchise_owner_ledger(req.center, [req.month])
+        sections = [("Franchise Owner — Running Account with HQ", _owner_ledger_to_table(owner_data))]
+        # Reuse same final-payout block logic as ledgers.py
+        country = owner_data.get("country") or "India"
+        pdf_bytes = _render_pdf(
+            title="Franchise Owner Ledger",
+            subtitle=f"{req.center} · {req.month}",
+            sections=sections,
+            country=country,
+        )
+        files.append((
+            f"Owner_Ledger_{req.center}_{req.month}.pdf",
+            pdf_bytes, "application/pdf",
+        ))
+    except Exception as _e:
+        logger.warning(f"email-pack Owner Ledger failed: {_e}")
+
+    # Bank Activity Statement (derived) — generate via existing endpoint helper
+    try:
+        from utils.pdf_generator import build_bank_statement_pdf
+        # Pull a fresh bank statement payload using the same logic as the route
+        # to avoid duplicating math here.
+        bank_req = PIBGenerateRequest(token=req.token, center=req.center, month=req.month)
+        bank_resp = await generate_bank_statement(bank_req)
+        bank_bytes = bank_resp.body if hasattr(bank_resp, "body") else None
+        if bank_bytes:
+            files.append((
+                f"Bank_Statement_{req.center}_{req.month}.pdf",
+                bytes(bank_bytes), "application/pdf",
+            ))
+    except Exception as _e:
+        logger.warning(f"email-pack Bank Statement failed: {_e}")
+
+    # Uploaded aggregator / bank statement files (Swiggy/Zomato/Doordash Excel, actual bank statement)
+    uploaded = await _collect_uploaded_attachments(req.center, req.month)
+    if uploaded:
+        from routes.documents import get_object
+        for d in uploaded:
+            try:
+                content, ctype = get_object(d.get("storage_path"))
+                fname = d.get("original_filename") or f"{d.get('document_id')}.bin"
+                files.append((f"uploaded__{fname}", content, ctype))
+            except Exception as _ex:
+                logger.warning(f"email-pack failed to fetch uploaded {d.get('document_id')}: {_ex}")
+
+    # Metadata-only mode
+    if (req.format or "json").lower() == "json":
+        attachments_meta = [
+            {"filename": fn, "size_kb": round(len(content) / 1024.0, 1)}
+            for fn, content, _ct in files
+        ]
+        return {
+            "subject": subject,
+            "body": body,
+            "attachments": attachments_meta,
+            "center": req.center,
+            "month": req.month,
+        }
+
+    # ZIP mode
+    import io as _io
+    import zipfile
+    buf = _io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("EMAIL.txt", f"Subject: {subject}\n\n{body}\n")
+        for fn, content, _ct in files:
+            zf.writestr(fn, content)
+    buf.seek(0)
+    zip_filename = f"Email_Pack_{req.center}_{req.month}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={zip_filename}"},
+    )
+
 
 
 @router.post("/generate-bank-statement")

@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 83 backend testing completed. 8/8 tests passed for email-pack JSON+ZIP, MFPL pre-FY-start gating, and delete_advance permissions. Audit script ALL SURFACES MATCH for PB-HSR 2026-01 and PB-PERTH 2026-01 (no regression).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "untested_notes": "Frontend UI testing not completed in this iteration due to context budget. The login flow requires selecting a center from a custom shadcn dropdown before sending OTP — automation script entered mobile but did not select center, so reached Center Accounts test in unauthenticated state. Main agent or next testing agent should: (1) click the Center select trigger, (2) pick 'PB-MGT' from the dropdown options, (3) fill mobile 9741399190, (4) Send OTP, (5) fill 123456, (6) Verify. Then navigate to /center-accounts → Reports tab to verify email-pack-btn and Preview/Download two-button rows, then /attendance to verify attendance-center-selector + delete-advance-* buttons."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration83_email_pack.py",
+    "/app/test_reports/pytest/iteration83.xml"
+  ],
+  "action_items": [
+    "Frontend visual/UX checks for Reports tab two-button rows, PDF iframe preview modal, email-pack-dialog, attendance-center-selector, and delete-advance buttons need to be done by main agent self-test or next testing agent (selectors per request: pdf-preview-iframe, email-pack-btn, email-pack-dialog, attendance-center-selector, delete-advance-*).",
+    "No backend changes required — all 8 backend assertions pass and audit script shows ALL SURFACES MATCH for both India (PB-HSR) and overseas (PB-PERTH) for 2026-01."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/routes/center_accounts.py is 2846 lines — long-standing concern. Splitting email-pack helpers into a separate module would help maintainability.",
+    "delete_advance correctly enforces super_admin / admin / center_manager-of-own-center with 401 for bad token, 403 for permission denied, 404 for missing row — verified by tests.",
+    "MFPL gating is implemented in two places (center_accounts.summary line ~1562 and ledgers.build_franchise_owner_ledger line ~582) — both correctly reference MFPL_ACCRUAL_START_MONTH constant. Good single source of truth."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration83_email_pack.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "not tested"},
+  "test_credentials": "Super Admin: mobile=9741399190, OTP=123456, center=PB-MGT (per /app/memory/test_credentials.md)",
+  "seed_data_creation": "TEST_ITER83_ADV advance row created and then deleted in same test — no residual seed data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fully validated. Frontend automated testing requires handling the center-select dropdown on login screen first (shadcn Select component). Use data-testids as called out in the request to verify Iteration 83 UI surfaces. The Owner Ledger /api/ledgers/owner endpoint requires fmt='json' in the request body; default fmt is 'pdf'. The /api/center-accounts/summary endpoint wraps the data under a top-level 'summary' key (not flat).",
+  "rca": "N/A — no defects found."
+}

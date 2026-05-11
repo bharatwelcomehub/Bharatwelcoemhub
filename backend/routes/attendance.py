@@ -584,3 +584,38 @@ async def advances_by_month(req: MonthRequest):
     ).sort("date", 1).to_list(1000)
     
     return {"rows": rows}
+
+
+class DeleteAdvanceRequest(BaseModel):
+    token: str
+    center: str
+    date: str            # 'YYYY-MM-DD'
+    employeeName: str
+
+
+@router.post("/delete_advance")
+async def delete_advance(req: DeleteAdvanceRequest):
+    """Delete a single salary advance row.
+
+    Access: Super Admin, Admin, or the Center Manager of that center.
+    """
+    session = verify_token(req.token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+    roles = session.get("roles") or {}
+    is_super = bool(roles.get("super_admin"))
+    is_admin = bool(roles.get("admin") or roles.get("mgt"))
+    # Center Manager check — only their own center
+    user_center = (session.get("center") or "").upper()
+    is_center_manager = (user_center == req.center.upper())
+    if not (is_super or is_admin or is_center_manager):
+        raise HTTPException(403, "You do not have permission to delete advances")
+
+    result = await db.advances.delete_one({
+        "date": req.date,
+        "center": req.center.upper(),
+        "employeeName": req.employeeName.upper(),
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Advance not found")
+    return {"success": True, "deleted": 1}
