@@ -1363,13 +1363,20 @@ All 3 pages wired into sidebar; test-ids present throughout (`or-release-all-btn
   - **Eligible Profit** = Sales − GST − Commission − CommGST − Expenses
   - **Profit Share**: Franchise Owner 80%, Purnabramha LLC 20% (on Eligible Profit)
   - **MFPL Royalty** = 5% × Net Sales (Sales − GST) → accrued as cumulative liability, paid=0
-- **Surfaces updated:**
-  - Backend: `/api/center-accounts/summary` (returns `overseas_share` + `mfpl_royalty`), `/api/center-accounts/payout-summary` (mg=0 for overseas), `/api/ledgers/owner` (Profit Share rows, no MG top-up, MFPL accrued field)
-  - PDFs: PIB Section 8 + 8B, Owner Ledger PDF — overseas variant
-  - Frontend: `CenterAccounts.jsx` tab renamed "Payout" for overseas, new "Overseas Profit Share & MFPL Royalty" card + "Final Payout (incl. 10% GST)" card; `FranchiseOwnerDashboard.jsx` uses 80% + MFPL sub-badge for overseas
-- **India behaviour preserved unchanged** (MG vs Revenue Share comparison intact)
-- **Audit:** `audit_financial_parity.py PB-PERTH 2026-01` & `PB-HSR 2026-01` → ALL SURFACES MATCH
-- **Tests:** 9/9 backend pytest pass at `/app/backend/tests/test_iteration82_overseas_profit_share.py`
+- **Surfaces updated:** Center Accounts summary/payout-summary, Owner Ledger PDF, PIB Section 8 + 8B, FranchiseOwnerDashboard
+- **India behaviour preserved unchanged**
+- **Tests:** 9/9 pytest pass at `/app/backend/tests/test_iteration82_overseas_profit_share.py`
+
+### [2026-05-11] PIB/GST/Commission Preview + Monthly Email Pack + MFPL FY-Gating + Advance Delete + Attendance Multi-Center Edit
+- **Reports tab preview**: PIB, GST, Commission cards now show **Preview + Download** buttons. Preview opens inline iframe modal (or JSON for PIB).
+- **Monthly Email Pack** (`POST /api/center-accounts/email-pack`):
+  - format=`json` → `{subject, body, attachments}` for review
+  - format=`zip` → ZIP with `EMAIL.txt` + PIB + GST + Commission + Owner Ledger + Bank Statement PDFs + any uploaded month documents
+  - Body tone: "Jai Hind Namaskar Team <franchise>" → profit branch celebrates togetherness, loss branch reassures team will work together → "— Purnabramha Accounts Team"
+- **MFPL FY-Gating**: `MFPL_ACCRUAL_START_MONTH = "2026-04"` in `utils/overseas_share.py`. Months before this date contribute 0 to cumulative liability and to per-month royalty.
+- **Salary Advance delete**: new `POST /api/delete_advance` endpoint (super admin / admin / center manager of that center) + red Trash button on Advances tab.
+- **Attendance multi-center edit**: Super Admin / Admin can now switch center via a new selector at the top of Attendance page. All daily/monthly/advances API calls use `activeCenter` instead of `session.center`. Center Manager flow unchanged.
+- **Tests:** 8/8 pytest pass (email-pack JSON+ZIP, MFPL gating, delete_advance perms), audit script ALL SURFACES MATCH for India + Perth.
 
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
