@@ -701,6 +701,39 @@ export default function CenterAccounts() {
   const [emailPackLoading, setEmailPackLoading] = useState(false);
   // Inline SMTP send form { to, cc, sending } | null
   const [sendForm, setSendForm] = useState(null);
+  // Sales/Expense Excel filter on Center Accounts Reports tab
+  const [seCaMode, setSeCaMode] = useState('month');   // 'month' | 'range' | 'date'
+  const [seCaStart, setSeCaStart] = useState('');
+  const [seCaEnd, setSeCaEnd] = useState('');
+
+  const downloadSalesExpenseExcel = async (mode, start, end) => {
+    if (!selectedCenter) { toast.error('Select a center first'); return; }
+    const body = { token, center: selectedCenter, mode };
+    if (mode === 'month') {
+      if (!selectedMonth) { toast.error('Select a month first'); return; }
+      body.month = selectedMonth;
+    } else if (mode === 'range') {
+      if (!start || !end) { toast.error('Pick a start and end date'); return; }
+      body.start_date = start; body.end_date = end;
+    } else if (mode === 'date') {
+      if (!start) { toast.error('Pick a date'); return; }
+      body.start_date = start;
+    }
+    try {
+      toast.info('Generating Sales/Expense Excel...');
+      const res = await fetch(`${API}/api/franchise-reports/sales-expense-excel`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Failed'); }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const tag = mode === 'month' ? selectedMonth : (mode === 'range' ? `${start}_to_${end}` : start);
+      a.href = url; a.download = `Sales_Expense_${selectedCenter}_${tag}.xlsx`;
+      a.click(); window.URL.revokeObjectURL(url);
+      toast.success('Excel downloaded');
+    } catch (e) { toast.error(e.message || 'Failed'); }
+  };
 
   const openEmailPack = async () => {
     if (!selectedCenter || !selectedMonth) { toast.error('Please select center and month'); return; }
@@ -2281,12 +2314,37 @@ export default function CenterAccounts() {
                           </Button>
                         </div>
                       </div>
-                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0"><FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" /><span className="text-sm font-medium truncate">Sales / Expense Excel</span></div>
-                        <div className="flex gap-1 shrink-0">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('sales_expense')} data-testid="se-excel-download-btn" title="Download">
+                      <div className="rounded border bg-white p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0"><FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" /><span className="text-sm font-medium truncate">Sales / Expense Excel</span></div>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                                  onClick={() => downloadSalesExpenseExcel(seCaMode, seCaStart, seCaEnd)}
+                                  data-testid="se-excel-download-btn" title="Download">
                             <Download className="w-3.5 h-3.5" />
                           </Button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Select value={seCaMode} onValueChange={setSeCaMode}>
+                            <SelectTrigger className="h-7 text-xs w-28" data-testid="se-ca-mode"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="month">Full Month</SelectItem>
+                              <SelectItem value="range">Date Range</SelectItem>
+                              <SelectItem value="date">Single Date</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {seCaMode === 'range' && (
+                            <>
+                              <Input type="date" value={seCaStart} onChange={e => setSeCaStart(e.target.value)} className="h-7 text-xs w-36" data-testid="se-ca-start" />
+                              <span className="text-[10px] text-muted-foreground">to</span>
+                              <Input type="date" value={seCaEnd} onChange={e => setSeCaEnd(e.target.value)} className="h-7 text-xs w-36" data-testid="se-ca-end" />
+                            </>
+                          )}
+                          {seCaMode === 'date' && (
+                            <Input type="date" value={seCaStart} onChange={e => setSeCaStart(e.target.value)} className="h-7 text-xs w-36" data-testid="se-ca-date" />
+                          )}
+                          {seCaMode === 'month' && (
+                            <span className="text-[10px] text-muted-foreground">({selectedMonth})</span>
+                          )}
                         </div>
                       </div>
                       <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
