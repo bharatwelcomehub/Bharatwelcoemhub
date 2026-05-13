@@ -699,6 +699,8 @@ export default function CenterAccounts() {
   // Email Pack — generate the monthly email body + ZIP bundle
   const [emailPack, setEmailPack] = useState(null); // { subject, body, attachments, zip_url, zip_filename }
   const [emailPackLoading, setEmailPackLoading] = useState(false);
+  // Inline SMTP send form { to, cc, sending } | null
+  const [sendForm, setSendForm] = useState(null);
 
   const openEmailPack = async () => {
     if (!selectedCenter || !selectedMonth) { toast.error('Please select center and month'); return; }
@@ -2201,83 +2203,24 @@ export default function CenterAccounts() {
                   <CardDescription>Download PDF reports for the selected period</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <Card className="border-2 hover:border-blue-300 transition-colors">
-                      <CardContent className="p-6 text-center">
-                        <FileText className="w-12 h-12 mx-auto mb-3 text-blue-600" />
-                        <h4 className="font-medium">PIB Report</h4>
-                        <p className="text-sm text-gray-500 mt-1">Complete Profit & Income Balance</p>
-                        <div className="flex gap-2 mt-4">
-                          <Button className="flex-1" variant="outline" disabled={!accountSummary?.franchise?.linked}
-                                  onClick={() => openPibPreview()} data-testid="pib-preview-btn">
-                            <Eye className="w-4 h-4 mr-1" />Preview
-                          </Button>
-                          <Button className="flex-1" disabled={!accountSummary?.franchise?.linked}
-                                  onClick={() => downloadReport('pib')} data-testid="pib-download-btn">
-                            <Download className="w-4 h-4 mr-1" />Download
-                          </Button>
-                        </div>
-                        {!accountSummary?.franchise?.linked && (
-                          <p className="text-xs text-red-500 mt-2">Link franchise first</p>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-2 hover:border-green-300 transition-colors">
-                      <CardContent className="p-6 text-center">
-                        <Calculator className="w-12 h-12 mx-auto mb-3 text-green-600" />
-                        <h4 className="font-medium">GST Summary</h4>
-                        <p className="text-sm text-gray-500 mt-1">Tax calculation breakdown</p>
-                        <div className="flex gap-2 mt-4">
-                          <Button className="flex-1" variant="outline"
-                                  onClick={() => openPdfPreview('gst')} data-testid="gst-preview-btn">
-                            <Eye className="w-4 h-4 mr-1" />Preview
-                          </Button>
-                          <Button className="flex-1"
-                                  onClick={() => downloadReport('gst')} data-testid="gst-download-btn">
-                            <Download className="w-4 h-4 mr-1" />Download
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-2 hover:border-orange-300 transition-colors">
-                      <CardContent className="p-6 text-center">
-                        <CreditCard className="w-12 h-12 mx-auto mb-3 text-orange-600" />
-                        <h4 className="font-medium">Commission Summary</h4>
-                        <p className="text-sm text-gray-500 mt-1">Aggregator & card commissions</p>
-                        <div className="flex gap-2 mt-4">
-                          <Button className="flex-1" variant="outline"
-                                  onClick={() => openPdfPreview('commission')} data-testid="commission-preview-btn">
-                            <Eye className="w-4 h-4 mr-1" />Preview
-                          </Button>
-                          <Button className="flex-1"
-                                  onClick={() => downloadReport('commission')} data-testid="commission-download-btn">
-                            <Download className="w-4 h-4 mr-1" />Download
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Monthly Email Pack — generates an email + ZIP of all monthly attachments */}
-                  <Card className="mt-6 border-2 border-rose-200 bg-rose-50/40">
+                  {/* Hero: Monthly Email Pack — the primary, recommended flow */}
+                  <Card className="border-2 border-rose-300 bg-rose-50/50">
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between flex-wrap gap-4">
                         <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0">
-                            <Mail className="w-6 h-6 text-rose-700" />
+                          <div className="w-14 h-14 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0">
+                            <Mail className="w-7 h-7 text-rose-700" />
                           </div>
                           <div>
-                            <h4 className="font-semibold text-rose-900">Monthly Franchise Email Pack</h4>
-                            <p className="text-sm text-rose-700 mt-1">
-                              Generates a ready-to-send email body + ZIP bundle with PIB, GST, Commission, Owner Ledger PDFs and any uploaded aggregator / bank statement files. Just preview, copy and send.
+                            <h4 className="text-lg font-semibold text-rose-900">Monthly Franchise Email Pack</h4>
+                            <p className="text-sm text-rose-700 mt-1 max-w-xl">
+                              One click → preview the email body, download the ZIP (PIB + GST + Commission + Bank Statement + Sales/Expense Excel + raw uploaded files), or <strong>send it directly</strong> to the franchise owner via SMTP.
                             </p>
                           </div>
                         </div>
                         <Button onClick={() => openEmailPack()} disabled={!accountSummary?.franchise?.linked}
-                                className="bg-rose-700 hover:bg-rose-800 text-white" data-testid="email-pack-btn">
-                          <Mail className="w-4 h-4 mr-2" />Generate Email + Bundle
+                                className="bg-rose-700 hover:bg-rose-800 text-white" size="lg" data-testid="email-pack-btn">
+                          <Mail className="w-4 h-4 mr-2" />Open Email Pack
                         </Button>
                       </div>
                       {!accountSummary?.franchise?.linked && (
@@ -2285,6 +2228,34 @@ export default function CenterAccounts() {
                       )}
                     </CardContent>
                   </Card>
+
+                  {/* Compact Quick Downloads — secondary use only */}
+                  <div className="mt-4">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Quick Single-Report Downloads</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" disabled={!accountSummary?.franchise?.linked}
+                              onClick={() => openPibPreview()} data-testid="pib-preview-btn">
+                        <Eye className="w-3.5 h-3.5 mr-1" /> PIB
+                      </Button>
+                      <Button variant="outline" size="sm" disabled={!accountSummary?.franchise?.linked}
+                              onClick={() => downloadReport('pib')} data-testid="pib-download-btn">
+                        <Download className="w-3.5 h-3.5 mr-1" /> PIB PDF
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openPdfPreview('gst')} data-testid="gst-preview-btn">
+                        <Eye className="w-3.5 h-3.5 mr-1" /> GST
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => downloadReport('gst')} data-testid="gst-download-btn">
+                        <Download className="w-3.5 h-3.5 mr-1" /> GST PDF
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openPdfPreview('commission')} data-testid="commission-preview-btn">
+                        <Eye className="w-3.5 h-3.5 mr-1" /> Commission
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => downloadReport('commission')} data-testid="commission-download-btn">
+                        <Download className="w-3.5 h-3.5 mr-1" /> Commission PDF
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">For audit use. For monthly delivery, prefer the <strong>Email Pack</strong> above.</p>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -3791,11 +3762,11 @@ export default function CenterAccounts() {
       </Dialog>
 
       {/* Email Pack Dialog */}
-      <Dialog open={!!emailPack} onOpenChange={(open) => { if (!open) setEmailPack(null); }}>
+      <Dialog open={!!emailPack} onOpenChange={(open) => { if (!open) { setEmailPack(null); setSendForm(null); } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="email-pack-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Mail className="w-5 h-5 text-rose-700" /> Monthly Email Pack — {selectedCenter} · {selectedMonth}</DialogTitle>
-            <DialogDescription>Beautifully formatted email + ZIP bundle (PIB, GST, Commission, Owner Ledger + uploads) ready to send.</DialogDescription>
+            <DialogDescription>Beautifully formatted email + ZIP bundle (PIB, GST, Commission, Sales/Expense Excel + uploaded raw files) ready to send.</DialogDescription>
           </DialogHeader>
           {emailPackLoading ? (
             <div className="py-12 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin inline-block mr-2" />Building bundle…</div>
@@ -3824,15 +3795,64 @@ export default function CenterAccounts() {
                   ))}
                 </ul>
               </div>
+              {/* Direct Send via SMTP — optional one-click delivery */}
+              {sendForm && (
+                <div className="rounded-lg border-2 border-blue-300 p-3 bg-blue-50/50 space-y-2" data-testid="email-pack-send-form">
+                  <p className="text-sm font-semibold text-blue-900 flex items-center gap-2"><Mail className="w-4 h-4" /> Send Email Directly via SMTP</p>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">To (recipient email)</Label>
+                      <Input type="email" placeholder="owner@example.com" value={sendForm.to} onChange={e => setSendForm({...sendForm, to: e.target.value})} data-testid="email-pack-send-to" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">CC (optional)</Label>
+                      <Input type="email" placeholder="accounts@purnabramha.com" value={sendForm.cc} onChange={e => setSendForm({...sendForm, cc: e.target.value})} data-testid="email-pack-send-cc" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="ghost" onClick={() => setSendForm(null)}>Cancel</Button>
+                    <Button size="sm" className="bg-blue-700 hover:bg-blue-800 text-white"
+                            disabled={!sendForm.to || sendForm.sending}
+                            onClick={async () => {
+                              setSendForm({...sendForm, sending: true});
+                              try {
+                                const res = await fetch(`${API}/api/center-accounts/email-pack/send`, {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    token, center: selectedCenter, month: selectedMonth,
+                                    to_email: sendForm.to, cc: sendForm.cc || null,
+                                    subject: emailPack.subject, body: emailPack.body,
+                                  }),
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.detail || 'Send failed');
+                                toast.success(`Email sent to ${data.to} (${data.size_kb} KB)`);
+                                setSendForm(null);
+                              } catch (e) {
+                                toast.error(e.message || 'Send failed');
+                                setSendForm(s => ({...s, sending: false}));
+                              }
+                            }}
+                            data-testid="email-pack-send-submit">
+                      {sendForm.sending ? <><Loader2 className="w-3 h-3 animate-spin mr-1" />Sending…</> : <><Mail className="w-3.5 h-3.5 mr-1" />Send Now</>}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailPack(null)}>Close</Button>
+            <Button variant="outline" onClick={() => { setEmailPack(null); setSendForm(null); }}>Close</Button>
             <Button variant="outline" disabled={!emailPack} onClick={() => {
               navigator.clipboard.writeText(`Subject: ${emailPack.subject}\n\n${emailPack.body}`);
               toast.success('Email subject + body copied');
             }} data-testid="email-pack-copy">
               Copy Email Text
+            </Button>
+            <Button variant="outline" disabled={!emailPack || !!sendForm}
+                    onClick={() => setSendForm({ to: '', cc: '', sending: false })}
+                    className="border-blue-400 text-blue-700 hover:bg-blue-50" data-testid="email-pack-send-open">
+              <Mail className="w-4 h-4 mr-1" /> Send via SMTP
             </Button>
             <Button disabled={!emailPack} onClick={() => {
               const a = document.createElement('a');

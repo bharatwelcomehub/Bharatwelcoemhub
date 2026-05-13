@@ -2333,6 +2333,124 @@ async def generate_email_pack(req: EmailPackRequest):
     )
 
 
+# =======================================
+# Email Pack — Send via SMTP (direct delivery)
+# =======================================
+class EmailPackSendRequest(BaseModel):
+    token: str
+    center: str
+    month: str
+    to_email: str
+    cc: Optional[str] = None
+    subject: Optional[str] = None        # if omitted, use the auto-generated subject
+    body: Optional[str] = None           # if omitted, use the auto-generated body
+
+
+@router.post("/email-pack/send")
+async def send_email_pack(req: EmailPackSendRequest):
+    """Email the Monthly Email Pack ZIP directly to the franchise owner via SMTP.
+
+    Uses the same SMTP credentials as the OTP mailer (config.json → "email").
+    Returns success/failure clearly so the UI can fall back to the manual
+    download-and-attach flow if SMTP isn't configured.
+    """
+    session = await check_access(req.token)
+    await enforce_owner_visibility(session, req.center, req.month)
+
+    # Permission gate — franchise owners can NOT trigger sends; only
+    # Super Admin / Admin / Accounts roles can email packs out.
+    is_super = bool(session.get("is_super_admin"))
+    is_admin = bool(session.get("is_admin"))
+    role_key = (session.get("role_key") or "").lower()
+    roles = session.get("roles") or {}
+    is_accounts = role_key in {"accounts", "account", "cfo", "finance"} or \
+        (isinstance(roles, dict) and (roles.get("accounting") or roles.get("accounts") or roles.get("finance")))
+    if not (is_super or is_admin or is_accounts):
+        raise HTTPException(403, "Only Super Admin / Admin / Accounts can send the Email Pack.")
+
+    # Reuse the full pack build (json + zip) so the email payload matches the
+    # download-ZIP exactly to the byte.
+    pack_req = EmailPackRequest(token=req.token, center=req.center, month=req.month, format="zip")
+    zip_resp = await generate_email_pack(pack_req)
+    zip_bytes = bytes(zip_resp.body) if hasattr(zip_resp, "body") else None
+    if not zip_bytes:
+        raise HTTPException(500, "Failed to build email pack ZIP")
+
+    # Pull the auto-generated subject/body if the caller didn't override
+    meta_req = EmailPackRequest(token=req.token, center=req.center, month=req.month, format="json")
+    meta = await generate_email_pack(meta_req)
+    subject = req.subject or meta.get("subject")
+    body = req.body or meta.get("body")
+
+    # SMTP config — reuse the OTP mailer credentials
+    from server import CFG  # type: ignore
+    email_cfg = (CFG or {}).get("email", {}) or {}
+    if not email_cfg.get("enabled") or not email_cfg.get("smtp_user") or not email_cfg.get("smtp_pass"):
+        raise HTTPException(
+            503,
+            "SMTP is not configured on the server. Add `email.smtp_host/smtp_user/smtp_pass` "
+            "to config.json and set `email.enabled = true`, then retry. Meanwhile, use "
+            "Download ZIP and attach manually."
+        )
+
+    smtp_host = email_cfg.get("smtp_host", "smtp.gmail.com")
+    smtp_port = int(email_cfg.get("smtp_port", 587))
+    smtp_user = email_cfg["smtp_user"]
+    smtp_pass = email_cfg["smtp_pass"]
+    from_name = email_cfg.get("from_name", "Purnabramha Accounts Team")
+    from_email = email_cfg.get("from_email", smtp_user)
+
+    try:
+        import smtplib
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = f"{from_name} <{from_email}>"
+        msg["To"] = req.to_email
+        if req.cc:
+            msg["Cc"] = req.cc
+        msg.set_content(body or "Please see the attached monthly report pack.\n\n— Purnabramha Accounts Team")
+        msg.add_attachment(
+            zip_bytes,
+            maintype="application", subtype="zip",
+            filename=f"Email_Pack_{req.center}_{req.month}.zip",
+        )
+
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            recipients = [req.to_email] + ([req.cc] if req.cc else [])
+            server.send_message(msg, to_addrs=recipients)
+
+        # Audit trail — log every send so accounts can see what went out
+        import uuid as _uuid
+        await db.email_pack_sends.insert_one({
+            "send_id": str(_uuid.uuid4()),
+            "center": req.center,
+            "month": req.month,
+            "to_email": req.to_email,
+            "cc": req.cc,
+            "subject": subject,
+            "size_bytes": len(zip_bytes),
+            "sent_by": session.get("managerName") or session.get("mobile") or "Unknown",
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+        return {
+            "success": True,
+            "to": req.to_email,
+            "cc": req.cc,
+            "subject": subject,
+            "size_kb": round(len(zip_bytes) / 1024.0, 1),
+        }
+    except smtplib.SMTPAuthenticationError as e:
+        raise HTTPException(401, f"SMTP authentication failed: {e}")
+    except Exception as e:
+        logger.error(f"email-pack send failed: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to send email: {e}")
+
+
+
 
 @router.post("/generate-bank-statement")
 async def generate_bank_statement(req: PIBGenerateRequest):

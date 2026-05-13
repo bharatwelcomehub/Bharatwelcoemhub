@@ -1402,6 +1402,18 @@ All 3 pages wired into sidebar; test-ids present throughout (`or-release-all-btn
 - **Permissions preserved**: Franchise Owner sees only view + download buttons. Edit/delete/upload are gated to Manager/Admin as before. `enforce_owner_visibility` enforces center scope.
 - **Tests**: 14/14 pytest pass (iter 82 + 84). Parity audit ALL SURFACES MATCH for PB-HSR + PB-PERTH.
 
+### [2026-05-13] Reports Restructure + SMTP Direct Send
+- **Center Accounts → Reports tab cleanup**: replaced the 3 large per-report cards (PIB / GST / Commission) with:
+  - A **hero "Monthly Franchise Email Pack" CTA** as the primary monthly-delivery flow
+  - A **compact "Quick Single-Report Downloads" row** of small ghost buttons (PIB / GST / Commission, Preview + PDF) for audit use only
+  - Clarifying line: "For audit use. For monthly delivery, prefer the Email Pack above."
+- **Email Pack dialog — Send via SMTP button**: opens an inline form with To + CC inputs; clicking Send Now POSTs to new `/api/center-accounts/email-pack/send` which uses the existing OTP-mailer SMTP credentials to deliver the same ZIP attachment. Falls back to a clear 503 error when SMTP isn't configured (UI then prompts manual Download ZIP).
+- **Permission gate on send**: Only Super Admin / Admin / Accounts roles can trigger `email-pack/send` (franchise owners can NEVER send, only view + download).
+- **Audit log**: every send writes to `email_pack_sends` (`{send_id, center, month, to_email, cc, subject, size_bytes, sent_by, sent_at}`).
+- **Owner Reports (`/owner-reports`) — kept separate** with collapsible sections from earlier iteration (no duplication with Center Accounts).
+- **Ledgers (`/ledgers`)** — confirmed gated to accounts-only (`_has_ledger_access`) and not present in franchise-owner sidebars.
+- **Tests:** 14/14 pytest pass. Parity audit ALL SURFACES MATCH for PB-HSR + PB-PERTH. End-to-end SMTP send verified in preview (137.5 KB ZIP delivered to test address).
+
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
 - (P1) Code freeze preparation audit
