@@ -1,7 +1,17 @@
-"""Sales + Expense Excel generator — single source of truth.
+"""Sales + Expense Excel generator — matches the Sales Dashboard manager-side
+download exactly so accounts + franchise owner see identical files.
 
-Generates an .xlsx file in the same format as the manager-side Sales Dashboard
-download, but parameterised by (center, date-range). Used by:
+Reference format (from /app/frontend/src/pages/SalesExpenses.jsx · downloadMonthlyExcel):
+  Sheet 1 "Daily Sales": Date, Center, Sale PBM, Sale Other, Total Sale,
+    Card/IDFC, Bharat Pay, Swiggy, Zomato, Online Other, Total Online,
+    Total Cash Sale, Opening Balance, Cash Receipts, Deposited in Bank,
+    Cash Expense, Closing Balance, Petty Cash Opening, Petty Cash Closing,
+    No. of Guests, No. of Bills
+  Sheet 2 "Expense Details": Date, Center, Description, Expense Type,
+    Payment Mode, Amount
+  Sheet 3 "Expense Summary": Expense Type, Total Amount (+ TOTAL row)
+
+Used by:
   - Center Accounts → Sales tab "Download Excel"
   - Franchise Owner Dashboard → Reports → Sales/Expense Excel
   - Monthly Email Pack ZIP bundle
@@ -10,25 +20,11 @@ Pulls data live from `daily_sales` + `expenses` collections — never a frozen
 copy, so every export reflects the latest entries.
 """
 
-from datetime import datetime, timedelta
 from io import BytesIO
-from typing import List, Optional
+from typing import Optional
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-
-
-_HEADER_FILL = PatternFill(start_color="8B0000", end_color="8B0000", fill_type="solid")
-_HEADER_FONT = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-_SUBHEAD_FILL = PatternFill(start_color="F3E5E5", end_color="F3E5E5", fill_type="solid")
-_TOTAL_FILL = PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
-_BORDER = Border(
-    left=Side(style="thin", color="DDDDDD"),
-    right=Side(style="thin", color="DDDDDD"),
-    top=Side(style="thin", color="DDDDDD"),
-    bottom=Side(style="thin", color="DDDDDD"),
-)
 
 
 def _money(v) -> float:
@@ -38,7 +34,16 @@ def _money(v) -> float:
         return 0.0
 
 
-def _set_col_widths(ws, widths):
+def _write_headers(ws, headers, widths):
+    ws.append(headers)
+    from openpyxl.styles import Font, PatternFill, Alignment
+    fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
+    font = Font(bold=True)
+    for col_idx in range(1, len(headers) + 1):
+        c = ws.cell(row=ws.max_row, column=col_idx)
+        c.fill = fill
+        c.font = font
+        c.alignment = Alignment(horizontal="center", vertical="center")
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -50,16 +55,18 @@ async def build_sales_expense_excel(
     end_date: str,
     title_suffix: Optional[str] = None,
 ) -> bytes:
-    """Produce a 2-sheet workbook (Sales + Expenses) for [start_date, end_date] inclusive.
+    """Produce a 3-sheet workbook (Daily Sales + Expense Details + Expense Summary)
+    matching exactly what the manager-side Sales Dashboard generates.
 
     Args:
         db: Motor Mongo handle.
         center: Center code e.g. "PB-HSR".
         start_date: ISO "YYYY-MM-DD" inclusive.
         end_date:   ISO "YYYY-MM-DD" inclusive.
-        title_suffix: optional string appended to the workbook title row.
+        title_suffix: optional string (kept for backwards-compat; not used in
+                      the new format since the manager-side Excel has no title
+                      banner — just the headers row).
     """
-    # Pull live data
     sales = await db.daily_sales.find(
         {"center": center, "date": {"$gte": start_date, "$lte": end_date}},
         {"_id": 0},
@@ -68,153 +75,99 @@ async def build_sales_expense_excel(
     expenses = await db.expenses.find(
         {"center": center, "date": {"$gte": start_date, "$lte": end_date}},
         {"_id": 0},
-    ).sort("date", 1).to_list(2000)
+    ).sort("date", 1).to_list(5000)
 
     wb = Workbook()
 
-    # ──────────────────────────── SALES SHEET ────────────────────────────
+    # ──────────────────────────── Sheet 1: Daily Sales ────────────────────
     ws = wb.active
-    ws.title = "Sales"
+    ws.title = "Daily Sales"
 
-    # Top title row
-    ws.append([f"{center} — Sales ({start_date} to {end_date})" +
-               (f" · {title_suffix}" if title_suffix else "")])
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=14)
-    ws.cell(row=1, column=1).font = Font(size=14, bold=True, color="8B0000")
-    ws.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 24
-
-    headers = [
-        "Date", "Day", "Cash Sale", "Card (IDFC)", "BharatPe / UPI",
-        "Online Other", "Swiggy", "Zomato", "Doordash", "Other Sale",
-        "Total Online", "Total Sale", "GST", "Notes",
+    sales_headers = [
+        "Date", "Center", "Sale PBM", "Sale Other", "Total Sale",
+        "Card/IDFC", "Bharat Pay", "Swiggy", "Zomato", "Online Other",
+        "Total Online", "Total Cash Sale", "Opening Balance", "Cash Receipts",
+        "Deposited in Bank", "Cash Expense", "Closing Balance",
+        "Petty Cash Opening", "Petty Cash Closing",
+        "No. of Guests", "No. of Bills",
     ]
-    ws.append(headers)
-    for col_idx in range(1, len(headers) + 1):
-        cell = ws.cell(row=2, column=col_idx)
-        cell.fill = _HEADER_FILL
-        cell.font = _HEADER_FONT
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.border = _BORDER
-    ws.row_dimensions[2].height = 28
+    sales_widths = [
+        12, 10, 12, 12, 12,
+        12, 12, 10, 10, 12,
+        12, 14, 14, 12,
+        15, 12, 14,
+        14, 14,
+        12, 12,
+    ]
+    _write_headers(ws, sales_headers, sales_widths)
 
-    cash_t = card_t = bpay_t = online_t = swg_t = zom_t = ddash_t = other_t = tot_online_t = tot_t = gst_t = 0.0
     for s in sales:
-        d = s.get("date") or ""
-        try:
-            day = datetime.strptime(d, "%Y-%m-%d").strftime("%a")
-        except Exception:
-            day = ""
-        row = [
-            d, day,
-            _money(s.get("total_cash_sale")),
+        ws.append([
+            s.get("date") or "",
+            s.get("center") or center,
+            _money(s.get("sale_pbm")),
+            _money(s.get("sale_other")),
+            _money(s.get("total_sale")),
             _money(s.get("card_idfc")),
             _money(s.get("bharat_pay")),
+            _money(s.get("swiggy")),
+            _money(s.get("zomato")),
             _money(s.get("online_other")),
-            _money(s.get("swiggy_sale", s.get("swiggy"))),
-            _money(s.get("zomato_sale", s.get("zomato"))),
-            _money(s.get("doordash_sale", s.get("doordash"))),
-            _money(s.get("sale_other")),
             _money(s.get("total_online_sale")),
-            _money(s.get("total_sale")),
-            _money(s.get("gst_amount")),
-            (s.get("notes") or s.get("manager_remarks") or "")[:80],
-        ]
-        ws.append(row)
-        cash_t += row[2]; card_t += row[3]; bpay_t += row[4]; online_t += row[5]
-        swg_t += row[6]; zom_t += row[7]; ddash_t += row[8]; other_t += row[9]
-        tot_online_t += row[10]; tot_t += row[11]; gst_t += row[12]
+            _money(s.get("total_cash_sale")),
+            _money(s.get("opening_balance")),
+            _money(s.get("cash_receipts")),
+            _money(s.get("deposited_in_bank")),
+            _money(s.get("cash_expense")),
+            _money(s.get("closing_balance")),
+            _money(s.get("petty_cash_opening")),
+            _money(s.get("petty_cash_closing")),
+            int(s.get("num_guests") or 0),
+            int(s.get("num_bills") or 0),
+        ])
+    # Number formatting on money columns (3..19)
+    for r in range(2, ws.max_row + 1):
+        for c in range(3, 20):
+            ws.cell(row=r, column=c).number_format = "#,##0.00"
 
-    # Totals row
-    ws.append([
-        "TOTAL", "",
-        round(cash_t, 2), round(card_t, 2), round(bpay_t, 2),
-        round(online_t, 2), round(swg_t, 2), round(zom_t, 2),
-        round(ddash_t, 2), round(other_t, 2),
-        round(tot_online_t, 2), round(tot_t, 2), round(gst_t, 2), "",
-    ])
-    last_row = ws.max_row
-    for col_idx in range(1, len(headers) + 1):
-        cell = ws.cell(row=last_row, column=col_idx)
-        cell.fill = _TOTAL_FILL
-        cell.font = Font(bold=True)
-        cell.border = _BORDER
+    # ──────────────────────────── Sheet 2: Expense Details ────────────────
+    ws2 = wb.create_sheet("Expense Details")
+    exp_headers = ["Date", "Center", "Description", "Expense Type", "Payment Mode", "Amount"]
+    _write_headers(ws2, exp_headers, [12, 10, 30, 20, 15, 12])
 
-    # Apply borders to all data rows + number format
-    for r in range(2, last_row + 1):
-        for c in range(1, len(headers) + 1):
-            ws.cell(row=r, column=c).border = _BORDER
-            if r > 2 and c >= 3 and c <= 13:
-                ws.cell(row=r, column=c).number_format = "#,##0.00"
-
-    _set_col_widths(ws, [12, 5, 11, 11, 13, 11, 11, 11, 11, 11, 13, 13, 11, 24])
-
-    # ──────────────────────────── EXPENSES SHEET ─────────────────────────
-    ws2 = wb.create_sheet("Expenses")
-    ws2.append([f"{center} — Expenses ({start_date} to {end_date})"])
-    ws2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=7)
-    ws2.cell(row=1, column=1).font = Font(size=14, bold=True, color="8B0000")
-    ws2.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
-    ws2.row_dimensions[1].height = 24
-
-    headers2 = ["Date", "Category", "Sub-category", "Vendor", "Description", "Amount", "Has Bill?"]
-    ws2.append(headers2)
-    for col_idx in range(1, len(headers2) + 1):
-        cell = ws2.cell(row=2, column=col_idx)
-        cell.fill = _HEADER_FILL
-        cell.font = _HEADER_FONT
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.border = _BORDER
-    ws2.row_dimensions[2].height = 28
-
-    by_cat = {}
-    grand_total = 0.0
     for e in expenses:
-        amount = _money(e.get("amount"))
-        grand_total += amount
-        category = e.get("category") or e.get("head") or "Uncategorised"
-        by_cat[category] = by_cat.get(category, 0.0) + amount
-        bill_present = "Yes" if (e.get("attachment_url") or e.get("attachment_path") or e.get("bill_url")) else "No"
-        row = [
+        ws2.append([
             e.get("date") or "",
-            category,
-            e.get("sub_category") or e.get("sub_head") or "",
-            e.get("vendor") or e.get("payee") or "",
-            (e.get("description") or e.get("notes") or "")[:120],
-            amount,
-            bill_present,
-        ]
-        ws2.append(row)
+            e.get("center") or center,
+            (e.get("description") or "")[:200],
+            e.get("expense_type") or "",
+            e.get("payment_mode") or "",
+            _money(e.get("amount")),
+        ])
+    for r in range(2, ws2.max_row + 1):
+        ws2.cell(row=r, column=6).number_format = "#,##0.00"
 
-    ws2.append(["TOTAL", "", "", "", "", round(grand_total, 2), ""])
-    last_row2 = ws2.max_row
-    for col_idx in range(1, len(headers2) + 1):
-        cell = ws2.cell(row=last_row2, column=col_idx)
-        cell.fill = _TOTAL_FILL
-        cell.font = Font(bold=True)
-        cell.border = _BORDER
-    for r in range(2, last_row2 + 1):
-        for c in range(1, len(headers2) + 1):
-            ws2.cell(row=r, column=c).border = _BORDER
-            if c == 6 and r > 2:
-                ws2.cell(row=r, column=c).number_format = "#,##0.00"
+    # ──────────────────────────── Sheet 3: Expense Summary ────────────────
+    ws3 = wb.create_sheet("Expense Summary")
+    _write_headers(ws3, ["Expense Type", "Total Amount"], [25, 15])
 
-    _set_col_widths(ws2, [12, 18, 18, 22, 40, 14, 10])
+    summary = {}
+    for e in expenses:
+        t = e.get("expense_type") or "Unknown"
+        summary[t] = summary.get(t, 0.0) + _money(e.get("amount"))
 
-    # By-category summary on Expenses sheet
-    ws2.append([])
-    ws2.append(["Category Summary"])
-    last = ws2.max_row
-    ws2.cell(row=last, column=1).font = Font(size=12, bold=True, color="8B0000")
-    ws2.append(["Category", "Amount"])
-    for col_idx in (1, 2):
-        cell = ws2.cell(row=ws2.max_row, column=col_idx)
-        cell.fill = _SUBHEAD_FILL
-        cell.font = Font(bold=True)
-        cell.border = _BORDER
-    for cat, amt in sorted(by_cat.items(), key=lambda kv: -kv[1]):
-        ws2.append([cat, round(amt, 2)])
-        ws2.cell(row=ws2.max_row, column=2).number_format = "#,##0.00"
+    # Sort by amount desc — same as manager-side sort
+    for t, amt in sorted(summary.items(), key=lambda kv: -kv[1]):
+        ws3.append([t, round(amt, 2)])
+        ws3.cell(row=ws3.max_row, column=2).number_format = "#,##0.00"
+
+    total_exp = round(sum(summary.values()), 2)
+    ws3.append(["TOTAL", total_exp])
+    last = ws3.max_row
+    from openpyxl.styles import Font as _Font
+    ws3.cell(row=last, column=1).font = _Font(bold=True)
+    ws3.cell(row=last, column=2).font = _Font(bold=True)
+    ws3.cell(row=last, column=2).number_format = "#,##0.00"
 
     buf = BytesIO()
     wb.save(buf)
