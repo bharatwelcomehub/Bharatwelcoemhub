@@ -1387,6 +1387,21 @@ All 3 pages wired into sidebar; test-ids present throughout (`or-release-all-btn
 - **Tests**: 5 new pytest in `tests/test_iteration84_commission_parity.py` locking the contract. All 14 pytest (iteration 82 + 84) pass. Financial parity audit ALL SURFACES MATCH for PB-HSR + PB-PERTH.
 - **Impact**: All reports (PIB, Commission Summary PDF, Owner Ledger, MIS, MG Payout, Center Accounts screen) now show identical commission figures. The per-platform table's TOTAL row equals the sum of its rows on every PDF and screen.
 
+### [2026-05-13] Franchise Owner Reports — Excel + Raw Files + Ledger Restructure
+- **Email Pack ZIP cleanup**: removed Franchise Owner Ledger PDF from the ZIP (kept available as a separate download). Added live Sales/Expense Excel for the full month, plus all raw uploaded Excel/PDF files (Swiggy/Zomato/Bank Statement) when present.
+- **New canonical helper** `/app/backend/utils/sales_expense_excel.py` — pulls live `daily_sales` + `expenses` and produces a 2-sheet workbook (Sales rows with totals; Expenses with category summary). Reused by the Email Pack and Franchise Reports endpoints so every surface emits an identical Excel.
+- **Raw file persistence**: `/upload-commission-excel` and `/bank-recon/upload` now save the raw uploaded file to `/app/backend/raw_uploads/<kind>/<center>/<month>/` and record metadata in `raw_uploads` collection (`raw_id`, `kind`, `platform`, `original_filename`, `stored_path`, `size_bytes`, `uploaded_by`, `uploaded_at`).
+- **New backend module** `/app/backend/routes/franchise_reports.py` exposes 3 endpoints (all view+download only):
+  - `POST /api/franchise-reports/sales-expense-excel` — month / range / specific-date filters
+  - `POST /api/franchise-reports/raw-files` — list files for {center, month}
+  - `POST /api/franchise-reports/raw-file/download` — fetch one file by `raw_id`
+- **Frontend `OwnerReports.jsx`** (Franchise Owner Dashboard → Reports) now shows:
+  - **Franchise Owner Ledger** card (View PDF + Download PDF, separate from ZIP)
+  - **Sales / Expense Excel** card with Full Month / Range / Date toggle + Download/Open
+  - **Raw Uploaded Files** panel (table of Swiggy/Zomato/Bank Statement etc. with view+download icons; empty state shown when nothing uploaded)
+- **Permissions preserved**: Franchise Owner sees only view + download buttons. Edit/delete/upload are gated to Manager/Admin as before. `enforce_owner_visibility` enforces center scope.
+- **Tests**: 14/14 pytest pass (iter 82 + 84). Parity audit ALL SURFACES MATCH for PB-HSR + PB-PERTH.
+
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
 - (P1) Code freeze preparation audit

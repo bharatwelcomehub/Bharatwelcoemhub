@@ -5,8 +5,9 @@ import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
-import { FileText, AlertCircle, Download, Eye, TrendingUp, TrendingDown } from 'lucide-react';
+import { FileText, AlertCircle, Download, Eye, TrendingUp, TrendingDown, FileSpreadsheet, FileBox, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input } from '../components/ui/input';
 import LedgersTab from '../components/LedgersTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -36,6 +37,104 @@ export default function OwnerReports() {
   const [loading, setLoading] = useState(false);
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
   const [previewTitle, setPreviewTitle] = useState('');
+  // Sales/Expense Excel filter state
+  const [seMode, setSeMode] = useState('month'); // 'month' | 'range' | 'date'
+  const [seStart, setSeStart] = useState('');
+  const [seEnd, setSeEnd] = useState('');
+  // Raw uploaded files for the selected month
+  const [rawFiles, setRawFiles] = useState([]);
+  const [rawFilesLoading, setRawFilesLoading] = useState(false);
+
+  // Fetch the Sales/Expense Excel with the chosen filter
+  const fetchSalesExpenseExcel = async (mode) => {
+    try {
+      const body = { token: session.token, center, mode: seMode };
+      if (seMode === 'month') body.month = `${year}-${month}`;
+      else if (seMode === 'range') { body.start_date = seStart; body.end_date = seEnd; }
+      else if (seMode === 'date')  { body.start_date = seStart; }
+      const res = await fetch(`${API}/api/franchise-reports/sales-expense-excel`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.detail || 'Failed'); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (mode === 'preview') {
+        // Excel can't render inline in <iframe>; show a sheet-style preview using a
+        // SheetJS-driven view would be ideal, but for now offer Download with toast.
+        const a = document.createElement('a');
+        a.href = url; a.download = `Sales_Expense_${center}.xlsx`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        toast.info('Excel cannot be previewed inline — downloaded instead');
+      } else {
+        const a = document.createElement('a');
+        a.href = url; a.download = `Sales_Expense_${center}_${seMode === 'month' ? `${year}-${month}` : `${seStart}_${seEnd || seStart}`}.xlsx`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        toast.success('Sales/Expense Excel downloaded');
+      }
+    } catch (e) { toast.error(e.message); }
+  };
+
+  // Fetch the Franchise Owner Ledger PDF (kept available outside the Email Pack)
+  const fetchOwnerLedgerPdf = async (mode, lmode) => {
+    try {
+      const body = { token: session.token, center, period_type: 'month', month: `${year}-${month}`, fmt: 'pdf' };
+      if (lmode === 'range') { body.period_type = 'range'; body.from_month = `${year}-${month}`; body.to_month = `${year}-${month}`; }
+      const res = await fetch(`${API}/api/ledgers/owner`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.detail || 'Failed'); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (mode === 'preview') {
+        setPreviewBlobUrl(url);
+        setPreviewTitle(`Franchise Owner Ledger — ${center} · ${year}-${month}`);
+      } else {
+        const a = document.createElement('a');
+        a.href = url; a.download = `Owner_Ledger_${center}_${year}-${month}.pdf`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        toast.success('Owner Ledger downloaded');
+      }
+    } catch (e) { toast.error(e.message); }
+  };
+
+  // Load raw uploaded files for the current center+month
+  const loadRawFiles = useCallback(async () => {
+    if (!center) return;
+    setRawFilesLoading(true);
+    try {
+      const res = await fetch(`${API}/api/franchise-reports/raw-files`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, center, month: `${year}-${month}` }),
+      });
+      if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.detail || 'Failed'); }
+      const data = await res.json();
+      setRawFiles(data.files || []);
+    } catch (e) {
+      toast.error(e.message); setRawFiles([]);
+    } finally {
+      setRawFilesLoading(false);
+    }
+  }, [session?.token, center, year, month]);
+
+  // Download a single raw file
+  const downloadRawFile = async (rawId, filename) => {
+    try {
+      const res = await fetch(`${API}/api/franchise-reports/raw-file/download`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, raw_id: rawId }),
+      });
+      if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.detail || 'Failed'); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename || 'raw_file';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { toast.error(e.message); }
+  };
 
   // Common helper — fetch a PDF and either trigger download or show preview modal.
   const fetchReportPdf = async (r, mode) => {
@@ -153,6 +252,7 @@ export default function OwnerReports() {
   }, [center, year, month, session]);
 
   useEffect(() => { if (center) load(); }, [center, year, month, load]);
+  useEffect(() => { if (center) loadRawFiles(); }, [center, year, month, loadRawFiles]);
 
   const visible = report?.visibility?.ready;
   const notReadyReason = report?.visibility?.reason || 'Current month in progress. Accounts team has not yet approved visibility.';
@@ -396,6 +496,117 @@ export default function OwnerReports() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Franchise Owner Ledger — separate from the Email Pack ZIP */}
+          <Card data-testid="or-owner-ledger-card" className="border-2 border-violet-200 bg-violet-50/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-violet-700" /> Franchise Owner Ledger</CardTitle>
+              <CardDescription>HQ ↔ Franchise running account for {center} · {year}-{month}. Available here separately — not bundled into the Email Pack ZIP.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3 flex-wrap">
+                <Button className="bg-violet-700 hover:bg-violet-800 text-white" data-testid="or-owner-ledger-download" onClick={() => fetchOwnerLedgerPdf('download', 'month')}>
+                  <Download className="w-4 h-4 mr-2" /> Download PDF
+                </Button>
+                <Button variant="outline" data-testid="or-owner-ledger-preview" onClick={() => fetchOwnerLedgerPdf('preview', 'month')}>
+                  <Eye className="w-4 h-4 mr-2" /> View PDF
+                </Button>
+                <span className="text-xs text-muted-foreground self-center">Filter: selected month (use the global Year/Month above)</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sales / Expense Excel — month / date-range / single date */}
+          <Card data-testid="or-sales-expense-excel" className="border-2 border-emerald-200 bg-emerald-50/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-emerald-700" /> Sales / Expense Excel</CardTitle>
+              <CardDescription>Daily sales + expenses pulled live from the Sales Dashboard. Choose the period below.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <Select value={seMode} onValueChange={setSeMode}>
+                  <SelectTrigger className="w-40 h-9" data-testid="se-mode-trigger"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="month">Full Month</SelectItem>
+                    <SelectItem value="range">Date Range</SelectItem>
+                    <SelectItem value="date">Specific Date</SelectItem>
+                  </SelectContent>
+                </Select>
+                {seMode === 'month' && (
+                  <span className="text-sm text-muted-foreground"><Calendar className="inline w-4 h-4 mr-1" />{year}-{month}</span>
+                )}
+                {seMode === 'range' && (
+                  <>
+                    <Input type="date" value={seStart} onChange={(e) => setSeStart(e.target.value)} className="w-40 h-9" data-testid="se-start" />
+                    <span className="text-xs text-muted-foreground">to</span>
+                    <Input type="date" value={seEnd} onChange={(e) => setSeEnd(e.target.value)} className="w-40 h-9" data-testid="se-end" />
+                  </>
+                )}
+                {seMode === 'date' && (
+                  <Input type="date" value={seStart} onChange={(e) => setSeStart(e.target.value)} className="w-40 h-9" data-testid="se-date" />
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" data-testid="se-download" onClick={() => fetchSalesExpenseExcel('download')}>
+                  <Download className="w-4 h-4 mr-2" /> Download Excel
+                </Button>
+                <Button variant="outline" data-testid="se-preview" onClick={() => fetchSalesExpenseExcel('preview')}>
+                  <Eye className="w-4 h-4 mr-2" /> Open Excel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Raw Uploaded Files — Swiggy / Zomato / Bank Statement etc. */}
+          <Card data-testid="or-raw-files-card" className="border-2 border-sky-200 bg-sky-50/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><FileBox className="w-4 h-4 text-sky-700" /> Raw Uploaded Files — {year}-{month}</CardTitle>
+              <CardDescription>Original Excel/PDF files uploaded for commission upload + bank reconciliation. View-only.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {rawFilesLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : rawFiles.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">No raw files uploaded yet for this month. They will appear here automatically after Commission / Bank Reconciliation uploads.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-sky-100/60 text-left">
+                        <th className="p-2">Type</th>
+                        <th className="p-2">Filename</th>
+                        <th className="p-2">Size</th>
+                        <th className="p-2">Uploaded</th>
+                        <th className="p-2">By</th>
+                        <th className="p-2 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rawFiles.map((f) => (
+                        <tr key={f.raw_id} className="border-t hover:bg-white">
+                          <td className="p-2">
+                            <Badge variant="secondary" className="capitalize">
+                              {f.kind === 'commission' ? (f.platform || 'commission') : f.kind?.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="p-2 font-medium">{f.original_filename}</td>
+                          <td className="p-2 text-muted-foreground">{f.size_kb} KB</td>
+                          <td className="p-2 text-xs text-muted-foreground">{(f.uploaded_at || '').slice(0, 10)}</td>
+                          <td className="p-2 text-xs text-muted-foreground">{f.uploaded_by}</td>
+                          <td className="p-2 text-right">
+                            <Button size="sm" variant="outline" data-testid={`raw-download-${f.raw_id}`}
+                                    onClick={() => downloadRawFile(f.raw_id, f.original_filename)}>
+                              <Download className="w-3.5 h-3.5 mr-1" /> Download
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
 

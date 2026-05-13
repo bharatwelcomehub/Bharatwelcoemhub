@@ -809,6 +809,33 @@ async def upload_bank_statement(
         print(f"[BANK_RECON] ERROR: File is empty!", flush=True)
         return {"detail": "File is empty. Please select a valid file."}
 
+    # Persist the raw bank statement so it can be re-downloaded later
+    # (Franchise Owner Reports → Raw Uploaded Files / Email Pack ZIP).
+    raw_stored_path: Optional[str] = None
+    try:
+        import os as _os
+        raw_dir = f"/app/backend/raw_uploads/bank_statements/{center}/{month}"
+        _os.makedirs(raw_dir, exist_ok=True)
+        raw_filename = f"{uuid.uuid4().hex}_{file.filename}"
+        raw_stored_path = f"{raw_dir}/{raw_filename}"
+        with open(raw_stored_path, "wb") as _f:
+            _f.write(content)
+        await db.raw_uploads.insert_one({
+            "raw_id": str(uuid.uuid4()),
+            "kind": "bank_statement",
+            "platform": "bank",
+            "center": center,
+            "month": month,
+            "original_filename": file.filename,
+            "stored_path": raw_stored_path,
+            "size_bytes": len(content),
+            "bank_account": bank_account,
+            "uploaded_by": (session or {}).get("managerName", "Unknown"),
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as _ex:
+        logger.warning(f"raw bank-recon file storage failed for {center} {month}: {_ex}")
+
     # Parse bank statement
     try:
         transactions = await parse_bank_statement(content, file.filename)
