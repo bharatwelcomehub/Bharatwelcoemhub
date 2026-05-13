@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail
+  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail, FileBox
 } from 'lucide-react';
 
 import LedgersTab from '@/components/LedgersTab';
@@ -740,8 +740,12 @@ export default function CenterAccounts() {
 
   const openPdfPreview = async (reportType) => {
     if (!selectedCenter || !selectedMonth) { toast.error('Please select center and month'); return; }
-    const endpoints = { gst: 'generate-gst-summary', commission: 'generate-commission-summary' };
-    const titles = { gst: 'GST Summary', commission: 'Commission Summary' };
+    const endpoints = {
+      gst: 'generate-gst-summary',
+      commission: 'generate-commission-summary',
+      bank: 'generate-bank-statement',
+    };
+    const titles = { gst: 'GST Summary', commission: 'Commission Summary', bank: 'Bank Statement' };
     setPdfPreviewLoading(true);
     setPdfPreview({ loading: true, title: titles[reportType], reportType });
     try {
@@ -796,10 +800,30 @@ export default function CenterAccounts() {
       return;
     }
     
+    // Sales/Expense Excel — different endpoint + different content type
+    if (reportType === 'sales_expense') {
+      try {
+        toast.info('Generating Sales/Expense Excel...');
+        const res = await fetch(`${API}/api/franchise-reports/sales-expense-excel`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, center: selectedCenter, mode: 'month', month: selectedMonth }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Failed'); }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `Sales_Expense_${selectedCenter}_${selectedMonth}.xlsx`;
+        a.click(); window.URL.revokeObjectURL(url);
+        toast.success('Excel downloaded');
+      } catch (e) { toast.error(e.message || 'Failed'); }
+      return;
+    }
+
     const endpoints = {
       pib: 'generate-pib',
       gst: 'generate-gst-summary',
-      commission: 'generate-commission-summary'
+      commission: 'generate-commission-summary',
+      bank: 'generate-bank-statement',
     };
     
     try {
@@ -2203,7 +2227,81 @@ export default function CenterAccounts() {
                   <CardDescription>Download PDF reports for the selected period</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {/* Hero: Monthly Email Pack — the primary, recommended flow */}
+                  {/* Step 1: Pre-Send Checklist — preview every report that goes into the Email Pack */}
+                  <div className="mb-4">
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <Badge className="bg-blue-600 text-white">Step 1</Badge>
+                      <p className="text-sm font-semibold">Preview each report inside the Email Pack</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">Click the eye icon on each report to review before generating the bundle. Single-PDF downloads also available for audit / one-off use.</p>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0"><FileText className="w-4 h-4 text-blue-700 shrink-0" /><span className="text-sm font-medium truncate">PIB Report</span></div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={!accountSummary?.franchise?.linked}
+                                  onClick={() => openPibPreview()} data-testid="pib-preview-btn" title="Preview">
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={!accountSummary?.franchise?.linked}
+                                  onClick={() => downloadReport('pib')} data-testid="pib-download-btn" title="Download">
+                            <Download className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0"><Calculator className="w-4 h-4 text-green-700 shrink-0" /><span className="text-sm font-medium truncate">GST Summary</span></div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openPdfPreview('gst')} data-testid="gst-preview-btn" title="Preview">
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('gst')} data-testid="gst-download-btn" title="Download">
+                            <Download className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0"><CreditCard className="w-4 h-4 text-orange-700 shrink-0" /><span className="text-sm font-medium truncate">Commission Summary</span></div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openPdfPreview('commission')} data-testid="commission-preview-btn" title="Preview">
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('commission')} data-testid="commission-download-btn" title="Download">
+                            <Download className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0"><Building2 className="w-4 h-4 text-sky-700 shrink-0" /><span className="text-sm font-medium truncate">Bank Statement</span></div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openPdfPreview('bank')} data-testid="bank-preview-btn" title="Preview">
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('bank')} data-testid="bank-download-btn" title="Download">
+                            <Download className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0"><FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" /><span className="text-sm font-medium truncate">Sales / Expense Excel</span></div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('sales_expense')} data-testid="se-excel-download-btn" title="Download">
+                            <Download className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0"><FileBox className="w-4 h-4 text-amber-700 shrink-0" /><span className="text-sm font-medium truncate">Raw Uploads (Swiggy/Zomato/Bank)</span></div>
+                        <Badge variant="secondary" className="text-[10px]">included</Badge>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-2">Note: the Franchise Owner Ledger is intentionally NOT included in the accounts Email Pack (it's available separately on the Ledgers page).</p>
+                  </div>
+
+                  {/* Step 2: Generate + Send the Email Pack */}
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <Badge className="bg-rose-600 text-white">Step 2</Badge>
+                    <p className="text-sm font-semibold">Generate &amp; send the Email Pack</p>
+                  </div>
                   <Card className="border-2 border-rose-300 bg-rose-50/50">
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -2214,7 +2312,7 @@ export default function CenterAccounts() {
                           <div>
                             <h4 className="text-lg font-semibold text-rose-900">Monthly Franchise Email Pack</h4>
                             <p className="text-sm text-rose-700 mt-1 max-w-xl">
-                              One click → preview the email body, download the ZIP (PIB + GST + Commission + Bank Statement + Sales/Expense Excel + raw uploaded files), or <strong>send it directly</strong> to the franchise owner via SMTP.
+                              Preview the email body, download the ZIP, or <strong>send it directly</strong> to the franchise owner via SMTP.
                             </p>
                           </div>
                         </div>
@@ -2228,34 +2326,6 @@ export default function CenterAccounts() {
                       )}
                     </CardContent>
                   </Card>
-
-                  {/* Compact Quick Downloads — secondary use only */}
-                  <div className="mt-4">
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Quick Single-Report Downloads</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" disabled={!accountSummary?.franchise?.linked}
-                              onClick={() => openPibPreview()} data-testid="pib-preview-btn">
-                        <Eye className="w-3.5 h-3.5 mr-1" /> PIB
-                      </Button>
-                      <Button variant="outline" size="sm" disabled={!accountSummary?.franchise?.linked}
-                              onClick={() => downloadReport('pib')} data-testid="pib-download-btn">
-                        <Download className="w-3.5 h-3.5 mr-1" /> PIB PDF
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => openPdfPreview('gst')} data-testid="gst-preview-btn">
-                        <Eye className="w-3.5 h-3.5 mr-1" /> GST
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => downloadReport('gst')} data-testid="gst-download-btn">
-                        <Download className="w-3.5 h-3.5 mr-1" /> GST PDF
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => openPdfPreview('commission')} data-testid="commission-preview-btn">
-                        <Eye className="w-3.5 h-3.5 mr-1" /> Commission
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => downloadReport('commission')} data-testid="commission-download-btn">
-                        <Download className="w-3.5 h-3.5 mr-1" /> Commission PDF
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">For audit use. For monthly delivery, prefer the <strong>Email Pack</strong> above.</p>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

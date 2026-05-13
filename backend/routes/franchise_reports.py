@@ -135,6 +135,75 @@ class RawFileDownloadRequest(BaseModel):
     raw_id: str
 
 
+@router.post("/bundle")
+async def franchise_owner_bundle(req: RawFilesRequest):
+    """Build the complete monthly bundle for the Franchise Owner.
+
+    Mirrors the Accounts Email Pack but INCLUDES the Franchise Owner Ledger PDF
+    (which is intentionally excluded from the Accounts email pack to avoid
+    duplication, but is wanted in the owner-facing bundle).
+
+    Returns a ZIP with:
+      - PIB / GST / Commission / Bank Statement PDFs
+      - Sales/Expense Excel (full month)
+      - Franchise Owner Ledger PDF
+      - Raw uploaded files (Swiggy / Zomato / Bank) when present
+    """
+    from routes.center_accounts import (
+        check_access as _ca_check, enforce_owner_visibility as _ca_enforce,
+        generate_email_pack, EmailPackRequest,
+    )
+    from routes.ledgers import (
+        build_franchise_owner_ledger as _bld_owner_led,
+        _render_pdf, _owner_ledger_to_table,
+    )
+    import io as _io
+    import zipfile
+
+    session = await _ca_check(req.token)
+    await _ca_enforce(session, req.center, req.month)
+
+    # 1) Reuse the accounts email-pack ZIP as the base (already excludes ledger)
+    pack_zip_resp = await generate_email_pack(EmailPackRequest(
+        token=req.token, center=req.center, month=req.month, format="zip",
+    ))
+    base_zip_bytes = bytes(pack_zip_resp.body) if hasattr(pack_zip_resp, "body") else None
+    if not base_zip_bytes:
+        raise HTTPException(500, "Failed to build base bundle")
+
+    # 2) Build Owner Ledger PDF
+    owner_pdf_bytes = b""
+    try:
+        owner_data = await _bld_owner_led(req.center, [req.month])
+        sections = [("Franchise Owner — Running Account with HQ", _owner_ledger_to_table(owner_data))]
+        country = owner_data.get("country") or "India"
+        owner_pdf_bytes = _render_pdf(
+            title="Franchise Owner Ledger",
+            subtitle=f"{req.center} · {req.month}",
+            sections=sections,
+            country=country,
+        )
+    except Exception as _ex:
+        logger.warning(f"franchise-owner bundle ledger PDF failed: {_ex}")
+
+    # 3) Open the base ZIP, append the Owner Ledger PDF, re-zip
+    out_buf = _io.BytesIO()
+    with zipfile.ZipFile(_io.BytesIO(base_zip_bytes), "r") as inz, \
+         zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as outz:
+        for n in inz.namelist():
+            outz.writestr(n, inz.read(n))
+        if owner_pdf_bytes:
+            outz.writestr(f"Owner_Ledger_{req.center}_{req.month}.pdf", owner_pdf_bytes)
+
+    out_buf.seek(0)
+    filename = f"Monthly_Bundle_{req.center}_{req.month}.zip"
+    return Response(
+        content=out_buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.post("/raw-file/download")
 async def download_raw_file(req: RawFileDownloadRequest):
     """Download a single raw uploaded file by its raw_id (read-only)."""

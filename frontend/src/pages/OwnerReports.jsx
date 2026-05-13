@@ -480,6 +480,49 @@ export default function OwnerReports() {
       {report && visible && !canBypassRelease && null}
       {report && canDownload && (
         <>
+          {/* Hero: Download Complete Monthly Bundle */}
+          <Card data-testid="or-download-bundle-card" className="border-2 border-rose-300 bg-rose-50/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0">
+                    <Download className="w-7 h-7 text-rose-700" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-rose-900">Download Complete Monthly Bundle</h4>
+                    <p className="text-sm text-rose-700 mt-1 max-w-xl">
+                      One ZIP with everything for {center} · {year}-{month} — PIB, GST, Commission, Bank Statement PDFs + Sales/Expense Excel + Franchise Owner Ledger + any raw uploaded files (Swiggy / Zomato / Bank).
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="lg"
+                  className="bg-rose-700 hover:bg-rose-800 text-white"
+                  data-testid="or-download-bundle-btn"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`${API}/api/franchise-reports/bundle`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: session.token, center, month: `${year}-${month}` }),
+                      });
+                      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Failed'); }
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url; a.download = `Monthly_Bundle_${center}_${year}-${month}.zip`;
+                      document.body.appendChild(a); a.click(); a.remove();
+                      URL.revokeObjectURL(url);
+                      toast.success('Monthly bundle downloaded');
+                    } catch (e) { toast.error(e.message); }
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" /> Download Bundle (ZIP)
+                </Button>
+              </div>
+              <p className="text-xs text-rose-700 mt-3">Prefer to preview each report first? Open the collapsible sections below.</p>
+            </CardContent>
+          </Card>
+
           {/* Download Reports — PDFs */}
           <CollapsibleSection
             id="or-downloads"
