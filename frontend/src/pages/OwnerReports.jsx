@@ -5,12 +5,43 @@ import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
-import { FileText, AlertCircle, Download, Eye, TrendingUp, TrendingDown, FileSpreadsheet, FileBox, Calendar } from 'lucide-react';
+import { FileText, AlertCircle, Download, Eye, TrendingUp, TrendingDown, FileSpreadsheet, FileBox, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '../components/ui/input';
 import LedgersTab from '../components/LedgersTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+// Small wrapper that turns a Card section into a click-to-collapse panel.
+// Header stays clickable; chevron flips; content animates with the browser's
+// native height-auto rules (no extra deps).
+function CollapsibleSection({ id, title, description, defaultOpen = true, className = '', children, testId, headerExtra }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card data-testid={testId || id} className={className}>
+      <CardHeader
+        className="pb-3 cursor-pointer select-none"
+        onClick={() => setOpen(v => !v)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}
+        data-testid={`${testId || id}-toggle`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            {open ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+            <div className="min-w-0">
+              <CardTitle className="text-base">{title}</CardTitle>
+              {description && <CardDescription className="mt-0.5">{description}</CardDescription>}
+            </div>
+          </div>
+          {headerExtra}
+        </div>
+      </CardHeader>
+      {open && <CardContent>{children}</CardContent>}
+    </Card>
+  );
+}
 
 const MONTHS = [
   '01', '02', '03', '04', '05', '06',
@@ -450,13 +481,14 @@ export default function OwnerReports() {
       {report && canDownload && (
         <>
           {/* Download Reports — PDFs */}
-          <Card data-testid="or-downloads">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><Download className="w-4 h-4" /> Download Reports (PDF)</CardTitle>
-              <CardDescription>Pre-formatted statements for {center} · {year}-{month}. Click <strong>Preview</strong> to view inline before downloading.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
+          <CollapsibleSection
+            id="or-downloads"
+            testId="or-downloads"
+            title={<span className="flex items-center gap-2"><Download className="w-4 h-4" /> Download Reports (PDF)</span>}
+            description={<>Pre-formatted statements for {center} · {year}-{month}. Click <strong>Preview</strong> to view inline before downloading.</>}
+            defaultOpen={true}
+          >
+            <div className="flex flex-wrap gap-3">
                 {[
                   { id: 'pib', label: 'PIB Report', path: 'generate-pib', endpoint: 'center-accounts', color: 'bg-[#8B0000] hover:bg-[#6B0000] text-white' },
                   { id: 'gst', label: 'GST Summary', path: 'generate-gst-summary', endpoint: 'center-accounts', color: 'bg-amber-600 hover:bg-amber-700 text-white' },
@@ -496,17 +528,18 @@ export default function OwnerReports() {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </CollapsibleSection>
 
           {/* Franchise Owner Ledger — separate from the Email Pack ZIP */}
-          <Card data-testid="or-owner-ledger-card" className="border-2 border-violet-200 bg-violet-50/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-violet-700" /> Franchise Owner Ledger</CardTitle>
-              <CardDescription>HQ ↔ Franchise running account for {center} · {year}-{month}. Available here separately — not bundled into the Email Pack ZIP.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-3 flex-wrap">
+          <CollapsibleSection
+            id="or-owner-ledger-card"
+            testId="or-owner-ledger-card"
+            className="border-2 border-violet-200 bg-violet-50/30"
+            title={<span className="flex items-center gap-2"><FileText className="w-4 h-4 text-violet-700" /> Franchise Owner Ledger</span>}
+            description={<>HQ ↔ Franchise running account for {center} · {year}-{month}. Available here separately — not bundled into the Email Pack ZIP.</>}
+            defaultOpen={true}
+          >
+            <div className="flex gap-3 flex-wrap">
                 <Button className="bg-violet-700 hover:bg-violet-800 text-white" data-testid="or-owner-ledger-download" onClick={() => fetchOwnerLedgerPdf('download', 'month')}>
                   <Download className="w-4 h-4 mr-2" /> Download PDF
                 </Button>
@@ -515,16 +548,18 @@ export default function OwnerReports() {
                 </Button>
                 <span className="text-xs text-muted-foreground self-center">Filter: selected month (use the global Year/Month above)</span>
               </div>
-            </CardContent>
-          </Card>
+          </CollapsibleSection>
 
           {/* Sales / Expense Excel — month / date-range / single date */}
-          <Card data-testid="or-sales-expense-excel" className="border-2 border-emerald-200 bg-emerald-50/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-emerald-700" /> Sales / Expense Excel</CardTitle>
-              <CardDescription>Daily sales + expenses pulled live from the Sales Dashboard. Choose the period below.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <CollapsibleSection
+            id="or-sales-expense-excel"
+            testId="or-sales-expense-excel"
+            className="border-2 border-emerald-200 bg-emerald-50/30"
+            title={<span className="flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-emerald-700" /> Sales / Expense Excel</span>}
+            description="Daily sales + expenses pulled live from the Sales Dashboard. Choose the period below."
+            defaultOpen={true}
+          >
+            <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 <Select value={seMode} onValueChange={setSeMode}>
                   <SelectTrigger className="w-40 h-9" data-testid="se-mode-trigger"><SelectValue /></SelectTrigger>
@@ -556,17 +591,20 @@ export default function OwnerReports() {
                   <Eye className="w-4 h-4 mr-2" /> Open Excel
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CollapsibleSection>
 
           {/* Raw Uploaded Files — Swiggy / Zomato / Bank Statement etc. */}
-          <Card data-testid="or-raw-files-card" className="border-2 border-sky-200 bg-sky-50/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2"><FileBox className="w-4 h-4 text-sky-700" /> Raw Uploaded Files — {year}-{month}</CardTitle>
-              <CardDescription>Original Excel/PDF files uploaded for commission upload + bank reconciliation. View-only.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {rawFilesLoading ? (
+          <CollapsibleSection
+            id="or-raw-files-card"
+            testId="or-raw-files-card"
+            className="border-2 border-sky-200 bg-sky-50/30"
+            title={<span className="flex items-center gap-2"><FileBox className="w-4 h-4 text-sky-700" /> Raw Uploaded Files — {year}-{month}</span>}
+            description="Original Excel/PDF files uploaded for commission upload + bank reconciliation. View-only."
+            defaultOpen={false}
+            headerExtra={rawFiles.length > 0 && <Badge variant="secondary">{rawFiles.length} file{rawFiles.length === 1 ? '' : 's'}</Badge>}
+          >
+            {rawFilesLoading ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : rawFiles.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">No raw files uploaded yet for this month. They will appear here automatically after Commission / Bank Reconciliation uploads.</p>
@@ -607,8 +645,7 @@ export default function OwnerReports() {
                   </table>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </CollapsibleSection>
 
           {/* Top row — key metrics */}
           <div className={`grid grid-cols-2 ${report.country === 'Australia' ? 'md:grid-cols-6' : 'md:grid-cols-6'} gap-4`} data-testid="or-kpi-cards">
@@ -662,9 +699,12 @@ export default function OwnerReports() {
           </div>
 
           {/* Sales breakdown */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Sales Breakdown</CardTitle></CardHeader>
-            <CardContent>
+          <CollapsibleSection
+            id="or-sales-breakdown"
+            title="Sales Breakdown"
+            description="Cash · Online · Swiggy · Zomato · DoorDash · Card"
+            defaultOpen={false}
+          >
               <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm">
                 {[['Cash', report.sales.cash], ['Online', report.sales.online], ['Swiggy', report.sales.swiggy], ['Zomato', report.sales.zomato], ['DoorDash', report.sales.doordash], ['Card', report.sales.card]].map(([k, v]) => (
                   <div key={k} className="rounded border px-3 py-2">
@@ -673,14 +713,16 @@ export default function OwnerReports() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+          </CollapsibleSection>
 
           {/* Commissions */}
           {report.commissions?.by_platform?.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Platform Commissions</CardTitle><CardDescription>Swiggy · Zomato · Card · PhonePe deductions</CardDescription></CardHeader>
-              <CardContent>
+            <CollapsibleSection
+              id="or-platform-commissions"
+              title="Platform Commissions"
+              description="Swiggy · Zomato · Card · PhonePe deductions"
+              defaultOpen={false}
+            >
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
@@ -707,15 +749,17 @@ export default function OwnerReports() {
                     </tr>
                   </tbody>
                 </table>
-              </CardContent>
-            </Card>
+            </CollapsibleSection>
           )}
 
           {/* Expense breakdown */}
           {report.expenses?.by_category?.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Expense Breakdown</CardTitle></CardHeader>
-              <CardContent>
+            <CollapsibleSection
+              id="or-expense-breakdown"
+              title="Expense Breakdown"
+              description="By category"
+              defaultOpen={false}
+            >
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">% of Total</th></tr>
@@ -735,8 +779,7 @@ export default function OwnerReports() {
                     </tr>
                   </tbody>
                 </table>
-              </CardContent>
-            </Card>
+            </CollapsibleSection>
           )}
         </>
       )}
