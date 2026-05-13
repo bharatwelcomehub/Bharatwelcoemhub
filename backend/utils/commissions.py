@@ -21,14 +21,22 @@ from typing import Tuple, Dict, Any, Optional
 
 
 def _row_total(c: Dict[str, Any]) -> float:
-    """Sum the four India commission fields for a single monthly_commissions row.
-    Equivalent to the inclusive figure shown on the MG Payout report's Comm column."""
-    return (
-        float(c.get("commission_amount", 0) or 0)
-        + float(c.get("other_deductions", 0) or 0)
-        + float(c.get("gst_tax_deductions", 0) or 0)
-        + float(c.get("tds", 0) or 0)
-    )
+    """Sum the India commission deductions for a single monthly_commissions row.
+
+    Matches the per-platform "Total Deductions" formula used in PIB Section 3 /
+    Center Accounts Commission tab so the canonical total always equals the
+    sum of the visible per-platform rows. NEVER double-counts: if the new
+    schema fields (gst_tax_deductions / other_deductions) are populated, those
+    are summed; otherwise we fall back to the legacy `commission_amount` field.
+    TDS is **excluded** here because TDS PAID is booked as a separate operating
+    expense (see PIB Section 2 "TDS PAID") and including it again would inflate
+    the commission line and the corresponding net revenue calculation.
+    """
+    gst_ded = float(c.get("gst_tax_deductions", 0) or 0)
+    other_ded = float(c.get("other_deductions", 0) or 0)
+    if gst_ded or other_ded:
+        return gst_ded + other_ded
+    return float(c.get("commission_amount", 0) or 0)
 
 
 def _row_gst(c: Dict[str, Any]) -> float:
@@ -60,6 +68,10 @@ async def get_total_commissions(
       - override_applied: True if a wc_overrides commission_target was applied
       - source:         one of "uploaded", "override", "empty"
       - rows:           the raw monthly_commissions docs (for breakdown UIs)
+      - by_platform:    {platform: {"gross": float, "deduction": float, "net": float}}
+                        guaranteed to sum to `total` across all platforms (when
+                        no override is applied). Always populated, falling back
+                        to commission_statements when monthly_commissions is empty.
 
     Resolution order:
       1. If wc_overrides[(center, month)].commission_target is set,
@@ -77,6 +89,29 @@ async def get_total_commissions(
     rows = await db.monthly_commissions.find(
         {"center": center, "month": month}, {"_id": 0}
     ).to_list(500)
+
+    # Build per-platform breakdown from monthly_commissions
+    by_platform: Dict[str, Dict[str, float]] = {
+        "swiggy": {"gross": 0.0, "deduction": 0.0, "net": 0.0},
+        "zomato": {"gross": 0.0, "deduction": 0.0, "net": 0.0},
+        "doordash": {"gross": 0.0, "deduction": 0.0, "net": 0.0},
+        "phonepe": {"gross": 0.0, "deduction": 0.0, "net": 0.0},
+        "cards": {"gross": 0.0, "deduction": 0.0, "net": 0.0},
+    }
+    for r in rows:
+        p = (r.get("platform") or "").lower()
+        if p not in by_platform:
+            by_platform[p] = {"gross": 0.0, "deduction": 0.0, "net": 0.0}
+        by_platform[p]["gross"] += float(r.get("gross_amount", 0) or 0)
+        by_platform[p]["net"] += float(r.get("net_payout", 0) or 0)
+        if country == "Australia":
+            # AU upload: deduction is `other_deductions` (platform commission base)
+            # grossed up by 10% so the per-platform sum reconciles with canonical
+            # total (which adds 10% GST on top).
+            au_base = float(r.get("other_deductions", 0) or 0) or float(r.get("commission_amount", 0) or 0)
+            by_platform[p]["deduction"] += round(au_base * 1.10, 2)
+        else:
+            by_platform[p]["deduction"] += _row_total(r)
 
     if country == "Australia":
         # AU: commission upload usually carries only `other_deductions`
@@ -104,6 +139,12 @@ async def get_total_commissions(
             comm_gst = round(total * ratio, 2)
         else:
             comm_gst = round(total * 0.18 / 1.18, 2)
+        # Scale per-platform breakdown to match the override total so the
+        # PIB Section 3 table still reconciles with the override value.
+        if uploaded_total > 0:
+            scale = total / uploaded_total
+            for p in by_platform:
+                by_platform[p]["deduction"] = round(by_platform[p]["deduction"] * scale, 2)
         return {
             "total": total,
             "commission_gst": comm_gst,
@@ -111,6 +152,7 @@ async def get_total_commissions(
             "override_applied": True,
             "source": "override",
             "rows": rows,
+            "by_platform": by_platform,
         }
 
     if uploaded_total > 0:
@@ -121,6 +163,7 @@ async def get_total_commissions(
             "override_applied": False,
             "source": "uploaded",
             "rows": rows,
+            "by_platform": by_platform,
         }
 
     # Legacy fallback: commission_statements
@@ -131,7 +174,22 @@ async def get_total_commissions(
         "center": center,
         "settlement_period_start": {"$gte": start},
         "settlement_period_end": {"$lt": end},
-    }, {"_id": 0, "commission_charged": 1}).to_list(100)
+    }, {"_id": 0}).to_list(500)
+    # Build per-platform breakdown from legacy data too
+    for L in legacy:
+        p = (L.get("platform") or "").lower()
+        # `card_settlement` legacy platform maps to "cards"
+        if p == "card_settlement":
+            p = "cards"
+        if p not in by_platform:
+            by_platform[p] = {"gross": 0.0, "deduction": 0.0, "net": 0.0}
+        by_platform[p]["gross"] += float(L.get("gross_order_amount", 0) or 0)
+        by_platform[p]["net"] += float(L.get("net_payout_received", 0) or 0)
+        base_ded = float(L.get("commission_charged", 0) or 0)
+        if country == "Australia":
+            by_platform[p]["deduction"] += round(base_ded * 1.10, 2)
+        else:
+            by_platform[p]["deduction"] += base_ded
     legacy_base = round(sum(float(r.get("commission_charged", 0) or 0) for r in legacy), 2)
     if country == "Australia" and legacy_base > 0:
         legacy_gst = round(legacy_base * 0.10, 2)
@@ -146,4 +204,5 @@ async def get_total_commissions(
         "override_applied": False,
         "source": "legacy" if legacy_total > 0 else "empty",
         "rows": rows,
+        "by_platform": by_platform,
     }

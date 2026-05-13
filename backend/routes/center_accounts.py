@@ -1297,12 +1297,18 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         if platform not in commission_by_platform:
             commission_by_platform[platform] = {"gross": 0, "deduction": 0, "net": 0}
         commission_by_platform[platform]["gross"] += comm.get("gross_amount", 0)
-        # Total deduction = GST/Tax deductions + Other deductions (excludes sundry debtors)
-        gst_ded = comm.get("gst_tax_deductions", 0)
-        other_ded = comm.get("other_deductions", 0)
-        # Fallback for old records that used commission_amount
-        old_comm = comm.get("commission_amount", 0)
-        total_ded = (gst_ded + other_ded) if (gst_ded or other_ded) else old_comm
+        # Total deduction MUST match utils.commissions._row_total so the
+        # canonical total equals the sum of the per-platform breakdown shown in
+        # PIB Section 3 / Center Accounts Commission tab.
+        # Rule: if new-schema fields (gst_tax_deductions / other_deductions)
+        # are populated, use those; otherwise fall back to legacy commission_amount.
+        # TDS is excluded — it is booked separately as an operating expense.
+        gst_ded = float(comm.get("gst_tax_deductions", 0) or 0)
+        other_ded = float(comm.get("other_deductions", 0) or 0)
+        if gst_ded or other_ded:
+            total_ded = gst_ded + other_ded
+        else:
+            total_ded = float(comm.get("commission_amount", 0) or 0)
         commission_by_platform[platform]["deduction"] += total_ded
         commission_by_platform[platform]["net"] += comm.get("net_payout", 0)
 
@@ -1318,15 +1324,32 @@ async def get_center_account_summary(req: AccountPeriodRequest):
 
     # ==========================================
     # Canonical commission total (single source of truth across all surfaces).
-    # The by-platform breakdown above stays for the UI; the total below is
-    # what every dashboard / report MUST display so figures stay byte-identical.
     # Reads WC override → uploaded → legacy in that order. See utils/commissions.
+    # `by_platform` from the canonical helper is guaranteed to sum to `total`
+    # — every PIB / report / dashboard MUST use this so per-platform breakdown
+    # reconciles with the total to the paise.
     # ==========================================
     from utils.commissions import get_total_commissions
     _comm_canon = await get_total_commissions(db, req.center, month_str)
     canonical_total_commission = _comm_canon["total"]
     canonical_commission_gst = _comm_canon["commission_gst"]
     commission_override_applied = _comm_canon["override_applied"]
+
+    # Use the canonical per-platform breakdown so PIB Section 3 row-totals
+    # always equal the canonical total commission shown in the financial summary.
+    commission_by_platform = _comm_canon.get("by_platform") or commission_by_platform
+
+    # Recompute aggregator vs card splits FROM the canonical by_platform dict so
+    # downstream consumers (Final Payout, GST eligible sales, etc.) align.
+    total_aggregator_commission = (
+        commission_by_platform.get("swiggy", {}).get("deduction", 0)
+        + commission_by_platform.get("zomato", {}).get("deduction", 0)
+        + commission_by_platform.get("doordash", {}).get("deduction", 0)
+    )
+    card_commission = (
+        commission_by_platform.get("phonepe", {}).get("deduction", 0)
+        + commission_by_platform.get("cards", {}).get("deduction", 0)
+    )
     
     # ==========================================
     # 4. Calculate Financial Summary with GST

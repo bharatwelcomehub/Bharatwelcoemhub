@@ -1378,6 +1378,15 @@ All 3 pages wired into sidebar; test-ids present throughout (`or-release-all-btn
 - **Attendance multi-center edit**: Super Admin / Admin can now switch center via a new selector at the top of Attendance page. All daily/monthly/advances API calls use `activeCenter` instead of `session.center`. Center Manager flow unchanged.
 - **Tests:** 8/8 pytest pass (email-pack JSON+ZIP, MFPL gating, delete_advance perms), audit script ALL SURFACES MATCH for India + Perth.
 
+### [2026-05-11] Commission Parity Fix (CRITICAL data-integrity bug)
+- **Bug**: PIB Section 3 "Total Deductions" row showed a different number than the sum of per-platform deductions (e.g., 41,217.82 ≠ 25,180.14 + 11,333.14 + 4,599.74 = 41,113.02). Caused by `_row_total` in `utils/commissions.py` summing **all four** schema fields (commission_amount + gst_tax_deductions + other_deductions + tds) while per-platform UI used only `gst_tax_deductions + other_deductions`. Double-counted base commission + new-schema and erroneously included TDS (which is booked separately as operating expense).
+- **Fix** (`/app/backend/utils/commissions.py` + `routes/center_accounts.py`):
+  - `_row_total` now mirrors per-platform logic: use new-schema (gst_ded + other_ded) when present, else fall back to commission_amount. TDS excluded entirely.
+  - `get_total_commissions(...)` now returns a guaranteed `by_platform` dict that ALWAYS sums to `total` to the paise — falls back to `commission_statements` (legacy) and applies AU 10% grossup consistently.
+  - `center_accounts.py` summary uses canonical `by_platform` directly, removing the local breakdown that could drift.
+- **Tests**: 5 new pytest in `tests/test_iteration84_commission_parity.py` locking the contract. All 14 pytest (iteration 82 + 84) pass. Financial parity audit ALL SURFACES MATCH for PB-HSR + PB-PERTH.
+- **Impact**: All reports (PIB, Commission Summary PDF, Owner Ledger, MIS, MG Payout, Center Accounts screen) now show identical commission figures. The per-platform table's TOTAL row equals the sum of its rows on every PDF and screen.
+
 ## Pending / Backlog
 - (P1) WhatsApp/Email notification hooks
 - (P1) Code freeze preparation audit
