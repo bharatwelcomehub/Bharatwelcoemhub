@@ -2344,6 +2344,10 @@ app.include_router(owner_reports_router)
 from routes.franchise_reports import router as franchise_reports_router
 app.include_router(franchise_reports_router)
 
+# Marketing / Creative Studio — Center Manager Advertisement Creator
+from routes.marketing_ads import router as marketing_ads_router
+app.include_router(marketing_ads_router)
+
 # Menu Configuration (Super Admin sidebar customization)
 from routes.menu_config import router as menu_config_router, set_db as set_menu_config_db, set_verify_token as set_menu_config_verify_token
 set_menu_config_db(db)

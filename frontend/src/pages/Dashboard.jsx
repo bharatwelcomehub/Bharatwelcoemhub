@@ -43,6 +43,7 @@ import {
   Download,
   Share2,
   Upload,
+  Sparkles,
 } from "lucide-react";
 
 // Import pages
@@ -67,6 +68,7 @@ import GSTReconciliation from "@/pages/GSTReconciliation";
 import BankReconciliation from "@/pages/BankReconciliation";
 import HistoricalImport from "@/pages/HistoricalImport";
 import OwnerReports from "@/pages/OwnerReports";
+import AdCreator from "@/pages/AdCreator";
 import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
@@ -140,6 +142,15 @@ const menuCategories = [
       { path: "/salary", icon: FileSpreadsheet, label: "Salary", roleKey: "hr" },
       { path: "/payslips", icon: FileText, label: "Payslips", roleKey: "hr" },
       { path: "/hr-letters", icon: Briefcase, label: "HR Letters", roleKey: "hr" },
+    ]
+  },
+  {
+    id: "marketing",
+    label: "Marketing / Creative Studio",
+    icon: Sparkles,
+    items: [
+      { path: "/ad-creator", icon: Sparkles, label: "Center Manager Ad Creator" },
+      { path: "/social-media", icon: Share2, label: "Social Media Planner", forMGT: true },
     ]
   },
   {
@@ -218,7 +229,7 @@ export default function Dashboard() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "mgt", "franchise", "operations", "billing", "food_safety", "help", "accounts"]);
+  const [expandedCategories, setExpandedCategories] = useState(["attendance", "sales", "hr", "marketing", "mgt", "franchise", "operations", "billing", "food_safety", "help", "accounts"]);
   const [centersList, setCentersList] = useState([]);
   const [menuOverrides, setMenuOverrides] = useState({ categories: {}, items: {} });
   
@@ -641,6 +652,7 @@ export default function Dashboard() {
             <Route path="/bank-reconciliation" element={<BankReconciliation />} />
             <Route path="/historical-import" element={<HistoricalImport />} />
             <Route path="/owner-reports" element={<OwnerReports />} />
+            <Route path="/ad-creator" element={<AdCreator />} />
             <Route path="/loan-entries" element={<LoanEntries />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />

@@ -53,6 +53,14 @@ export const MENU_DEFAULTS = [
     ],
   },
   {
+    id: "marketing",
+    label: "Marketing / Creative Studio",
+    items: [
+      { path: "/ad-creator", label: "Center Manager Ad Creator" },
+      { path: "/social-media", label: "Social Media Planner" },
+    ],
+  },
+  {
     id: "mgt",
     label: "Management",
     items: [
