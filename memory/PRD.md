@@ -5,6 +5,66 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-15] Center Profitability Health Dashboard (NEW MAJOR FEATURE)
+
+**User ask** (verbatim): "Create one powerful feature called Center Profitability Health Dashboard. It should not just show numbers — it should identify why profitability is dropping, where money leakage is happening, which operational mistakes are affecting business, what actions are immediately needed, what trend is dangerous long term."
+
+**Build approach**:
+- Sidebar: under **Accounts → Center Health Dashboard** (accessible to Accounts / Admin / SA / Franchise Owner)
+- AI engine: **GPT-5.2** via Emergent Universal Key for narrative paragraphs ONLY (never for numbers)
+- Coverage: India + International (Australia/Perth) with currency/GST awareness
+
+**Backend** (`backend/routes/center_health.py`, NEW):
+- `POST /api/health-dashboard/centers` — list centers the requester can view (FO sees only own, staff sees all)
+- `POST /api/health-dashboard/score` — full structured health payload
+- `POST /api/health-dashboard/pdf` — downloadable PDF (signature block included, share-ready for franchisees)
+- All financial numbers reuse canonical helpers (`utils/gst.py`, `utils/commissions.py`, `routes/center_accounts.py::calculate_working_capital_standing`) — byte-identical to MIS / Center Accounts / PIB.
+
+**12 sections implemented**:
+1. **Overall Health Score** (0-100, 5 tiers: Excellent / Stable / Warning / Critical / Dangerous) — rule-based deduction per leakage severity + margin + WC bias.
+2. **AI Profitability Analysis** — detects sales drop, aggregator dependency, commission burden, salary/rent/food-cost ratio breaches, utility spike, sales drop, negative P/L.
+3. **What Needs Correction** — deterministic action list mapped from active leakages (8 max, deduped).
+4. **Monthly Leakage Analysis** — 9 leakage categories with severity (critical/high/medium) + estimated monthly impact (₹).
+5. **Profitability Formula Engine** — Sales − Comm − GST = Net Revenue ; − Expenses = Net P/L (canonical).
+6. **Working Capital Health** — current WC, base WC, % of base, status with color-coded progress bar.
+7. **Smart Comparisons** — vs previous month, YoY same-month, channel mix (Dine-in/Swiggy/Zomato/DoorDash), top-5 expense buckets.
+8. **Visual Dashboard** — 12-month P/L trend bars (green/red), tier-coded score meter, hexcode-controlled palette.
+9. **AI Founder's Reality Check** — GPT-5.2 generated 80-120 word executive paragraph (no markdown, plain prose, sanitized).
+10. **Predictive 3-Month Warning** — GPT-5.2 generated 60-90 word forecast paragraph based on current pattern.
+11. **Data Sources** — `daily_sales`, `expenses`, `monthly_commissions`, canonical WC chain, centers (for country/currency).
+12. **PDF download** — 2-page reportlab PDF with Score, Founder Summary, Formula, WC card, Ratios table, Leakage table, Action list, Predictive warning, 12-month trend table, signature block.
+
+**Frontend** (`frontend/src/pages/CenterHealth.jsx`, NEW):
+- Header: Center selector + Month selector (last 24 months) + Refresh + Download PDF button.
+- Hero: Health Score meter (tier-coloured) + Founder's Reality Check card (gradient amber).
+- KPI strip (6 cards): Sales / Commissions / GST / Net Revenue / Expenses / Net P/L — with trend % vs previous month.
+- Profitability Formula card + WC Health card.
+- Operational Ratios table (Food Cost / Salary / Rent / Utility / Commission / Aggregator share) with OK / High / Critical badges.
+- 12-Month P/L Trend bar strip (green/red).
+- Leakage Analysis list with severity badges + estimated impact.
+- "What Needs Correction" numbered action list.
+- "Predictive 3-Month Warning" gradient card.
+- Smart Comparisons section (vs prev / channel mix / expense buckets).
+- Every interactive element has `data-testid`.
+
+**Sidebar wiring**:
+- Added "Center Health Dashboard" under Accounts in `Dashboard.jsx` + `menuDefaults.js` (visible to Accounts AND Franchise).
+- New route `/center-health`.
+- Imported `Activity` icon from lucide-react.
+
+**Verified end-to-end on preview** (PB-HSR Feb 2026):
+- Score: 88/100 (Excellent)
+- Sales ₹9,06,132 · Net P/L ₹7,60,190 · Net margin 83.9%
+- AI narrative renders cleanly without markdown leakage
+- PDF: 145KB valid PDF with `%PDF-1.4` magic bytes
+- Frontend production build (`yarn build`) succeeds in 24s — no eslint errors.
+
+**Earlier this session — Marketing Ad Creator move**:
+- Moved "Center Manager Ad Creator" from sidebar "Marketing / Creative Studio" → **Operations** category (per user request).
+- Fixed deployment-blocking build error: `AdCreator.jsx` had `import { useAuth } from '../components/AuthContext'` (file didn't exist). Replaced with `import { useAuth } from "@/App"` matching codebase convention. Production deploy now builds.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, the Center Health Dashboard appears in the Accounts category for all eligible roles.
+
 ### [2026-05-10] One-shot WC unification — all 5 surfaces guaranteed to show the same number
 
 User frustration: "MIS Dashboard, Owner's Dashboard, PIB Reports all showing different WC values. Center Accounts is correct. Fix it everywhere in one go."

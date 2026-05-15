@@ -44,6 +44,7 @@ import {
   Share2,
   Upload,
   Sparkles,
+  Activity,
 } from "lucide-react";
 
 // Import pages
@@ -69,6 +70,7 @@ import BankReconciliation from "@/pages/BankReconciliation";
 import HistoricalImport from "@/pages/HistoricalImport";
 import OwnerReports from "@/pages/OwnerReports";
 import AdCreator from "@/pages/AdCreator";
+import CenterHealth from "@/pages/CenterHealth";
 import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
@@ -124,6 +126,7 @@ const menuCategories = [
     forAccounts: true,
     items: [
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
+      { path: "/center-health", icon: Activity, label: "Center Health Dashboard", forAccounts: true, forFranchise: true },
       { path: "/gst-reconciliation", icon: Receipt, label: "GST Reconciliation", forAccounts: true },
       { path: "/bank-reconciliation", icon: Banknote, label: "Bank Reconciliation", forAccounts: true },
       { path: "/loan-entries", icon: Wallet, label: "Loan Entries", forAccounts: true },
@@ -648,6 +651,7 @@ export default function Dashboard() {
             <Route path="/franchises" element={<FranchiseManagement />} />
             <Route path="/franchise-exit" element={<FranchiseExit />} />
             <Route path="/center-accounts" element={<CenterAccounts />} />
+            <Route path="/center-health" element={<CenterHealth />} />
             <Route path="/gst-reconciliation" element={<GSTReconciliation />} />
             <Route path="/bank-reconciliation" element={<BankReconciliation />} />
             <Route path="/historical-import" element={<HistoricalImport />} />
