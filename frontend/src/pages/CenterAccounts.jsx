@@ -14,10 +14,11 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail, FileBox
+  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail, FileBox, Activity
 } from 'lucide-react';
 
 import LedgersTab from '@/components/LedgersTab';
+import FinancialInsightsTab from '@/components/FinancialInsightsTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -1075,6 +1076,7 @@ export default function CenterAccounts() {
               <TabsTrigger value="share">Revenue/Profit Share</TabsTrigger>
               <TabsTrigger value="payout">{accountSummary?.country && accountSummary.country !== 'India' ? 'Payout' : 'MG & Payout'}</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
+              <TabsTrigger value="insights" className="text-rose-700"><Activity className="w-3.5 h-3.5 mr-1" />Financial Insights</TabsTrigger>
               <TabsTrigger value="ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
               <TabsTrigger value="invoices" className="text-purple-600">Invoice Export</TabsTrigger>
             </TabsList>
@@ -2391,6 +2393,11 @@ export default function CenterAccounts() {
             {/* Ledgers Tab — CA-ready books of accounts */}
             <TabsContent value="ledgers" className="space-y-4">
               <LedgersTab session={session} selectedCenter={selectedCenter} country={country} />
+            </TabsContent>
+
+            {/* Financial Insights Tab — analytics, ratios, trends, AI summary */}
+            <TabsContent value="insights" className="space-y-4">
+              <FinancialInsightsTab centersList={centers} />
             </TabsContent>
 
             {/* MG & Payout Tab */}

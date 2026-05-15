@@ -2352,6 +2352,10 @@ app.include_router(marketing_ads_router)
 from routes.center_health import router as center_health_router
 app.include_router(center_health_router)
 
+# Financial Insights tab (under Center Accounts)
+from routes.financial_insights import router as financial_insights_router
+app.include_router(financial_insights_router)
+
 # Menu Configuration (Super Admin sidebar customization)
 from routes.menu_config import router as menu_config_router, set_db as set_menu_config_db, set_verify_token as set_menu_config_verify_token
 set_menu_config_db(db)

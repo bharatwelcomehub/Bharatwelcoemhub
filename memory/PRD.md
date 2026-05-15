@@ -5,6 +5,63 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-15] Financial Insights tab under Center Accounts (NEW)
+
+**User ask** (verbatim): Build a new tab called "Financial Insights" inside Center Accounts with month / month-range / FY / custom-date filters, single + multi-center, financial summary cards with % and trends, expense + sales segregation, ratio analysis with color indicators, comparative analysis, trend graphs, drill-down, Excel/PDF/CSV downloads, and an AI executive summary.
+
+**Backend** (`backend/routes/financial_insights.py`, NEW):
+- `POST /api/financial-insights/summary` — full structured analytics for any period+centers combo
+- `POST /api/financial-insights/export` — Excel + CSV download
+- `POST /api/financial-insights/drill-down` — category-level breakdown (expense_category / sales_channel)
+- Reuses canonical helpers (`utils/gst.py`, `utils/commissions.py`, `routes/center_health.py::_month_metrics`) — byte-identical numbers to MIS / Center Accounts / PIB / Center Health Dashboard.
+- AI Executive Summary via GPT-5.2 (Emergent Universal Key) — 1-paragraph plain-prose narrative, sanitized of markdown.
+- Permissions enforced: staff sees all centers, franchise owner sees only own/franchise-mapped centers.
+
+**Frontend** (`frontend/src/components/FinancialInsightsTab.jsx`, NEW + embedded into `CenterAccounts.jsx`):
+- New "Financial Insights" tab (Activity icon, rose color) added between Reports and Ledgers tabs.
+- Filter bar: Period Type (Single Month / Month Range / Financial Year / Custom Dates), per-type controls, multi-select centers as pill toggles, Apply / Excel / CSV buttons.
+- AI Executive Summary card (amber gradient) at top.
+- 6 KPI cards: Sales / Expenses / Commission / GST / Gross Profit / Net P/L — each with % of sales sub-line and trend % vs previous comparable period.
+- Sales Channels card (Dine-in / Swiggy / Zomato / DoorDash with shares).
+- Financial Ratios card with Good / Warning / Critical badges (food cost, salary, rent, utility, commission burden, aggregator share).
+- 12-Month Profit Trend bar strip (green/red).
+- Expense Segregation table (top 12 categories, amount + % of sales).
+- Month-by-month breakdown table (when range/FY/custom selected).
+- Per-center comparison table (when multiple centers selected).
+
+**Verified end-to-end on preview** (PB-HSR Feb 2026):
+- Sales ₹9,06,132 · Net P/L ₹7,60,190 · 83.9% margin
+- AI summary auto-generated: identified 12% sales drop + 23.2% profit gain + sub-ideal salary/rent/food ratios
+- Excel export: 9,461 bytes, valid XLSX with 5 sheets (Summary / Ratios / 12-Month Trend / By Month / Expense Categories)
+- CSV export: 820 bytes, plain text
+- Frontend production build (`yarn build`) succeeds in 27s.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`.
+
+### [2026-05-15] Marketing Ad Creator — guest testimonial mode + optional photo
+
+**User ask**: Allow 3 inputs (Guest Name, Posted by, Subject) and optional guest photo. If no photo → text-only product ad. Stop forcing the "आठवड्याच्या शेवटी एक आठवण" tagline.
+
+**Backend** (`routes/marketing_ads.py`):
+- `AdGenerateRequest` extended with `guest_name`, `subject_text`.
+- Photo is now OPTIONAL — removed 400 error.
+- Image prompt branches: with-photo (guest face preserved) vs no-photo (product-only, NO human figure).
+- Caption + image prompts explicitly forbid "आठवड्याच्या शेवटी / एक आठवण / घरची आठवण / weekend memory" cliches.
+- New examples in caption prompt show testimonial-style + product-only outputs.
+- Persisted record now includes `guest_name`, `subject_text`, `has_photo` flags.
+
+**Frontend** (`pages/AdCreator.jsx`):
+- Added Guest Name + Subject/Message free-text inputs.
+- "Full Name" relabeled to "Posted by (center manager / host)".
+- Photo upload now labeled "Guest Photo (optional — leave blank for product-only ad)" with "Remove photo" button.
+- Generate button auto-switches label: "Generate Product Ad" (no photo) vs "Generate Guest Testimonial Ad" (with photo).
+
+**Verified live**:
+- Guest mode caption (Balgopal / Thali): "बालगोपाळजींनी पहिल्यांदाच चाखली पूर्णब्रह्माची थाळी — आणि दिलं मनापासून प्रेम!"
+- Product mode (no guest / Misal Pav): "विसावा, चव घ्या, आनंद साजरा करा — मिसळ पावासोबत!"
+- Neither contains the forced "athawadyachya shewati" template.
+- User-validated production screenshot shows "बालगोपाळ - रिया यांनी प्रेमाने ताट रिकामी केली — पुरणपोळीची गोडी, मनाला भिडली!" — fresh, dignified, and guest-specific.
+
 ### [2026-05-15] Center Profitability Health Dashboard (NEW MAJOR FEATURE)
 
 **User ask** (verbatim): "Create one powerful feature called Center Profitability Health Dashboard. It should not just show numbers — it should identify why profitability is dropping, where money leakage is happening, which operational mistakes are affecting business, what actions are immediately needed, what trend is dangerous long term."
