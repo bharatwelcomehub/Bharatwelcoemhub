@@ -46,7 +46,7 @@ const manuals = [
     bgColor: "bg-[#6B3FA0]/5",
     borderColor: "border-[#6B3FA0]/20",
     icon: Store,
-    description: "Franchise performance monitoring guide. Covers Owner Dashboard, Sales Overview, Revenue Share Breakdown, Documents, Exit Process.",
+    description: "Franchise performance monitoring guide. Covers Owner Dashboard, Sales Overview, Expense Breakdown, Financial Insights (NEW), Center Health Dashboard (NEW), Revenue Share, Documents, Exit Process.",
     audience: "All franchise owners"
   }
 ];
