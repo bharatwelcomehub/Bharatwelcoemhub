@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import * as XLSX from "xlsx";
+import FinancialInsightsTab from "@/components/FinancialInsightsTab";
 
 const CHART_COLORS = ['#D97706', '#059669', '#7C3AED', '#DC2626', '#2563EB', '#F59E0B', '#10B981', '#8B5CF6'];
 
@@ -614,6 +615,7 @@ export default function FranchiseOwnerDashboard() {
           <TabsList className="bg-slate-100 border border-slate-200 rounded-xl p-1 flex-wrap">
             <TabsTrigger value="overview" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Sales Overview</TabsTrigger>
             <TabsTrigger value="expenses" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Expense Breakdown</TabsTrigger>
+            <TabsTrigger value="insights" className="rounded-lg text-xs data-[state=active]:bg-rose-700 data-[state=active]:text-white">Financial Insights</TabsTrigger>
             <TabsTrigger value="franchise" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Franchise Info</TabsTrigger>
             <TabsTrigger value="documents" className="rounded-lg text-xs data-[state=active]:bg-amber-600 data-[state=active]:text-white">Documents</TabsTrigger>
           </TabsList>
@@ -734,6 +736,11 @@ export default function FranchiseOwnerDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* FINANCIAL INSIGHTS TAB — analytics + AI summary + Excel/CSV */}
+          <TabsContent value="insights" className="space-y-4">
+            <FinancialInsightsTab centersList={selectedCenter ? [{ code: selectedCenter, name: selectedCenter }] : centersList} />
           </TabsContent>
 
           {/* FRANCHISE INFO TAB */}

@@ -9,6 +9,7 @@ import { FileText, AlertCircle, Download, Eye, TrendingUp, TrendingDown, FileSpr
 import { toast } from 'sonner';
 import { Input } from '../components/ui/input';
 import LedgersTab from '../components/LedgersTab';
+import FinancialInsightsTab from '../components/FinancialInsightsTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -840,6 +841,19 @@ export default function OwnerReports() {
           country={report?.country}
           readOnly={!canBypassRelease}
         />
+      )}
+
+      {/* Financial Insights — collapsible analytics & AI summary */}
+      {center && (canDownload || canBypassRelease) && (
+        <CollapsibleSection
+          id="financial-insights"
+          title="Financial Insights"
+          description="Analytics, ratios, trends + AI executive summary. Excel / CSV download."
+          defaultOpen={false}
+          testId="or-financial-insights"
+        >
+          <FinancialInsightsTab centersList={[{ code: center, name: center }]} />
+        </CollapsibleSection>
       )}
 
       {/* Inline Preview modal */}
