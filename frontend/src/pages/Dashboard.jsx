@@ -149,7 +149,6 @@ const menuCategories = [
     label: "Marketing / Creative Studio",
     icon: Sparkles,
     items: [
-      { path: "/ad-creator", icon: Sparkles, label: "Center Manager Ad Creator" },
       { path: "/social-media", icon: Share2, label: "Social Media Planner", forMGT: true },
     ]
   },
@@ -192,6 +191,7 @@ const menuCategories = [
       { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", roleKey: "operations" },
       { path: "/guest-response", icon: MessageCircle, label: "Guest Response", roleKey: "operations" },
       { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", roleKey: "operations" },
+      { path: "/ad-creator", icon: Sparkles, label: "Center Manager Ad Creator" },
     ]
   },
   {

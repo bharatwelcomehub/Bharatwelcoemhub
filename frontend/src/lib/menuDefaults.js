@@ -56,7 +56,6 @@ export const MENU_DEFAULTS = [
     id: "marketing",
     label: "Marketing / Creative Studio",
     items: [
-      { path: "/ad-creator", label: "Center Manager Ad Creator" },
       { path: "/social-media", label: "Social Media Planner" },
     ],
   },
@@ -92,6 +91,7 @@ export const MENU_DEFAULTS = [
       { path: "/bhojan-guru", label: "Bhojan Guru" },
       { path: "/guest-response", label: "Guest Response" },
       { path: "/recipe-admin", label: "Recipe Admin" },
+      { path: "/ad-creator", label: "Center Manager Ad Creator" },
     ],
   },
   {
