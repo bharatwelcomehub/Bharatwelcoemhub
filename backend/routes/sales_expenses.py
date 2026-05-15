@@ -3059,18 +3059,40 @@ async def upload_custom_format_data(
                 # Find column indices
                 headers = [str(v).strip().upper() if pd.notna(v) else '' for v in df.iloc[header_row_idx]]
                 
-                def find_exp_col(keywords):
+                def find_exp_col(keywords, exclude_keywords=None):
+                    """Find first column whose header contains any keyword
+                    and does NOT contain any of the exclude_keywords (case-insensitive).
+                    """
+                    excludes = [e.upper() for e in (exclude_keywords or [])]
                     for kw in keywords:
                         for ci, h in enumerate(headers):
-                            if kw.upper() in h:
+                            if kw.upper() in h and not any(e in h for e in excludes):
                                 return ci
                     return None
                 
                 date_col = find_exp_col(['DATE'])
-                desc_col = find_exp_col(['EXPENCE', 'EXPENSE'])
-                amount_col = find_exp_col(['AMOUNT'])
-                type_col = find_exp_col(['EXPANSE TYPE', 'TYPE'])
-                mode_col = find_exp_col(['PAYMENT MODE', 'CASH'])
+                # Description column priority:
+                #   1) Exact match for EXPENCE/EXPENSE (but NEVER aggregate columns like
+                #      EXPENSES HEAD, TOTAL EXPENCE, CASH EXPENCE, ONLINE EXPENCE etc.)
+                #   2) Fallback to common alternatives: PARTICULAR, ITEM, DESC, GROCERY, NARRATION
+                #   3) Last resort: the column immediately AFTER the DATE column
+                desc_col = find_exp_col(
+                    ['EXPENCE', 'EXPENSE'],
+                    exclude_keywords=['HEAD', 'TOTAL', 'CASH', 'ONLINE', 'TYPE', 'MODE'],
+                )
+                if desc_col is None:
+                    desc_col = find_exp_col(['PARTICULAR', 'ITEM', 'DESC', 'NARRATION', 'GROCERY'])
+                # AMOUNT: avoid aggregate columns like TOTAL AMOUNT / GRAND TOTAL
+                amount_col = find_exp_col(['AMOUNT'], exclude_keywords=['TOTAL', 'GRAND'])
+                type_col = find_exp_col(['EXPANSE TYPE', 'TYPE', 'CATEGORY', 'HEAD'])
+                mode_col = find_exp_col(['PAYMENT MODE', 'CASH'], exclude_keywords=['EXPENCE', 'EXPENSE', 'TOTAL'])
+                
+                # Final fallback: if we still have date_col and amount_col but no
+                # description column, use the cell immediately right of DATE.
+                if desc_col is None and date_col is not None:
+                    candidate = date_col + 1
+                    if candidate != amount_col and candidate < len(headers):
+                        desc_col = candidate
                 
                 if desc_col is None or amount_col is None:
                     continue
@@ -3122,6 +3144,13 @@ async def upload_custom_format_data(
                     # Skip if before from_year
                     if date_str < f"{from_year}-01-01":
                         continue
+                    # Sanity: ignore implausible future dates (>5 yrs ahead). This
+                    # prevents forward-filled junk dates from spurious sheets.
+                    try:
+                        if int(date_str[:4]) > datetime.now().year + 5:
+                            continue
+                    except Exception:
+                        pass
                     
                     # Get category/type
                     expense_type = ""
