@@ -90,14 +90,17 @@ class AdGenerateRequest(BaseModel):
     center: str
     language: str               # 'Marathi' | 'English' | 'Bilingual'
     menu_item: str              # e.g. "Misal Pav"
-    festival_theme: str         # e.g. "Mother's Day"
+    festival_theme: str         # e.g. "Mother's Day" — kept for back-compat; "subject_text" preferred
     output_format: str          # '1:1' | '9:16' | '4:5'
-    photo_base64: Optional[str] = None  # data URL or raw base64
+    photo_base64: Optional[str] = None  # data URL or raw base64 — NOW OPTIONAL
     caption_marathi: Optional[str] = None
     caption_english: Optional[str] = None
     # When true, return ONLY the caption (skip the image gen call) — used by
     # the "Regenerate caption" button.
     caption_only: bool = False
+    # NEW — guest testimonial mode
+    guest_name: Optional[str] = None     # e.g. "Balgopal"
+    subject_text: Optional[str] = None   # e.g. "Loved the Thali", "First-time visit"
 
 
 def _strip_data_url(b64: str) -> str:
@@ -109,22 +112,47 @@ def _strip_data_url(b64: str) -> str:
 def _build_image_prompt(req: AdGenerateRequest) -> str:
     """Compose the Gemini prompt that drives the creative.
 
+    Two modes:
+    - GUEST mode (photo provided): reference photo IS the guest; advertise their
+      testimonial with the dish.
+    - PRODUCT mode (no photo): pure dish-led advertisement (no person).
+
     The instruction is deliberately rich + opinionated to push the AI toward
     the Purnabramha brand language and away from generic AI-slop output.
     """
     aspect = ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT["1:1"])
     caption_line = req.caption_marathi or req.caption_english or ""
+    has_photo = bool(req.photo_base64)
+    guest_name = (req.guest_name or "").strip()
+    subject = (req.subject_text or req.festival_theme or "").strip()
+    poster = (req.manager_name or "").strip()
+
+    if has_photo:
+        person_block = f"""USE THE GUEST'S FACE FROM THE REFERENCE IMAGE.
+- The reference photo is a happy customer named "{guest_name or 'our valued guest'}".
+- Place a clean, professional cutout of THE EXACT PERSON from the reference photo.
+- Keep their face recognisable and dignified. Soften the background; integrate tastefully.
+- Position the guest on the LEFT third (or top third for 9:16), leaving the
+  RIGHT/BOTTOM portion for the food showcase.
+- The guest should appear smiling, candid, in a warm dining moment.
+"""
+    else:
+        person_block = """NO PERSON IN THIS ADVERTISEMENT.
+- This is a PRODUCT-LED creative. Do NOT add any human figure, face, hand, or silhouette.
+- Use the full canvas to celebrate the food itself with rich, premium composition.
+"""
+
+    name_overlay = ""
+    if guest_name:
+        name_overlay = f'- The guest\'s name "{guest_name}" should appear in bold elegant serif near the headline.\n'
+    elif poster:
+        name_overlay = f'- The poster/host name "{poster}" may appear in a small elegant byline.\n'
+
     return f"""You are designing a premium social-media advertisement for "{BRAND_NAME}".
 
 Aspect ratio: {aspect}. The final image MUST honour this aspect ratio exactly.
 
-USE THE PERSON'S FACE FROM THE REFERENCE IMAGE.
-- Place a clean, professional cutout of THE EXACT PERSON in the reference photo.
-- Keep their face recognisable. Soften the background; integrate them tastefully.
-- Position the person on the LEFT third (or top third for 9:16), leaving the
-  RIGHT/BOTTOM portion for the food showcase.
-- Person should be smiling warmly, in welcoming Maharashtrian-host posture.
-
+{person_block}
 FOOD HERO:
 - Showcase a beautifully plated portion of "{req.menu_item}".
 - Authentic, traditional preparation (no fusion). Premium food photography:
@@ -136,14 +164,14 @@ BRAND VISUAL LANGUAGE:
 - Design language: {BRAND_DESIGN}.
 - Subtle cultural motifs: banana-leaf veins, faint paisley border, brass copper
   highlights. Keep them sparing and refined, never busy.
-- Mood: {req.festival_theme}.
+- Subject / mood (use as creative direction, NOT as literal headline): {subject or "warm hospitality"}.
 
 TYPOGRAPHY OVERLAY (PART OF THE IMAGE):
-- Place the headline at the visual sweet-spot, large and confident:
+- Place the headline at the visual sweet-spot, large and confident — use EXACTLY this text:
     "{caption_line}"
-- Below the headline, render the manager's name in bold elegant serif:
-    "{req.manager_name}"
-- Add a small footer line:
+- DO NOT add any other Marathi or English headline. DO NOT invent slogans like
+  "आठवड्याच्या शेवटी" or "एक आठवण" or weekly-memory phrases.
+{name_overlay}- Add a small footer line:
     "{BRAND_NAME}"
 - Typography colours: warm gold and cream white on dark backgrounds, deep
   maroon on cream. High readability — never overlap food or face.
@@ -152,13 +180,17 @@ GENERAL RULES:
 - Apple-style clean composition, no clutter, no stock-photo cliches.
 - No fusion food, no Western plating.
 - High dynamic range, natural lighting, premium-restaurant feel.
-- Face and food must both be clearly visible and proportionate.
 - Output a single finished image, NOT a sketch or wireframe.
 """
 
 
 async def _generate_caption(req: AdGenerateRequest) -> dict:
-    """Generate emotional Marathi + English caption via Claude."""
+    """Generate emotional Marathi + English caption via Claude.
+
+    New testimonial-first mode: if guest_name + subject_text are provided, the
+    caption celebrates the guest's experience. Otherwise falls back to a
+    product / occasion caption.
+    """
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     api_key = os.getenv("EMERGENT_LLM_KEY")
@@ -169,29 +201,51 @@ async def _generate_caption(req: AdGenerateRequest) -> dict:
         "You are a Marathi advertising copywriter for Purnabramha — a premium "
         "authentic Maharashtrian restaurant brand. Compose short, emotional, "
         "warm captions that honour Maharashtrian culture and Purnabramha's "
-        "luxury brand dignity. Never use fusion or Western references."
+        "luxury brand dignity. Never use fusion or Western references. "
+        "CRITICAL: NEVER use the forced/templated phrases "
+        "'आठवड्याच्या शेवटी', 'एक आठवण', 'घरची आठवण', 'weekend memory', or any "
+        "similar weekly-memory cliche. Write fresh, original copy specific to "
+        "the inputs."
     )
+
+    guest_name = (req.guest_name or "").strip()
+    subject_text = (req.subject_text or "").strip()
+    poster = (req.manager_name or "").strip()
+    mode = "testimonial" if (guest_name or subject_text) else "product"
 
     user_prompt = f"""Write a social-media caption for an advertisement.
 
+Mode: {mode}
+
 Inputs:
-- Manager name (host): {req.manager_name}
+- Guest name (subject of the testimonial): {guest_name or "(none — product/occasion ad)"}
+- Subject / message (what to convey): {subject_text or req.festival_theme}
+- Posted by (host / center manager): {poster or "(unspecified)"}
 - Center city: {req.center}
 - Menu hero: {req.menu_item}
-- Festival / theme: {req.festival_theme}
 - Format: {req.output_format}
 - Language wanted: {req.language}
 
-Return STRICT JSON only, no markdown fence, with keys:
-  - "marathi": 1 short emotional Marathi caption (2 lines max). Mention the
-    manager naturally (e.g. "<Name> ताईंसोबत" or "<Name> कडून"). Use Devanagari.
-  - "english": 1 short emotional English line (1-2 lines max). Keep it warm
-    and luxurious, mention manager naturally.
-  - "headline": the single best headline (Marathi if Bilingual/Marathi was
-    requested, otherwise English). This is what we'll burn into the creative.
+Rules:
+- If guest_name is present, the caption is FROM THE BRAND celebrating the guest's
+  visit/testimonial. Mention the guest naturally (e.g. "{guest_name}जींना आवडलं",
+  "{guest_name} sir/madam loved...").
+- If guest_name is empty, write a clean product/occasion caption around the menu hero.
+- The "subject" tells you the emotional angle — interpret it, don't quote it verbatim.
+- Keep it 1–2 short lines. Do NOT start with any templated weekly-memory phrase.
+- Do NOT mention "आठवड्याच्या शेवटी" or "घरची आठवण" anywhere.
 
-Example for Misal Pav + Mother's Day + manager "Sneha":
-{{"marathi":"आज मातृ-दिनाचा खास आग्रह...\\nस्नेहा ताईंकडून मिसळ पावाचा अस्सल स्वाद!", "english":"Served with love, hosted proudly by Sneha Tai.","headline":"आज मातृ-दिनाचा खास आग्रह...\\nस्नेहा ताईंकडून मिसळ पावाचा अस्सल स्वाद!"}}
+Return STRICT JSON only, no markdown fence, with keys:
+  - "marathi": 1 short emotional Marathi caption (2 lines max). Use Devanagari.
+  - "english": 1 short emotional English line (1-2 lines max). Warm, luxurious.
+  - "headline": the single best headline that will be burned into the image
+    (Marathi if Bilingual/Marathi was requested, otherwise English).
+
+Example A (testimonial mode — guest "Balgopal" loved Thali):
+{{"marathi":"बालगोपाळजींच्या ताटात पूर्णब्रह्म — हसरा क्षण, अस्सल चव!","english":"Balgopal ji loved every bite of our authentic Thali.","headline":"बालगोपाळजींच्या ताटात पूर्णब्रह्म — हसरा क्षण, अस्सल चव!"}}
+
+Example B (product mode — Misal Pav, no guest):
+{{"marathi":"तिखट, गरमा-गरम मिसळ — कोल्हापुरी थाटात!","english":"Fiery, fresh, and unapologetically Maharashtrian.","headline":"तिखट, गरमा-गरम मिसळ — कोल्हापुरी थाटात!"}}
 """
 
     chat = LlmChat(
@@ -239,8 +293,7 @@ async def generate_ad(req: AdGenerateRequest):
     session = await check_access(req.token)
     if not _is_center_manager_or_above(session):
         raise HTTPException(403, "Not permitted to create advertisements")
-    if not req.photo_base64:
-        raise HTTPException(400, "Manager photo is required")
+    # Photo is OPTIONAL — when absent, we generate a product-only creative.
 
     # 1) Caption
     if req.caption_marathi or req.caption_english:
@@ -257,10 +310,11 @@ async def generate_ad(req: AdGenerateRequest):
             req.caption_english = caption["english"]
         except Exception as e:
             logger.warning(f"caption generation failed, using fallback: {e}")
+            who = req.guest_name or req.manager_name or "आमचे"
             caption = {
-                "marathi": f"{req.manager_name} ताईंकडून प्रेमाने सादर",
-                "english": f"Hosted with love by {req.manager_name}",
-                "headline": f"{req.manager_name} ताईंकडून प्रेमाने सादर",
+                "marathi": f"{who} ची आवडती चव — पूर्णब्रह्म",
+                "english": f"A favourite at Purnabramha — featuring {req.menu_item}",
+                "headline": f"{who} ची आवडती चव — पूर्णब्रह्म",
             }
             req.caption_marathi = caption["marathi"]
 
@@ -272,7 +326,6 @@ async def generate_ad(req: AdGenerateRequest):
     if not api_key:
         raise HTTPException(503, "EMERGENT_LLM_KEY not configured")
 
-    photo_b64 = _strip_data_url(req.photo_base64)
     prompt = _build_image_prompt(req)
 
     chat = LlmChat(
@@ -282,9 +335,16 @@ async def generate_ad(req: AdGenerateRequest):
     ).with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
 
     try:
-        _text, images = await chat.send_message_multimodal_response(
-            UserMessage(text=prompt, file_contents=[ImageContent(photo_b64)])
-        )
+        if req.photo_base64:
+            photo_b64 = _strip_data_url(req.photo_base64)
+            _text, images = await chat.send_message_multimodal_response(
+                UserMessage(text=prompt, file_contents=[ImageContent(photo_b64)])
+            )
+        else:
+            # Product-only mode — no reference photo
+            _text, images = await chat.send_message_multimodal_response(
+                UserMessage(text=prompt)
+            )
     except Exception as e:
         logger.error(f"Nano Banana failed: {e}", exc_info=True)
         raise HTTPException(502, f"AI image generation failed: {e}")
@@ -308,6 +368,9 @@ async def generate_ad(req: AdGenerateRequest):
         "ad_id": ad_id,
         "center": req.center,
         "manager_name": req.manager_name,
+        "guest_name": req.guest_name or "",
+        "subject_text": req.subject_text or "",
+        "has_photo": bool(req.photo_base64),
         "menu_item": req.menu_item,
         "festival_theme": req.festival_theme,
         "language": req.language,

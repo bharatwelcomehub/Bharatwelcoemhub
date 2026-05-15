@@ -23,6 +23,8 @@ export default function AdCreator() {
     festival_theme: 'Weekend',
     output_format: '1:1',
     photo_base64: '',
+    guest_name: '',
+    subject_text: '',
   });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -62,12 +64,11 @@ export default function AdCreator() {
   };
 
   const generate = async () => {
-    if (!form.photo_base64) { toast.error('Upload your photo first'); return; }
-    if (!form.manager_name || !form.menu_item) { toast.error('Name and menu item are required'); return; }
+    if (!form.manager_name || !form.menu_item) { toast.error('Posted-by name and menu item are required'); return; }
     setGenerating(true);
     setResult(null);
     try {
-      toast.info('Generating creative — this takes 15-30 seconds');
+      toast.info(form.photo_base64 ? 'Generating creative with guest photo — this takes 15-30 seconds' : 'Generating product creative — this takes 15-30 seconds');
       const res = await fetch(`${API}/api/marketing/ads/generate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: session.token, ...form }),
       });
@@ -143,24 +144,40 @@ export default function AdCreator() {
               <CardHeader className="pb-3"><CardTitle className="text-base">Your Inputs</CardTitle><CardDescription>Fill these — AI does the rest.</CardDescription></CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label className="text-xs">Your Photo</Label>
+                  <Label className="text-xs">Guest Photo <span className="text-muted-foreground font-normal">(optional — leave blank for product-only ad)</span></Label>
                   <div className="flex items-center gap-3 mt-1">
                     {photoPreview ? (
-                      <img src={photoPreview} alt="manager" className="w-20 h-20 rounded-lg object-cover border-2 border-amber-300" data-testid="ad-photo-preview" />
+                      <img src={photoPreview} alt="guest" className="w-20 h-20 rounded-lg object-cover border-2 border-amber-300" data-testid="ad-photo-preview" />
                     ) : (
-                      <div className="w-20 h-20 rounded-lg border-2 border-dashed flex items-center justify-center text-muted-foreground text-xs">No photo</div>
+                      <div className="w-20 h-20 rounded-lg border-2 border-dashed flex items-center justify-center text-muted-foreground text-[10px] text-center px-1">No photo (product mode)</div>
                     )}
-                    <label className="cursor-pointer">
-                      <input type="file" accept="image/*" className="hidden" onChange={onPhotoSelect} data-testid="ad-photo-input" />
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border bg-white hover:bg-amber-50 text-sm">
-                        <Upload className="w-3.5 h-3.5" />{photoPreview ? 'Change' : 'Upload Photo'}
-                      </span>
-                    </label>
+                    <div className="flex flex-col gap-1">
+                      <label className="cursor-pointer">
+                        <input type="file" accept="image/*" className="hidden" onChange={onPhotoSelect} data-testid="ad-photo-input" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border bg-white hover:bg-amber-50 text-sm">
+                          <Upload className="w-3.5 h-3.5" />{photoPreview ? 'Change' : 'Upload Guest Photo'}
+                        </span>
+                      </label>
+                      {photoPreview && (
+                        <button type="button" className="text-[10px] text-rose-700 underline self-start" data-testid="ad-photo-clear"
+                          onClick={() => { setPhotoPreview(null); setForm(f => ({ ...f, photo_base64: '' })); }}>
+                          Remove photo
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs">Full Name</Label>
-                  <Input value={form.manager_name} onChange={e => setForm(f => ({ ...f, manager_name: e.target.value }))} placeholder="e.g. Sneha" data-testid="ad-name" />
+                  <Label className="text-xs">Guest Name <span className="text-muted-foreground font-normal">(e.g. Balgopal — appears in caption)</span></Label>
+                  <Input value={form.guest_name} onChange={e => setForm(f => ({ ...f, guest_name: e.target.value }))} placeholder="e.g. Balgopal" data-testid="ad-guest-name" />
+                </div>
+                <div>
+                  <Label className="text-xs">Posted by <span className="text-muted-foreground font-normal">(center manager / host)</span></Label>
+                  <Input value={form.manager_name} onChange={e => setForm(f => ({ ...f, manager_name: e.target.value }))} placeholder="e.g. Jack Harrison" data-testid="ad-name" />
+                </div>
+                <div>
+                  <Label className="text-xs">Subject / Message <span className="text-muted-foreground font-normal">(what to convey)</span></Label>
+                  <Input value={form.subject_text} onChange={e => setForm(f => ({ ...f, subject_text: e.target.value }))} placeholder="e.g. Balgopal loved the Thali" data-testid="ad-subject" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -193,7 +210,7 @@ export default function AdCreator() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs">Festival / Theme</Label>
+                    <Label className="text-xs">Festival / Backup Theme <span className="text-muted-foreground font-normal">(used if Subject is blank)</span></Label>
                     <Select value={form.festival_theme} onValueChange={v => setForm(f => ({ ...f, festival_theme: v }))}>
                       <SelectTrigger className="h-9" data-testid="ad-theme"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -212,14 +229,14 @@ export default function AdCreator() {
                   </div>
                 </div>
                 <Button onClick={generate} disabled={generating} className="w-full bg-[#8B0000] hover:bg-[#5C0000] text-white" size="lg" data-testid="ad-generate-btn">
-                  {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating…</> : <><Wand2 className="w-4 h-4 mr-2" />Generate Creative</>}
+                  {generating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating…</> : <><Wand2 className="w-4 h-4 mr-2" />Generate {photoPreview ? 'Guest Testimonial Ad' : 'Product Ad'}</>}
                 </Button>
               </CardContent>
             </Card>
 
             {/* Result */}
             <Card className="lg:col-span-3" data-testid="ad-result">
-              <CardHeader className="pb-3"><CardTitle className="text-base">Preview</CardTitle><CardDescription>The face from your photo, your menu, your headline — generated in one shot.</CardDescription></CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-base">Preview</CardTitle><CardDescription>The guest's face (if uploaded), your menu, and a fresh headline — generated in one shot. No forced "weekly memory" taglines.</CardDescription></CardHeader>
               <CardContent>
                 {generating ? (
                   <div className="aspect-square rounded-lg bg-gradient-to-br from-amber-50 to-rose-50 border-2 border-dashed border-amber-300 flex flex-col items-center justify-center gap-3">
