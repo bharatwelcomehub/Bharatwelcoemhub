@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Menu, X, User, MapPin, Phone } from 'lucide-react';
+import { Menu, X, User, MapPin, Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthDialog from '@/components/AuthDialog';
@@ -74,7 +74,19 @@ const Layout = ({ children }) => {
               ))}
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 lg:space-x-3">
+              {/* Ask Vahini quick-open (works even after FAB is dismissed) */}
+              <button
+                onClick={() => window.dispatchEvent(new Event('open-ask-vahini'))}
+                className="hidden md:inline-flex items-center gap-1.5 text-xs font-body font-semibold nav-gold-text hover:text-[#F3D060] transition-colors px-2.5 py-1.5 whitespace-nowrap cursor-pointer tracking-wide border border-[#D4AF37]/40 rounded-full"
+                data-testid="header-ask-vahini-btn"
+                aria-label="Open Ask Vahini chat"
+                title="Ask Vahini"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">Ask Vahini</span>
+              </button>
+
               {user ? (
                 <div className="hidden lg:flex items-center space-x-2">
                   <Button
@@ -138,6 +150,16 @@ const Layout = ({ children }) => {
                   {link.name}
                 </a>
               ))}
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  window.dispatchEvent(new Event('open-ask-vahini'));
+                }}
+                className="block w-full text-left py-3 text-sm font-body font-semibold nav-gold-text hover:text-[#F3D060] flex items-center gap-2"
+                data-testid="mobile-ask-vahini-btn"
+              >
+                <MessageCircle className="h-4 w-4" /> Ask Vahini
+              </button>
               {user ? (
                 <>
                   <button onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }} className="block w-full text-left py-3 text-sm nav-gold-text hover:text-[#F3D060]">Profile</button>

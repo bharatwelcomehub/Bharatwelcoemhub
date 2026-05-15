@@ -379,15 +379,16 @@ const Menu = () => {
         </div>
       </div>
 
-      {/* Floating Scan Dish Button */}
+      {/* Floating Scan Dish Button (positioned above Ask Vahini FAB so they never overlap) */}
       <button
         onClick={() => setScanModalOpen(true)}
-        className="fixed bottom-6 right-6 z-50 gold-glossy text-white p-4 transition-all hover:scale-110 active:scale-95 group shadow-lg"
+        className="fixed bottom-28 right-6 z-50 gold-glossy text-white p-4 transition-all hover:scale-110 active:scale-95 group shadow-lg rounded-full"
         data-testid="scan-dish-btn"
         title="Scan a dish photo"
+        aria-label="Scan a dish photo"
       >
-        <Camera className="h-7 w-7" />
-        <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-white border border-[#E8DFD0] text-[#2D1810] text-sm px-3 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+        <Camera className="h-6 w-6" />
+        <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-white border border-[#E8DFD0] text-[#2D1810] text-sm px-3 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg rounded">
           Scan Dish
         </span>
       </button>

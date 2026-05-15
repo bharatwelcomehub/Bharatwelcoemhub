@@ -8,6 +8,10 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 const AskVahini = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [fabDismissed, setFabDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('vahini_fab_dismissed') === '1';
+  });
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +22,19 @@ const AskVahini = () => {
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
   const navigate = useNavigate();
+
+  // Allow header "Ask Vahini" link (or any other CTA) to reopen widget
+  useEffect(() => {
+    const open = () => { setFabDismissed(false); setIsOpen(true); };
+    window.addEventListener('open-ask-vahini', open);
+    return () => window.removeEventListener('open-ask-vahini', open);
+  }, []);
+
+  const dismissFab = (e) => {
+    e.stopPropagation();
+    setFabDismissed(true);
+    sessionStorage.setItem('vahini_fab_dismissed', '1');
+  };
 
   const getRegion = () => localStorage.getItem('purnabramha_country') || 'India';
   const isAustralia = () => getRegion() === 'Australia';
@@ -171,32 +188,47 @@ const AskVahini = () => {
 
   return (
     <>
-      {/* Floating Vahini Button */}
+      {/* Floating Vahini Button (hidden when dismissed; reopen via header "Ask Vahini" link) */}
       <AnimatePresence>
-        {!isOpen && (
-          <motion.button
+        {!isOpen && !fabDismissed && (
+          <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-[9999] w-16 h-16 rounded-full shadow-[0_4px_24px_rgba(180,150,46,0.4)] flex items-center justify-center group"
-            style={{
-              background: 'linear-gradient(145deg, #D4AF37, #B8962E, #9A7B2D)'
-            }}
-            data-testid="ask-vahini-fab"
+            className="fixed bottom-6 right-6 z-[9999]"
+            data-testid="ask-vahini-fab-wrap"
           >
-            <MessageCircle className="w-7 h-7 text-white" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#3D2314] rounded-full flex items-center justify-center">
-              <span className="text-[8px] text-[#D4AF37] font-bold">V</span>
-            </span>
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsOpen(true)}
+              className="w-16 h-16 rounded-full shadow-[0_4px_24px_rgba(180,150,46,0.4)] flex items-center justify-center group relative"
+              style={{
+                background: 'linear-gradient(145deg, #D4AF37, #B8962E, #9A7B2D)'
+              }}
+              data-testid="ask-vahini-fab"
+              aria-label="Open Ask Vahini chat"
+            >
+              <MessageCircle className="w-7 h-7 text-white" />
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#3D2314] rounded-full flex items-center justify-center">
+                <span className="text-[8px] text-[#D4AF37] font-bold">V</span>
+              </span>
+            </motion.button>
+            <button
+              onClick={dismissFab}
+              className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-[#3D2314] text-[#D4AF37] flex items-center justify-center shadow-md hover:bg-[#2D1810] transition-colors"
+              data-testid="ask-vahini-fab-dismiss"
+              aria-label="Dismiss Ask Vahini button"
+              title="Hide — reopen from header"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Tooltip for FAB */}
-      {!isOpen && (
+      {!isOpen && !fabDismissed && (
         <div className="fixed bottom-[88px] right-6 z-[9999] pointer-events-none">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
