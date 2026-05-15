@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock, Check, X, Paperclip, FileText, Link2, Eye, Download, Upload, FolderOpen, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { Plus, Save, Trash2, Receipt, Calendar, RefreshCw, Lock, Unlock, Check, X, Paperclip, FileText, Link2, Eye, Download, Upload, FolderOpen, AlertTriangle, CheckCircle2, Loader2, FilterX } from "lucide-react";
 import { api, isInternationalCenter } from "@/lib/api";
+import ColumnFilterMenu from "@/components/ColumnFilterMenu";
 
 // Check if center is international (non-India) — DB-driven via centersList
 const isIntl = (center, centersList = []) => isInternationalCenter(center, centersList);
@@ -89,6 +90,30 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
   // Sorting state
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
+
+  // Excel-style column filters — per column { selected: Set<string>, fromDate, toDate, minAmount, maxAmount }
+  const emptyFilter = { selected: new Set(), fromDate: "", toDate: "", minAmount: "", maxAmount: "" };
+  const [colFilters, setColFilters] = useState({
+    date: { ...emptyFilter },
+    description: { ...emptyFilter },
+    expense_type: { ...emptyFilter },
+    payment_mode: { ...emptyFilter },
+    amount: { ...emptyFilter },
+  });
+  const setColumnFilter = (key, newF) => setColFilters((p) => ({ ...p, [key]: newF }));
+  const clearColumnFilter = (key) => setColFilters((p) => ({ ...p, [key]: { ...emptyFilter } }));
+  const clearAllColumnFilters = () => setColFilters({
+    date: { ...emptyFilter },
+    description: { ...emptyFilter },
+    expense_type: { ...emptyFilter },
+    payment_mode: { ...emptyFilter },
+    amount: { ...emptyFilter },
+  });
+  const anyFilterActive = useMemo(() => Object.values(colFilters).some((f) => (
+    (f.selected && f.selected.size > 0) || f.fromDate || f.toDate ||
+    (f.minAmount !== "" && f.minAmount != null) ||
+    (f.maxAmount !== "" && f.maxAmount != null)
+  )), [colFilters]);
   
   // New expense form
   const [newExpense, setNewExpense] = useState({
@@ -658,15 +683,46 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
     }
   };
 
-  // Calculate total
-  const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  // Sorted expenses — first apply Excel-style column filters, then existing sort
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      // Date column
+      const df = colFilters.date;
+      if (df.fromDate && (e.date || "") < df.fromDate) return false;
+      if (df.toDate && (e.date || "") > df.toDate) return false;
+      if (df.selected.size > 0 && !df.selected.has(String(e.date || ""))) return false;
+      // Description
+      const f2 = colFilters.description;
+      if (f2.selected.size > 0 && !f2.selected.has(String(e.description || ""))) return false;
+      // Category
+      const f3 = colFilters.expense_type;
+      if (f3.selected.size > 0 && !f3.selected.has(String(e.expense_type || ""))) return false;
+      // Mode
+      const f4 = colFilters.payment_mode;
+      if (f4.selected.size > 0 && !f4.selected.has(String(e.payment_mode || ""))) return false;
+      // Amount
+      const fa = colFilters.amount;
+      const amt = Number(e.amount || 0);
+      if (fa.minAmount !== "" && fa.minAmount != null && amt < Number(fa.minAmount)) return false;
+      if (fa.maxAmount !== "" && fa.maxAmount != null && amt > Number(fa.maxAmount)) return false;
+      if (fa.selected.size > 0 && !fa.selected.has(String(amt))) return false;
+      return true;
+    });
+  }, [expenses, colFilters]);
 
-  // Group expenses by type
-  const expensesByType = expenses.reduce((acc, exp) => {
-    const type = exp.expense_type || "OTHER";
-    acc[type] = (acc[type] || 0) + (exp.amount || 0);
-    return acc;
-  }, {});
+  // Calculate total — uses filtered visible rows (Excel-style filters)
+  const totalExpenses = useMemo(() => {
+    return filteredExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  }, [filteredExpenses]);
+
+  // Group expenses by type — also based on filtered data
+  const expensesByType = useMemo(() => {
+    return filteredExpenses.reduce((acc, exp) => {
+      const type = exp.expense_type || "OTHER";
+      acc[type] = (acc[type] || 0) + (exp.amount || 0);
+      return acc;
+    }, {});
+  }, [filteredExpenses]);
 
   // Merge master lists with custom values saved in existing expenses
   // This ensures saved category/mode values always appear in the dropdown
@@ -692,8 +748,8 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
     }
   };
 
-  // Sorted expenses
-  const sortedExpenses = [...expenses].sort((a, b) => {
+  // Sorted expenses — apply existing sort to the filtered list
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
     if (!sortField) return 0;
     let aVal = a[sortField] ?? "";
     let bVal = b[sortField] ?? "";
@@ -1081,10 +1137,24 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                 ? `Expenses for ${new Date(selectedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
                 : `Expenses from ${new Date(fromDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} to ${new Date(toDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
               }
-              <span className="ml-2 text-sm font-normal text-muted-foreground">({expenses.length} entries)</span>
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({filteredExpenses.length}{anyFilterActive ? ` of ${expenses.length}` : ""} entries)
+              </span>
             </CardTitle>
             
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Clear all column filters */}
+              {anyFilterActive && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={clearAllColumnFilters}
+                  className="gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                  data-testid="clear-all-filters-btn"
+                >
+                  <FilterX className="w-4 h-4" /> Clear All Filters
+                </Button>
+              )}
               {/* Bulk Group Button */}
               {selectedExpenses.length > 0 && frozenStatus.can_edit && (
                 <Button
@@ -1139,20 +1209,88 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                     </th>
                   )}
                   <th className="text-left py-3 px-2 font-medium text-muted-foreground w-10">#</th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("date")} data-testid="sort-date">
-                    Date<SortIcon field="date" />
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28">
+                    <span className="inline-flex items-center cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("date")} data-testid="sort-date">
+                      Date<SortIcon field="date" />
+                    </span>
+                    <ColumnFilterMenu
+                      rows={expenses}
+                      accessor={(r) => r.date}
+                      formatLabel={(v) => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : "(Blanks)"}
+                      variant="date"
+                      filter={colFilters.date}
+                      onApply={(f) => { setColumnFilter("date", f); }}
+                      onClear={() => clearColumnFilter("date")}
+                      onSort={(dir) => { setSortField("date"); setSortDirection(dir); }}
+                      currentSort={sortField === "date" ? sortDirection : null}
+                      testIdBase="col-filter-date"
+                    />
                   </th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("description")} data-testid="sort-description">
-                    Description<SortIcon field="description" />
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground">
+                    <span className="inline-flex items-center cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("description")} data-testid="sort-description">
+                      Description<SortIcon field="description" />
+                    </span>
+                    <ColumnFilterMenu
+                      rows={expenses}
+                      accessor={(r) => r.description}
+                      variant="text"
+                      filter={colFilters.description}
+                      onApply={(f) => setColumnFilter("description", f)}
+                      onClear={() => clearColumnFilter("description")}
+                      onSort={(dir) => { setSortField("description"); setSortDirection(dir); }}
+                      currentSort={sortField === "description" ? sortDirection : null}
+                      testIdBase="col-filter-description"
+                    />
                   </th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-32 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("expense_type")} data-testid="sort-category">
-                    Category<SortIcon field="expense_type" />
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-36">
+                    <span className="inline-flex items-center cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("expense_type")} data-testid="sort-category">
+                      Category<SortIcon field="expense_type" />
+                    </span>
+                    <ColumnFilterMenu
+                      rows={expenses}
+                      accessor={(r) => r.expense_type}
+                      variant="text"
+                      filter={colFilters.expense_type}
+                      onApply={(f) => setColumnFilter("expense_type", f)}
+                      onClear={() => clearColumnFilter("expense_type")}
+                      onSort={(dir) => { setSortField("expense_type"); setSortDirection(dir); }}
+                      currentSort={sortField === "expense_type" ? sortDirection : null}
+                      testIdBase="col-filter-category"
+                    />
                   </th>
-                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-28 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("payment_mode")} data-testid="sort-mode">
-                    Mode<SortIcon field="payment_mode" />
+                  <th className="text-left py-3 px-2 font-medium text-muted-foreground w-32">
+                    <span className="inline-flex items-center cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("payment_mode")} data-testid="sort-mode">
+                      Mode<SortIcon field="payment_mode" />
+                    </span>
+                    <ColumnFilterMenu
+                      rows={expenses}
+                      accessor={(r) => r.payment_mode}
+                      variant="text"
+                      filter={colFilters.payment_mode}
+                      onApply={(f) => setColumnFilter("payment_mode", f)}
+                      onClear={() => clearColumnFilter("payment_mode")}
+                      onSort={(dir) => { setSortField("payment_mode"); setSortDirection(dir); }}
+                      currentSort={sortField === "payment_mode" ? sortDirection : null}
+                      testIdBase="col-filter-mode"
+                    />
                   </th>
-                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-36 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("amount")} data-testid="sort-amount">
-                    Amount<SortIcon field="amount" />
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-40">
+                    <span className="inline-flex items-center cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("amount")} data-testid="sort-amount">
+                      Amount<SortIcon field="amount" />
+                    </span>
+                    <ColumnFilterMenu
+                      rows={expenses}
+                      accessor={(r) => Number(r.amount || 0)}
+                      formatLabel={(v) => fmtCurrency(Number(v || 0), centerCode)}
+                      variant="amount"
+                      filter={colFilters.amount}
+                      onApply={(f) => setColumnFilter("amount", f)}
+                      onClear={() => clearColumnFilter("amount")}
+                      onSort={(dir) => { setSortField("amount"); setSortDirection(dir); }}
+                      currentSort={sortField === "amount" ? sortDirection : null}
+                      align="end"
+                      testIdBase="col-filter-amount"
+                    />
                   </th>
                   <th className="text-center py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("is_grouped")} data-testid="sort-invoice">
                     Invoice<SortIcon field="is_grouped" />
