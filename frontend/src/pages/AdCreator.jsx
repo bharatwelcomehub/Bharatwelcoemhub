@@ -6,7 +6,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
-import { useAuth } from '../components/AuthContext';
+import { useAuth } from "@/App";
 import { Loader2, Upload, Wand2, Download, Share2, History, Sparkles, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
