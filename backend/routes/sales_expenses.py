@@ -16,6 +16,41 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sales", tags=["Sales & Expenses"])
 
+
+# ---------------------------------------------------------------------------
+# Payment-mode normaliser (used by bulk-upload of expenses)
+# ---------------------------------------------------------------------------
+# System master modes the UI / reports work with: CASH, BANK TRANSFER, CARD,
+# NEFT, ONLINE, RTGS, UPI.  Excel files in the wild use a wide variety of
+# free-text labels — this helper maps them into one of the 7 canonical values.
+def _normalize_payment_mode(raw: str) -> str:
+    if raw is None:
+        return "CASH"
+    v = " ".join(str(raw).strip().split()).upper()
+    if not v:
+        return "CASH"
+    # UPI variants (incl. common "UIP" typo) — must be checked BEFORE NEFT/ONLINE
+    if "UPI" in v or "UIP" in v:
+        return "UPI"
+    if "CARD" in v or v in ("DEBIT", "CREDIT"):
+        return "CARD"
+    if "RTGS" in v:
+        return "RTGS"
+    # Anything tagged "ONLINE …" (incl. ONLINE NEFT / IMPS, ONLINE/IMPS, etc.)
+    # collapses to canonical ONLINE per business rule.
+    if v.startswith("ONLINE") or "IMPS" in v:
+        return "ONLINE"
+    if "NEFT" in v:
+        return "NEFT"
+    if "BANK" in v:
+        return "BANK TRANSFER"
+    if v == "CASH":
+        return "CASH"
+    # Unknown / unmapped — preserve the user's text in upper-case instead of
+    # silently defaulting to CASH.
+    return v
+
+
 # Get DB reference (will be set from main server)
 db = None
 
@@ -3157,10 +3192,14 @@ async def upload_custom_format_data(
                     if type_col is not None and pd.notna(row.iloc[type_col]):
                         expense_type = str(row.iloc[type_col]).strip()
                     
-                    # Get payment mode
-                    payment_mode = "Cash"
+                    # Get payment mode — normalised to one of the system master modes:
+                    # CASH, BANK TRANSFER, CARD, NEFT, ONLINE, RTGS, UPI
+                    # Default ONLY when the column is truly empty.
+                    payment_mode = "CASH"
                     if mode_col is not None and pd.notna(row.iloc[mode_col]):
-                        payment_mode = str(row.iloc[mode_col]).strip()
+                        raw_mode = str(row.iloc[mode_col]).strip()
+                        if raw_mode:
+                            payment_mode = _normalize_payment_mode(raw_mode)
                     
                     expense_records.append({
                         "center": center,
