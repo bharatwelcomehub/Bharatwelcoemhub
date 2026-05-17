@@ -3121,6 +3121,55 @@ async def upload_custom_format_data(
                 amount_col = find_exp_col(['AMOUNT'], exclude_keywords=['TOTAL', 'GRAND'])
                 type_col = find_exp_col(['EXPANSE TYPE', 'TYPE', 'CATEGORY', 'HEAD'])
                 mode_col = find_exp_col(['PAYMENT MODE', 'CASH'], exclude_keywords=['EXPENCE', 'EXPENSE', 'TOTAL'])
+
+                # SMART payment-mode detection — some Excel files have a header
+                # called "PAYMENT MODE" that's actually just a 5-row LEGEND
+                # (CASH / ONLINE NEFT IMPS / ONLINE UPI / CARD / etc.), while
+                # the real per-row payment-mode lives in a differently-named
+                # column (e.g. "TYPE"). Pick the column whose cell VALUES most
+                # look like payment-mode tokens (CASH / ONLINE / UPI / CARD …)
+                # using a simple count-of-matches heuristic.
+                def _looks_like_pm(v):
+                    if v is None or not pd.notna(v):
+                        return False
+                    s = str(v).strip().upper()
+                    if not s:
+                        return False
+                    return any(t in s for t in ("CASH", "ONLINE", "UPI", "UIP", "CARD", "NEFT", "RTGS", "IMPS", "BANK"))
+
+                # score every column over the first 200 data rows
+                best_col, best_score = None, 0
+                sample_rows = min(len(df) - header_row_idx - 1, 200)
+                for c in range(df.shape[1]):
+                    # skip columns we've already used for other roles
+                    if c in (date_col, desc_col, amount_col):
+                        continue
+                    s = 0
+                    for rr in range(header_row_idx + 1, header_row_idx + 1 + sample_rows):
+                        try:
+                            if _looks_like_pm(df.iloc[rr, c]):
+                                s += 1
+                        except IndexError:
+                            break
+                    if s > best_score:
+                        best_score = s
+                        best_col = c
+
+                # Use value-based detection when it outperforms the header pick
+                if best_col is not None:
+                    header_score = 0
+                    if mode_col is not None:
+                        for rr in range(header_row_idx + 1, header_row_idx + 1 + sample_rows):
+                            try:
+                                if _looks_like_pm(df.iloc[rr, mode_col]):
+                                    header_score += 1
+                            except IndexError:
+                                break
+                    # If value-scan finds at least 3 payment-mode-like rows AND
+                    # it beats the header pick by a meaningful margin (5+), trust the
+                    # value-scan. This protects legitimate sparsely-filled mode cols.
+                    if best_score >= 3 and best_score >= header_score + 5:
+                        mode_col = best_col
                 
                 # Final fallback: if we still have date_col and amount_col but no
                 # description column, use the cell immediately right of DATE.
