@@ -243,6 +243,14 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [ ] Multi-language support
 
 ## Bug Fixes
+- [x] **Lagna / Wedding Booking Feature** (Feb 2026) — Full event-booking vertical built end-to-end:
+  - Customer page `/wedding-booking` (alias `/lagna-booking`) with: contact form, event details (type/center/date/guests/slot), food add-ons (breakfast/snacks/drinks-half-day/full-day/à-la-carte), decoration rules + agreement, live cost calculator with GST, WhatsApp send → selected center.
+  - Backend: 8 new endpoints — `GET/PUT /api/wedding/config`, `GET /api/wedding/blocked-dates/{center_id}`, `PUT /api/admin/wedding/blocked-dates/{center_id}`, `POST /api/wedding/bookings`, `GET/PATCH /api/admin/wedding/bookings`, `GET /api/admin/wedding/analytics`, `GET /api/wedding/quotation/{id}` (plain-text), `POST /api/admin/wedding/bookings/{id}/photos`.
+  - Admin "Lagna" tab: live status toggle, INR+AUD pricing for Hall/Thali/Breakfast/Snacks/Drinks/Decoration, GST%, min guests, time windows, drinks à-la-carte CRUD, decoration rules editor, block-dates per center, bookings table with status dropdown (Enquiry → Discussion → Confirmed → Advance Paid → Completed → Cancelled), inline advance/balance entry, history audit trail.
+  - Super-admin analytics: total enquiries, confirmed, completed, conversion %, revenue collected, upcoming events, by-center, by-month.
+  - Center-manager scope: backend filters bookings by `user.center_id` when caller isn't admin.
+  - Nav header link "Lagna" added.
+  - All pricing dynamic from admin; menu/drinks editable; center-wise; SEO meta via `SEOHead`. Tested end-to-end with curl (create, list, PATCH with history, analytics, blocked-dates, quotation).
 - [x] **Pickup Mobile UX overhaul** (Feb 2026) — Three issues fixed:
   - Mobile horizontal+vertical scroll pain → 3-column grid now collapses cleanly: compact 1-tap "Order Details" summary at top, Menu in middle, Cart hidden until tapped.
   - Customers couldn't see what they ordered → New full-screen **bottom-sheet** (`mobile-cart-sheet`) shows every selected item with qty controls, subtotal, discount line, total, "Sending to <center>" confirmation strip.

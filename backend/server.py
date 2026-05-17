@@ -2665,6 +2665,303 @@ async def update_promotions(request: Request, current_user: dict = Depends(get_c
     return {"message": "Promotions updated", "promotions": {k: payload[k] for k in payload if k in ("brunch", "evening_snack")}}
 
 
+# ===================== LAGNA / WEDDING BOOKING =====================
+DEFAULT_WEDDING_CONFIG = {
+    "enabled": True,
+    "hall_charges_inr": 15000,
+    "hall_charges_aud": 500,
+    "thali_price_inr": 599,
+    "thali_price_aud": 25,
+    "gst_pct": 5,
+    "min_guests": 30,
+    "thali_time_start": "12:30",
+    "thali_time_end": "15:30",
+    "breakfast_enabled": True,
+    "breakfast_time": "8:00 AM - 9:00 AM",
+    "breakfast_price_per_person_inr": 199,
+    "breakfast_price_per_person_aud": 12,
+    "snacks_enabled": True,
+    "snacks_time": "4:00 PM - 6:00 PM",
+    "snacks_price_per_person_inr": 149,
+    "snacks_price_per_person_aud": 9,
+    "drinks_enabled": True,
+    "drinks_half_day_inr": 4999,
+    "drinks_half_day_aud": 199,
+    "drinks_full_day_inr": 7999,
+    "drinks_full_day_aud": 299,
+    "drinks_options": [
+        {"id": "tea", "name": "Masala Tea", "price_inr": 30, "price_aud": 2},
+        {"id": "coffee", "name": "Filter Coffee", "price_inr": 40, "price_aud": 2.5},
+        {"id": "lassi", "name": "Sweet Lassi", "price_inr": 60, "price_aud": 4},
+        {"id": "buttermilk", "name": "Masala Taak", "price_inr": 40, "price_aud": 2.5},
+        {"id": "kokum", "name": "Solkadhi", "price_inr": 60, "price_aud": 3.5},
+    ],
+    "decoration_enabled": True,
+    "decoration_charges_inr": 0,
+    "decoration_charges_aud": 0,
+    "decoration_rules": [
+        "Any decoration is extra chargeable.",
+        "One day prior access will be provided only after restaurant closing time.",
+        "No structural changes allowed.",
+        "No drilling.",
+        "No hammering.",
+        "No nails.",
+        "No stickers on walls.",
+        "Only flower decoration and safe temporary assemblies allowed.",
+        "Entire removal and cleanup responsibility belongs to customer/decorator team.",
+    ],
+    "event_types": [
+        "Wedding (Lagna)",
+        "Engagement (Sakharpuda)",
+        "Haldi Ceremony",
+        "Munj / Thread Ceremony",
+        "Naming Ceremony (Barsa)",
+        "Birthday / Anniversary",
+        "Family Get-Together",
+        "Cultural Gathering",
+        "Other",
+    ],
+    "future_addons": [
+        {"id": "live_counters", "name": "Live Counters", "enabled": False, "price_inr": 0, "price_aud": 0},
+        {"id": "music", "name": "Traditional Music", "enabled": False, "price_inr": 0, "price_aud": 0},
+        {"id": "photography", "name": "Photography", "enabled": False, "price_inr": 0, "price_aud": 0},
+        {"id": "palkhi", "name": "Palkhi Entry", "enabled": False, "price_inr": 0, "price_aud": 0},
+    ],
+}
+
+
+@api_router.get("/wedding/config")
+async def get_wedding_config():
+    """Public: returns the active Lagna/Wedding booking config (pricing, rules, drinks, event types)."""
+    doc = await db.wedding_config.find_one({"_id_key": "global"}, {"_id": 0})
+    if not doc:
+        return DEFAULT_WEDDING_CONFIG
+    out = {**DEFAULT_WEDDING_CONFIG, **doc}
+    out.pop("_id_key", None)
+    out.pop("updated_at", None)
+    return out
+
+
+@api_router.put("/admin/wedding/config")
+async def update_wedding_config(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    payload = {**body, "_id_key": "global", "updated_at": datetime.now(timezone.utc).isoformat()}
+    await db.wedding_config.update_one({"_id_key": "global"}, {"$set": payload}, upsert=True)
+    return {"message": "Wedding config updated"}
+
+
+@api_router.get("/wedding/blocked-dates/{center_id}")
+async def get_blocked_dates(center_id: str):
+    """Public: list of dates blocked for a given center (ISO yyyy-mm-dd)."""
+    doc = await db.wedding_blocked_dates.find_one({"center_id": center_id}, {"_id": 0})
+    return {"center_id": center_id, "dates": (doc or {}).get("dates", [])}
+
+
+@api_router.put("/admin/wedding/blocked-dates/{center_id}")
+async def update_blocked_dates(center_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    dates = body.get("dates", [])
+    await db.wedding_blocked_dates.update_one(
+        {"center_id": center_id},
+        {"$set": {"center_id": center_id, "dates": dates, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {"message": f"Blocked dates updated for {center_id}", "count": len(dates)}
+
+
+@api_router.post("/wedding/bookings")
+async def create_wedding_booking(request: Request):
+    """Public: submit a wedding enquiry. Returns the saved enquiry id."""
+    body = await request.json()
+    booking_id = str(uuid.uuid4())
+    booking = {
+        "id": booking_id,
+        "status": "Enquiry",  # Enquiry, Discussion, Confirmed, Advance Paid, Completed, Cancelled
+        "name": body.get("name", ""),
+        "mobile": body.get("mobile", ""),
+        "email": body.get("email", ""),
+        "event_type": body.get("event_type", ""),
+        "center_id": body.get("center_id", ""),
+        "center_name": body.get("center_name", ""),
+        "country": body.get("country", "India"),
+        "event_date": body.get("event_date", ""),
+        "guest_count": int(body.get("guest_count", 30) or 30),
+        "time_slot": body.get("time_slot", ""),
+        "breakfast": bool(body.get("breakfast", False)),
+        "snacks": bool(body.get("snacks", False)),
+        "drinks_mode": body.get("drinks_mode", ""),  # '', 'half_day', 'full_day', 'a_la_carte'
+        "drinks_items": body.get("drinks_items", []),  # list of drink ids when a_la_carte
+        "decoration": bool(body.get("decoration", False)),
+        "decoration_agreed": bool(body.get("decoration_agreed", False)),
+        "notes": body.get("notes", ""),
+        "estimate": body.get("estimate", {}),  # frontend-computed snapshot for audit
+        "advance_paid": 0,
+        "balance_due": 0,
+        "history": [{
+            "at": datetime.now(timezone.utc).isoformat(),
+            "by": "customer",
+            "action": "enquiry_submitted"
+        }],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.wedding_bookings.insert_one(booking)
+    booking.pop("_id", None)
+    logger.info(f"Wedding enquiry created: {booking_id} for {booking['name']} at {booking['center_name']}")
+    return booking
+
+
+@api_router.get("/admin/wedding/bookings")
+async def list_wedding_bookings(current_user: dict = Depends(get_current_user)):
+    """Admin: list bookings. Center managers see only their center."""
+    user_doc = await db.users.find_one({"id": current_user.get("user_id")}, {"_id": 0}) or {}
+    is_admin = user_doc.get("is_admin", False) or user_doc.get("role") == "admin"
+    query = {}
+    if not is_admin:
+        # Treat user.center_id (if set) as center-manager scope
+        if user_doc.get("center_id"):
+            query["center_id"] = user_doc["center_id"]
+        else:
+            raise HTTPException(status_code=403, detail="Admin or center-manager only")
+    bookings = await db.wedding_bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return bookings
+
+
+@api_router.patch("/admin/wedding/bookings/{booking_id}")
+async def update_wedding_booking(booking_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    user_doc = await db.users.find_one({"id": current_user.get("user_id")}, {"_id": 0}) or {}
+    is_admin = user_doc.get("is_admin", False) or user_doc.get("role") == "admin"
+    doc = await db.wedding_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    # Center-manager guard: can only edit their own center
+    if not is_admin and doc.get("center_id") != user_doc.get("center_id"):
+        raise HTTPException(status_code=403, detail="Not allowed for this center")
+    allowed = {"status", "advance_paid", "balance_due", "notes", "guest_count", "event_date", "time_slot", "addons", "manager_notes", "ready", "decoration_approved"}
+    update = {k: v for k, v in body.items() if k in allowed}
+    if not update:
+        return doc
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    hist = doc.get("history", [])
+    hist.append({
+        "at": update["updated_at"],
+        "by": user_doc.get("email") or current_user.get("email", "admin"),
+        "action": "update",
+        "changes": list(update.keys()),
+    })
+    update["history"] = hist
+    await db.wedding_bookings.update_one({"id": booking_id}, {"$set": update})
+    updated = await db.wedding_bookings.find_one({"id": booking_id}, {"_id": 0})
+    return updated
+
+
+@api_router.get("/admin/wedding/analytics")
+async def wedding_analytics(current_user: dict = Depends(get_current_user)):
+    """Super admin only: revenue, upcoming events, conversion rate."""
+    user_doc = await db.users.find_one({"id": current_user.get("user_id")}, {"_id": 0}) or {}
+    is_admin = user_doc.get("is_admin", False) or user_doc.get("role") == "admin"
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    bookings = await db.wedding_bookings.find({}, {"_id": 0}).to_list(1000)
+    total = len(bookings)
+    confirmed = sum(1 for b in bookings if b.get("status") in ("Confirmed", "Advance Paid", "Completed"))
+    completed = sum(1 for b in bookings if b.get("status") == "Completed")
+    revenue = sum(
+        (b.get("estimate", {}) or {}).get("total", 0)
+        for b in bookings if b.get("status") in ("Completed", "Advance Paid")
+    )
+    advance_collected = sum(float(b.get("advance_paid") or 0) for b in bookings)
+    upcoming = sorted(
+        [b for b in bookings if b.get("event_date") and b.get("status") not in ("Cancelled", "Completed")
+         and b["event_date"] >= datetime.now(timezone.utc).date().isoformat()],
+        key=lambda b: b["event_date"],
+    )[:20]
+    # By center
+    by_center = {}
+    for b in bookings:
+        c = b.get("center_name") or b.get("center_id") or "Unknown"
+        by_center[c] = by_center.get(c, 0) + 1
+    # By month
+    by_month = {}
+    for b in bookings:
+        ed = b.get("event_date", "")[:7]
+        if ed:
+            by_month[ed] = by_month.get(ed, 0) + 1
+    return {
+        "total_enquiries": total,
+        "confirmed": confirmed,
+        "completed": completed,
+        "conversion_pct": round(confirmed * 100.0 / total, 1) if total else 0,
+        "revenue_total": revenue,
+        "advance_collected": advance_collected,
+        "upcoming_events": upcoming,
+        "by_center": by_center,
+        "by_month": by_month,
+    }
+
+
+def _format_quote_text(booking: dict, cfg: dict) -> str:
+    """Plain-text quotation (used in WhatsApp + admin)."""
+    is_aus = booking.get("country") == "Australia"
+    sym = "$" if is_aus else "₹"
+    est = booking.get("estimate") or {}
+    lines = []
+    lines.append("PURNABRAMHA — LAGNA / WEDDING QUOTATION")
+    lines.append("=" * 42)
+    lines.append(f"Enquiry ID: {booking.get('id', '')[:8]}")
+    lines.append(f"Customer:   {booking.get('name', '')} ({booking.get('mobile', '')})")
+    lines.append(f"Event:      {booking.get('event_type', '')}")
+    lines.append(f"Center:     {booking.get('center_name', '')}")
+    lines.append(f"Date:       {booking.get('event_date', '')}")
+    lines.append(f"Guests:     {booking.get('guest_count', 0)}")
+    lines.append(f"Slot:       {booking.get('time_slot', '')}")
+    lines.append("-" * 42)
+    for item in est.get("line_items", []) or []:
+        lines.append(f"{item.get('label', ''):<28} {sym}{item.get('amount', 0):>10,.0f}")
+    lines.append("-" * 42)
+    lines.append(f"{'Subtotal':<28} {sym}{est.get('subtotal', 0):>10,.0f}")
+    lines.append(f"{'GST (' + str(est.get('gst_pct', 0)) + '%)':<28} {sym}{est.get('gst_amount', 0):>10,.0f}")
+    lines.append("=" * 42)
+    lines.append(f"{'TOTAL':<28} {sym}{est.get('total', 0):>10,.0f}")
+    lines.append("=" * 42)
+    lines.append("Decoration rules: only flower & temporary; no drilling/nails/stickers; cleanup by customer team.")
+    return "\n".join(lines)
+
+
+@api_router.get("/wedding/quotation/{booking_id}")
+async def get_wedding_quotation(booking_id: str):
+    """Public: plain-text quotation. PDF generation can be added later."""
+    booking = await db.wedding_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    cfg = await db.wedding_config.find_one({"_id_key": "global"}, {"_id": 0}) or DEFAULT_WEDDING_CONFIG
+    text = _format_quote_text(booking, cfg)
+    return {"booking_id": booking_id, "format": "text", "content": text}
+
+
+@api_router.post("/admin/wedding/bookings/{booking_id}/photos")
+async def add_wedding_booking_photo(booking_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """Center manager / admin: append a photo URL to a booking record."""
+    user_doc = await db.users.find_one({"id": current_user.get("user_id")}, {"_id": 0}) or {}
+    is_admin = user_doc.get("is_admin", False) or user_doc.get("role") == "admin"
+    booking = await db.wedding_bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if not is_admin and booking.get("center_id") != user_doc.get("center_id"):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    body = await request.json()
+    photos = booking.get("photos", []) or []
+    photos.append({
+        "url": body.get("url", ""),
+        "caption": body.get("caption", ""),
+        "uploaded_by": user_doc.get("email") or current_user.get("email", ""),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+    })
+    await db.wedding_bookings.update_one({"id": booking_id}, {"$set": {"photos": photos}})
+    return {"photos": photos}
+
+
 app.include_router(api_router)
 
 app.add_middleware(

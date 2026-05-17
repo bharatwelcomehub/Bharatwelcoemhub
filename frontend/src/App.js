@@ -17,6 +17,7 @@ import Home from '@/pages/Home';
 import Menu from '@/pages/Menu';
 import Pickup from '@/pages/Pickup';
 import TableBooking from '@/pages/TableBooking';
+import WeddingBooking from '@/pages/WeddingBooking';
 import Tiffin from '@/pages/Tiffin';
 import Catering from '@/pages/Catering';
 import Locations from '@/pages/Locations';
@@ -96,6 +97,8 @@ function App() {
                     <Route path="/table-booking" element={<TableBooking />} />
                     <Route path="/tiffin" element={<Tiffin />} />
                     <Route path="/catering" element={<Catering />} />
+                    <Route path="/wedding-booking" element={<WeddingBooking />} />
+                    <Route path="/lagna-booking" element={<WeddingBooking />} />
                     <Route path="/locations" element={<Locations />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/admin" element={<Admin />} />

@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock, Heart, Wine, Flower2, AlertCircle, X, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -198,6 +198,15 @@ const Admin = () => {
   const [promotions, setPromotions] = useState(null);
   const [promoSaving, setPromoSaving] = useState(false);
 
+  // Lagna / Wedding state
+  const [weddingCfg, setWeddingCfg] = useState(null);
+  const [weddingBookings, setWeddingBookings] = useState([]);
+  const [weddingAnalytics, setWeddingAnalytics] = useState(null);
+  const [weddingSaving, setWeddingSaving] = useState(false);
+  const [blockDatesCenter, setBlockDatesCenter] = useState('');
+  const [blockDatesInput, setBlockDatesInput] = useState('');
+  const [blockedDates, setBlockedDates] = useState([]);
+
   // Get fresh token
   const getToken = () => localStorage.getItem('token') || token;
 
@@ -221,6 +230,7 @@ const Admin = () => {
       fetchCateringMenuItems();
       fetchBookSettings();
       fetchPromotions();
+      fetchWedding();
     }
   }, [token]);
 
@@ -242,6 +252,7 @@ const Admin = () => {
         fetchCateringMenuItems();
         fetchBookSettings();
         fetchPromotions();
+        fetchWedding();
       }, 100);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
@@ -1139,6 +1150,87 @@ const Admin = () => {
     }
   };
 
+  // ===== Lagna / Wedding =====
+  const fetchWedding = async () => {
+    const currentToken = getToken();
+    try {
+      const [cfgRes, bookingsRes] = await Promise.all([
+        axios.get(`${API}/wedding/config`),
+        axios.get(`${API}/admin/wedding/bookings`, { headers: { Authorization: `Bearer ${currentToken}` } })
+      ]);
+      setWeddingCfg(cfgRes.data);
+      setWeddingBookings(bookingsRes.data || []);
+      // Analytics (super admin only)
+      try {
+        const a = await axios.get(`${API}/admin/wedding/analytics`, { headers: { Authorization: `Bearer ${currentToken}` } });
+        setWeddingAnalytics(a.data);
+      } catch {}
+    } catch (e) {
+      console.log('Wedding fetch failed', e);
+    }
+  };
+  const updateWeddingField = (field, value) => setWeddingCfg(prev => ({ ...prev, [field]: value }));
+  const saveWeddingCfg = async () => {
+    if (!weddingCfg) return;
+    setWeddingSaving(true);
+    const currentToken = getToken();
+    try {
+      await axios.put(`${API}/admin/wedding/config`, weddingCfg, { headers: { Authorization: `Bearer ${currentToken}` } });
+      toast.success('Lagna config saved');
+    } catch {
+      toast.error('Failed to save Lagna config');
+    } finally {
+      setWeddingSaving(false);
+    }
+  };
+  const updateBookingStatus = async (bookingId, status) => {
+    const currentToken = getToken();
+    try {
+      await axios.patch(`${API}/admin/wedding/bookings/${bookingId}`, { status }, { headers: { Authorization: `Bearer ${currentToken}` } });
+      toast.success('Status updated');
+      fetchWedding();
+    } catch {
+      toast.error('Failed to update status');
+    }
+  };
+  const updateBookingPayment = async (bookingId, field, value) => {
+    const currentToken = getToken();
+    try {
+      const payload = { [field]: parseFloat(value) || 0 };
+      await axios.patch(`${API}/admin/wedding/bookings/${bookingId}`, payload, { headers: { Authorization: `Bearer ${currentToken}` } });
+      toast.success(`${field === 'advance_paid' ? 'Advance' : 'Balance'} updated`);
+      fetchWedding();
+    } catch {
+      toast.error('Failed to update payment');
+    }
+  };
+  const loadBlockedDates = async (centerId) => {
+    setBlockDatesCenter(centerId);
+    if (!centerId) { setBlockedDates([]); return; }
+    try {
+      const r = await axios.get(`${API}/wedding/blocked-dates/${centerId}`);
+      setBlockedDates(r.data?.dates || []);
+    } catch {}
+  };
+  const saveBlockedDates = async () => {
+    if (!blockDatesCenter) { toast.error('Pick a center first'); return; }
+    const currentToken = getToken();
+    const dates = blockedDates.filter(Boolean);
+    try {
+      await axios.put(`${API}/admin/wedding/blocked-dates/${blockDatesCenter}`, { dates }, { headers: { Authorization: `Bearer ${currentToken}` } });
+      toast.success(`${dates.length} blocked date(s) saved`);
+    } catch {
+      toast.error('Failed to save blocked dates');
+    }
+  };
+  const addBlockedDate = () => {
+    if (!blockDatesInput) return;
+    if (blockedDates.includes(blockDatesInput)) { toast.error('Already blocked'); return; }
+    setBlockedDates(p => [...p, blockDatesInput].sort());
+    setBlockDatesInput('');
+  };
+  const removeBlockedDate = (d) => setBlockedDates(p => p.filter(x => x !== d));
+
   const saveBookSettings = async () => {
     const currentToken = getToken();
     try {
@@ -1407,6 +1499,10 @@ const Admin = () => {
             <TabsTrigger value="promotions" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="promotions-admin-tab">
               <Sparkles className="h-4 w-4" />
               Promotions
+            </TabsTrigger>
+            <TabsTrigger value="wedding" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="wedding-admin-tab">
+              <Heart className="h-4 w-4" />
+              Lagna
             </TabsTrigger>
           </TabsList>
 
@@ -2756,6 +2852,201 @@ const Admin = () => {
                       <Input value={promotions.evening_snack?.tea_keyword || ''} onChange={(e) => updatePromoField('evening_snack', 'tea_keyword', e.target.value)} placeholder="masala" data-testid="promo-snack-tea-keyword" />
                       <p className="text-[10px] text-foreground/50 mt-1">+ ≥{promotions.evening_snack?.min_tea_qty || 1} item whose name contains this keyword (e.g. "masala" matches "Masala Tea")</p>
                     </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* LAGNA / WEDDING BOOKING TAB */}
+          <TabsContent value="wedding">
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+              <div>
+                <h2 className="font-playfair text-xl font-semibold flex items-center gap-2"><Heart className="h-5 w-5 text-[#B8962E]" /> Lagna Booking Management</h2>
+                <p className="text-sm text-foreground/60 mt-1">Manage wedding/family-function bookings, pricing, blocked dates, and event readiness.</p>
+              </div>
+              {weddingCfg && (
+                <Button onClick={saveWeddingCfg} disabled={weddingSaving} className="rounded-full bg-[#B8962E] text-white hover:bg-[#D4AF37]" data-testid="save-wedding-cfg">
+                  {weddingSaving ? 'Saving...' : 'Save Lagna Config'}
+                </Button>
+              )}
+            </div>
+
+            {weddingAnalytics && (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6" data-testid="wedding-analytics">
+                <div className="bg-white border border-[#E8DFD0] p-3 text-center"><p className="text-[10px] uppercase text-[#7A6F65]">Enquiries</p><p className="text-xl font-heading text-[#B8962E]">{weddingAnalytics.total_enquiries}</p></div>
+                <div className="bg-white border border-[#E8DFD0] p-3 text-center"><p className="text-[10px] uppercase text-[#7A6F65]">Confirmed</p><p className="text-xl font-heading text-green-700">{weddingAnalytics.confirmed}</p></div>
+                <div className="bg-white border border-[#E8DFD0] p-3 text-center"><p className="text-[10px] uppercase text-[#7A6F65]">Completed</p><p className="text-xl font-heading text-[#3D2314]">{weddingAnalytics.completed}</p></div>
+                <div className="bg-white border border-[#E8DFD0] p-3 text-center"><p className="text-[10px] uppercase text-[#7A6F65]">Conversion</p><p className="text-xl font-heading text-[#B8962E]">{weddingAnalytics.conversion_pct}%</p></div>
+                <div className="bg-white border border-[#E8DFD0] p-3 text-center"><p className="text-[10px] uppercase text-[#7A6F65]">Revenue</p><p className="text-xl font-heading text-green-700">₹{(weddingAnalytics.revenue_total || 0).toLocaleString('en-IN')}</p></div>
+              </div>
+            )}
+
+            {!weddingCfg ? <p className="text-sm italic text-foreground/60">Loading config…</p> : (
+              <div className="grid lg:grid-cols-2 gap-5">
+                {/* Pricing Card */}
+                <Card className="border-[#E8DFD0]" data-testid="wedding-pricing-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Flower2 className="h-5 w-5 text-[#B8962E]" /> Pricing (India / Australia)
+                      <label className="ml-auto flex items-center gap-2 text-xs cursor-pointer">
+                        <input type="checkbox" checked={!!weddingCfg.enabled} onChange={e => updateWeddingField('enabled', e.target.checked)} className="w-4 h-4 accent-[#2E7D32]" data-testid="wedding-enabled-toggle" />
+                        <span className={weddingCfg.enabled ? 'text-green-700' : 'text-foreground/50'}>{weddingCfg.enabled ? 'Live' : 'Disabled'}</span>
+                      </label>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-xs">
+                    {[
+                      ['Hall Charges', 'hall_charges_inr', 'hall_charges_aud'],
+                      ['Thali / person', 'thali_price_inr', 'thali_price_aud'],
+                      ['Breakfast / person', 'breakfast_price_per_person_inr', 'breakfast_price_per_person_aud'],
+                      ['Snacks / person', 'snacks_price_per_person_inr', 'snacks_price_per_person_aud'],
+                      ['Drinks — Half Day', 'drinks_half_day_inr', 'drinks_half_day_aud'],
+                      ['Drinks — Full Day', 'drinks_full_day_inr', 'drinks_full_day_aud'],
+                      ['Decoration (base)', 'decoration_charges_inr', 'decoration_charges_aud'],
+                    ].map(([label, kInr, kAud]) => (
+                      <div key={kInr} className="grid grid-cols-3 gap-2 items-center">
+                        <Label className="text-[11px]">{label}</Label>
+                        <div className="flex items-center gap-1"><span className="text-[#7A6F65]">₹</span><Input type="number" value={weddingCfg[kInr] || 0} onChange={e => updateWeddingField(kInr, parseFloat(e.target.value) || 0)} className="text-xs" data-testid={`wedding-${kInr}`} /></div>
+                        <div className="flex items-center gap-1"><span className="text-[#7A6F65]">$</span><Input type="number" value={weddingCfg[kAud] || 0} onChange={e => updateWeddingField(kAud, parseFloat(e.target.value) || 0)} className="text-xs" data-testid={`wedding-${kAud}`} /></div>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-3 gap-2 items-center pt-2 border-t border-[#E8DFD0]">
+                      <Label className="text-[11px]">GST %</Label>
+                      <Input type="number" value={weddingCfg.gst_pct || 0} onChange={e => updateWeddingField('gst_pct', parseFloat(e.target.value) || 0)} className="text-xs col-span-2" data-testid="wedding-gst-pct" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 items-center">
+                      <Label className="text-[11px]">Min Guests</Label>
+                      <Input type="number" value={weddingCfg.min_guests || 30} onChange={e => updateWeddingField('min_guests', parseInt(e.target.value) || 30)} className="text-xs col-span-2" data-testid="wedding-min-guests" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 items-center">
+                      <Label className="text-[11px]">Thali Start / End</Label>
+                      <Input type="time" value={weddingCfg.thali_time_start} onChange={e => updateWeddingField('thali_time_start', e.target.value)} className="text-xs" />
+                      <Input type="time" value={weddingCfg.thali_time_end} onChange={e => updateWeddingField('thali_time_end', e.target.value)} className="text-xs" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 items-center">
+                      <Label className="text-[11px]">Breakfast Window</Label>
+                      <Input value={weddingCfg.breakfast_time} onChange={e => updateWeddingField('breakfast_time', e.target.value)} className="text-xs col-span-2" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 items-center">
+                      <Label className="text-[11px]">Snacks Window</Label>
+                      <Input value={weddingCfg.snacks_time} onChange={e => updateWeddingField('snacks_time', e.target.value)} className="text-xs col-span-2" />
+                    </div>
+                    <div className="flex items-center gap-4 pt-2 border-t border-[#E8DFD0]">
+                      <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!weddingCfg.breakfast_enabled} onChange={e => updateWeddingField('breakfast_enabled', e.target.checked)} /> Breakfast</label>
+                      <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!weddingCfg.snacks_enabled} onChange={e => updateWeddingField('snacks_enabled', e.target.checked)} /> Snacks</label>
+                      <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!weddingCfg.drinks_enabled} onChange={e => updateWeddingField('drinks_enabled', e.target.checked)} /> Drinks</label>
+                      <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!weddingCfg.decoration_enabled} onChange={e => updateWeddingField('decoration_enabled', e.target.checked)} /> Decoration</label>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Drinks list + Decoration rules + Block-dates */}
+                <div className="space-y-5">
+                  <Card className="border-[#E8DFD0]" data-testid="wedding-drinks-card">
+                    <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Wine className="h-5 w-5 text-[#B8962E]" /> Drinks (à la carte)</CardTitle></CardHeader>
+                    <CardContent className="space-y-2">
+                      {(weddingCfg.drinks_options || []).map((d, i) => (
+                        <div key={d.id || i} className="grid grid-cols-12 gap-2 items-center">
+                          <Input value={d.name} onChange={e => { const next = [...(weddingCfg.drinks_options || [])]; next[i] = { ...next[i], name: e.target.value }; updateWeddingField('drinks_options', next); }} className="col-span-6 text-xs" placeholder="Drink name" />
+                          <Input type="number" value={d.price_inr} onChange={e => { const next = [...(weddingCfg.drinks_options || [])]; next[i] = { ...next[i], price_inr: parseFloat(e.target.value) || 0 }; updateWeddingField('drinks_options', next); }} className="col-span-2 text-xs" placeholder="₹" />
+                          <Input type="number" value={d.price_aud} onChange={e => { const next = [...(weddingCfg.drinks_options || [])]; next[i] = { ...next[i], price_aud: parseFloat(e.target.value) || 0 }; updateWeddingField('drinks_options', next); }} className="col-span-2 text-xs" placeholder="$" />
+                          <Button size="sm" variant="ghost" onClick={() => updateWeddingField('drinks_options', (weddingCfg.drinks_options || []).filter((_, j) => j !== i))} className="col-span-2 text-red-600 hover:bg-red-50 text-xs" data-testid={`wedding-drink-delete-${i}`}><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                      ))}
+                      <Button size="sm" variant="outline" onClick={() => updateWeddingField('drinks_options', [...(weddingCfg.drinks_options || []), { id: `drink-${Date.now()}`, name: '', price_inr: 0, price_aud: 0 }])} className="text-xs" data-testid="wedding-add-drink"><Plus className="h-3 w-3 mr-1" /> Add Drink</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-[#E8DFD0]" data-testid="wedding-rules-card">
+                    <CardHeader><CardTitle className="text-lg flex items-center gap-2"><AlertCircle className="h-5 w-5 text-[#B8962E]" /> Decoration Rules</CardTitle></CardHeader>
+                    <CardContent>
+                      <Textarea
+                        value={(weddingCfg.decoration_rules || []).join('\n')}
+                        onChange={e => updateWeddingField('decoration_rules', e.target.value.split('\n').filter(Boolean))}
+                        rows={8}
+                        className="text-xs font-body"
+                        placeholder="One rule per line"
+                        data-testid="wedding-deco-rules"
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-[#E8DFD0]" data-testid="wedding-blocked-card">
+                    <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Calendar className="h-5 w-5 text-[#B8962E]" /> Block Dates per Center</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      <Select value={blockDatesCenter} onValueChange={loadBlockedDates}>
+                        <SelectTrigger className="text-xs" data-testid="wedding-block-center"><SelectValue placeholder="Pick a center to manage" /></SelectTrigger>
+                        <SelectContent>
+                          {locations.map(l => <SelectItem key={l.id} value={l.center_id || l.id}>{l.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {blockDatesCenter && (
+                        <>
+                          <div className="flex gap-2">
+                            <Input type="date" value={blockDatesInput} onChange={e => setBlockDatesInput(e.target.value)} className="text-xs flex-1" data-testid="wedding-block-input" />
+                            <Button size="sm" onClick={addBlockedDate} className="bg-[#B8962E] text-white text-xs" data-testid="wedding-block-add"><Plus className="h-3 w-3" /></Button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {blockedDates.map(d => (
+                              <span key={d} className="text-[11px] bg-red-50 text-red-700 px-2 py-1 border border-red-200 inline-flex items-center gap-1.5">{d}<button onClick={() => removeBlockedDate(d)} className="hover:text-red-900"><X className="h-3 w-3" /></button></span>
+                            ))}
+                            {blockedDates.length === 0 && <span className="text-[11px] italic text-foreground/50">No blocked dates</span>}
+                          </div>
+                          <Button size="sm" onClick={saveBlockedDates} className="text-xs bg-green-600 text-white" data-testid="wedding-block-save">Save Blocked Dates</Button>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Bookings Table — full width */}
+                <Card className="border-[#E8DFD0] lg:col-span-2" data-testid="wedding-bookings-table">
+                  <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Users className="h-5 w-5 text-[#B8962E]" /> Bookings ({weddingBookings.length})</CardTitle></CardHeader>
+                  <CardContent>
+                    {weddingBookings.length === 0 ? (
+                      <p className="text-sm italic text-foreground/60">No bookings yet. Customer enquiries will appear here.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-[#E8DFD0] text-[10px] uppercase tracking-wider text-[#7A6F65]">
+                              <th className="text-left p-2">Date</th>
+                              <th className="text-left p-2">Customer</th>
+                              <th className="text-left p-2">Event</th>
+                              <th className="text-left p-2">Center</th>
+                              <th className="text-right p-2">Guests</th>
+                              <th className="text-right p-2">Total</th>
+                              <th className="text-left p-2">Status</th>
+                              <th className="text-right p-2">Advance</th>
+                              <th className="text-right p-2">Balance</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weddingBookings.map(b => {
+                              const sym = b.country === 'Australia' ? '$' : '₹';
+                              return (
+                                <tr key={b.id} className="border-b border-[#F0EBE2]" data-testid={`wedding-booking-row-${b.id}`}>
+                                  <td className="p-2 whitespace-nowrap">{b.event_date}</td>
+                                  <td className="p-2"><div className="font-medium">{b.name}</div><div className="text-[10px] text-[#7A6F65]">{b.mobile}</div></td>
+                                  <td className="p-2">{b.event_type}</td>
+                                  <td className="p-2 text-[10px]">{b.center_name}</td>
+                                  <td className="p-2 text-right">{b.guest_count}</td>
+                                  <td className="p-2 text-right font-mono">{sym}{(b.estimate?.total || 0).toLocaleString()}</td>
+                                  <td className="p-2">
+                                    <select value={b.status} onChange={e => updateBookingStatus(b.id, e.target.value)} className="text-[11px] border border-[#E8DFD0] px-1 py-0.5 bg-white" data-testid={`wedding-status-${b.id}`}>
+                                      {['Enquiry', 'Discussion', 'Confirmed', 'Advance Paid', 'Completed', 'Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="p-2 text-right"><Input type="number" defaultValue={b.advance_paid || 0} onBlur={e => updateBookingPayment(b.id, 'advance_paid', e.target.value)} className="text-[11px] h-7 w-20 text-right" data-testid={`wedding-advance-${b.id}`} /></td>
+                                  <td className="p-2 text-right"><Input type="number" defaultValue={b.balance_due || 0} onBlur={e => updateBookingPayment(b.id, 'balance_due', e.target.value)} className="text-[11px] h-7 w-20 text-right" data-testid={`wedding-balance-${b.id}`} /></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
