@@ -145,7 +145,7 @@ export default function CelebrationQuote() {
               <div className="flex items-start gap-2"><Phone className="h-4 w-4 text-[#B8962E] mt-0.5 shrink-0" /><div><p className="text-[10px] uppercase tracking-wider text-[#7A6F65]">Contact</p><p className="text-[#2D1810] font-medium">{booking.mobile}</p></div></div>
             </div>
 
-            {(booking.thali_package_name || booking.dal_option_name) && (
+            {(booking.thali_package_name || (booking.dal_option_names && booking.dal_option_names.length) || booking.dal_option_name) && (
               <div className="mt-4 pt-4 border-t border-[#E8DFD0] grid sm:grid-cols-2 gap-3 text-sm font-body" data-testid="quote-thali-summary">
                 {booking.thali_package_name && (
                   <div>
@@ -153,12 +153,33 @@ export default function CelebrationQuote() {
                     <p className="text-[#B8962E] font-heading font-medium">{booking.thali_package_name}</p>
                   </div>
                 )}
-                {booking.dal_option_name && (
+                {((booking.dal_option_names && booking.dal_option_names.length) || booking.dal_option_name) && (
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-[#7A6F65]">Dal / Varan / Amti</p>
-                    <p className="text-[#2D1810] font-medium">{booking.dal_option_name}</p>
+                    <p className="text-[#2D1810] font-medium">
+                      {(booking.dal_option_names && booking.dal_option_names.length)
+                        ? booking.dal_option_names.join(', ')
+                        : booking.dal_option_name}
+                    </p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Full menu selections (Catering-style) */}
+            {booking.menu_selection_labels && Object.keys(booking.menu_selection_labels).some(k => (booking.menu_selection_labels[k] || []).length > 0) && (
+              <div className="mt-4 pt-4 border-t border-[#E8DFD0] grid sm:grid-cols-2 gap-3 text-sm font-body" data-testid="quote-menu-summary">
+                {(() => {
+                  const labels = { starters: 'Starters', specialBhaji: 'Special Bhaji', simpleBhaji: 'Mains', desserts: 'Sweets', roti: 'Roti / Bhakari', rice: 'Rice', sides: 'Sides', chutney: 'Chutney' };
+                  return Object.entries(booking.menu_selection_labels)
+                    .filter(([, names]) => (names || []).length > 0)
+                    .map(([cat, names]) => (
+                      <div key={cat}>
+                        <p className="text-[10px] uppercase tracking-wider text-[#7A6F65]">{labels[cat] || cat}</p>
+                        <p className="text-[#2D1810]">{names.join(', ')}</p>
+                      </div>
+                    ));
+                })()}
               </div>
             )}
 

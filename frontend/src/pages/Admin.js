@@ -3015,6 +3015,42 @@ const Admin = () => {
                                 className="text-xs" data-testid={`wedding-thali-pkg-${p.id}-gst`} />
                             </div>
                           </div>
+
+                          {/* Per-package menu requirements (Catering-style) */}
+                          <div className="pt-2 border-t border-[#E8DFD0]">
+                            <p className="text-[10px] uppercase tracking-wider text-foreground/60 mb-2">Menu Requirements (max picks per category)</p>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                              {[
+                                { key: 'dal',      label: 'Dal' },
+                                { key: 'starters', label: 'Starters' },
+                                { key: 'special',  label: 'Special Bhaji' },
+                                { key: 'mains',    label: 'Mains' },
+                                { key: 'desserts', label: 'Sweets' },
+                                { key: 'roti',     label: 'Roti' },
+                                { key: 'rice',     label: 'Rice' },
+                                { key: 'sides',    label: 'Sides' },
+                                { key: 'chutney',  label: 'Chutney' },
+                              ].map(({ key, label }) => (
+                                <div key={key}>
+                                  <label className="block text-[10px] text-foreground/60 mb-1">{label}</label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    value={p.requirements?.[key] ?? 0}
+                                    onChange={e => {
+                                      const next = [...(weddingCfg.thali_packages || [])];
+                                      const reqs = { ...(next[i].requirements || {}) };
+                                      reqs[key] = Math.max(parseInt(e.target.value) || 0, 0);
+                                      next[i] = { ...next[i], requirements: reqs };
+                                      updateWeddingField('thali_packages', next);
+                                    }}
+                                    className="text-xs h-8"
+                                    data-testid={`wedding-thali-pkg-${p.id}-req-${key}`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       ))}
                       {(weddingCfg.thali_packages || []).length === 0 && (

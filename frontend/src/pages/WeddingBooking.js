@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   MapPin, Phone, MessageCircle, Calendar, Users, Clock, Flower2, Sparkles,
-  CheckCircle2, AlertTriangle, Mail, Coffee, Utensils, Wine, Loader2, Crown, Soup
+  CheckCircle2, AlertTriangle, Mail, Coffee, Utensils, Wine, Loader2, Crown, Soup, ChefHat
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -38,7 +38,9 @@ export default function WeddingBooking() {
   const [guestCount, setGuestCount] = useState(30);
   const [timeSlot, setTimeSlot] = useState('');
   const [thaliPackageId, setThaliPackageId] = useState('');
-  const [dalOptionId, setDalOptionId] = useState('');
+  const [dalOptionIds, setDalOptionIds] = useState([]); // multi-select
+  const [menuSelections, setMenuSelections] = useState({}); // {category: [itemId, ...]}
+  const [menuOptions, setMenuOptions] = useState({});      // fetched from /api/catering-packages
   const [breakfast, setBreakfast] = useState(false);
   const [snacks, setSnacks] = useState(false);
   const [drinksMode, setDrinksMode] = useState(''); // '', 'half_day', 'full_day', 'a_la_carte'
@@ -52,6 +54,10 @@ export default function WeddingBooking() {
     axios.get(`${API}/api/centers`).then(r => {
       const d = r.data || {};
       if ((d.india?.length || 0) + (d.australia?.length || 0) > 0) setCentersData(d);
+    }).catch(() => {});
+    // Reuse Catering's menu items for the celebration menu picker
+    axios.get(`${API}/api/catering-packages`).then(r => {
+      setMenuOptions(r.data?.menuOptions || {});
     }).catch(() => {});
   }, []);
 
@@ -88,17 +94,54 @@ export default function WeddingBooking() {
     return (cfg?.dal_options || []).filter(d => d.enabled !== false && d[flag] !== false);
   }, [cfg, currentCenter]);
 
-  const selectedDal = useMemo(
-    () => (cfg?.dal_options || []).find(d => d.id === dalOptionId) || null,
-    [cfg, dalOptionId]
+  const selectedDals = useMemo(
+    () => (cfg?.dal_options || []).filter(d => dalOptionIds.includes(d.id)),
+    [cfg, dalOptionIds]
   );
 
-  // Reset dal selection if it becomes unavailable for the selected center
+  // Reset dal/menu selections when package or center changes (availability or max counts may shift)
   useEffect(() => {
-    if (dalOptionId && dalOptions.length && !dalOptions.find(d => d.id === dalOptionId)) {
-      setDalOptionId('');
-    }
-  }, [dalOptions, dalOptionId]);
+    setDalOptionIds(prev => prev.filter(id => dalOptions.find(d => d.id === id)));
+  }, [dalOptions]);
+
+  useEffect(() => {
+    // When package changes, drop any selections that exceed the new package's per-category cap
+    if (!selectedThaliPkg) return;
+    const reqs = selectedThaliPkg.requirements || {};
+    setDalOptionIds(prev => prev.slice(0, Math.max(reqs.dal || 0, 0)));
+    setMenuSelections(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([cat, ids]) => {
+        const key = cat === 'mains' ? 'mains' : cat === 'special' ? 'special' : cat === 'desserts' ? 'desserts' : cat === 'sides' ? 'sides' : cat;
+        const cap = reqs[key] ?? 0;
+        next[cat] = ids.slice(0, cap);
+      });
+      return next;
+    });
+  }, [selectedThaliPkg]);
+
+  // Toggle helpers
+  const toggleDal = (id) => {
+    const cap = selectedThaliPkg?.requirements?.dal || 0;
+    setDalOptionIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= cap) { toast.error(`You can pick up to ${cap} dal option${cap === 1 ? '' : 's'} for ${selectedThaliPkg.name}`); return prev; }
+      return [...prev, id];
+    });
+  };
+
+  const toggleMenu = (category, itemId) => {
+    // Catering category → package requirements key mapping
+    const catToReq = { starters: 'starters', specialBhaji: 'special', simpleBhaji: 'mains', desserts: 'desserts', roti: 'roti', rice: 'rice', sides: 'sides', chutney: 'chutney' };
+    const reqKey = catToReq[category] || category;
+    const cap = selectedThaliPkg?.requirements?.[reqKey] || 0;
+    setMenuSelections(prev => {
+      const current = prev[category] || [];
+      if (current.includes(itemId)) return { ...prev, [category]: current.filter(x => x !== itemId) };
+      if (current.length >= cap) { toast.error(`You can pick up to ${cap} ${category}`); return prev; }
+      return { ...prev, [category]: [...current, itemId] };
+    });
+  };
 
   // Live estimate
   const estimate = useMemo(() => {
@@ -160,8 +203,15 @@ export default function WeddingBooking() {
     m += `*Guests:* ${guestCount}\n`;
     m += `*Time Slot:* ${timeSlot}\n\n`;
     if (selectedThaliPkg) m += `*Thali Package:* ${selectedThaliPkg.name}\n`;
-    if (selectedDal) m += `*Dal / Varan / Amti:* ${selectedDal.name}\n`;
-    m += `*Selections:*\n`;
+    if (selectedDals.length) m += `*Dal / Varan / Amti:* ${selectedDals.map(d => d.name).join(', ')}\n`;
+    // Menu picks
+    const catLabels = { starters: 'Starters', specialBhaji: 'Special Bhaji', simpleBhaji: 'Mains', desserts: 'Sweets', roti: 'Roti / Bhakari', rice: 'Rice', sides: 'Sides', chutney: 'Chutney' };
+    Object.entries(menuSelections).forEach(([cat, ids]) => {
+      if (!ids?.length) return;
+      const names = ids.map(id => (menuOptions[cat] || []).find(x => x.id === id)?.name).filter(Boolean);
+      if (names.length) m += `*${catLabels[cat] || cat}:* ${names.join(', ')}\n`;
+    });
+    m += `\n*Selections:*\n`;
     if (breakfast) m += `• Breakfast (${cfg.breakfast_time})\n`;
     if (snacks) m += `• Snacks (${cfg.snacks_time})\n`;
     if (drinksMode === 'half_day') m += `• Drinks — Half Day\n`;
@@ -185,8 +235,23 @@ export default function WeddingBooking() {
     if (cfg?.thali_packages_enabled && (cfg?.thali_packages || []).some(p => p.enabled !== false) && !thaliPackageId) {
       toast.error('Please select a Thali Package'); return;
     }
-    if (cfg?.dal_options_enabled && dalOptions.length > 0 && !dalOptionId) {
-      toast.error('Please select a Dal / Varan / Amti option'); return;
+    // Validate package requirements (dal + menu categories)
+    if (selectedThaliPkg) {
+      const reqs = selectedThaliPkg.requirements || {};
+      if (cfg?.dal_options_enabled && (reqs.dal || 0) > 0 && dalOptionIds.length < reqs.dal) {
+        toast.error(`Please pick ${reqs.dal} Dal / Varan / Amti option${reqs.dal === 1 ? '' : 's'}`); return;
+      }
+      const catToReq = { starters: 'starters', specialBhaji: 'special', simpleBhaji: 'mains', desserts: 'desserts', roti: 'roti', rice: 'rice', sides: 'sides', chutney: 'chutney' };
+      const catLabels = { starters: 'Starters', specialBhaji: 'Special Bhaji', simpleBhaji: 'Mains', desserts: 'Sweets', roti: 'Roti', rice: 'Rice', sides: 'Sides', chutney: 'Chutney' };
+      const missing = [];
+      Object.entries(catToReq).forEach(([cat, key]) => {
+        const need = reqs[key] || 0;
+        if (need > 0) {
+          const got = (menuSelections[cat] || []).length;
+          if (got < need) missing.push(`${catLabels[cat]} (${got}/${need})`);
+        }
+      });
+      if (missing.length) { toast.error(`Please complete menu selection: ${missing.join(', ')}`); return; }
     }
     if (guestCount < (cfg?.min_guests || 30)) {
       toast.error(`Minimum ${cfg?.min_guests || 30} guests required`); return;
@@ -196,6 +261,10 @@ export default function WeddingBooking() {
 
     setSubmitting(true);
     try {
+      const menuLabels = {};
+      Object.entries(menuSelections).forEach(([cat, ids]) => {
+        menuLabels[cat] = ids.map(id => (menuOptions[cat] || []).find(x => x.id === id)?.name || id);
+      });
       const body = {
         name, mobile, email,
         event_type: eventType,
@@ -204,8 +273,10 @@ export default function WeddingBooking() {
         event_date: eventDate, guest_count: guestCount, time_slot: timeSlot,
         thali_package_id: thaliPackageId,
         thali_package_name: selectedThaliPkg?.name || '',
-        dal_option_id: dalOptionId,
-        dal_option_name: selectedDal?.name || '',
+        dal_option_ids: dalOptionIds,
+        dal_option_names: selectedDals.map(d => d.name),
+        menu_selections: menuSelections,
+        menu_selection_labels: menuLabels,
         breakfast, snacks, drinks_mode: drinksMode, drinks_items: drinksItems,
         decoration, decoration_agreed: decoAgreed, notes, estimate
       };
@@ -424,14 +495,19 @@ export default function WeddingBooking() {
                   })}
                 </div>
 
-                {/* DAL / VARAN / AMTI selector — shows when a package is selected */}
-                {thaliPackageId && cfg.dal_options_enabled && (
+                {/* DAL / VARAN / AMTI selector — multi-select (count = package.requirements.dal) */}
+                {thaliPackageId && cfg.dal_options_enabled && (selectedThaliPkg?.requirements?.dal || 0) > 0 && (
                   <div className="mt-5 pt-5 border-t border-[#E8DFD0]">
-                    <h3 className="font-heading text-base text-[#3D2314] flex items-center gap-2 mb-1">
-                      <Soup className="h-4 w-4 text-[#B8962E]" /> Dal / Varan / Amti *
-                    </h3>
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-heading text-base text-[#3D2314] flex items-center gap-2">
+                        <Soup className="h-4 w-4 text-[#B8962E]" /> Dal / Varan / Amti *
+                      </h3>
+                      <Badge className={dalOptionIds.length >= (selectedThaliPkg?.requirements?.dal || 0) ? 'bg-green-100 text-green-700 border-green-200' : 'bg-[#F8F5F0] text-[#5C4A3A] border-[#E8DFD0]'}>
+                        {dalOptionIds.length}/{selectedThaliPkg?.requirements?.dal || 0}
+                      </Badge>
+                    </div>
                     <p className="text-[11px] text-[#7A6F65] font-body mb-3">
-                      Pick one Maharashtrian dal preparation for your thali.
+                      Pick {selectedThaliPkg?.requirements?.dal} Maharashtrian dal preparation{selectedThaliPkg?.requirements?.dal === 1 ? '' : 's'} for your {selectedThaliPkg?.name}.
                       {currentCenter?.country === 'Australia' && <span className="ml-1 italic">(Perth center)</span>}
                     </p>
                     {dalOptions.length === 0 ? (
@@ -439,16 +515,17 @@ export default function WeddingBooking() {
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {dalOptions.map(d => {
-                          const isSelected = dalOptionId === d.id;
+                          const isSelected = dalOptionIds.includes(d.id);
                           return (
                             <button
                               key={d.id}
                               type="button"
-                              onClick={() => setDalOptionId(d.id)}
-                              className={`text-xs sm:text-sm px-2 py-2.5 border rounded-none font-body transition-all ${isSelected ? 'border-[#B8962E] bg-[#B8962E]/10 text-[#B8962E] font-medium' : 'border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/40 bg-white'}`}
+                              onClick={() => toggleDal(d.id)}
+                              className={`text-xs sm:text-sm px-2 py-2.5 border rounded-none font-body transition-all flex items-center gap-2 ${isSelected ? 'border-[#B8962E] bg-[#B8962E]/10 text-[#B8962E] font-medium' : 'border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/40 bg-white'}`}
                               data-testid={`dal-option-${d.id}`}
                             >
-                              {d.name}
+                              <Checkbox checked={isSelected} className="pointer-events-none border-[#E8DFD0] data-[state=checked]:bg-[#B8962E] data-[state=checked]:border-[#B8962E]" />
+                              <span className="flex-1 text-left">{d.name}</span>
                             </button>
                           );
                         })}
@@ -458,6 +535,67 @@ export default function WeddingBooking() {
                 )}
               </div>
             )}
+
+            {/* FULL MENU SELECTION — Catering-style cards (Celebration only, reuses Catering menu items) */}
+            {selectedThaliPkg && (() => {
+              const reqs = selectedThaliPkg.requirements || {};
+              const sections = [
+                { cat: 'starters',     label: 'Starters (2 pc each)', need: reqs.starters || 0 },
+                { cat: 'specialBhaji', label: 'Special Bhaji (80 gms)', need: reqs.special || 0 },
+                { cat: 'simpleBhaji',  label: 'Simple Bhaji / Mains (80 gms)', need: reqs.mains || 0 },
+                { cat: 'desserts',     label: 'Sweets / Desserts (80 gms)', need: reqs.desserts || 0 },
+                { cat: 'roti',         label: 'Roti / Bhakari', need: reqs.roti || 0 },
+                { cat: 'rice',         label: 'Rice (150 gms)', need: reqs.rice || 0 },
+                { cat: 'sides',        label: 'Sides', need: reqs.sides || 0 },
+                { cat: 'chutney',      label: 'Chutney', need: reqs.chutney || 0 },
+              ].filter(s => s.need > 0 && (menuOptions[s.cat] || []).length > 0);
+              if (sections.length === 0) return null;
+              return (
+                <div className={card} data-testid="wedding-form-menu">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ChefHat className="h-4 w-4 text-[#B8962E]" />
+                    <h2 className="font-heading text-lg text-[#3D2314]">Menu Selection</h2>
+                  </div>
+                  <p className="text-xs text-[#7A6F65] font-body mb-4">
+                    Curate your {selectedThaliPkg.name} thali. Select items based on the package allowance.
+                  </p>
+                  <div className="space-y-6">
+                    {sections.map(({ cat, label, need }) => {
+                      const got = (menuSelections[cat] || []).length;
+                      const isComplete = got >= need;
+                      return (
+                        <div key={cat} data-testid={`menu-section-${cat}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-heading font-medium text-[#2D1810] text-sm sm:text-base">{label}</h4>
+                            <Badge className={isComplete ? 'bg-green-100 text-green-700 border-green-200' : 'bg-[#F8F5F0] text-[#5C4A3A] border-[#E8DFD0]'}>
+                              {got}/{need}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {(menuOptions[cat] || []).map(opt => {
+                              const isSelected = (menuSelections[cat] || []).includes(opt.id);
+                              return (
+                                <div
+                                  key={opt.id}
+                                  onClick={() => toggleMenu(cat, opt.id)}
+                                  className={`p-2 border cursor-pointer transition-all text-xs sm:text-sm font-body ${isSelected ? 'border-[#B8962E] bg-[#B8962E]/5 text-[#B8962E] font-medium' : 'border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/30'}`}
+                                  data-testid={`menu-${cat}-${opt.id}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox checked={isSelected} className="pointer-events-none border-[#E8DFD0] data-[state=checked]:bg-[#B8962E] data-[state=checked]:border-[#B8962E]" />
+                                    <span className="truncate">{opt.name}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
 
             <div className={card} data-testid="wedding-form-addons">
@@ -555,7 +693,7 @@ export default function WeddingBooking() {
             <div className="lg:sticky lg:top-24 space-y-4">
               <div className={card} data-testid="wedding-estimate">
                 <h3 className="font-heading text-lg text-[#3D2314] flex items-center gap-2 mb-3"><Sparkles className="h-4 w-4 text-[#B8962E]" /> Estimate</h3>
-                {(selectedThaliPkg || selectedDal || currentCenter || eventType) && (
+                {(selectedThaliPkg || selectedDals.length || currentCenter || eventType) && (
                   <div className="mb-3 pb-3 border-b border-[#E8DFD0] space-y-1 text-[11px] font-body">
                     {currentCenter && (
                       <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Center</span><span className="text-[#2D1810] text-right truncate">{currentCenter.displayName || currentCenter.name}</span></div>
@@ -566,8 +704,8 @@ export default function WeddingBooking() {
                     {selectedThaliPkg && (
                       <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Thali Package</span><span className="text-[#B8962E] font-medium text-right">{selectedThaliPkg.name}</span></div>
                     )}
-                    {selectedDal && (
-                      <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Dal / Varan</span><span className="text-[#2D1810] text-right">{selectedDal.name}</span></div>
+                    {selectedDals.length > 0 && (
+                      <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Dal / Varan</span><span className="text-[#2D1810] text-right">{selectedDals.map(d => d.name).join(', ')}</span></div>
                     )}
                     <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Guests</span><span className="text-[#2D1810]">{guestCount}</span></div>
                   </div>

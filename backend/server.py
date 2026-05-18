@@ -2708,6 +2708,18 @@ DEFAULT_WEDDING_CONFIG = {
             "price_aud": 38,
             "gst_pct": 5,
             "is_popular": True,
+            # Number of items the customer may pick per category
+            "requirements": {
+                "dal": 3,
+                "starters": 2,
+                "special": 1,
+                "mains": 2,
+                "desserts": 2,
+                "roti": 1,
+                "rice": 1,
+                "sides": 1,
+                "chutney": 1,
+            },
         },
         {
             "id": "premium_feast",
@@ -2718,6 +2730,17 @@ DEFAULT_WEDDING_CONFIG = {
             "price_aud": 28,
             "gst_pct": 5,
             "is_popular": False,
+            "requirements": {
+                "dal": 2,
+                "starters": 1,
+                "special": 0,
+                "mains": 2,
+                "desserts": 1,
+                "roti": 1,
+                "rice": 1,
+                "sides": 0,
+                "chutney": 0,
+            },
         },
     ],
     # Dal / Varan / Amti choice for Celebration thali (per-center availability)
@@ -2828,8 +2851,15 @@ async def create_wedding_booking(request: Request):
         # Celebration-only thali package + dal/varan/amti selections
         "thali_package_id": body.get("thali_package_id", ""),
         "thali_package_name": body.get("thali_package_name", ""),
-        "dal_option_id": body.get("dal_option_id", ""),
-        "dal_option_name": body.get("dal_option_name", ""),
+        # Multi-select dal (e.g. Royal = 3 picks, Premium = 2 picks)
+        "dal_option_ids": body.get("dal_option_ids", []),
+        "dal_option_names": body.get("dal_option_names", []),
+        # Back-compat single-pick (first item) so old quote views still render
+        "dal_option_id": (body.get("dal_option_ids") or [body.get("dal_option_id", "")])[0] if (body.get("dal_option_ids") or body.get("dal_option_id")) else "",
+        "dal_option_name": (body.get("dal_option_names") or [body.get("dal_option_name", "")])[0] if (body.get("dal_option_names") or body.get("dal_option_name")) else "",
+        # Full menu selections (dict of category -> [item_ids]) + labels for display
+        "menu_selections": body.get("menu_selections", {}),
+        "menu_selection_labels": body.get("menu_selection_labels", {}),
         "decoration": bool(body.get("decoration", False)),
         "decoration_agreed": bool(body.get("decoration_agreed", False)),
         "notes": body.get("notes", ""),

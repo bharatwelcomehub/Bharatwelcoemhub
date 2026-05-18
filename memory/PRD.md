@@ -293,10 +293,14 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - [x] **Celebration Thali Selector** (Feb 2026) — Added Royal Feast / Premium Feast package picker to Celebrate booking (Catering untouched):
   - Card-style selector matching Catering visual language (`pearl-surface`, gold accent border, "Most Popular" badge)
   - Dynamic per-person pricing per package; live Estimate sidebar reflects chosen package + GST override
-  - **Dal / Varan / Amti** sub-selector (Sadha Varan, Fodanicha Varan, Takachi Kadhi, Katachi Amti, Jeera Varan, Lasun Varan) — filtered per center country (India vs Perth)
-  - Backend `DEFAULT_WEDDING_CONFIG` extended with `thali_packages`, `dal_options`, `thali_packages_enabled`, `dal_options_enabled`
-  - Booking record persists `thali_package_id/name` + `dal_option_id/name`; surfaced in WhatsApp message + public quotation page
-  - Admin panel: new cards for Thali Packages (name/desc/price-INR/price-AUD/GST/enabled/popular) and Dal Options (name/enabled/india_available/perth_available)
+  - **Per-package menu requirements** (Catering-style): Royal Feast picks {dal:3, starters:2, special:1, mains:2, desserts:2, roti:1, rice:1, sides:1, chutney:1}; Premium Feast {dal:2, starters:1, mains:2, desserts:1, roti:1, rice:1}
+  - **Multi-select Dal / Varan / Amti** with cap enforcement + N/M progress badge (3 for Royal, 2 for Premium) — filtered per center country (India vs Perth)
+  - **Full Menu Selection** section appears below Dal — reuses `/api/catering-packages` menuOptions so the existing menu items library powers both Celebrate & Catering with zero duplication
+  - Backend `DEFAULT_WEDDING_CONFIG` extended with `thali_packages` (with `requirements` per package), `dal_options`, `thali_packages_enabled`, `dal_options_enabled`
+  - Booking record persists `thali_package_id/name`, `dal_option_ids/names` (array), `menu_selections` + `menu_selection_labels`; surfaced in WhatsApp message + public quotation page
+  - Backward-compatible legacy `dal_option_id/name` fields preserved
+  - Admin panel: new cards for Thali Packages (name/desc/price-INR/price-AUD/GST/enabled/popular + **per-category requirements grid**) and Dal Options (name/enabled/india_available/perth_available)
+
 
 
 ## Design Guidelines
