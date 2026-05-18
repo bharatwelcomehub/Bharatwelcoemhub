@@ -290,6 +290,14 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
   - **Mandala** background motif in corners + animated **Sparkles** floating in the hero
   - Tightened mobile hero typography & padding (text-3xl on mobile vs text-5xl/6xl on desktop)
   - Component: `/app/frontend/src/components/FestiveDecor.jsx` (exports Toran, Tabla, Shehnai, Diya, Mandala, Sparkle)
+- [x] **Celebration Thali Selector** (Feb 2026) — Added Royal Feast / Premium Feast package picker to Celebrate booking (Catering untouched):
+  - Card-style selector matching Catering visual language (`pearl-surface`, gold accent border, "Most Popular" badge)
+  - Dynamic per-person pricing per package; live Estimate sidebar reflects chosen package + GST override
+  - **Dal / Varan / Amti** sub-selector (Sadha Varan, Fodanicha Varan, Takachi Kadhi, Katachi Amti, Jeera Varan, Lasun Varan) — filtered per center country (India vs Perth)
+  - Backend `DEFAULT_WEDDING_CONFIG` extended with `thali_packages`, `dal_options`, `thali_packages_enabled`, `dal_options_enabled`
+  - Booking record persists `thali_package_id/name` + `dal_option_id/name`; surfaced in WhatsApp message + public quotation page
+  - Admin panel: new cards for Thali Packages (name/desc/price-INR/price-AUD/GST/enabled/popular) and Dal Options (name/enabled/india_available/perth_available)
+
 
 ## Design Guidelines
 See `/app/design_guidelines.json` for full theme specifications including:

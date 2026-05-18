@@ -2696,6 +2696,40 @@ DEFAULT_WEDDING_CONFIG = {
         {"id": "buttermilk", "name": "Masala Taak", "price_inr": 40, "price_aud": 2.5},
         {"id": "kokum", "name": "Solkadhi", "price_inr": 60, "price_aud": 3.5},
     ],
+    # Celebration-only Thali packages (separate from Catering; Catering remains untouched).
+    "thali_packages_enabled": True,
+    "thali_packages": [
+        {
+            "id": "royal_feast",
+            "name": "Royal Feast",
+            "description": "Our signature celebration thali — multi-course Maharashtrian feast with premium sweets, full bhojan, and traditional banana-leaf seating.",
+            "enabled": True,
+            "price_inr": 999,
+            "price_aud": 38,
+            "gst_pct": 5,
+            "is_popular": True,
+        },
+        {
+            "id": "premium_feast",
+            "name": "Premium Feast",
+            "description": "A curated Maharashtrian thali with classic mains, two sweets, and authentic accompaniments — perfect for intimate gatherings.",
+            "enabled": True,
+            "price_inr": 699,
+            "price_aud": 28,
+            "gst_pct": 5,
+            "is_popular": False,
+        },
+    ],
+    # Dal / Varan / Amti choice for Celebration thali (per-center availability)
+    "dal_options_enabled": True,
+    "dal_options": [
+        {"id": "sadha_varan",      "name": "Sadha Varan",      "enabled": True, "india_available": True, "perth_available": True},
+        {"id": "fodanicha_varan",  "name": "Fodanicha Varan",  "enabled": True, "india_available": True, "perth_available": True},
+        {"id": "takachi_kadhi",    "name": "Takachi Kadhi",    "enabled": True, "india_available": True, "perth_available": True},
+        {"id": "katachi_amti",    "name": "Katachi Amti",     "enabled": True, "india_available": True, "perth_available": True},
+        {"id": "jeera_varan",      "name": "Jeera Varan",      "enabled": True, "india_available": True, "perth_available": True},
+        {"id": "lasun_varan",      "name": "Lasun Varan",      "enabled": True, "india_available": True, "perth_available": True},
+    ],
     "decoration_enabled": True,
     "decoration_charges_inr": 0,
     "decoration_charges_aud": 0,
@@ -2791,6 +2825,11 @@ async def create_wedding_booking(request: Request):
         "snacks": bool(body.get("snacks", False)),
         "drinks_mode": body.get("drinks_mode", ""),  # '', 'half_day', 'full_day', 'a_la_carte'
         "drinks_items": body.get("drinks_items", []),  # list of drink ids when a_la_carte
+        # Celebration-only thali package + dal/varan/amti selections
+        "thali_package_id": body.get("thali_package_id", ""),
+        "thali_package_name": body.get("thali_package_name", ""),
+        "dal_option_id": body.get("dal_option_id", ""),
+        "dal_option_name": body.get("dal_option_name", ""),
         "decoration": bool(body.get("decoration", False)),
         "decoration_agreed": bool(body.get("decoration_agreed", False)),
         "notes": body.get("notes", ""),

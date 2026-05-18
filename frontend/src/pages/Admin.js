@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock, Heart, Wine, Flower2, AlertCircle, X, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock, Heart, Wine, Flower2, AlertCircle, X, Users, ChefHat } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -2943,6 +2943,145 @@ const Admin = () => {
 
                 {/* Drinks list + Decoration rules + Block-dates */}
                 <div className="space-y-5">
+                  {/* CELEBRATION THALI PACKAGES (Celebrate-only — Catering untouched) */}
+                  <Card className="border-[#E8DFD0]" data-testid="wedding-thali-packages-card">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-[#B8962E]" /> Celebration Thali Packages
+                      </CardTitle>
+                      <p className="text-xs text-foreground/60 mt-1">For Celebrate bookings only. Catering packages are managed separately.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={!!weddingCfg.thali_packages_enabled}
+                          onChange={e => updateWeddingField('thali_packages_enabled', e.target.checked)}
+                          data-testid="wedding-thali-packages-enabled"
+                        />
+                        Show Thali Package selector on Celebrate booking page
+                      </label>
+                      {(weddingCfg.thali_packages || []).map((p, i) => (
+                        <div key={p.id || i} className="border border-[#E8DFD0] p-3 space-y-2 bg-[#FDFBF7]" data-testid={`wedding-thali-pkg-${p.id}`}>
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <Input
+                              value={p.name || ''}
+                              onChange={e => { const next = [...(weddingCfg.thali_packages || [])]; next[i] = { ...next[i], name: e.target.value }; updateWeddingField('thali_packages', next); }}
+                              className="text-sm font-medium flex-1 min-w-[140px]"
+                              placeholder="Package name (e.g. Royal Feast)"
+                            />
+                            <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={p.enabled !== false}
+                                onChange={e => { const next = [...(weddingCfg.thali_packages || [])]; next[i] = { ...next[i], enabled: e.target.checked }; updateWeddingField('thali_packages', next); }}
+                                data-testid={`wedding-thali-pkg-${p.id}-enabled`}
+                              />
+                              Live
+                            </label>
+                            <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={!!p.is_popular}
+                                onChange={e => { const next = [...(weddingCfg.thali_packages || [])]; next[i] = { ...next[i], is_popular: e.target.checked }; updateWeddingField('thali_packages', next); }}
+                              />
+                              Popular
+                            </label>
+                          </div>
+                          <Textarea
+                            value={p.description || ''}
+                            onChange={e => { const next = [...(weddingCfg.thali_packages || [])]; next[i] = { ...next[i], description: e.target.value }; updateWeddingField('thali_packages', next); }}
+                            rows={2}
+                            className="text-xs"
+                            placeholder="Package description shown on the booking card"
+                          />
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-foreground/60 mb-1">Price ₹ (India)</label>
+                              <Input type="number" value={p.price_inr || 0}
+                                onChange={e => { const next = [...(weddingCfg.thali_packages || [])]; next[i] = { ...next[i], price_inr: parseFloat(e.target.value) || 0 }; updateWeddingField('thali_packages', next); }}
+                                className="text-xs" data-testid={`wedding-thali-pkg-${p.id}-price-inr`} />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-foreground/60 mb-1">Price $ (Perth)</label>
+                              <Input type="number" value={p.price_aud || 0}
+                                onChange={e => { const next = [...(weddingCfg.thali_packages || [])]; next[i] = { ...next[i], price_aud: parseFloat(e.target.value) || 0 }; updateWeddingField('thali_packages', next); }}
+                                className="text-xs" data-testid={`wedding-thali-pkg-${p.id}-price-aud`} />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-foreground/60 mb-1">GST %</label>
+                              <Input type="number" value={p.gst_pct ?? weddingCfg.gst_pct ?? 5}
+                                onChange={e => { const next = [...(weddingCfg.thali_packages || [])]; next[i] = { ...next[i], gst_pct: parseFloat(e.target.value) || 0 }; updateWeddingField('thali_packages', next); }}
+                                className="text-xs" data-testid={`wedding-thali-pkg-${p.id}-gst`} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {(weddingCfg.thali_packages || []).length === 0 && (
+                        <p className="text-xs italic text-foreground/60">No thali packages configured.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* DAL / VARAN / AMTI OPTIONS */}
+                  <Card className="border-[#E8DFD0]" data-testid="wedding-dal-options-card">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <ChefHat className="h-5 w-5 text-[#B8962E]" /> Dal / Varan / Amti Options
+                      </CardTitle>
+                      <p className="text-xs text-foreground/60 mt-1">Customer picks one with the chosen Thali Package. Toggle availability per center.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <label className="flex items-center gap-2 text-xs">
+                        <input type="checkbox" checked={!!weddingCfg.dal_options_enabled}
+                          onChange={e => updateWeddingField('dal_options_enabled', e.target.checked)}
+                          data-testid="wedding-dal-options-enabled" />
+                        Show Dal / Varan / Amti selector
+                      </label>
+                      <div className="grid grid-cols-12 gap-2 items-center text-[10px] uppercase tracking-wider text-foreground/60 pt-1 px-1">
+                        <span className="col-span-5">Option</span>
+                        <span className="col-span-2 text-center">Live</span>
+                        <span className="col-span-2 text-center">India</span>
+                        <span className="col-span-2 text-center">Perth</span>
+                        <span className="col-span-1" />
+                      </div>
+                      {(weddingCfg.dal_options || []).map((d, i) => (
+                        <div key={d.id || i} className="grid grid-cols-12 gap-2 items-center" data-testid={`wedding-dal-${d.id}`}>
+                          <Input value={d.name || ''}
+                            onChange={e => { const next = [...(weddingCfg.dal_options || [])]; next[i] = { ...next[i], name: e.target.value }; updateWeddingField('dal_options', next); }}
+                            className="col-span-5 text-xs" placeholder="e.g. Sadha Varan" />
+                          <label className="col-span-2 flex items-center justify-center text-xs">
+                            <input type="checkbox" checked={d.enabled !== false}
+                              onChange={e => { const next = [...(weddingCfg.dal_options || [])]; next[i] = { ...next[i], enabled: e.target.checked }; updateWeddingField('dal_options', next); }}
+                              data-testid={`wedding-dal-${d.id}-enabled`} />
+                          </label>
+                          <label className="col-span-2 flex items-center justify-center text-xs">
+                            <input type="checkbox" checked={d.india_available !== false}
+                              onChange={e => { const next = [...(weddingCfg.dal_options || [])]; next[i] = { ...next[i], india_available: e.target.checked }; updateWeddingField('dal_options', next); }}
+                              data-testid={`wedding-dal-${d.id}-india`} />
+                          </label>
+                          <label className="col-span-2 flex items-center justify-center text-xs">
+                            <input type="checkbox" checked={d.perth_available !== false}
+                              onChange={e => { const next = [...(weddingCfg.dal_options || [])]; next[i] = { ...next[i], perth_available: e.target.checked }; updateWeddingField('dal_options', next); }}
+                              data-testid={`wedding-dal-${d.id}-perth`} />
+                          </label>
+                          <Button size="sm" variant="ghost"
+                            onClick={() => updateWeddingField('dal_options', (weddingCfg.dal_options || []).filter((_, j) => j !== i))}
+                            className="col-span-1 text-red-600 hover:bg-red-50 px-1"
+                            data-testid={`wedding-dal-${d.id}-delete`}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button size="sm" variant="outline"
+                        onClick={() => updateWeddingField('dal_options', [...(weddingCfg.dal_options || []), { id: `dal-${Date.now()}`, name: '', enabled: true, india_available: true, perth_available: true }])}
+                        className="text-xs" data-testid="wedding-add-dal">
+                        <Plus className="h-3 w-3 mr-1" /> Add Dal Option
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+
                   <Card className="border-[#E8DFD0]" data-testid="wedding-drinks-card">
                     <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Wine className="h-5 w-5 text-[#B8962E]" /> Drinks (à la carte)</CardTitle></CardHeader>
                     <CardContent className="space-y-2">

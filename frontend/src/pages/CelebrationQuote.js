@@ -145,6 +145,23 @@ export default function CelebrationQuote() {
               <div className="flex items-start gap-2"><Phone className="h-4 w-4 text-[#B8962E] mt-0.5 shrink-0" /><div><p className="text-[10px] uppercase tracking-wider text-[#7A6F65]">Contact</p><p className="text-[#2D1810] font-medium">{booking.mobile}</p></div></div>
             </div>
 
+            {(booking.thali_package_name || booking.dal_option_name) && (
+              <div className="mt-4 pt-4 border-t border-[#E8DFD0] grid sm:grid-cols-2 gap-3 text-sm font-body" data-testid="quote-thali-summary">
+                {booking.thali_package_name && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-[#7A6F65]">Thali Package</p>
+                    <p className="text-[#B8962E] font-heading font-medium">{booking.thali_package_name}</p>
+                  </div>
+                )}
+                {booking.dal_option_name && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-[#7A6F65]">Dal / Varan / Amti</p>
+                    <p className="text-[#2D1810] font-medium">{booking.dal_option_name}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {(booking.breakfast || booking.snacks || booking.drinks_mode || booking.decoration) && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {booking.breakfast && <Badge variant="outline" className="border-[#E8DFD0] text-[#5C4A3A]">Breakfast</Badge>}

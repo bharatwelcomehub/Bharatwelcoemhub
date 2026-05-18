@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   MapPin, Phone, MessageCircle, Calendar, Users, Clock, Flower2, Sparkles,
-  CheckCircle2, AlertTriangle, Mail, Coffee, Utensils, Wine, Loader2
+  CheckCircle2, AlertTriangle, Mail, Coffee, Utensils, Wine, Loader2, Crown, Soup
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -37,6 +37,8 @@ export default function WeddingBooking() {
   const [eventDate, setEventDate] = useState('');
   const [guestCount, setGuestCount] = useState(30);
   const [timeSlot, setTimeSlot] = useState('');
+  const [thaliPackageId, setThaliPackageId] = useState('');
+  const [dalOptionId, setDalOptionId] = useState('');
   const [breakfast, setBreakfast] = useState(false);
   const [snacks, setSnacks] = useState(false);
   const [drinksMode, setDrinksMode] = useState(''); // '', 'half_day', 'full_day', 'a_la_carte'
@@ -72,11 +74,43 @@ export default function WeddingBooking() {
   const isAus = currentCenter?.country === 'Australia';
   const sym = isAus ? '$' : '₹';
 
+  // Selected thali package (if enabled & chosen overrides cfg.thali_price_*)
+  const selectedThaliPkg = useMemo(() => {
+    if (!cfg?.thali_packages_enabled) return null;
+    return (cfg?.thali_packages || []).find(p => p.id === thaliPackageId && p.enabled !== false) || null;
+  }, [cfg, thaliPackageId]);
+
+  // Dal/Varan/Amti options filtered by current center country
+  const dalOptions = useMemo(() => {
+    if (!cfg?.dal_options_enabled) return [];
+    const country = currentCenter?.country === 'Australia' ? 'perth' : 'india';
+    const flag = country === 'perth' ? 'perth_available' : 'india_available';
+    return (cfg?.dal_options || []).filter(d => d.enabled !== false && d[flag] !== false);
+  }, [cfg, currentCenter]);
+
+  const selectedDal = useMemo(
+    () => (cfg?.dal_options || []).find(d => d.id === dalOptionId) || null,
+    [cfg, dalOptionId]
+  );
+
+  // Reset dal selection if it becomes unavailable for the selected center
+  useEffect(() => {
+    if (dalOptionId && dalOptions.length && !dalOptions.find(d => d.id === dalOptionId)) {
+      setDalOptionId('');
+    }
+  }, [dalOptions, dalOptionId]);
+
   // Live estimate
   const estimate = useMemo(() => {
     if (!cfg) return null;
     const hallC = isAus ? cfg.hall_charges_aud : cfg.hall_charges_inr;
-    const thaliP = isAus ? cfg.thali_price_aud : cfg.thali_price_inr;
+    // If a thali package is selected, use its price; otherwise fall back to flat thali price.
+    const thaliP = selectedThaliPkg
+      ? (isAus ? selectedThaliPkg.price_aud : selectedThaliPkg.price_inr)
+      : (isAus ? cfg.thali_price_aud : cfg.thali_price_inr);
+    const thaliLabel = selectedThaliPkg
+      ? `${selectedThaliPkg.name} × ${Math.max(parseInt(guestCount || 0) || 0, 0)} guests`
+      : `Thali × ${Math.max(parseInt(guestCount || 0) || 0, 0)} guests`;
     const bkfP = isAus ? cfg.breakfast_price_per_person_aud : cfg.breakfast_price_per_person_inr;
     const snkP = isAus ? cfg.snacks_price_per_person_aud : cfg.snacks_price_per_person_inr;
     const drinksHalf = isAus ? cfg.drinks_half_day_aud : cfg.drinks_half_day_inr;
@@ -86,7 +120,7 @@ export default function WeddingBooking() {
     const g = Math.max(parseInt(guestCount || 0) || 0, 0);
     const items = [];
     items.push({ label: 'Hall Charges', amount: hallC });
-    items.push({ label: `Thali × ${g} guests`, amount: thaliP * g });
+    items.push({ label: thaliLabel, amount: thaliP * g });
     if (breakfast) items.push({ label: `Breakfast × ${g}`, amount: bkfP * g });
     if (snacks) items.push({ label: `Snacks × ${g}`, amount: snkP * g });
     if (drinksMode === 'half_day') items.push({ label: 'Drinks — Half Day', amount: drinksHalf });
@@ -99,10 +133,11 @@ export default function WeddingBooking() {
     }
     if (decoration && decoC > 0) items.push({ label: 'Decoration', amount: decoC });
     const subtotal = items.reduce((s, i) => s + i.amount, 0);
-    const gstAmount = Math.round(subtotal * (cfg.gst_pct || 0) / 100);
+    const gstPct = selectedThaliPkg?.gst_pct ?? cfg.gst_pct ?? 0;
+    const gstAmount = Math.round(subtotal * gstPct / 100);
     const total = subtotal + gstAmount;
-    return { line_items: items, subtotal, gst_pct: cfg.gst_pct || 0, gst_amount: gstAmount, total };
-  }, [cfg, isAus, guestCount, breakfast, snacks, drinksMode, drinksItems, decoration]);
+    return { line_items: items, subtotal, gst_pct: gstPct, gst_amount: gstAmount, total };
+  }, [cfg, isAus, guestCount, breakfast, snacks, drinksMode, drinksItems, decoration, selectedThaliPkg]);
 
   const minDate = useMemo(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -124,6 +159,8 @@ export default function WeddingBooking() {
     m += `*Date:* ${eventDate}\n`;
     m += `*Guests:* ${guestCount}\n`;
     m += `*Time Slot:* ${timeSlot}\n\n`;
+    if (selectedThaliPkg) m += `*Thali Package:* ${selectedThaliPkg.name}\n`;
+    if (selectedDal) m += `*Dal / Varan / Amti:* ${selectedDal.name}\n`;
     m += `*Selections:*\n`;
     if (breakfast) m += `• Breakfast (${cfg.breakfast_time})\n`;
     if (snacks) m += `• Snacks (${cfg.snacks_time})\n`;
@@ -145,6 +182,12 @@ export default function WeddingBooking() {
     if (!name || !mobile || !eventType || !centerId || !eventDate || !timeSlot) {
       toast.error('Please fill all required fields'); return;
     }
+    if (cfg?.thali_packages_enabled && (cfg?.thali_packages || []).some(p => p.enabled !== false) && !thaliPackageId) {
+      toast.error('Please select a Thali Package'); return;
+    }
+    if (cfg?.dal_options_enabled && dalOptions.length > 0 && !dalOptionId) {
+      toast.error('Please select a Dal / Varan / Amti option'); return;
+    }
     if (guestCount < (cfg?.min_guests || 30)) {
       toast.error(`Minimum ${cfg?.min_guests || 30} guests required`); return;
     }
@@ -159,6 +202,10 @@ export default function WeddingBooking() {
         center_id: centerId, center_name: currentCenter?.displayName || '',
         country: currentCenter?.country || 'India',
         event_date: eventDate, guest_count: guestCount, time_slot: timeSlot,
+        thali_package_id: thaliPackageId,
+        thali_package_name: selectedThaliPkg?.name || '',
+        dal_option_id: dalOptionId,
+        dal_option_name: selectedDal?.name || '',
         breakfast, snacks, drinks_mode: drinksMode, drinks_items: drinksItems,
         decoration, decoration_agreed: decoAgreed, notes, estimate
       };
@@ -338,6 +385,81 @@ export default function WeddingBooking() {
               </div>
             </div>
 
+            {/* THALI PACKAGE SELECTOR (Celebration-only) — matches Catering card style */}
+            {cfg.thali_packages_enabled && (cfg.thali_packages || []).some(p => p.enabled !== false) && (
+              <div className={card} data-testid="wedding-form-thali">
+                <h2 className="font-heading text-lg text-[#3D2314] flex items-center gap-2 mb-1">
+                  <Crown className="h-4 w-4 text-[#B8962E]" /> Choose Thali Package *
+                </h2>
+                <p className="text-xs text-[#7A6F65] font-body mb-4">Pick a celebration thali. This replaces the standard per-person thali charge.</p>
+                <div className="grid md:grid-cols-2 gap-3 sm:gap-4">
+                  {(cfg.thali_packages || []).filter(p => p.enabled !== false).map(pkg => {
+                    const price = isAus ? pkg.price_aud : pkg.price_inr;
+                    const isSelected = thaliPackageId === pkg.id;
+                    return (
+                      <button
+                        key={pkg.id}
+                        type="button"
+                        onClick={() => setThaliPackageId(pkg.id)}
+                        className={`text-left p-4 border transition-all rounded-none ${isSelected ? 'border-[#B8962E] bg-[#B8962E]/5 ring-1 ring-[#B8962E]/30' : 'border-[#E8DFD0] hover:border-[#B8962E]/40 bg-white'}`}
+                        data-testid={`thali-package-${pkg.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <h4 className="font-heading font-medium text-[#2D1810] text-base sm:text-lg leading-snug">{pkg.name}</h4>
+                            {pkg.is_popular && <Badge className="bg-[#B8962E] text-white text-[10px] mt-1 rounded-none">Most Popular</Badge>}
+                          </div>
+                          <span className="font-heading font-medium text-base sm:text-lg text-[#B8962E] whitespace-nowrap">
+                            {sym}{(price || 0).toLocaleString('en-IN')}<span className="text-[10px] font-body text-[#7A6F65]">/pp</span>
+                          </span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-[#5C4A3A] font-body leading-relaxed">{pkg.description}</p>
+                        {isSelected && (
+                          <p className="mt-2 text-[11px] text-[#B8962E] font-body inline-flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Selected
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* DAL / VARAN / AMTI selector — shows when a package is selected */}
+                {thaliPackageId && cfg.dal_options_enabled && (
+                  <div className="mt-5 pt-5 border-t border-[#E8DFD0]">
+                    <h3 className="font-heading text-base text-[#3D2314] flex items-center gap-2 mb-1">
+                      <Soup className="h-4 w-4 text-[#B8962E]" /> Dal / Varan / Amti *
+                    </h3>
+                    <p className="text-[11px] text-[#7A6F65] font-body mb-3">
+                      Pick one Maharashtrian dal preparation for your thali.
+                      {currentCenter?.country === 'Australia' && <span className="ml-1 italic">(Perth center)</span>}
+                    </p>
+                    {dalOptions.length === 0 ? (
+                      <p className="text-xs italic text-[#7A6F65]">No dal options available for this center yet. Please contact us.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {dalOptions.map(d => {
+                          const isSelected = dalOptionId === d.id;
+                          return (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => setDalOptionId(d.id)}
+                              className={`text-xs sm:text-sm px-2 py-2.5 border rounded-none font-body transition-all ${isSelected ? 'border-[#B8962E] bg-[#B8962E]/10 text-[#B8962E] font-medium' : 'border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/40 bg-white'}`}
+                              data-testid={`dal-option-${d.id}`}
+                            >
+                              {d.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+
             <div className={card} data-testid="wedding-form-addons">
               <h2 className="font-heading text-lg text-[#3D2314] flex items-center gap-2 mb-4"><Sparkles className="h-4 w-4 text-[#B8962E]" /> Food & Service Add-ons</h2>
               <div className="space-y-3">
@@ -433,6 +555,23 @@ export default function WeddingBooking() {
             <div className="lg:sticky lg:top-24 space-y-4">
               <div className={card} data-testid="wedding-estimate">
                 <h3 className="font-heading text-lg text-[#3D2314] flex items-center gap-2 mb-3"><Sparkles className="h-4 w-4 text-[#B8962E]" /> Estimate</h3>
+                {(selectedThaliPkg || selectedDal || currentCenter || eventType) && (
+                  <div className="mb-3 pb-3 border-b border-[#E8DFD0] space-y-1 text-[11px] font-body">
+                    {currentCenter && (
+                      <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Center</span><span className="text-[#2D1810] text-right truncate">{currentCenter.displayName || currentCenter.name}</span></div>
+                    )}
+                    {eventType && (
+                      <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Event</span><span className="text-[#2D1810] text-right truncate">{eventType}</span></div>
+                    )}
+                    {selectedThaliPkg && (
+                      <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Thali Package</span><span className="text-[#B8962E] font-medium text-right">{selectedThaliPkg.name}</span></div>
+                    )}
+                    {selectedDal && (
+                      <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Dal / Varan</span><span className="text-[#2D1810] text-right">{selectedDal.name}</span></div>
+                    )}
+                    <div className="flex justify-between gap-2 text-[#5C4A3A]"><span>Guests</span><span className="text-[#2D1810]">{guestCount}</span></div>
+                  </div>
+                )}
                 {estimate && (
                   <div className="space-y-1.5 text-xs font-body">
                     {estimate.line_items.map((it, i) => (
