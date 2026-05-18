@@ -5,7 +5,6 @@ import { Menu, X, User, MapPin, Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthDialog from '@/components/AuthDialog';
-import InstallPrompt from '@/components/InstallPrompt';
 import AskVahini from '@/components/AskVahini';
 import { LocationBanner, NearestCenterBanner } from '@/components/LocationBanner';
 import { SEOFAQ, SEOInternalLinks } from '@/components/SEOFAQ';
@@ -24,7 +23,7 @@ const Layout = ({ children }) => {
     { name: 'Table Booking', path: '/table-booking' },
     { name: 'Tiffin', path: '/tiffin' },
     { name: 'Catering', path: '/catering' },
-    { name: 'Lagna', path: '/wedding-booking' },
+    { name: 'Celebrate', path: '/wedding-booking' },
     { name: 'Locations', path: '/locations' },
     { name: 'Videos', path: '/videos' },
     { name: 'Inspiration', path: '/inspiration' },
@@ -243,7 +242,6 @@ const Layout = ({ children }) => {
       </footer>
 
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
-      <InstallPrompt />
       <AskVahini />
     </div>
   );

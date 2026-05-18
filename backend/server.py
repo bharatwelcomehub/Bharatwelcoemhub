@@ -2929,6 +2929,17 @@ def _format_quote_text(booking: dict, cfg: dict) -> str:
     return "\n".join(lines)
 
 
+@api_router.get("/wedding/bookings/{booking_id}")
+async def get_wedding_booking(booking_id: str):
+    """Public: fetch a single booking by id (for shareable quotation link).
+    Sensitive fields like history & advance/balance are kept; this is meant to be shared
+    by the customer with their family only."""
+    doc = await db.wedding_bookings.find_one({"id": booking_id}, {"_id": 0, "history": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return doc
+
+
 @api_router.get("/wedding/quotation/{booking_id}")
 async def get_wedding_quotation(booking_id: str):
     """Public: plain-text quotation. PDF generation can be added later."""

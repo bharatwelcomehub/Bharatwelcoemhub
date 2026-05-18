@@ -24,6 +24,7 @@ export default function WeddingBooking() {
   const [centersData, setCentersData] = useState(centersFallback);
   const [blockedDates, setBlockedDates] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [submittedBookingId, setSubmittedBookingId] = useState('');
 
   // Form state
   const [name, setName] = useState('');
@@ -111,9 +112,10 @@ export default function WeddingBooking() {
 
   const buildWhatsApp = (bookingId) => {
     if (!cfg || !currentCenter || !estimate) return '';
-    let m = `*PURNABRAMHA — LAGNA / WEDDING ENQUIRY*\n`;
+    const quoteLink = `${window.location.origin}/quote/${bookingId}`;
+    let m = `*PURNABRAMHA — CELEBRATION ENQUIRY*\n`;
     m += `━━━━━━━━━━━━━━━━━━━\n\n`;
-    m += `*Enquiry ID:* ${bookingId.slice(0, 8)}\n`;
+    m += `*Enquiry ID:* ${bookingId.slice(0, 8).toUpperCase()}\n`;
     m += `*Customer:* ${name} (${mobile})\n`;
     if (email) m += `*Email:* ${email}\n`;
     m += `*Event:* ${eventType}\n`;
@@ -132,6 +134,7 @@ export default function WeddingBooking() {
     }
     if (decoration) m += `• Decoration ${decoAgreed ? '(rules agreed)' : ''}\n`;
     m += `\n*Estimated Total: ${sym}${estimate.total.toLocaleString('en-IN')}* (incl. ${estimate.gst_pct}% GST)\n`;
+    m += `\n*Shareable Quotation:* ${quoteLink}\n`;
     if (notes) m += `\n*Notes:* ${notes}\n`;
     m += `\n_Awaiting confirmation from your team._`;
     return encodeURIComponent(m);
@@ -160,6 +163,7 @@ export default function WeddingBooking() {
       };
       const res = await axios.post(`${API}/api/wedding/bookings`, body);
       const bookingId = res.data.id;
+      setSubmittedBookingId(bookingId);
       toast.success('Enquiry submitted — opening WhatsApp...');
       const msg = buildWhatsApp(bookingId);
       const wa = (currentCenter?.whatsapp || currentCenter?.phone || '').replace(/[^0-9]/g, '');
@@ -186,22 +190,22 @@ export default function WeddingBooking() {
 
   return (
     <div className="min-h-screen bg-[#FDFBF7]">
-      <SEOHead page="lagna-booking" title="Lagna / Wedding Booking | Purnabramha" description="Book traditional Maharashtrian wedding, engagement, haldi, munj, naming ceremonies at Purnabramha. ₹15,000 hall + ₹599/person thali. Premium veg banquet experience." />
+      <SEOHead page="celebrate" title="Celebrate at Purnabramha — Weddings, Anniversaries, Ceremonies" description="Book traditional Maharashtrian celebrations at Purnabramha — wedding, engagement, haldi, munj, naming, birthday, anniversary. ₹15,000 hall + ₹599/person thali." />
 
       {/* Hero */}
       <section className="relative py-16 lg:py-20 bg-gradient-to-b from-[#3D2314] to-[#5B3923] text-[#F5DEB3] overflow-hidden" data-testid="wedding-hero">
         <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(circle_at_30%_40%,rgba(212,175,55,0.4),transparent_40%)]" />
         <div className="container mx-auto px-4 lg:px-12 relative text-center">
           <Badge className="bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded-full px-3 py-1 mb-4 tracking-widest uppercase text-[10px] font-body">
-            <Flower2 className="inline h-3 w-3 mr-1" /> लग्न समारंभ • Family Functions
+            <Flower2 className="inline h-3 w-3 mr-1" /> Weddings • Birthdays • Anniversaries • Ceremonies
           </Badge>
           <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-light tracking-wide">
-            Lagna Booking
+            Celebrate at Purnabramha
           </h1>
-          <p className="font-heading italic text-[#D4AF37] text-xl mt-2">at Purnabramha</p>
+          <p className="font-heading italic text-[#D4AF37] text-xl mt-2">Lagna • Sakharpuda • Haldi • Munj • Birthday • Anniversary</p>
           <p className="font-body text-[#F5DEB3]/80 mt-4 max-w-2xl mx-auto text-sm lg:text-base">
-            Host your wedding, engagement, haldi, munj, and family ceremonies in our intimate Maharashtrian banquet space.
-            Authentic thali menu, banana-leaf seating, and a touch of cultural elegance.
+            Host every special moment with us — weddings, engagements, haldi, naming ceremonies, birthdays, anniversaries, and family gatherings.
+            Authentic Maharashtrian thali, banana-leaf seating, and a touch of cultural elegance.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 mt-6 text-xs font-body">
             <span className="bg-white/10 border border-[#D4AF37]/30 px-3 py-1.5 rounded-full">Hall {sym}{(isAus ? cfg.hall_charges_aud : cfg.hall_charges_inr).toLocaleString()}</span>
@@ -401,6 +405,31 @@ export default function WeddingBooking() {
                 {submitting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <MessageCircle className="h-5 w-5 mr-2" />}
                 {submitting ? 'Sending...' : 'Send Enquiry via WhatsApp'}
               </Button>
+
+              {submittedBookingId && (
+                <div className="bg-[#F0FFF0] border-2 border-green-300 p-4 text-center space-y-2" data-testid="wedding-share-callout">
+                  <p className="text-sm font-heading text-green-800">Enquiry sent! Share with your family for approval:</p>
+                  <a
+                    href={`/quote/${submittedBookingId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block bg-white border border-green-400 py-2.5 text-sm font-body text-green-700 hover:bg-green-50"
+                    data-testid="wedding-share-link"
+                  >
+                    🔗 Open Shareable Quotation
+                  </a>
+                  <button
+                    onClick={async () => {
+                      const url = `${window.location.origin}/quote/${submittedBookingId}`;
+                      try { await navigator.clipboard.writeText(url); toast.success('Link copied!'); } catch { toast.error('Could not copy'); }
+                    }}
+                    className="w-full text-xs text-green-700 underline font-body"
+                    data-testid="wedding-share-copy"
+                  >
+                    Copy link to clipboard
+                  </button>
+                </div>
+              )}
 
               {currentCenter?.phone && (
                 <a href={`tel:${currentCenter.phone}`} className="block w-full text-center bg-white border border-[#E8DFD0] py-3 text-sm font-body text-[#5C4A3A] hover:border-[#B8962E]/40">

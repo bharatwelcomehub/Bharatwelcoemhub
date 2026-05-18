@@ -1502,7 +1502,7 @@ const Admin = () => {
             </TabsTrigger>
             <TabsTrigger value="wedding" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="wedding-admin-tab">
               <Heart className="h-4 w-4" />
-              Lagna
+              Celebrate
             </TabsTrigger>
           </TabsList>
 
@@ -2862,8 +2862,8 @@ const Admin = () => {
           <TabsContent value="wedding">
             <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
               <div>
-                <h2 className="font-playfair text-xl font-semibold flex items-center gap-2"><Heart className="h-5 w-5 text-[#B8962E]" /> Lagna Booking Management</h2>
-                <p className="text-sm text-foreground/60 mt-1">Manage wedding/family-function bookings, pricing, blocked dates, and event readiness.</p>
+                <h2 className="font-playfair text-xl font-semibold flex items-center gap-2"><Heart className="h-5 w-5 text-[#B8962E]" /> Celebrate Bookings Management</h2>
+                <p className="text-sm text-foreground/60 mt-1">Manage celebration bookings (weddings, anniversaries, birthdays, ceremonies), pricing, blocked dates, and event readiness.</p>
               </div>
               {weddingCfg && (
                 <Button onClick={saveWeddingCfg} disabled={weddingSaving} className="rounded-full bg-[#B8962E] text-white hover:bg-[#D4AF37]" data-testid="save-wedding-cfg">
@@ -3020,6 +3020,7 @@ const Admin = () => {
                               <th className="text-left p-2">Status</th>
                               <th className="text-right p-2">Advance</th>
                               <th className="text-right p-2">Balance</th>
+                              <th className="text-center p-2">Quote</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3040,6 +3041,19 @@ const Admin = () => {
                                   </td>
                                   <td className="p-2 text-right"><Input type="number" defaultValue={b.advance_paid || 0} onBlur={e => updateBookingPayment(b.id, 'advance_paid', e.target.value)} className="text-[11px] h-7 w-20 text-right" data-testid={`wedding-advance-${b.id}`} /></td>
                                   <td className="p-2 text-right"><Input type="number" defaultValue={b.balance_due || 0} onBlur={e => updateBookingPayment(b.id, 'balance_due', e.target.value)} className="text-[11px] h-7 w-20 text-right" data-testid={`wedding-balance-${b.id}`} /></td>
+                                  <td className="p-2 text-center">
+                                    <button
+                                      onClick={async () => {
+                                        const url = `${window.location.origin}/quote/${b.id}`;
+                                        try { await navigator.clipboard.writeText(url); toast.success('Quote link copied'); } catch { toast.error('Could not copy'); }
+                                      }}
+                                      className="text-[10px] text-[#B8962E] hover:text-[#D4AF37] underline"
+                                      data-testid={`wedding-copy-quote-${b.id}`}
+                                      title="Copy shareable quotation link"
+                                    >
+                                      📋 Copy Link
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
