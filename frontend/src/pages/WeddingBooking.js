@@ -494,61 +494,24 @@ export default function WeddingBooking() {
                     );
                   })}
                 </div>
-
-                {/* DAL / VARAN / AMTI selector — multi-select (count = package.requirements.dal) */}
-                {thaliPackageId && cfg.dal_options_enabled && (selectedThaliPkg?.requirements?.dal || 0) > 0 && (
-                  <div className="mt-5 pt-5 border-t border-[#E8DFD0]">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-heading text-base text-[#3D2314] flex items-center gap-2">
-                        <Soup className="h-4 w-4 text-[#B8962E]" /> Dal / Varan / Amti *
-                      </h3>
-                      <Badge className={dalOptionIds.length >= (selectedThaliPkg?.requirements?.dal || 0) ? 'bg-green-100 text-green-700 border-green-200' : 'bg-[#F8F5F0] text-[#5C4A3A] border-[#E8DFD0]'}>
-                        {dalOptionIds.length}/{selectedThaliPkg?.requirements?.dal || 0}
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-[#7A6F65] font-body mb-3">
-                      Pick {selectedThaliPkg?.requirements?.dal} Maharashtrian dal preparation{selectedThaliPkg?.requirements?.dal === 1 ? '' : 's'} for your {selectedThaliPkg?.name}.
-                      {currentCenter?.country === 'Australia' && <span className="ml-1 italic">(Perth center)</span>}
-                    </p>
-                    {dalOptions.length === 0 ? (
-                      <p className="text-xs italic text-[#7A6F65]">No dal options available for this center yet. Please contact us.</p>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {dalOptions.map(d => {
-                          const isSelected = dalOptionIds.includes(d.id);
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              onClick={() => toggleDal(d.id)}
-                              className={`text-xs sm:text-sm px-2 py-2.5 border rounded-none font-body transition-all flex items-center gap-2 ${isSelected ? 'border-[#B8962E] bg-[#B8962E]/10 text-[#B8962E] font-medium' : 'border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/40 bg-white'}`}
-                              data-testid={`dal-option-${d.id}`}
-                            >
-                              <Checkbox checked={isSelected} className="pointer-events-none border-[#E8DFD0] data-[state=checked]:bg-[#B8962E] data-[state=checked]:border-[#B8962E]" />
-                              <span className="flex-1 text-left">{d.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )}
 
             {/* FULL MENU SELECTION — Catering-style cards (Celebration only, reuses Catering menu items) */}
             {selectedThaliPkg && (() => {
               const reqs = selectedThaliPkg.requirements || {};
+              // "dal" is treated as a first-class menu section sourced from cfg.dal_options
               const sections = [
-                { cat: 'starters',     label: 'Starters (2 pc each)', need: reqs.starters || 0 },
-                { cat: 'specialBhaji', label: 'Special Bhaji (80 gms)', need: reqs.special || 0 },
-                { cat: 'simpleBhaji',  label: 'Simple Bhaji / Mains (80 gms)', need: reqs.mains || 0 },
-                { cat: 'desserts',     label: 'Sweets / Desserts (80 gms)', need: reqs.desserts || 0 },
-                { cat: 'roti',         label: 'Roti / Bhakari', need: reqs.roti || 0 },
-                { cat: 'rice',         label: 'Rice (150 gms)', need: reqs.rice || 0 },
-                { cat: 'sides',        label: 'Sides', need: reqs.sides || 0 },
-                { cat: 'chutney',      label: 'Chutney', need: reqs.chutney || 0 },
-              ].filter(s => s.need > 0 && (menuOptions[s.cat] || []).length > 0);
+                { cat: 'dal',          label: 'Dal / Varan / Amti', need: (cfg.dal_options_enabled ? reqs.dal : 0) || 0, items: dalOptions, source: 'dal' },
+                { cat: 'starters',     label: 'Starters (2 pc each)', need: reqs.starters || 0, items: menuOptions.starters || [], source: 'menu' },
+                { cat: 'specialBhaji', label: 'Special Bhaji (80 gms)', need: reqs.special || 0, items: menuOptions.specialBhaji || [], source: 'menu' },
+                { cat: 'simpleBhaji',  label: 'Simple Bhaji / Mains (80 gms)', need: reqs.mains || 0, items: menuOptions.simpleBhaji || [], source: 'menu' },
+                { cat: 'desserts',     label: 'Sweets / Desserts (80 gms)', need: reqs.desserts || 0, items: menuOptions.desserts || [], source: 'menu' },
+                { cat: 'roti',         label: 'Roti / Bhakari', need: reqs.roti || 0, items: menuOptions.roti || [], source: 'menu' },
+                { cat: 'rice',         label: 'Rice (150 gms)', need: reqs.rice || 0, items: menuOptions.rice || [], source: 'menu' },
+                { cat: 'sides',        label: 'Sides', need: reqs.sides || 0, items: menuOptions.sides || [], source: 'menu' },
+                { cat: 'chutney',      label: 'Chutney', need: reqs.chutney || 0, items: menuOptions.chutney || [], source: 'menu' },
+              ].filter(s => s.need > 0 && s.items.length > 0);
               if (sections.length === 0) return null;
               return (
                 <div className={card} data-testid="wedding-form-menu">
@@ -560,9 +523,12 @@ export default function WeddingBooking() {
                     Curate your {selectedThaliPkg.name} thali. Select items based on the package allowance.
                   </p>
                   <div className="space-y-6">
-                    {sections.map(({ cat, label, need }) => {
-                      const got = (menuSelections[cat] || []).length;
+                    {sections.map(({ cat, label, need, items, source }) => {
+                      const selectedList = source === 'dal' ? dalOptionIds : (menuSelections[cat] || []);
+                      const got = selectedList.length;
                       const isComplete = got >= need;
+                      const onToggle = (id) => source === 'dal' ? toggleDal(id) : toggleMenu(cat, id);
+                      const testIdPrefix = source === 'dal' ? 'dal-option' : `menu-${cat}`;
                       return (
                         <div key={cat} data-testid={`menu-section-${cat}`}>
                           <div className="flex items-center justify-between mb-3">
@@ -572,14 +538,14 @@ export default function WeddingBooking() {
                             </Badge>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {(menuOptions[cat] || []).map(opt => {
-                              const isSelected = (menuSelections[cat] || []).includes(opt.id);
+                            {items.map(opt => {
+                              const isSelected = selectedList.includes(opt.id);
                               return (
                                 <div
                                   key={opt.id}
-                                  onClick={() => toggleMenu(cat, opt.id)}
+                                  onClick={() => onToggle(opt.id)}
                                   className={`p-2 border cursor-pointer transition-all text-xs sm:text-sm font-body ${isSelected ? 'border-[#B8962E] bg-[#B8962E]/5 text-[#B8962E] font-medium' : 'border-[#E8DFD0] text-[#5C4A3A] hover:border-[#B8962E]/30'}`}
-                                  data-testid={`menu-${cat}-${opt.id}`}
+                                  data-testid={`${testIdPrefix}-${opt.id}`}
                                 >
                                   <div className="flex items-center gap-2">
                                     <Checkbox checked={isSelected} className="pointer-events-none border-[#E8DFD0] data-[state=checked]:bg-[#B8962E] data-[state=checked]:border-[#B8962E]" />
