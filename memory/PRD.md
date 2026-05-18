@@ -283,6 +283,14 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
   - Mobile responsive with dark brown mobile menu
   - Footer with white background and gold accents
 
+- [x] **Festive Celebrate Hero** (Feb 2026) — Added cultural festive decorations to `/wedding-booking` and `/quote/:id` pages:
+  - Custom SVG **Toran** (hanging marigold + mango-leaf + golden-bell garland) at top of hero, responsive flex row (7 drops on mobile / 13 on desktop)
+  - **Tabla** (dual drum SVG with lacing) at bottom-left, **Shehnai** (conical wind instrument SVG) at bottom-right of hero
+  - **Diyas** (animated oil lamps with flame flicker) flanking the title
+  - **Mandala** background motif in corners + animated **Sparkles** floating in the hero
+  - Tightened mobile hero typography & padding (text-3xl on mobile vs text-5xl/6xl on desktop)
+  - Component: `/app/frontend/src/components/FestiveDecor.jsx` (exports Toran, Tabla, Shehnai, Diya, Mandala, Sparkle)
+
 ## Design Guidelines
 See `/app/design_guidelines.json` for full theme specifications including:
 - Color palette (Pearl White, Gold, Dark Brown)

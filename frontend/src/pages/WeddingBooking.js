@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import SEOHead from '@/components/SEOHead';
+import { Toran, Tabla, Shehnai, Diya, Mandala, Sparkle } from '@/components/FestiveDecor';
 
 import centersFallback from '@/config/centers.json';
 
@@ -192,27 +193,86 @@ export default function WeddingBooking() {
     <div className="min-h-screen bg-[#FDFBF7]">
       <SEOHead page="celebrate" title="Celebrate at Purnabramha — Weddings, Anniversaries, Ceremonies" description="Book traditional Maharashtrian celebrations at Purnabramha — wedding, engagement, haldi, munj, naming, birthday, anniversary. ₹15,000 hall + ₹599/person thali." />
 
-      {/* Hero */}
-      <section className="relative py-16 lg:py-20 bg-gradient-to-b from-[#3D2314] to-[#5B3923] text-[#F5DEB3] overflow-hidden" data-testid="wedding-hero">
-        <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(circle_at_30%_40%,rgba(212,175,55,0.4),transparent_40%)]" />
-        <div className="container mx-auto px-4 lg:px-12 relative text-center">
-          <Badge className="bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded-full px-3 py-1 mb-4 tracking-widest uppercase text-[10px] font-body">
-            <Flower2 className="inline h-3 w-3 mr-1" /> Weddings • Birthdays • Anniversaries • Ceremonies
-          </Badge>
-          <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-light tracking-wide">
-            Celebrate at Purnabramha
-          </h1>
-          <p className="font-heading italic text-[#D4AF37] text-xl mt-2">Lagna • Sakharpuda • Haldi • Munj • Birthday • Anniversary</p>
-          <p className="font-body text-[#F5DEB3]/80 mt-4 max-w-2xl mx-auto text-sm lg:text-base">
-            Host every special moment with us — weddings, engagements, haldi, naming ceremonies, birthdays, anniversaries, and family gatherings.
-            Authentic Maharashtrian thali, banana-leaf seating, and a touch of cultural elegance.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3 mt-6 text-xs font-body">
-            <span className="bg-white/10 border border-[#D4AF37]/30 px-3 py-1.5 rounded-full">Hall {sym}{(isAus ? cfg.hall_charges_aud : cfg.hall_charges_inr).toLocaleString()}</span>
-            <span className="bg-white/10 border border-[#D4AF37]/30 px-3 py-1.5 rounded-full">Thali {sym}{isAus ? cfg.thali_price_aud : cfg.thali_price_inr}/person</span>
-            <span className="bg-white/10 border border-[#D4AF37]/30 px-3 py-1.5 rounded-full">Min {cfg.min_guests} guests</span>
-            <span className="bg-white/10 border border-[#D4AF37]/30 px-3 py-1.5 rounded-full">+ {cfg.gst_pct}% GST</span>
-          </div>
+      {/* Hero — festive themed */}
+      <section
+        className="relative pt-16 pb-12 sm:pt-20 sm:pb-14 lg:pt-24 lg:pb-20 bg-gradient-to-b from-[#3D2314] via-[#4A2A18] to-[#5B3923] text-[#F5DEB3] overflow-hidden"
+        data-testid="wedding-hero"
+      >
+        {/* Subtle radial glow */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none bg-[radial-gradient(circle_at_50%_30%,rgba(212,175,55,0.25),transparent_55%)]" />
+
+        {/* Mandala motif corners */}
+        <Mandala className="absolute -top-10 -left-10 w-44 h-44 lg:w-64 lg:h-64 pointer-events-none" opacity={0.08} />
+        <Mandala className="absolute -bottom-12 -right-10 w-44 h-44 lg:w-64 lg:h-64 pointer-events-none" opacity={0.08} />
+
+        {/* TORAN — hanging marigold garland at the very top */}
+        <div className="absolute top-0 left-0 right-0 pointer-events-none z-10">
+          <Toran className="opacity-95 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
+        </div>
+
+        {/* Tabla — bottom-left corner */}
+        <motion.div
+          className="absolute left-2 bottom-2 sm:left-6 sm:bottom-6 lg:left-12 lg:bottom-8 pointer-events-none z-[5]"
+          initial={{ opacity: 0, x: -20, rotate: -8 }}
+          animate={{ opacity: 0.95, x: 0, rotate: 0 }}
+          transition={{ duration: 0.9, delay: 0.4 }}
+        >
+          <Tabla size={56} className="drop-shadow-[0_4px_6px_rgba(0,0,0,0.45)] sm:!w-[90px] sm:!h-auto lg:!w-[120px]" />
+        </motion.div>
+
+        {/* Shehnai — bottom-right corner */}
+        <motion.div
+          className="absolute right-2 bottom-1 sm:right-8 sm:bottom-3 lg:right-16 lg:bottom-2 pointer-events-none z-[5]"
+          initial={{ opacity: 0, x: 20, rotate: 12 }}
+          animate={{ opacity: 0.95, x: 0, rotate: 6 }}
+          transition={{ duration: 0.9, delay: 0.5 }}
+        >
+          <Shehnai size={56} className="drop-shadow-[0_4px_6px_rgba(0,0,0,0.45)] sm:!h-[110px] lg:!h-[140px]" />
+        </motion.div>
+
+        {/* Diyas flanking title (mobile-friendly) */}
+        <div className="absolute left-2 top-20 sm:left-6 sm:top-24 lg:left-20 lg:top-28 pointer-events-none z-[6]">
+          <Diya size={36} className="sm:!w-[48px] sm:!h-[48px] lg:!w-[60px] lg:!h-[60px]" />
+        </div>
+        <div className="absolute right-2 top-20 sm:right-6 sm:top-24 lg:right-20 lg:top-28 pointer-events-none z-[6]">
+          <Diya size={36} className="sm:!w-[48px] sm:!h-[48px] lg:!w-[60px] lg:!h-[60px]" />
+        </div>
+
+        {/* Floating sparkles */}
+        <Sparkle className="absolute top-24 left-[20%] w-3 h-3 sm:w-4 sm:h-4" delay={0} />
+        <Sparkle className="absolute top-32 right-[18%] w-3 h-3 sm:w-4 sm:h-4" delay={0.6} />
+        <Sparkle className="absolute top-44 left-[35%] w-2.5 h-2.5 sm:w-3 sm:h-3" delay={1.2} />
+        <Sparkle className="absolute top-40 right-[32%] w-2.5 h-2.5 sm:w-3 sm:h-3" delay={1.8} />
+        <Sparkle className="absolute bottom-24 left-[28%] w-3 h-3 hidden sm:block" delay={0.4} />
+        <Sparkle className="absolute bottom-28 right-[28%] w-3 h-3 hidden sm:block" delay={1.0} />
+
+        {/* Content */}
+        <div className="container mx-auto px-4 lg:px-12 relative text-center z-[7] pt-10 sm:pt-12 lg:pt-14">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <Badge className="bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded-full px-3 py-1 mb-4 tracking-widest uppercase text-[10px] font-body">
+              <Flower2 className="inline h-3 w-3 mr-1" /> Weddings • Birthdays • Anniversaries • Ceremonies
+            </Badge>
+            <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-light tracking-wide leading-tight">
+              Celebrate at <span className="text-[#F5DEB3]">Purnabramha</span>
+            </h1>
+            <p className="font-heading italic text-[#D4AF37] text-base sm:text-xl mt-2 px-2">
+              Lagna • Sakharpuda • Haldi • Munj • Birthday • Anniversary
+            </p>
+            <p className="font-body text-[#F5DEB3]/85 mt-3 sm:mt-4 max-w-2xl mx-auto text-xs sm:text-sm lg:text-base px-2 leading-relaxed">
+              Host every special moment with us — weddings, engagements, haldi, naming ceremonies, birthdays, anniversaries, and family gatherings.
+              Authentic Maharashtrian thali, banana-leaf seating, and a touch of cultural elegance.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-5 sm:mt-6 text-[11px] sm:text-xs font-body">
+              <span className="bg-white/10 border border-[#D4AF37]/40 px-3 py-1.5 rounded-full backdrop-blur-sm">Hall {sym}{(isAus ? cfg.hall_charges_aud : cfg.hall_charges_inr).toLocaleString()}</span>
+              <span className="bg-white/10 border border-[#D4AF37]/40 px-3 py-1.5 rounded-full backdrop-blur-sm">Thali {sym}{isAus ? cfg.thali_price_aud : cfg.thali_price_inr}/person</span>
+              <span className="bg-white/10 border border-[#D4AF37]/40 px-3 py-1.5 rounded-full backdrop-blur-sm">Min {cfg.min_guests} guests</span>
+              <span className="bg-white/10 border border-[#D4AF37]/40 px-3 py-1.5 rounded-full backdrop-blur-sm">+ {cfg.gst_pct}% GST</span>
+            </div>
+          </motion.div>
         </div>
       </section>
 

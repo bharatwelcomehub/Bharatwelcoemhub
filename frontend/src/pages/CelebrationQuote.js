@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import SEOHead from '@/components/SEOHead';
+import { Toran, Diya, Sparkle, Mandala } from '@/components/FestiveDecor';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -94,14 +95,39 @@ export default function CelebrationQuote() {
     <div className="min-h-screen bg-[#FDFBF7]">
       <SEOHead page="quote" title="Celebration Quotation | Purnabramha" description="Personalized celebration quotation from Purnabramha." />
 
-      {/* Hero header */}
-      <section className="bg-gradient-to-b from-[#3D2314] to-[#5B3923] text-[#F5DEB3] py-10 lg:py-14">
-        <div className="container mx-auto px-4 lg:px-12 text-center">
+      {/* Hero header — festive */}
+      <section className="relative bg-gradient-to-b from-[#3D2314] via-[#4A2A18] to-[#5B3923] text-[#F5DEB3] pt-12 pb-10 sm:pt-14 sm:pb-12 lg:pt-16 lg:pb-14 overflow-hidden">
+        <div className="absolute inset-0 opacity-25 pointer-events-none bg-[radial-gradient(circle_at_50%_30%,rgba(212,175,55,0.3),transparent_55%)]" />
+        <Mandala className="absolute -top-8 -left-8 w-36 h-36 lg:w-52 lg:h-52 pointer-events-none" opacity={0.08} />
+        <Mandala className="absolute -bottom-10 -right-8 w-36 h-36 lg:w-52 lg:h-52 pointer-events-none" opacity={0.08} />
+
+        {/* Toran at very top */}
+        <div className="absolute top-0 left-0 right-0 pointer-events-none z-10">
+          <Toran className="opacity-90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
+        </div>
+
+        {/* Diyas flanking */}
+        <div className="absolute left-3 top-14 sm:left-6 sm:top-16 lg:left-16 lg:top-20 pointer-events-none z-[6]">
+          <Diya size={32} className="sm:!w-[44px] sm:!h-[44px] lg:!w-[52px] lg:!h-[52px]" />
+        </div>
+        <div className="absolute right-3 top-14 sm:right-6 sm:top-16 lg:right-16 lg:top-20 pointer-events-none z-[6]">
+          <Diya size={32} className="sm:!w-[44px] sm:!h-[44px] lg:!w-[52px] lg:!h-[52px]" />
+        </div>
+
+        <Sparkle className="absolute top-16 left-[25%] w-3 h-3" delay={0} />
+        <Sparkle className="absolute top-20 right-[22%] w-3 h-3" delay={0.7} />
+        <Sparkle className="absolute bottom-6 left-[35%] w-2.5 h-2.5 hidden sm:block" delay={1.3} />
+
+        <div className="container mx-auto px-4 lg:px-12 text-center relative z-[7] pt-8 sm:pt-10">
           <Badge className="bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded-full px-3 py-1 mb-3 tracking-widest uppercase text-[10px] font-body">
             <Flower2 className="inline h-3 w-3 mr-1" /> Celebration Quotation
           </Badge>
-          <h1 className="font-heading text-3xl lg:text-4xl font-light tracking-wide">Quotation for {booking.name}</h1>
-          <p className="font-body text-[#F5DEB3]/80 mt-2 text-sm">Enquiry ID: <span className="font-mono">{(booking.id || '').slice(0, 8).toUpperCase()}</span></p>
+          <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-light tracking-wide px-2 leading-tight">
+            Quotation for {booking.name}
+          </h1>
+          <p className="font-body text-[#F5DEB3]/80 mt-2 text-xs sm:text-sm">
+            Enquiry ID: <span className="font-mono">{(booking.id || '').slice(0, 8).toUpperCase()}</span>
+          </p>
         </div>
       </section>
 
