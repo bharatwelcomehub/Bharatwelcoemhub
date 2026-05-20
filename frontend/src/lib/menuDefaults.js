@@ -36,6 +36,7 @@ export const MENU_DEFAULTS = [
     items: [
       { path: "/center-accounts", label: "Center Accounts" },
       { path: "/center-health", label: "Center Health Dashboard" },
+      { path: "/gst-paid-report", label: "GST Paid Report" },
       { path: "/gst-reconciliation", label: "GST Reconciliation" },
       { path: "/bank-reconciliation", label: "Bank Reconciliation" },
       { path: "/loan-entries", label: "Loan Entries" },

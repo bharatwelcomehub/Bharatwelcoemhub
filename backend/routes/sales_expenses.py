@@ -160,6 +160,9 @@ class ExpenseCreate(BaseModel):
     # gst_rate one of 0, 5, 12, 18, 28. gst_amount auto-derived if not provided.
     gst_rate: Optional[float] = 0
     gst_amount: Optional[float] = 0
+    # NEW: GST Paid as printed on the bill (simple manual entry, no calc). The
+    # canonical "Total Expense" displayed/reported is amount + gst_paid.
+    gst_paid: Optional[float] = 0
     vendor_name: Optional[str] = ""
     vendor_gstin: Optional[str] = ""
 
@@ -171,6 +174,7 @@ class ExpenseUpdate(BaseModel):
     notes: Optional[str] = None
     gst_rate: Optional[float] = None
     gst_amount: Optional[float] = None
+    gst_paid: Optional[float] = None
     vendor_name: Optional[str] = None
     vendor_gstin: Optional[str] = None
 
@@ -1428,6 +1432,8 @@ async def create_expense(req: ExpenseCreate, token: str):
         record["gst_amount"] = round(amt * rate / (100 + rate), 2)
     record["gst_rate"] = rate
     record["gst_amount"] = round(float(record.get("gst_amount") or 0), 2)
+    # NEW: GST Paid (printed-on-bill). Default 0. Pure addition — no derive.
+    record["gst_paid"] = round(float(record.get("gst_paid") or 0), 2)
     
     result = await db.expenses.insert_one(record)
     expense_id_str = str(result.inserted_id)

@@ -45,6 +45,7 @@ import {
   Upload,
   Sparkles,
   Activity,
+  Calculator,
 } from "lucide-react";
 
 // Import pages
@@ -71,6 +72,7 @@ import HistoricalImport from "@/pages/HistoricalImport";
 import OwnerReports from "@/pages/OwnerReports";
 import AdCreator from "@/pages/AdCreator";
 import CenterHealth from "@/pages/CenterHealth";
+import GstPaidReport from "@/pages/GstPaidReport";
 import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
@@ -127,6 +129,7 @@ const menuCategories = [
     items: [
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
       { path: "/center-health", icon: Activity, label: "Center Health Dashboard", forAccounts: true },
+      { path: "/gst-paid-report", icon: Calculator, label: "GST Paid Report", forAccounts: true },
       { path: "/gst-reconciliation", icon: Receipt, label: "GST Reconciliation", forAccounts: true },
       { path: "/bank-reconciliation", icon: Banknote, label: "Bank Reconciliation", forAccounts: true },
       { path: "/loan-entries", icon: Wallet, label: "Loan Entries", forAccounts: true },
@@ -181,6 +184,7 @@ const menuCategories = [
       { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
       { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
       { path: "/bill-download", icon: Download, label: "Bill Download", forFranchise: true },
+      { path: "/gst-paid-report", icon: Calculator, label: "GST Paid Report", forFranchise: true },
       { path: "/documents", icon: FileCheck2, label: "Documents", forFranchise: true, franchiseAdminOnly: true },
     ]
   },
@@ -643,6 +647,7 @@ export default function Dashboard() {
             <Route path="/franchise-exit" element={<FranchiseExit />} />
             <Route path="/center-accounts" element={<CenterAccounts />} />
             <Route path="/center-health" element={<CenterHealth />} />
+            <Route path="/gst-paid-report" element={<GstPaidReport />} />
             <Route path="/gst-reconciliation" element={<GSTReconciliation />} />
             <Route path="/bank-reconciliation" element={<BankReconciliation />} />
             <Route path="/historical-import" element={<HistoricalImport />} />

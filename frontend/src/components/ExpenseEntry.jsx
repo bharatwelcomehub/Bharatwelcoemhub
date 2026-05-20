@@ -712,8 +712,21 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
 
   // Calculate total — uses filtered visible rows (Excel-style filters)
   const totalExpenses = useMemo(() => {
-    return filteredExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-  }, [filteredExpenses]);
+    return filteredExpenses.reduce((sum, exp) => {
+      const live = editedExpenses[exp.expense_id];
+      const v = (live && 'amount' in live) ? Number(live.amount || 0) : Number(exp.amount || 0);
+      return sum + v;
+    }, 0);
+  }, [filteredExpenses, editedExpenses]);
+
+  // GST Paid total — based on the same filtered/edited view
+  const totalGstPaid = useMemo(() => {
+    return filteredExpenses.reduce((sum, exp) => {
+      const live = editedExpenses[exp.expense_id];
+      const v = (live && 'gst_paid' in live) ? Number(live.gst_paid || 0) : Number(exp.gst_paid || 0);
+      return sum + v;
+    }, 0);
+  }, [filteredExpenses, editedExpenses]);
 
   // Group expenses by type — also based on filtered data
   const expensesByType = useMemo(() => {
@@ -855,6 +868,12 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
           <p className="text-sm text-muted-foreground">
             Center: <span className="font-medium text-foreground">{centerCode}</span>
             <span className="ml-4">Total: <span className="font-bold text-red-500">{fmtCurrency(totalExpenses, centerCode)}</span></span>
+            {totalGstPaid > 0 && (
+              <span className="ml-3" data-testid="header-total-gst-paid">
+                GST Paid: <span className="font-bold text-amber-700">{fmtCurrency(totalGstPaid, centerCode)}</span>
+                <span className="ml-3">Grand Total: <span className="font-bold text-slate-900">{fmtCurrency(totalExpenses + totalGstPaid, centerCode)}</span></span>
+              </span>
+            )}
             {dateMode === "range" && (
               <span className="ml-4 text-xs">({expenses.length} records)</span>
             )}
@@ -1292,6 +1311,12 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                       testIdBase="col-filter-amount"
                     />
                   </th>
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-28" data-testid="th-gst-paid">
+                    GST Paid
+                  </th>
+                  <th className="text-right py-3 px-2 font-medium text-muted-foreground w-32" data-testid="th-total-exp">
+                    Total
+                  </th>
                   <th className="text-center py-3 px-2 font-medium text-muted-foreground w-24 cursor-pointer hover:text-foreground select-none" onClick={() => handleSort("is_grouped")} data-testid="sort-invoice">
                     Invoice<SortIcon field="is_grouped" />
                   </th>
@@ -1406,6 +1431,36 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                       ) : (
                         <span className="font-medium">{fmtCurrency(exp.amount, centerCode)}</span>
                       )}
+                    </td>
+
+                    {/* GST Paid - Editable, defaults to 0, copied straight from bill */}
+                    <td className="py-2 px-2 text-right">
+                      {frozenStatus.can_edit ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={getFieldValue(exp, 'gst_paid') ?? (exp.gst_paid ?? 0)}
+                          onChange={(e) => handleInlineEdit(exp.expense_id, 'gst_paid', e.target.value)}
+                          className="h-8 text-sm text-right w-full min-w-[90px]"
+                          placeholder="0"
+                          data-testid={`edit-gst-paid-${idx}`}
+                          title="GST as printed on the bill. Set to 0 if no GST."
+                        />
+                      ) : (
+                        <span className="text-sm">{fmtCurrency(Number(exp.gst_paid || 0), centerCode)}</span>
+                      )}
+                    </td>
+
+                    {/* Total Expense (read-only, = amount + gst_paid) */}
+                    <td className="py-2 px-2 text-right">
+                      <span className="font-semibold text-slate-900" data-testid={`total-exp-${idx}`}>
+                        {fmtCurrency(
+                          Number(getFieldValue(exp, 'amount') ?? exp.amount ?? 0)
+                          + Number(getFieldValue(exp, 'gst_paid') ?? exp.gst_paid ?? 0),
+                          centerCode
+                        )}
+                      </span>
                     </td>
                     
                     {/* Invoice Group Column */}
@@ -1554,7 +1609,7 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                 ))}
                 {expenses.length === 0 && (
                   <tr>
-                    <td colSpan={frozenStatus.can_edit ? 10 : 9} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={frozenStatus.can_edit ? 12 : 11} className="text-center py-8 text-muted-foreground">
                       No expenses recorded for this {dateMode === "range" ? "period" : "date"}
                     </td>
                   </tr>
@@ -1564,8 +1619,10 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                 <tfoot>
                   <tr className="bg-muted/50">
                     <td colSpan={frozenStatus.can_edit ? 7 : 6} className="py-3 px-2 font-bold text-right">Total:</td>
-                    <td className="py-3 px-2 font-bold text-right text-red-500">{fmtCurrency(totalExpenses, centerCode)}</td>
-                    <td colSpan={2}></td>
+                    <td className="py-3 px-2 font-bold text-right text-red-500" data-testid="footer-total-amount">{fmtCurrency(totalExpenses, centerCode)}</td>
+                    <td className="py-3 px-2 font-bold text-right text-amber-700" data-testid="footer-total-gst">{fmtCurrency(totalGstPaid, centerCode)}</td>
+                    <td className="py-3 px-2 font-bold text-right text-slate-900" data-testid="footer-grand-total">{fmtCurrency(totalExpenses + totalGstPaid, centerCode)}</td>
+                    <td colSpan={3}></td>
                   </tr>
                 </tfoot>
               )}
