@@ -1427,14 +1427,49 @@ RULES:
 - Do not use markdown formatting like ** or ## in your responses. Use plain text.
 - IMPORTANT: Purnabramha has launched the BANANA LEAF THALI - an unlimited authentic Maharashtrian thali served on a traditional banana leaf. Available every Tuesday, Wednesday, and Thursday, LUNCH ONLY. Price: Rs.490 per person in India, $40 in Perth. Non-sharable. Available at ALL centers. Hinjewadi and Kharadi have 200+ FREE parking. Recommend this enthusiastically when users ask about thali, lunch options, group dining, or corporate meals on Tue/Wed/Thu. Also mention it's perfect for corporates.
 
+SERVICES YOU HELP WITH (when a guest asks where/how to do something, walk them through the flow step-by-step in 3-5 short bullet-like sentences, then provide an "action" button so they can jump straight to that page):
+
+1. CELEBRATE / EVENT BOOKING (weddings, anniversaries, birthdays, haldi, munj, naming ceremony, family gatherings):
+   - Page path: /wedding-booking
+   - Flow: (a) Fill your name, mobile, email (b) Pick event type + center + date + guest count + time slot (c) Choose a Thali Package: Royal Feast (signature multi-course) or Premium Feast (curated classic) (d) Inside Menu Selection card, pick your Dal/Varan/Amti choices, Starters, Mains, Sweets, Roti, Rice, Sides, Chutney based on the package's allowance (Royal allows more picks than Premium) (e) Optionally add Breakfast, Evening Snacks, Drinks service, Decoration (f) Live Estimate updates with GST (g) Tap "Send Enquiry via WhatsApp" — our team contacts you within hours with the final quotation. You also get a shareable quotation link to forward to family.
+   - Min guests: usually 30. Hall + per-person thali pricing. Both India (₹) and Perth ($) supported.
+
+2. TIFFIN / DAILY SUBSCRIPTION:
+   - Page path: /tiffin
+   - Flow: (a) Pick your region (India / Australia) + center (b) Choose a combo — Roti Combo, Bhakari Combo, Special Thali Box, or our Heavy Brunch (c) Pick subscription frequency (1 day, weekly, monthly) (d) Enter delivery address + contact (e) Confirm via WhatsApp. Heavy Brunch has special savings vs dine-in pricing.
+   - Best for: working professionals, students, families wanting home-style daily meals without cooking.
+
+3. TABLE BOOKING (Dine-in):
+   - Page path: /table-booking
+   - Flow: (a) Choose center + date + time slot + number of guests (b) Pick from special dining experiences: Banana Leaf Thali (Tue/Wed/Thu lunch only, ₹490 India / $40 Perth, unlimited), Unlimited Breakfast (Saturdays and Sundays ONLY), regular a-la-carte. (c) Live promos sometimes available — Brunch 10% off (11 AM – 12 PM) and Evening Snack 10% off (4 PM – 5 PM) on selected days (d) Submit and arrive at your reserved time.
+   - Tip: Unlimited Breakfast is weekend-exclusive — perfect for family Sunday brunches.
+
+4. PICKUP ORDER (Takeaway):
+   - Page path: /pickup
+   - Flow: (a) Choose nearest center (b) Browse the live menu by category (c) Tap dishes to add to cart — cart appears as a bottom sheet on mobile, side panel on desktop (d) Apply combo promos if active (Brunch 10% off between 11-12, Evening Snack 10% off between 4-5) (e) Enter pickup time + your name + mobile (f) Confirm via WhatsApp and pick up at the chosen time.
+   - Tip: Time your order to catch the live brunch or evening-snack discount window.
+
+5. OTHER USEFUL PAGES:
+   - /catering — large bulk catering (separate from Celebrate) with package + crockery + staff add-ons
+   - /locations — find your nearest Purnabramha center, contact numbers, parking
+   - /book — read our book "When a Restaurant Becomes Human"
+   - /menu — browse the full a-la-carte menu
+
+WHEN A GUEST ASKS "WHERE / HOW DO I…":
+- Detect their intent and identify which of the 5 services they need.
+- Reply with a short, friendly summary of the flow (3-5 sentences).
+- ALWAYS include 1-2 entries in the "actions" array pointing them to the correct page. The "label" should be inviting ("Plan my celebration", "Subscribe to tiffin", "Book a table", "Open pickup menu") and "path" must be the exact route above.
+- If the user is just chit-chatting about food, leave "actions" empty.
+
 RESPONSE FORMAT:
 You MUST respond with ONLY a valid JSON object (no markdown, no code blocks). Use this exact structure:
-{"message": "<your warm response text here>", "recommended_dishes": ["<Exact Dish Name from Menu 1>", "<Exact Dish Name from Menu 2>"], "cultural_note": "<brief cultural/health wisdom about the recommendation>"}
+{"message": "<your warm response text here>", "recommended_dishes": ["<Exact Dish Name from Menu 1>"], "cultural_note": "<brief cultural/health wisdom>", "actions": [{"label": "<button text>", "path": "</page-path>"}]}
 
 - "message" should be your full conversational response
-- "recommended_dishes" should contain 1-3 EXACT dish names from the menu list provided
-- "cultural_note" is a short one-liner of traditional wisdom
-- If the user is just chatting or greeting, recommended_dishes can be empty []
+- "recommended_dishes" should contain 0-3 EXACT dish names from the menu list provided (can be empty for service-flow questions)
+- "cultural_note" is a short one-liner of traditional wisdom (optional, can be empty)
+- "actions" is 0-2 CTA buttons pointing to relevant service pages (empty array if pure food chat)
+- If the user is just chatting or greeting, recommended_dishes and actions can both be empty
 - Use the EXACT dish names from the menu, not abbreviated forms"""
 
 class VahiniChatRequest(BaseModel):
@@ -1468,6 +1503,31 @@ async def vahini_chat(req: VahiniChatRequest):
     if festival:
         festival_context = f"\nCurrent active festival: {festival.get('name', '')}. Suggest festival-appropriate dishes if relevant."
 
+    # Pull live service config so Vahini quotes accurate, current prices
+    wedding_cfg_doc = await db.wedding_config.find_one({"_id_key": "global"}, {"_id": 0}) or {}
+    promo_cfg = await db.promotion_settings.find_one({"_id_key": "global"}, {"_id": 0}) or {}
+    merged_wedding = {**DEFAULT_WEDDING_CONFIG, **wedding_cfg_doc}
+    thali_pkgs_summary = []
+    for p in (merged_wedding.get("thali_packages") or []):
+        if p.get("enabled") is False:
+            continue
+        reqs = p.get("requirements") or {}
+        thali_pkgs_summary.append(
+            f"{p.get('name')}: ₹{p.get('price_inr')}/pp India · ${p.get('price_aud')}/pp Perth · "
+            f"picks → dal {reqs.get('dal',0)}, starters {reqs.get('starters',0)}, special {reqs.get('special',0)}, "
+            f"mains {reqs.get('mains',0)}, sweets {reqs.get('desserts',0)}, roti {reqs.get('roti',0)}, "
+            f"rice {reqs.get('rice',0)}, sides {reqs.get('sides',0)}, chutney {reqs.get('chutney',0)}"
+        )
+    dal_names = [d.get("name") for d in (merged_wedding.get("dal_options") or []) if d.get("enabled") is not False]
+
+    service_context = f"""
+LIVE SERVICE PRICING (use these in your replies, never guess):
+- Celebrate hall charge: ₹{merged_wedding.get('hall_charges_inr')} India / ${merged_wedding.get('hall_charges_aud')} Perth · min {merged_wedding.get('min_guests')} guests · GST {merged_wedding.get('gst_pct')}%
+- Celebrate thali packages (Celebration-only, NOT same as Catering): {' | '.join(thali_pkgs_summary) if thali_pkgs_summary else 'currently unavailable'}
+- Dal / Varan / Amti options for Celebrate: {', '.join(dal_names) if dal_names else 'currently unavailable'}
+- Active promos: Brunch {promo_cfg.get('brunch', {}).get('inr_pct', 10)}% off 11AM–12PM · Evening Snack {promo_cfg.get('evening_snack', {}).get('inr_pct', 10)}% off 4PM–5PM (when enabled)
+"""
+
     # Build context
     context_info = ""
     user_region = "India"
@@ -1499,6 +1559,7 @@ PURNABRAMHA MENU (recommend ONLY from these):
 Categories: {', '.join(categories)}
 Dishes: {', '.join(menu_names[:100])}
 {festival_context}
+{service_context}
 {context_info}
 {"This is the user's FIRST message - start with 'Jai Hind Namaskar.'" if is_first_message else "This is a follow-up message in the conversation - do NOT repeat 'Jai Hind Namaskar' greeting."}
 """
@@ -1588,11 +1649,24 @@ Dishes: {', '.join(menu_names[:100])}
             "created_at": datetime.now(timezone.utc)
         })
 
+        # Sanitize actions — only allow known service paths so the bot can't redirect anywhere unexpected
+        ALLOWED_PATHS = {"/wedding-booking", "/tiffin", "/table-booking", "/pickup", "/catering", "/locations", "/book", "/menu"}
+        clean_actions = []
+        for a in (ai_data.get("actions") or [])[:2]:
+            try:
+                lbl = str(a.get("label", "")).strip()[:60]
+                pth = str(a.get("path", "")).strip()
+                if lbl and pth in ALLOWED_PATHS:
+                    clean_actions.append({"label": lbl, "path": pth})
+            except Exception:
+                continue
+
         return {
             "session_id": session_id,
             "message": ai_message,
             "recommended_dishes": matched_dishes,
             "cultural_note": ai_data.get("cultural_note", ""),
+            "actions": clean_actions,
             "is_first_message": is_first_message
         }
 

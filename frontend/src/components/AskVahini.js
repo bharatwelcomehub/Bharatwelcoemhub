@@ -121,7 +121,8 @@ const AskVahini = () => {
         role: 'assistant',
         content: data.message,
         recommended_dishes: data.recommended_dishes || [],
-        cultural_note: data.cultural_note || ''
+        cultural_note: data.cultural_note || '',
+        actions: data.actions || []
       }]);
     } catch {
       setMessages(prev => [...prev, {
@@ -180,11 +181,31 @@ const AskVahini = () => {
 
   const quickQuestions = [
     "What should I eat today?",
+    "How do I book a wedding/celebration?",
+    "How can I subscribe to tiffin?",
+    "How to book a table?",
+    "How do I order pickup?",
     "I have acidity, suggest food",
-    "Maharashtrian breakfast ideas",
     "Food for summer",
     "Festival dishes"
   ];
+
+  // Map service path → icon for the action button
+  const ACTION_META = {
+    '/wedding-booking': { Icon: Calendar, label: 'Celebrate' },
+    '/tiffin':          { Icon: ShoppingBag, label: 'Tiffin' },
+    '/table-booking':   { Icon: Calendar, label: 'Table Booking' },
+    '/pickup':          { Icon: ShoppingBag, label: 'Pickup' },
+    '/catering':        { Icon: ShoppingBag, label: 'Catering' },
+    '/locations':       { Icon: MapPin, label: 'Locations' },
+    '/book':            { Icon: BookOpen, label: 'Book' },
+    '/menu':            { Icon: BookOpen, label: 'Menu' },
+  };
+
+  const goToAction = (path) => {
+    setIsOpen(false);
+    navigate(path);
+  };
 
   return (
     <>
@@ -345,6 +366,28 @@ const AskVahini = () => {
                       <p className="text-[10px] text-[#B8962E] mt-2 italic font-body border-t border-[#E8DFD0] pt-2">
                         {msg.cultural_note}
                       </p>
+                    )}
+
+                    {/* Service action buttons (deep-link to /wedding-booking, /tiffin, /table-booking, /pickup, etc.) */}
+                    {msg.actions?.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2" data-testid="vahini-actions">
+                        {msg.actions.map((a, k) => {
+                          const meta = ACTION_META[a.path] || { Icon: MessageCircle };
+                          const Icon = meta.Icon;
+                          return (
+                            <button
+                              key={k}
+                              onClick={() => goToAction(a.path)}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-body font-semibold text-white shadow-sm hover:shadow-md transition-all"
+                              style={{ background: 'linear-gradient(145deg, #D4AF37, #B8962E)' }}
+                              data-testid={`vahini-action-${a.path.replace('/', '')}`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {a.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
 
                     {/* Recommended Dishes */}
