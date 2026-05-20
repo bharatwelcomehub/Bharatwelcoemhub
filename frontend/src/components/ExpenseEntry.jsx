@@ -1004,11 +1004,22 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
                   <SelectValue placeholder="0%" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">0% (No GST)</SelectItem>
-                  <SelectItem value="5">5% (food / restaurants)</SelectItem>
-                  <SelectItem value="12">12%</SelectItem>
-                  <SelectItem value="18">18% (services / packaging)</SelectItem>
-                  <SelectItem value="28">28%</SelectItem>
+                  {isIntl(centerCode, centersList) ? (
+                    <>
+                      {/* Australia / international centers — single 10% GST rate */}
+                      <SelectItem value="0">0% (GST-free)</SelectItem>
+                      <SelectItem value="10">10% (Australian GST)</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      {/* India — standard GST slabs */}
+                      <SelectItem value="0">0% (No GST)</SelectItem>
+                      <SelectItem value="5">5% (food / restaurants)</SelectItem>
+                      <SelectItem value="12">12%</SelectItem>
+                      <SelectItem value="18">18% (services / packaging)</SelectItem>
+                      <SelectItem value="28">28%</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
