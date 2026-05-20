@@ -1849,13 +1849,25 @@ async def get_payment_modes():
 
 @router.get("/centers-list")
 async def get_centers_for_sales():
-    """Get list of ALL centers from centers collection (same source as management)"""
-    # Get ALL centers from DB - consistent across all screens
+    """Get list of ALL centers from centers collection (same source as management).
+
+    Also returns ``country`` and ``is_india_center`` so the frontend can
+    correctly choose currency symbol (₹ vs $) and GST rate options.
+    """
     centers_info = await db.centers.find(
         {},
-        {"_id": 0, "code": 1, "name": 1}
+        {"_id": 0, "code": 1, "name": 1, "country": 1, "is_india_center": 1}
     ).sort("code", 1).to_list(100)
-    
+
+    # Be defensive: if a legacy doc is missing is_india_center, infer from
+    # country (default → India).
+    for c in centers_info:
+        if "is_india_center" not in c or c.get("is_india_center") is None:
+            country = (c.get("country") or "India").strip()
+            c["is_india_center"] = country.lower() == "india"
+        if not c.get("country"):
+            c["country"] = "India" if c["is_india_center"] else "Australia"
+
     return {"centers": centers_info}
 
 @router.get("/debug-data")
