@@ -414,14 +414,31 @@ export default function ExpenseEntry({ session, selectedCenter, centersList = []
         const original = expenses.find(e => e.expense_id === expenseId);
         if (!original) continue;
 
-        // Prepare update payload
-        const updateData = {
-          description: changes.description !== undefined ? changes.description : original.description,
-          amount: changes.amount !== undefined ? parseFloat(changes.amount) : original.amount,
-          expense_type: changes.expense_type !== undefined ? changes.expense_type : original.expense_type,
-          payment_mode: changes.payment_mode !== undefined ? changes.payment_mode : original.payment_mode,
-          date: changes.date !== undefined ? changes.date : original.date
+        // Prepare update payload — only include fields the user actually
+        // changed so we never overwrite untouched columns. Backend treats
+        // missing keys as "no change" (ExpenseUpdate has all Optional fields).
+        const updateData = {};
+        const ifChanged = (key, transform) => {
+          if (changes[key] !== undefined) {
+            updateData[key] = transform ? transform(changes[key]) : changes[key];
+          }
         };
+        ifChanged("description");
+        ifChanged("amount", (v) => parseFloat(v));
+        ifChanged("expense_type");
+        ifChanged("payment_mode");
+        ifChanged("date");
+        ifChanged("gst_paid", (v) => parseFloat(v || 0));
+        ifChanged("gst_rate", (v) => parseFloat(v || 0));
+        ifChanged("gst_amount", (v) => parseFloat(v || 0));
+        ifChanged("vendor_name");
+        ifChanged("vendor_gstin");
+        ifChanged("notes");
+
+        // Nothing actually changed in this row — skip the round-trip
+        if (Object.keys(updateData).length === 0) {
+          continue;
+        }
 
         try {
           await api.put(`/sales/expenses/${expenseId}?token=${session?.token}`, updateData);
