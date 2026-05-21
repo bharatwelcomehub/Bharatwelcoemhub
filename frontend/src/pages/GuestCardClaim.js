@@ -35,7 +35,16 @@ export default function GuestCardClaim() {
     <div className="min-h-screen bg-[#FDFBF7] py-10 px-4">
       <SEOHead page="guest-card-claim" title={`Coupon ${data.coupon_code} | Purnabramha`} description="Purnabramha guest discount coupon." />
       <div className="max-w-md mx-auto">
-        <div className="relative bg-gradient-to-br from-[#3D2314] via-[#5B3923] to-[#3D2314] text-[#F5DEB3] p-6 sm:p-8 shadow-2xl overflow-hidden" data-testid="claim-card">
+        <div
+          className="relative bg-gradient-to-br from-[#3D2314] via-[#5B3923] to-[#3D2314] text-[#F5DEB3] p-6 sm:p-8 shadow-2xl overflow-hidden"
+          style={data.background_image_url ? {
+            backgroundImage: `linear-gradient(135deg, rgba(61,35,20,0.78), rgba(91,57,35,0.82), rgba(61,35,20,0.82)), url("${data.background_image_url}")`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          } : undefined}
+          data-testid="claim-card"
+        >
           <Mandala className="absolute -top-6 -right-6 w-32 h-32 pointer-events-none" opacity={0.12} />
           <Mandala className="absolute -bottom-6 -left-6 w-32 h-32 pointer-events-none" opacity={0.12} />
           <Badge className="bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 rounded-none px-2.5 py-0.5 text-[10px] uppercase tracking-widest font-body">

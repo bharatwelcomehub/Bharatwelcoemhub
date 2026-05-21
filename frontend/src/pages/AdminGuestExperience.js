@@ -366,7 +366,25 @@ function OfferEditor({ offer, setOffer, locations, onSave, onCancel }) {
           </div>
           <div className="sm:col-span-2">
             <Label className="text-xs">Background image URL (optional)</Label>
-            <Input value={offer.background_image_url || ''} onChange={e => setOffer({ ...offer, background_image_url: e.target.value })} placeholder="https://..." />
+            <Input value={offer.background_image_url || ''} onChange={e => setOffer({ ...offer, background_image_url: e.target.value })} placeholder="https://... (image URL) or Google Drive share link" />
+            <p className="text-[10px] text-foreground/60 mt-1 leading-snug">
+              ⚠️ If using Google Drive: open the file → <em>Share</em> → set "<strong>Anyone with the link can view</strong>", then paste the share URL here. We auto-convert it to a direct-image URL. Without public access guests will see only the gold gradient.
+            </p>
+            {offer.background_image_url && (
+              <div className="mt-2 inline-block border border-[#E8DFD0] p-1 bg-white">
+                <img
+                  src={offer.background_image_url.includes('drive.google.com') || offer.background_image_url.includes('lh3.googleusercontent.com')
+                    ? offer.background_image_url.replace(/drive\.google\.com\/file\/d\/([\w-]+).*/, 'https://drive.google.com/thumbnail?id=$1&sz=w400')
+                                                  .replace(/drive\.google\.com\/(?:open|uc)\?(?:export=view&)?id=([\w-]+).*/, 'https://drive.google.com/thumbnail?id=$1&sz=w400')
+                                                  .replace(/lh3\.googleusercontent\.com\/d\/([\w-]+).*/, 'https://drive.google.com/thumbnail?id=$1&sz=w400')
+                    : offer.background_image_url}
+                  alt="Preview"
+                  className="h-24 w-auto object-cover"
+                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }}
+                />
+                <p className="text-[10px] text-red-600 px-2 py-1 hidden">Preview failed — make sure the file is public.</p>
+              </div>
+            )}
           </div>
           <div className="sm:col-span-2">
             <Label className="text-xs">Terms & conditions</Label>

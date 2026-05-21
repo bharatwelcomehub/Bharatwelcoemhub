@@ -340,6 +340,12 @@ function DiscountCardView({ result }) {
           animate={{ opacity: 1, scale: 1 }}
           ref={cardRef}
           className="relative bg-gradient-to-br from-[#3D2314] via-[#5B3923] to-[#3D2314] text-[#F5DEB3] p-6 sm:p-8 shadow-2xl overflow-hidden"
+          style={result.background_image_url ? {
+            backgroundImage: `linear-gradient(135deg, rgba(61,35,20,0.78), rgba(91,57,35,0.82), rgba(61,35,20,0.82)), url("${result.background_image_url}")`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          } : undefined}
           data-testid="discount-card"
         >
           <Mandala className="absolute -top-6 -right-6 w-32 h-32 pointer-events-none" opacity={0.12} />

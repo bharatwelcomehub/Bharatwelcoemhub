@@ -3205,7 +3205,7 @@ async def submit_guest_feedback(request: Request):
         "discount_pct": chosen.get("discount_pct", 0) if chosen else 0,
         "expiry_date": chosen.get("valid_till", "") if chosen else "",
         "terms": chosen.get("terms", "") if chosen else "Discount valid as per center terms. One card per guest/visit.",
-        "background_image_url": chosen.get("background_image_url", "") if chosen else "",
+        "background_image_url": _normalize_image_url(chosen.get("background_image_url", "")) if chosen else "",
         "status": "pending",  # pending / used / expired
         "used_at": "",
         "used_by": "",
@@ -3352,6 +3352,28 @@ async def admin_list_offers(current_user: dict = Depends(get_current_user)):
     return {"offers": offers}
 
 
+def _normalize_image_url(url: str) -> str:
+    """Convert various Google Drive share URLs into a direct-image thumbnail URL
+    that renders as a normal image in <img> / background-image. The Drive file
+    MUST be shared as "Anyone with the link" for this to work."""
+    if not url:
+        return ""
+    import re
+    # Match common Drive share URL formats
+    patterns = [
+        r"drive\.google\.com/file/d/([\w-]+)",
+        r"drive\.google\.com/open\?id=([\w-]+)",
+        r"drive\.google\.com/uc\?(?:export=view&)?id=([\w-]+)",
+        r"lh3\.googleusercontent\.com/d/([\w-]+)",
+    ]
+    for p in patterns:
+        m = re.search(p, url)
+        if m:
+            file_id = m.group(1)
+            return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1600"
+    return url
+
+
 @api_router.post("/admin/discount-offers")
 async def admin_create_offer(request: Request, current_user: dict = Depends(get_current_user)):
     user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
@@ -3368,7 +3390,7 @@ async def admin_create_offer(request: Request, current_user: dict = Depends(get_
         "applicable_center_ids": body.get("applicable_center_ids") or [],
         "is_active": bool(body.get("is_active", True)),
         "terms": (body.get("terms") or "Discount valid as per center terms. One card per guest/visit.").strip(),
-        "background_image_url": (body.get("background_image_url") or "").strip(),
+        "background_image_url": _normalize_image_url((body.get("background_image_url") or "").strip()),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -3383,6 +3405,8 @@ async def admin_update_offer(offer_id: str, request: Request, current_user: dict
     if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
         raise HTTPException(status_code=403, detail="Admin only")
     body = await request.json()
+    if "background_image_url" in body:
+        body["background_image_url"] = _normalize_image_url((body.get("background_image_url") or "").strip())
     update = {k: v for k, v in body.items() if k in ("title", "discount_pct", "valid_from", "valid_till", "applicable_center_ids", "is_active", "terms", "background_image_url")}
     update["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.discount_offers.update_one({"id": offer_id}, {"$set": update})
