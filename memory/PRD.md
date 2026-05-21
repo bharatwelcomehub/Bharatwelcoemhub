@@ -290,6 +290,15 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
   - **Mandala** background motif in corners + animated **Sparkles** floating in the hero
   - Tightened mobile hero typography & padding (text-3xl on mobile vs text-5xl/6xl on desktop)
   - Component: `/app/frontend/src/components/FestiveDecor.jsx` (exports Toran, Tabla, Shehnai, Diya, Mandala, Sparkle)
+- [x] **Guest Experience & Discount Card System** (Feb 2026) — Complete feedback → discount → validation loop:
+  - **Public `/guest-card`** page: festive hero, sectioned form (About / Visit / Star Ratings / Tell Us More), submits and renders a branded **luxury discount card** with coupon code + QR + center + expiry + terms + WhatsApp share / Print
+  - **Public `/guest-card-claim/:coupon`**: anyone with the link sees the card (no contact details exposed)
+  - **Admin Tab "Guest Experience"** (new file `AdminGuestExperience.js`): 3 sub-tabs — Dashboard (6 stat tiles + center-wise comparison), Feedback (filters + CSV export + Publish / Mark Used / Mark Expired actions), Offers (full CRUD)
+  - **Backend endpoints**: `POST /api/guest-feedback`, `GET /api/guest-feedback/coupon/{code}`, `GET /api/guest-feedback/public`, `GET /api/discount-offers/active`, `GET/POST/PATCH/DELETE /api/admin/discount-offers`, `GET/PATCH /api/admin/guest-feedback`
+  - Each submission auto-generates a unique `PB-XXXXXX` coupon and attaches the best matching active offer; prevents double-use via status (pending/used/expired)
+  - QR code library: `qrcode.react@4.2.0`
+  - Header navigation: new "Share Feedback" entry; Vahini bot routes guests to `/guest-card`
+
 - [x] **Celebration Thali Selector** (Feb 2026) — Added Royal Feast / Premium Feast package picker to Celebrate booking (Catering untouched):
   - Card-style selector matching Catering visual language (`pearl-surface`, gold accent border, "Most Popular" badge)
   - Dynamic per-person pricing per package; live Estimate sidebar reflects chosen package + GST override

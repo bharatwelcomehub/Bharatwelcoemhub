@@ -24,6 +24,7 @@ const Layout = ({ children }) => {
     { name: 'Tiffin', path: '/tiffin' },
     { name: 'Catering', path: '/catering' },
     { name: 'Celebrate', path: '/wedding-booking' },
+    { name: 'Share Feedback', path: '/guest-card' },
     { name: 'Locations', path: '/locations' },
     { name: 'Videos', path: '/videos' },
     { name: 'Inspiration', path: '/inspiration' },

@@ -200,6 +200,7 @@ const AskVahini = () => {
     '/locations':       { Icon: MapPin, label: 'Locations' },
     '/book':            { Icon: BookOpen, label: 'Book' },
     '/menu':            { Icon: BookOpen, label: 'Menu' },
+    '/guest-card':      { Icon: MessageCircle, label: 'Feedback' },
   };
 
   const goToAction = (path) => {

@@ -1454,6 +1454,7 @@ SERVICES YOU HELP WITH (when a guest asks where/how to do something, walk them t
    - /locations — find your nearest Purnabramha center, contact numbers, parking
    - /book — read our book "When a Restaurant Becomes Human"
    - /menu — browse the full a-la-carte menu
+   - /guest-card — share honest feedback after a visit and instantly receive a Purnabramha discount card with a unique coupon code to use on the next visit. Always nudge guests towards this page after they tell you about a good (or bad) experience.
 
 WHEN A GUEST ASKS "WHERE / HOW DO I…":
 - Detect their intent and identify which of the 5 services they need.
@@ -1650,7 +1651,7 @@ Dishes: {', '.join(menu_names[:100])}
         })
 
         # Sanitize actions — only allow known service paths so the bot can't redirect anywhere unexpected
-        ALLOWED_PATHS = {"/wedding-booking", "/tiffin", "/table-booking", "/pickup", "/catering", "/locations", "/book", "/menu"}
+        ALLOWED_PATHS = {"/wedding-booking", "/tiffin", "/table-booking", "/pickup", "/catering", "/locations", "/book", "/menu", "/guest-card"}
         clean_actions = []
         for a in (ai_data.get("actions") or [])[:2]:
             try:
@@ -3114,6 +3115,289 @@ async def add_wedding_booking_photo(booking_id: str, request: Request, current_u
     })
     await db.wedding_bookings.update_one({"id": booking_id}, {"$set": {"photos": photos}})
     return {"photos": photos}
+
+
+# ===================== GUEST EXPERIENCE CARD & DISCOUNTS =====================
+
+def _gen_coupon_code() -> str:
+    """Generates a short readable coupon code like PB-7F4A2C."""
+    import secrets, string
+    return "PB-" + "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+
+
+@api_router.get("/discount-offers/active")
+async def get_active_discount_offers(center_id: Optional[str] = None):
+    """Public: returns currently active offers (filtered by center if provided)."""
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+    query = {"is_active": True}
+    cursor = db.discount_offers.find(query, {"_id": 0}).sort("created_at", -1)
+    offers = await cursor.to_list(50)
+    out = []
+    for o in offers:
+        vf = o.get("valid_from") or ""
+        vt = o.get("valid_till") or ""
+        if vf and vf > today_iso:
+            continue
+        if vt and vt < today_iso:
+            continue
+        centers = o.get("applicable_center_ids") or []
+        if center_id and centers and center_id not in centers:
+            continue
+        out.append(o)
+    return {"offers": out}
+
+
+@api_router.post("/guest-feedback")
+async def submit_guest_feedback(request: Request):
+    """Public: guest submits feedback card, returns a unique coupon + selected offer."""
+    body = await request.json()
+    name = (body.get("guest_name") or "").strip()
+    mobile = (body.get("mobile") or "").strip()
+    center_id = (body.get("center_id") or "").strip()
+    if not name or not mobile or not center_id:
+        raise HTTPException(status_code=400, detail="Guest name, mobile, and center are required")
+
+    # Pick the best active offer for this center
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+    offers = await db.discount_offers.find({"is_active": True}, {"_id": 0}).to_list(100)
+    eligible = []
+    for o in offers:
+        vf = o.get("valid_from") or ""
+        vt = o.get("valid_till") or ""
+        if vf and vf > today_iso:
+            continue
+        if vt and vt < today_iso:
+            continue
+        centers = o.get("applicable_center_ids") or []
+        if centers and center_id not in centers:
+            continue
+        eligible.append(o)
+    eligible.sort(key=lambda x: x.get("discount_pct", 0), reverse=True)
+    chosen = eligible[0] if eligible else None
+
+    fid = str(uuid.uuid4())
+    coupon = _gen_coupon_code()
+    # ensure uniqueness
+    while await db.guest_feedback.find_one({"coupon_code": coupon}):
+        coupon = _gen_coupon_code()
+
+    feedback = {
+        "id": fid,
+        "coupon_code": coupon,
+        "guest_name": name,
+        "mobile": mobile,
+        "email": (body.get("email") or "").strip(),
+        "center_id": center_id,
+        "center_name": (body.get("center_name") or "").strip(),
+        "visit_date": (body.get("visit_date") or "").strip(),
+        "visit_type": (body.get("visit_type") or "").strip(),  # Dine-in / Takeaway / Delivery / Website Pickup
+        "liked_most": (body.get("liked_most") or "").strip(),
+        "see_more": (body.get("see_more") or "").strip(),
+        "will_recommend": (body.get("will_recommend") or "").strip(),  # Yes/No/Maybe
+        "will_visit_again": (body.get("will_visit_again") or "").strip(),
+        "three_changes": (body.get("three_changes") or "").strip(),
+        "overall_rating": int(body.get("overall_rating") or 0),
+        "food_rating": int(body.get("food_rating") or 0),
+        "service_rating": int(body.get("service_rating") or 0),
+        "cleanliness_rating": int(body.get("cleanliness_rating") or 0),
+        "offer_id": chosen["id"] if chosen else "",
+        "offer_title": chosen["title"] if chosen else "",
+        "discount_pct": chosen.get("discount_pct", 0) if chosen else 0,
+        "expiry_date": chosen.get("valid_till", "") if chosen else "",
+        "terms": chosen.get("terms", "") if chosen else "Discount valid as per center terms. One card per guest/visit.",
+        "background_image_url": chosen.get("background_image_url", "") if chosen else "",
+        "status": "pending",  # pending / used / expired
+        "used_at": "",
+        "used_by": "",
+        "public_approved": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.guest_feedback.insert_one(feedback)
+    feedback.pop("_id", None)
+    logger.info(f"Guest feedback {fid[:8]} from {name} at {feedback['center_name']} -> coupon {coupon}")
+    return feedback
+
+
+@api_router.get("/guest-feedback/coupon/{coupon_code}")
+async def get_feedback_by_coupon(coupon_code: str):
+    """Public: lookup a coupon card (used on the Thank-you page when shared / refreshed)."""
+    doc = await db.guest_feedback.find_one({"coupon_code": coupon_code.upper()}, {"_id": 0, "mobile": 0, "email": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Coupon not found")
+    return doc
+
+
+@api_router.get("/guest-feedback/public")
+async def list_public_feedback(center_id: Optional[str] = None, limit: int = 30):
+    """Public: list admin-approved testimonials (no contact details exposed)."""
+    query = {"public_approved": True}
+    if center_id:
+        query["center_id"] = center_id
+    docs = await db.guest_feedback.find(
+        query,
+        {"_id": 0, "mobile": 0, "email": 0, "coupon_code": 0, "status": 0, "used_at": 0, "used_by": 0}
+    ).sort("created_at", -1).to_list(limit)
+    # Only first name publicly
+    for d in docs:
+        n = (d.get("guest_name") or "").strip().split()
+        d["guest_name"] = n[0] if n else "Guest"
+    return {"feedback": docs}
+
+
+@api_router.get("/admin/guest-feedback")
+async def admin_list_feedback(
+    current_user: dict = Depends(get_current_user),
+    center_id: Optional[str] = None,
+    rating_min: Optional[int] = None,
+    recommend: Optional[str] = None,
+    visit_type: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """Admin: feedback list with filters. Returns ALL fields (including mobile/email)."""
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    q = {}
+    if center_id:
+        q["center_id"] = center_id
+    if rating_min:
+        q["overall_rating"] = {"$gte": int(rating_min)}
+    if recommend:
+        q["will_recommend"] = recommend
+    if visit_type:
+        q["visit_type"] = visit_type
+    if date_from or date_to:
+        q["visit_date"] = {}
+        if date_from: q["visit_date"]["$gte"] = date_from
+        if date_to: q["visit_date"]["$lte"] = date_to
+    if search:
+        q["$or"] = [
+            {"mobile": {"$regex": search, "$options": "i"}},
+            {"coupon_code": {"$regex": search.upper(), "$options": "i"}},
+            {"guest_name": {"$regex": search, "$options": "i"}},
+        ]
+    docs = await db.guest_feedback.find(q, {"_id": 0}).sort("created_at", -1).to_list(2000)
+
+    # Dashboard aggregates
+    total = len(docs)
+    def avg(field):
+        vals = [d.get(field, 0) for d in docs if d.get(field, 0)]
+        return round(sum(vals) / len(vals), 2) if vals else 0
+    summary = {
+        "total": total,
+        "avg_overall": avg("overall_rating"),
+        "avg_food": avg("food_rating"),
+        "avg_service": avg("service_rating"),
+        "avg_cleanliness": avg("cleanliness_rating"),
+        "recommend_yes_pct": round((sum(1 for d in docs if d.get("will_recommend") == "Yes") / total) * 100, 1) if total else 0,
+        "return_yes_pct": round((sum(1 for d in docs if d.get("will_visit_again") == "Yes") / total) * 100, 1) if total else 0,
+    }
+    # Center-wise comparison
+    centers = {}
+    for d in docs:
+        cid = d.get("center_id") or "unknown"
+        c = centers.setdefault(cid, {"center_id": cid, "center_name": d.get("center_name", ""), "count": 0, "sum_overall": 0, "sum_food": 0, "sum_service": 0, "sum_clean": 0, "recommend_yes": 0})
+        c["count"] += 1
+        c["sum_overall"] += d.get("overall_rating", 0)
+        c["sum_food"] += d.get("food_rating", 0)
+        c["sum_service"] += d.get("service_rating", 0)
+        c["sum_clean"] += d.get("cleanliness_rating", 0)
+        if d.get("will_recommend") == "Yes":
+            c["recommend_yes"] += 1
+    center_breakdown = []
+    for c in centers.values():
+        n = c["count"]
+        center_breakdown.append({
+            "center_id": c["center_id"], "center_name": c["center_name"], "count": n,
+            "avg_overall": round(c["sum_overall"] / n, 2) if n else 0,
+            "avg_food": round(c["sum_food"] / n, 2) if n else 0,
+            "avg_service": round(c["sum_service"] / n, 2) if n else 0,
+            "avg_clean": round(c["sum_clean"] / n, 2) if n else 0,
+            "recommend_yes_pct": round((c["recommend_yes"] / n) * 100, 1) if n else 0,
+        })
+    return {"feedback": docs, "summary": summary, "center_breakdown": center_breakdown}
+
+
+@api_router.patch("/admin/guest-feedback/{feedback_id}")
+async def admin_update_feedback(feedback_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    """Admin: approve/reject for public display OR mark coupon used/expired."""
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    update = {}
+    if "public_approved" in body:
+        update["public_approved"] = bool(body["public_approved"])
+    if "status" in body and body["status"] in ("pending", "used", "expired"):
+        update["status"] = body["status"]
+        if body["status"] == "used":
+            update["used_at"] = datetime.now(timezone.utc).isoformat()
+            update["used_by"] = user_doc.get("email", "")
+    if not update:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+    await db.guest_feedback.update_one({"id": feedback_id}, {"$set": update})
+    doc = await db.guest_feedback.find_one({"id": feedback_id}, {"_id": 0})
+    return doc
+
+
+@api_router.get("/admin/discount-offers")
+async def admin_list_offers(current_user: dict = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    offers = await db.discount_offers.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return {"offers": offers}
+
+
+@api_router.post("/admin/discount-offers")
+async def admin_create_offer(request: Request, current_user: dict = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    oid = str(uuid.uuid4())
+    offer = {
+        "id": oid,
+        "title": (body.get("title") or "").strip() or "Guest Card Discount",
+        "discount_pct": int(body.get("discount_pct") or 10),
+        "valid_from": (body.get("valid_from") or "").strip(),
+        "valid_till": (body.get("valid_till") or "").strip(),
+        "applicable_center_ids": body.get("applicable_center_ids") or [],
+        "is_active": bool(body.get("is_active", True)),
+        "terms": (body.get("terms") or "Discount valid as per center terms. One card per guest/visit.").strip(),
+        "background_image_url": (body.get("background_image_url") or "").strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.discount_offers.insert_one(offer)
+    offer.pop("_id", None)
+    return offer
+
+
+@api_router.patch("/admin/discount-offers/{offer_id}")
+async def admin_update_offer(offer_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    update = {k: v for k, v in body.items() if k in ("title", "discount_pct", "valid_from", "valid_till", "applicable_center_ids", "is_active", "terms", "background_image_url")}
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.discount_offers.update_one({"id": offer_id}, {"$set": update})
+    return await db.discount_offers.find_one({"id": offer_id}, {"_id": 0})
+
+
+@api_router.delete("/admin/discount-offers/{offer_id}")
+async def admin_delete_offer(offer_id: str, current_user: dict = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    await db.discount_offers.delete_one({"id": offer_id})
+    return {"message": "Offer deleted"}
+
+
 
 
 app.include_router(api_router)

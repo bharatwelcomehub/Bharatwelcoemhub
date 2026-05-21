@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin, Video, Lock, LogOut, Home, Check, Search, ChevronLeft, ChevronRight, Sparkles, Calendar, BookOpen, Music, Coffee, Headphones, Smartphone, Clock, Heart, Wine, Flower2, AlertCircle, X, Users, ChefHat } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import AdminGuestExperience from '@/pages/AdminGuestExperience';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -1503,6 +1504,10 @@ const Admin = () => {
             <TabsTrigger value="wedding" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="wedding-admin-tab">
               <Heart className="h-4 w-4" />
               Celebrate
+            </TabsTrigger>
+            <TabsTrigger value="guest" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="guest-admin-tab">
+              <Heart className="h-4 w-4" />
+              Guest Experience
             </TabsTrigger>
           </TabsList>
 
@@ -3240,6 +3245,15 @@ const Admin = () => {
                 </Card>
               </div>
             )}
+          </TabsContent>
+
+          {/* GUEST EXPERIENCE TAB */}
+          <TabsContent value="guest">
+            <div className="mb-4">
+              <h2 className="font-playfair text-xl font-semibold">Guest Experience & Discounts</h2>
+              <p className="text-sm text-foreground/60">Manage guest feedback, publish testimonials, configure discount offers, and validate coupons.</p>
+            </div>
+            <AdminGuestExperience token={getToken()} locations={locations} />
           </TabsContent>
         </Tabs>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
