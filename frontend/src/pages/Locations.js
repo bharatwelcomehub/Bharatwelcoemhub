@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { MapPin, Phone, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MapPin, Phone, ExternalLink, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -93,6 +94,11 @@ const Locations = () => {
                     </a>
                   </Button>
                 )}
+                <Button asChild variant="outline" className="w-full border-[#B8962E]/30 text-[#B8962E] hover:bg-[#B8962E]/10 rounded-none text-xs tracking-widest uppercase" data-testid={`feedback-button-${index}`}>
+                  <Link to={`/guest-card?center=${location.center_id || location.id}`}>
+                    <Heart className="mr-2 h-4 w-4" /> Share Feedback & Get Discount
+                  </Link>
+                </Button>
               </div>
             </motion.div>
           ))}
