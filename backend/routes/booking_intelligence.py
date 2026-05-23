@@ -502,7 +502,8 @@ async def update_booking(booking_id: str, data: dict):
         "guest_type", "celebration_type", "menu_decided", "menu_details",
         "is_catering", "catering_details", "occasion_notes", "special_request",
         "booking_source", "status", "remarks", "handled_by",
-        "follow_up_required", "follow_up_date", "follow_up_remark"
+        "follow_up_required", "follow_up_date", "follow_up_remark",
+        "table_allotted",  # NEW — printable table label per booking
     ]
     
     for field in updatable:
