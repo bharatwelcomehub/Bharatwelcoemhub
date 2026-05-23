@@ -5,6 +5,43 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-23] Booking Intelligence Expansion — Tiffin / Catering / Event + Menu Master (NEW MAJOR FEATURE)
+
+**User ask**: Expand Booking Intelligence beyond table bookings. Add Tiffin (subscription), Catering (B2B orders), and Event/Celebration bookings with full CRUD, searchable lists, per-booking PDFs, and a hybrid menu (master list + custom typed items). Also add "Table Allotted" to existing table bookings + a "Download Today PDF" for table bookings. KEEP existing table booking logic 100% intact.
+
+**User decisions**:
+- 3 new modules sit as **separate sidebar items under Operations** (not sub-tabs).
+- Tiffin pricing = **free-form** (manager types subtotal / gst / total).
+- Catering & Event GST = **canonical inclusive carve** (India 5% / Perth 10%) — single source of truth.
+
+**Backend** (`backend/routes/booking_extensions.py`, NEW + `server.py:2155`):
+- New router `/api/bookings/ext/*`.
+- Collections: `tiffin_bookings`, `catering_orders`, `event_bookings`, `menu_master`.
+- Endpoints (each kind): `/create`, `/list`, `/update/{id}`, `/delete/{id}`, `/pdf/{id}`.
+- Menu Master: `/menu/list`, `/menu/upsert`, `/menu/delete`.
+- Today PDF: `/today-table-pdf` for existing `bookings` collection.
+- Consolidated rollup: `/dashboard` returns counts + amounts across all 4 booking types.
+- Permissions: Admin / Super Admin / Operations / Mgt can write; Accounts / Franchise Owner are read-only (verified by tests → 403 for FO writes).
+- Existing `booking_intelligence.py` `/create` now also persists `table_allotted` (was previously update-only).
+
+**Frontend** (4 new pages + 1 helper):
+- `pages/TiffinBookings.jsx` — date-range/center/status filters, free-form pricing, days-of-week selector, hybrid item picker, per-booking PDF.
+- `pages/CateringOrders.jsx` — full quotation builder with hybrid menu by category (Starters / Main / Roti / Rice / Dal / Veg / Dessert / Salad), beverages, add-ons, transport, advance/balance, **auto canonical GST recompute** (India 5% / Perth 10% inclusive carve).
+- `pages/EventBookings.jsx` — event-type selector (Birthday / Anniversary / Wedding / Baby Shower / Corporate / Kitty / etc.), package + dal selector, hybrid menu by category, **auto canonical GST recompute**.
+- `pages/MenuMaster.jsx` — Admin/SA/Operations CRUD for `menu_master`. 13 categories.
+- `components/booking/MenuPicker.jsx` — shared hybrid picker (pick from category master OR type custom).
+- `pages/BookingIntelligence.jsx` (existing) — added "Table Allotted" column + input (data-testid="table-allotted-input") and "Download Today PDF" button (data-testid="download-today-pdf-btn"). Existing functionality untouched.
+- Sidebar `pages/Dashboard.jsx` + `lib/menuDefaults.js` — 4 new entries under Operations: Tiffin Bookings, Catering Orders, Event Bookings, Menu Master.
+
+**Verified end-to-end**:
+- Backend tests: 26/26 PASS via `testing_agent_v3_fork` iteration_84 (`/app/backend/tests/test_iteration84_booking_extensions.py`).
+- Curl smoke: Menu upsert ✓, Tiffin/Catering/Event create+list+PDF (all valid `%PDF-1.4`) ✓, Today PDF ✓, Dashboard rollup ✓.
+- Frontend: All 4 pages render with correct data-testids verified via Playwright (`tiffin-bookings-page`, `catering-orders-page`, `event-bookings-page`, `menu-master-page`, `download-today-pdf-btn`).
+- `table_allotted` persistence on `/api/bookings/create` confirmed via curl (T7 round-trip).
+- All lint clean (`yarn lint` / `ruff` — no errors).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, the 4 new Operations entries appear; existing table bookings continue to work identically with added Table Allotted field + Today PDF button.
+
 ### [2026-05-15] Financial Insights tab under Center Accounts (NEW)
 
 **User ask** (verbatim): Build a new tab called "Financial Insights" inside Center Accounts with month / month-range / FY / custom-date filters, single + multi-center, financial summary cards with % and trends, expense + sales segregation, ratio analysis with color indicators, comparative analysis, trend graphs, drill-down, Excel/PDF/CSV downloads, and an AI executive summary.

@@ -353,6 +353,7 @@ async def create_booking(data: dict):
         "follow_up_required": data.get("follow_up_required", False),
         "follow_up_date": data.get("follow_up_date", ""),
         "follow_up_remark": data.get("follow_up_remark", ""),
+        "table_allotted": data.get("table_allotted", ""),
         "whatsapp_sent": False,
         "whatsapp_history": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
