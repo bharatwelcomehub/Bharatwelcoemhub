@@ -201,9 +201,6 @@ const menuCategories = [
     roleKey: "operations",
     items: [
       { path: "/booking-intelligence", icon: CalendarDays, label: "Booking Intelligence", roleKey: "operations" },
-      { path: "/tiffin-bookings", icon: Utensils, label: "Tiffin Bookings", roleKey: "operations" },
-      { path: "/catering-orders", icon: ChefHat, label: "Catering Orders", roleKey: "operations" },
-      { path: "/event-bookings", icon: PartyPopper, label: "Event Bookings", roleKey: "operations" },
       { path: "/menu-master", icon: UtensilsCrossed, label: "Menu Master", roleKey: "operations" },
       { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", roleKey: "operations" },
       { path: "/guest-response", icon: MessageCircle, label: "Guest Response", roleKey: "operations" },

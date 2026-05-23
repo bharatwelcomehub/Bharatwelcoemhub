@@ -70,8 +70,12 @@ import {
   Bell,
   ChefHat,
   Download,
-  Armchair
+  Armchair,
+  Utensils
 } from "lucide-react";
+import TiffinBookings from "@/pages/TiffinBookings";
+import CateringOrders from "@/pages/CateringOrders";
+import EventBookings from "@/pages/EventBookings";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -598,10 +602,22 @@ export default function BookingIntelligence() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3 w-full max-w-md">
+        <TabsList className="grid grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="bookings" data-testid="tab-bookings">
             <CalendarDays className="w-4 h-4 mr-2" />
             Bookings
+          </TabsTrigger>
+          <TabsTrigger value="tiffin" data-testid="tab-tiffin">
+            <Utensils className="w-4 h-4 mr-2" />
+            Tiffin
+          </TabsTrigger>
+          <TabsTrigger value="catering" data-testid="tab-catering">
+            <ChefHat className="w-4 h-4 mr-2" />
+            Catering
+          </TabsTrigger>
+          <TabsTrigger value="event" data-testid="tab-event">
+            <PartyPopper className="w-4 h-4 mr-2" />
+            Events
           </TabsTrigger>
           <TabsTrigger value="dashboard" data-testid="tab-dashboard">
             <TrendingUp className="w-4 h-4 mr-2" />
@@ -804,6 +820,21 @@ export default function BookingIntelligence() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Tiffin Tab */}
+        <TabsContent value="tiffin" className="space-y-4">
+          <TiffinBookings />
+        </TabsContent>
+
+        {/* Catering Tab */}
+        <TabsContent value="catering" className="space-y-4">
+          <CateringOrders />
+        </TabsContent>
+
+        {/* Event Tab */}
+        <TabsContent value="event" className="space-y-4">
+          <EventBookings />
         </TabsContent>
 
         {/* Dashboard Tab */}
