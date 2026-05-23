@@ -68,7 +68,9 @@ import {
   AlertCircle,
   History,
   Bell,
-  ChefHat
+  ChefHat,
+  Download,
+  Armchair
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -186,7 +188,8 @@ export default function BookingIntelligence() {
     remarks: "",
     follow_up_required: false,
     follow_up_date: "",
-    follow_up_remark: ""
+    follow_up_remark: "",
+    table_allotted: ""
   });
 
   // Centers list
@@ -366,6 +369,36 @@ export default function BookingIntelligence() {
     }
   };
 
+  const handleDownloadTodayPdf = async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const ctr = (isSuperAdmin || isAdmin)
+        ? (filters.center && filters.center !== "all" ? filters.center : null)
+        : userCenter;
+      const res = await fetch(`${API}/api/bookings/ext/today-table-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, center: ctr, date: today })
+      });
+      if (!res.ok) {
+        toast.error("Failed to generate PDF");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `table_bookings_${today}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("PDF downloaded");
+    } catch (err) {
+      toast.error("Error downloading PDF");
+    }
+  };
+
   const handleCreateBooking = async () => {
     if (!formData.guest_name || !formData.phone || !formData.time_slot) {
       toast.error("Please fill required fields: Guest Name, Phone, Time Slot");
@@ -471,7 +504,8 @@ export default function BookingIntelligence() {
       follow_up_required: booking.follow_up_required || false,
       follow_up_date: booking.follow_up_date || "",
       follow_up_remark: booking.follow_up_remark || "",
-      center: booking.center || ""
+      center: booking.center || "",
+      table_allotted: booking.table_allotted || ""
     });
     setShowBookingDialog(true);
   };
@@ -508,7 +542,8 @@ export default function BookingIntelligence() {
       remarks: "",
       follow_up_required: false,
       follow_up_date: "",
-      follow_up_remark: ""
+      follow_up_remark: "",
+      table_allotted: ""
     });
     setEditingBooking(null);
     setGuestInfo(null);
@@ -528,6 +563,14 @@ export default function BookingIntelligence() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDownloadTodayPdf}
+            data-testid="download-today-pdf-btn"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download Today PDF
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -666,6 +709,7 @@ export default function BookingIntelligence() {
                         <TableHead>Contact</TableHead>
                         <TableHead>Guests</TableHead>
                         <TableHead>Occasion</TableHead>
+                        <TableHead>Table</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -710,6 +754,16 @@ export default function BookingIntelligence() {
                                   <ChefHat className="w-3 h-3 mr-1" />
                                   Catering
                                 </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {booking.table_allotted ? (
+                                <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                                  <Armchair className="w-3 h-3" />
+                                  {booking.table_allotted}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </TableCell>
                             <TableCell>
@@ -1118,6 +1172,16 @@ export default function BookingIntelligence() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div>
+              <Label>Table Allotted</Label>
+              <Input
+                value={formData.table_allotted}
+                onChange={(e) => setFormData(f => ({ ...f, table_allotted: e.target.value }))}
+                placeholder="e.g. T1, Window-2, Private Cabin"
+                data-testid="table-allotted-input"
+              />
             </div>
 
             {/* Guest Info Section */}

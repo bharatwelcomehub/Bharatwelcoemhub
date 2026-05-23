@@ -2153,6 +2153,10 @@ set_booking_verify_token(verify_token)
 set_booking_verify_token_async(verify_token_async)
 app.include_router(booking_router)
 
+# Include Booking Extensions (Tiffin / Catering / Event / Menu Master)
+from routes.booking_extensions import router as booking_ext_router
+app.include_router(booking_ext_router)
+
 # Include Attendance Dashboard router
 from routes.attendance_dashboard import router as att_dash_router, set_db as set_att_dash_db, set_verify_token as set_att_dash_verify_token, set_verify_token_async as set_att_dash_verify_token_async
 set_att_dash_db(db)

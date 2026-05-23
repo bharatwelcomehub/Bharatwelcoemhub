@@ -46,6 +46,8 @@ import {
   Sparkles,
   Activity,
   Calculator,
+  Utensils,
+  PartyPopper,
 } from "lucide-react";
 
 // Import pages
@@ -75,6 +77,10 @@ import CenterHealth from "@/pages/CenterHealth";
 import GstPaidReport from "@/pages/GstPaidReport";
 import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
+import TiffinBookings from "@/pages/TiffinBookings";
+import CateringOrders from "@/pages/CateringOrders";
+import EventBookings from "@/pages/EventBookings";
+import MenuMaster from "@/pages/MenuMaster";
 import AttendanceDashboard from "@/pages/AttendanceDashboard";
 import InternationalAttendance from "@/pages/InternationalAttendance";
 import EmployeeTransfers from "@/pages/EmployeeTransfers";
@@ -195,6 +201,10 @@ const menuCategories = [
     roleKey: "operations",
     items: [
       { path: "/booking-intelligence", icon: CalendarDays, label: "Booking Intelligence", roleKey: "operations" },
+      { path: "/tiffin-bookings", icon: Utensils, label: "Tiffin Bookings", roleKey: "operations" },
+      { path: "/catering-orders", icon: ChefHat, label: "Catering Orders", roleKey: "operations" },
+      { path: "/event-bookings", icon: PartyPopper, label: "Event Bookings", roleKey: "operations" },
+      { path: "/menu-master", icon: UtensilsCrossed, label: "Menu Master", roleKey: "operations" },
       { path: "/bhojan-guru", icon: ChefHat, label: "Bhojan Guru", roleKey: "operations" },
       { path: "/guest-response", icon: MessageCircle, label: "Guest Response", roleKey: "operations" },
       { path: "/recipe-admin", icon: Settings, label: "Recipe Admin", roleKey: "operations" },
@@ -656,6 +666,10 @@ export default function Dashboard() {
             <Route path="/loan-entries" element={<LoanEntries />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />
+            <Route path="/tiffin-bookings" element={<TiffinBookings />} />
+            <Route path="/catering-orders" element={<CateringOrders />} />
+            <Route path="/event-bookings" element={<EventBookings />} />
+            <Route path="/menu-master" element={<MenuMaster />} />
             <Route path="/bhojan-guru" element={<BhojanGuru />} />
             <Route path="/recipe-admin" element={<RecipeAdmin />} />
             <Route path="/master-data" element={<MasterDataManagement />} />

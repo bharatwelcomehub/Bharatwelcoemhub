@@ -90,6 +90,10 @@ export const MENU_DEFAULTS = [
     label: "Operations",
     items: [
       { path: "/booking-intelligence", label: "Booking Intelligence" },
+      { path: "/tiffin-bookings", label: "Tiffin Bookings" },
+      { path: "/catering-orders", label: "Catering Orders" },
+      { path: "/event-bookings", label: "Event Bookings" },
+      { path: "/menu-master", label: "Menu Master" },
       { path: "/bhojan-guru", label: "Bhojan Guru" },
       { path: "/guest-response", label: "Guest Response" },
       { path: "/recipe-admin", label: "Recipe Admin" },

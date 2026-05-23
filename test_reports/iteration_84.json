@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 84 backend testing for Booking Intelligence extensions module complete. 26/26 pytest tests PASSED including Menu Master CRUD, Tiffin/Catering/Event CRUD + PDF, Today PDF, Dashboard rollup, FO permission denial, AND regression on existing /api/bookings/* table booking endpoints with new `table_allotted` field persistence via update. Frontend pages source-verified for required data-testids and routes; live UI automation hit the same shadcn-Select login flake noted in iteration 83.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/bookings/create", "issue": "Does NOT accept `table_allotted` in initial create payload (field not in allowed list at lines 340-362). Only /api/bookings/update/{id} accepts it. UI must always send table_allotted via update after create, OR backend should add it to the create allowed-list for parity. Currently NON-DESTRUCTIVE (existing flow intact) but user expectation of 'set table at booking creation time' fails silently."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "untested_notes": "Live Playwright UI flow could not complete login (same shadcn Select reliability issue as iteration 83 — center select option text is 'PB-MGT - Purnabramha Management (HQ)', not exact 'PB-MGT'; OTP verify did not transition past /login in automation within timeout). Source-level verification of required test surfaces was completed via grep: download-today-pdf-btn (BookingIntelligence.jsx:569), table-allotted-input (BookingIntelligence.jsx:1183), new-booking-btn (591), sidebar entries Tiffin/Catering/Event/Menu Master (Dashboard.jsx:204-207) + routes (lines 669-672). Main agent should self-test the UI surfaces manually."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration84_booking_extensions.py",
+    "/app/test_reports/pytest/iteration84.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Add `table_allotted` to the allowed fields in /api/bookings/create at /app/backend/routes/booking_intelligence.py lines 340-362 so users can set the table number in the same dialog that creates the booking (current behavior requires create-then-update round-trip — UI works but the field is silently dropped on create). If product intent is update-only after seating, document this in the dialog UX.",
+    "MAIN AGENT to self-test 4 new pages (/tiffin-bookings, /catering-orders, /event-bookings, /menu-master) + 'Download Today PDF' button + 'Table Allotted' input on existing booking dialog. Backend behind all of these is verified working."
+  ],
+  "critical_code_review_comments": [
+    "booking_extensions.py uses `from server import db` (line 27) and `from routes.booking_intelligence import check_booking_access` (line 28) — works but creates a circular-ish dependency on server module. Acceptable for now.",
+    "_can_write() at line 39 checks `roles.get('mgt') or roles.get('operations') or roles.get('ops')` — verified via test that franchise_owner (which has no 'mgt'/'operations' role) correctly receives 403 on all 4 write endpoints (menu/upsert, tiffin/catering/event create).",
+    "PDF generation imports reportlab inside the route functions (lazy import) — good pattern, avoids startup penalty.",
+    "TiffinCreate (line 55) accepts free-form subtotal/gst/total without validation — matches user requirement explicitly: 'do not validate that total = subtotal + gst for tiffin'. Verified test creates booking with total=1234 while subtotal=1000+gst=50 and value persists unchanged.",
+    "Catering/Event Pydantic models do NOT enforce inclusive GST carve at backend — relies on frontend to send pre-computed gst. Acceptable since canonical formula is documented as single-source-of-truth in /app/frontend/src/pages/CateringOrders.jsx and /app/frontend/src/pages/EventBookings.jsx (recompute()). Backend faithfully persists what frontend sends.",
+    "/api/bookings/create does not include `table_allotted` in the persisted booking dict — see action items. Update endpoint at line 488-516 correctly handles it."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration84_booking_extensions.py (new — 26 pytest tests)"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "source-verified only, live automation not completed"},
+  "test_credentials": "Super Admin: 9741399190 / 123456 / PB-MGT. Franchise Owner: 8888888888 / 123456 / PB-HSR. Both used and confirmed in tests.",
+  "seed_data_creation": "All test data prefixed TEST_* and deleted at end of each test class — no residual data. One menu_master upsert (TEST_Paneer_<uuid>) and its delete were verified in same test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fully validated. Existing /api/bookings/* + new /api/bookings/ext/* routes coexist correctly. Today PDF, per-booking PDFs (tiffin/catering/event) all return valid %PDF- bytes. Dashboard rollup returns proper {tables,tiffin,catering,event} structure. Franchise Owner correctly 403-blocked from writes. Notable: /api/bookings/create silently drops `table_allotted` field (only update accepts it) — see minor backend issue. For UI automation, the center Select component shows full text 'PB-MGT - Purnabramha Management (HQ)' not bare 'PB-MGT' — match by partial 'PB-MGT' first locator. OTP login may require a longer wait (5s+) after verify-OTP click before navigation completes.",
+  "rca_of_the_issue": "N/A — no critical issues. Single minor finding: /api/bookings/create has a hardcoded allowed-fields whitelist (booking_intelligence.py lines 340-362) that does not include `table_allotted`. The update endpoint at line 488-516 correctly added it (line 506). This means UI Create dialog with table-allotted-input will accept user input but the value is silently dropped on first save; needs a second update call to persist. Mitigation: add `table_allotted` to the create whitelist."
+}
