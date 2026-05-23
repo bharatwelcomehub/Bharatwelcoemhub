@@ -14,10 +14,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Utensils, Plus, Edit, Trash2, Search, Download, Loader2, RefreshCw,
+  Utensils, Plus, Edit, Trash2, Search, Download, Loader2, RefreshCw, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import MenuPicker from "@/components/booking/MenuPicker";
+import WhatsAppDialog from "@/components/booking/WhatsAppDialog";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -58,6 +59,7 @@ export default function TiffinBookings() {
   const [showDlg, setShowDlg] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ ...blankForm, center: userCenter });
+  const [waRow, setWaRow] = useState(null);
 
   // Load centers + menu master
   useEffect(() => {
@@ -234,8 +236,13 @@ export default function TiffinBookings() {
                   <TableCell className="text-xs">{r.center}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => open(r)}><Edit className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => downloadPdf(r)}><Download className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => open(r)} title="Edit"><Edit className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => downloadPdf(r)} title="Download PDF"><Download className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setWaRow(r)} title="WhatsApp"
+                        data-testid={`tiffin-whatsapp-${r.id}`}
+                        className={r.whatsapp_sent_at ? "text-emerald-500" : "text-green-500"}>
+                        <MessageSquare className="w-4 h-4" />
+                      </Button>
                       {isAdmin && <Button size="icon" variant="ghost" onClick={() => del(r)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                     </div>
                   </TableCell>
@@ -362,6 +369,15 @@ export default function TiffinBookings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WhatsAppDialog
+        open={!!waRow}
+        onOpenChange={(v) => !v && setWaRow(null)}
+        kind="tiffin"
+        row={waRow}
+        token={token}
+        onMarkedSent={load}
+      />
     </div>
   );
 }

@@ -13,9 +13,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { PartyPopper, Plus, Edit, Trash2, Download, Loader2, Mail, CheckCircle2 } from "lucide-react";
+import { PartyPopper, Plus, Edit, Trash2, Download, Loader2, Mail, CheckCircle2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import MenuPicker from "@/components/booking/MenuPicker";
+import WhatsAppDialog from "@/components/booking/WhatsAppDialog";
 import { isInternationalCenter } from "@/lib/api";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -65,6 +66,7 @@ export default function EventBookings() {
   const [showDlg, setShowDlg] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ ...blankForm, center: userCenter });
+  const [waRow, setWaRow] = useState(null);
 
   useEffect(() => {
     if (!token) return;
@@ -287,6 +289,11 @@ export default function EventBookings() {
                           ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                           : <Mail className="w-4 h-4 text-blue-500" />}
                       </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setWaRow(r)} title="WhatsApp"
+                        data-testid={`event-whatsapp-${r.id}`}
+                        className={r.whatsapp_sent_at ? "text-emerald-500" : "text-green-500"}>
+                        <MessageSquare className="w-4 h-4" />
+                      </Button>
                       {isAdmin && <Button size="icon" variant="ghost" onClick={() => del(r)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                     </div>
                   </TableCell>
@@ -395,6 +402,15 @@ export default function EventBookings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WhatsAppDialog
+        open={!!waRow}
+        onOpenChange={(v) => !v && setWaRow(null)}
+        kind="event"
+        row={waRow}
+        token={token}
+        onMarkedSent={load}
+      />
     </div>
   );
 }

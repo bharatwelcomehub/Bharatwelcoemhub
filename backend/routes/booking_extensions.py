@@ -436,7 +436,7 @@ async def today_table_pdf(req: TodayPdfReq):
     session = await check_booking_access(req.token)
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
@@ -452,6 +452,8 @@ async def today_table_pdf(req: TodayPdfReq):
                             topMargin=0.5 * inch, bottomMargin=0.5 * inch,
                             title=f"Table Bookings {date_str}")
     styles = getSampleStyleSheet()
+    cell = ParagraphStyle("cell", parent=styles["BodyText"], fontSize=9, leading=11,
+                          wordWrap="CJK", spaceAfter=0)
     story: List = []
 
     title = f"Table Bookings — {date_str}"
@@ -459,30 +461,36 @@ async def today_table_pdf(req: TodayPdfReq):
     subtitle += f"Total guests: <b>{sum(int(r.get('num_guests') or 0) for r in rows)}</b>"
     _pdf_header(story, styles, title, subtitle)
 
+    def _p(text):
+        return Paragraph((text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"), cell)
+
     head = ["Time", "Guest", "Contact", "Guests", "Occasion", "Table", "Status", "Notes"]
     data = [head]
     for r in rows:
         data.append([
-            r.get("time_slot", ""),
-            r.get("guest_name", "")[:24],
-            r.get("phone", ""),
-            str(r.get("num_guests") or ""),
-            (r.get("celebration_type") or r.get("guest_type") or "")[:18],
-            (r.get("table_allotted") or "")[:18],
-            (r.get("status") or "")[:14],
-            (r.get("remarks") or r.get("special_request") or "")[:30],
+            _p(r.get("time_slot", "")),
+            _p((r.get("guest_name") or "")[:30]),
+            _p(r.get("phone", "")),
+            _p(str(r.get("num_guests") or "")),
+            _p((r.get("celebration_type") or r.get("guest_type") or "")[:24]),
+            _p((r.get("table_allotted") or "")[:18]),
+            _p((r.get("status") or "")[:14]),
+            _p((r.get("remarks") or r.get("special_request") or "")[:60]),
         ])
     if len(data) == 1:
-        data.append(["—", "No bookings", "", "", "", "", "", ""])
-    t = Table(data, repeatRows=1, colWidths=[1.1*inch, 1.9*inch, 1.3*inch, 0.6*inch, 1.3*inch, 1.1*inch, 1.0*inch, 1.9*inch])
+        data.append(["—", _p("No bookings"), "", "", "", "", "", ""])
+    t = Table(data, repeatRows=1,
+              colWidths=[1.3*inch, 1.7*inch, 1.2*inch, 0.6*inch, 1.4*inch, 1.0*inch, 1.0*inch, 1.8*inch])
     t.setStyle(TableStyle([
         ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 10),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fde68a")),
         ("FONT", (0, 1), (-1, -1), "Helvetica", 9),
         ("LINEBELOW", (0, 0), (-1, -1), 0.3, colors.HexColor("#e2e8f0")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     story.append(t)
     story.append(Spacer(1, 12))
@@ -641,6 +649,107 @@ class SendQuoteReq(_BaseReq):
     cc: Optional[str] = None
     subject: Optional[str] = None
     body: Optional[str] = None
+
+
+def _money(v) -> str:
+    try:
+        return f"{float(v or 0):,.2f}"
+    except Exception:
+        return str(v or 0)
+
+
+def _build_whatsapp(kind: str, doc: dict) -> str:
+    """Construct a copy-paste-ready WhatsApp message for the booking."""
+    name = doc.get("customer_name") or "Customer"
+    center = doc.get("center", "")
+    bid = doc.get("id", "")
+    if kind == "tiffin":
+        days = ", ".join(doc.get("selected_days") or [])
+        items = doc.get("selected_items") or []
+        item_lines = "\n".join(f"  • {it.get('name','')} × {it.get('qty','')} @ {_money(it.get('rate'))}" for it in items[:8])
+        return (
+            f"Namaskar {name}! 🙏\n"
+            f"Your Purnabramha *Tiffin Booking* is confirmed.\n\n"
+            f"📅 *Period*: {doc.get('start_date','')} → {doc.get('end_date','')}\n"
+            f"🍱 *Meal*: {doc.get('meal_type','')}"
+            + (f"  ·  *Days*: {days}" if days else "") + "\n"
+            f"📍 *{doc.get('delivery_mode','Delivery')}*"
+            + (f" @ {doc.get('delivery_time')}" if doc.get('delivery_time') else "")
+            + (f"\n🏠 {doc.get('delivery_address')}" if doc.get('delivery_address') else "") + "\n\n"
+            + (f"*Items:*\n{item_lines}\n\n" if items else "")
+            + f"💰 *Total*: ₹{_money(doc.get('total'))}\n"
+            f"📌 _Payment_: {doc.get('payment_status','Pending')}\n\n"
+            f"Booking ID: `{bid}`  ·  Center: {center}\n"
+            f"For any change, just reply to this message.\n"
+            f"— Purnabramha Team 🌿"
+        )
+    if kind == "catering":
+        return (
+            f"Namaste {name}! 🙏\n"
+            f"Your *Catering Quote* from Purnabramha:\n\n"
+            f"📅 *Event*: {doc.get('event_date','')}"
+            + (f" @ {doc.get('event_time')}" if doc.get('event_time') else "") + "\n"
+            f"👥 *Guests*: {doc.get('guest_count','')}\n"
+            + (f"🎉 *Occasion*: {doc.get('occasion')}\n" if doc.get('occasion') else "")
+            + (f"📦 *Package*: {doc.get('package_name')}\n" if doc.get('package_name') else "")
+            + (f"💁 *Per-person*: ₹{_money(doc.get('per_person_rate'))}\n" if doc.get('per_person_rate') else "")
+            + "\n"
+            f"💰 *Total*: ₹{_money(doc.get('total'))}  _(incl. GST)_\n"
+            f"💵 Advance: ₹{_money(doc.get('advance_paid'))}  ·  Balance: ₹{_money(doc.get('balance_due'))}\n\n"
+            f"Quote ID: `{bid}`  ·  Center: {center}\n"
+            f"Status: *{doc.get('confirmation_status','Quote')}*\n\n"
+            f"Reply *YES* to confirm or call us for any clarification.\n"
+            f"— Purnabramha Team 🌿"
+        )
+    # event
+    return (
+        f"Namaste {name}! 🙏\n"
+        f"Your *Event Booking* with Purnabramha:\n\n"
+        f"🎉 *{doc.get('event_type','Event')}*\n"
+        f"📅 {doc.get('event_date','')}"
+        + (f"  ·  {doc.get('time_slot')}" if doc.get('time_slot') else "") + "\n"
+        f"👥 *Guests*: {doc.get('guest_count','')}\n"
+        + (f"🍽️ *Package*: {doc.get('package_name')}\n" if doc.get('package_name') else "")
+        + (f"🍲 *Dal*: {doc.get('dal_selection')}\n" if doc.get('dal_selection') else "")
+        + (f"🎀 *Decoration*: {doc.get('decoration')}\n" if doc.get('decoration') else "")
+        + "\n"
+        f"💰 *Final Total*: ₹{_money(doc.get('final_total'))}  _(incl. GST)_\n"
+        f"💵 Advance: ₹{_money(doc.get('advance_paid'))}  ·  Balance: ₹{_money(doc.get('balance_due'))}\n\n"
+        f"Booking ID: `{bid}`  ·  Center: {center}\n"
+        f"Status: *{doc.get('confirmation_status','Quote')}*\n\n"
+        f"We can't wait to celebrate with you! Reply *CONFIRM* to lock the date.\n"
+        f"— Purnabramha Team 🌿"
+    )
+
+
+@router.post("/{kind}/whatsapp-preview/{rid}")
+async def whatsapp_preview(kind: str, rid: str, req: _BaseReq):
+    """Returns a ready-to-copy WhatsApp message + customer phone."""
+    if kind not in COLLECTION_OF:
+        raise HTTPException(404, "Unknown kind")
+    await check_booking_access(req.token)
+    doc = await _get(kind, rid)
+    msg = _build_whatsapp(kind, doc)
+    return {"message": msg, "phone": doc.get("phone", ""), "customer_name": doc.get("customer_name", "")}
+
+
+@router.post("/{kind}/whatsapp-mark-sent/{rid}")
+async def whatsapp_mark_sent(kind: str, rid: str, req: _BaseReq):
+    """Stamp whatsapp_sent_at on the doc — for audit / UI badge."""
+    if kind not in COLLECTION_OF:
+        raise HTTPException(404, "Unknown kind")
+    session = await check_booking_access(req.token)
+    if not _can_write(session):
+        raise HTTPException(403, "Not permitted")
+    sent_at = datetime.now(timezone.utc).isoformat()
+    res = await db[COLLECTION_OF[kind]].update_one(
+        {"id": rid},
+        {"$set": {"whatsapp_sent_at": sent_at,
+                  "whatsapp_sent_by": session.get("managerName") or session.get("mobile") or "Unknown"}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, f"{kind} not found")
+    return {"success": True, "sent_at": sent_at}
 
 
 @router.post("/{kind}/send-quote/{rid}")
