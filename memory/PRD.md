@@ -5,6 +5,30 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-23] One-click "Send Quote to Customer" for Catering + Event bookings (NEW)
+
+**User ask** (verbatim): "Would you like a one-click Send Quote to Customer action that auto-generates the PDF — closes the loop from enquiry → quote → confirmed order?"
+
+**Backend** (`routes/booking_extensions.py`):
+- New endpoint `POST /api/bookings/ext/{kind}/send-quote/{rid}` (kind = catering / event / tiffin).
+- Auto-generates the same canonical PDF via `_build_single_pdf(kind, doc)` and emails it via the SMTP credentials already configured for the OTP / Email-Pack flow (no new secrets needed).
+- Recipient resolution: `to_email` override (form prompt on UI) → falls back to `doc.email`. 400 if neither is present.
+- Stamps `quote_sent_at` + `quote_sent_to` + `quote_sent_by` on the booking doc + writes an audit row to `booking_quote_sends`.
+- 503 with actionable message if SMTP not configured; 500 with logged exception on transport failure.
+
+**Frontend** (`pages/CateringOrders.jsx` + `pages/EventBookings.jsx`):
+- New action button in every row (Mail icon, data-testid="catering-send-quote-{id}" / "event-send-quote-{id}").
+- Once sent, the icon auto-flips to an emerald CheckCircle so the manager sees at-a-glance which orders have already been quoted.
+- If `doc.email` is blank, the manager is prompted for an email at click-time.
+- Toast: "Quote sent to <email> (<size> KB)".
+
+**Verified end-to-end on PB-MGT preview**:
+- Catering quote `CATERING-20260523-65C2B9` → emailed to `test@example.com` (2.6 KB PDF attachment) → 200 OK → doc now has `quote_sent_at: 2026-05-23T12:50:25.958537+00:00` + `quote_sent_to: test@example.com` + `quote_sent_by: Jayanti Kathale`.
+- Missing-email case correctly returns 400 with actionable message.
+- All lint clean (no new warnings).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`. After deploy, Catering Orders and Event Bookings rows show a new Mail icon — one click emails the PDF directly to the customer using the existing SMTP credentials.
+
 ### [2026-05-23] Booking Intelligence Expansion — Tiffin / Catering / Event + Menu Master (NEW MAJOR FEATURE)
 
 **User ask**: Expand Booking Intelligence beyond table bookings. Add Tiffin (subscription), Catering (B2B orders), and Event/Celebration bookings with full CRUD, searchable lists, per-booking PDFs, and a hybrid menu (master list + custom typed items). Also add "Table Allotted" to existing table bookings + a "Download Today PDF" for table bookings. KEEP existing table booking logic 100% intact.

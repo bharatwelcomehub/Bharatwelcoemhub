@@ -634,3 +634,92 @@ async def per_booking_pdf(kind: str, rid: str, req: _BaseReq):
     data = _build_single_pdf(kind, doc)
     return StreamingResponse(io.BytesIO(data), media_type="application/pdf",
                              headers={"Content-Disposition": f'attachment; filename="{kind}_{rid}.pdf"'})
+
+
+class SendQuoteReq(_BaseReq):
+    to_email: Optional[str] = None     # override; falls back to doc.email
+    cc: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+
+
+@router.post("/{kind}/send-quote/{rid}")
+async def send_quote(kind: str, rid: str, req: SendQuoteReq):
+    """One-click quote → customer. Generates PDF and emails via configured SMTP.
+    Stamps quote_sent_at/quote_sent_to on the doc and logs to booking_quote_sends.
+    """
+    if kind not in COLLECTION_OF:
+        raise HTTPException(404, "Unknown kind")
+    session = await check_booking_access(req.token)
+    if not _can_write(session):
+        raise HTTPException(403, "Not permitted")
+    doc = await _get(kind, rid)
+
+    to_email = (req.to_email or doc.get("email") or "").strip()
+    if not to_email or "@" not in to_email:
+        raise HTTPException(400, "Customer email missing — add an email on the booking or pass to_email.")
+
+    # SMTP config from server CFG
+    from server import CFG  # type: ignore
+    email_cfg = (CFG or {}).get("email", {}) or {}
+    if not email_cfg.get("enabled") or not email_cfg.get("smtp_user") or not email_cfg.get("smtp_pass"):
+        raise HTTPException(503, "SMTP not configured on the server. Configure email.smtp_user/smtp_pass first.")
+
+    title_map = {"tiffin": "Tiffin Booking", "catering": "Catering Quote", "event": "Event Quote"}
+    label = title_map[kind]
+    default_subject = f"{label} — {doc.get('id','')} · Purnabramha"
+    default_body = (
+        f"Dear {doc.get('customer_name','Customer')},\n\n"
+        f"Please find attached the {label.lower()} ({doc.get('id','')}) prepared by our team at Purnabramha "
+        f"({doc.get('center','')}).\n\n"
+        f"Feel free to reach out for any clarification or to confirm.\n\n"
+        "Warm regards,\nPurnabramha Team"
+    )
+    subject = req.subject or default_subject
+    body = req.body or default_body
+
+    pdf_bytes = _build_single_pdf(kind, doc)
+
+    smtp_host = email_cfg.get("smtp_host", "smtp.gmail.com")
+    smtp_port = int(email_cfg.get("smtp_port", 587))
+    smtp_user = email_cfg["smtp_user"]
+    smtp_pass = email_cfg["smtp_pass"]
+    from_name = email_cfg.get("from_name", "Purnabramha Team")
+    from_email = email_cfg.get("from_email", smtp_user)
+
+    try:
+        import smtplib
+        from email.message import EmailMessage
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = f"{from_name} <{from_email}>"
+        msg["To"] = to_email
+        if req.cc:
+            msg["Cc"] = req.cc
+        msg.set_content(body)
+        msg.add_attachment(pdf_bytes, maintype="application", subtype="pdf",
+                           filename=f"{kind}_{rid}.pdf")
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            rcpts = [to_email] + ([req.cc] if req.cc else [])
+            server.send_message(msg, to_addrs=rcpts)
+    except Exception as e:
+        logger.error(f"send_quote SMTP failed: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to send email: {e}")
+
+    sent_at = datetime.now(timezone.utc).isoformat()
+    sent_by = session.get("managerName") or session.get("mobile") or "Unknown"
+    await db[COLLECTION_OF[kind]].update_one(
+        {"id": rid},
+        {"$set": {"quote_sent_at": sent_at, "quote_sent_to": to_email, "quote_sent_by": sent_by}},
+    )
+    await db.booking_quote_sends.insert_one({
+        "send_id": uuid.uuid4().hex,
+        "kind": kind, "booking_id": rid,
+        "to_email": to_email, "cc": req.cc,
+        "subject": subject, "sent_by": sent_by, "sent_at": sent_at,
+        "size_bytes": len(pdf_bytes),
+    })
+    return {"success": True, "to": to_email, "cc": req.cc, "subject": subject,
+            "sent_at": sent_at, "size_kb": round(len(pdf_bytes) / 1024.0, 1)}

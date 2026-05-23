@@ -13,7 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { PartyPopper, Plus, Edit, Trash2, Download, Loader2 } from "lucide-react";
+import { PartyPopper, Plus, Edit, Trash2, Download, Loader2, Mail, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import MenuPicker from "@/components/booking/MenuPicker";
 import { isInternationalCenter } from "@/lib/api";
@@ -164,6 +164,31 @@ export default function EventBookings() {
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   };
 
+  const sendQuote = async (row) => {
+    if (!row.email) {
+      const m = window.prompt("Customer email not set. Enter email to send to:");
+      if (!m) return;
+      row = { ...row, email: m };
+    }
+    const t = toast.loading(`Emailing quote to ${row.email}...`);
+    try {
+      const res = await fetch(`${API}/api/bookings/ext/event/send-quote/${row.id}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, to_email: row.email }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        toast.success(`Quote sent to ${d.to} (${d.size_kb} KB)`, { id: t });
+        load();
+      } else {
+        const e = await res.json().catch(() => ({}));
+        toast.error(e.detail || "Send failed", { id: t });
+      }
+    } catch (err) {
+      toast.error("Network error", { id: t });
+    }
+  };
+
   const masterByCat = menuMaster.reduce((acc, m) => {
     (acc[m.category] = acc[m.category] || []).push(m); return acc;
   }, {});
@@ -255,8 +280,13 @@ export default function EventBookings() {
                   <TableCell className="text-xs">{r.center}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => open(r)}><Edit className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => downloadPdf(r)}><Download className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => open(r)} title="Edit"><Edit className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => downloadPdf(r)} title="Download PDF"><Download className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => sendQuote(r)} title="Send quote to customer" data-testid={`event-send-quote-${r.id}`}>
+                        {r.quote_sent_at
+                          ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          : <Mail className="w-4 h-4 text-blue-500" />}
+                      </Button>
                       {isAdmin && <Button size="icon" variant="ghost" onClick={() => del(r)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                     </div>
                   </TableCell>
