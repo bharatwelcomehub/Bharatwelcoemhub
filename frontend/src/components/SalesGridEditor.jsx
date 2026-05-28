@@ -283,6 +283,7 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     const card_idfc = parseFloat(row.card_idfc) || 0;
     const bharat_pay = parseFloat(row.bharat_pay) || 0;
     const online_other = parseFloat(row.online_other) || 0;
+    const due_amount = parseFloat(row.due_amount) || 0;
     const opening_balance = parseFloat(row.opening_balance) || 0;
     const cash_receipts = parseFloat(row.cash_receipts) || 0;
     const deposited_in_bank = parseFloat(row.deposited_in_bank) || 0;
@@ -290,7 +291,8 @@ export default function SalesGridEditor({ session, selectedCenter, selectedMonth
     const petty_cash_opening = parseFloat(row.petty_cash_opening) || 0;
 
     const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + doordash + online_other;
-    const total_cash_sale = Math.max(0, total_sale - total_online_sale);
+    // Cash Sale = Total Sale − Online Sale − Due Amount (due is credit, not received in cash)
+    const total_cash_sale = Math.max(0, total_sale - total_online_sale - due_amount);
     
     // Track A: Closing Balance = Opening + Cash Sale - Deposited
     const closing_balance = opening_balance + total_cash_sale - deposited_in_bank;

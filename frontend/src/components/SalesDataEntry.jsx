@@ -123,8 +123,9 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
     // Total Online/Non-Cash = Card + UPI + Swiggy + Zomato + Doordash + Other
     const total_online_sale = card_idfc + bharat_pay + swiggy + zomato + doordash + online_other;
     
-    // CASH SALE = Total Sale - Total Online Sale
-    const total_cash_sale = Math.max(0, total_sale - total_online_sale);
+    // CASH SALE = Total Sale - Total Online Sale - Due Amount
+    // (Due amount is a credit sale — not received in cash, so it should NOT be counted as cash collected)
+    const total_cash_sale = Math.max(0, total_sale - total_online_sale - due_amount);
     
     // GST Calculation
     const gst = calculateGST(total_sale, formData.swiggy, formData.zomato, centerCode, centersList, formData.doordash);
@@ -144,8 +145,9 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
     const deposited_in_bank = parseFloat(formData.deposited_in_bank) || 0;
     const petty_cash_opening = parseFloat(formData.petty_cash_opening) || 0;
     
-    // CLOSING BALANCE = (Total Sale + Opening + Cash Receipts) - (Deposited + Online Sale + Cash Expense)
-    const closing_balance = (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense);
+    // CLOSING BALANCE = (Total Sale + Opening + Cash Receipts) - (Deposited + Online Sale + Cash Expense + Due Amount)
+    // Due Amount is excluded from cash flow since it's credit, not collected
+    const closing_balance = (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense + due_amount);
     
     // PETTY CASH CLOSING = Petty Cash Opening + Cash Receipts - Cash Expense
     const petty_cash_closing = petty_cash_opening + cash_receipts - cash_expense;

@@ -343,8 +343,10 @@ def calculate_totals(sale: dict) -> dict:
     # Total Online Sale = Card + UPI + Swiggy + Zomato + Doordash + Other
     sale["total_online_sale"] = card_idfc + bharat_pay + swiggy + zomato + doordash + online_other
     
-    # Cash Sale = Total Sale - Total Online Sale
-    sale["total_cash_sale"] = max(0, total_sale - sale["total_online_sale"])
+    # Cash Sale = Total Sale − Total Online Sale − Due Amount
+    # (Due amount is a credit sale — not received in cash, so it does NOT count as cash collected)
+    due_amount = sale.get("due_amount", 0) or 0
+    sale["total_cash_sale"] = max(0, total_sale - sale["total_online_sale"] - due_amount)
     
     # TRACK A: To Deposit
     # Closing Balance = Opening Balance + Cash Sale - Deposited in Bank
@@ -2588,7 +2590,8 @@ async def upload_sales_data(
                                   record["swiggy"] + record["zomato"] + 
                                   record["doordash"] + record["online_other"])
                     record["total_online_sale"] = total_online
-                    record["total_cash_sale"] = record["total_sale"] - total_online
+                    due = record.get("due_amount", 0) or 0
+                    record["total_cash_sale"] = max(0, record["total_sale"] - total_online - due)
 
                     # GST = inclusive 5% (India) / 10% (intl) carved out of
                     # eligible base. Routed through the canonical helper so
@@ -2857,7 +2860,8 @@ async def upload_custom_format_data(
                                   record["swiggy"] + record["zomato"] + 
                                   record["doordash"] + record["online_other"])
                     record["total_online_sale"] = total_online
-                    record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
+                    due = record.get("due_amount", 0) or 0
+                    record["total_cash_sale"] = max(0, record["total_sale"] - total_online - due)
                     # GST: inclusive carve via canonical helper (single source of truth)
                     from utils.gst import eligible_base_from_daily_row, carve_inclusive_gst, gst_rate_for
                     _rate = gst_rate_for(None, record.get("center"))
@@ -2868,7 +2872,7 @@ async def upload_custom_format_data(
                     cr = record["cash_receipts"]
                     dep = record["deposited_in_bank"]
                     ce = record["cash_expense"]
-                    cash_sale = record["total_sale"] - total_online
+                    cash_sale = record["total_sale"] - total_online - due
                     # Track A: Closing = Opening + Cash Sale - Deposited
                     record["closing_balance"] = ob + max(0, cash_sale) - dep
                     record["to_deposit_in_bank"] = record["closing_balance"]
@@ -3041,7 +3045,8 @@ async def upload_custom_format_data(
                                       record["swiggy"] + record["zomato"] + 
                                       record["doordash"] + record["online_other"])
                         record["total_online_sale"] = total_online
-                        record["total_cash_sale"] = max(0, record["total_sale"] - total_online)
+                        due = record.get("due_amount", 0) or 0
+                        record["total_cash_sale"] = max(0, record["total_sale"] - total_online - due)
                         # GST: inclusive carve via canonical helper (single source of truth)
                         from utils.gst import eligible_base_from_daily_row, carve_inclusive_gst, gst_rate_for
                         _rate = gst_rate_for(None, record.get("center"))
@@ -3052,7 +3057,7 @@ async def upload_custom_format_data(
                         cr = record["cash_receipts"]
                         dep = record["deposited_in_bank"]
                         ce = record["cash_expense"]
-                        cash_sale = record["total_sale"] - total_online
+                        cash_sale = record["total_sale"] - total_online - due
                         # Track A: Closing = Opening + Cash Sale - Deposited
                         record["closing_balance"] = ob + max(0, cash_sale) - dep
                         record["to_deposit_in_bank"] = record["closing_balance"]
