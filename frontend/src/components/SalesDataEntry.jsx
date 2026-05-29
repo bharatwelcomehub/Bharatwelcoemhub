@@ -145,15 +145,15 @@ export default function SalesDataEntry({ session, selectedCenter, centersList = 
     const deposited_in_bank = parseFloat(formData.deposited_in_bank) || 0;
     const petty_cash_opening = parseFloat(formData.petty_cash_opening) || 0;
     
-    // CLOSING BALANCE = (Total Sale + Opening + Cash Receipts) - (Deposited + Online Sale + Cash Expense + Due Amount)
-    // Due Amount is excluded from cash flow since it's credit, not collected
-    const closing_balance = (total_sale + opening_balance + cash_receipts) - (deposited_in_bank + total_online_sale + cash_expense + due_amount);
+    // TRACK A (To Deposit): Closing Balance = Opening + Cash Sale - Deposited
+    // (same as Sales Grid — single source of truth)
+    const closing_balance = opening_balance + total_cash_sale - deposited_in_bank;
     
-    // PETTY CASH CLOSING = Petty Cash Opening + Cash Receipts - Cash Expense
+    // TRACK B (Petty Cash): Petty Closing = Petty Opening + Cash Receipts (withdrawals from bank) - Cash Expenses
     const petty_cash_closing = petty_cash_opening + cash_receipts - cash_expense;
     
-    // To Deposit = Closing Balance - Petty Cash Closing
-    const to_deposit_in_bank = closing_balance - petty_cash_closing;
+    // To Deposit = Closing Balance (Track A is the deposit track — Track B is independent)
+    const to_deposit_in_bank = closing_balance;
     
     return {
       total_sale,
