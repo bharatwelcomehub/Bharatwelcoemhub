@@ -404,12 +404,192 @@ async def generate_ad(req: AdGenerateRequest):
     }
 
 
+# --- Customer Party Invitation Generator ---------------------------------
+# Used when a customer books their wedding / birthday / get-together at a
+# Purnabramha center and wants a custom invitation card with the brand logo,
+# center name, host name, occasion, date/time, and address.
+
+LOGO_PATH = "/app/backend/static/purnabramha_logo.jpg"
+
+
+class InvitationRequest(BaseModel):
+    token: str
+    center: str                              # PB-MGT etc — auto-resolves address
+    host_name: str                           # required — name on the invite
+    occasion: str                            # Wedding / Birthday / Get-together / Anniversary / Engagement
+    occasion_other: Optional[str] = None     # if occasion == 'Other'
+    event_date: str                          # YYYY-MM-DD
+    event_time: str                          # e.g. "7:30 PM"
+    center_address: Optional[str] = None     # if blank, auto-fill from centers collection
+    menu_highlights: Optional[str] = None    # optional comma list, e.g. "Misal Pav, Puran Poli"
+    language: str = "Bilingual"              # Marathi / English / Bilingual
+    output_format: str = "4:5"               # 4:5 (poster) / 1:1 / 9:16
+    photo_base64: Optional[str] = None       # optional host photo (data URL or raw b64)
+    custom_message: Optional[str] = None     # optional "warm host note"
+
+
+def _build_invitation_prompt(req: InvitationRequest, center_name: str, address_line: str) -> str:
+    occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
+    menu_line = f"\nFeatured menu: {req.menu_highlights}" if req.menu_highlights else ""
+    custom_line = f"\nHost note (use verbatim, prominent): \"{req.custom_message}\"" if req.custom_message else ""
+    photo_directive = (
+        "FIRST reference image (host photo) must be placed at the TOP-CENTER as a "
+        "soft-edged elegant portrait inside a gold rim circle. Preserve the host's face "
+        "EXACTLY — do not alter features, age, skin tone, or expression. "
+        if req.photo_base64 else
+        "No host photo provided — use a tasteful decorative emblem (brass diya, marigold "
+        "garland or mandala motif) where the portrait would have gone. "
+    )
+
+    return f"""Compose a PREMIUM celebration / party invitation poster for Purnabramha customer.
+
+DESIGN BRIEF
+- Aspect: {ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT['4:5'])}
+- Brand palette: {BRAND_COLORS}
+- Brand language: {BRAND_DESIGN}
+- Overall feel: elegant, dignified, festive, luxurious — like a high-end wedding card,
+  not a flyer. Use Maharashtrian motifs (paisley, peacock feather, marigold border, brass
+  diya, mandala) tastefully on edges/corners. NEVER use Western fonts in headlines.
+
+REQUIRED LAYOUT (top → bottom)
+1. PURNABRAMHA LOGO at the very TOP, centered, large (~18% of canvas height).
+   The logo is provided as the LAST reference image — use it EXACTLY, do not redraw.
+2. Tiny tagline below logo: "The Largest Authentic Maharashtrian Restra"
+3. {photo_directive}
+4. HEADLINE BAND — large, ornate Devanagari + English:
+     "{occ} Celebration"  /  "{occ} सोहळा"
+5. HOST NAME — biggest typography on the poster, gold serif:
+     "{req.host_name}"
+   (use the prefix "श्री/सौ." if Marathi/Bilingual, else just the name)
+6. Decorative divider (paisley line / dotted gold)
+7. DATE & TIME row:
+     "{req.event_date}  ·  {req.event_time}"
+8. VENUE block (warm, smaller serif):
+     "{center_name}"
+     "{address_line}"
+{menu_line}
+{custom_line}
+9. Tiny bottom-corner: "With warm regards — Purnabramha {center_name}"
+
+STRICT RULES
+- Logo and host face MUST be reproduced exactly from the reference images. No artistic
+  reinterpretation. Logo colours and proportions = unchanged.
+- Spelling of host name "{req.host_name}", date "{req.event_date}", time "{req.event_time}",
+  occasion "{occ}", and center "{center_name}" must appear PERFECTLY.
+- Avoid stock-photo people. Avoid clipart. Avoid emoji.
+- Output must look print-ready — clean kerning, balanced negative space.
+"""
+
+
+@router.post("/invitation/generate")
+async def generate_invitation(req: InvitationRequest):
+    """Generate a customer celebration invitation poster. Uses Nano Banana
+    with the Purnabramha logo + optional host photo as reference images."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+
+    session = await check_access(req.token)
+    if not _is_center_manager_or_above(session):
+        raise HTTPException(403, "Not permitted to create invitations")
+    if not req.host_name.strip():
+        raise HTTPException(400, "Host name is required")
+    if not req.event_date or not req.event_time:
+        raise HTTPException(400, "Event date and time are required")
+
+    # Resolve center name + address from centers collection (unless caller overrides)
+    center_doc = await db.centers.find_one({"code": (req.center or "").upper()}, {"_id": 0}) or {}
+    center_name = center_doc.get("name") or req.center
+    address_line = req.center_address or center_doc.get("address") or center_doc.get("city") or ""
+
+    # Load brand logo from disk
+    if not os.path.exists(LOGO_PATH):
+        raise HTTPException(503, "Brand logo asset missing on server")
+    with open(LOGO_PATH, "rb") as fh:
+        logo_b64 = base64.b64encode(fh.read()).decode("ascii")
+
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(503, "EMERGENT_LLM_KEY not configured")
+
+    prompt = _build_invitation_prompt(req, center_name, address_line)
+
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"invite-{uuid.uuid4().hex[:8]}",
+        system_message=(
+            "You compose premium Maharashtrian celebration invitations for Purnabramha. "
+            "The brand logo and host face (if provided) MUST be reproduced exactly from the "
+            "reference images — never redraw or restyle them."
+        ),
+    ).with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
+
+    # Logo is always passed; host photo (if any) goes FIRST per prompt directive.
+    files: List = []
+    if req.photo_base64:
+        files.append(ImageContent(_strip_data_url(req.photo_base64)))
+    files.append(ImageContent(logo_b64))
+
+    try:
+        _text, images = await chat.send_message_multimodal_response(
+            UserMessage(text=prompt, file_contents=files)
+        )
+    except Exception as e:
+        logger.error(f"Nano Banana invitation failed: {e}", exc_info=True)
+        raise HTTPException(502, f"AI image generation failed: {e}")
+
+    if not images:
+        raise HTTPException(502, "AI returned no image — please retry")
+
+    img = images[0]
+    image_bytes = base64.b64decode(img["data"])
+
+    ad_id = str(uuid.uuid4())
+    center_safe = (req.center or "UNKNOWN").replace("/", "_")
+    sub = os.path.join(ASSET_DIR, center_safe, "invitations")
+    os.makedirs(sub, exist_ok=True)
+    path = os.path.join(sub, f"{ad_id}.png")
+    with open(path, "wb") as f:
+        f.write(image_bytes)
+
+    record = {
+        "ad_id": ad_id,
+        "kind": "invitation",
+        "center": req.center,
+        "center_name": center_name,
+        "host_name": req.host_name,
+        "occasion": req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration"),
+        "event_date": req.event_date,
+        "event_time": req.event_time,
+        "center_address": address_line,
+        "menu_highlights": req.menu_highlights or "",
+        "custom_message": req.custom_message or "",
+        "language": req.language,
+        "output_format": req.output_format,
+        "has_photo": bool(req.photo_base64),
+        "asset_path": path,
+        "mime_type": img.get("mime_type", "image/png"),
+        "size_bytes": len(image_bytes),
+        "download_count": 0,
+        "created_by": session.get("managerName") or session.get("mobile") or "Unknown",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "status": "active",
+    }
+    await db.ad_creations.insert_one(record)
+
+    return {
+        "ad_id": ad_id,
+        "image_base64": img["data"],
+        "mime_type": img.get("mime_type", "image/png"),
+        "size_kb": round(len(image_bytes) / 1024.0, 1),
+    }
+
+
 # --- history / asset / tracking ------------------------------------------
 
 class HistoryRequest(BaseModel):
     token: str
     center: Optional[str] = None
     limit: int = 50
+    kind: Optional[str] = None     # 'invitation' to filter only invitations; default = all
 
 
 @router.post("/history")
@@ -418,7 +598,7 @@ async def list_history(req: HistoryRequest):
     if not _is_center_manager_or_above(session):
         raise HTTPException(403, "Not permitted")
 
-    q = {}
+    q: dict = {}
     if req.center:
         q["center"] = req.center
     # Non-admin center managers can only see their own center's creations
@@ -426,6 +606,11 @@ async def list_history(req: HistoryRequest):
         own = session.get("center")
         if own:
             q["center"] = own
+    if req.kind == "invitation":
+        q["kind"] = "invitation"
+    elif req.kind == "ad":
+        # Marketing ads = anything that isn't an invitation (legacy rows have no kind field)
+        q["kind"] = {"$ne": "invitation"}
 
     cur = db.ad_creations.find(q, {"_id": 0, "asset_path": 0}).sort("created_at", -1).limit(req.limit)
     rows = await cur.to_list(req.limit)

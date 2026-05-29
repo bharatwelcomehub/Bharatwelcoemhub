@@ -7,8 +7,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { useAuth } from "@/App";
-import { Loader2, Upload, Wand2, Download, Share2, History, Sparkles, RefreshCw } from 'lucide-react';
+import { Loader2, Upload, Wand2, Download, Share2, History, Sparkles, RefreshCw, PartyPopper } from 'lucide-react';
 import { toast } from 'sonner';
+import InvitationCreator from '@/pages/InvitationCreator';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -133,9 +134,14 @@ export default function AdCreator() {
 
       <Tabs defaultValue="create" className="w-full">
         <TabsList>
-          <TabsTrigger value="create" data-testid="ad-tab-create"><Wand2 className="w-4 h-4 mr-1" />Create</TabsTrigger>
-          <TabsTrigger value="history" data-testid="ad-tab-history"><History className="w-4 h-4 mr-1" />Marketing Gallery</TabsTrigger>
+          <TabsTrigger value="create" data-testid="ad-tab-create"><Wand2 className="w-4 h-4 mr-1" />Marketing Ad</TabsTrigger>
+          <TabsTrigger value="invitation" data-testid="ad-tab-invitation"><PartyPopper className="w-4 h-4 mr-1" />Party Invitation</TabsTrigger>
+          <TabsTrigger value="history" data-testid="ad-tab-history"><History className="w-4 h-4 mr-1" />Gallery</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="invitation" className="space-y-4">
+          <InvitationCreator />
+        </TabsContent>
 
         <TabsContent value="create" className="space-y-4">
           <div className="grid lg:grid-cols-5 gap-4">

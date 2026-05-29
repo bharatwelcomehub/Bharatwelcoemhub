@@ -5,6 +5,26 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-05-29] Customer Party Invitation Creator (NEW — second tab in Ad Creator)
+
+**User ask** (verbatim): "under same head create one tab, and let center manager create this — as customer give request for creating image for their function at Purnabramha like wedding, gettogether, bday party invitation, it should ask name of the host, reason for the party, date time, and center address and menu - optional and if they give any of there party host photo (optional). Create image with Purnabramha Logo and center name and host name."
+
+**Implementation**:
+- Saved brand logo (user-uploaded JPG) to `/app/backend/static/purnabramha_logo.jpg` as the reference asset.
+- New backend endpoint `POST /api/marketing/ads/invitation/generate` — uses the same Nano Banana (gemini-3.1-flash-image-preview) pipeline as Marketing Ad, but with an **invitation-tuned prompt template** and **logo passed as a reference image** (host photo, if provided, passed first so face is preserved).
+- New form fields: host_name *, occasion (Wedding / Engagement / Anniversary / Birthday / Baby Shower / Get-together / Corporate / Festival / Other), event_date *, event_time *, center *, center_address (auto-filled from `centers` collection, editable), menu_highlights (optional), custom_message (optional), language, output_format, host photo (optional).
+- Output stored to `ad_creations` collection with `kind="invitation"`. History endpoint accepts a `kind` filter.
+- Permission: same `_is_center_manager_or_above` guard (which now also honors `roles.operations`).
+
+**Frontend** (`pages/InvitationCreator.jsx` + updated `pages/AdCreator.jsx`):
+- New "**Party Invitation**" tab inside the existing Center Manager Ad Creator (sidebar untouched).
+- Left card: full form with auto-address fill, optional host photo (circular preview).
+- Right card: live preview + Download PNG + Share on WhatsApp.
+
+**Verified live** with real Nano Banana generation: Wedding for "Shri Mahesh & Sau. Pooja Kulkarni" @ PB-MGT, 2026-06-15, 7:30 PM, menu = Puran Poli, Misal Pav, Modak → 657 KB JPEG in 20s with all 6 required elements visible (logo, host name, occasion in Marathi+English, date, time, venue, menu). Readability rated 9/10 via image analysis.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. Every Center Manager will see a "Party Invitation" tab inside Ad Creator and can generate branded customer invitations in <30s.
+
 ### [2026-05-23] One-click "Send Quote to Customer" for Catering + Event bookings (NEW)
 
 **User ask** (verbatim): "Would you like a one-click Send Quote to Customer action that auto-generates the PDF — closes the loop from enquiry → quote → confirmed order?"
