@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import SEOHead from '@/components/SEOHead';
 import { Toran, Tabla, Shehnai, Diya, Mandala, Sparkle } from '@/components/FestiveDecor';
+import CateringVsCelebrate from '@/components/CateringVsCelebrate';
 
 import centersFallback from '@/config/centers.json';
 
@@ -393,6 +394,8 @@ export default function WeddingBooking() {
           </motion.div>
         </div>
       </section>
+
+      <CateringVsCelebrate current="celebrate" />
 
       <div className="container mx-auto px-4 lg:px-12 py-8 lg:py-12">
         <div className="grid lg:grid-cols-3 gap-6">

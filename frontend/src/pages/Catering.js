@@ -13,6 +13,7 @@ import axios from 'axios';
 
 import centersFallback from '@/config/centers.json';
 import cateringFallback from '@/config/catering-packages.json';
+import CateringVsCelebrate from '@/components/CateringVsCelebrate';
 import bookingRules from '@/config/booking-rules.json';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -217,6 +218,8 @@ const Catering = () => {
           </motion.div>
         </div>
       </section>
+
+      <CateringVsCelebrate current="catering" />
 
       <div className="container mx-auto px-6 lg:px-12 py-10">
         {!showReview ? (
