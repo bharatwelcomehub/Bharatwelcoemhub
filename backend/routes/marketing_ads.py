@@ -77,8 +77,15 @@ def _is_center_manager_or_above(session: dict) -> bool:
     if _is_admin(session):
         return True
     role_key = (session.get("role_key") or "").lower()
-    return role_key in {"center_manager", "manager", "operations"} or bool(
-        (session.get("roles") or {}).get("center_manager")
+    roles = session.get("roles") or {}
+    if role_key in {"center_manager", "manager", "operations"}:
+        return True
+    # Honor any role flag commonly granted to center managers
+    return bool(
+        roles.get("center_manager")
+        or roles.get("operations")
+        or roles.get("ops")
+        or roles.get("manager")
     )
 
 
