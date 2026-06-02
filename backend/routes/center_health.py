@@ -144,6 +144,13 @@ async def _month_metrics(center: str, month: str, country: str) -> Dict[str, Any
     expense_total = sum(float(r.get("amount") or 0) for r in expense_rows)
     expense_by_cat = _expense_breakdown(expense_rows)
 
+    # Expense Adjustments (prepaid / advance carve) — subtracted from P/L
+    # without modifying the raw expense rows. Single source of truth.
+    from utils.adjustments import get_total_adjustments
+    _adj_res = await get_total_adjustments(db, center, month)
+    total_adjustments = float(_adj_res.get("total") or 0)
+    adjusted_expenses = round(expense_total - total_adjustments, 2)
+
     gst_info = compute_gst_from_rows(sales_rows, country=country, center=center)
     gst_amount = float(gst_info.get("total_gst") or 0)
 
@@ -151,13 +158,17 @@ async def _month_metrics(center: str, month: str, country: str) -> Dict[str, Any
     commission_total = float(commission_info.get("total") or 0)
 
     net_revenue = sales["total"] - commission_total - gst_amount
-    net_profit = net_revenue - expense_total
+    # Net P/L uses ADJUSTED expenses so timing differences (e.g. June rent
+    # paid in May) don't depress the wrong month's profitability.
+    net_profit = net_revenue - adjusted_expenses
 
     return {
         "month": month,
         "label": _month_label(month),
         "sales": sales,
         "expenses_total": round(expense_total, 2),
+        "expense_adjustments": round(total_adjustments, 2),
+        "adjusted_expenses": adjusted_expenses,
         "expense_by_category": expense_by_cat,
         "gst": round(gst_amount, 2),
         "commission": round(commission_total, 2),
@@ -782,26 +793,36 @@ def _build_pdf(payload: Dict[str, Any]) -> bytes:
     story.append(score_table)
     story.append(Spacer(1, 10))
 
-    # Profitability table
+    # Profitability table (transparently shows expense adjustments)
     story.append(Paragraph("Profitability Formula", h2))
+    _adj_amt = cur.get("expense_adjustments", 0) or 0
+    _adj_exp = cur.get("adjusted_expenses", cur["expenses_total"])
     pf_data = [
         ["Total Sales", f"{cur_sym}{cur['sales']['total']:,.0f}"],
         ["Less: Platform Commission", f"({cur_sym}{cur['commission']:,.0f})"],
         ["Less: GST (carved inclusive)", f"({cur_sym}{cur['gst']:,.0f})"],
         ["= Net Revenue", f"{cur_sym}{cur['net_revenue']:,.0f}"],
-        ["Less: Expenses", f"({cur_sym}{cur['expenses_total']:,.0f})"],
-        ["= Net Profit / (Loss)", f"{cur_sym}{cur['net_profit']:,.0f}"],
+        ["Less: Total Expenses", f"({cur_sym}{cur['expenses_total']:,.0f})"],
     ]
+    # Insert adjustment lines only when there are adjustments — keeps the
+    # report visually identical for months without any carve.
+    bold_idx = 5  # default Net Profit row index
+    if _adj_amt > 0:
+        pf_data.append(["  Add back: Less Adjustments", f"{cur_sym}{_adj_amt:,.0f}"])
+        pf_data.append(["= Adjusted Expenses", f"({cur_sym}{_adj_exp:,.0f})"])
+        bold_idx = 7
+    pf_data.append(["= Net Profit / (Loss)", f"{cur_sym}{cur['net_profit']:,.0f}"])
+
     pf_table = Table(pf_data, colWidths=[4.5 * inch, 2.5 * inch])
     pf_table.setStyle(TableStyle([
         ("FONT", (0, 0), (-1, -1), "Helvetica", 9.5),
         ("FONT", (0, 3), (-1, 3), "Helvetica-Bold", 9.5),
-        ("FONT", (0, 5), (-1, 5), "Helvetica-Bold", 10.5),
-        ("BACKGROUND", (0, 5), (-1, 5),
+        ("FONT", (0, bold_idx), (-1, bold_idx), "Helvetica-Bold", 10.5),
+        ("BACKGROUND", (0, bold_idx), (-1, bold_idx),
          colors.HexColor("#dcfce7") if cur["net_profit"] >= 0 else colors.HexColor("#fee2e2")),
         ("BACKGROUND", (0, 3), (-1, 3), colors.HexColor("#f1f5f9")),
         ("LINEBELOW", (0, 2), (-1, 2), 0.5, colors.grey),
-        ("LINEBELOW", (0, 4), (-1, 4), 0.5, colors.grey),
+        ("LINEBELOW", (0, bold_idx - 1), (-1, bold_idx - 1), 0.5, colors.grey),
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
         ("LEFTPADDING", (0, 0), (-1, -1), 8),
         ("RIGHTPADDING", (0, 0), (-1, -1), 8),

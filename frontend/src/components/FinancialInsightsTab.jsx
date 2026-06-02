@@ -357,6 +357,17 @@ export default function FinancialInsightsTab({ centersList = [] }) {
             <div className="text-[10px] text-slate-500 mt-2">AI-assisted · GPT-5.2 · Centers: {data.centers.join(", ")}</div>
           </div>
 
+          {/* Adjustments mini-strip — visible only when adjustments exist */}
+          {Number(cur.expense_adjustments || 0) > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-3 items-center" data-testid="insights-adjustments-strip">
+              <span className="text-amber-900 font-semibold">Expense Adjustments applied:</span>
+              <span>Total Expenses <strong>{fmt(cur.expenses)}</strong></span>
+              <span className="text-amber-700">− Less Adjustments <strong>{fmt(cur.expense_adjustments)}</strong></span>
+              <span>= Adjusted Expenses <strong>{fmt(cur.adjusted_expenses)}</strong></span>
+              <span className="text-muted-foreground italic">(Net P/L uses Adjusted Expenses)</span>
+            </div>
+          )}
+
           {/* Financial Summary KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2" data-testid="insights-kpis">
             <Kpi icon={IndianRupee} label="Total Sales" tone="blue" value={fmt(cur.sales)} sub={`${cur.bills_count} entries`} trend={deltaSales} data-testid="kpi-sales" />

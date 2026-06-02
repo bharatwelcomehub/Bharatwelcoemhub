@@ -262,6 +262,17 @@ async def build_expense_register(center: str, start: str, end: str) -> Dict[str,
         total += amt
         input_gst_total += gst_amt
         taxable_base_total += taxable
+    # Pull any Expense Adjustments (prepaid / advance carve) inside the date
+    # range so the ledger PDF/Excel can transparently show the bridge from
+    # Total Expenses → Adjusted Expenses. Never modifies the raw rows.
+    start_month = (start or "")[:7]
+    end_month   = (end   or "")[:7]
+    adj_rows = await db.expense_adjustments.find(
+        {"center": center, "month": {"$gte": start_month, "$lte": end_month}},
+        {"_id": 0},
+    ).to_list(1000)
+    total_adjustments = round(sum(float(a.get("adjustment_amount", 0) or 0) for a in adj_rows), 2)
+
     return {
         "rows": rows,
         "by_category": by_cat,
@@ -269,6 +280,9 @@ async def build_expense_register(center: str, start: str, end: str) -> Dict[str,
         "total": total,
         "input_gst_total": round(input_gst_total, 2),
         "taxable_base_total": round(taxable_base_total, 2),
+        "adjustments": adj_rows,
+        "total_adjustments": total_adjustments,
+        "adjusted_total": round(total - total_adjustments, 2),
     }
 
 async def build_cash_book(center: str, start: str, end: str) -> Dict[str, Any]:
@@ -1057,6 +1071,27 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
             cat_rows = [["Category", "Amount"]] + [[k, _inr(v)] for k, v in sorted(data["by_category"].items(), key=lambda x: -x[1])]
             cat_rows.append(["TOTAL", _inr(data["total"])])
             sections.append(("Category-wise Summary", cat_rows))
+            # Expense Adjustments section — only when present (zero-adjustment
+            # months stay visually identical to the pre-feature ledger).
+            if data.get("adjustments"):
+                adj_rows = [["Date", "Head", "Original", "Adjustment", "Type", "Reason", "By"]]
+                for a in data["adjustments"]:
+                    adj_rows.append([
+                        a.get("expense_date", ""),
+                        a.get("expense_head", "")[:24],
+                        _inr(a.get("original_expense_amount", 0)),
+                        _inr(a.get("adjustment_amount", 0)),
+                        a.get("adjustment_type", "")[:28],
+                        (a.get("adjustment_reason", "") or "")[:38],
+                        a.get("created_by", "")[:16],
+                    ])
+                sections.append(("Expense Adjustments (prepaid / advance carve)", adj_rows))
+                sections.append(("Profitability Bridge", [
+                    ["Description", "Amount"],
+                    ["Total Expenses", _inr(data["total"])],
+                    ["Less: Adjustments", f"({_inr(data['total_adjustments'])})"],
+                    ["Adjusted Expenses (used for Net P/L & Revenue Share)", _inr(data["adjusted_total"])],
+                ]))
         elif ltype == "cash":
             sections = [("Cash Book — Daily", _cash_to_table(data))]
         elif ltype == "bank":
@@ -1154,6 +1189,23 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
             sheets = [("Expense Register", _expense_to_excel(data))]
             cat_sheet = [["Category", "Amount"]] + [[k, v] for k, v in sorted(data["by_category"].items(), key=lambda x: -x[1])] + [["TOTAL", data["total"]]]
             sheets.append(("Category Summary", cat_sheet))
+            if data.get("adjustments"):
+                adj_sheet = [["Date", "Head", "Original", "Adjustment", "Type", "Reason", "By"]]
+                for a in data["adjustments"]:
+                    adj_sheet.append([
+                        a.get("expense_date", ""),
+                        a.get("expense_head", ""),
+                        a.get("original_expense_amount", 0),
+                        a.get("adjustment_amount", 0),
+                        a.get("adjustment_type", ""),
+                        a.get("adjustment_reason", ""),
+                        a.get("created_by", ""),
+                    ])
+                adj_sheet.append([])
+                adj_sheet.append(["Total Expenses", "", "", data["total"]])
+                adj_sheet.append(["Less Adjustments", "", "", data["total_adjustments"]])
+                adj_sheet.append(["Adjusted Expenses", "", "", data["adjusted_total"]])
+                sheets.append(("Expense Adjustments", adj_sheet))
         elif ltype == "cash":
             sheets = [("Cash Book", _cash_to_excel(data))]
         elif ltype == "bank":

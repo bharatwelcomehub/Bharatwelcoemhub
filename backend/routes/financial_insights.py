@@ -180,6 +180,7 @@ async def _aggregate_period(centers: List[str], months: List[str]) -> Dict[str, 
             "sales": 0.0, "swiggy": 0.0, "zomato": 0.0, "doordash": 0.0,
             "aggregator": 0.0, "dinein": 0.0, "bills_count": 0,
             "expenses": 0.0, "expense_by_category": {},
+            "expense_adjustments": 0.0, "adjusted_expenses": 0.0,
             "commission": 0.0, "gst": 0.0,
             "net_revenue": 0.0, "net_profit": 0.0,
         }
@@ -193,6 +194,8 @@ async def _aggregate_period(centers: List[str], months: List[str]) -> Dict[str, 
             agg["dinein"] += mm["sales"]["dinein"]
             agg["bills_count"] += mm["sales"]["bills_count"]
             agg["expenses"] += mm["expenses_total"]
+            agg["expense_adjustments"] += mm.get("expense_adjustments", 0.0)
+            agg["adjusted_expenses"] += mm.get("adjusted_expenses", mm["expenses_total"])
             agg["commission"] += mm["commission"]
             agg["gst"] += mm["gst"]
             agg["net_revenue"] += mm["net_revenue"]
@@ -217,6 +220,8 @@ async def _aggregate_period(centers: List[str], months: List[str]) -> Dict[str, 
         "dinein": sum(v["dinein"] for v in by_month.values()),
         "bills_count": sum(v["bills_count"] for v in by_month.values()),
         "expenses": sum(v["expenses"] for v in by_month.values()),
+        "expense_adjustments": sum(v.get("expense_adjustments", 0.0) for v in by_month.values()),
+        "adjusted_expenses": sum(v.get("adjusted_expenses", v["expenses"]) for v in by_month.values()),
         "commission": sum(v["commission"] for v in by_month.values()),
         "gst": sum(v["gst"] for v in by_month.values()),
         "net_revenue": sum(v["net_revenue"] for v in by_month.values()),
@@ -460,11 +465,13 @@ def _build_excel(payload: Dict[str, Any]) -> bytes:
         ["Aggregator (Swiggy/Zomato/DoorDash)", cur["aggregator"]],
         ["Dine-in", cur["dinein"]],
         ["Total Expenses", cur["expenses"]],
+        ["Less Adjustments (prepaid / advance carve)", cur.get("expense_adjustments", 0)],
+        ["Adjusted Expenses", cur.get("adjusted_expenses", cur["expenses"])],
         ["Platform Commission", cur["commission"]],
         ["GST (inclusive carve)", cur["gst"]],
         ["Net Revenue (Sales − Comm − GST)", cur["net_revenue"]],
         ["Gross Profit (Sales − RM − Comm − GST)", cur["gross_profit"]],
-        ["Net Profit", cur["net_profit"]],
+        ["Net P/L (Net Revenue − Adjusted Expenses)", cur["net_profit"]],
     ]
     for i, row in enumerate(rows, start=7):
         ws.cell(row=i, column=1, value=row[0])
@@ -560,6 +567,8 @@ def _build_csv(payload: Dict[str, Any]) -> bytes:
     w.writerow(["Metric", "Current"])
     w.writerow(["Total Sales", cur["sales"]])
     w.writerow(["Total Expenses", cur["expenses"]])
+    w.writerow(["Less Adjustments", cur.get("expense_adjustments", 0)])
+    w.writerow(["Adjusted Expenses", cur.get("adjusted_expenses", cur["expenses"])])
     w.writerow(["Commission", cur["commission"]])
     w.writerow(["GST", cur["gst"]])
     w.writerow(["Net Revenue", cur["net_revenue"]])
