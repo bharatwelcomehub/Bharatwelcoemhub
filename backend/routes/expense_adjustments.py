@@ -134,6 +134,14 @@ async def create_adjustment(req: CreateReq):
         # legacy expenses may use different id field
         expense = await db.expenses.find_one({"expense_id": req.expense_id}, {"_id": 0})
     if not expense:
+        # /api/sales/expenses surfaces the Mongo _id as `expense_id` to the
+        # frontend, so support lookup-by-ObjectId too.
+        try:
+            from bson import ObjectId
+            expense = await db.expenses.find_one({"_id": ObjectId(req.expense_id)}, {"_id": 0})
+        except Exception:
+            expense = None
+    if not expense:
         raise HTTPException(404, f"Expense {req.expense_id} not found")
 
     original_amount = float(expense.get("amount", 0) or 0)

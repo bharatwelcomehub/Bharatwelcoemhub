@@ -75,18 +75,19 @@ export default function ExpenseAdjustmentsTab({
         body: JSON.stringify({ token, center, month }),
       });
       if (r.ok) setItems((await r.json()).items || []);
-      // For the picker, fetch expenses of the period.
-      const start = `${month}-01`;
-      const [y, m] = month.split("-").map(Number);
-      const ny = m === 12 ? y + 1 : y; const nm = m === 12 ? 1 : m + 1;
-      const end = `${ny}-${String(nm).padStart(2, "0")}-01`;
-      const er = await fetch(`${API}/api/sales/expenses-list`, {
+      // For the picker, fetch this month's expenses via the canonical
+      // sales/expenses endpoint (filter by `month` so server applies the
+      // YYYY-MM date prefix match consistent with the rest of the app).
+      const er = await fetch(`${API}/api/sales/expenses`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, center, from_date: start, to_date: end }),
+        body: JSON.stringify({ token, center, month }),
       });
       if (er.ok) {
         const ed = await er.json();
-        setExpenseRows(ed.expenses || ed.rows || []);
+        const rows = ed.expenses || ed.rows || [];
+        // Sort by date asc so the picker reads naturally top-to-bottom.
+        rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        setExpenseRows(rows);
       }
     } finally { setLoading(false); }
   }, [token, center, month]);
