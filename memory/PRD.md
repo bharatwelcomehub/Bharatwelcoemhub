@@ -5,6 +5,36 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-02] Center Accounts — Expense Adjustment & Profitability Correction (NEW MAJOR FEATURE)
+
+**User ask** (verbatim, summarized): When the franchise pays a future-month expense (e.g. June rent paid in May), it should be recorded normally for audit, but **NOT** distort May profitability or Revenue Share. Need a transparent adjustment mechanism that never modifies the underlying expense row, with a per-adjustment audit trail and visibility across every report.
+
+**User decisions**:
+- Writers: Admin + Super Admin + **Accountant** (1b)
+- Each adjustment is **tied to a specific expense row** (2b)
+- Adjustments only flow through **Profitability + Revenue Share** — GST / aggregator math untouched (3a)
+
+**Backend**:
+- New collection `expense_adjustments` with full audit fields (adjustment_id, expense_id FK, center, month, expense_head + date snapshot, original_expense_amount, adjustment_amount, type, reason, created_by/at, updated_by/at)
+- New routes `/api/center-accounts/adjustments/{types,list,create,update,delete,report}` in `routes/expense_adjustments.py`
+- Single source of truth `utils/adjustments.py::get_total_adjustments(db, center, month)` — wired into both `routes/center_accounts.py::summary` and `routes/owner_reports.py::monthly-report`
+- **Profitability** and **Revenue Share** now use `adjusted_expenses = total_expenses − total_adjustments`; raw `total_expenses` retained for transparency in every response
+- Validations: amount > 0, amount ≤ original expense, cumulative siblings ≤ original, type in 6 allowed values, expense_id must exist
+- Permissions: 403 for Franchise Owner / Center Manager on writes; non-admin can only view own center
+
+**Frontend**:
+- New "**Adjustments**" tab in Center Accounts → 5 summary cards (Total Expenses, Less Adjustments, Adjusted Expenses, Net Revenue, Profitability) + per-month list with add/edit/delete dialog. Expense row picker shows all month's expenses with date + head + amount + description.
+- New "**Expense Adjustments Report**" page (sidebar under Accounts) → center / from-month / to-month filters, totals cards, Center×Month summary, detail table, **Export CSV**.
+- Permissions: write controls hidden for Franchise Owner / Center Manager.
+
+**6 Adjustment Types**: Next Month Rent Paid in Advance · Advance Utility Payment · Security Deposit · Future Expense Allocation · Manual Adjustment · Other.
+
+**Zero-adjustment parity**: If no adjustment exists for the month, `total_adjustments=0` and `adjusted_expenses == total_expenses` exactly — pre-release behavior preserved.
+
+**Testing**: `testing_agent_v3_fork` iteration_85 → **18/18 backend pytest PASS** + frontend live verified. No critical/minor issues. Zero regressions, all permission guards correct, cumulative cap excludes-self on update, original expense rows never modified across CRUD lifecycle.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
 ### [2026-05-29] Customer Party Invitation Creator (NEW — second tab in Ad Creator)
 
 **User ask** (verbatim): "under same head create one tab, and let center manager create this — as customer give request for creating image for their function at Purnabramha like wedding, gettogether, bday party invitation, it should ask name of the host, reason for the party, date time, and center address and menu - optional and if they give any of there party host photo (optional). Create image with Purnabramha Logo and center name and host name."
