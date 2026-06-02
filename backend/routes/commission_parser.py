@@ -362,7 +362,9 @@ def parse_phonepe(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
         raise ValueError("No PhonePe settlement entries found in bank statement.")
 
     phonepe_rows['bank_credit'] = pd.to_numeric(phonepe_rows[credit_col], errors='coerce').fillna(0)
-    phonepe_rows['bank_date'] = pd.to_datetime(phonepe_rows[txn_date_col], dayfirst=True)
+    phonepe_rows['bank_date'] = pd.to_datetime(phonepe_rows[txn_date_col], dayfirst=True, format='mixed', errors='coerce')
+    # Drop rows where date couldn't be parsed (defensive — keeps the rest usable)
+    phonepe_rows = phonepe_rows.dropna(subset=['bank_date'])
     # PhonePe settles next-day: bank credit date - 1 = EDC transaction date
     phonepe_rows['edc_date'] = (phonepe_rows['bank_date'] - timedelta(days=1)).dt.strftime('%Y-%m-%d')
 
