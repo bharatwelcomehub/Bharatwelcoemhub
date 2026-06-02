@@ -46,6 +46,7 @@ import {
   Sparkles,
   Activity,
   Calculator,
+  Scale,
   Utensils,
   PartyPopper,
 } from "lucide-react";
@@ -75,6 +76,7 @@ import OwnerReports from "@/pages/OwnerReports";
 import AdCreator from "@/pages/AdCreator";
 import CenterHealth from "@/pages/CenterHealth";
 import GstPaidReport from "@/pages/GstPaidReport";
+import ExpenseAdjustmentsReport from "@/pages/ExpenseAdjustmentsReport";
 import LoanEntries from "@/pages/LoanEntries";
 import BookingIntelligence from "@/pages/BookingIntelligence";
 import TiffinBookings from "@/pages/TiffinBookings";
@@ -135,6 +137,7 @@ const menuCategories = [
     items: [
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
       { path: "/center-health", icon: Activity, label: "Center Health Dashboard", forAccounts: true },
+      { path: "/expense-adjustments-report", icon: Scale, label: "Expense Adjustments Report", forAccounts: true },
       { path: "/gst-paid-report", icon: Calculator, label: "GST Paid Report", forAccounts: true },
       { path: "/gst-reconciliation", icon: Receipt, label: "GST Reconciliation", forAccounts: true },
       { path: "/bank-reconciliation", icon: Banknote, label: "Bank Reconciliation", forAccounts: true },
@@ -655,6 +658,7 @@ export default function Dashboard() {
             <Route path="/center-accounts" element={<CenterAccounts />} />
             <Route path="/center-health" element={<CenterHealth />} />
             <Route path="/gst-paid-report" element={<GstPaidReport />} />
+            <Route path="/expense-adjustments-report" element={<ExpenseAdjustmentsReport />} />
             <Route path="/gst-reconciliation" element={<GSTReconciliation />} />
             <Route path="/bank-reconciliation" element={<BankReconciliation />} />
             <Route path="/historical-import" element={<HistoricalImport />} />

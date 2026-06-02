@@ -1266,6 +1266,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     
     expense_records = await db.expenses.find(expense_query, {"_id": 0}).to_list(500)
     total_expenses = sum(r.get("amount", 0) for r in expense_records)
+
+    # Expense Adjustments (prepaid rent / advance utilities etc.) carve a
+    # portion of the raw expenses out of Profitability + Revenue Share math
+    # WITHOUT modifying the original expense rows. Single source of truth.
+    from utils.adjustments import get_total_adjustments
+    _adj_res = await get_total_adjustments(db, req.center, req.month)
+    total_adjustments = _adj_res["total"]
+    adjusted_expenses = round(total_expenses - total_adjustments, 2)
     
     # Group expenses by type
     expense_by_type = {}
@@ -1374,8 +1382,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         total_commission_with_gst = total_commission  # already inclusive
         # Net Revenue = Sales − Deductions (GST + inclusive commissions). Expenses NOT here.
         net_revenue = round(total_sale - total_commission - sales_gst_amount, 2)
-        # Profitability = Net Revenue − Total Expenses → drives 80/20 profit share.
-        profitability = round(net_revenue - total_expenses, 2)
+        # Profitability = Net Revenue − ADJUSTED Expenses → drives 80/20 profit share.
+        # (Raw total_expenses still shown for transparency; adjustments transparently subtracted.)
+        profitability = round(net_revenue - adjusted_expenses, 2)
     else:
         # India: GST is INCLUSIVE in total_sale; remove it for accurate net revenue.
         # Net Revenue = Total Sale − Commissions − GST on Sales (Apr-2026 rule).
@@ -1678,6 +1687,12 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "total": round(total_expenses, 2),
             "by_category": expense_by_type
         },
+        "expense_adjustments": {
+            "total_adjustments": round(total_adjustments, 2),
+            "adjusted_expenses": round(adjusted_expenses, 2),
+            "count": len(_adj_res.get("rows", [])),
+            "rows": _adj_res.get("rows", []),
+        },
         "commissions": {
             "aggregator_total": round(total_aggregator_commission, 2),
             "card_total": round(card_commission, 2),
@@ -1693,6 +1708,8 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "gst_applicable": gst_applicable_india if country == "India" else True,
             "sales_ex_gst": round(sales_ex_gst, 2),
             "total_expenses": round(total_expenses, 2),
+            "total_adjustments": round(total_adjustments, 2),
+            "adjusted_expenses": round(adjusted_expenses, 2),
             "total_commissions": round(total_commission, 2),
             "commission_gst": round(commission_gst, 2) if country == "Australia" else 0,
             "total_commissions_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),
@@ -2906,6 +2923,11 @@ async def get_payout_summary(data: dict = Body(...)):
             "date": {"$gte": start_date, "$lt": end_date}
         }, {"amount": 1}).to_list(500)
         total_expenses = sum(e.get("amount", 0) or 0 for e in expense_records)
+
+        # Adjustments — subtract from Revenue Share base (Profitability)
+        from utils.adjustments import get_total_adjustments
+        _adj = await get_total_adjustments(db, center, month)
+        adjusted_expenses = round(total_expenses - _adj["total"], 2)
         
         # Get commissions for this month — canonical helper (single source
         # of truth across all surfaces). Honours WC override → uploaded → legacy.
@@ -2935,7 +2957,9 @@ async def get_payout_summary(data: dict = Body(...)):
             # Profitability = Net Revenue − Expenses (computed below).
             net_revenue = round(total_sale - total_commission - gst_on_sales, 2)
             # Share-bearing base clamped at 0 (no negative payouts).
-            net_revenue_for_share = max(0, round(net_revenue - total_expenses, 2))
+            # Uses adjusted_expenses so advance/prepaid expenses don't depress
+            # the franchise owner's share for the wrong month.
+            net_revenue_for_share = max(0, round(net_revenue - adjusted_expenses, 2))
         
         # Calculate FRANCHISE OWNER's share (this is what gets compared with MG)
         # India: Use franchise's revenue_share_percentage (default 15% to Franchise Owner) on NET REVENUE

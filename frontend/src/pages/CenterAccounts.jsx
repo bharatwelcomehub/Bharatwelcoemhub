@@ -19,6 +19,7 @@ import {
 
 import LedgersTab from '@/components/LedgersTab';
 import FinancialInsightsTab from '@/components/FinancialInsightsTab';
+import ExpenseAdjustmentsTab from '@/components/ExpenseAdjustmentsTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -1076,6 +1077,7 @@ export default function CenterAccounts() {
               <TabsTrigger value="share">Revenue/Profit Share</TabsTrigger>
               <TabsTrigger value="payout">{accountSummary?.country && accountSummary.country !== 'India' ? 'Payout' : 'MG & Payout'}</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
+              <TabsTrigger value="adjustments" className="text-amber-700">Adjustments</TabsTrigger>
               <TabsTrigger value="insights" className="text-rose-700"><Activity className="w-3.5 h-3.5 mr-1" />Financial Insights</TabsTrigger>
               <TabsTrigger value="ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
               <TabsTrigger value="invoices" className="text-purple-600">Invoice Export</TabsTrigger>
@@ -2398,6 +2400,17 @@ export default function CenterAccounts() {
             {/* Financial Insights Tab — analytics, ratios, trends, AI summary */}
             <TabsContent value="insights" className="space-y-4">
               <FinancialInsightsTab centersList={centers} />
+            </TabsContent>
+
+            {/* Expense Adjustments Tab — prepaid / advance / future-month carve */}
+            <TabsContent value="adjustments" className="space-y-4">
+              <ExpenseAdjustmentsTab
+                center={selectedCenter}
+                month={selectedMonth}
+                currencySymbol={accountSummary?.country === 'Australia' ? 'AUD ' : '₹'}
+                summary={accountSummary}
+                onChanged={fetchAccountSummary}
+              />
             </TabsContent>
 
             {/* MG & Payout Tab */}

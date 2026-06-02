@@ -147,6 +147,13 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         {"_id": 0}
     ).to_list(2000)
     total_expenses = round(sum(float(r.get("amount", 0) or 0) for r in expenses), 2)
+
+    # Expense Adjustments (prepaid/advance carve) — subtract from P/L base
+    # without modifying the raw expense rows. Single source of truth.
+    from utils.adjustments import get_total_adjustments
+    _adj_res = await get_total_adjustments(db, center, month)
+    total_adjustments = _adj_res["total"]
+    adjusted_expenses = round(total_expenses - total_adjustments, 2)
     # Category breakdown
     by_cat = {}
     for e in expenses:
@@ -185,8 +192,10 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
     # Country detection — needed to surface Profitability for Australia centers.
     center_doc = await db.centers.find_one({"code": center}, {"_id": 0, "country": 1})
     country = (center_doc or {}).get("country") or ("Australia" if str(center).upper().endswith("-PERTH") else "India")
-    # Net P/L = Net Revenue − Expenses (true P/L, what the franchise actually earns)
-    net_pl = round(net_revenue - total_expenses, 2)
+    # Net P/L = Net Revenue − ADJUSTED Expenses (raw expenses with prepaid/advance
+    # carve removed). This drives Revenue Share so timing differences don't distort
+    # the franchise owner's share for the wrong month.
+    net_pl = round(net_revenue - adjusted_expenses, 2)
     # For Australia: Profitability is the 80/20 base (Net Revenue − Expenses) — equivalent to net_pl.
     profitability = net_pl if country == "Australia" else None
     # Eligible Rev Share Base — explicit breakout for the dashboard:
@@ -219,6 +228,12 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
             "total": total_expenses,
             "rows": len(expenses),
             "by_category": expense_breakdown,
+        },
+        "expense_adjustments": {
+            "total_adjustments": round(total_adjustments, 2),
+            "adjusted_expenses": round(adjusted_expenses, 2),
+            "count": len(_adj_res.get("rows", [])),
+            "rows": _adj_res.get("rows", []),
         },
         "commissions": {
             "total": total_commission,

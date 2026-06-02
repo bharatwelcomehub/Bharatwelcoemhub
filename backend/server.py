@@ -2157,6 +2157,10 @@ app.include_router(booking_router)
 from routes.booking_extensions import router as booking_ext_router
 app.include_router(booking_ext_router)
 
+# Include Expense Adjustments (Center Accounts — prepaid/advance expense carve)
+from routes.expense_adjustments import router as expense_adj_router
+app.include_router(expense_adj_router)
+
 # Include Attendance Dashboard router
 from routes.attendance_dashboard import router as att_dash_router, set_db as set_att_dash_db, set_verify_token as set_att_dash_verify_token, set_verify_token_async as set_att_dash_verify_token_async
 set_att_dash_db(db)

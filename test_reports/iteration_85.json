@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 85 — Expense Adjustment & Profitability Correction feature fully validated. Backend pytest 18/18 PASSED (CRUD + validations + permissions + summary integration + zero-adjustment parity + report rollup). Frontend live UI verified for both surfaces: Center Accounts -> Adjustments tab (5 summary cards + New Adjustment dialog with all data-testid fields) AND /expense-adjustments-report page (filters + totals cards + Export CSV button).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration85_expense_adjustments.py",
+    "/app/test_reports/pytest/iteration85.xml"
+  ],
+  "action_items": [
+    "No fixes required. Feature is production-ready."
+  ],
+  "critical_code_review_comments": [
+    "expense_adjustments.py: validations are tight — adjustment_amount>0, must be <= original expense amount, cumulative across siblings cannot exceed original, type must be one of 6 ADJUSTMENT_TYPES, expense_id existence checked against both `id` and legacy `expense_id` fields, all good.",
+    "_can_write() correctly broadens to is_super_admin/is_admin OR role_key in {admin,super_admin,accountant} OR roles.admin/accounting/accounts. FO (role_key=franchise_owner) correctly returns 403 on /create, /update, /delete.",
+    "_ensure_can_view() blocks non-admin from viewing other centers' adjustments via /list (verified test_08).",
+    "utils/adjustments.get_total_adjustments() — single source of truth, safe defaults, used by /summary and /monthly-report consistently.",
+    "Original expense row is never modified: tests verified amount is unchanged across create/update/delete and snapshot is taken from db.expenses only for audit fields on the adjustment doc.",
+    "/summary correctly wires total_adjustments + adjusted_expenses into financial_summary AND profitability formula uses adjusted_expenses (only for non-India centers; India returns None, intentional).",
+    "Zero-adjustment parity verified — after delete, total_adjustments=0 and adjusted_expenses == total_expenses, no behavioural drift vs prior release.",
+    "Pydantic models (CreateReq, UpdateReq, ListReq, ReportReq) provide input validation; clean error messages on validation failures.",
+    "Cumulative cap on UPDATE excludes the row being edited (siblings filter via $ne adjustment_id) — verified test_04 update path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration85_expense_adjustments.py (new — 18 pytest tests)"
+  ],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% — both Adjustments tab and Expense Adjustments Report page render with all required data-testids; create dialog has expense picker / amount / type / reason / save"},
+  "test_credentials": "Super Admin: 9741399190 / 123456 / PB-MGT. Franchise Owner: 8888888888 / 123456 / PB-HSR. Both used.",
+  "seed_data_creation": "Test created and deleted one adjustment row on expense_id=69e7df9f9e7bf1a6861b5eb5 (PB-MGT, 2026-01). All TEST_ tagged data cleaned up at end of test class via explicit delete.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend tests cover the full CRUD + permissions + validation + integration matrix. Note (1) /api/center-accounts/summary response wraps content under top-level `summary` key — not flat — assertions must dereference body['summary'] before checking expense_adjustments/financial_summary. (2) Login UI flow on this app: select-center combobox is the first [role='combobox'] on /login, option text contains 'PB-MGT - Purnabramha Management (HQ)'; OTP input placeholder='6-digit OTP'; button label 'Send OTP' then 'Verify'. (3) The CenterAccounts Adjustments tab only renders after a center is selected and Refresh is clicked — direct nav to /center-accounts shows empty state. (4) /expense-adjustments-report is a standalone page reachable from sidebar 'Expense Adjustments Report' (forAccounts:true so SA/Admin/Accountant only).",
+  "rca_of_the_issue": "N/A — no issues found. Feature complete and integrates cleanly into Profitability + Revenue Share math without touching original expense rows. India centers return profitability=None by design (Revenue Share path)."
+}
