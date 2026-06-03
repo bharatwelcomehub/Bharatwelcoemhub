@@ -31,6 +31,7 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ⚠️ **Click Deploy** to push to `intra.purnabramha.com`. All preview tests confirm the fix works.
 
+**Hotfix [2026-06-03 PM v3]**: Production reported `Brand overlay failed: '_io.BytesIO' object has no attribute 'lower'`. Root cause: PIL 12.1.1's `ImageFont.load_default()` returns a font whose `.path` is a `_io.BytesIO` object, not a str. My `_wrap_to_width()` called `.lower()` on it. Fixed by adding `isinstance(_path, str)` guard. Verified end-to-end (ad_id `93e9bcf3-…`) — Nikam couple anniversary ad rendered cleanly with the user's exact form input. **Redeploy required**.
 
 ## What's Been Implemented (Latest)
 

@@ -268,8 +268,11 @@ def _wrap_to_width(draw, text: str, font, max_w: int):
     words = text.split()
     lines, cur = [], ""
     mixed = _has_devanagari(text)
-    is_bold = (font.path.lower().endswith("-bold.ttf")
-               if getattr(font, "path", "") else True)
+    # Defensive: font.path can be a str OR a BytesIO (for default fonts).
+    # Only call .lower() / .endswith() when it's actually a string.
+    _path = getattr(font, "path", "")
+    is_bold = (_path.lower().endswith("-bold.ttf")
+               if isinstance(_path, str) and _path else True)
     size = font.size
 
     def _measure(s: str) -> int:
