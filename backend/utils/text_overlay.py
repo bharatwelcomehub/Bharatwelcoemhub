@@ -562,6 +562,12 @@ def apply_invitation_overlay(
     custom_message: str = "",
     logo_path: Optional[str] = None,
     brand: str = "Purnabramha",
+    *,
+    show_footer: bool = True,
+    host_name_size: str = "M",     # 'S' | 'M' | 'L'
+    rsvp_contact: str = "",        # optional "RSVP: +91 …" line
+    save_the_date: bool = False,   # show "Save the Date" pill above occasion
+    dress_code: str = "",          # optional dress code line
 ) -> bytes:
     """Render a PREMIUM wedding-invitation style info panel on the lower half
     of the AI background.
@@ -571,7 +577,14 @@ def apply_invitation_overlay(
     - Antique gold double-frame border with corner ornaments
     - Cream typography, large + readable on mobile
     - Bilingual occasion line (Marathi + English)
-    - Host name 96pt+ — the visual hero
+    - Host name responsive (S/M/L)
+
+    Optional fields:
+    - show_footer: if False, omits the "With warm regards" bilingual brand footer
+    - host_name_size: 'S' (compact), 'M' (default), 'L' (poster hero)
+    - save_the_date: shows a small "Save the Date · वाचवा हा दिवस" pill on top
+    - rsvp_contact: e.g. "RSVP: +91 98765 43210"
+    - dress_code: e.g. "Dress Code: Traditional Maharashtrian"
     """
     try:
         base = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
@@ -587,9 +600,50 @@ def apply_invitation_overlay(
     side_pad = int(W * 0.05)
     inner_w = W - 2 * side_pad
 
-    # ── Panel covers bottom ~55% (premium wedding-card feel) ───────────────
-    panel_top = int(H * 0.45)
-    panel_h = H - panel_top - side_pad
+    # ── Estimate required content height to auto-grow the panel ────────────
+    # Cheap heuristic — sum up the heights of every visible block. Used only
+    # to decide panel_top; rendering still uses the same loop below.
+    def _estimate_height() -> int:
+        h = int(54 * scale)  # top pad
+        if save_the_date:
+            h += int(28 * scale) + int(36 * scale)
+        if (occasion_marathi or "").strip():
+            h += int(64 * scale) + 10
+        if (occasion or "").strip():
+            h += int(42 * scale) + 10
+        h += int(48 * scale)  # divider + gap
+        host_size_map = {"S": 72, "M": 96, "L": 124}
+        host_pt = host_size_map.get((host_name_size or "M").upper(), 96)
+        # Assume 1 or 2 lines for host
+        lines_est = 2 if len(host_name) > 28 else 1
+        h += lines_est * (int(host_pt * scale) + 8)
+        h += int(20 * scale)  # gap
+        h += int(46 * scale) + int(18 * scale)  # dt
+        h += int(40 * scale) + 6  # venue
+        if venue_address:
+            h += (int(28 * scale) + 4) * 2  # ~2 lines
+        if menu_highlights:
+            h += int(14 * scale) + int(28 * scale) + 6
+            h += (int(28 * scale) + 2) * 2  # menu items
+        if custom_message:
+            h += int(14 * scale) + (int(30 * scale) + 2) * 2
+        if dress_code:
+            h += int(10 * scale) + int(24 * scale) + 2
+        if rsvp_contact:
+            h += int(8 * scale) + int(26 * scale) + 2
+        if show_footer:
+            h += int(32 * scale) * 3  # 2 lines + gap
+        h += int(60 * scale)  # bottom pad inside panel
+        return h
+
+    needed = _estimate_height()
+    panel_h_max = int(H * 0.70)
+    panel_h = min(max(int(H * 0.55), needed), panel_h_max)
+    panel_top = H - side_pad - panel_h
+    # Don't let the panel cover more than 70% of the canvas
+    if panel_top < int(H * 0.18):
+        panel_top = int(H * 0.18)
+        panel_h = H - side_pad - panel_top
     # Solid DARK CHOCOLATE panel (no transparency — luxe card)
     panel = Image.new("RGBA", (inner_w, panel_h), DARK_CHOCOLATE_RGBA)
     layer.paste(panel, (side_pad, panel_top), panel)
@@ -614,6 +668,21 @@ def apply_invitation_overlay(
                          outline=ANTIQUE_GOLD_BRIGHT, width=2)
 
     y = panel_top + int(54 * scale)
+
+    # ── Save-the-Date pill (optional, sits on top of the occasion) ────────
+    if save_the_date:
+        std_size = int(28 * scale)
+        std_text = "SAVE THE DATE · वाचवा हा दिवस"
+        std_w = _measure_mixed(draw, std_text, std_size, bold=True) + int(40 * scale)
+        std_h = std_size + int(20 * scale)
+        std_x = (W - std_w) // 2
+        draw.rounded_rectangle(
+            [std_x, y, std_x + std_w, y + std_h],
+            radius=int(std_h / 2), outline=ANTIQUE_GOLD_BRIGHT, width=2,
+        )
+        _draw_text_mixed(draw, std_x + int(20 * scale), y + int(8 * scale),
+                         std_text, std_size, ANTIQUE_GOLD_BRIGHT, bold=True)
+        y += std_h + int(16 * scale)
 
     # ── Occasion line (Bilingual: Marathi + English) ──────────────────────
     occ_marathi = (occasion_marathi or "").strip()
@@ -640,79 +709,116 @@ def apply_invitation_overlay(
         draw.ellipse([cx + dx * 18 - r, y, cx + dx * 18 + r, y + 2 * r], fill=ANTIQUE_GOLD_BRIGHT)
     y += int(34 * scale)
 
-    # ── Host name (LARGEST text — visual hero) ────────────────────────────
-    f_host = _pick_font(host_name, int(112 * scale), bold=True)
-    for L in _wrap_to_width(draw, host_name, f_host, inner_w - 80):
+    # ── Host name (responsive: S / M / L) ─────────────────────────────────
+    # Sizes chosen to fit a 690-800px content panel; L still feels poster-sized
+    # without overflowing.
+    host_size_map = {"S": 72, "M": 96, "L": 124}
+    host_pt = host_size_map.get((host_name_size or "M").upper(), 96)
+    # Auto-shrink host name to ≤ 2 wrapped lines
+    fs_host = int(host_pt * scale)
+    for _ in range(5):
+        f_host = _pick_font(host_name, fs_host, bold=True)
+        lines = _wrap_to_width(draw, host_name, f_host, inner_w - 80)
+        if len(lines) <= 2:
+            break
+        fs_host = int(fs_host * 0.88)
+    for L in lines:
         bb = draw.textbbox((0, 0), L, font=f_host); tw = bb[2] - bb[0]
         # Triple-shadow for depth
         draw.text(((W - tw) // 2 + 4, y + 4), L, font=f_host, fill=(0, 0, 0, 220))
         draw.text(((W - tw) // 2, y), L, font=f_host, fill=ANTIQUE_GOLD_BRIGHT)
-        y += f_host.size + 10
+        y += f_host.size + 8
 
-    y += int(34 * scale)
+    y += int(20 * scale)
     # ── Date / Time (premium serif, cream) ────────────────────────────────
     dt_line = f"{event_date}    ·    {event_time}"
-    f_dt = _font(LATIN_BOLD, int(54 * scale))
+    f_dt = _font(LATIN_BOLD, int(46 * scale))
     bb = draw.textbbox((0, 0), dt_line, font=f_dt); tw = bb[2] - bb[0]
     draw.text(((W - tw) // 2, y), dt_line, font=f_dt, fill=WARM_CREAM)
-    y += f_dt.size + int(28 * scale)
+    y += f_dt.size + int(18 * scale)
 
     # ── Venue ─────────────────────────────────────────────────────────────
-    f_venue = _font(LATIN_BOLD, int(44 * scale))
+    f_venue = _font(LATIN_BOLD, int(40 * scale))
     bb = draw.textbbox((0, 0), venue_name, font=f_venue); tw = bb[2] - bb[0]
     draw.text(((W - tw) // 2, y), venue_name, font=f_venue, fill=ANTIQUE_GOLD_BRIGHT)
-    y += f_venue.size + 8
+    y += f_venue.size + 6
     if venue_address:
-        f_addr = _font(LATIN_REG, int(32 * scale))
+        f_addr = _font(LATIN_REG, int(28 * scale))
         for L in _wrap_to_width(draw, venue_address, f_addr, inner_w - 100):
             bb = draw.textbbox((0, 0), L, font=f_addr); tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), L, font=f_addr, fill=WARM_CREAM_SOFT)
-            y += f_addr.size + 6
+            y += f_addr.size + 4
 
     # ── Menu highlights ───────────────────────────────────────────────────
     if menu_highlights:
-        y += int(22 * scale)
+        y += int(14 * scale)
         label = "Featured Menu · विशेष पंगत"
-        label_size = int(32 * scale)
+        label_size = int(28 * scale)
         tw = _measure_mixed(draw, label, label_size, bold=True)
         _draw_text_mixed(draw, (W - tw) // 2, y, label, label_size,
                          ANTIQUE_GOLD, bold=True)
-        y += label_size + 10
-        f_menu = _pick_font(menu_highlights, int(32 * scale), bold=False)
+        y += label_size + 6
+        f_menu = _pick_font(menu_highlights, int(28 * scale), bold=False)
         for L in _wrap_to_width(draw, menu_highlights, f_menu, inner_w - 120):
             bb = draw.textbbox((0, 0), L, font=f_menu); tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), L, font=f_menu, fill=WARM_CREAM)
-            y += f_menu.size + 4
+            y += f_menu.size + 2
 
     # ── Custom message (italic) ───────────────────────────────────────────
     if custom_message:
-        y += int(22 * scale)
-        f_msg = _pick_font(custom_message, int(34 * scale), bold=False)
+        y += int(14 * scale)
+        f_msg = _pick_font(custom_message, int(30 * scale), bold=False)
         for L in _wrap_to_width(draw, custom_message, f_msg, inner_w - 140):
             bb = draw.textbbox((0, 0), L, font=f_msg); tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), f'"{L}"', font=f_msg, fill=WARM_CREAM_SOFT)
-            y += f_msg.size + 4
+            y += f_msg.size + 2
 
-    # ── Brand footer (bilingual — separate lines, no overlap) ─────────────
-    brand_size = int(32 * scale)
-    brand_line_en = f"— With warm regards · {brand} —"
-    brand_line_mr = "— पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक —"
+    # ── Dress code (gold caps, small) ─────────────────────────────────────
+    if dress_code:
+        y += int(10 * scale)
+        line = f"DRESS CODE  ·  {dress_code.strip().upper()}"
+        f_dress = _font(LATIN_BOLD, int(24 * scale))
+        bb = draw.textbbox((0, 0), line, font=f_dress); tw = bb[2] - bb[0]
+        if tw > inner_w - 100:
+            line = f"DRESS CODE · {dress_code.strip().upper()}"
+            f_dress = _font(LATIN_BOLD, int(20 * scale))
+            bb = draw.textbbox((0, 0), line, font=f_dress); tw = bb[2] - bb[0]
+        draw.text(((W - tw) // 2, y), line, font=f_dress, fill=ANTIQUE_GOLD)
+        y += f_dress.size + 2
 
-    # Total height: Marathi line + gap + English line
-    line_gap = int(brand_size * 1.45)
-    block_h = line_gap * 2
-    # Anchor block at the bottom of the panel, above the inner gold border
-    block_top = H - side_pad - 30 - block_h
+    # ── RSVP contact line ─────────────────────────────────────────────────
+    if rsvp_contact:
+        y += int(8 * scale)
+        line = f"RSVP  ·  {rsvp_contact.strip()}"
+        f_rsvp = _font(LATIN_BOLD, int(26 * scale))
+        bb = draw.textbbox((0, 0), line, font=f_rsvp); tw = bb[2] - bb[0]
+        if tw > inner_w - 80:
+            f_rsvp = _font(LATIN_BOLD, int(22 * scale))
+            bb = draw.textbbox((0, 0), line, font=f_rsvp); tw = bb[2] - bb[0]
+        draw.text(((W - tw) // 2, y), line, font=f_rsvp, fill=WARM_CREAM)
+        y += f_rsvp.size + 2
 
-    # Marathi first (gold-bright, larger emphasis)
-    twm = _measure_mixed(draw, brand_line_mr, brand_size, bold=True)
-    _draw_text_mixed(draw, (W - twm) // 2, block_top, brand_line_mr,
-                     brand_size, ANTIQUE_GOLD_BRIGHT, bold=True,
-                     shadow=(2, 2, (0, 0, 0, 150)))
-    # English below
-    tw = _measure_mixed(draw, brand_line_en, brand_size, bold=True)
-    _draw_text_mixed(draw, (W - tw) // 2, block_top + line_gap, brand_line_en,
-                     brand_size, ANTIQUE_GOLD, bold=True)
+    # ── Brand footer (OPTIONAL — bilingual, separate lines) ───────────────
+    if show_footer:
+        brand_size = int(32 * scale)
+        brand_line_en = f"— With warm regards · {brand} —"
+        brand_line_mr = "— पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक —"
+
+        # Total height: Marathi line + gap + English line
+        line_gap = int(brand_size * 1.45)
+        block_h = line_gap * 2
+        # Anchor block at the bottom of the panel, above the inner gold border
+        block_top = H - side_pad - 30 - block_h
+
+        # Marathi first (gold-bright, larger emphasis)
+        twm = _measure_mixed(draw, brand_line_mr, brand_size, bold=True)
+        _draw_text_mixed(draw, (W - twm) // 2, block_top, brand_line_mr,
+                         brand_size, ANTIQUE_GOLD_BRIGHT, bold=True,
+                         shadow=(2, 2, (0, 0, 0, 150)))
+        # English below
+        tw = _measure_mixed(draw, brand_line_en, brand_size, bold=True)
+        _draw_text_mixed(draw, (W - tw) // 2, block_top + line_gap, brand_line_en,
+                         brand_size, ANTIQUE_GOLD, bold=True)
 
     # ── Big top-right logo (transparent PNG, prominent brand mark) ────────
     if logo_path and os.path.exists(logo_path):

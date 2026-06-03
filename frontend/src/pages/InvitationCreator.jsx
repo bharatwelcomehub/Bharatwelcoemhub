@@ -50,6 +50,12 @@ export default function InvitationCreator() {
     output_format: "4:5",
     photo_base64: "",
     is_group_photo: false,
+    // Polish controls (Feb 2026)
+    show_footer: true,
+    host_name_size: "M",
+    save_the_date: false,
+    rsvp_contact: "",
+    dress_code: "",
   });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -142,6 +148,8 @@ export default function InvitationCreator() {
       host_name: "", occasion: "Wedding", occasion_other: "",
       event_date: "", event_time: "", menu_highlights: "",
       custom_message: "", photo_base64: "",
+      host_name_size: "M", save_the_date: false,
+      rsvp_contact: "", dress_code: "", show_footer: true,
     }));
     setPhotoPreview(null);
     setResult(null);
@@ -276,6 +284,61 @@ export default function InvitationCreator() {
               <Textarea rows={2} value={form.custom_message}
                 onChange={e => setForm(f => ({ ...f, custom_message: e.target.value }))}
                 placeholder="e.g. With love and gratitude, please join us..." />
+            </div>
+
+            {/* ── Polish controls ────────────────────────────────────── */}
+            <div className="rounded-md border bg-amber-50/40 p-3 space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                Polish
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Host Name Size</Label>
+                  <Select value={form.host_name_size}
+                    onValueChange={v => setForm(f => ({ ...f, host_name_size: v }))}>
+                    <SelectTrigger data-testid="invite-host-size"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="S">Small (compact)</SelectItem>
+                      <SelectItem value="M">Medium (default)</SelectItem>
+                      <SelectItem value="L">Large (poster)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Dress Code <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input value={form.dress_code}
+                    onChange={e => setForm(f => ({ ...f, dress_code: e.target.value }))}
+                    placeholder="e.g. Traditional"
+                    data-testid="invite-dress-code" />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs">RSVP Contact <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input value={form.rsvp_contact}
+                  onChange={e => setForm(f => ({ ...f, rsvp_contact: e.target.value }))}
+                  placeholder="e.g. +91 98765 43210"
+                  data-testid="invite-rsvp" />
+              </div>
+
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox"
+                  checked={form.save_the_date}
+                  onChange={e => setForm(f => ({ ...f, save_the_date: e.target.checked }))}
+                  className="w-3.5 h-3.5"
+                  data-testid="invite-save-the-date" />
+                <span>Show <strong>"Save the Date"</strong> pill on top</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox"
+                  checked={form.show_footer}
+                  onChange={e => setForm(f => ({ ...f, show_footer: e.target.checked }))}
+                  className="w-3.5 h-3.5"
+                  data-testid="invite-show-footer" />
+                <span>Show <strong>brand footer</strong> ("With warm regards · Purnabramha")</span>
+              </label>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

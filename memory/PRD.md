@@ -44,6 +44,24 @@ Fixes:
 
 **Verified end-to-end** (ad_id `bcdf8f06-…`): Marathi caption renders perfectly in Devanagari, pill lands in TOP-RIGHT, logo in BOTTOM-LEFT, no face occlusion. Independent analyzer scored **8/10**. **Redeploy required.**
 
+### [2026-06-03 PM v5] Party Invitation polish — optional footer + host name size + extras
+
+User request: *"foot note at party invitation should be optional, host name are too big should have option to choose size, anything which u feel is better add that as well"*
+
+Added 5 new optional invitation controls (`backend/routes/marketing_ads.py` `InvitationRequest` model, `backend/utils/text_overlay.py` `apply_invitation_overlay()`, `frontend/src/pages/InvitationCreator.jsx` form):
+
+1. **`show_footer`** (bool, default `true`) — toggles the "With warm regards · Purnabramha / पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक" brand footer.
+2. **`host_name_size`** ('S' / 'M' / 'L', default 'M') — S=72pt compact, M=96pt default, L=124pt poster hero (was a fixed 112pt). Auto-shrinks to fit 2 lines max.
+3. **`save_the_date`** (bool, default `false`) — shows a gold-outlined "SAVE THE DATE · वाचवा हा दिवस" pill above the occasion line.
+4. **`rsvp_contact`** (string, optional) — adds a small "RSVP · +91 …" cream line near the bottom of the panel.
+5. **`dress_code`** (string, optional) — adds a small gold-uppercase "DRESS CODE · …" line.
+
+Bonus reliability fix: the dark-chocolate panel now **auto-grows** between 55-70% of canvas height based on how many optional fields are populated. Previously content overflowed off the bottom when L size + all optional fields were on; now everything fits cleanly.
+
+**Verified end-to-end** (preview): all 11 elements visible inside the panel when every option is on (analyzer Layout 8/10, Readability 9/10), brand footer correctly hidden when toggled off. UI form gained a "Polish" section with 5 controls (data-testid: `invite-host-size`, `invite-dress-code`, `invite-rsvp`, `invite-save-the-date`, `invite-show-footer`).
+
+⚠️ **Redeploy required.**
+
 ## What's Been Implemented (Latest)
 
 ### [2026-06-03] One logo only + new official logo PNG (BUG FIX)

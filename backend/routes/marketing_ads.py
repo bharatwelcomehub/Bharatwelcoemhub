@@ -537,6 +537,12 @@ class InvitationRequest(BaseModel):
     photo_base64: Optional[str] = None       # optional host photo (data URL or raw b64)
     custom_message: Optional[str] = None     # optional "warm host note"
     is_group_photo: bool = False             # NEW — host photo is a family/couple/group
+    # NEW (Feb 2026): granular control over the invitation panel
+    show_footer: bool = True                 # optional brand footer ("With warm regards · …")
+    host_name_size: str = "M"                # 'S' (compact) / 'M' (default) / 'L' (poster)
+    rsvp_contact: Optional[str] = None       # optional RSVP phone/email line
+    save_the_date: bool = False              # show "Save the Date" pill above occasion
+    dress_code: Optional[str] = None         # optional dress code
 
 
 def _build_invitation_prompt(req: InvitationRequest, center_name: str, address_line: str) -> str:
@@ -704,6 +710,11 @@ async def generate_invitation(req: InvitationRequest):
             custom_message=req.custom_message or "",
             logo_path=LOGO_PATH if os.path.exists(LOGO_PATH) else None,
             brand=BRAND_NAME,
+            show_footer=req.show_footer,
+            host_name_size=req.host_name_size or "M",
+            rsvp_contact=req.rsvp_contact or "",
+            save_the_date=req.save_the_date,
+            dress_code=req.dress_code or "",
         )
     except Exception as e:
         logger.warning(f"invitation overlay failed, using raw AI image: {e}")
