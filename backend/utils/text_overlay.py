@@ -201,6 +201,63 @@ def _pick_font(text: str, size: int, bold: bool = True):
     return _font(LATIN_BOLD if bold else LATIN_REG, size)
 
 
+def _segment_by_script(text: str):
+    """Split text into runs of (text, is_devanagari). Devanagari = `\\u0900-\\u097F`.
+    ASCII / punctuation flows with the preceding segment to keep spacing natural.
+    """
+    if not text:
+        return []
+    runs = []
+    cur_text = ""
+    cur_dev = None
+    for ch in text:
+        is_dev = '\u0900' <= ch <= '\u097F'
+        if cur_dev is None:
+            cur_dev = is_dev
+        if is_dev != cur_dev:
+            if cur_text:
+                runs.append((cur_text, cur_dev))
+            cur_text = ch
+            cur_dev = is_dev
+        else:
+            cur_text += ch
+    if cur_text:
+        runs.append((cur_text, cur_dev))
+    return runs
+
+
+def _draw_text_mixed(draw, x, y, text, size, fill, bold=True, shadow=None):
+    """Draw a string that may contain BOTH Devanagari and Latin, using the
+    correct font for each run. Returns the total width drawn."""
+    runs = _segment_by_script(text)
+    cx = x
+    for run_text, is_dev in runs:
+        if is_dev:
+            f = _font(DEVANAGARI_BOLD if bold else DEVANAGARI_REG, size)
+        else:
+            f = _font(LATIN_BOLD if bold else LATIN_REG, size)
+        if shadow:
+            draw.text((cx + shadow[0], y + shadow[1]), run_text, font=f, fill=shadow[2])
+        draw.text((cx, y), run_text, font=f, fill=fill)
+        bb = draw.textbbox((0, 0), run_text, font=f)
+        cx += (bb[2] - bb[0])
+    return cx - x
+
+
+def _measure_mixed(draw, text, size, bold=True):
+    """Total width of a mixed-script string using per-run font."""
+    runs = _segment_by_script(text)
+    w = 0
+    for run_text, is_dev in runs:
+        if is_dev:
+            f = _font(DEVANAGARI_BOLD if bold else DEVANAGARI_REG, size)
+        else:
+            f = _font(LATIN_BOLD if bold else LATIN_REG, size)
+        bb = draw.textbbox((0, 0), run_text, font=f)
+        w += (bb[2] - bb[0])
+    return w
+
+
 def _wrap_to_width(draw, text: str, font, max_w: int):
     """Word-wrap text to fit within max_w pixels. Returns list of lines."""
     if not text:
@@ -341,12 +398,10 @@ def apply_overlay(
 
     # ── Headline (Marathi first, bold antique gold) ───────────────────────
     for L in lines_m:
-        bb = draw.textbbox((0, 0), L, font=f_m)
-        tw = bb[2] - bb[0]
-        tx = (W - tw) // 2
-        # Soft drop-shadow
-        draw.text((tx + 3, text_y + 3), L, font=f_m, fill=(0, 0, 0, 200))
-        draw.text((tx, text_y), L, font=f_m, fill=ANTIQUE_GOLD_BRIGHT)
+        tw = _measure_mixed(draw, L, fs_marathi, bold=True)
+        _draw_text_mixed(draw, (W - tw) // 2, text_y, L, fs_marathi,
+                         ANTIQUE_GOLD_BRIGHT, bold=True,
+                         shadow=(3, 3, (0, 0, 0, 200)))
         text_y += line_h_m
     if lines_m and lines_e:
         # Decorative thin divider between scripts
@@ -527,12 +582,12 @@ def apply_invitation_overlay(
     # ── Menu highlights ───────────────────────────────────────────────────
     if menu_highlights:
         y += int(22 * scale)
-        f_label = _font(LATIN_BOLD, int(32 * scale))
         label = "Featured Menu · विशेष पंगत"
-        f_label_mixed = _pick_font(label, int(32 * scale), bold=True)
-        bb = draw.textbbox((0, 0), label, font=f_label_mixed); tw = bb[2] - bb[0]
-        draw.text(((W - tw) // 2, y), label, font=f_label_mixed, fill=ANTIQUE_GOLD)
-        y += f_label.size + 8
+        label_size = int(32 * scale)
+        tw = _measure_mixed(draw, label, label_size, bold=True)
+        _draw_text_mixed(draw, (W - tw) // 2, y, label, label_size,
+                         ANTIQUE_GOLD, bold=True)
+        y += label_size + 10
         f_menu = _pick_font(menu_highlights, int(32 * scale), bold=False)
         for L in _wrap_to_width(draw, menu_highlights, f_menu, inner_w - 120):
             bb = draw.textbbox((0, 0), L, font=f_menu); tw = bb[2] - bb[0]
@@ -548,19 +603,26 @@ def apply_invitation_overlay(
             draw.text(((W - tw) // 2, y), f'"{L}"', font=f_msg, fill=WARM_CREAM_SOFT)
             y += f_msg.size + 4
 
-    # ── Brand footer (bilingual) ──────────────────────────────────────────
-    f_brand = _font(LATIN_BOLD, int(34 * scale))
-    brand_line_en = f"— With warm regards · {brand} {venue_name} —"
-    brand_line_mr = "पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक"
-    bb = draw.textbbox((0, 0), brand_line_en, font=f_brand); tw = bb[2] - bb[0]
-    if tw > inner_w - 40:
-        brand_line_en = f"— With warm regards · {brand} —"
-        bb = draw.textbbox((0, 0), brand_line_en, font=f_brand); tw = bb[2] - bb[0]
-    footer_y = H - side_pad - int(100 * scale)
-    f_brand_mr = _pick_font(brand_line_mr, int(34 * scale), bold=True)
-    bbm = draw.textbbox((0, 0), brand_line_mr, font=f_brand_mr); twm = bbm[2] - bbm[0]
-    draw.text(((W - twm) // 2, footer_y), brand_line_mr, font=f_brand_mr, fill=ANTIQUE_GOLD_BRIGHT)
-    draw.text(((W - tw) // 2, footer_y + int(44 * scale)), brand_line_en, font=f_brand, fill=ANTIQUE_GOLD)
+    # ── Brand footer (bilingual — separate lines, no overlap) ─────────────
+    brand_size = int(32 * scale)
+    brand_line_en = f"— With warm regards · {brand} —"
+    brand_line_mr = "— पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक —"
+
+    # Total height: Marathi line + gap + English line
+    line_gap = int(brand_size * 1.45)
+    block_h = line_gap * 2
+    # Anchor block at the bottom of the panel, above the inner gold border
+    block_top = H - side_pad - 30 - block_h
+
+    # Marathi first (gold-bright, larger emphasis)
+    twm = _measure_mixed(draw, brand_line_mr, brand_size, bold=True)
+    _draw_text_mixed(draw, (W - twm) // 2, block_top, brand_line_mr,
+                     brand_size, ANTIQUE_GOLD_BRIGHT, bold=True,
+                     shadow=(2, 2, (0, 0, 0, 150)))
+    # English below
+    tw = _measure_mixed(draw, brand_line_en, brand_size, bold=True)
+    _draw_text_mixed(draw, (W - tw) // 2, block_top + line_gap, brand_line_en,
+                     brand_size, ANTIQUE_GOLD, bold=True)
 
     # ── Big top-right logo (transparent PNG, prominent brand mark) ────────
     if logo_path and os.path.exists(logo_path):
