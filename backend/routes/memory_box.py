@@ -542,7 +542,7 @@ async def whatsapp_preview(box_id: str, req: BaseReq):
         raise HTTPException(404, "Not found")
     msg = (
         f"Namaste {box['guest_name']}! 🙏\n\n"
-        f"Thank you for letting Purnabramha {box['center_name']} be part of your "
+        f"Thank you for letting {box['center_name']} be part of your "
         f"*{box['occasion']}* on {box['event_date']}. 🎉\n\n"
         f"We have put together a small Memory Box for you — a few words and pictures "
         f"to help relive the day.\n\n"

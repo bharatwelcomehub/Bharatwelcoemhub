@@ -2161,6 +2161,10 @@ app.include_router(booking_ext_router)
 from routes.expense_adjustments import router as expense_adj_router
 app.include_router(expense_adj_router)
 
+# Include Digital Memory Box Generator (Center Manager Ad Creator — 3rd tab)
+from routes.memory_box import router as memory_box_router
+app.include_router(memory_box_router)
+
 # Include Attendance Dashboard router
 from routes.attendance_dashboard import router as att_dash_router, set_db as set_att_dash_db, set_verify_token as set_att_dash_verify_token, set_verify_token_async as set_att_dash_verify_token_async
 set_att_dash_db(db)

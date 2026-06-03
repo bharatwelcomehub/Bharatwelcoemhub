@@ -5,6 +5,63 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] Digital Memory Box Generator — 3rd tab in Center Manager Ad Creator (NEW MAJOR FEATURE)
+
+**User ask** (verbatim summary): A new tab to generate a personalised 7-page PDF **Memory Box** for guests after their event / catering / tiffin / dine-in experience. Powered by GPT-5.2 for emotional story + blessing generation, auto-pulling the team roster from the `attendance` collection, and delivering via PDF download + WhatsApp + Email.
+
+**User decisions** (gathered via ask_human):
+- AI engine: **GPT-5.2** (Emergent Universal Key)
+- Output: **7-page PDF Memory Book**
+- Delivery: **PDF download + WhatsApp + Email**
+- Team source: **Auto-pull from `attendance` collection** (status = "P" on event date)
+- UI: **Single-page form with collapsible sections** (5 accordion groups)
+
+**Backend** (`backend/routes/memory_box.py`, NEW, registered in `server.py`):
+- `POST /api/memory-box/types` — returns 15 occasions + 10 emotions for the dropdowns
+- `POST /api/memory-box/team-roster` — auto-pull team members marked **Present** at the center on the event date (queries `attendance` collection: `{center, date, status:"P"}`)
+- `POST /api/memory-box/generate` — runs GPT-5.2 → builds 7-page PDF via ReportLab → generates 1080×1350 PNG cover (Pillow) → persists to `memory_boxes` collection + `static/memory_boxes/{CENTER}/{box_id}.{pdf,png}`
+- `POST /api/memory-box/asset/{box_id}` — secure PDF download stream + increments `delivery.downloads`
+- `POST /api/memory-box/list` — paginated history; FO/CM scope to own center, staff sees all
+- `POST /api/memory-box/stats` — aggregated counts (created / WA shared / email shared / downloads)
+- `POST /api/memory-box/whatsapp-preview/{box_id}` — returns pre-composed bilingual WA message + phone
+- `POST /api/memory-box/mark-whatsapp-sent/{box_id}` — audit stamp
+- `POST /api/memory-box/send-email/{box_id}` — sends PDF as SMTP attachment, audit-stamps `delivery.email`
+
+**GPT-5.2 prompt** produces strict JSON `{story, gratitude, blessing, future_invitation}`:
+- Story: 2-paragraph warm narrative weaving guest answers (organiser, special moment, family)
+- Gratitude: occasion-specific thank-you (1 paragraph)
+- Blessing: 2-3 line traditional Marathi blessing fitting the occasion
+- Future invitation: 1-line warm welcome back (complimentary taak / chef special / priority booking — never discount-based)
+- Deterministic templated fallback when LLM call fails — feature still works
+
+**7-page PDF layout** (Times serif, maroon/gold/cream brand palette):
+1. **Cover**: Logo + "Thank You For Making Us Part Of Your Celebration" + Guest name + Occasion + Date + Center
+2. **Your Story With Us**: GPT-5.2 narrative + italic host quote
+3. **Moments Captured**: 3×3 photo gallery (up to 9 of 10 uploaded photos)
+4. **Meet The Team**: Single team photo + Name/Role table (auto-pulled or manually entered)
+5. **With Gratitude**: GPT-5.2 occasion-specific thank-you
+6. **Our Blessings For You**: GPT-5.2 Marathi blessing in italic
+7. **Until We Meet Again**: GPT-5.2 future invitation + signature + Memory Box ID
+
+**Frontend** (`pages/MemoryBoxCreator.jsx`, NEW + wired as 3rd tab in `pages/AdCreator.jsx`):
+- **Stats strip**: 4 KPI cards (Created / WA Shared / Email Sent / Downloads)
+- **Left card**: 5-section collapsible accordion (Guest+Center → Occasion+Emotion → Memory Questions → Photos → Team Roster). "Auto-pull from attendance" button + manual add. Photos up to 10 (6 MB max each). Optional team photo.
+- **Right card**: live cover PNG preview, scrollable GPT narrative excerpt, and 3 delivery buttons (PDF Download · WhatsApp · Email).
+- **History table** at bottom: re-download / re-share / re-email any past box.
+- Permission: `_can_create()` accepts Super Admin / Admin / Accountant / Center Manager / Operations / Manager.
+
+**Verified end-to-end via curl** on preview (PB-MGT, 2026-02-15, Birthday for Mr. & Mrs. Kulkarni, 60th of Aaji):
+- `/types` → 15 occasions + 10 emotions ✓
+- `/team-roster` → 200 OK with `team:[], count:0` (no attendance for that synthetic date) ✓
+- `/generate` → 200 OK · **box_id** issued · 54.1 KB PDF (`%PDF-1.4` magic) · cover_png present · **GPT-5.2 narrative real**: *"15 February 2026 will stay tenderly etched in our hearts at Purnabramha…"* + blessing in Marathi: *"Aaji, दीर्घायुषी भव—आरोग्य, सुख आणि समाधान सदैव लाभो…"* ✓
+- `/asset/{box_id}` → 200 OK · 55,396 byte valid PDF stream ✓
+- `/list` → 200 OK · 1 item (the just-created one) ✓
+- `/whatsapp-preview/{box_id}` → 200 OK · pre-composed bilingual message + phone ✓
+
+**Frontend lint**: clean. **Backend lint**: 3 cosmetic warnings (multi-import on one line, one f-string without placeholders, one semicolon) — not blocking.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy, every Center Manager sees a new "Memory Box" tab inside Ad Creator and can generate emotionally-personalised 7-page memory books for guests in under 30 seconds.
+
 ### [2026-06-02] Center Accounts — Expense Adjustment & Profitability Correction (NEW MAJOR FEATURE)
 
 **User ask** (verbatim, summarized): When the franchise pays a future-month expense (e.g. June rent paid in May), it should be recorded normally for audit, but **NOT** distort May profitability or Revenue Share. Need a transparent adjustment mechanism that never modifies the underlying expense row, with a per-adjustment audit trail and visibility across every report.
