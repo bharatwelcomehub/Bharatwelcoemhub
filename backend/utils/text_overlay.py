@@ -35,6 +35,7 @@ def composite_guest_photo(
     guest_photo_bytes: bytes,
     aspect: str = "1:1",
     balgopal: bool = False,
+    is_group: bool = False,
 ) -> bytes:
     """Paste the actual guest photo on the LEFT side of the AI background.
 
@@ -44,6 +45,12 @@ def composite_guest_photo(
 
     For 9:16 / vertical formats, we use the TOP half instead of the LEFT half.
     Balgopal mode adds a gold star burst behind the photo.
+
+    Fit mode:
+    - is_group=True → contain-fit (whole photo visible, may have cream bars on
+      sides). This preserves EVERY face in a wide group photo.
+    - is_group=False → cover-fit (faces dominate; outer edges may crop). Good
+      for single-person portraits.
     """
     try:
         bg = Image.open(io.BytesIO(bg_bytes)).convert("RGBA")
@@ -68,17 +75,28 @@ def composite_guest_photo(
         avail_w = int(W * 0.45) - pad
         avail_h = H - 2 * pad - int(H * 0.18)   # leave bottom band for text
 
-    # Scale the guest photo to fit the available area (proportional cover-fit
-    # so faces dominate the frame; we crop slightly if needed).
+    # Scale the guest photo
     gw, gh = guest.size
-    scale = max(avail_w / gw, avail_h / gh)
-    new_w, new_h = int(gw * scale), int(gh * scale)
-    guest_scaled = guest.resize((new_w, new_h), Image.LANCZOS)
-    # Center-crop to the available area
-    cx, cy = new_w // 2, new_h // 2
-    left = cx - avail_w // 2
-    top = cy - avail_h // 2
-    guest_cropped = guest_scaled.crop((left, top, left + avail_w, top + avail_h))
+    if is_group:
+        # CONTAIN-FIT — entire photo visible, no cropping
+        scale = min(avail_w / gw, avail_h / gh)
+        new_w, new_h = int(gw * scale), int(gh * scale)
+        guest_scaled = guest.resize((new_w, new_h), Image.LANCZOS)
+        # Center inside the available rectangle
+        canvas = Image.new("RGBA", (avail_w, avail_h), (253, 246, 231, 255))  # cream backdrop
+        cx_off = (avail_w - new_w) // 2
+        cy_off = (avail_h - new_h) // 2
+        canvas.paste(guest_scaled, (cx_off, cy_off), guest_scaled)
+        guest_cropped = canvas
+    else:
+        # COVER-FIT — fills the rectangle, may slightly crop edges
+        scale = max(avail_w / gw, avail_h / gh)
+        new_w, new_h = int(gw * scale), int(gh * scale)
+        guest_scaled = guest.resize((new_w, new_h), Image.LANCZOS)
+        cx, cy = new_w // 2, new_h // 2
+        left = cx - avail_w // 2
+        top = cy - avail_h // 2
+        guest_cropped = guest_scaled.crop((left, top, left + avail_w, top + avail_h))
 
     # ── Decorative frame ───────────────────────────────────────────────────
     if aspect == "9:16":

@@ -177,12 +177,17 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
 
     # Menu reference image (if uploaded) is authoritative
     if has_menu_img:
-        menu_directive = f"""DISH REFERENCE PHOTO — AUTHORITATIVE.
-- Another reference image shows the actual dish "{req.menu_item}" as plated at
-  Purnabramha. Use THAT image as the ground truth for what the food looks like
-  (colour, garnish, vessel, portion). Re-photograph it in premium food-photography
-  style — same dish, same plating, brand-grade lighting + depth of field.
-- Do NOT swap to a stock interpretation of the dish. Respect the manager's photo.
+        menu_directive = f"""DISH REFERENCE IMAGE — FOOD-ONLY EXTRACTION.
+- A reference image is provided. It MAY contain people, faces, decorative
+  text, marketing layouts, or other clutter — IGNORE ALL OF THAT.
+- Extract ONLY the FOOD content from the reference: the dish "{req.menu_item}",
+  its plating, vessel, garnish, colour, portion size, side accompaniments.
+- DO NOT copy any human face, child, person, model, hand, body part, text
+  letter, logo, or watermark from the reference image.
+- Re-photograph the EXTRACTED dish only in premium food-photography style —
+  brass-rim plate or banana leaf, soft golden light, glistening textures,
+  steam where appropriate. Garnish with fresh coriander / kothimbir.
+- Place the food on the RIGHT half (or BOTTOM half for 9:16). Otherwise centred.
 """
     elif balgopal:
         menu_directive = f"""FOOD HERO — BALGOPAL FINISHED PLATE.
@@ -233,6 +238,9 @@ GENERAL RULES:
 - No fusion food, no Western plating.
 - High dynamic range, natural lighting, premium-restaurant feel.
 - Output a single finished image, NOT a sketch or wireframe.
+- If ANY reference image contains a person/child/face, do NOT carry that person
+  into the output. Reference images are food references only — use them for
+  plating cues, never for human likeness.
 """
 
 
@@ -442,11 +450,22 @@ async def generate_ad(req: AdGenerateRequest):
     if req.photo_base64:
         try:
             from utils.text_overlay import composite_guest_photo
+            from PIL import Image as _PIL
+            import io as _io
             guest_bytes = base64.b64decode(_strip_data_url(req.photo_base64))
+            # Auto-detect "group" from manual checkbox OR wide aspect (>1.3:1)
+            is_group_auto = req.is_group_photo
+            try:
+                _im = _PIL.open(_io.BytesIO(guest_bytes))
+                if _im.width / max(_im.height, 1) >= 1.3:
+                    is_group_auto = True
+            except Exception:
+                pass
             raw_bytes = composite_guest_photo(
                 raw_bytes, guest_bytes,
                 aspect=req.output_format,
                 balgopal=_is_balgopal(req.guest_name, req.subject_text),
+                is_group=is_group_auto,
             )
         except Exception as e:
             logger.warning(f"guest photo composite failed (keeping AI image): {e}")

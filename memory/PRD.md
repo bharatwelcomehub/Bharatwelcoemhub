@@ -5,6 +5,38 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] Marketing Ad — Menu image "food-only" + Group photo contain-fit (BUG FIX)
+
+**User report** (production screenshot): "The use of menu photo and multiple face photos is not working."
+
+**Two distinct bugs found**:
+
+1. **Menu reference photo leaked people into the AI output** — when the menu image is a marketing poster (e.g. a Shrikhand poster containing a kid + decorative text), Nano Banana saw the kid and copied it into the output despite the global "NO PERSON" rule.
+2. **Multi-face composite cropped outer faces** — wide group photos (aspect > 1.3:1) were forced into a tall left panel using cover-fit, which crops the outer 30-40% of the photo (i.e. the people on the edges disappear).
+
+**Fixes**:
+
+1. **`routes/marketing_ads.py::_build_image_prompt`** — Menu directive completely rewritten as a FOOD-ONLY EXTRACTION block:
+   > "A reference image is provided. It MAY contain people, faces, decorative text, marketing layouts, or other clutter — IGNORE ALL OF THAT. Extract ONLY the FOOD content from the reference: the dish, plating, vessel, garnish, colour, portion. DO NOT copy any human face, child, person, model, hand, body part, text letter, logo, or watermark from the reference image."
+   Also added a global GENERAL RULES line: *"If ANY reference image contains a person/child/face, do NOT carry that person into the output."*
+
+2. **`utils/text_overlay.py::composite_guest_photo`** — New `is_group` argument:
+   - `is_group=True` → **contain-fit** (entire photo visible, cream letterbox bars on sides if needed). Every face preserved.
+   - `is_group=False` → cover-fit (faces dominate, slight edge crop). Good for single-person.
+
+3. **`routes/marketing_ads.py::generate_ad`** — Auto-detects `is_group_auto = req.is_group_photo OR (photo.width / photo.height >= 1.3)`. The manager doesn't have to tick the checkbox for landscape group photos — wide aspect triggers contain-fit automatically.
+
+**Verified end-to-end** (test: wide 3-face group photo `1200×600` + menu poster containing a kid):
+- 1,059 KB ad ✓
+- All 3 skin tones from the group photo present in the left panel: `(240,201,170)` + `(220,181,150)` + cream `(253,246,231)` bars on either side ✓
+- Right (food) half = food browns/golds only (no skin) — menu poster's kid was NOT copied into the output ✓
+- Caption: *"बालगोपाळ रियाजींनी श्रीखंड-पुरी-भाजी संपवली — आजचे गोल्डन तारा चॅम्पियन! ⭐"* ✓
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy:
+- Menu/dish posters with people in them → only the food is extracted, no person leak.
+- Wide group photos → every face preserved (no edge cropping).
+
+
 ### [2026-06-03] Marketing Ad — Guest photo composited as-is (NEVER AI-stylized)
 
 **User report** (verbatim, screenshot from production): "Why are we not taking photo of guest as is and create the creatives as visible as possible" — Balgopal generation was showing an AI-painted child face that did NOT match the uploaded photo (group of 2 people uploaded → 1 stylized child rendered).
