@@ -5,6 +5,40 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] PURNABRAMHA Brand Design System v2 — Premium upgrade across ALL creatives
+
+**User mandate** (verbatim): "All creatives — Marketing Ad, Party Invitation, Memory Box, Event Invitations, Catering, Festival, WhatsApp, Social Media, Memory Book PDFs — must follow a premium Purnabramha brand identity. Should feel warm, premium, traditional, emotional and culturally rich. Should NEVER look like a generic Canva template."
+
+**User design decisions** (1c, 2a):
+- 1c: Chocolate band for Marketing Ad / Video; **FULL chocolate** for Invitation / Memory Box
+- 2a: When "English" language is selected, output English ONLY (when "Bilingual" → both)
+
+**Official Brand Palette (2026)**:
+- Dark Chocolate Brown `#2B1810` — primary background
+- Rich Antique Gold `#BF8C32` / bright `#DCAE50` — headings, borders, accents
+- Deep Maroon `#660E0E` — festive / celebration
+- Warm Cream `#FAF0DC` — readability
+
+**Changes**:
+
+**`backend/utils/text_overlay.py`** — Brand colour constants rewritten. `apply_overlay()` (Marketing Ad band): chocolate gradient band (was black/maroon), gold top-border, **paisley dot row** centered inside band, fonts +39–47% (Marathi 78pt, English 50pt italic, byline 34pt, brand 36pt), gold-bright headline with shadow, divider between scripts. `apply_invitation_overlay()` (Party Invitation panel): **full chocolate panel** (was cream semi-transparent), antique-gold DOUBLE border + 4 paisley corner ornaments, host name 90pt+ (was 64pt) — visual hero, occasion bilingual (Marathi 52pt + English italic), date/time 44pt cream, venue 36pt gold, bilingual brand footer (English + Marathi *"पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक"*).
+
+**`backend/routes/marketing_ads.py`** — `BRAND_COLORS` and `BRAND_DESIGN` strings rewritten with official palette + traditional motifs (paisley, rangoli, warli, temple bells, diyas, marigold, banana-leaf, brass-copper). Added BILINGUAL ENFORCEMENT block in Claude caption prompt: *"If language is Bilingual, BOTH marathi and english MUST be filled with substantive content. Do NOT transliterate."*
+
+**`backend/routes/memory_box.py`** — 7-page PDF: **full chocolate page background**, antique-gold double border, 4 corner paisley ornaments on EVERY page (via `onFirstPage`/`onLaterPages` canvas hook). Heading fontsize 22 → 30 (+36%), H2 24, body 14 (was 11.5, +22%), blessing 18 (was 14, +29%). Cover page now has bilingual subtitle *"आमच्या सोबत आनंदाचे क्षण साजरे केल्याबद्दल धन्यवाद"*. Bilingual brand sign-off on page 7. **Cover PNG**: chocolate background (was cream), gold double border + paisley corner ornaments + paisley dividers, host name 72pt (was 56pt), 84pt heading, full bilingual greeting.
+
+**`backend/routes/video_overlay.py`** — ffmpeg `drawbox` filter now uses chocolate `#2B1810@0.85` (was black@0.55), antique-gold border line, headline font `h/12` (was `h/16`, +33%) in `#DCAE50`, sub `h/22` (was `h/28`, +27%) in `#FAF0DC` cream.
+
+**Verified end-to-end**:
+- Marketing Ad overlay: sampled bottom-center pixel = `(92, 62, 39)` (chocolate gradient) ✓
+- Invitation overlay: sampled panel pixel = `(52, 31, 20)` (full chocolate) ✓
+- Memory Box: 265 KB valid PDF; cover PNG bg pixel = `(43, 24, 16)` = **exact DARK_CHOCOLATE match** ✓
+- Memory Box bilingual cover greeting + brand sign-off in Devanagari rendered crisply ✓
+- Video overlay: 66.5 KB valid MP4 with chocolate band + gold/cream text + Marathi headline ✓
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy, every creative — Marketing Ad / Party Invitation / Memory Box PDF + cover / Video — uses the new premium Purnabramha 2026 design system with significantly larger typography and proper bilingual rendering.
+
+
 ### [2026-06-03] Marketing Ad — Menu image "food-only" + Group photo contain-fit (BUG FIX)
 
 **User report** (production screenshot): "The use of menu photo and multiple face photos is not working."

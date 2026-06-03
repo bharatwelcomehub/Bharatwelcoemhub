@@ -46,11 +46,21 @@ os.makedirs(ASSET_DIR, exist_ok=True)
 
 # Brand constants — surfaced into the Gemini prompt so the AI always knows
 # the colour palette + design language we want.
-BRAND_COLORS = "deep maroon/dark brown (#8B0000 to #5C0000), warm gold (#D4A745), cream white (#FAF3E7)"
+BRAND_COLORS = (
+    "Dark Chocolate Brown (#2B1810) as primary background, "
+    "Rich Antique Gold (#BF8C32) for headings/borders/accents, "
+    "Deep Maroon (#660E0E) for festive/celebration elements, "
+    "Warm Cream / Off-White (#FAF0DC) for readability text. "
+    "Avoid neon, bright corporate blue, fluorescent green, cartoonish palettes."
+)
 BRAND_DESIGN = (
-    "premium Apple-style minimalism, clean composition, modern luxury "
-    "Maharashtrian branding with subtle banana-leaf textures, copper utensils, "
-    "elegant brass-rim plates, soft cream backdrop, premium food photography lighting"
+    "Premium Maharashtrian heritage aesthetic — feels like a luxury wedding "
+    "invitation or hospitality brand. Traditional decorative motifs: paisley, "
+    "rangoli, warli art, temple bells, diyas, marigold garlands, banana-leaf "
+    "veins, brass-copper utensils, brass-rim plates, traditional textile "
+    "patterns. Premium serif-style typography vibes. Soft cream-on-chocolate "
+    "contrast. Warm, emotional, culturally rich — NEVER modern-corporate, "
+    "NEVER cartoonish, NEVER generic Canva-template look."
 )
 BRAND_NAME = "Purnabramha — Authentic Maharashtrian Cuisine"
 
@@ -319,6 +329,13 @@ Return STRICT JSON only, no markdown fence, with keys:
   - "english": 1 short emotional English line (1-2 lines max). Warm, luxurious.
   - "headline": the single best headline that will be burned into the image
     (Marathi if Bilingual/Marathi was requested, otherwise English).
+
+BILINGUAL ENFORCEMENT (CRITICAL):
+- If language is "Bilingual", BOTH "marathi" and "english" MUST be filled with
+  substantive, non-empty content. Do NOT leave either blank. Do NOT transliterate
+  English into Marathi — write natural, idiomatic Marathi.
+- If language is "Marathi", "marathi" MUST be filled (English may be empty).
+- If language is "English", "english" MUST be filled (Marathi may be empty).
 
 Example A (testimonial mode — guest "Balgopal" loved Thali):
 {{"marathi":"बालगोपाळजींच्या ताटात पूर्णब्रह्म — हसरा क्षण, अस्सल चव!","english":"Balgopal ji loved every bite of our authentic Thali.","headline":"बालगोपाळजींच्या ताटात पूर्णब्रह्म — हसरा क्षण, अस्सल चव!"}}

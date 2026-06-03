@@ -57,51 +57,59 @@ def _build_filter(headline: str, sub: str, byline: str, has_logo: bool,
     """Compose the ffmpeg filter_complex chain for overlay."""
     parts = []
 
-    # 1) Dark gradient strip
+    # 1) Dark CHOCOLATE strip (Purnabramha brand 2026)
     if position == "top":
         parts.append(
-            "drawbox=x=0:y=0:w=iw:h=ih*0.30:color=black@0.55:t=fill"
+            "drawbox=x=0:y=0:w=iw:h=ih*0.30:color=0x2B1810@0.85:t=fill"
+        )
+        # Antique gold border line at bottom of band
+        parts.append(
+            "drawbox=x=0:y=ih*0.30-4:w=iw:h=4:color=0xBF8C32@1.0:t=fill"
         )
         y_h = "20"
         y_s = "h*0.10"
         y_b = "h*0.20"
     else:
         parts.append(
-            "drawbox=x=0:y=ih*0.70:w=iw:h=ih*0.30:color=black@0.55:t=fill"
+            "drawbox=x=0:y=ih*0.70:w=iw:h=ih*0.30:color=0x2B1810@0.85:t=fill"
+        )
+        # Antique gold border line at top of band
+        parts.append(
+            "drawbox=x=0:y=ih*0.70:w=iw:h=4:color=0xBF8C32@1.0:t=fill"
         )
         y_h = "h*0.74"
         y_s = "h*0.82"
         y_b = "h*0.90"
 
-    # 2) Headline (auto-pick font based on script)
+    # 2) Headline (auto-pick font based on script) — Antique Gold, larger
     if headline:
         f = DEV_FONT if _has_devanagari(headline) else LATIN_FONT
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='{_ffmpeg_escape(headline)}':"
-                f"fontcolor=#b08431:fontsize=h/16:"
+                f"fontcolor=0xDCAE50:fontsize=h/12:"
                 f"x=(w-text_w)/2:y={y_h}:"
-                f"shadowcolor=black@0.7:shadowx=2:shadowy=2"
+                f"shadowcolor=black@0.8:shadowx=3:shadowy=3"
             )
 
-    # 3) Sub-headline
+    # 3) Sub-headline — Warm Cream
     if sub:
         f = DEV_FONT if _has_devanagari(sub) else LATIN_ITALIC
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='{_ffmpeg_escape(sub)}':"
-                f"fontcolor=#fdf6e7:fontsize=h/28:"
+                f"fontcolor=0xFAF0DC:fontsize=h/22:"
                 f"x=(w-text_w)/2:y={y_s}:"
-                f"shadowcolor=black@0.6:shadowx=1:shadowy=1"
+                f"shadowcolor=black@0.6:shadowx=2:shadowy=2"
             )
 
-    # 4) Byline
+    # 4) Byline — soft cream
     if byline:
         f = DEV_FONT if _has_devanagari(byline) else LATIN_ITALIC
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='— {_ffmpeg_escape(byline)} —':"
-                f"fontcolor=#dcc8a0:fontsize=h/36:"
+                f"fontcolor=0xF0E4C8:fontsize=h/30:"
                 f"x=(w-text_w)/2:y={y_b}"
             )
 

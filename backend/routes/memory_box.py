@@ -210,9 +210,12 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
         logger.warning(f"Devanagari font registration failed: {_e}")
 
     occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
-    GOLD = colors.HexColor("#b08431")
-    MAROON = colors.HexColor("#5C0000")
-    CREAM = colors.HexColor("#fdf6e7")
+    # Purnabramha 2026 brand palette
+    GOLD = colors.HexColor("#BF8C32")             # rich antique gold
+    GOLD_BRIGHT = colors.HexColor("#DCAE50")
+    MAROON = colors.HexColor("#660E0E")           # deep maroon (festive)
+    CREAM = colors.HexColor("#FAF0DC")            # warm cream
+    CHOCOLATE = colors.HexColor("#2B1810")        # dark chocolate (primary)
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -220,14 +223,23 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
                             topMargin=0.6 * inch, bottomMargin=0.6 * inch,
                             title=f"Memory Box — {req.guest_name}")
     ss = getSampleStyleSheet()
-    H = ParagraphStyle("H", parent=ss["Heading1"], textColor=MAROON,
-                       alignment=TA_CENTER, fontSize=22, spaceAfter=10, fontName="Times-Bold")
-    sub = ParagraphStyle("sub", parent=ss["Normal"], textColor=GOLD,
-                         alignment=TA_CENTER, fontSize=12, fontName="Times-Italic", spaceAfter=8)
-    body = ParagraphStyle("body", parent=ss["BodyText"], fontSize=11.5, leading=17,
-                          fontName="Times-Roman", spaceAfter=8, alignment=TA_LEFT)
-    centerBody = ParagraphStyle("cb", parent=body, alignment=TA_CENTER, fontSize=12, leading=18)
-    small = ParagraphStyle("sm", parent=ss["BodyText"], fontSize=9, textColor=colors.grey, alignment=TA_CENTER)
+    # All heading colours upgraded to ANTIQUE GOLD and font sizes increased
+    H = ParagraphStyle("H", parent=ss["Heading1"], textColor=GOLD_BRIGHT,
+                       alignment=TA_CENTER, fontSize=30, spaceAfter=14,
+                       fontName="Times-Bold", leading=36)
+    H2 = ParagraphStyle("H2", parent=ss["Heading2"], textColor=GOLD_BRIGHT,
+                        alignment=TA_CENTER, fontSize=24, spaceAfter=10,
+                        fontName="Times-Bold", leading=30)
+    sub = ParagraphStyle("sub", parent=ss["Normal"], textColor=CREAM,
+                         alignment=TA_CENTER, fontSize=16, fontName="Times-Italic",
+                         spaceAfter=10, leading=20)
+    body = ParagraphStyle("body", parent=ss["BodyText"], fontSize=14, leading=22,
+                          fontName="Times-Roman", textColor=CREAM,
+                          spaceAfter=10, alignment=TA_LEFT)
+    bodyDark = ParagraphStyle("bodyDark", parent=body, textColor=colors.HexColor("#3a2218"))  # noqa: F841
+    centerBody = ParagraphStyle("cb", parent=body, alignment=TA_CENTER, fontSize=15, leading=23)
+    small = ParagraphStyle("sm", parent=ss["BodyText"], fontSize=11,
+                           textColor=CREAM, alignment=TA_CENTER, leading=14)
 
     def _img(b64_or_bytes, w=2.5, h=2.5):
         try:
@@ -249,9 +261,14 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
                 story.append(logo)
     story.append(Spacer(1, 0.25 * inch))
     story.append(Paragraph("Thank You<br/>For Making Us Part Of<br/>Your Celebration", H))
+    story.append(Paragraph(
+        "आमच्या सोबत आनंदाचे क्षण साजरे केल्याबद्दल धन्यवाद",
+        ParagraphStyle("cover_mr", parent=sub, fontName=DEV_BOLD_FONT,
+                       fontSize=18, textColor=GOLD_BRIGHT, leading=24)
+    ))
     story.append(Spacer(1, 0.15 * inch))
-    story.append(Paragraph(f"<i>— for —</i>", sub))
-    story.append(Paragraph(f"<b>{req.guest_name}</b>", H))
+    story.append(Paragraph("<i>— for —</i>", sub))
+    story.append(Paragraph(f"<b>{req.guest_name}</b>", H2))
     story.append(Spacer(1, 0.1 * inch))
     story.append(Paragraph(f"{occ}", sub))
     story.append(Paragraph(f"{req.event_date}", sub))
@@ -335,7 +352,7 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     bl = llm.get("blessing", "")
     blessing_style = ParagraphStyle(
         "blessing", parent=centerBody,
-        fontName=DEV_FONT, fontSize=14, leading=22, textColor=MAROON,
+        fontName=DEV_FONT, fontSize=18, leading=28, textColor=GOLD_BRIGHT,
     )
     story.append(Paragraph(bl.replace("\n", "<br/>"), blessing_style))
     story.append(PageBreak())
@@ -347,48 +364,113 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     story.append(Paragraph(llm.get("future_invitation", ""), centerBody))
     story.append(Spacer(1, 0.5 * inch))
     story.append(Paragraph(f"— The Purnabramha Family · {center_name} —", small))
+    story.append(Paragraph(
+        "<i>पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक</i>",
+        ParagraphStyle("brand_mr", parent=small, fontName=DEV_FONT,
+                       fontSize=13, textColor=GOLD)
+    ))
+    story.append(Spacer(1, 0.2 * inch))
     story.append(Paragraph(f"Memory Box ID: {box_id}", small))
 
-    doc.build(story)
+    # ─── PAGE BACKGROUND: full Dark Chocolate with antique-gold double border ──
+    def _on_page(canv, _doc):
+        canv.saveState()
+        page_w, page_h = A4
+        # Full chocolate background
+        canv.setFillColor(CHOCOLATE)
+        canv.rect(0, 0, page_w, page_h, fill=1, stroke=0)
+        # Outer antique-gold border
+        canv.setStrokeColor(GOLD_BRIGHT)
+        canv.setLineWidth(3)
+        canv.rect(0.35 * inch, 0.35 * inch,
+                  page_w - 0.7 * inch, page_h - 0.7 * inch,
+                  fill=0, stroke=1)
+        # Inner thin gold border
+        canv.setStrokeColor(GOLD)
+        canv.setLineWidth(1)
+        canv.rect(0.5 * inch, 0.5 * inch,
+                  page_w - 1.0 * inch, page_h - 1.0 * inch,
+                  fill=0, stroke=1)
+        # Corner paisley ornaments
+        for cx, cy in [(0.7 * inch, page_h - 0.7 * inch),
+                       (page_w - 0.7 * inch, page_h - 0.7 * inch),
+                       (0.7 * inch, 0.7 * inch),
+                       (page_w - 0.7 * inch, 0.7 * inch)]:
+            for r in [10, 6, 3]:
+                canv.setStrokeColor(GOLD_BRIGHT)
+                canv.setLineWidth(1.4)
+                canv.circle(cx, cy, r, fill=0, stroke=1)
+        canv.restoreState()
+
+    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
     return buf.getvalue()
 
 
 def _render_cover_png(req: MemoryBoxRequest, center_name: str, box_id: str) -> bytes:
-    """Lightweight PNG cover for WhatsApp preview — independent of the PDF."""
+    """Premium chocolate-and-gold PNG cover (WhatsApp preview / Memory Box hero)."""
     try:
         from PIL import Image as PImage, ImageDraw, ImageFont
         W, H = 1080, 1350
-        canvas = PImage.new("RGB", (W, H), (253, 246, 231))   # cream
-        draw = ImageDraw.Draw(canvas)
-        # Border frame
-        draw.rectangle([20, 20, W - 20, H - 20], outline=(176, 132, 49), width=4)
-        draw.rectangle([40, 40, W - 40, H - 40], outline=(176, 132, 49), width=1)
+        canvas = PImage.new("RGB", (W, H), (43, 24, 16))   # DARK CHOCOLATE
+        draw = ImageDraw.Draw(canvas, "RGBA")
+        # Outer antique-gold double border
+        draw.rectangle([20, 20, W - 20, H - 20], outline=(220, 174, 80), width=5)
+        draw.rectangle([42, 42, W - 42, H - 42], outline=(191, 140, 50), width=2)
+        # Corner paisley ornaments
+        for cx, cy in [(70, 70), (W - 70, 70), (70, H - 70), (W - 70, H - 70)]:
+            for r in [16, 10, 5]:
+                draw.ellipse([cx - r, cy - r, cx + r, cy + r],
+                             outline=(220, 174, 80), width=2)
+        # Paisley divider just under logo space
+        midx = W // 2
+        for dy in [510, 870]:
+            for dx in range(-4, 5):
+                r = 5 if dx == 0 else 3
+                draw.ellipse([midx + dx * 18 - r, dy, midx + dx * 18 + r, dy + 2 * r],
+                             fill=(220, 174, 80))
+
         # Logo
         if os.path.exists(LOGO_PATH):
             logo = PImage.open(LOGO_PATH).convert("RGBA")
-            logo.thumbnail((380, 380))
+            logo.thumbnail((420, 420))
             canvas.paste(logo, ((W - logo.width) // 2, 80), logo if logo.mode == "RGBA" else None)
-        # Title
+
+        # Fonts — bigger + premium serif + Devanagari for Marathi
         try:
-            f_big = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 56)
-            f_med = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf", 36)
-            f_sm  = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 28)
+            f_big = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 84)
+            f_host = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 72)
+            f_med = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf", 44)
+            f_sm  = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 34)
+            f_mr  = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", 40)
         except Exception:
-            f_big = f_med = f_sm = ImageFont.load_default()
+            f_big = f_host = f_med = f_sm = f_mr = ImageFont.load_default()
 
         def _center_text(y, text, font, fill):
             bb = draw.textbbox((0, 0), text, font=font)
             w = bb[2] - bb[0]
+            # Soft drop shadow
+            draw.text(((W - w) // 2 + 2, y + 2), text, font=font, fill=(0, 0, 0, 200))
             draw.text(((W - w) // 2, y), text, font=font, fill=fill)
 
-        _center_text(520, "Thank You", f_big, (92, 0, 0))
-        _center_text(595, "for making us part of", f_med, (176, 132, 49))
-        _center_text(645, "your celebration", f_med, (176, 132, 49))
-        _center_text(770, req.guest_name[:32], f_big, (92, 0, 0))
+        # English headline (large gold)
+        _center_text(560, "Thank You", f_big, (220, 174, 80))
+        _center_text(660, "for making us part of your celebration",
+                     f_med, (250, 240, 220))
+        # Marathi bilingual subtitle
+        _center_text(740, "आमच्या सोबत आनंदाचे क्षण साजरे केल्याबद्दल धन्यवाद",
+                     f_mr, (220, 174, 80))
+
+        # Guest name — BIGGEST
+        _center_text(910, req.guest_name[:34], f_host, (220, 174, 80))
         occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
-        _center_text(870, occ, f_sm, (176, 132, 49))
-        _center_text(915, req.event_date, f_sm, (176, 132, 49))
-        _center_text(1230, f"Purnabramha · {center_name}", f_sm, (120, 120, 120))
+        _center_text(1020, occ, f_sm, (250, 240, 220))
+        _center_text(1075, req.event_date, f_sm, (250, 240, 220))
+
+        # Footer brand
+        _center_text(1220, f"Purnabramha · {center_name}", f_sm, (220, 174, 80))
+        _center_text(1268, "पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक",
+                     f_mr, (191, 140, 50))
+
         out = io.BytesIO()
         canvas.save(out, "PNG", optimize=True)
         return out.getvalue()
