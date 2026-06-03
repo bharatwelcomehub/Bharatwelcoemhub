@@ -8,17 +8,18 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { useAuth } from "@/App";
-import { Loader2, Upload, Wand2, Download, Share2, History, Sparkles, RefreshCw, PartyPopper, BookHeart } from 'lucide-react';
+import { Loader2, Upload, Wand2, Download, Share2, History, Sparkles, RefreshCw, PartyPopper, BookHeart, Film } from 'lucide-react';
 import { toast } from 'sonner';
 import InvitationCreator from '@/pages/InvitationCreator';
 import MemoryBoxCreator from '@/pages/MemoryBoxCreator';
+import VideoCreator from '@/pages/VideoCreator';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function AdCreator() {
   const { session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = ['create', 'invitation', 'memory-box', 'history'].includes(searchParams.get('tab'))
+  const initialTab = ['create', 'invitation', 'memory-box', 'video', 'history'].includes(searchParams.get('tab'))
     ? searchParams.get('tab') : 'create';
   const [activeTab, setActiveTab] = useState(initialTab);
   const onTabChange = (v) => {
@@ -38,6 +39,7 @@ export default function AdCreator() {
     photo_base64: '',
     guest_name: '',
     subject_text: '',
+    is_group_photo: false,
   });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -149,6 +151,7 @@ export default function AdCreator() {
           <TabsTrigger value="create" data-testid="ad-tab-create"><Wand2 className="w-4 h-4 mr-1" />Marketing Ad</TabsTrigger>
           <TabsTrigger value="invitation" data-testid="ad-tab-invitation"><PartyPopper className="w-4 h-4 mr-1" />Party Invitation</TabsTrigger>
           <TabsTrigger value="memory-box" data-testid="ad-tab-memory-box"><BookHeart className="w-4 h-4 mr-1" />Memory Box</TabsTrigger>
+          <TabsTrigger value="video" data-testid="ad-tab-video"><Film className="w-4 h-4 mr-1" />Video</TabsTrigger>
           <TabsTrigger value="history" data-testid="ad-tab-history"><History className="w-4 h-4 mr-1" />Gallery</TabsTrigger>
         </TabsList>
 
@@ -158,6 +161,10 @@ export default function AdCreator() {
 
         <TabsContent value="memory-box" className="space-y-4">
           <MemoryBoxCreator />
+        </TabsContent>
+
+        <TabsContent value="video" className="space-y-4">
+          <VideoCreator />
         </TabsContent>
 
         <TabsContent value="create" className="space-y-4">
@@ -183,12 +190,24 @@ export default function AdCreator() {
                       </label>
                       {photoPreview && (
                         <button type="button" className="text-[10px] text-rose-700 underline self-start" data-testid="ad-photo-clear"
-                          onClick={() => { setPhotoPreview(null); setForm(f => ({ ...f, photo_base64: '' })); }}>
+                          onClick={() => { setPhotoPreview(null); setForm(f => ({ ...f, photo_base64: '', is_group_photo: false })); }}>
                           Remove photo
                         </button>
                       )}
                     </div>
                   </div>
+                  {photoPreview && (
+                    <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer" data-testid="ad-group-photo-label">
+                      <input
+                        type="checkbox"
+                        checked={form.is_group_photo}
+                        onChange={(e) => setForm(f => ({ ...f, is_group_photo: e.target.checked }))}
+                        className="w-3.5 h-3.5"
+                        data-testid="ad-group-photo-check"
+                      />
+                      <span>This is a <strong>group photo</strong> (multiple people — preserve all faces)</span>
+                    </label>
+                  )}
                 </div>
                 <div>
                   <Label className="text-xs">Guest Name <span className="text-muted-foreground font-normal">(e.g. Balgopal — appears in caption)</span></Label>

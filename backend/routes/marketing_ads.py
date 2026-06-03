@@ -108,6 +108,8 @@ class AdGenerateRequest(BaseModel):
     # NEW — guest testimonial mode
     guest_name: Optional[str] = None     # e.g. "Balgopal"
     subject_text: Optional[str] = None   # e.g. "Loved the Thali", "First-time visit"
+    # NEW — group photo support (manager-toggled, also auto-prompted)
+    is_group_photo: bool = False
 
 
 def _strip_data_url(b64: str) -> str:
@@ -119,29 +121,40 @@ def _strip_data_url(b64: str) -> str:
 def _build_image_prompt(req: AdGenerateRequest) -> str:
     """Compose the Gemini prompt that drives the creative.
 
-    Two modes:
-    - GUEST mode (photo provided): reference photo IS the guest; advertise their
-      testimonial with the dish.
-    - PRODUCT mode (no photo): pure dish-led advertisement (no person).
+    IMPORTANT: This prompt instructs the LLM to produce a **clean visual ONLY**
+    — no text, no caption, no headline. Text is overlaid crisply server-side
+    via Pillow + Noto Sans Devanagari (utils/text_overlay.py) so Marathi
+    script always renders perfectly.
 
-    The instruction is deliberately rich + opinionated to push the AI toward
-    the Purnabramha brand language and away from generic AI-slop output.
+    Two modes:
+    - GUEST mode (photo provided): reference photo IS the guest(s).
+    - PRODUCT mode (no photo): pure dish-led advertisement (no person).
     """
     aspect = ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT["1:1"])
-    caption_line = req.caption_marathi or req.caption_english or ""
     has_photo = bool(req.photo_base64)
     guest_name = (req.guest_name or "").strip()
     subject = (req.subject_text or req.festival_theme or "").strip()
-    poster = (req.manager_name or "").strip()
 
     if has_photo:
-        person_block = f"""USE THE GUEST'S FACE FROM THE REFERENCE IMAGE.
-- The reference photo is a happy customer named "{guest_name or 'our valued guest'}".
-- Place a clean, professional cutout of THE EXACT PERSON from the reference photo.
-- Keep their face recognisable and dignified. Soften the background; integrate tastefully.
-- Position the guest on the LEFT third (or top third for 9:16), leaving the
-  RIGHT/BOTTOM portion for the food showcase.
-- The guest should appear smiling, candid, in a warm dining moment.
+        if req.is_group_photo:
+            person_block = f"""USE EVERY FACE FROM THE REFERENCE IMAGE — THIS IS A GROUP PHOTO.
+- The reference photo contains MULTIPLE PEOPLE (a family / friends / colleagues).
+- Preserve EACH person's face recognisably. Keep all heads & faces visible.
+- Do NOT crop anyone out. Do NOT add new people. Do NOT replace any face.
+- If the reference shows {guest_name or 'the guests'}, label them together as one group.
+- Compose the group portrait on the LEFT half (or top half for 9:16),
+  arranging the people warmly — close together, smiling, dining setting.
+- Background blurred / softened tastefully.
+"""
+        else:
+            person_block = f"""USE THE GUEST'S FACE(S) FROM THE REFERENCE IMAGE.
+- The reference photo shows the customer(s) named "{guest_name or 'our valued guest'}".
+- IF the reference contains MULTIPLE PEOPLE, preserve EVERY face — do not crop anyone out.
+- IF only ONE person, place a clean cutout of that exact person.
+- Keep faces recognisable and dignified. Soften the background.
+- Position the guest(s) on the LEFT third (or top third for 9:16), leaving
+  the RIGHT/BOTTOM portion for the food showcase.
+- Smiling, candid, warm dining moment.
 """
     else:
         person_block = """NO PERSON IN THIS ADVERTISEMENT.
@@ -149,11 +162,15 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
 - Use the full canvas to celebrate the food itself with rich, premium composition.
 """
 
-    name_overlay = ""
-    if guest_name:
-        name_overlay = f'- The guest\'s name "{guest_name}" should appear in bold elegant serif near the headline.\n'
-    elif poster:
-        name_overlay = f'- The poster/host name "{poster}" may appear in a small elegant byline.\n'
+    # Critical: where to leave clean text-safe area for our crisp overlay
+    safe_zone_block = """TEXT-SAFE ZONE — CRITICAL:
+- DO NOT render ANY text, letters, words, captions, headlines, slogans, hashtags,
+  numbers, dates, prices, logos, watermarks, or stamps INSIDE the image.
+- Leave the BOTTOM 30% of the canvas visually calm — soft gradient, low-detail
+  background, no faces, no food items in the bottom strip — so that crisp
+  studio typography can be overlaid afterwards.
+- The top-right corner should also stay calm (room for a brand logo).
+"""
 
     return f"""You are designing a premium social-media advertisement for "{BRAND_NAME}".
 
@@ -173,16 +190,7 @@ BRAND VISUAL LANGUAGE:
   highlights. Keep them sparing and refined, never busy.
 - Subject / mood (use as creative direction, NOT as literal headline): {subject or "warm hospitality"}.
 
-TYPOGRAPHY OVERLAY (PART OF THE IMAGE):
-- Place the headline at the visual sweet-spot, large and confident — use EXACTLY this text:
-    "{caption_line}"
-- DO NOT add any other Marathi or English headline. DO NOT invent slogans like
-  "आठवड्याच्या शेवटी" or "एक आठवण" or weekly-memory phrases.
-{name_overlay}- Add a small footer line:
-    "{BRAND_NAME}"
-- Typography colours: warm gold and cream white on dark backgrounds, deep
-  maroon on cream. High readability — never overlap food or face.
-
+{safe_zone_block}
 GENERAL RULES:
 - Apple-style clean composition, no clutter, no stock-photo cliches.
 - No fusion food, no Western plating.
@@ -360,7 +368,28 @@ async def generate_ad(req: AdGenerateRequest):
         raise HTTPException(502, "AI returned no image — please retry")
 
     img = images[0]
-    image_bytes = base64.b64decode(img["data"])
+    raw_bytes = base64.b64decode(img["data"])
+
+    # ── Crisp text overlay (Pillow + Noto Sans Devanagari) ───────────────
+    # The image LLM is instructed NOT to render text. We overlay caption +
+    # logo + brand line server-side so Marathi script is pixel-perfect.
+    try:
+        from utils.text_overlay import apply_overlay
+        image_bytes = apply_overlay(
+            raw_bytes,
+            headline_marathi=caption.get("marathi", ""),
+            headline_english=caption.get("english", ""),
+            byline=(req.guest_name or req.manager_name or ""),
+            brand=BRAND_NAME,
+            logo_path=LOGO_PATH if os.path.exists(LOGO_PATH) else None,
+            position="bottom",
+        )
+    except Exception as e:
+        logger.warning(f"text overlay failed, using raw AI image: {e}")
+        image_bytes = raw_bytes
+
+    # Refresh base64 (response carries the overlayed image)
+    img["data"] = base64.b64encode(image_bytes).decode("ascii")
 
     # 3) Persist to disk + history
     ad_id = str(uuid.uuid4())
@@ -426,58 +455,63 @@ class InvitationRequest(BaseModel):
     output_format: str = "4:5"               # 4:5 (poster) / 1:1 / 9:16
     photo_base64: Optional[str] = None       # optional host photo (data URL or raw b64)
     custom_message: Optional[str] = None     # optional "warm host note"
+    is_group_photo: bool = False             # NEW — host photo is a family/couple/group
 
 
 def _build_invitation_prompt(req: InvitationRequest, center_name: str, address_line: str) -> str:
     occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
-    menu_line = f"\nFeatured menu: {req.menu_highlights}" if req.menu_highlights else ""
-    custom_line = f"\nHost note (use verbatim, prominent): \"{req.custom_message}\"" if req.custom_message else ""
-    photo_directive = (
-        "FIRST reference image (host photo) must be placed at the TOP-CENTER as a "
-        "soft-edged elegant portrait inside a gold rim circle. Preserve the host's face "
-        "EXACTLY — do not alter features, age, skin tone, or expression. "
-        if req.photo_base64 else
-        "No host photo provided — use a tasteful decorative emblem (brass diya, marigold "
-        "garland or mandala motif) where the portrait would have gone. "
-    )
+    if req.photo_base64:
+        if req.is_group_photo:
+            photo_directive = (
+                "FIRST reference image is a GROUP PHOTO of the hosts/family. Place ALL faces "
+                "from that photo as a soft-edged elegant group portrait at the TOP-CENTER inside "
+                "a gold ornate frame. Preserve EVERY face exactly — do not crop anyone out, "
+                "do not alter features. Arrange them warmly side-by-side. "
+            )
+        else:
+            photo_directive = (
+                "FIRST reference image (host photo) — place it at the TOP-CENTER as a "
+                "soft-edged elegant portrait inside a gold rim circle. Preserve the host's face "
+                "EXACTLY — do not alter features, age, skin tone, or expression. "
+            )
+    else:
+        photo_directive = (
+            "No host photo provided — use a tasteful decorative emblem (brass diya, marigold "
+            "garland or mandala motif) where the portrait would have gone. "
+        )
 
-    return f"""Compose a PREMIUM celebration / party invitation poster for Purnabramha customer.
+    return f"""Compose a PREMIUM Maharashtrian celebration invitation BACKGROUND for Purnabramha.
 
 DESIGN BRIEF
 - Aspect: {ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT['4:5'])}
 - Brand palette: {BRAND_COLORS}
 - Brand language: {BRAND_DESIGN}
-- Overall feel: elegant, dignified, festive, luxurious — like a high-end wedding card,
-  not a flyer. Use Maharashtrian motifs (paisley, peacock feather, marigold border, brass
-  diya, mandala) tastefully on edges/corners. NEVER use Western fonts in headlines.
+- Overall feel: elegant, dignified, festive, luxurious — like a high-end wedding card.
+  Use Maharashtrian motifs (paisley, peacock feather, marigold border, brass diya,
+  mandala, banana-leaf veins) richly on edges/corners.
 
 REQUIRED LAYOUT (top → bottom)
 1. PURNABRAMHA LOGO at the very TOP, centered, large (~18% of canvas height).
-   The logo is provided as the LAST reference image — use it EXACTLY, do not redraw.
+   The logo is provided as the LAST reference image — reproduce EXACTLY, do not redraw.
 2. Tiny tagline below logo: "The Largest Authentic Maharashtrian Restra"
 3. {photo_directive}
-4. HEADLINE BAND — large, ornate Devanagari + English:
-     "{occ} Celebration"  /  "{occ} सोहळा"
-5. HOST NAME — biggest typography on the poster, gold serif:
-     "{req.host_name}"
-   (use the prefix "श्री/सौ." if Marathi/Bilingual, else just the name)
-6. Decorative divider (paisley line / dotted gold)
-7. DATE & TIME row:
-     "{req.event_date}  ·  {req.event_time}"
-8. VENUE block (warm, smaller serif):
-     "{center_name}"
-     "{address_line}"
-{menu_line}
-{custom_line}
-9. Tiny bottom-corner: "With warm regards — Purnabramha {center_name}"
+4. Decorative ornate band suggesting an occasion of "{occ}" (paisley line / dotted gold).
+5. Bottom 45% of the canvas — leave VISUALLY CALM with rich decorative texture
+   (subtle marigold border, brass corner ornaments) but **NO TEXT** — clean negative
+   space for the host name, date, time and venue to be overlaid afterwards.
+
+CRITICAL TEXT-FREE ZONE
+- DO NOT render the host name, date, time, venue, address, menu, custom message
+  or any other text content (Devanagari or English) anywhere in the image.
+- The only acceptable text in the image is the small tagline directly under the logo.
+- All real event details will be rendered crisply by us afterwards in proper
+  Devanagari typography.
 
 STRICT RULES
-- Logo and host face MUST be reproduced exactly from the reference images. No artistic
-  reinterpretation. Logo colours and proportions = unchanged.
-- Spelling of host name "{req.host_name}", date "{req.event_date}", time "{req.event_time}",
-  occasion "{occ}", and center "{center_name}" must appear PERFECTLY.
+- Logo and host face(s) MUST be reproduced exactly from the reference images.
+  No artistic reinterpretation. Logo colours and proportions = unchanged.
 - Avoid stock-photo people. Avoid clipart. Avoid emoji.
-- Output must look print-ready — clean kerning, balanced negative space.
+- Output must look print-ready — refined kerning, balanced negative space.
 """
 
 
@@ -540,7 +574,34 @@ async def generate_invitation(req: InvitationRequest):
         raise HTTPException(502, "AI returned no image — please retry")
 
     img = images[0]
-    image_bytes = base64.b64decode(img["data"])
+    raw_bytes = base64.b64decode(img["data"])
+
+    # ── Crisp invitation overlay (Pillow + Noto Sans Devanagari) ─────────
+    # The AI image is purely a decorative background — we render every text
+    # field crisply on top so Devanagari + names + dates are pixel-perfect.
+    try:
+        from utils.text_overlay import apply_invitation_overlay, OCCASION_MARATHI
+        occ_label = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
+        occ_marathi = OCCASION_MARATHI.get(occ_label, "सोहळा")
+        image_bytes = apply_invitation_overlay(
+            raw_bytes,
+            occasion=occ_label,
+            occasion_marathi=occ_marathi,
+            host_name=req.host_name,
+            event_date=req.event_date,
+            event_time=req.event_time,
+            venue_name=center_name,
+            venue_address=address_line,
+            menu_highlights=req.menu_highlights or "",
+            custom_message=req.custom_message or "",
+            logo_path=LOGO_PATH if os.path.exists(LOGO_PATH) else None,
+            brand=BRAND_NAME,
+        )
+    except Exception as e:
+        logger.warning(f"invitation overlay failed, using raw AI image: {e}")
+        image_bytes = raw_bytes
+
+    img["data"] = base64.b64encode(image_bytes).decode("ascii")
 
     ad_id = str(uuid.uuid4())
     center_safe = (req.center or "UNKNOWN").replace("/", "_")

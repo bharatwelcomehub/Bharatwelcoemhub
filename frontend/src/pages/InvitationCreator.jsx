@@ -49,6 +49,7 @@ export default function InvitationCreator() {
     language: "Bilingual",
     output_format: "4:5",
     photo_base64: "",
+    is_group_photo: false,
   });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -182,12 +183,24 @@ export default function InvitationCreator() {
                   </label>
                   {photoPreview && (
                     <button className="text-[10px] text-rose-700 underline self-start"
-                      onClick={() => { setPhotoPreview(null); setForm(f => ({ ...f, photo_base64: "" })); }}>
+                      onClick={() => { setPhotoPreview(null); setForm(f => ({ ...f, photo_base64: "", is_group_photo: false })); }}>
                       Remove
                     </button>
                   )}
                 </div>
               </div>
+              {photoPreview && (
+                <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer" data-testid="invite-group-photo-label">
+                  <input
+                    type="checkbox"
+                    checked={form.is_group_photo}
+                    onChange={(e) => setForm(f => ({ ...f, is_group_photo: e.target.checked }))}
+                    className="w-3.5 h-3.5"
+                    data-testid="invite-group-photo-check"
+                  />
+                  <span>This is a <strong>group photo</strong> (couple / family — preserve all faces)</span>
+                </label>
+              )}
             </div>
 
             <div>

@@ -5,6 +5,46 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] Creative Studio v2 — Group-photo support, crisp Marathi overlay, Video branding (NEW MAJOR FEATURES)
+
+**User asks** (verbatim, on production):
+1. "If I add a group photo, it takes a single photo of person and not creating group creatives for both marketing and party as well for memory box — please solve."
+2. "For Marathi script it is creating a lot of errors. We have to redesign the creatives — which is another headache."
+3. "Like upload images can we upload a few videos which u just create with logo on it and add text overlay on it."
+
+**User decisions** (1c, 2b, 3a):
+1. Both — checkbox + auto-detect group photos
+2. Redesign — AI generates clean visual ONLY; we overlay crisp Marathi server-side with Pillow + Noto Sans Devanagari
+3. Manager uploads existing phone clip → we burn logo + caption with ffmpeg
+
+**Backend**:
+- **NEW `backend/utils/text_overlay.py`** — Pillow text overlay engine. Auto-picks Devanagari font when text contains `\u0900-\u097F`, falls back to Liberation Serif for Latin. Two main helpers: `apply_overlay()` for marketing ads (gradient band + headline + sub + byline + logo) and `apply_invitation_overlay()` (lower-half info-panel with host, date/time, venue, address, menu, custom message — all crisp Devanagari). `OCCASION_MARATHI` lookup for 13 occasions.
+- **`routes/marketing_ads.py`** — `is_group_photo: bool` added to AdGenerateRequest + InvitationRequest. Image prompts rewritten to instruct Nano Banana to **NOT render ANY text** (leaves clean band/lower 45% for our overlay). Group-aware prompts: when checkbox is set OR LLM detects multiple faces, instructs "preserve EVERY face — do not crop anyone out". `apply_overlay`/`apply_invitation_overlay` runs after AI returns; client gets the overlayed image.
+- **`routes/memory_box.py`** — Registers Noto Sans Devanagari with ReportLab via `pdfmetrics.registerFont(TTFont("NotoDev", ...))` so the GPT-5.2 Marathi blessing on page 6 renders crisply. Cover PNG font switched from DejaVu (not installed) to Liberation Serif.
+- **NEW `routes/video_overlay.py`** (registered in `server.py`):
+  - `POST /api/marketing/videos/overlay` (multipart) — accepts video upload (≤60 MB, ≤90s), runs ffmpeg `filter_complex` with `drawbox` (dark gradient) + `drawtext` (Marathi-aware font picker: Noto Sans Devanagari for Devanagari, Liberation Serif for Latin) + logo overlay top-right.
+  - `POST /list`, `POST /asset/{id}`, `GET /asset/{id}?token=…` (for inline `<video>` streaming).
+- **System dependencies installed**: `ffmpeg`, `fonts-noto`, `fonts-noto-extra`, `fonts-indic`. Devanagari font path = `/usr/share/fonts/truetype/noto/NotoSansDevanagari-{Bold,Regular}.ttf`.
+
+**Frontend**:
+- **`pages/AdCreator.jsx`** — now 5 tabs (Marketing Ad · Party Invitation · Memory Box · **Video** · Gallery). Tab state URL-controlled via `?tab=`.
+- **Marketing Ad form**: new "This is a group photo (multiple people)" checkbox appears below the photo preview when a photo is uploaded (`data-testid="ad-group-photo-check"`).
+- **Invitation form**: same group-photo checkbox (`data-testid="invite-group-photo-check"`).
+- **NEW `pages/VideoCreator.jsx`** — upload (≤60 MB), set headline + sub + byline, position (top/bottom), checkbox to burn logo. Live upload progress bar. Original + BRANDED preview side by side. Download MP4 + WhatsApp share + history strip of recent branded videos with inline `<video>` players.
+
+**Verified end-to-end via curl** on preview:
+- Marketing Ad: `ad_id=706ad9a0-…`, 1329.9 KB, Marathi caption *"एक चावा घेतला... आणि थांबताच आलं नाही!"* rendered crisply via Pillow ✓
+- Pillow overlay smoke test: 52.5 KB marketing ad + 71 KB invitation, both with proper Devanagari ✓
+- Video processing: 3s test clip with Marathi headline *"विसावा, चव घ्या"* → 69.5 KB branded MP4 (valid `ftypisom`) returned in <5s. List + asset GET both 200 OK ✓
+
+**Lint**: All touched JSX + Python files clean (only cosmetic warnings).
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy:
+- Group photos: tick the checkbox → all faces preserved
+- Marathi script: rendered by us, not the AI → pixel-perfect Devanagari every time
+- Video tab: upload a 30s clip → branded MP4 ready in under a minute
+
+
 ### [2026-06-03] Digital Memory Box Generator — 3rd tab in Center Manager Ad Creator (NEW MAJOR FEATURE)
 
 **User ask** (verbatim summary): A new tab to generate a personalised 7-page PDF **Memory Box** for guests after their event / catering / tiffin / dine-in experience. Powered by GPT-5.2 for emotional story + blessing generation, auto-pulling the team roster from the `attendance` collection, and delivering via PDF download + WhatsApp + Email.

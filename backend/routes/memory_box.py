@@ -191,6 +191,23 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
         KeepTogether,
     )
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    # ── Register Devanagari fonts so Marathi blessing renders correctly ──
+    DEV_REG_PATH = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
+    DEV_BOLD_PATH = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+    DEV_FONT = "Times-Italic"          # safe fallback
+    DEV_BOLD_FONT = "Times-Bold"
+    try:
+        if os.path.exists(DEV_REG_PATH):
+            pdfmetrics.registerFont(TTFont("NotoDev", DEV_REG_PATH))
+            DEV_FONT = "NotoDev"
+        if os.path.exists(DEV_BOLD_PATH):
+            pdfmetrics.registerFont(TTFont("NotoDevBold", DEV_BOLD_PATH))
+            DEV_BOLD_FONT = "NotoDevBold"
+    except Exception as _e:
+        logger.warning(f"Devanagari font registration failed: {_e}")
 
     occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
     GOLD = colors.HexColor("#b08431")
@@ -316,7 +333,11 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     story.append(Paragraph("Our Blessings For You", H))
     story.append(Spacer(1, 0.2 * inch))
     bl = llm.get("blessing", "")
-    story.append(Paragraph(f"<i>{bl.replace(chr(10), '<br/>')}</i>", centerBody))
+    blessing_style = ParagraphStyle(
+        "blessing", parent=centerBody,
+        fontName=DEV_FONT, fontSize=14, leading=22, textColor=MAROON,
+    )
+    story.append(Paragraph(bl.replace("\n", "<br/>"), blessing_style))
     story.append(PageBreak())
 
     # ─── Page 7: Future Memory Invitation ───
@@ -349,9 +370,9 @@ def _render_cover_png(req: MemoryBoxRequest, center_name: str, box_id: str) -> b
             canvas.paste(logo, ((W - logo.width) // 2, 80), logo if logo.mode == "RGBA" else None)
         # Title
         try:
-            f_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", 56)
-            f_med = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", 36)
-            f_sm  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf", 28)
+            f_big = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 56)
+            f_med = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf", 36)
+            f_sm  = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 28)
         except Exception:
             f_big = f_med = f_sm = ImageFont.load_default()
 
