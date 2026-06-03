@@ -5,6 +5,25 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] One logo only + new official logo PNG (BUG FIX)
+
+**User report** (production): "Use one logo not multiple please — I am loading both the logos again." + uploaded fresh `Logo of Purnabramha.pdf` (4500×4500 official wordmark with bilingual `purnabramha` / `पूर्णब्रम्ह`, tagline *"The Largest Authentic Maharashtrian Restra"*, *"Manaswini Foods Pvt.Ltd"*, country list, ® mark).
+
+**Root cause**: Invitation flow was rendering TWO logos:
+1. The AI prompt told Nano Banana *"PURNABRAMHA LOGO at the very TOP, centered, large (~18% of canvas height). The logo is provided as the LAST reference image — reproduce EXACTLY."* AND we sent the logo as a reference image.
+2. Then `apply_invitation_overlay()` pasted ANOTHER logo top-right via Pillow.
+
+**Fix**:
+1. **Replaced logo**: extracted the new PDF to a 3240×3402 transparent PNG (white pixels → alpha=0 with feathered edge, auto-trimmed). Old logo backed up as `purnabramha_logo_v1.png`.
+2. **Invitation prompt rewritten** — top section now reads: *"DO NOT draw any logo. The brand logo is rendered crisply on top of your image by our server — leave the TOP-RIGHT corner visually CLEAN."* + explicit forbidden list: *"DO NOT render the word 'Purnabramha', 'पूर्णब्रम्ह', 'Manaswini Foods', or any variant. DO NOT draw a logo, mandala-with-text, or wordmark."*
+3. **Logo no longer sent as a reference image** to Nano Banana (it was a key trigger for the AI to "reproduce" a logo). Only the host photo is passed.
+4. **Marketing Ad prompt** also strengthened with the same "LOGO-SAFE ZONE" block to prevent any future leak.
+
+**Verified**: invitation generated in 1088.8 KB, single Pillow-rendered logo top-right only (AI no longer drew a centered logo).
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. Every new creative now uses the new official logo, rendered exactly once.
+
+
 ### [2026-06-03] PURNABRAMHA Brand Design System v2 — Premium upgrade across ALL creatives
 
 **User mandate** (verbatim): "All creatives — Marketing Ad, Party Invitation, Memory Box, Event Invitations, Catering, Festival, WhatsApp, Social Media, Memory Book PDFs — must follow a premium Purnabramha brand identity. Should feel warm, premium, traditional, emotional and culturally rich. Should NEVER look like a generic Canva template."

@@ -218,12 +218,16 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
 """
 
     # Critical: where to leave clean text-safe area for our crisp overlay
-    safe_zone_block = """TEXT-SAFE ZONE — CRITICAL:
+    safe_zone_block = """TEXT-SAFE / LOGO-SAFE ZONE — CRITICAL:
 - DO NOT render ANY text, letters, words, captions, headlines, slogans, hashtags,
-  numbers, dates, prices, logos, watermarks, or stamps INSIDE the image.
+  numbers, dates, prices, watermarks, or stamps INSIDE the image.
+- DO NOT draw any logo, brand-mark, mandala-with-text, or wordmark. Specifically
+  DO NOT render the word "Purnabramha", "पूर्णब्रम्ह", "Manaswini Foods", or any
+  variant — the real Purnabramha logo is composited afterwards by our server.
 - Leave the BOTTOM 25% of the canvas visually calm — soft gradient, low-detail
   background — so crisp studio typography can be overlaid afterwards.
-- The top-right corner should also stay calm (room for a brand logo).
+- Leave the TOP-RIGHT corner calm too (no decoration, no food) — room for the
+  real brand logo.
 """
 
     mood_line = "young food champion · joyful pride · gentle storybook warmth" if balgopal \
@@ -620,21 +624,22 @@ DESIGN BRIEF
   mandala, banana-leaf veins) richly on edges/corners.
 
 REQUIRED LAYOUT (top → bottom)
-1. PURNABRAMHA LOGO at the very TOP, centered, large (~18% of canvas height).
-   The logo is provided as the LAST reference image — reproduce EXACTLY, do not redraw.
-2. Tiny tagline below logo: "The Largest Authentic Maharashtrian Restra"
-3. {photo_directive}
-4. Decorative ornate band suggesting an occasion of "{occ}" (paisley line / dotted gold).
-5. Bottom 45% of the canvas — leave VISUALLY CALM with rich decorative texture
-   (subtle marigold border, brass corner ornaments) but **NO TEXT** — clean negative
-   space for the host name, date, time and venue to be overlaid afterwards.
+1. DO NOT draw any logo. The brand logo is rendered crisply on top of your
+   image by our server — leave the TOP-RIGHT corner visually CLEAN (cream/gold
+   soft texture, no text, no decoration) so our real logo can be pasted there.
+2. {photo_directive}
+3. Decorative ornate band suggesting an occasion of "{occ}" (paisley line / dotted gold).
+4. Bottom 55% of the canvas — leave VISUALLY CALM with rich decorative texture
+   (subtle marigold border, brass corner ornaments) but **NO TEXT** — clean
+   negative space for the host name, date, time and venue to be overlaid afterwards.
 
-CRITICAL TEXT-FREE ZONE
+CRITICAL TEXT-FREE / LOGO-FREE ZONE
 - DO NOT render the host name, date, time, venue, address, menu, custom message
   or any other text content (Devanagari or English) anywhere in the image.
-- The only acceptable text in the image is the small tagline directly under the logo.
-- All real event details will be rendered crisply by us afterwards in proper
-  Devanagari typography.
+- DO NOT render the word "Purnabramha", "पूर्णब्रम्ह", "Manaswini Foods", or any
+  variant. DO NOT draw a logo, mandala-with-text, or wordmark — the real logo
+  is composited afterwards.
+- All real event details + the brand logo will be rendered crisply by us on top.
 
 PEOPLE PRESERVATION — CRITICAL
 - Whatever number of people appear in the host reference photo, EVERY ONE of them
@@ -643,8 +648,8 @@ PEOPLE PRESERVATION — CRITICAL
   oval or rectangular ornate frame — never sacrifice a face.
 
 STRICT RULES
-- Logo and host face(s) MUST be reproduced exactly from the reference images.
-  No artistic reinterpretation. Logo colours and proportions = unchanged.
+- Host face(s) MUST be reproduced exactly from the reference images.
+  No artistic reinterpretation.
 - Avoid stock-photo people. Avoid clipart. Avoid emoji.
 - Output must look print-ready — refined kerning, balanced negative space.
 """
@@ -669,11 +674,9 @@ async def generate_invitation(req: InvitationRequest):
     center_name = center_doc.get("name") or req.center
     address_line = req.center_address or center_doc.get("address") or center_doc.get("city") or ""
 
-    # Load brand logo from disk
+    # Sanity check the logo exists (used by the Pillow overlay later)
     if not os.path.exists(LOGO_PATH):
         raise HTTPException(503, "Brand logo asset missing on server")
-    with open(LOGO_PATH, "rb") as fh:
-        logo_b64 = base64.b64encode(fh.read()).decode("ascii")
 
     api_key = os.getenv("EMERGENT_LLM_KEY")
     if not api_key:
@@ -691,16 +694,22 @@ async def generate_invitation(req: InvitationRequest):
         ),
     ).with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
 
-    # Logo is always passed; host photo (if any) goes FIRST per prompt directive.
+    # Only the host photo (if any) is passed. Logo is rendered server-side by
+    # Pillow on top of the AI output — we no longer ask Nano Banana to draw
+    # a logo (it was producing duplicates).
     files: List = []
     if req.photo_base64:
         files.append(ImageContent(_strip_data_url(req.photo_base64)))
-    files.append(ImageContent(logo_b64))
 
     try:
-        _text, images = await chat.send_message_multimodal_response(
-            UserMessage(text=prompt, file_contents=files)
-        )
+        if files:
+            _text, images = await chat.send_message_multimodal_response(
+                UserMessage(text=prompt, file_contents=files)
+            )
+        else:
+            _text, images = await chat.send_message_multimodal_response(
+                UserMessage(text=prompt)
+            )
     except Exception as e:
         logger.error(f"Nano Banana invitation failed: {e}", exc_info=True)
         raise HTTPException(502, f"AI image generation failed: {e}")
