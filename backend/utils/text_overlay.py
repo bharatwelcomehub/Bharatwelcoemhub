@@ -386,14 +386,14 @@ def apply_overlay(
         by = y1 - fs_brand - 18
     draw.text((bx, by), brand_line, font=f_brand, fill=ANTIQUE_GOLD_BRIGHT)
 
-    # ── Logo (top-right small, transparent PNG) ──────────────────────────
+    # ── Logo (top-right, transparent PNG — BIGGER for brand prominence) ──
     if logo_path and os.path.exists(logo_path):
         try:
             logo = Image.open(logo_path).convert("RGBA")
-            target = int(min(W, H) * 0.11)
-            logo.thumbnail((target, target))
-            lx = W - logo.width - int(W * 0.04)
-            ly = int(H * 0.04)
+            target = int(min(W, H) * 0.18)
+            logo.thumbnail((target, target), Image.LANCZOS)
+            lx = W - logo.width - int(W * 0.035)
+            ly = int(H * 0.035)
             layer.paste(logo, (lx, ly), logo)
         except Exception as e:
             logger.warning(f"logo paste failed: {e}")
@@ -562,14 +562,14 @@ def apply_invitation_overlay(
     draw.text(((W - twm) // 2, footer_y), brand_line_mr, font=f_brand_mr, fill=ANTIQUE_GOLD_BRIGHT)
     draw.text(((W - tw) // 2, footer_y + int(44 * scale)), brand_line_en, font=f_brand, fill=ANTIQUE_GOLD)
 
-    # ── Small logo top-right (transparent PNG over AI image) ──────────────
+    # ── Big top-right logo (transparent PNG, prominent brand mark) ────────
     if logo_path and os.path.exists(logo_path):
         try:
             logo = Image.open(logo_path).convert("RGBA")
-            target = int(W * 0.14)
-            logo.thumbnail((target, target))
-            lx = W - logo.width - int(W * 0.05)
-            ly = int(H * 0.04)
+            target = int(W * 0.24)
+            logo.thumbnail((target, target), Image.LANCZOS)
+            lx = W - logo.width - int(W * 0.04)
+            ly = int(H * 0.035)
             layer.paste(logo, (lx, ly), logo)
         except Exception:
             pass

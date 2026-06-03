@@ -119,8 +119,8 @@ def _build_filter(headline: str, sub: str, byline: str, has_logo: bool,
         # Full filter graph: [0:v]...[base];[1:v]scale=...[logo];[base][logo]overlay
         return (
             f"[0:v]{chain}[base];"
-            f"[1:v]scale=ih*0.18:-1[logo];"
-            f"[base][logo]overlay=x=W-w-20:y=20"
+            f"[1:v]scale=ih*0.28:-1[logo];"
+            f"[base][logo]overlay=x=W-w-30:y=30"
         )
     return f"[0:v]{chain}"
 

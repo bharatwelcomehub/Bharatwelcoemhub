@@ -429,11 +429,11 @@ def _render_cover_png(req: MemoryBoxRequest, center_name: str, box_id: str) -> b
                 draw.ellipse([midx + dx * 18 - r, dy, midx + dx * 18 + r, dy + 2 * r],
                              fill=(220, 174, 80))
 
-        # Logo
+        # Logo — BIG (brand-prominent)
         if os.path.exists(LOGO_PATH):
             logo = PImage.open(LOGO_PATH).convert("RGBA")
-            logo.thumbnail((420, 420))
-            canvas.paste(logo, ((W - logo.width) // 2, 80), logo if logo.mode == "RGBA" else None)
+            logo.thumbnail((600, 600), PImage.LANCZOS)
+            canvas.paste(logo, ((W - logo.width) // 2, 60), logo if logo.mode == "RGBA" else None)
 
         # Fonts — XL sizes + premium serif + Devanagari for Marathi
         try:
