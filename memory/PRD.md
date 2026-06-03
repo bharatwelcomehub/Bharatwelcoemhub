@@ -5,6 +5,21 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] Invitation prompt — multi-person-aware by DEFAULT (no checkbox required)
+
+**User report** (verbatim): "Party invitation is still taking single person photo many times — it comes as couple who is hosting party or team who is hosting it, so any one single photo is not the right approach."
+
+**Fix** (`routes/marketing_ads.py::_build_invitation_prompt`):
+- Removed the implicit "single host" default. The DEFAULT prompt now reads: *"FIRST reference image contains the host(s). Examine it carefully — it may be a SINGLE person, a COUPLE, a FAMILY, or a TEAM. Whatever the count, preserve EVERY face you see — do NOT crop anyone out, do NOT remove people, do NOT replace any face."*
+- Frame adapts to count: **circular gold-rim** only when exactly 1 person; **rounded rectangular** when 2+ people (circles crop people out).
+- Added a fresh `PEOPLE PRESERVATION — CRITICAL` block to the prompt: *"If you cannot fit everyone gracefully in a circular frame, switch to a wider oval or rectangular ornate frame — never sacrifice a face."*
+- The `is_group_photo` checkbox now only ADDS extra emphasis (gold ornate rectangular frame regardless), never relaxes the rule.
+
+**Net effect**: Even WITHOUT ticking the checkbox, a couple/family/team uploaded as the host photo is preserved in full. No more single-face cropping by default.
+
+⚠️ **Click Deploy** to push the change to `intra.purnabramha.com`.
+
+
 ### [2026-06-03] Creative Studio v2 — Group-photo support, crisp Marathi overlay, Video branding (NEW MAJOR FEATURES)
 
 **User asks** (verbatim, on production):

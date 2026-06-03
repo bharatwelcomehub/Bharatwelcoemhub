@@ -461,18 +461,28 @@ class InvitationRequest(BaseModel):
 def _build_invitation_prompt(req: InvitationRequest, center_name: str, address_line: str) -> str:
     occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
     if req.photo_base64:
+        # Invitations are almost always hosted by a couple / family / team, so we
+        # default to MULTI-PERSON-AWARE behaviour. The is_group_photo checkbox
+        # only adds extra emphasis — it never relaxes the "preserve every face"
+        # rule.
         if req.is_group_photo:
             photo_directive = (
-                "FIRST reference image is a GROUP PHOTO of the hosts/family. Place ALL faces "
-                "from that photo as a soft-edged elegant group portrait at the TOP-CENTER inside "
-                "a gold ornate frame. Preserve EVERY face exactly — do not crop anyone out, "
-                "do not alter features. Arrange them warmly side-by-side. "
+                "FIRST reference image is a GROUP PHOTO of the hosts/family/team. Place ALL "
+                "faces from that photo together as a soft-edged elegant group portrait at the "
+                "TOP-CENTER inside a gold ornate rectangular frame (NOT a circle — circles "
+                "crop people out). Preserve EVERY face exactly — do not crop anyone, do not "
+                "alter features, do not add anyone new. Arrange the people warmly side-by-side, "
+                "close together, smiling. "
             )
         else:
             photo_directive = (
-                "FIRST reference image (host photo) — place it at the TOP-CENTER as a "
-                "soft-edged elegant portrait inside a gold rim circle. Preserve the host's face "
-                "EXACTLY — do not alter features, age, skin tone, or expression. "
+                "FIRST reference image contains the host(s). Examine it carefully — it may be "
+                "a SINGLE person, a COUPLE, a FAMILY, or a TEAM. Whatever the count, preserve "
+                "EVERY face you see — do NOT crop anyone out, do NOT remove people, do NOT "
+                "replace any face. Place the host(s) at the TOP-CENTER inside a gold ornate "
+                "frame: if exactly one person, use a circular gold-rim portrait; if two or "
+                "more people, use a ROUNDED RECTANGULAR frame that accommodates all faces "
+                "side-by-side. Preserve features, age, skin tone, and expression EXACTLY. "
             )
     else:
         photo_directive = (
@@ -506,6 +516,12 @@ CRITICAL TEXT-FREE ZONE
 - The only acceptable text in the image is the small tagline directly under the logo.
 - All real event details will be rendered crisply by us afterwards in proper
   Devanagari typography.
+
+PEOPLE PRESERVATION — CRITICAL
+- Whatever number of people appear in the host reference photo, EVERY ONE of them
+  MUST appear in the final invitation. Never crop, never remove, never substitute.
+- If you cannot fit everyone gracefully in a circular frame, switch to a wider
+  oval or rectangular ornate frame — never sacrifice a face.
 
 STRICT RULES
 - Logo and host face(s) MUST be reproduced exactly from the reference images.
