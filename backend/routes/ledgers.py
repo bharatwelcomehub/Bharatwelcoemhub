@@ -134,8 +134,16 @@ async def _get_daily_sales(center: str, start: str, end: str) -> List[dict]:
     return docs
 
 async def _get_expenses(center: str, start: str, end: str) -> List[dict]:
+    # Only ACTIVE rows ever feed any ledger / report. Future-proofs the
+    # system for soft-delete: when an expense gets `status="deleted"` or
+    # `is_deleted=True`, it disappears from every ledger automatically.
     docs = await db.expenses.find(
-        {"center": center, "date": {"$gte": start, "$lt": end}},
+        {
+            "center": center,
+            "date": {"$gte": start, "$lt": end},
+            "status": {"$nin": ["deleted", "reversed"]},
+            "is_deleted": {"$ne": True},
+        },
         {"_id": 0}
     ).sort("date", 1).to_list(10000)
     return docs
@@ -305,6 +313,8 @@ async def build_cash_book(center: str, start: str, end: str) -> Dict[str, Any]:
             "center": center,
             "date": {"$gte": start, "$lte": end},
             "payment_mode": {"$regex": "^cash$", "$options": "i"},
+            "status": {"$nin": ["deleted", "reversed"]},
+            "is_deleted": {"$ne": True},
         },
         {"_id": 0, "date": 1, "amount": 1},
     ).to_list(5000)
