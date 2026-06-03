@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -16,6 +17,16 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function AdCreator() {
   const { session } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = ['create', 'invitation', 'memory-box', 'history'].includes(searchParams.get('tab'))
+    ? searchParams.get('tab') : 'create';
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const onTabChange = (v) => {
+    setActiveTab(v);
+    const next = new URLSearchParams(searchParams);
+    if (v === 'create') next.delete('tab'); else next.set('tab', v);
+    setSearchParams(next, { replace: true });
+  };
   const [masters, setMasters] = useState({ menu_items: [], centers: [], festivals: [], languages: [], output_formats: [] });
   const [form, setForm] = useState({
     manager_name: session?.managerName || '',
@@ -133,7 +144,7 @@ export default function AdCreator() {
         <Badge variant="secondary" className="text-xs">Creative Studio · Marketing</Badge>
       </div>
 
-      <Tabs defaultValue="create" className="w-full">
+      <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value="create" data-testid="ad-tab-create"><Wand2 className="w-4 h-4 mr-1" />Marketing Ad</TabsTrigger>
           <TabsTrigger value="invitation" data-testid="ad-tab-invitation"><PartyPopper className="w-4 h-4 mr-1" />Party Invitation</TabsTrigger>

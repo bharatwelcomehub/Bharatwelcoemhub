@@ -13,8 +13,9 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 import {
-  ChefHat, Plus, Edit, Trash2, Search, Download, Loader2, Mail, CheckCircle2, MessageSquare,
+  ChefHat, Plus, Edit, Trash2, Search, Download, Loader2, Mail, CheckCircle2, MessageSquare, BookHeart,
 } from "lucide-react";
 import { toast } from "sonner";
 import MenuPicker from "@/components/booking/MenuPicker";
@@ -48,6 +49,7 @@ const blankForm = {
 
 export default function CateringOrders() {
   const { session } = useAuth();
+  const navigate = useNavigate();
   const token = session?.token;
   const isAdmin = session?.is_super_admin || session?.is_admin;
   const userCenter = session?.center || "";
@@ -207,6 +209,26 @@ export default function CateringOrders() {
   const masterByCat = menuMaster.reduce((acc, m) => {
     (acc[m.category] = acc[m.category] || []).push(m); return acc;
   }, {});
+
+  const openMemoryBox = (row) => {
+    try {
+      localStorage.setItem('mbox_prefill', JSON.stringify({
+        source: 'Catering Order',
+        center: row.center || userCenter,
+        guest_name: row.customer_name || '',
+        mobile: row.phone || '',
+        email: row.email || '',
+        event_date: row.event_date || today(),
+        order_number: row.id || '',
+        occasion: 'Catering Event',
+        celebration_for: row.occasion || '',
+      }));
+      navigate('/ad-creator?tab=memory-box');
+    } catch (e) {
+      toast.error('Could not prefill Memory Box');
+    }
+  };
+
   const isIntl = isInternationalCenter(form.center, centers);
   const currency = isIntl ? "$" : "₹";
   const gstLabel = isIntl ? "10% GST (incl.)" : "5% GST (incl.)";
@@ -304,6 +326,12 @@ export default function CateringOrders() {
                         data-testid={`catering-whatsapp-${r.id}`}
                         className={r.whatsapp_sent_at ? "text-emerald-500" : "text-green-500"}>
                         <MessageSquare className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => openMemoryBox(r)}
+                        title="Create Memory Box for this guest"
+                        data-testid={`catering-memory-box-${r.id}`}
+                        className="text-rose-700 hover:text-rose-900">
+                        <BookHeart className="w-4 h-4" />
                       </Button>
                       {isAdmin && <Button size="icon" variant="ghost" onClick={() => del(r)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                     </div>

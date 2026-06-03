@@ -103,6 +103,32 @@ export default function MemoryBoxCreator() {
 
   useEffect(() => { loadMasters(); loadHistory(); }, [loadMasters, loadHistory]);
 
+  // ── Prefill from another module (e.g. Catering / Event Bookings) ──────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('mbox_prefill');
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      localStorage.removeItem('mbox_prefill');
+      setForm(f => ({
+        ...f,
+        center: p.center || f.center,
+        guest_name: p.guest_name || f.guest_name,
+        mobile: p.mobile || f.mobile,
+        email: p.email || f.email,
+        event_date: p.event_date || f.event_date,
+        order_number: p.order_number || f.order_number,
+        occasion: p.occasion || f.occasion,
+        occasion_other: p.occasion_other || f.occasion_other,
+        celebration_for: p.celebration_for || f.celebration_for,
+        organised_by: p.organised_by || f.organised_by,
+      }));
+      if (p.source) {
+        toast.success(`Prefilled from ${p.source} — answer the memory questions to make it personal`);
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
   // ── Auto-pull team roster from attendance ─────────────────────────────
   const fetchRoster = async () => {
     if (!form.center || !form.event_date) {

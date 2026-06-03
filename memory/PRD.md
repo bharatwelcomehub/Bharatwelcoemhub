@@ -62,6 +62,22 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy, every Center Manager sees a new "Memory Box" tab inside Ad Creator and can generate emotionally-personalised 7-page memory books for guests in under 30 seconds.
 
+### [2026-06-03] Memory Box one-click link from Catering Orders & Event Bookings (CROSS-MODULE INTEGRATION)
+
+**User ask** (verbatim): "Would you like a small 'Memory Box link' that gets auto-suggested on every completed Catering Order / Event Booking — so the center manager is one click away from sending a memory box right after settling the bill?"
+
+**Implementation**:
+- `pages/AdCreator.jsx`: tab state is now URL-controlled via `?tab=` query param (preserves deep-linking). Initial tab respects `?tab=memory-box`.
+- `pages/MemoryBoxCreator.jsx`: on mount, reads `localStorage['mbox_prefill']` (set by other modules) and prefills center/guest_name/mobile/email/event_date/order_number/occasion/celebration_for, then clears the key. Toast acknowledges the source ("Prefilled from Catering Order — answer the memory questions to make it personal").
+- `pages/CateringOrders.jsx`: new BookHeart action button on every row (`data-testid="catering-memory-box-{id}"`) → stashes prefill (occasion = "Catering Event", celebration_for = booking occasion) → navigates to `/ad-creator?tab=memory-box`.
+- `pages/EventBookings.jsx`: same button (`data-testid="event-memory-box-{id}"`) with a smart `event_type → occasion` mapping (Birthday/Anniversary/Baby Shower/Dohal Jevan/Upanayan/Naming Ceremony/Retirement Function/Corporate Event/Family Gathering).
+
+**Net result**: One click on the rose BookHeart icon → Center Manager lands on the Memory Box tab with guest name, mobile, email, event date, center, occasion, and source order number all pre-filled. They only need to answer the 4 memory questions, upload photos, click Generate → PDF + WhatsApp + Email goes out in <60s.
+
+**Lint clean** on all 4 touched files.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
 ### [2026-06-02] Center Accounts — Expense Adjustment & Profitability Correction (NEW MAJOR FEATURE)
 
 **User ask** (verbatim, summarized): When the franchise pays a future-month expense (e.g. June rent paid in May), it should be recorded normally for audit, but **NOT** distort May profitability or Revenue Share. Need a transparent adjustment mechanism that never modifies the underlying expense row, with a per-adjustment audit trail and visibility across every report.

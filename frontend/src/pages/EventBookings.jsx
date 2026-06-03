@@ -13,7 +13,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { PartyPopper, Plus, Edit, Trash2, Download, Loader2, Mail, CheckCircle2, MessageSquare } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { PartyPopper, Plus, Edit, Trash2, Download, Loader2, Mail, CheckCircle2, MessageSquare, BookHeart } from "lucide-react";
 import { toast } from "sonner";
 import MenuPicker from "@/components/booking/MenuPicker";
 import WhatsAppDialog from "@/components/booking/WhatsAppDialog";
@@ -51,6 +52,7 @@ const blankForm = {
 
 export default function EventBookings() {
   const { session } = useAuth();
+  const navigate = useNavigate();
   const token = session?.token;
   const isAdmin = session?.is_super_admin || session?.is_admin;
   const userCenter = session?.center || "";
@@ -194,6 +196,41 @@ export default function EventBookings() {
   const masterByCat = menuMaster.reduce((acc, m) => {
     (acc[m.category] = acc[m.category] || []).push(m); return acc;
   }, {});
+
+  // Map EventBookings event_type → Memory Box occasion taxonomy
+  const eventTypeToOccasion = (t) => {
+    const x = (t || '').toLowerCase();
+    if (x.includes('birth')) return 'Birthday';
+    if (x.includes('anniv')) return 'Anniversary';
+    if (x.includes('baby')) return 'Baby Shower';
+    if (x.includes('dohal')) return 'Dohal Jevan';
+    if (x.includes('upan') || x.includes('thread')) return 'Upanayan';
+    if (x.includes('naming')) return 'Naming Ceremony';
+    if (x.includes('retire')) return 'Retirement Function';
+    if (x.includes('corp')) return 'Corporate Event';
+    if (x.includes('wedding') || x.includes('engagement') || x.includes('reception')) return 'Family Gathering';
+    return 'Family Gathering';
+  };
+
+  const openMemoryBox = (row) => {
+    try {
+      localStorage.setItem('mbox_prefill', JSON.stringify({
+        source: 'Event Booking',
+        center: row.center || userCenter,
+        guest_name: row.customer_name || '',
+        mobile: row.phone || '',
+        email: row.email || '',
+        event_date: row.event_date || today(),
+        order_number: row.id || '',
+        occasion: eventTypeToOccasion(row.event_type),
+        celebration_for: row.event_type || '',
+      }));
+      navigate('/ad-creator?tab=memory-box');
+    } catch (e) {
+      toast.error('Could not prefill Memory Box');
+    }
+  };
+
   const isIntl = isInternationalCenter(form.center, centers);
   const currency = isIntl ? "$" : "₹";
   const gstLabel = isIntl ? "10% GST (incl.)" : "5% GST (incl.)";
@@ -293,6 +330,12 @@ export default function EventBookings() {
                         data-testid={`event-whatsapp-${r.id}`}
                         className={r.whatsapp_sent_at ? "text-emerald-500" : "text-green-500"}>
                         <MessageSquare className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => openMemoryBox(r)}
+                        title="Create Memory Box for this guest"
+                        data-testid={`event-memory-box-${r.id}`}
+                        className="text-rose-700 hover:text-rose-900">
+                        <BookHeart className="w-4 h-4" />
                       </Button>
                       {isAdmin && <Button size="icon" variant="ghost" onClick={() => del(r)}><Trash2 className="w-4 h-4 text-red-500" /></Button>}
                     </div>
