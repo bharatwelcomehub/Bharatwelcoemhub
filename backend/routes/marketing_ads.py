@@ -143,85 +143,96 @@ def _strip_data_url(b64: str) -> str:
 
 
 def _build_image_prompt(req: AdGenerateRequest) -> str:
-    """Compose the Gemini prompt — AI generates ONLY the food photograph.
+    """Compose the Gemini prompt — FREE-FLOW premium creative.
 
-    NEW (Feb 2026): The image LLM is no longer responsible for the LAYOUT or
-    for leaving any "clean panel" for the photo. It just generates a beautiful
-    full-bleed FOOD STILL LIFE on a premium Maharashtrian table setting. Our
-    `compose_premium_ad()` Pillow composer then builds the FINAL ad layout:
-    deep-maroon left panel + guest photo + circular logo + Marathi/English
-    text on a cream pill + thin brand strip at the bottom. This guarantees
-    EVERY brand element (photo, logo, text, brand strip) is ALWAYS visible.
+    The AI is given total creative freedom to compose a beautiful, varied
+    Maharashtrian ad each time. The ONLY rules are:
+      - No text/wordmark (Pillow adds text + logo on top)
+      - If a guest photo is provided, INCLUDE the real face from the reference
+      - Premium Purnabramha aesthetic
+    Layout / composition / colour balance is up to the AI — we do NOT force a
+    "leave LEFT clean" rule any more.
     """
     aspect = ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT["1:1"])
+    has_photo = bool(req.photo_base64)
     has_menu_img = bool(req.menu_item_image_base64)
     subject = (req.subject_text or req.festival_theme or "").strip()
     balgopal = _is_balgopal(req.guest_name, req.subject_text)
 
-    # ── Person block: NEVER draw any person — our composer always pastes
-    # the real guest photo (or a decorative emblem if none) afterwards.
-    person_block = """NO HUMAN FIGURE — IMPORTANT.
-- DO NOT draw any person, face, hand, child, silhouette, model, or chef.
-- DO NOT add 'styled people'. This is a pure FOOD STILL LIFE photograph.
-- The real guest photo (if any) is composited on top by our server.
+    if has_photo:
+        person_block = """GUEST PHOTO — INCLUDE THE REAL FACE.
+- A reference photo of the guest(s) is provided as the FIRST reference image.
+- INCLUDE that real face/those real faces in the ad — preserve identity EXACTLY,
+  no restyling, no replacing with stock people, no removing anyone in a group.
+- Compose the photo elegantly within the creative — left side / top / framed
+  cameo — your choice. Vary the placement between generations for freshness.
+"""
+    else:
+        person_block = """NO PEOPLE in this advertisement.
+- This is a PRODUCT-LED creative. Focus on the food and Maharashtrian setting.
 """
 
-    # Menu reference image (if uploaded) is authoritative
     if has_menu_img:
         menu_directive = f"""DISH REFERENCE IMAGE — FOOD-ONLY EXTRACTION.
-- A reference image is provided. It MAY contain people, faces, decorative
-  text, marketing layouts, or other clutter — IGNORE ALL OF THAT.
-- Extract ONLY the FOOD content from the reference: the dish "{req.menu_item}",
-  its plating, vessel, garnish, colour, portion size, side accompaniments.
-- DO NOT copy any human face, child, person, model, hand, body part, text,
-  letter, logo, or watermark from the reference image.
-- Re-photograph the EXTRACTED dish only in premium food-photography style.
+- A dish reference image is provided. It MAY contain unrelated people, text,
+  or layouts — IGNORE all of that.
+- Use it ONLY for the dish "{req.menu_item}" — plating, vessel, garnish, colour.
+- DO NOT copy any human face, hand, text, letter, logo, or watermark from it.
 """
     elif balgopal:
         menu_directive = f"""FOOD HERO — BALGOPAL FINISHED PLATE.
-- Show a clean / nearly-empty plate of "{req.menu_item}" with just a few crumbs,
-  curry smear, or one grain left — proof the child finished with love.
-- Authentic Maharashtrian vessel (brass-rim plate or banana leaf).
+- Show a clean / nearly-empty plate of "{req.menu_item}" — proof the child
+  finished with love. Authentic Maharashtrian vessel.
 """
     else:
         menu_directive = f"""FOOD HERO:
-- Showcase a beautifully plated portion of "{req.menu_item}".
-- Authentic, traditional preparation (no fusion).
+- Showcase a beautifully plated portion of "{req.menu_item}" — authentic,
+  traditional, brass-rim plate or banana leaf, garnish with kothimbir.
 """
 
-    safe_zone_block = """ZERO TEXT — CRITICAL:
-- DO NOT render ANY text, letters, words, numbers, watermarks, stamps, logos,
-  wordmarks, slogans, hashtags, dates, prices anywhere in the image.
-- DO NOT render "Purnabramha", "पूर्णब्रम्ह", "Manaswini Foods" or any variant.
-- DO NOT draw a brand-mark or mandala-with-text. Output must be 100% wordmark-free.
-- DO NOT split the canvas into panels or columns. DO NOT leave a "blank
-  rectangle for a photo". Use the FULL canvas as one cohesive food still-life.
-- Our server composes the final ad LAYOUT (panel + photo + logo + text) on top.
-  Your job is ONLY a beautiful FULL-BLEED FOOD PHOTOGRAPH.
+    safe_zone_block = """ABSOLUTE NO-TEXT / NO-WORDMARK RULE:
+- DO NOT render ANY text, letters, numbers, captions, slogans, hashtags,
+  watermarks, stamps, or logos. Output must be 100% wordmark-free.
+- DO NOT write "Purnabramha", "पूर्णब्रम्ह", "Manaswini Foods" or any variant.
+- Our server adds the brand logo + bilingual caption on top of YOUR image
+  afterwards — so do NOT draw any text yourself.
+
+NEGATIVE-SPACE HINT (soft — not a hard constraint):
+- Wherever feels natural in your composition, try to keep ONE corner of the
+  canvas visually calm (low-detail, soft texture, no busy garnish). Examples:
+  top-right, top-left, or a soft band along the top edge. Our text + logo
+  overlays land there. If your composition is full-bleed, just leave a slightly
+  lower-detail upper edge — we will handle the rest.
 """
 
     mood_line = ("young food champion · joyful pride · gentle storybook warmth"
                  if balgopal else (subject or "warm hospitality"))
 
-    return f"""You are a premium food photographer for an authentic Maharashtrian restaurant. Produce ONE beautiful FULL-BLEED FOOD STILL LIFE photograph. The advertisement LAYOUT (brand panel, photo, logo, text) is composed by our server afterwards — your only job is the food photograph itself.
+    return f"""You are a senior creative director designing a PREMIUM, BEAUTIFUL, EMOTIONAL Maharashtrian restaurant advertisement. Each generation should feel FRESH and DIFFERENT — vary composition, framing, colour balance, decorative motifs.
 
 ⚠️ ABSOLUTE NO-TEXT / NO-WORDMARK RULE ⚠️
-DO NOT write ANY text, brand name, slogan, tagline, hashtag, or logo anywhere.
+Read {safe_zone_block} carefully. Zero text. Zero brand-marks.
 
-Aspect ratio: {aspect}. The final image MUST honour this aspect ratio exactly.
+Aspect ratio: {aspect}. Final image MUST honour this aspect ratio exactly.
 
 {person_block}
 {menu_directive}
-{safe_zone_block}
+BRAND VISUAL LANGUAGE:
+- Palette: {BRAND_COLORS}
+- Design language: {BRAND_DESIGN}
+- Motifs (use a SUBSET each generation, never all at once): paisley, marigold,
+  banana-leaf veins, brass utensils, mandala, temple bells, warli, rangoli,
+  silk borders, brass rim plates, diya, marble inlay, kalamkari.
+- Mood (creative direction only — do NOT type as caption): {mood_line}.
 
-PHOTOGRAPHY STYLE:
-- Brand palette inspiration: {BRAND_COLORS}
-- Setting: brass-rim thali / banana leaf / wooden table / paisley cloth / marigold
-  garnish / brass utensils / soft warm golden light / steam where appropriate.
-- Premium restaurant food photography. Apple-style clean. No clutter. No fusion.
-- Subject mood (creative direction only — DO NOT type as caption): {mood_line}.
-- Garnish with fresh coriander/kothimbir. High dynamic range. Natural lighting.
-- ZERO text inside the image. ZERO.
+COMPOSITION FREEDOM:
+- You decide the layout — split panels, full-bleed food, framed cameo, asymmetric,
+  diptych, top-banner-host with bottom-food, side-by-side, overlapping cards,
+  textile-collage. SURPRISE us with variety per generation.
+- Apple-grade clean composition. Premium-restaurant feel. No clutter, no Canva
+  cliches, no fusion food, no Western plating, no stock-photo people.
+
+{safe_zone_block}
 """
 
 
@@ -410,12 +421,12 @@ async def generate_ad(req: AdGenerateRequest):
 
     try:
         # Build reference image list for Nano Banana.
-        # IMPORTANT: We deliberately do NOT pass the guest photo any more.
-        # Nano Banana is unreliable at preserving real faces — so we tell it
-        # to leave a clean panel for the photo, and Pillow composites the real
-        # photo on top server-side. Only the dish image (if uploaded) is sent
-        # as an authoritative reference.
+        # IMPORTANT: AI gets the guest photo (so it can integrate the real
+        # faces into its free-flow composition) AND the dish photo if any.
+        # Pillow overlays the bilingual caption + logo + brand strip on top.
         refs: list = []
+        if req.photo_base64:
+            refs.append(ImageContent(_strip_data_url(req.photo_base64)))
         if req.menu_item_image_base64:
             refs.append(ImageContent(_strip_data_url(req.menu_item_image_base64)))
         if refs:
@@ -436,46 +447,25 @@ async def generate_ad(req: AdGenerateRequest):
     img = images[0]
     raw_bytes = base64.b64decode(img["data"])
 
-    # ── Compose the FINAL premium ad (golden-reference layout) ───────────
-    # The AI image above is a FULL-BLEED FOOD STILL LIFE. Our composer takes
-    # that food photo + the real guest photo + the brand logo + the bilingual
-    # text and builds the deterministic, reliable layout:
-    #   • Left panel (maroon/chocolate, varied per scene archetype)
-    #   • Guest photo (cream-framed, never cropped for groups)
-    #   • Circular Purnabramha logo medallion
-    #   • Marathi heading + English subtitle + " — BYLINE —" on cream pill
-    #   • Thin chocolate brand strip at the very bottom
-    # No silent failures — if any element is missing we raise an error.
+    # ── Smart brand overlay (text + logo + bottom strip ONLY) ─────────────
+    # The AI freely composes the full creative (including the guest photo it
+    # received as a reference). We just RELIABLY add the bilingual caption,
+    # circular brand logo, and thin "Purnabramha — Authentic Maharashtrian
+    # Cuisine" strip on top — placed smartly in the calmest corner.
+    # Hard-fail (HTTP 500) if the overlay raises — no silent fallback.
     try:
-        from utils.text_overlay import compose_premium_ad
-        guest_bytes: Optional[bytes] = None
-        is_group_auto = req.is_group_photo
-        if req.photo_base64:
-            guest_bytes = base64.b64decode(_strip_data_url(req.photo_base64))
-            try:
-                from PIL import Image as _PIL
-                import io as _io
-                _im = _PIL.open(_io.BytesIO(guest_bytes))
-                if _im.width / max(_im.height, 1) >= 1.3:
-                    is_group_auto = True
-            except Exception:
-                pass
-
-        image_bytes = compose_premium_ad(
-            food_bg_bytes=raw_bytes,
-            guest_photo_bytes=guest_bytes,
-            aspect=req.output_format,
+        from utils.text_overlay import apply_smart_brand_overlay
+        image_bytes = apply_smart_brand_overlay(
+            raw_bytes,
             headline_marathi=caption.get("marathi", ""),
             headline_english=caption.get("english", ""),
             byline=(req.guest_name or req.manager_name or ""),
             brand=BRAND_NAME,
             logo_path=LOGO_PATH if os.path.exists(LOGO_PATH) else None,
-            is_group=is_group_auto,
-            balgopal=_is_balgopal(req.guest_name, req.subject_text),
         )
     except Exception as e:
-        logger.error(f"compose_premium_ad failed: {e}", exc_info=True)
-        raise HTTPException(500, f"Ad composition failed: {e}")
+        logger.error(f"apply_smart_brand_overlay failed: {e}", exc_info=True)
+        raise HTTPException(500, f"Brand overlay failed: {e}")
 
     # Refresh base64 (response carries the composed image)
     img["data"] = base64.b64encode(image_bytes).decode("ascii")

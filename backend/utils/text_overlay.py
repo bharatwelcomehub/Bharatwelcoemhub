@@ -1195,3 +1195,158 @@ def compose_premium_ad(
     buf = io.BytesIO()
     out.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
+
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SMART BRAND OVERLAY  (free-flow AI creative + RELIABLE text/logo/brand strip)
+# ═════════════════════════════════════════════════════════════════════════════
+# Philosophy: Nano Banana composes the FULL creative however it wants — varied
+# layouts, framing, panels, motifs each generation. We only add three things
+# on top, intelligently positioned:
+#   1) The bilingual caption on a soft cream pill in the CALMEST corner
+#   2) The circular Purnabramha logo medallion in the OPPOSITE calm corner
+#   3) A thin chocolate brand strip at the very bottom: "Purnabramha — …"
+# Both #1 and #2 are tested-for-visibility against the underlying pixels and
+# placed where they pop the most. Never silent-fails.
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+def _corner_calmness(img: Image.Image, region: tuple) -> float:
+    """Score how "calm" a rectangular region is for overlay placement.
+
+    Calm = high uniformity (low edge density) + medium luminance (not too
+    bright, not too dark). Lower score = calmer.
+    """
+    x0, y0, x1, y1 = region
+    crop = img.crop((x0, y0, x1, y1)).convert("L")
+    # Resample to a small thumbnail for speed
+    thumb = crop.resize((48, 48), Image.LANCZOS)
+    pixels = list(thumb.getdata())
+    if not pixels:
+        return 9_999.0
+    mean = sum(pixels) / len(pixels)
+    var = sum((p - mean) ** 2 for p in pixels) / len(pixels)
+    # Heavy weight on variance (texture/edges), light weight on extreme luminance
+    extreme = min(abs(mean - 80), abs(mean - 200))  # prefer mid-tones
+    return var + extreme * 0.3
+
+
+def _pick_corners(img: Image.Image, aspect: str) -> dict:
+    """Return rectangles (x0,y0,x1,y1) for the BEST text and logo corners.
+
+    Picks the calmest TOP corner for the text pill and the calmest opposite
+    corner for the logo, falling back to top-right text + top-left logo.
+    """
+    W, H = img.size
+    pad = int(min(W, H) * 0.03)
+
+    if aspect == "9:16":
+        # Wider, shorter top band for vertical reels
+        text_h = int(H * 0.18)
+        logo_d = int(min(W, H) * 0.18)
+    else:
+        text_h = int(H * 0.22)
+        logo_d = int(min(W, H) * 0.16)
+
+    text_w = int(W * 0.46)
+    # Top-right text + top-left logo (default) — measure both corner pairings
+    tr_box = (W - text_w - pad, pad, W - pad, pad + text_h)
+    tl_box = (pad, pad, pad + text_w, pad + text_h)
+    logo_tl = (pad, pad, pad + logo_d, pad + logo_d)
+    logo_tr = (W - logo_d - pad, pad, W - pad, pad + logo_d)
+    logo_bl = (pad, H - logo_d - pad - int(H * 0.06), pad + logo_d,
+               H - pad - int(H * 0.06))
+    logo_br = (W - logo_d - pad, H - logo_d - pad - int(H * 0.06),
+               W - pad, H - pad - int(H * 0.06))
+
+    # Score the two text-corner options
+    tr_score = _corner_calmness(img, tr_box)
+    tl_score = _corner_calmness(img, tl_box)
+    if tr_score <= tl_score:
+        text_box = tr_box
+        # Logo opposite — try TL, then BL
+        logo_box = logo_tl if _corner_calmness(img, logo_tl) <= _corner_calmness(img, logo_bl) else logo_bl
+    else:
+        text_box = tl_box
+        logo_box = logo_tr if _corner_calmness(img, logo_tr) <= _corner_calmness(img, logo_br) else logo_br
+
+    return {"text": text_box, "logo": logo_box}
+
+
+def apply_smart_brand_overlay(
+    img_bytes: bytes,
+    *,
+    headline_marathi: str = "",
+    headline_english: str = "",
+    byline: str = "",
+    brand: str = "Purnabramha — Authentic Maharashtrian Cuisine",
+    logo_path: Optional[str] = None,
+) -> bytes:
+    """Add bilingual caption + circular logo + thin brand strip on top of
+    a FREE-FLOW AI advertisement. Layout untouched — we only overlay.
+
+    - The bilingual caption goes on a soft semi-transparent CREAM PILL in the
+      calmest top corner (auto-detected).
+    - The circular Purnabramha logo medallion goes in the opposite corner.
+    - A thin chocolate brand strip runs along the very bottom (~5% of height).
+
+    Raises:
+        ValueError if `img_bytes` cannot be opened.
+    """
+    base = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+    W, H = base.size
+
+    # Aspect heuristic
+    if H >= W * 1.5:
+        aspect = "9:16"
+    elif W * 1.1 >= H >= W * 0.95:
+        aspect = "1:1"
+    else:
+        aspect = "4:5"
+
+    # Reserve bottom 5% for brand strip — exclude that band from corner scoring
+    BRAND_STRIP_H = max(56, int(H * 0.05))
+    scoring_img = base.crop((0, 0, W, H - BRAND_STRIP_H))
+    corners = _pick_corners(scoring_img, aspect)
+
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+
+    # ── 1) Bilingual caption on cream pill ───────────────────────────────
+    pill_fill = (250, 240, 220, 235)  # warm cream, semi-transparent
+    _draw_text_block(
+        layer, corners["text"],
+        headline_marathi, headline_english, byline, pill_fill,
+    )
+
+    # ── 2) Circular Purnabramha logo medallion ────────────────────────────
+    if logo_path and os.path.exists(logo_path):
+        lx0, ly0, lx1, ly1 = corners["logo"]
+        diameter = min(lx1 - lx0, ly1 - ly0)
+        cx = (lx0 + lx1) // 2
+        cy = (ly0 + ly1) // 2
+        _draw_circle_logo(layer, logo_path, cx, cy, diameter)
+
+    # ── 3) Thin chocolate brand strip at the bottom ──────────────────────
+    strip_y0 = H - BRAND_STRIP_H
+    draw.rectangle([0, strip_y0, W, H], fill=DARK_CHOCOLATE)
+    draw.rectangle([0, strip_y0, W, strip_y0 + 3], fill=ANTIQUE_GOLD_BRIGHT)
+    fs = int(BRAND_STRIP_H * 0.42)
+    f_brand = _font(LATIN_BOLD, fs)
+    line = brand if brand else "Purnabramha — Authentic Maharashtrian Cuisine"
+    bb = draw.textbbox((0, 0), line, font=f_brand)
+    tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+    while tw > W - 60 and fs > 14:
+        fs = int(fs * 0.92)
+        f_brand = _font(LATIN_BOLD, fs)
+        bb = draw.textbbox((0, 0), line, font=f_brand)
+        tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+    tx = (W - tw) // 2
+    ty = strip_y0 + (BRAND_STRIP_H - th) // 2 - 4
+    draw.text((tx, ty), line, font=f_brand, fill=WARM_CREAM)
+
+    out = Image.alpha_composite(base, layer).convert("RGB")
+    buf = io.BytesIO()
+    out.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()

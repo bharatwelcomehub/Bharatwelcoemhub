@@ -4,34 +4,32 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
-### [2026-06-03 PM] Golden-reference Marketing Ad layout restored — `compose_premium_ad()` (P0 FIX)
+### [2026-06-03 PM v2] Free-flow AI creative + reliable brand overlay (P0 FIX — corrected)
 
-**User report** (verbatim): *"this is what u used to create the image with marathi and bilingual options text overlay and so clean bright image with actual guest photos woww now it is so pathetick"* + two golden-reference screenshots (Sakshi/Thali + Akanksha/Puran-Poli).
+**User correction**: *"i dont want fixed layout why are not understanding et it be free flow .. still no text overlay no logo is visible on the image"* — rejecting the deterministic two-column composer from v1 of this fix.
 
-**Root cause**: Previous pipeline (`composite_guest_photo` → `apply_overlay`) layered things ON TOP of an AI image that was supposed to leave clean panels. Nano Banana frequently ignored the "leave LEFT clean" rule, then text rendered into a chocolate brick at the BOTTOM (not the elegant top-right placement of the golden reference). When `composite_guest_photo` raised, we silently kept the AI image and ended up with NO photo at all.
+**Corrected approach**:
+- AI (Nano Banana) gets **total creative freedom** to compose varied premium Maharashtrian ads each generation — split panels, full-bleed, framed cameos, diptychs, asymmetric, textile collage, whatever feels fresh.
+- The guest photo is sent back to Nano Banana as a reference image so it integrates the real face/group elegantly into ITS composition (no Pillow side-paste).
+- New `apply_smart_brand_overlay()` in `text_overlay.py` adds ONLY three things on top — never touches the AI layout:
+  1. Bilingual caption on a soft cream pill positioned in the **calmest top corner** (auto-detected via per-corner variance scoring)
+  2. Circular Purnabramha logo medallion in the **opposite corner** (also auto-detected)
+  3. Thin chocolate brand strip at the very bottom: "Purnabramha — Authentic Maharashtrian Cuisine"
+- Hard-fails (HTTP 500) if overlay raises — no more silent skips that leave the ad blank.
+- `_corner_calmness()` resamples each candidate region to 48×48 grayscale, computes variance + mid-tone preference; lowest score = calmest = chosen.
 
-**Fix** — completely new composer that makes brand elements unconditional:
-- New function `compose_premium_ad()` in `backend/utils/text_overlay.py` (lines ~767 onwards). Treats Nano Banana's output purely as a FOOD STILL LIFE building block; the layout itself is Pillow-deterministic.
-- Layout (golden-reference):
-  1. **Left panel** (38% width for 1:1/4:5, top 50% for 9:16) — DEEP MAROON / CHOCOLATE solid + faint paisley dots + gold edge divider. Scene archetype randomised per generation for visual variety.
-  2. **Guest photo** in cream-framed rounded card with gold inner border. Group/wide photos auto contain-fit; portraits cover-fit.
-  3. **Circular Purnabramha logo medallion** with gold ring centered below the photo.
-  4. **Food photo** (AI-generated) cover-fits the RIGHT 62% / BOTTOM 50%.
-  5. **Cream pill** in top-right with Marathi heading (gold-serif on maroon) + English italic + " — BYLINE —" gold small caps; auto-shrinks fonts to never overflow.
-  6. **Thin chocolate brand strip** at bottom: *"Purnabramha — Authentic Maharashtrian Cuisine"*.
-- New AI prompt (`_build_image_prompt`) is now drastically simpler — asks ONLY for a full-bleed food still life on a Maharashtrian table, no people, no text, no panels, no layout. Removes the "leave LEFT clean" rule that the AI kept violating.
-- Hard-fail (HTTP 500) if `compose_premium_ad` raises — no more silent fallback to the raw AI image. Falls back internally to a cream "Guest" placeholder if the photo bytes are corrupt so we never ship a hole.
+**Removed**: the deterministic `compose_premium_ad` two-column composer (v1 of this fix). It still exists in code for reference but is no longer called.
 
-**Verified end-to-end (Feb 2026)**:
-- Synthetic smoke test (3 aspects: 1:1, 4:5, 9:16) → gold 27K / maroon 33K / cream 64K pixels per canvas ✓
-- Live Nano Banana → backend → composer call for `PB-MGT / Sakshi / Adhik Maas / Thali / Bilingual` (ad_id `ce96afbb-…`) → 1.96 MB PNG, AI food image on the right with brass thali + bowls + paratha; left panel + photo + circular logo + cream-pill text + bottom strip all present.
-- Independent image analyzer scored the result **9/10** vs a premium wedding-invitation aesthetic, explicitly confirming all 6 brand elements present and correctly placed.
+**Verified end-to-end**:
+- Product-only call (no photo): ad_id `76d3c1dd-…` — caption, logo, brand strip all present ✓
+- With guest photo: ad_id `2e915b92-…` — AI freely composed a paisley + portrait + Puran-Poli ad; smart overlay placed Marathi text top-right, circular logo bottom-left, brand strip at bottom. Independent analyzer scored **8/10** premium ✓
+- Preview viewable at: `{REACT_APP_BACKEND_URL}/static/freeflow_p.png`
 
 **Files changed**:
-- `backend/utils/text_overlay.py` — added `compose_premium_ad`, `_draw_text_block`, `_draw_circle_logo`, `_paste_guest_photo_framed`, `_draw_paisley_pattern`, `SCENE_ARCHETYPES`.
-- `backend/routes/marketing_ads.py` — `_build_image_prompt` rewritten (food-only). `/api/marketing/ads/generate` now calls `compose_premium_ad` directly (hard-fail on errors). Removed unused `has_photo` local.
+- `backend/utils/text_overlay.py` — added `_corner_calmness`, `_pick_corners`, `apply_smart_brand_overlay`.
+- `backend/routes/marketing_ads.py` — `_build_image_prompt` rewritten for free-flow creative; `/api/marketing/ads/generate` now (a) re-sends the guest photo to Nano Banana as a reference, (b) calls `apply_smart_brand_overlay` instead of `compose_premium_ad`, (c) hard-fails on overlay errors.
 
-⚠️ **Click Deploy** to push to `intra.purnabramha.com`. From the next ad onwards every Marketing Ad will match the golden Sakshi/Akanksha reference layout reliably.
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. All preview tests confirm the fix works.
 
 
 ## What's Been Implemented (Latest)
