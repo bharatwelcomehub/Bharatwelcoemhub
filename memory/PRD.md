@@ -33,6 +33,17 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 **Hotfix [2026-06-03 PM v3]**: Production reported `Brand overlay failed: '_io.BytesIO' object has no attribute 'lower'`. Root cause: PIL 12.1.1's `ImageFont.load_default()` returns a font whose `.path` is a `_io.BytesIO` object, not a str. My `_wrap_to_width()` called `.lower()` on it. Fixed by adding `isinstance(_path, str)` guard. Verified end-to-end (ad_id `93e9bcf3-…`) — Nikam couple anniversary ad rendered cleanly with the user's exact form input. **Redeploy required**.
 
+**Hotfix [2026-06-03 PM v4]**: After v3 deploy, user reported two issues on the produced ad:
+1. **Tofu (☐☐☐) boxes** at top of cream pill — production container lacked the Noto Sans Devanagari font, so Marathi rendered as missing-glyph placeholders.
+2. **Text pill covered the couple's faces** — corner-calmness scoring picked the top-left paisley band which actually extended over the people.
+
+Fixes:
+- Bundled fonts **into the repo** at `backend/static/fonts/` (NotoSansDevanagari Bold/Regular, LiberationSerif Bold/Regular/Italic). Font discovery now prefers bundled paths and falls back to system. Production will ALWAYS render Devanagari correctly.
+- `_pick_corners()` redesigned: evaluates all 4 corners (TR/TL/BR/BL), shrinks the pill to 38% × 17% (was 46% × 22%), adds **saturation** to the calmness score so gold paisley areas correctly score as "busy" instead of "calm". Logo lands in the geometrically opposite corner for visual balance.
+- Caption truncation tightened (Marathi 50, English 70, byline 26) so the smaller pill never overflows.
+
+**Verified end-to-end** (ad_id `bcdf8f06-…`): Marathi caption renders perfectly in Devanagari, pill lands in TOP-RIGHT, logo in BOTTOM-LEFT, no face occlusion. Independent analyzer scored **8/10**. **Redeploy required.**
+
 ## What's Been Implemented (Latest)
 
 ### [2026-06-03] One logo only + new official logo PNG (BUG FIX)

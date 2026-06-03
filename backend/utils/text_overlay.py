@@ -15,12 +15,47 @@ from PIL import Image, ImageDraw, ImageFont
 logger = logging.getLogger(__name__)
 
 # ── Font discovery ─────────────────────────────────────────────────────────
-DEVANAGARI_BOLD = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
-DEVANAGARI_REG = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
-DEVANAGARI_SERIF_BOLD = "/usr/share/fonts/truetype/noto/NotoSerifDevanagari-Bold.ttf"
-LATIN_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"
-LATIN_REG = "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf"
-LATIN_ITALIC = "/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf"
+# Production containers sometimes lack /usr/share/fonts/* (Devanagari renders
+# as tofu boxes ☐☐☐). We ship the fonts inside the repo to guarantee they
+# are present in EVERY environment. System paths are kept as fallbacks.
+_BUNDLED_FONTS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "static", "fonts",
+)
+
+
+def _font_path(*candidates: str) -> str:
+    """Return the first candidate path that exists, else the last candidate."""
+    for p in candidates:
+        if p and os.path.exists(p):
+            return p
+    return candidates[-1] if candidates else ""
+
+
+DEVANAGARI_BOLD = _font_path(
+    os.path.join(_BUNDLED_FONTS_DIR, "NotoSansDevanagari-Bold.ttf"),
+    "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
+)
+DEVANAGARI_REG = _font_path(
+    os.path.join(_BUNDLED_FONTS_DIR, "NotoSansDevanagari-Regular.ttf"),
+    "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+)
+DEVANAGARI_SERIF_BOLD = _font_path(
+    os.path.join(_BUNDLED_FONTS_DIR, "NotoSerifDevanagari-Bold.ttf"),
+    "/usr/share/fonts/truetype/noto/NotoSerifDevanagari-Bold.ttf",
+)
+LATIN_BOLD = _font_path(
+    os.path.join(_BUNDLED_FONTS_DIR, "LiberationSerif-Bold.ttf"),
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
+)
+LATIN_REG = _font_path(
+    os.path.join(_BUNDLED_FONTS_DIR, "LiberationSerif-Regular.ttf"),
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+)
+LATIN_ITALIC = _font_path(
+    os.path.join(_BUNDLED_FONTS_DIR, "LiberationSerif-Italic.ttf"),
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf",
+)
 
 # ── Brand palette (PURNABRAMHA OFFICIAL — 2026) ───────────────────────────
 # Dark Chocolate Brown — primary background
@@ -864,10 +899,10 @@ def _draw_text_block(
 
     draw = ImageDraw.Draw(layer)
 
-    # Sanitise lengths
-    marathi = _truncate_to_chars((marathi or "").strip(), 60)
-    english = _truncate_to_chars((english or "").strip(), 90)
-    byline = _truncate_to_chars((byline or "").strip(), 30)
+    # Sanitise lengths — shorter to fit the compact pill
+    marathi = _truncate_to_chars((marathi or "").strip(), 50)
+    english = _truncate_to_chars((english or "").strip(), 70)
+    byline = _truncate_to_chars((byline or "").strip(), 26)
 
     # Initial sizes (relative to box height)
     fs_m = int(H * 0.18)
@@ -1218,63 +1253,75 @@ def compose_premium_ad(
 def _corner_calmness(img: Image.Image, region: tuple) -> float:
     """Score how "calm" a rectangular region is for overlay placement.
 
-    Calm = high uniformity (low edge density) + medium luminance (not too
-    bright, not too dark). Lower score = calmer.
+    Calm = high uniformity (low edge density) + medium luminance + low
+    saturation (avoid decorative gold paisley areas). Lower score = calmer.
     """
     x0, y0, x1, y1 = region
-    crop = img.crop((x0, y0, x1, y1)).convert("L")
-    # Resample to a small thumbnail for speed
-    thumb = crop.resize((48, 48), Image.LANCZOS)
-    pixels = list(thumb.getdata())
-    if not pixels:
+    crop = img.crop((x0, y0, x1, y1))
+    thumb_rgb = crop.resize((48, 48), Image.LANCZOS).convert("RGB")
+    thumb_l = thumb_rgb.convert("L")
+    lum = list(thumb_l.getdata())
+    if not lum:
         return 9_999.0
-    mean = sum(pixels) / len(pixels)
-    var = sum((p - mean) ** 2 for p in pixels) / len(pixels)
-    # Heavy weight on variance (texture/edges), light weight on extreme luminance
-    extreme = min(abs(mean - 80), abs(mean - 200))  # prefer mid-tones
-    return var + extreme * 0.3
+    mean_l = sum(lum) / len(lum)
+    var_l = sum((p - mean_l) ** 2 for p in lum) / len(lum)
+    # Saturation proxy: average (max(r,g,b) - min(r,g,b)) on the RGB thumb
+    rgb_pixels = list(thumb_rgb.getdata())
+    sat = sum(max(r, g, b) - min(r, g, b) for r, g, b in rgb_pixels) / len(rgb_pixels)
+    # Prefer mid-tones, low variance, low saturation
+    extreme = min(abs(mean_l - 80), abs(mean_l - 200))
+    return var_l + extreme * 0.3 + sat * 1.8
 
 
 def _pick_corners(img: Image.Image, aspect: str) -> dict:
     """Return rectangles (x0,y0,x1,y1) for the BEST text and logo corners.
 
-    Picks the calmest TOP corner for the text pill and the calmest opposite
-    corner for the logo, falling back to top-right text + top-left logo.
+    Strategy:
+    - Text pill is SMALL (≤ 36% width × ≤ 14% height) — never extends into the
+      center where people/food usually live.
+    - We evaluate ALL FOUR corner candidates and pick the calmest for text;
+      the logo lands in the geometrically opposite corner (visual balance).
+    - Excludes the bottom band (brand strip lives there).
     """
     W, H = img.size
-    pad = int(min(W, H) * 0.03)
+    pad = int(min(W, H) * 0.025)
 
     if aspect == "9:16":
-        # Wider, shorter top band for vertical reels
-        text_h = int(H * 0.18)
+        text_w = int(W * 0.58)
+        text_h = int(H * 0.14)
         logo_d = int(min(W, H) * 0.18)
     else:
-        text_h = int(H * 0.22)
-        logo_d = int(min(W, H) * 0.16)
+        text_w = int(W * 0.38)
+        text_h = int(H * 0.17)
+        logo_d = int(min(W, H) * 0.14)
 
-    text_w = int(W * 0.46)
-    # Top-right text + top-left logo (default) — measure both corner pairings
-    tr_box = (W - text_w - pad, pad, W - pad, pad + text_h)
-    tl_box = (pad, pad, pad + text_w, pad + text_h)
-    logo_tl = (pad, pad, pad + logo_d, pad + logo_d)
-    logo_tr = (W - logo_d - pad, pad, W - pad, pad + logo_d)
-    logo_bl = (pad, H - logo_d - pad - int(H * 0.06), pad + logo_d,
-               H - pad - int(H * 0.06))
-    logo_br = (W - logo_d - pad, H - logo_d - pad - int(H * 0.06),
-               W - pad, H - pad - int(H * 0.06))
+    # Text-pill candidates — four corners
+    bottom_anchor = int(H * 0.86)   # above the brand strip
+    text_candidates = {
+        "TR": (W - text_w - pad, pad, W - pad, pad + text_h),
+        "TL": (pad, pad, pad + text_w, pad + text_h),
+        "BR": (W - text_w - pad, bottom_anchor - text_h, W - pad, bottom_anchor),
+        "BL": (pad, bottom_anchor - text_h, pad + text_w, bottom_anchor),
+    }
 
-    # Score the two text-corner options
-    tr_score = _corner_calmness(img, tr_box)
-    tl_score = _corner_calmness(img, tl_box)
-    if tr_score <= tl_score:
-        text_box = tr_box
-        # Logo opposite — try TL, then BL
-        logo_box = logo_tl if _corner_calmness(img, logo_tl) <= _corner_calmness(img, logo_bl) else logo_bl
-    else:
-        text_box = tl_box
-        logo_box = logo_tr if _corner_calmness(img, logo_tr) <= _corner_calmness(img, logo_br) else logo_br
+    # Score each
+    scores = {k: _corner_calmness(img, v) for k, v in text_candidates.items()}
+    best_text_key = min(scores, key=scores.get)
+    text_box = text_candidates[best_text_key]
 
-    return {"text": text_box, "logo": logo_box}
+    # Logo goes in the OPPOSITE corner (diagonal)
+    opposite = {"TR": "BL", "TL": "BR", "BR": "TL", "BL": "TR"}
+    logo_key = opposite[best_text_key]
+    logo_anchor_map = {
+        "TR": (W - logo_d - pad, pad, W - pad, pad + logo_d),
+        "TL": (pad, pad, pad + logo_d, pad + logo_d),
+        "BR": (W - logo_d - pad, bottom_anchor - logo_d, W - pad, bottom_anchor),
+        "BL": (pad, bottom_anchor - logo_d, pad + logo_d, bottom_anchor),
+    }
+    logo_box = logo_anchor_map[logo_key]
+
+    return {"text": text_box, "logo": logo_box,
+            "text_corner": best_text_key, "logo_corner": logo_key}
 
 
 def apply_smart_brand_overlay(
