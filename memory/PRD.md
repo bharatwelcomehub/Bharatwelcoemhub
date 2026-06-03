@@ -5,6 +5,24 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] Transparent logo everywhere
+
+**User ask** (verbatim): "kindly use transparent logo for all places"
+
+**Implementation**:
+- Created `/app/backend/static/purnabramha_logo.png` — a 444×422 transparent PNG generated from the existing JPG by mapping near-white pixels (brightness ≥ 230) to full transparency with a feathered alpha edge for crisp anti-aliasing. Transparent borders auto-trimmed for tight cropping.
+- Updated all 3 backend logo references (`routes/marketing_ads.py`, `routes/memory_box.py`, `routes/video_overlay.py`) — all now point at the PNG.
+- Removed the soft white "halo" rectangle that was previously painted behind the logo in `utils/text_overlay.py::apply_overlay()` and `apply_invitation_overlay()` — the transparency now renders cleanly over the AI background.
+- Memory Box cover PNG, Memory Box PDF, Marketing Ad overlay, Party Invitation overlay, and Video Overlay (ffmpeg) all now respect the alpha channel automatically (Pillow `paste(im, pos, im)` + ffmpeg overlay filter both honor PNG transparency).
+- Old JPG kept on disk as a fallback (no removal, zero regression risk).
+
+**Verified**:
+- Pillow overlay smoke test: dark background (40,25,25) → top-right logo region pixel = (40,25,25) i.e. background bleeds through transparent edges = transparency confirmed ✓
+- Video overlay: 71.2 KB MP4 generated with logo + Marathi sub-line ✓
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy, every newly-generated Marketing Ad, Party Invitation, Memory Box PDF/cover, and Branded Video uses the transparent logo — no more white rectangle around it.
+
+
 ### [2026-06-03] Invitation prompt — multi-person-aware by DEFAULT (no checkbox required)
 
 **User report** (verbatim): "Party invitation is still taking single person photo many times — it comes as couple who is hosting party or team who is hosting it, so any one single photo is not the right approach."

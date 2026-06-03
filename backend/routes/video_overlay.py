@@ -20,7 +20,7 @@ from routes.center_accounts import check_access
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/marketing/videos", tags=["marketing-videos"])
 
-LOGO_PATH = "/app/backend/static/purnabramha_logo.jpg"
+LOGO_PATH = "/app/backend/static/purnabramha_logo.png"
 ASSET_DIR = "/app/backend/static/marketing_videos"
 os.makedirs(ASSET_DIR, exist_ok=True)
 

@@ -438,7 +438,7 @@ async def generate_ad(req: AdGenerateRequest):
 # Purnabramha center and wants a custom invitation card with the brand logo,
 # center name, host name, occasion, date/time, and address.
 
-LOGO_PATH = "/app/backend/static/purnabramha_logo.jpg"
+LOGO_PATH = "/app/backend/static/purnabramha_logo.png"
 
 
 class InvitationRequest(BaseModel):
