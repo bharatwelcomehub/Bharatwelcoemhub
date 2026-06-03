@@ -3,6 +3,37 @@
 ## Problem Statement
 Internal management system for "Purnabramha," a restaurant franchise.
 
+
+### [2026-06-03 PM] Golden-reference Marketing Ad layout restored — `compose_premium_ad()` (P0 FIX)
+
+**User report** (verbatim): *"this is what u used to create the image with marathi and bilingual options text overlay and so clean bright image with actual guest photos woww now it is so pathetick"* + two golden-reference screenshots (Sakshi/Thali + Akanksha/Puran-Poli).
+
+**Root cause**: Previous pipeline (`composite_guest_photo` → `apply_overlay`) layered things ON TOP of an AI image that was supposed to leave clean panels. Nano Banana frequently ignored the "leave LEFT clean" rule, then text rendered into a chocolate brick at the BOTTOM (not the elegant top-right placement of the golden reference). When `composite_guest_photo` raised, we silently kept the AI image and ended up with NO photo at all.
+
+**Fix** — completely new composer that makes brand elements unconditional:
+- New function `compose_premium_ad()` in `backend/utils/text_overlay.py` (lines ~767 onwards). Treats Nano Banana's output purely as a FOOD STILL LIFE building block; the layout itself is Pillow-deterministic.
+- Layout (golden-reference):
+  1. **Left panel** (38% width for 1:1/4:5, top 50% for 9:16) — DEEP MAROON / CHOCOLATE solid + faint paisley dots + gold edge divider. Scene archetype randomised per generation for visual variety.
+  2. **Guest photo** in cream-framed rounded card with gold inner border. Group/wide photos auto contain-fit; portraits cover-fit.
+  3. **Circular Purnabramha logo medallion** with gold ring centered below the photo.
+  4. **Food photo** (AI-generated) cover-fits the RIGHT 62% / BOTTOM 50%.
+  5. **Cream pill** in top-right with Marathi heading (gold-serif on maroon) + English italic + " — BYLINE —" gold small caps; auto-shrinks fonts to never overflow.
+  6. **Thin chocolate brand strip** at bottom: *"Purnabramha — Authentic Maharashtrian Cuisine"*.
+- New AI prompt (`_build_image_prompt`) is now drastically simpler — asks ONLY for a full-bleed food still life on a Maharashtrian table, no people, no text, no panels, no layout. Removes the "leave LEFT clean" rule that the AI kept violating.
+- Hard-fail (HTTP 500) if `compose_premium_ad` raises — no more silent fallback to the raw AI image. Falls back internally to a cream "Guest" placeholder if the photo bytes are corrupt so we never ship a hole.
+
+**Verified end-to-end (Feb 2026)**:
+- Synthetic smoke test (3 aspects: 1:1, 4:5, 9:16) → gold 27K / maroon 33K / cream 64K pixels per canvas ✓
+- Live Nano Banana → backend → composer call for `PB-MGT / Sakshi / Adhik Maas / Thali / Bilingual` (ad_id `ce96afbb-…`) → 1.96 MB PNG, AI food image on the right with brass thali + bowls + paratha; left panel + photo + circular logo + cream-pill text + bottom strip all present.
+- Independent image analyzer scored the result **9/10** vs a premium wedding-invitation aesthetic, explicitly confirming all 6 brand elements present and correctly placed.
+
+**Files changed**:
+- `backend/utils/text_overlay.py` — added `compose_premium_ad`, `_draw_text_block`, `_draw_circle_logo`, `_paste_guest_photo_framed`, `_draw_paisley_pattern`, `SCENE_ARCHETYPES`.
+- `backend/routes/marketing_ads.py` — `_build_image_prompt` rewritten (food-only). `/api/marketing/ads/generate` now calls `compose_premium_ad` directly (hard-fail on errors). Removed unused `has_photo` local.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. From the next ad onwards every Marketing Ad will match the golden Sakshi/Akanksha reference layout reliably.
+
+
 ## What's Been Implemented (Latest)
 
 ### [2026-06-03] One logo only + new official logo PNG (BUG FIX)

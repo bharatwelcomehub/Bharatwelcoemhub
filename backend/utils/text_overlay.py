@@ -763,3 +763,435 @@ def render_text_only_card(
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
+
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PREMIUM AD COMPOSER  (golden-reference layout — deterministic + reliable)
+# ═════════════════════════════════════════════════════════════════════════════
+# Produces ads that mirror the user's golden references:
+#   • Deep maroon (or chocolate / cream) LEFT vertical panel
+#     - Real guest photo at top (cream frame, gold inner border, NO cropping)
+#     - Circular Purnabramha logo below the photo
+#   • RIGHT 60% = AI-generated full-bleed food photo (varied each generation)
+#   • TOP-RIGHT corner = Marathi heading (gold serif) + English subtitle (cream
+#     italic) + " — BYLINE —" small caps — drawn on a soft cream pill so it
+#     reads on any background.
+#   • Thin chocolate strip at the very bottom: "Purnabramha — Authentic
+#     Maharashtrian Cuisine"
+#
+# Variation is achieved via SCENE_ARCHETYPES — the left panel rotates between
+# deep-maroon / chocolate / paisley-cream styles for fresh feel each ad.
+# ═════════════════════════════════════════════════════════════════════════════
+
+import random as _random
+import math as _math
+
+SCENE_ARCHETYPES = [
+    # (panel_fill, accent, text_pill_fill, text_pill_alpha)
+    ("maroon_paisley",  DEEP_MAROON,    ANTIQUE_GOLD_BRIGHT, WARM_CREAM,   235),
+    ("chocolate_solid", DARK_CHOCOLATE, ANTIQUE_GOLD_BRIGHT, WARM_CREAM,   235),
+    ("maroon_solid",    DEEP_MAROON,    ANTIQUE_GOLD,        WARM_CREAM,   240),
+    ("chocolate_warm",  (60, 30, 22),   ANTIQUE_GOLD_BRIGHT, WARM_CREAM,   230),
+]
+
+
+def _draw_paisley_pattern(draw: ImageDraw.ImageDraw, x0, y0, x1, y1, color, alpha=40):
+    """Sprinkle faint paisley/dot motif inside the rectangle (subtle texture)."""
+    import random as _rnd
+    rng = _rnd.Random(42)  # deterministic per call
+    w = x1 - x0
+    h = y1 - y0
+    for _ in range(int(w * h / 9000)):
+        cx = rng.randint(x0, x1)
+        cy = rng.randint(y0, y1)
+        r = rng.randint(3, 8)
+        a = rng.randint(30, alpha)
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r],
+                     fill=(color[0], color[1], color[2], a))
+
+
+def _draw_circle_logo(layer: Image.Image, logo_path: str, cx: int, cy: int,
+                      diameter: int) -> None:
+    """Paste the Purnabramha logo as a circular medallion centered at (cx, cy)."""
+    if not (logo_path and os.path.exists(logo_path)):
+        return
+    try:
+        logo = Image.open(logo_path).convert("RGBA")
+        # Fit logo inside a square; then mask to circle
+        logo.thumbnail((diameter, diameter), Image.LANCZOS)
+        # Square canvas with cream backdrop, then circular crop
+        sq = Image.new("RGBA", (diameter, diameter), (250, 240, 220, 255))
+        sq.paste(logo, ((diameter - logo.width) // 2,
+                        (diameter - logo.height) // 2), logo)
+        mask = Image.new("L", (diameter, diameter), 0)
+        ImageDraw.Draw(mask).ellipse([0, 0, diameter, diameter], fill=255)
+        # Gold ring around the circle
+        ring = Image.new("RGBA", (diameter + 16, diameter + 16), (0, 0, 0, 0))
+        rd = ImageDraw.Draw(ring)
+        rd.ellipse([0, 0, diameter + 16, diameter + 16], fill=ANTIQUE_GOLD_BRIGHT)
+        rd.ellipse([8, 8, diameter + 8, diameter + 8], fill=(0, 0, 0, 0))
+        # Compose: ring under, then masked logo on top
+        layer.paste(ring, (cx - (diameter + 16) // 2, cy - (diameter + 16) // 2), ring)
+        layer.paste(sq, (cx - diameter // 2, cy - diameter // 2), mask)
+    except Exception as e:
+        logger.warning(f"_draw_circle_logo failed: {e}")
+
+
+def _draw_text_block(
+    layer: Image.Image,
+    box: tuple,                # (x0, y0, x1, y1) bounding box
+    marathi: str,
+    english: str,
+    byline: str,
+    pill_fill: tuple,           # rgba
+) -> None:
+    """Draw the Marathi heading + English subtitle + small-caps byline inside
+    `box`. Adds a soft semi-transparent pill behind the text so it reads on
+    ANY background. Auto-shrinks fonts to fit."""
+    x0, y0, x1, y1 = box
+    W = x1 - x0
+    H = y1 - y0
+    if W < 100 or H < 80:
+        return
+    pad_x = int(W * 0.06)
+    pad_y = int(H * 0.10)
+    inner_w = W - 2 * pad_x
+    inner_h = H - 2 * pad_y
+
+    draw = ImageDraw.Draw(layer)
+
+    # Sanitise lengths
+    marathi = _truncate_to_chars((marathi or "").strip(), 60)
+    english = _truncate_to_chars((english or "").strip(), 90)
+    byline = _truncate_to_chars((byline or "").strip(), 30)
+
+    # Initial sizes (relative to box height)
+    fs_m = int(H * 0.18)
+    fs_e = int(H * 0.085)
+    fs_b = int(H * 0.07)
+
+    # Iteratively shrink until everything fits inner_w / inner_h
+    for _ in range(8):
+        f_m = _pick_font(marathi, fs_m, bold=True)
+        f_e = _font(LATIN_ITALIC, fs_e)
+        f_b = _font(LATIN_BOLD, fs_b)
+        lines_m = _wrap_to_width(draw, marathi, f_m, inner_w)[:3] if marathi else []
+        lines_e = _wrap_to_width(draw, english, f_e, inner_w)[:2] if english else []
+        line_h_m = int(fs_m * 1.18)
+        line_h_e = int(fs_e * 1.25)
+        total_h = (
+            len(lines_m) * line_h_m
+            + (int(fs_m * 0.25) if lines_m and lines_e else 0)
+            + len(lines_e) * line_h_e
+            + (fs_b + int(fs_b * 0.6) if byline else 0)
+        )
+        max_line_w = 0
+        for L in lines_m:
+            max_line_w = max(max_line_w, _measure_mixed(draw, L, fs_m, bold=True))
+        for L in lines_e:
+            bb = draw.textbbox((0, 0), L, font=f_e)
+            max_line_w = max(max_line_w, bb[2] - bb[0])
+        if total_h <= inner_h and max_line_w <= inner_w:
+            break
+        fs_m = int(fs_m * 0.9)
+        fs_e = int(fs_e * 0.9)
+        fs_b = int(fs_b * 0.9)
+        if fs_m < 22:
+            break
+
+    # Soft cream pill background (semi-transparent so AI bg colors show through)
+    pill = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(pill)
+    pd.rounded_rectangle([0, 0, W, H], radius=int(min(W, H) * 0.08), fill=pill_fill)
+    layer.paste(pill, (x0, y0), pill)
+
+    # Render text on top
+    text_y = y0 + pad_y
+    for L in lines_m:
+        tw = _measure_mixed(draw, L, fs_m, bold=True)
+        tx = x0 + (W - tw) // 2
+        # Subtle shadow
+        _draw_text_mixed(draw, tx, text_y, L, fs_m,
+                         DEEP_MAROON, bold=True,
+                         shadow=(2, 2, (0, 0, 0, 60)))
+        text_y += line_h_m
+    if lines_m and lines_e:
+        text_y += int(fs_m * 0.18)
+        # Thin gold divider
+        cx = x0 + W // 2
+        draw.line([cx - int(W * 0.12), text_y, cx + int(W * 0.12), text_y],
+                  fill=ANTIQUE_GOLD, width=2)
+        text_y += int(fs_m * 0.12)
+    for L in lines_e:
+        f_e = _font(LATIN_ITALIC, fs_e)
+        bb = draw.textbbox((0, 0), L, font=f_e)
+        tw = bb[2] - bb[0]
+        tx = x0 + (W - tw) // 2
+        draw.text((tx, text_y), L, font=f_e, fill=DARK_CHOCOLATE)
+        text_y += line_h_e
+    if byline:
+        text_y += int(fs_b * 0.4)
+        bline = f"— {byline.upper()} —"
+        f_b = _font(LATIN_BOLD, fs_b)
+        bb = draw.textbbox((0, 0), bline, font=f_b)
+        tw = bb[2] - bb[0]
+        tx = x0 + (W - tw) // 2
+        draw.text((tx, text_y), bline, font=f_b, fill=ANTIQUE_GOLD)
+
+
+def _paste_guest_photo_framed(
+    layer: Image.Image,
+    photo_bytes: bytes,
+    box: tuple,                # (x0, y0, x1, y1)
+    is_group: bool = False,
+    balgopal: bool = False,
+) -> None:
+    """Paste the guest photo inside `box` with a cream card frame and gold
+    inner border. Contain-fit (no cropping) when is_group, otherwise cover-fit."""
+    x0, y0, x1, y1 = box
+    box_w = x1 - x0
+    box_h = y1 - y0
+    if box_w < 50 or box_h < 50:
+        return
+    photo = Image.open(io.BytesIO(photo_bytes)).convert("RGBA")
+    gw, gh = photo.size
+    if is_group or (gw / max(gh, 1)) >= 1.3:
+        scale = min(box_w / gw, box_h / gh)
+        new_w, new_h = int(gw * scale), int(gh * scale)
+        photo_scaled = photo.resize((new_w, new_h), Image.LANCZOS)
+        canvas = Image.new("RGBA", (box_w, box_h), (253, 246, 231, 255))
+        canvas.paste(photo_scaled,
+                     ((box_w - new_w) // 2, (box_h - new_h) // 2),
+                     photo_scaled)
+        photo_fit = canvas
+    else:
+        scale = max(box_w / gw, box_h / gh)
+        new_w, new_h = int(gw * scale), int(gh * scale)
+        photo_scaled = photo.resize((new_w, new_h), Image.LANCZOS)
+        left = (new_w - box_w) // 2
+        top = (new_h - box_h) // 2
+        photo_fit = photo_scaled.crop((left, top, left + box_w, top + box_h))
+
+    # Drop shadow
+    shadow = Image.new("RGBA", (box_w + 24, box_h + 24), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    sd.rounded_rectangle([6, 6, box_w + 18, box_h + 18],
+                         radius=14, fill=(0, 0, 0, 130))
+    try:
+        from PIL import ImageFilter
+        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=10))
+    except Exception:
+        pass
+    layer.paste(shadow, (x0 - 6, y0 - 6), shadow)
+
+    # Balgopal gold burst
+    if balgopal:
+        try:
+            star = Image.new("RGBA", (box_w + 100, box_h + 100), (0, 0, 0, 0))
+            sd2 = ImageDraw.Draw(star)
+            cx, cy = star.width // 2, star.height // 2
+            for i in range(16):
+                ang = (_math.pi / 8) * i
+                outer = (cx + int(_math.cos(ang) * (star.width // 2 + 20)),
+                         cy + int(_math.sin(ang) * (star.height // 2 + 20)))
+                sd2.line([cx, cy, outer[0], outer[1]],
+                         fill=(220, 175, 60, 100 if i % 2 else 160),
+                         width=14 if i % 2 else 22)
+            from PIL import ImageFilter
+            star = star.filter(ImageFilter.GaussianBlur(radius=5))
+            layer.paste(star, (x0 - 50, y0 - 50), star)
+        except Exception:
+            pass
+
+    # Cream card frame
+    draw = ImageDraw.Draw(layer)
+    frame_pad = 10
+    draw.rounded_rectangle(
+        [x0 - frame_pad, y0 - frame_pad, x1 + frame_pad, y1 + frame_pad],
+        radius=18, fill=(253, 246, 231, 255),
+    )
+    # Mask the photo with rounded corners
+    mask = Image.new("L", (box_w, box_h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, box_w, box_h],
+                                           radius=12, fill=255)
+    layer.paste(photo_fit, (x0, y0), mask)
+    # Gold inner border
+    draw.rounded_rectangle([x0 - 2, y0 - 2, x1 + 2, y1 + 2],
+                           radius=14, outline=ANTIQUE_GOLD_BRIGHT, width=4)
+    draw.rounded_rectangle([x0 + 2, y0 + 2, x1 - 2, y1 - 2],
+                           radius=10, outline=ANTIQUE_GOLD, width=1)
+
+
+def compose_premium_ad(
+    food_bg_bytes: bytes,
+    guest_photo_bytes: Optional[bytes],
+    *,
+    aspect: str = "1:1",
+    headline_marathi: str = "",
+    headline_english: str = "",
+    byline: str = "",
+    brand: str = "Purnabramha — Authentic Maharashtrian Cuisine",
+    logo_path: Optional[str] = None,
+    is_group: bool = False,
+    balgopal: bool = False,
+    scene_seed: Optional[int] = None,
+) -> bytes:
+    """Compose the FINAL premium ad — golden-reference layout.
+
+    The AI food image (`food_bg_bytes`) is treated as a building block; the
+    layout is built deterministically in Pillow so the photo, logo, text and
+    brand strip are ALWAYS present and correctly placed.
+
+    Raises:
+        ValueError if `food_bg_bytes` cannot be opened.
+    """
+    food = Image.open(io.BytesIO(food_bg_bytes)).convert("RGBA")
+    food_w, food_h = food.size
+
+    # ── Decide final canvas size based on aspect ──────────────────────────
+    aspect_map = {"1:1": (1600, 1600), "4:5": (1280, 1600), "9:16": (1080, 1920)}
+    W, H = aspect_map.get(aspect, aspect_map["1:1"])
+    canvas = Image.new("RGBA", (W, H), (250, 240, 220, 255))
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+
+    # ── Pick scene archetype (variety per generation) ──────────────────────
+    rng = _random.Random(scene_seed if scene_seed is not None else _random.randint(0, 10**9))
+    scene = rng.choice(SCENE_ARCHETYPES)
+    _scene_name, panel_color, accent, pill_color, pill_alpha = scene
+    pill_fill = (pill_color[0], pill_color[1], pill_color[2], pill_alpha)
+
+    # ── Layout regions per aspect ─────────────────────────────────────────
+    BRAND_STRIP_H = max(64, int(H * 0.045))
+
+    if aspect == "9:16":
+        # Vertical: TOP 50% = brand panel (photo + logo on side), BOTTOM 50% = food
+        panel_h = int(H * 0.50)
+        panel_box = (0, 0, W, panel_h)
+        food_box = (0, panel_h, W, H - BRAND_STRIP_H)
+        # Guest photo: top-left of panel
+        ph_pad = int(W * 0.05)
+        ph_w = int(W * 0.45)
+        ph_h = int(panel_h * 0.70)
+        photo_box = (ph_pad, ph_pad, ph_pad + ph_w, ph_pad + ph_h)
+        # Logo: right of photo
+        logo_d = int(panel_h * 0.42)
+        logo_center = (W - ph_pad - logo_d // 2 - 10, ph_pad + ph_h // 2)
+        # Text block: bottom of panel, full width
+        text_box = (ph_pad, ph_pad + ph_h + 24, W - ph_pad, panel_h - 24)
+    else:
+        # 1:1 / 4:5: LEFT 38% = panel, RIGHT 62% = food
+        panel_w = int(W * 0.38)
+        panel_box = (0, 0, panel_w, H - BRAND_STRIP_H)
+        food_box = (panel_w, 0, W, H - BRAND_STRIP_H)
+        # Photo: top half of panel
+        ph_pad = int(panel_w * 0.10)
+        ph_top = int(H * 0.06)
+        ph_w = panel_w - 2 * ph_pad
+        ph_h = int(H * 0.42)
+        photo_box = (ph_pad, ph_top, ph_pad + ph_w, ph_top + ph_h)
+        # Logo: centered below the photo
+        logo_d = int(panel_w * 0.50)
+        logo_center = (panel_w // 2, ph_top + ph_h + int(H * 0.04) + logo_d // 2)
+        # Text block: top-right corner over the food image
+        text_pad = int(W * 0.03)
+        text_w = int((W - panel_w) * 0.86)
+        text_h = int(H * 0.34)
+        text_box = (panel_w + text_pad,
+                    int(H * 0.05),
+                    panel_w + text_pad + text_w,
+                    int(H * 0.05) + text_h)
+
+    # ── 1) FOOD background (right / bottom) ───────────────────────────────
+    fb_x0, fb_y0, fb_x1, fb_y1 = food_box
+    fb_w = fb_x1 - fb_x0
+    fb_h = fb_y1 - fb_y0
+    # Cover-fit the AI food image into food_box
+    fscale = max(fb_w / food_w, fb_h / food_h)
+    nw, nh = int(food_w * fscale), int(food_h * fscale)
+    food_scaled = food.resize((nw, nh), Image.LANCZOS)
+    left = (nw - fb_w) // 2
+    top = (nh - fb_h) // 2
+    food_fit = food_scaled.crop((left, top, left + fb_w, top + fb_h))
+    canvas.paste(food_fit, (fb_x0, fb_y0))
+
+    # ── 2) LEFT panel (solid maroon/chocolate with subtle paisley) ────────
+    pb_x0, pb_y0, pb_x1, pb_y1 = panel_box
+    panel_layer = Image.new("RGBA", (pb_x1 - pb_x0, pb_y1 - pb_y0),
+                            (panel_color[0], panel_color[1], panel_color[2], 255))
+    pd = ImageDraw.Draw(panel_layer)
+    # Faint paisley
+    _draw_paisley_pattern(pd, 0, 0, pb_x1 - pb_x0, pb_y1 - pb_y0,
+                          accent, alpha=42)
+    # Soft right-edge gold divider (only when panel is on the LEFT)
+    if aspect != "9:16":
+        pd.rectangle([pb_x1 - pb_x0 - 4, 0, pb_x1 - pb_x0, pb_y1 - pb_y0],
+                     fill=ANTIQUE_GOLD)
+    else:
+        pd.rectangle([0, pb_y1 - pb_y0 - 4, pb_x1 - pb_x0, pb_y1 - pb_y0],
+                     fill=ANTIQUE_GOLD)
+    canvas.paste(panel_layer, (pb_x0, pb_y0), panel_layer)
+
+    # ── 3) Guest photo on panel ───────────────────────────────────────────
+    if guest_photo_bytes:
+        try:
+            _paste_guest_photo_framed(
+                layer, guest_photo_bytes, photo_box,
+                is_group=is_group, balgopal=balgopal,
+            )
+        except Exception as e:
+            logger.error(f"compose_premium_ad: guest photo failed: {e}", exc_info=True)
+            # Hard fallback: draw a cream "Guest" tile so we never have a gap
+            x0, y0, x1, y1 = photo_box
+            draw.rounded_rectangle([x0, y0, x1, y1], radius=14,
+                                   fill=(253, 246, 231, 255),
+                                   outline=ANTIQUE_GOLD_BRIGHT, width=4)
+            f = _font(LATIN_BOLD, int((y1 - y0) * 0.18))
+            txt = "Guest"
+            bb = draw.textbbox((0, 0), txt, font=f)
+            tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+            draw.text((x0 + ((x1 - x0) - tw) // 2,
+                       y0 + ((y1 - y0) - th) // 2),
+                      txt, font=f, fill=DEEP_MAROON)
+    else:
+        # No photo provided — leave a decorative emblem in its place
+        x0, y0, x1, y1 = photo_box
+        cx = (x0 + x1) // 2; cy = (y0 + y1) // 2
+        r = min(x1 - x0, y1 - y0) // 3
+        for rr in [r, int(r * 0.75), int(r * 0.5)]:
+            draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr],
+                         outline=ANTIQUE_GOLD_BRIGHT, width=3)
+
+    # ── 4) Circular logo medallion ────────────────────────────────────────
+    if logo_path:
+        _draw_circle_logo(layer, logo_path, logo_center[0], logo_center[1],
+                          logo_d)
+
+    # ── 5) Marathi + English text block on cream pill ─────────────────────
+    _draw_text_block(layer, text_box, headline_marathi, headline_english,
+                     byline, pill_fill)
+
+    # ── 6) Thin brand strip at the bottom ─────────────────────────────────
+    strip_y0 = H - BRAND_STRIP_H
+    draw.rectangle([0, strip_y0, W, H], fill=DARK_CHOCOLATE)
+    draw.rectangle([0, strip_y0, W, strip_y0 + 3], fill=ANTIQUE_GOLD_BRIGHT)
+    f_brand = _font(LATIN_BOLD, int(BRAND_STRIP_H * 0.42))
+    line = "Purnabramha  —  Authentic Maharashtrian Cuisine"
+    bb = draw.textbbox((0, 0), line, font=f_brand)
+    tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+    # Shrink if too wide
+    fb_size = int(BRAND_STRIP_H * 0.42)
+    while tw > W - 40 and fb_size > 14:
+        fb_size = int(fb_size * 0.92)
+        f_brand = _font(LATIN_BOLD, fb_size)
+        bb = draw.textbbox((0, 0), line, font=f_brand)
+        tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+    tx = (W - tw) // 2
+    ty = strip_y0 + (BRAND_STRIP_H - th) // 2 - 4
+    draw.text((tx, ty), line, font=f_brand, fill=WARM_CREAM)
+
+    out = Image.alpha_composite(canvas, layer).convert("RGB")
+    buf = io.BytesIO()
+    out.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
