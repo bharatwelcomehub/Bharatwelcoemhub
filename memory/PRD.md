@@ -5,6 +5,35 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] Marketing Ad — Guest photo composited as-is (NEVER AI-stylized)
+
+**User report** (verbatim, screenshot from production): "Why are we not taking photo of guest as is and create the creatives as visible as possible" — Balgopal generation was showing an AI-painted child face that did NOT match the uploaded photo (group of 2 people uploaded → 1 stylized child rendered).
+
+**Root cause**: Nano Banana (Gemini-3 image) is unreliable at preserving real faces from a reference photo — it tends to "interpret" rather than reproduce. We were trusting it to embed the guest's face.
+
+**Fix — hybrid AI + Pillow compositing**:
+
+1. **AI prompt now explicitly forbids drawing any person** when a guest photo is provided. New person block: *"NO HUMAN FIGURE IN THIS GENERATION. DO NOT add any human face, head, body, hand, silhouette, child, or person. DO NOT redraw, stylise, or interpret any guest. Leave the LEFT 45% of the canvas completely clean (cream/gold soft texture, NO food, NO person, NO objects) — the real guest photo will be pasted there."*
+
+2. **Guest photo is NO longer sent as a reference to Nano Banana** — we only send the menu/dish image if uploaded. AI generates ONLY the brand backdrop + food on the right half.
+
+3. **New `utils/text_overlay.py::composite_guest_photo()`** — Pillow pastes the actual uploaded photo on the LEFT panel (or TOP half for 9:16 vertical) with:
+   - Proportional cover-fit (faces dominate the frame)
+   - Cream card background + drop shadow (premium look)
+   - Gold rounded-corner inner border (matches brand)
+   - **Balgopal mode**: gold 8-point star burst behind the photo with soft glow (Gaussian-blurred) — visually celebrates the kid as a "Star Eater" without altering the real face.
+
+4. Pipeline order: AI generates clean backdrop + food → Pillow composites guest photo → Pillow overlays Devanagari caption + transparent logo.
+
+**Verified end-to-end** (PB-MGT, Balgopal Riya, test photo with `skin=(240,200,170)`):
+- 950.2 KB ad generated ✓
+- Sampled left-panel pixels = `(240, 201, 170)` = **exact match with uploaded photo** (off-by-1 = JPEG round-trip) — confirms the real photo pixels are preserved, NOT re-painted ✓
+- Caption: *"बालगोपाळ रियाजींनी विशेष मोदक ताट संपवली — आजच्या अन्नदात्याच्या मित्राला ⭐ स्वर्णतारा!"* (kid finished the special modak plate; today's farmer-friend earns a gold star) ✓
+- Group photos: every face in the original upload is preserved because we paste the WHOLE image, not a stylization.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy, every guest's face appears in the ad exactly as uploaded — no more AI re-interpretation.
+
+
 ### [2026-06-03] Marketing Ad — free-text menu, dish photo upload, Balgopal kids mode (NEW)
 
 **User asks** (verbatim, on production):

@@ -136,72 +136,38 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
     """Compose the Gemini prompt that drives the creative.
 
     IMPORTANT: This prompt instructs the LLM to produce a **clean visual ONLY**
-    — no text, no caption, no headline. Text is overlaid crisply server-side
-    via Pillow + Noto Sans Devanagari (utils/text_overlay.py) so Marathi
-    script always renders perfectly.
+    — no text, no caption, no headline, AND no person/face. The actual guest
+    photo is composited onto the LEFT panel server-side via Pillow so faces are
+    always EXACTLY the uploaded image. Text is overlaid crisply via Pillow +
+    Noto Sans Devanagari so Marathi script always renders perfectly.
 
     Modes:
-    - BALGOPAL (kids) mode: guest_name or subject mentions "Balgopal" — the
-      creative celebrates the child as a young food champion (super hero /
-      super queen / star eater / farmer friend) with their empty/clean plate.
-    - GUEST mode (photo provided): reference photo IS the guest(s).
+    - BALGOPAL (kids) mode: special motifs around the photo area (star burst
+      added server-side around the actual photo).
+    - GUEST mode (photo provided): AI generates ONLY the brand backdrop + food
+      on the RIGHT half; the LEFT half MUST stay clean for the real photo.
     - PRODUCT mode (no photo): pure dish-led advertisement (no person).
     """
     aspect = ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT["1:1"])
     has_photo = bool(req.photo_base64)
     has_menu_img = bool(req.menu_item_image_base64)
-    guest_name = (req.guest_name or "").strip()
     subject = (req.subject_text or req.festival_theme or "").strip()
     balgopal = _is_balgopal(req.guest_name, req.subject_text)
 
-    if balgopal and has_photo:
-        person_block = f"""USE THE CHILD'S FACE(S) FROM THE REFERENCE IMAGE — BALGOPAL (KIDS) MODE.
-- The reference photo shows the young guest(s) named "{guest_name or 'Balgopal'}".
-- Preserve EVERY child's face from the reference — do not crop, do not replace, do not age them.
-- Compose the child(ren) joyfully proud of their CLEAN / EMPTY plate.
-- Add ONE celebratory motif that fits a kid hero archetype (pick the most apt
-  one for the child's expression — do NOT add all):
-    • golden star burst behind the head ("star eater")
-    • soft superhero cape and flowing dupatta ("super hero" / "super queen")
-    • little farmer's hat + a few wheat sprigs in hand ("farmer friend who
-      respects every grain")
-- Keep the motif tasteful and gentle — NOT cartoony, NOT comic-book. Watercolour
-  storybook feel, warm cream & gold palette.
-- Position the child(ren) on the LEFT half (or top half for 9:16), with the
-  empty plate prominently visible on the RIGHT / BOTTOM. The plate must have a
-  few leftover crumbs / a smear of curry / a single grain so it reads as
-  "finished with love", not "untouched".
-- Smiling, candid, dignified — never showing food in mouth or food on face.
-"""
-    elif balgopal and not has_photo:
-        person_block = """BALGOPAL (KIDS) MODE — NO REFERENCE CHILD PHOTO.
-- Compose an illustrative kid hero scene (NO real child face) — a small clean
-  empty plate and a celebratory hero motif (golden star burst, soft superhero
-  cape, or a tiny farmer's hat + wheat sprigs). Pick ONE motif.
-- Storybook-watercolour treatment, warm cream + gold + maroon palette.
-- The scene should clearly read: "a young food champion finished their plate".
-- Do NOT draw a child's face or human figure recognisable as a specific person.
-"""
-    elif has_photo:
-        if req.is_group_photo:
-            person_block = f"""USE EVERY FACE FROM THE REFERENCE IMAGE — THIS IS A GROUP PHOTO.
-- The reference photo contains MULTIPLE PEOPLE (a family / friends / colleagues).
-- Preserve EACH person's face recognisably. Keep all heads & faces visible.
-- Do NOT crop anyone out. Do NOT add new people. Do NOT replace any face.
-- If the reference shows {guest_name or 'the guests'}, label them together as one group.
-- Compose the group portrait on the LEFT half (or top half for 9:16),
-  arranging the people warmly — close together, smiling, dining setting.
-- Background blurred / softened tastefully.
-"""
+    # ── Person block: when a guest photo is provided we explicitly tell the
+    # AI NOT to draw any person at all — the real photo is composited later.
+    if has_photo:
+        if req.output_format == "9:16":
+            safe_area = "Leave the TOP 50% of the canvas COMPLETELY clean (cream/gold soft texture, NO food, NO person, NO objects) — the real guest photo will be pasted there."
         else:
-            person_block = f"""USE THE GUEST'S FACE(S) FROM THE REFERENCE IMAGE.
-- The reference photo shows the customer(s) named "{guest_name or 'our valued guest'}".
-- IF the reference contains MULTIPLE PEOPLE, preserve EVERY face — do not crop anyone out.
-- IF only ONE person, place a clean cutout of that exact person.
-- Keep faces recognisable and dignified. Soften the background.
-- Position the guest(s) on the LEFT third (or top third for 9:16), leaving
-  the RIGHT/BOTTOM portion for the food showcase.
-- Smiling, candid, warm dining moment.
+            safe_area = "Leave the LEFT 45% of the canvas COMPLETELY clean (cream/gold soft texture, NO food, NO person, NO objects) — the real guest photo will be pasted there."
+        person_block = f"""NO HUMAN FIGURE IN THIS GENERATION.
+- DO NOT add any human face, head, body, hand, silhouette, child, or person.
+- DO NOT redraw, stylise, or interpret any guest.
+- {safe_area}
+- The real photo (with the real faces of the real guests) will be composited
+  on top of that clean area by our server. Your job is ONLY the brand backdrop
+  + food showcase on the OTHER half.
 """
     else:
         person_block = """NO PERSON IN THIS ADVERTISEMENT.
@@ -209,23 +175,22 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
 - Use the full canvas to celebrate the food itself with rich, premium composition.
 """
 
-    # Menu image directive — if the manager uploaded a dish photo, use it as
-    # the AUTHORITATIVE reference for plating
+    # Menu reference image (if uploaded) is authoritative
     if has_menu_img:
         menu_directive = f"""DISH REFERENCE PHOTO — AUTHORITATIVE.
-- ANOTHER reference image is provided showing the actual dish "{req.menu_item}"
-  as plated at Purnabramha. Use THAT image as the ground truth for what the food
-  looks like (colour, garnish, vessel, portion). Re-photograph it in premium
-  food-photography style — same dish, same plating, but with brand-grade lighting,
-  composition, and depth of field.
+- Another reference image shows the actual dish "{req.menu_item}" as plated at
+  Purnabramha. Use THAT image as the ground truth for what the food looks like
+  (colour, garnish, vessel, portion). Re-photograph it in premium food-photography
+  style — same dish, same plating, brand-grade lighting + depth of field.
 - Do NOT swap to a stock interpretation of the dish. Respect the manager's photo.
 """
     elif balgopal:
-        # In Balgopal mode without a menu image, show the EMPTY plate, not a new dish
         menu_directive = f"""FOOD HERO — BALGOPAL FINISHED PLATE.
 - Show a clean / nearly-empty plate of "{req.menu_item}" with just a few crumbs,
   curry smear, or one grain left — proof the child finished with love.
 - Authentic Maharashtrian vessel (brass-rim plate or banana leaf).
+- Place the plate on the RIGHT half (or BOTTOM half for 9:16), well away from the
+  clean photo zone.
 """
     else:
         menu_directive = f"""FOOD HERO:
@@ -233,15 +198,16 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
 - Authentic, traditional preparation (no fusion). Premium food photography:
   brass-rim plate or banana leaf, soft golden light, glistening textures,
   steam where appropriate. Garnish with fresh coriander / kothimbir.
+- Place the food on the RIGHT half (or BOTTOM half for 9:16) when a guest photo
+  is being composited. Otherwise centred / full-canvas.
 """
 
     # Critical: where to leave clean text-safe area for our crisp overlay
     safe_zone_block = """TEXT-SAFE ZONE — CRITICAL:
 - DO NOT render ANY text, letters, words, captions, headlines, slogans, hashtags,
   numbers, dates, prices, logos, watermarks, or stamps INSIDE the image.
-- Leave the BOTTOM 30% of the canvas visually calm — soft gradient, low-detail
-  background, no faces, no food items in the bottom strip — so that crisp
-  studio typography can be overlaid afterwards.
+- Leave the BOTTOM 25% of the canvas visually calm — soft gradient, low-detail
+  background — so crisp studio typography can be overlaid afterwards.
 - The top-right corner should also stay calm (room for a brand logo).
 """
 
@@ -443,10 +409,13 @@ async def generate_ad(req: AdGenerateRequest):
     ).with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
 
     try:
-        # Build reference image list: guest photo (if any) first, dish reference (if any) second.
+        # Build reference image list for Nano Banana.
+        # IMPORTANT: We deliberately do NOT pass the guest photo any more.
+        # Nano Banana is unreliable at preserving real faces — so we tell it
+        # to leave a clean panel for the photo, and Pillow composites the real
+        # photo on top server-side. Only the dish image (if uploaded) is sent
+        # as an authoritative reference.
         refs: list = []
-        if req.photo_base64:
-            refs.append(ImageContent(_strip_data_url(req.photo_base64)))
         if req.menu_item_image_base64:
             refs.append(ImageContent(_strip_data_url(req.menu_item_image_base64)))
         if refs:
@@ -454,7 +423,6 @@ async def generate_ad(req: AdGenerateRequest):
                 UserMessage(text=prompt, file_contents=refs)
             )
         else:
-            # Product-only mode — no reference images
             _text, images = await chat.send_message_multimodal_response(
                 UserMessage(text=prompt)
             )
@@ -467,6 +435,21 @@ async def generate_ad(req: AdGenerateRequest):
 
     img = images[0]
     raw_bytes = base64.b64decode(img["data"])
+
+    # ── Composite the ACTUAL guest photo onto the LEFT panel (Pillow) ────
+    # AI is told NOT to draw any person — we paste the real photo so the
+    # guest's face is always 100% recognisable.
+    if req.photo_base64:
+        try:
+            from utils.text_overlay import composite_guest_photo
+            guest_bytes = base64.b64decode(_strip_data_url(req.photo_base64))
+            raw_bytes = composite_guest_photo(
+                raw_bytes, guest_bytes,
+                aspect=req.output_format,
+                balgopal=_is_balgopal(req.guest_name, req.subject_text),
+            )
+        except Exception as e:
+            logger.warning(f"guest photo composite failed (keeping AI image): {e}")
 
     # ── Crisp text overlay (Pillow + Noto Sans Devanagari) ───────────────
     # The image LLM is instructed NOT to render text. We overlay caption +

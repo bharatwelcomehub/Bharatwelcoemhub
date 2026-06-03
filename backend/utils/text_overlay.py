@@ -28,6 +28,127 @@ GOLD = (176, 132, 49)
 CREAM = (253, 246, 231)
 WHITE = (255, 255, 255)
 DARK_BG = (15, 8, 8, 200)        # rgba semi-transparent maroon
+
+
+def composite_guest_photo(
+    bg_bytes: bytes,
+    guest_photo_bytes: bytes,
+    aspect: str = "1:1",
+    balgopal: bool = False,
+) -> bytes:
+    """Paste the actual guest photo on the LEFT side of the AI background.
+
+    The AI is unreliable at face preservation, so we generate ONLY the brand
+    backdrop + food via the LLM and then composite the real photo on the left.
+    Faces are guaranteed to look exactly like the upload.
+
+    For 9:16 / vertical formats, we use the TOP half instead of the LEFT half.
+    Balgopal mode adds a gold star burst behind the photo.
+    """
+    try:
+        bg = Image.open(io.BytesIO(bg_bytes)).convert("RGBA")
+        guest = Image.open(io.BytesIO(guest_photo_bytes)).convert("RGBA")
+    except Exception as e:
+        logger.error(f"composite_guest_photo: bad input: {e}")
+        return bg_bytes
+
+    W, H = bg.size
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+
+    # ── Place the photo on the LEFT (or TOP for portrait/story) ───────────
+    if aspect == "9:16":
+        # Vertical: photo on top half
+        pad = int(min(W, H) * 0.06)
+        avail_w = W - 2 * pad
+        avail_h = int(H * 0.45) - pad
+    else:
+        # Square / portrait poster: photo on left
+        pad = int(min(W, H) * 0.05)
+        avail_w = int(W * 0.45) - pad
+        avail_h = H - 2 * pad - int(H * 0.18)   # leave bottom band for text
+
+    # Scale the guest photo to fit the available area (proportional cover-fit
+    # so faces dominate the frame; we crop slightly if needed).
+    gw, gh = guest.size
+    scale = max(avail_w / gw, avail_h / gh)
+    new_w, new_h = int(gw * scale), int(gh * scale)
+    guest_scaled = guest.resize((new_w, new_h), Image.LANCZOS)
+    # Center-crop to the available area
+    cx, cy = new_w // 2, new_h // 2
+    left = cx - avail_w // 2
+    top = cy - avail_h // 2
+    guest_cropped = guest_scaled.crop((left, top, left + avail_w, top + avail_h))
+
+    # ── Decorative frame ───────────────────────────────────────────────────
+    if aspect == "9:16":
+        photo_x = pad
+        photo_y = pad
+    else:
+        photo_x = pad
+        photo_y = (H - avail_h) // 2
+
+    # Gold star burst behind photo (Balgopal mode)
+    if balgopal:
+        star = Image.new("RGBA", (avail_w + 80, avail_h + 80), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(star)
+        cx, cy = star.width // 2, star.height // 2
+        # 8-point star rays
+        import math
+        for i in range(16):
+            ang = (math.pi / 8) * i
+            outer = (cx + int(math.cos(ang) * (star.width // 2 + 20)),
+                     cy + int(math.sin(ang) * (star.height // 2 + 20)))
+            sd.line([cx, cy, outer[0], outer[1]],
+                    fill=(220, 175, 60, 90 if i % 2 else 140), width=14 if i % 2 else 22)
+        # Soft glow ellipse
+        glow = Image.new("RGBA", star.size, (0, 0, 0, 0))
+        gd = ImageDraw.Draw(glow)
+        gd.ellipse([10, 10, star.width - 10, star.height - 10],
+                   fill=(255, 220, 140, 120))
+        try:
+            from PIL import ImageFilter
+            glow = glow.filter(ImageFilter.GaussianBlur(radius=24))
+            star = star.filter(ImageFilter.GaussianBlur(radius=6))
+        except Exception:
+            pass
+        layer.paste(glow, (photo_x - 40, photo_y - 40), glow)
+        layer.paste(star, (photo_x - 40, photo_y - 40), star)
+
+    # White card frame behind the photo (subtle, 8px padding)
+    frame_pad = 8
+    frame_rect = [photo_x - frame_pad, photo_y - frame_pad,
+                  photo_x + avail_w + frame_pad, photo_y + avail_h + frame_pad]
+    # Drop shadow
+    shadow = Image.new("RGBA", (avail_w + 24, avail_h + 24), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    sd.rounded_rectangle([6, 6, avail_w + 18, avail_h + 18],
+                         radius=14, fill=(0, 0, 0, 110))
+    try:
+        from PIL import ImageFilter
+        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=8))
+    except Exception:
+        pass
+    layer.paste(shadow, (photo_x - 6, photo_y - 6), shadow)
+    # Cream card
+    draw.rounded_rectangle(frame_rect, radius=14, fill=(253, 246, 231, 255))
+    # Photo
+    # Round the corners of the photo to match the frame
+    mask = Image.new("L", (avail_w, avail_h), 0)
+    md = ImageDraw.Draw(mask)
+    md.rounded_rectangle([0, 0, avail_w, avail_h], radius=10, fill=255)
+    layer.paste(guest_cropped, (photo_x, photo_y), mask)
+    # Gold inner border
+    draw.rounded_rectangle(
+        [photo_x - 1, photo_y - 1, photo_x + avail_w + 1, photo_y + avail_h + 1],
+        radius=11, outline=GOLD, width=3,
+    )
+
+    out = Image.alpha_composite(bg, layer).convert("RGB")
+    buf = io.BytesIO()
+    out.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
 GOLD_BG = (176, 132, 49, 220)
 
 
