@@ -110,6 +110,20 @@ class AdGenerateRequest(BaseModel):
     subject_text: Optional[str] = None   # e.g. "Loved the Thali", "First-time visit"
     # NEW — group photo support (manager-toggled, also auto-prompted)
     is_group_photo: bool = False
+    # NEW — optional menu/dish reference image uploaded by the center manager
+    menu_item_image_base64: Optional[str] = None
+
+
+def _is_balgopal(guest_name: Optional[str], subject_text: Optional[str] = None) -> bool:
+    """Detect Balgopal (kids) mode from guest name or subject text.
+
+    Balgopal = young Krishna; used by Purnabramha as a loving term for kid
+    customers. When set, the creative celebrates the child as a young food
+    champion (super hero / super queen / star eater / farmer friend) instead
+    of a regular guest testimonial.
+    """
+    blob = f"{guest_name or ''} {subject_text or ''}".lower()
+    return "balgopal" in blob or "बालगोपाळ" in (guest_name or "") + (subject_text or "")
 
 
 def _strip_data_url(b64: str) -> str:
@@ -126,16 +140,49 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
     via Pillow + Noto Sans Devanagari (utils/text_overlay.py) so Marathi
     script always renders perfectly.
 
-    Two modes:
+    Modes:
+    - BALGOPAL (kids) mode: guest_name or subject mentions "Balgopal" — the
+      creative celebrates the child as a young food champion (super hero /
+      super queen / star eater / farmer friend) with their empty/clean plate.
     - GUEST mode (photo provided): reference photo IS the guest(s).
     - PRODUCT mode (no photo): pure dish-led advertisement (no person).
     """
     aspect = ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT["1:1"])
     has_photo = bool(req.photo_base64)
+    has_menu_img = bool(req.menu_item_image_base64)
     guest_name = (req.guest_name or "").strip()
     subject = (req.subject_text or req.festival_theme or "").strip()
+    balgopal = _is_balgopal(req.guest_name, req.subject_text)
 
-    if has_photo:
+    if balgopal and has_photo:
+        person_block = f"""USE THE CHILD'S FACE(S) FROM THE REFERENCE IMAGE — BALGOPAL (KIDS) MODE.
+- The reference photo shows the young guest(s) named "{guest_name or 'Balgopal'}".
+- Preserve EVERY child's face from the reference — do not crop, do not replace, do not age them.
+- Compose the child(ren) joyfully proud of their CLEAN / EMPTY plate.
+- Add ONE celebratory motif that fits a kid hero archetype (pick the most apt
+  one for the child's expression — do NOT add all):
+    • golden star burst behind the head ("star eater")
+    • soft superhero cape and flowing dupatta ("super hero" / "super queen")
+    • little farmer's hat + a few wheat sprigs in hand ("farmer friend who
+      respects every grain")
+- Keep the motif tasteful and gentle — NOT cartoony, NOT comic-book. Watercolour
+  storybook feel, warm cream & gold palette.
+- Position the child(ren) on the LEFT half (or top half for 9:16), with the
+  empty plate prominently visible on the RIGHT / BOTTOM. The plate must have a
+  few leftover crumbs / a smear of curry / a single grain so it reads as
+  "finished with love", not "untouched".
+- Smiling, candid, dignified — never showing food in mouth or food on face.
+"""
+    elif balgopal and not has_photo:
+        person_block = """BALGOPAL (KIDS) MODE — NO REFERENCE CHILD PHOTO.
+- Compose an illustrative kid hero scene (NO real child face) — a small clean
+  empty plate and a celebratory hero motif (golden star burst, soft superhero
+  cape, or a tiny farmer's hat + wheat sprigs). Pick ONE motif.
+- Storybook-watercolour treatment, warm cream + gold + maroon palette.
+- The scene should clearly read: "a young food champion finished their plate".
+- Do NOT draw a child's face or human figure recognisable as a specific person.
+"""
+    elif has_photo:
         if req.is_group_photo:
             person_block = f"""USE EVERY FACE FROM THE REFERENCE IMAGE — THIS IS A GROUP PHOTO.
 - The reference photo contains MULTIPLE PEOPLE (a family / friends / colleagues).
@@ -162,6 +209,32 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
 - Use the full canvas to celebrate the food itself with rich, premium composition.
 """
 
+    # Menu image directive — if the manager uploaded a dish photo, use it as
+    # the AUTHORITATIVE reference for plating
+    if has_menu_img:
+        menu_directive = f"""DISH REFERENCE PHOTO — AUTHORITATIVE.
+- ANOTHER reference image is provided showing the actual dish "{req.menu_item}"
+  as plated at Purnabramha. Use THAT image as the ground truth for what the food
+  looks like (colour, garnish, vessel, portion). Re-photograph it in premium
+  food-photography style — same dish, same plating, but with brand-grade lighting,
+  composition, and depth of field.
+- Do NOT swap to a stock interpretation of the dish. Respect the manager's photo.
+"""
+    elif balgopal:
+        # In Balgopal mode without a menu image, show the EMPTY plate, not a new dish
+        menu_directive = f"""FOOD HERO — BALGOPAL FINISHED PLATE.
+- Show a clean / nearly-empty plate of "{req.menu_item}" with just a few crumbs,
+  curry smear, or one grain left — proof the child finished with love.
+- Authentic Maharashtrian vessel (brass-rim plate or banana leaf).
+"""
+    else:
+        menu_directive = f"""FOOD HERO:
+- Showcase a beautifully plated portion of "{req.menu_item}".
+- Authentic, traditional preparation (no fusion). Premium food photography:
+  brass-rim plate or banana leaf, soft golden light, glistening textures,
+  steam where appropriate. Garnish with fresh coriander / kothimbir.
+"""
+
     # Critical: where to leave clean text-safe area for our crisp overlay
     safe_zone_block = """TEXT-SAFE ZONE — CRITICAL:
 - DO NOT render ANY text, letters, words, captions, headlines, slogans, hashtags,
@@ -172,23 +245,21 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
 - The top-right corner should also stay calm (room for a brand logo).
 """
 
+    mood_line = "young food champion · joyful pride · gentle storybook warmth" if balgopal \
+        else (subject or "warm hospitality")
+
     return f"""You are designing a premium social-media advertisement for "{BRAND_NAME}".
 
 Aspect ratio: {aspect}. The final image MUST honour this aspect ratio exactly.
 
 {person_block}
-FOOD HERO:
-- Showcase a beautifully plated portion of "{req.menu_item}".
-- Authentic, traditional preparation (no fusion). Premium food photography:
-  brass-rim plate or banana leaf, soft golden light, glistening textures,
-  steam where appropriate. Garnish with fresh coriander / kothimbir.
-
+{menu_directive}
 BRAND VISUAL LANGUAGE:
 - Colour palette: {BRAND_COLORS}.
 - Design language: {BRAND_DESIGN}.
 - Subtle cultural motifs: banana-leaf veins, faint paisley border, brass copper
   highlights. Keep them sparing and refined, never busy.
-- Subject / mood (use as creative direction, NOT as literal headline): {subject or "warm hospitality"}.
+- Subject / mood (use as creative direction, NOT as literal headline): {mood_line}.
 
 {safe_zone_block}
 GENERAL RULES:
@@ -226,12 +297,30 @@ async def _generate_caption(req: AdGenerateRequest) -> dict:
     guest_name = (req.guest_name or "").strip()
     subject_text = (req.subject_text or "").strip()
     poster = (req.manager_name or "").strip()
-    mode = "testimonial" if (guest_name or subject_text) else "product"
+    balgopal = _is_balgopal(req.guest_name, req.subject_text)
+    mode = "balgopal_kid" if balgopal else ("testimonial" if (guest_name or subject_text) else "product")
+
+    balgopal_brief = ""
+    if balgopal:
+        balgopal_brief = """
+BALGOPAL (KIDS) MODE — IMPORTANT:
+- The guest is a CHILD ("Balgopal" = young Krishna = Purnabramha's loving term for kid customers).
+- The caption celebrates the kid as a young food champion who CLEANED THEIR PLATE.
+- Pick ONE archetype that fits the child's mood / subject:
+    a) "Star Eater" — they earned a गोल्डन तारा (gold star) for finishing the plate
+    b) "Super Hero / Super Queen" — कापडी cape / dupatta of a food champion
+    c) "Farmer Friend" — they honoured every grain (no food wasted), अन्नदात्याचा मित्र
+- Use playful but dignified language. Never patronising, never baby-talk.
+- Examples:
+    "बालगोपाळ {gname}जींना ⭐ स्टार खाद्यवीराचं नाव!"
+    "{gname}जींनी पूर्ण ताट संपवली — आता आहेत 'पूर्णब्रह्माचे शूरवीर'!"
+    "{gname} → Today's Super Hero who left no grain behind. 🌾"
+""".replace("{gname}", guest_name or "बालगोपाळ")
 
     user_prompt = f"""Write a social-media caption for an advertisement.
 
 Mode: {mode}
-
+{balgopal_brief}
 Inputs:
 - Guest name (subject of the testimonial): {guest_name or "(none — product/occasion ad)"}
 - Subject / message (what to convey): {subject_text or req.festival_theme}
@@ -242,7 +331,8 @@ Inputs:
 - Language wanted: {req.language}
 
 Rules:
-- If guest_name is present, the caption is FROM THE BRAND celebrating the guest's
+- If mode is balgopal_kid, follow the BALGOPAL brief above — celebrate the child finishing their plate as a young food champion.
+- If guest_name is present (non-Balgopal), the caption is FROM THE BRAND celebrating the guest's
   visit/testimonial. Mention the guest naturally (e.g. "{guest_name}जींना आवडलं",
   "{guest_name} sir/madam loved...").
 - If guest_name is empty, write a clean product/occasion caption around the menu hero.
@@ -261,6 +351,9 @@ Example A (testimonial mode — guest "Balgopal" loved Thali):
 
 Example B (product mode — Misal Pav, no guest):
 {{"marathi":"तिखट, गरमा-गरम मिसळ — कोल्हापुरी थाटात!","english":"Fiery, fresh, and unapologetically Maharashtrian.","headline":"तिखट, गरमा-गरम मिसळ — कोल्हापुरी थाटात!"}}
+
+Example C (BALGOPAL kid mode — guest Balgopal Riya finished her Puran Poli):
+{{"marathi":"बालगोपाळ रियाजींनी ⭐ स्टार खाद्यवीराचं नाव — पुरणपोळी संपवली अगदी अन्न-वाया-न-घालता!","english":"Balgopal Riya earned today's Star Plate — finished every bite of her Puran Poli! 🌾","headline":"बालगोपाळ रिया → आजची स्टार खाद्यवीर ⭐"}}
 """
 
     chat = LlmChat(
@@ -350,13 +443,18 @@ async def generate_ad(req: AdGenerateRequest):
     ).with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
 
     try:
+        # Build reference image list: guest photo (if any) first, dish reference (if any) second.
+        refs: list = []
         if req.photo_base64:
-            photo_b64 = _strip_data_url(req.photo_base64)
+            refs.append(ImageContent(_strip_data_url(req.photo_base64)))
+        if req.menu_item_image_base64:
+            refs.append(ImageContent(_strip_data_url(req.menu_item_image_base64)))
+        if refs:
             _text, images = await chat.send_message_multimodal_response(
-                UserMessage(text=prompt, file_contents=[ImageContent(photo_b64)])
+                UserMessage(text=prompt, file_contents=refs)
             )
         else:
-            # Product-only mode — no reference photo
+            # Product-only mode — no reference images
             _text, images = await chat.send_message_multimodal_response(
                 UserMessage(text=prompt)
             )
@@ -407,6 +505,8 @@ async def generate_ad(req: AdGenerateRequest):
         "guest_name": req.guest_name or "",
         "subject_text": req.subject_text or "",
         "has_photo": bool(req.photo_base64),
+        "has_menu_image": bool(req.menu_item_image_base64),
+        "is_balgopal": _is_balgopal(req.guest_name, req.subject_text),
         "menu_item": req.menu_item,
         "festival_theme": req.festival_theme,
         "language": req.language,

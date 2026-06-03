@@ -40,8 +40,10 @@ export default function AdCreator() {
     guest_name: '',
     subject_text: '',
     is_group_photo: false,
+    menu_item_image_base64: '',
   });
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [menuPreview, setMenuPreview] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [regenCaption, setRegenCaption] = useState(false);
   const [result, setResult] = useState(null);  // { ad_id, image_base64, caption, mime_type }
@@ -77,6 +79,20 @@ export default function AdCreator() {
     };
     reader.readAsDataURL(file);
   };
+
+  const onMenuImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { toast.error('Menu image too large (max 8 MB)'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm(f => ({ ...f, menu_item_image_base64: reader.result }));
+      setMenuPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const isBalgopal = /balgopal|बालगोपाळ/i.test(`${form.guest_name} ${form.subject_text}`);
 
   const generate = async () => {
     if (!form.manager_name || !form.menu_item) { toast.error('Posted-by name and menu item are required'); return; }
@@ -242,14 +258,56 @@ export default function AdCreator() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs">Menu Item</Label>
-                  <Select value={form.menu_item} onValueChange={v => setForm(f => ({ ...f, menu_item: v }))}>
-                    <SelectTrigger className="h-9" data-testid="ad-menu"><SelectValue placeholder="Pick a hero dish" /></SelectTrigger>
-                    <SelectContent>
-                      {masters.menu_items.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">Menu Item <span className="text-muted-foreground font-normal">(type anything — e.g. Misal Pav, Modak Special)</span></Label>
+                  <Input
+                    value={form.menu_item}
+                    onChange={e => setForm(f => ({ ...f, menu_item: e.target.value }))}
+                    placeholder="e.g. Puran Poli, Misal Pav, Special Thali…"
+                    list="ad-menu-suggestions"
+                    data-testid="ad-menu"
+                  />
+                  {/* Optional suggestions (HTML datalist) from masters — manager can still type anything */}
+                  {masters.menu_items?.length > 0 && (
+                    <datalist id="ad-menu-suggestions">
+                      {masters.menu_items.map(m => <option key={m} value={m} />)}
+                    </datalist>
+                  )}
                 </div>
+                <div>
+                  <Label className="text-xs">Menu / Dish Photo <span className="text-muted-foreground font-normal">(optional — uploaded photo becomes the dish reference)</span></Label>
+                  <div className="flex items-center gap-3 mt-1">
+                    {menuPreview ? (
+                      <img src={menuPreview} alt="dish" className="w-20 h-20 rounded-lg object-cover border-2 border-amber-300" data-testid="ad-menu-preview" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-lg border-2 border-dashed flex items-center justify-center text-muted-foreground text-[10px] text-center px-1">No dish photo</div>
+                    )}
+                    <div className="flex flex-col gap-1">
+                      <label className="cursor-pointer">
+                        <input type="file" accept="image/*" className="hidden" onChange={onMenuImageSelect} data-testid="ad-menu-input" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border bg-white hover:bg-amber-50 text-sm">
+                          <Upload className="w-3.5 h-3.5" />{menuPreview ? 'Change' : 'Upload Dish Photo'}
+                        </span>
+                      </label>
+                      {menuPreview && (
+                        <button type="button" className="text-[10px] text-rose-700 underline self-start" data-testid="ad-menu-clear"
+                          onClick={() => { setMenuPreview(null); setForm(f => ({ ...f, menu_item_image_base64: '' })); }}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {isBalgopal && (
+                  <div className="rounded-lg border-2 border-amber-400 bg-gradient-to-r from-amber-50 to-rose-50 p-2.5" data-testid="ad-balgopal-badge">
+                    <p className="text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      Balgopal mode detected — kids&apos; champion creative
+                    </p>
+                    <p className="text-[10px] text-amber-900 mt-0.5">
+                      The ad will celebrate the child finishing their plate as a <strong>Star Eater</strong> / <strong>Super Hero / Queen</strong> / <strong>Farmer Friend</strong>.
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-xs">Festival / Backup Theme <span className="text-muted-foreground font-normal">(used if Subject is blank)</span></Label>

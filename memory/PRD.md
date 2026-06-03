@@ -5,6 +5,34 @@ Internal management system for "Purnabramha," a restaurant franchise.
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-03] Marketing Ad — free-text menu, dish photo upload, Balgopal kids mode (NEW)
+
+**User asks** (verbatim, on production):
+> "only asking menu item name allow center manager to upload the menu. If any Balgopal details been placed then please consider this is kids creatives — who finish there food and enjoying star and becoming super queen and super hero and farmer friend. Don't give drop down of menu, give text box and image uploading."
+
+**Backend** (`routes/marketing_ads.py`):
+1. `AdGenerateRequest` extended with `menu_item_image_base64: Optional[str]` — when present, passed to Nano Banana as a second reference image with prompt: *"DISH REFERENCE PHOTO — AUTHORITATIVE. Use THAT image as the ground truth for what the food looks like… do NOT swap to a stock interpretation."*
+2. New helper `_is_balgopal(guest_name, subject_text)` — detects "balgopal" / "बालगोपाळ" in either field (case-insensitive).
+3. **Balgopal image prompt branch**: when triggered + has photo → preserves kid faces, shows **CLEAN/EMPTY plate** with crumbs as "proof of finished with love", adds ONE motif (gold star burst / superhero cape & dupatta / farmer's hat + wheat sprigs) — storybook-watercolour, NOT cartoony. Without photo → illustrative kid hero scene, no specific child face.
+4. **Balgopal caption brief** added to Claude prompt with 3 archetype examples (Star Eater / Super Hero–Queen / Farmer Friend). New JSON example with "बालगोपाळ रिया → आजची स्टार खाद्यवीर ⭐" output.
+5. New record fields: `has_menu_image`, `is_balgopal` (persisted in `ad_creations`).
+
+**Frontend** (`pages/AdCreator.jsx`):
+1. Menu Item field changed from `<Select>` dropdown → `<Input>` with HTML `<datalist>` suggestions from `masters.menu_items` (manager can pick from history OR type anything).
+2. New "Menu / Dish Photo" upload row below the menu input (8 MB max, optional). Preview thumbnail + Remove button.
+3. New **Balgopal mode badge** that auto-appears (amber/rose gradient with ⭐) whenever `guest_name` or `subject_text` contains "balgopal" / "बालगोपाळ" — copy: *"The ad will celebrate the child finishing their plate as a Star Eater / Super Hero–Queen / Farmer Friend."*
+
+**Verified end-to-end via curl** (PB-MGT, Balgopal Riya, "Finished her plate of Puran Poli"):
+- 200 OK, 1224.9 KB image generated ✓
+- Caption (Marathi): *"बालगोपाळ रियाजींनी ⭐ स्टार खाद्यवीराचं नाव — पुरणपोळीची ताट संपवली, एकही दाणा न ठेवता!"* ✓
+- Caption (English): *"Balgopal Riya earned today's Star Plate — finished every bite of her Puran Poli! 🌾"* ✓
+- Headline: *"बालगोपाळ रिया → आजची स्टार खाद्यवीर ⭐"* ✓
+
+**Lint**: clean (frontend + backend).
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy: Marketing Ad form lets manager TYPE the menu item + UPLOAD a dish photo; mentioning "Balgopal" auto-switches to the kids' champion creative theme.
+
+
 ### [2026-06-03] Transparent logo everywhere
 
 **User ask** (verbatim): "kindly use transparent logo for all places"
