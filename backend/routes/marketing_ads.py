@@ -233,7 +233,14 @@ def _build_image_prompt(req: AdGenerateRequest) -> str:
     mood_line = "young food champion · joyful pride · gentle storybook warmth" if balgopal \
         else (subject or "warm hospitality")
 
-    return f"""You are designing a premium social-media advertisement for "{BRAND_NAME}".
+    return f"""You are designing a premium social-media advertisement for an authentic Maharashtrian restaurant brand. (Brand name will be added by us as a logo on top — DO NOT type any name.)
+
+⚠️ ABSOLUTE NO-WORDMARK RULE ⚠️
+DO NOT write the word "Purnabramha" anywhere. DO NOT write "Authentic Maharashtrian Cuisine".
+DO NOT draw a brand wordmark, slogan, tagline, restaurant name, or signature.
+DO NOT add a small cream "ABOUT US" card with restaurant name in any corner.
+The real Purnabramha logo is pasted on top by our server — your image must be
+100%% text-free and wordmark-free. If you produce any text, you have FAILED the task.
 
 Aspect ratio: {aspect}. The final image MUST honour this aspect ratio exactly.
 
@@ -255,6 +262,7 @@ GENERAL RULES:
 - If ANY reference image contains a person/child/face, do NOT carry that person
   into the output. Reference images are food references only — use them for
   plating cues, never for human likeness.
+- ZERO TEXT inside the image. ZERO. Not even tiny tagline cards.
 """
 
 
@@ -617,7 +625,13 @@ def _build_invitation_prompt(req: InvitationRequest, center_name: str, address_l
             "garland or mandala motif) where the portrait would have gone. "
         )
 
-    return f"""Compose a PREMIUM Maharashtrian celebration invitation BACKGROUND for Purnabramha.
+    return f"""Compose a PREMIUM Maharashtrian celebration invitation BACKGROUND.
+
+⚠️ ABSOLUTE NO-WORDMARK RULE ⚠️
+DO NOT write the word "Purnabramha" anywhere. DO NOT write any restaurant name,
+slogan, tagline, or brand mark. DO NOT add a small cream "branded" card in any
+corner. The real Purnabramha logo is pasted on top by our server — your image
+must be 100%% text-free and wordmark-free.
 
 DESIGN BRIEF
 - Aspect: {ASPECT_PROMPT.get(req.output_format, ASPECT_PROMPT['4:5'])}
