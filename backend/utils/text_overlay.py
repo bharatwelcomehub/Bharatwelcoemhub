@@ -259,15 +259,28 @@ def _measure_mixed(draw, text, size, bold=True):
 
 
 def _wrap_to_width(draw, text: str, font, max_w: int):
-    """Word-wrap text to fit within max_w pixels. Returns list of lines."""
+    """Word-wrap text to fit within max_w pixels. Returns list of lines.
+    Falls back to mixed-script measurement if the text contains Devanagari
+    so wrapping is accurate when scripts are mixed.
+    """
     if not text:
         return []
     words = text.split()
     lines, cur = [], ""
+    mixed = _has_devanagari(text)
+    is_bold = (font.path.lower().endswith("-bold.ttf")
+               if getattr(font, "path", "") else True)
+    size = font.size
+
+    def _measure(s: str) -> int:
+        if mixed:
+            return _measure_mixed(draw, s, size, bold=is_bold)
+        bb = draw.textbbox((0, 0), s, font=font)
+        return bb[2] - bb[0]
+
     for w in words:
         test = (cur + " " + w).strip()
-        bb = draw.textbbox((0, 0), test, font=font)
-        if bb[2] - bb[0] <= max_w:
+        if _measure(test) <= max_w:
             cur = test
         else:
             if cur:
@@ -276,6 +289,17 @@ def _wrap_to_width(draw, text: str, font, max_w: int):
     if cur:
         lines.append(cur)
     return lines
+
+
+def _truncate_to_chars(text: str, max_chars: int = 60) -> str:
+    """Hard-truncate a long string so it never overflows the canvas band."""
+    if not text or len(text) <= max_chars:
+        return text or ""
+    cut = text[:max_chars].rstrip()
+    # Trim trailing partial word
+    if " " in cut[-12:]:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut + "…"
 
 
 def _draw_pill_text(draw, text: str, font, x: int, y: int, w_max: int,
@@ -332,33 +356,62 @@ def apply_overlay(
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
 
-    # ── Sizing relative to image dimensions (PREMIUM EXTRA-LARGE) ─────────
+    # ── Sanitise inputs — cap length so band cannot overflow the canvas ──
+    headline_marathi = _truncate_to_chars(headline_marathi or "", 70)
+    headline_english = _truncate_to_chars(headline_english or "", 110)
+    byline = _truncate_to_chars(byline or "", 50)
+
+    # If the same text appears in both fields (Claude returns identical text
+    # for Bilingual without proper Marathi), drop the duplicate.
+    if (headline_marathi.strip().lower() == headline_english.strip().lower()
+            and not _has_devanagari(headline_marathi)):
+        headline_marathi = ""
+
+    # ── Sizing relative to image dimensions ───────────────────────────────
     scale = min(W, H) / 1080.0
-    fs_marathi = int(96 * scale)        # XL for mobile readability
-    fs_english = int(62 * scale)
-    fs_byline = int(40 * scale)
-    fs_brand = int(42 * scale)
+    fs_marathi = int(82 * scale)        # large hero
+    fs_english = int(40 * scale)        # subtitle scale (sentence-friendly)
+    fs_byline = int(34 * scale)
+    fs_brand = int(38 * scale)
     side_pad = int(W * 0.05)
     inner_w = W - 2 * side_pad
-    block_pad = int(42 * scale)
+    block_pad = int(36 * scale)
 
-    # ── Pre-compute height with both headlines (bilingual-aware) ──────────
-    f_m = _pick_font(headline_marathi, fs_marathi, bold=True)
-    f_e = _pick_font(headline_english, fs_english, bold=False)
+    # ── Adaptive sizing — shrink fonts until everything fits 55% band ────
+    MAX_BAND_RATIO = 0.55
+    max_band_h = int(H * MAX_BAND_RATIO)
+    MAX_LINES_M = 3
+    MAX_LINES_E = 3
+
+    def _layout(fs_m, fs_e):
+        f_m = _pick_font(headline_marathi, fs_m, bold=True)
+        f_e = _font(LATIN_ITALIC, fs_e)
+        lines_m = _wrap_to_width(draw, headline_marathi, f_m,
+                                 inner_w - 2 * block_pad)[:MAX_LINES_M]
+        lines_e = _wrap_to_width(draw, headline_english, f_e,
+                                 inner_w - 2 * block_pad)[:MAX_LINES_E]
+        line_h_m = fs_m + 16
+        line_h_e = fs_e + 12
+        needed = (len(lines_m) * line_h_m
+                  + (24 if lines_m and lines_e else 0)
+                  + len(lines_e) * line_h_e
+                  + (fs_byline + 18 if byline else 0)
+                  + 2 * block_pad + fs_brand + 28)
+        return f_m, f_e, lines_m, lines_e, line_h_m, line_h_e, needed
+
+    f_m, f_e_italic, lines_m, lines_e, line_h_m, line_h_e, needed = _layout(
+        fs_marathi, fs_english)
+    # Shrink if overflow (up to 4 passes)
+    shrink_pass = 0
+    while needed > max_band_h and shrink_pass < 4:
+        fs_marathi = int(fs_marathi * 0.88)
+        fs_english = int(fs_english * 0.88)
+        f_m, f_e_italic, lines_m, lines_e, line_h_m, line_h_e, needed = _layout(
+            fs_marathi, fs_english)
+        shrink_pass += 1
+    band_h = min(max(needed, int(H * 0.22)), max_band_h)
     f_b = _pick_font(byline, fs_byline, bold=False)
     f_brand = _font(LATIN_BOLD, fs_brand)
-
-    lines_m = _wrap_to_width(draw, headline_marathi, f_m, inner_w - 2 * block_pad)
-    lines_e = _wrap_to_width(draw, headline_english, f_e, inner_w - 2 * block_pad)
-    line_h_m = f_m.size + 16
-    line_h_e = f_e.size + 12
-    needed = (len(lines_m) * line_h_m
-              + (24 if lines_m and lines_e else 0)
-              + len(lines_e) * line_h_e
-              + (fs_byline + 18 if byline else 0)
-              + 2 * block_pad + fs_brand + 28)
-    band_h = max(needed, int(H * 0.28))
-    band_h = min(band_h, int(H * 0.60))   # never cover more than 60%
 
     # ── Draw dark CHOCOLATE band with soft fade ───────────────────────────
     if position == "top":
@@ -413,7 +466,6 @@ def apply_overlay(
         text_y += 16
 
     # ── Sub-headline (English, cream italic) ─────────────────────────────
-    f_e_italic = _font(LATIN_ITALIC, fs_english)
     for L in lines_e:
         bb = draw.textbbox((0, 0), L, font=f_e_italic)
         tw = bb[2] - bb[0]

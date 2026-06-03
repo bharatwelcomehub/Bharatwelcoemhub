@@ -329,15 +329,19 @@ Rules:
 - Do NOT mention "आठवड्याच्या शेवटी" or "घरची आठवण" anywhere.
 
 Return STRICT JSON only, no markdown fence, with keys:
-  - "marathi": 1 short emotional Marathi caption (2 lines max). Use Devanagari.
-  - "english": 1 short emotional English line (1-2 lines max). Warm, luxurious.
-  - "headline": the single best headline that will be burned into the image
-    (Marathi if Bilingual/Marathi was requested, otherwise English).
+  - "marathi": 1 SHORT emotional Marathi caption (MAX 1 line, MAX 8 words, MAX 60 chars). Use Devanagari.
+  - "english": 1 SHORT emotional English sub-line (MAX 1 line, MAX 10 words, MAX 80 chars). Warm, luxurious.
+  - "headline": copy of the "marathi" field (Marathi for Bilingual/Marathi requests) or "english" (for English).
+
+LENGTH IS NON-NEGOTIABLE:
+- Marathi caption: ≤ 8 words, ≤ 60 characters. NO commas, NO full sentences.
+- English caption: ≤ 10 words, ≤ 80 characters. ONE crisp sub-line, never a paragraph.
+- If your draft is longer, REWRITE shorter. Do not return long sentences.
 
 BILINGUAL ENFORCEMENT (CRITICAL):
 - If language is "Bilingual", BOTH "marathi" and "english" MUST be filled with
-  substantive, non-empty content. Do NOT leave either blank. Do NOT transliterate
-  English into Marathi — write natural, idiomatic Marathi.
+  DIFFERENT substantive content. Do NOT repeat the same English text in both.
+  Do NOT transliterate English into Marathi — write natural, idiomatic Marathi.
 - If language is "Marathi", "marathi" MUST be filled (English may be empty).
 - If language is "English", "english" MUST be filled (Marathi may be empty).
 
