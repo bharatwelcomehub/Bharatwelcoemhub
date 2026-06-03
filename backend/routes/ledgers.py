@@ -286,33 +286,72 @@ async def build_expense_register(center: str, start: str, end: str) -> Dict[str,
     }
 
 async def build_cash_book(center: str, start: str, end: str) -> Dict[str, Any]:
+    """Build the cash book from LIVE data.
+
+    Critical correctness fix (2026-06):
+      `cash_expenses` MUST be re-aggregated from the canonical `expenses`
+      collection (payment_mode='CASH' only). Reading the per-day snapshot
+      `daily_sales.cash_expense` made the cash book go stale every time a
+      manager edited/deleted/moved/re-categorised an expense. Closing balance
+      is recomputed from live data so PDFs, Excel, dashboard, and ledgers all
+      tell the same story.
+    """
     sales = await _get_daily_sales(center, start, end)
+
+    # Live cash-expense aggregation: payment_mode == CASH (case-insensitive)
+    # spanning the same period, grouped by date.
+    cash_exp_rows = await db.expenses.find(
+        {
+            "center": center,
+            "date": {"$gte": start, "$lte": end},
+            "payment_mode": {"$regex": "^cash$", "$options": "i"},
+        },
+        {"_id": 0, "date": 1, "amount": 1},
+    ).to_list(5000)
+    cash_exp_by_date: Dict[str, float] = {}
+    for er in cash_exp_rows:
+        d = er.get("date")
+        if not d:
+            continue
+        cash_exp_by_date[d] = round(cash_exp_by_date.get(d, 0.0) + float(er.get("amount") or 0), 2)
+
     rows = []
     open_bal = None
+    running_balance = None
     for s in sales:
-        op = s.get("petty_cash_opening") or 0
-        receipts = s.get("cash_receipts") or 0
-        cash_sale = s.get("total_cash_sale") or 0
-        cash_exp = s.get("cash_expense") or 0
-        deposited = s.get("deposited_in_bank") or 0
-        closing = s.get("petty_cash_closing") if s.get("petty_cash_closing") is not None else (op + receipts + cash_sale - cash_exp - deposited)
-        if open_bal is None:
+        date = s.get("date")
+        op_field = s.get("petty_cash_opening")
+        # First row: opening = recorded opening (or 0). Subsequent rows: use
+        # running computed balance so closing actually rolls forward.
+        if running_balance is None:
+            op = float(op_field or 0)
+            running_balance = op
             open_bal = op
+        else:
+            op = round(running_balance, 2)
+        receipts = float(s.get("cash_receipts") or 0)
+        cash_sale = float(s.get("total_cash_sale") or 0)
+        # LIVE cash expense from expenses collection — overrides any stale
+        # snapshot field on daily_sales.
+        cash_exp = float(cash_exp_by_date.get(date, 0.0))
+        deposited = float(s.get("deposited_in_bank") or 0)
+        closing = round(op + receipts + cash_sale - cash_exp - deposited, 2)
+        running_balance = closing
         rows.append({
-            "date": s.get("date"),
-            "opening": op,
-            "cash_sale": cash_sale,
-            "cash_receipts": receipts,
-            "cash_expenses": cash_exp,
-            "deposited_in_bank": deposited,
+            "date": date,
+            "opening": round(op, 2),
+            "cash_sale": round(cash_sale, 2),
+            "cash_receipts": round(receipts, 2),
+            "cash_expenses": round(cash_exp, 2),
+            "deposited_in_bank": round(deposited, 2),
             "closing": closing,
         })
     totals = {
-        "opening": open_bal or 0,
-        "cash_sale": sum(r["cash_sale"] for r in rows),
-        "cash_receipts": sum(r["cash_receipts"] for r in rows),
-        "cash_expenses": sum(r["cash_expenses"] for r in rows),
-        "deposited_in_bank": sum(r["deposited_in_bank"] for r in rows),
+        "opening": round(open_bal or 0, 2),
+        "cash_sale": round(sum(r["cash_sale"] for r in rows), 2),
+        "cash_receipts": round(sum(r["cash_receipts"] for r in rows), 2),
+        "cash_expenses": round(sum(r["cash_expenses"] for r in rows), 2),
+        "deposited_in_bank": round(sum(r["deposited_in_bank"] for r in rows), 2),
         "closing": rows[-1]["closing"] if rows else 0,
     }
     return {"rows": rows, "totals": totals}
