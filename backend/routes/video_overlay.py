@@ -87,7 +87,7 @@ def _build_filter(headline: str, sub: str, byline: str, has_logo: bool,
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='{_ffmpeg_escape(headline)}':"
-                f"fontcolor=0xDCAE50:fontsize=h/12:"
+                f"fontcolor=0xDCAE50:fontsize=h/9:"
                 f"x=(w-text_w)/2:y={y_h}:"
                 f"shadowcolor=black@0.8:shadowx=3:shadowy=3"
             )
@@ -98,7 +98,7 @@ def _build_filter(headline: str, sub: str, byline: str, has_logo: bool,
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='{_ffmpeg_escape(sub)}':"
-                f"fontcolor=0xFAF0DC:fontsize=h/22:"
+                f"fontcolor=0xFAF0DC:fontsize=h/16:"
                 f"x=(w-text_w)/2:y={y_s}:"
                 f"shadowcolor=black@0.6:shadowx=2:shadowy=2"
             )
@@ -109,7 +109,7 @@ def _build_filter(headline: str, sub: str, byline: str, has_logo: bool,
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='— {_ffmpeg_escape(byline)} —':"
-                f"fontcolor=0xF0E4C8:fontsize=h/30:"
+                f"fontcolor=0xF0E4C8:fontsize=h/24:"
                 f"x=(w-text_w)/2:y={y_b}"
             )
 

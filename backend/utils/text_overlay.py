@@ -275,15 +275,15 @@ def apply_overlay(
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
 
-    # ── Sizing relative to image dimensions (PREMIUM = 40-60% larger) ─────
+    # ── Sizing relative to image dimensions (PREMIUM EXTRA-LARGE) ─────────
     scale = min(W, H) / 1080.0
-    fs_marathi = int(78 * scale)        # was 56  → +39%
-    fs_english = int(50 * scale)        # was 34  → +47%
-    fs_byline = int(34 * scale)         # was 26  → +31%
-    fs_brand = int(36 * scale)          # was 28  → +28%
-    side_pad = int(W * 0.06)
+    fs_marathi = int(96 * scale)        # XL for mobile readability
+    fs_english = int(62 * scale)
+    fs_byline = int(40 * scale)
+    fs_brand = int(42 * scale)
+    side_pad = int(W * 0.05)
     inner_w = W - 2 * side_pad
-    block_pad = int(36 * scale)
+    block_pad = int(42 * scale)
 
     # ── Pre-compute height with both headlines (bilingual-aware) ──────────
     f_m = _pick_font(headline_marathi, fs_marathi, bold=True)
@@ -474,18 +474,18 @@ def apply_invitation_overlay(
     occ_marathi = (occasion_marathi or "").strip()
     occ_english = (occasion or "").strip()
     if occ_marathi:
-        f_occ_m = _pick_font(occ_marathi, int(52 * scale), bold=True)
+        f_occ_m = _pick_font(occ_marathi, int(64 * scale), bold=True)
         for L in _wrap_to_width(draw, occ_marathi, f_occ_m, inner_w - 80):
             bb = draw.textbbox((0, 0), L, font=f_occ_m); tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2 + 2, y + 2), L, font=f_occ_m, fill=(0, 0, 0, 130))
             draw.text(((W - tw) // 2, y), L, font=f_occ_m, fill=ANTIQUE_GOLD_BRIGHT)
-            y += f_occ_m.size + 8
+            y += f_occ_m.size + 10
     if occ_english:
-        f_occ_e = _font(LATIN_ITALIC, int(34 * scale))
+        f_occ_e = _font(LATIN_ITALIC, int(42 * scale))
         line = f"{occ_english} Celebration"
         bb = draw.textbbox((0, 0), line, font=f_occ_e); tw = bb[2] - bb[0]
         draw.text(((W - tw) // 2, y), line, font=f_occ_e, fill=WARM_CREAM)
-        y += f_occ_e.size + 8
+        y += f_occ_e.size + 10
 
     # ── Paisley divider ───────────────────────────────────────────────────
     y += int(14 * scale)
@@ -496,71 +496,71 @@ def apply_invitation_overlay(
     y += int(34 * scale)
 
     # ── Host name (LARGEST text — visual hero) ────────────────────────────
-    f_host = _pick_font(host_name, int(90 * scale), bold=True)
+    f_host = _pick_font(host_name, int(112 * scale), bold=True)
     for L in _wrap_to_width(draw, host_name, f_host, inner_w - 80):
         bb = draw.textbbox((0, 0), L, font=f_host); tw = bb[2] - bb[0]
         # Triple-shadow for depth
-        draw.text(((W - tw) // 2 + 3, y + 3), L, font=f_host, fill=(0, 0, 0, 200))
+        draw.text(((W - tw) // 2 + 4, y + 4), L, font=f_host, fill=(0, 0, 0, 220))
         draw.text(((W - tw) // 2, y), L, font=f_host, fill=ANTIQUE_GOLD_BRIGHT)
-        y += f_host.size + 8
+        y += f_host.size + 10
 
-    y += int(28 * scale)
+    y += int(34 * scale)
     # ── Date / Time (premium serif, cream) ────────────────────────────────
     dt_line = f"{event_date}    ·    {event_time}"
-    f_dt = _font(LATIN_BOLD, int(44 * scale))
+    f_dt = _font(LATIN_BOLD, int(54 * scale))
     bb = draw.textbbox((0, 0), dt_line, font=f_dt); tw = bb[2] - bb[0]
     draw.text(((W - tw) // 2, y), dt_line, font=f_dt, fill=WARM_CREAM)
-    y += f_dt.size + int(24 * scale)
+    y += f_dt.size + int(28 * scale)
 
     # ── Venue ─────────────────────────────────────────────────────────────
-    f_venue = _font(LATIN_BOLD, int(36 * scale))
+    f_venue = _font(LATIN_BOLD, int(44 * scale))
     bb = draw.textbbox((0, 0), venue_name, font=f_venue); tw = bb[2] - bb[0]
     draw.text(((W - tw) // 2, y), venue_name, font=f_venue, fill=ANTIQUE_GOLD_BRIGHT)
-    y += f_venue.size + 6
+    y += f_venue.size + 8
     if venue_address:
-        f_addr = _font(LATIN_REG, int(26 * scale))
+        f_addr = _font(LATIN_REG, int(32 * scale))
         for L in _wrap_to_width(draw, venue_address, f_addr, inner_w - 100):
             bb = draw.textbbox((0, 0), L, font=f_addr); tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), L, font=f_addr, fill=WARM_CREAM_SOFT)
-            y += f_addr.size + 4
+            y += f_addr.size + 6
 
     # ── Menu highlights ───────────────────────────────────────────────────
     if menu_highlights:
-        y += int(18 * scale)
-        f_label = _font(LATIN_BOLD, int(26 * scale))
+        y += int(22 * scale)
+        f_label = _font(LATIN_BOLD, int(32 * scale))
         label = "Featured Menu · विशेष पंगत"
-        bb = draw.textbbox((0, 0), label, font=_pick_font(label, int(26 * scale), bold=True))
-        tw = bb[2] - bb[0]
-        draw.text(((W - tw) // 2, y), label, font=_pick_font(label, int(26 * scale), bold=True), fill=ANTIQUE_GOLD)
-        y += f_label.size + 6
-        f_menu = _pick_font(menu_highlights, int(26 * scale), bold=False)
+        f_label_mixed = _pick_font(label, int(32 * scale), bold=True)
+        bb = draw.textbbox((0, 0), label, font=f_label_mixed); tw = bb[2] - bb[0]
+        draw.text(((W - tw) // 2, y), label, font=f_label_mixed, fill=ANTIQUE_GOLD)
+        y += f_label.size + 8
+        f_menu = _pick_font(menu_highlights, int(32 * scale), bold=False)
         for L in _wrap_to_width(draw, menu_highlights, f_menu, inner_w - 120):
             bb = draw.textbbox((0, 0), L, font=f_menu); tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), L, font=f_menu, fill=WARM_CREAM)
-            y += f_menu.size + 2
+            y += f_menu.size + 4
 
     # ── Custom message (italic) ───────────────────────────────────────────
     if custom_message:
-        y += int(18 * scale)
-        f_msg = _pick_font(custom_message, int(28 * scale), bold=False)
+        y += int(22 * scale)
+        f_msg = _pick_font(custom_message, int(34 * scale), bold=False)
         for L in _wrap_to_width(draw, custom_message, f_msg, inner_w - 140):
             bb = draw.textbbox((0, 0), L, font=f_msg); tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), f'"{L}"', font=f_msg, fill=WARM_CREAM_SOFT)
-            y += f_msg.size + 2
+            y += f_msg.size + 4
 
     # ── Brand footer (bilingual) ──────────────────────────────────────────
-    f_brand = _font(LATIN_BOLD, int(28 * scale))
+    f_brand = _font(LATIN_BOLD, int(34 * scale))
     brand_line_en = f"— With warm regards · {brand} {venue_name} —"
     brand_line_mr = "पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक"
     bb = draw.textbbox((0, 0), brand_line_en, font=f_brand); tw = bb[2] - bb[0]
     if tw > inner_w - 40:
         brand_line_en = f"— With warm regards · {brand} —"
         bb = draw.textbbox((0, 0), brand_line_en, font=f_brand); tw = bb[2] - bb[0]
-    footer_y = H - side_pad - int(80 * scale)
-    f_brand_mr = _pick_font(brand_line_mr, int(28 * scale), bold=True)
+    footer_y = H - side_pad - int(100 * scale)
+    f_brand_mr = _pick_font(brand_line_mr, int(34 * scale), bold=True)
     bbm = draw.textbbox((0, 0), brand_line_mr, font=f_brand_mr); twm = bbm[2] - bbm[0]
     draw.text(((W - twm) // 2, footer_y), brand_line_mr, font=f_brand_mr, fill=ANTIQUE_GOLD_BRIGHT)
-    draw.text(((W - tw) // 2, footer_y + int(36 * scale)), brand_line_en, font=f_brand, fill=ANTIQUE_GOLD)
+    draw.text(((W - tw) // 2, footer_y + int(44 * scale)), brand_line_en, font=f_brand, fill=ANTIQUE_GOLD)
 
     # ── Small logo top-right (transparent PNG over AI image) ──────────────
     if logo_path and os.path.exists(logo_path):

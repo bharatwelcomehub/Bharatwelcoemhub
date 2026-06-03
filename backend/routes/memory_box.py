@@ -225,21 +225,21 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     ss = getSampleStyleSheet()
     # All heading colours upgraded to ANTIQUE GOLD and font sizes increased
     H = ParagraphStyle("H", parent=ss["Heading1"], textColor=GOLD_BRIGHT,
-                       alignment=TA_CENTER, fontSize=30, spaceAfter=14,
-                       fontName="Times-Bold", leading=36)
+                       alignment=TA_CENTER, fontSize=40, spaceAfter=18,
+                       fontName="Times-Bold", leading=48)
     H2 = ParagraphStyle("H2", parent=ss["Heading2"], textColor=GOLD_BRIGHT,
-                        alignment=TA_CENTER, fontSize=24, spaceAfter=10,
-                        fontName="Times-Bold", leading=30)
+                        alignment=TA_CENTER, fontSize=32, spaceAfter=14,
+                        fontName="Times-Bold", leading=40)
     sub = ParagraphStyle("sub", parent=ss["Normal"], textColor=CREAM,
-                         alignment=TA_CENTER, fontSize=16, fontName="Times-Italic",
-                         spaceAfter=10, leading=20)
-    body = ParagraphStyle("body", parent=ss["BodyText"], fontSize=14, leading=22,
+                         alignment=TA_CENTER, fontSize=20, fontName="Times-Italic",
+                         spaceAfter=12, leading=26)
+    body = ParagraphStyle("body", parent=ss["BodyText"], fontSize=17, leading=26,
                           fontName="Times-Roman", textColor=CREAM,
-                          spaceAfter=10, alignment=TA_LEFT)
+                          spaceAfter=12, alignment=TA_LEFT)
     bodyDark = ParagraphStyle("bodyDark", parent=body, textColor=colors.HexColor("#3a2218"))  # noqa: F841
-    centerBody = ParagraphStyle("cb", parent=body, alignment=TA_CENTER, fontSize=15, leading=23)
-    small = ParagraphStyle("sm", parent=ss["BodyText"], fontSize=11,
-                           textColor=CREAM, alignment=TA_CENTER, leading=14)
+    centerBody = ParagraphStyle("cb", parent=body, alignment=TA_CENTER, fontSize=18, leading=28)
+    small = ParagraphStyle("sm", parent=ss["BodyText"], fontSize=13,
+                           textColor=CREAM, alignment=TA_CENTER, leading=18)
 
     def _img(b64_or_bytes, w=2.5, h=2.5):
         try:
@@ -352,7 +352,7 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     bl = llm.get("blessing", "")
     blessing_style = ParagraphStyle(
         "blessing", parent=centerBody,
-        fontName=DEV_FONT, fontSize=18, leading=28, textColor=GOLD_BRIGHT,
+        fontName=DEV_FONT, fontSize=22, leading=34, textColor=GOLD_BRIGHT,
     )
     story.append(Paragraph(bl.replace("\n", "<br/>"), blessing_style))
     story.append(PageBreak())
@@ -435,13 +435,13 @@ def _render_cover_png(req: MemoryBoxRequest, center_name: str, box_id: str) -> b
             logo.thumbnail((420, 420))
             canvas.paste(logo, ((W - logo.width) // 2, 80), logo if logo.mode == "RGBA" else None)
 
-        # Fonts — bigger + premium serif + Devanagari for Marathi
+        # Fonts — XL sizes + premium serif + Devanagari for Marathi
         try:
-            f_big = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 84)
-            f_host = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 72)
-            f_med = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf", 44)
-            f_sm  = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 34)
-            f_mr  = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", 40)
+            f_big = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 108)
+            f_host = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 92)
+            f_med = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf", 56)
+            f_sm  = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 42)
+            f_mr  = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", 52)
         except Exception:
             f_big = f_host = f_med = f_sm = f_mr = ImageFont.load_default()
 
