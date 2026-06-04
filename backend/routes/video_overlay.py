@@ -53,58 +53,94 @@ def _ffmpeg_escape(text: str) -> str:
 
 
 def _build_filter(headline: str, sub: str, byline: str, has_logo: bool,
-                  position: str = "bottom") -> str:
-    """Compose the ffmpeg filter_complex chain for overlay."""
+                  position: str = "bottom",
+                  show_footer: bool = True,
+                  headline_size: str = "M",
+                  subline_size: str = "M") -> str:
+    """Compose the ffmpeg filter_complex chain for overlay.
+
+    Sizes (S/M/L) drive `fontsize=h/N`:
+      headline: S=h/11, M=h/9, L=h/7
+      sub:      S=h/20, M=h/16, L=h/13
+    `show_footer=False` skips both the cream sub-line AND the byline so the
+    chocolate strip is shorter and the headline reads as the only call-out.
+    """
     parts = []
 
-    # 1) Dark CHOCOLATE strip (Purnabramha brand 2026)
-    if position == "top":
-        parts.append(
-            "drawbox=x=0:y=0:w=iw:h=ih*0.30:color=0x2B1810@0.85:t=fill"
-        )
-        # Antique gold border line at bottom of band
-        parts.append(
-            "drawbox=x=0:y=ih*0.30-4:w=iw:h=4:color=0xBF8C32@1.0:t=fill"
-        )
-        y_h = "20"
-        y_s = "h*0.10"
-        y_b = "h*0.20"
-    else:
-        parts.append(
-            "drawbox=x=0:y=ih*0.70:w=iw:h=ih*0.30:color=0x2B1810@0.85:t=fill"
-        )
-        # Antique gold border line at top of band
-        parts.append(
-            "drawbox=x=0:y=ih*0.70:w=iw:h=4:color=0xBF8C32@1.0:t=fill"
-        )
-        y_h = "h*0.74"
-        y_s = "h*0.82"
-        y_b = "h*0.90"
+    h_size_map = {"S": "h/11", "M": "h/9", "L": "h/7"}
+    s_size_map = {"S": "h/20", "M": "h/16", "L": "h/13"}
+    h_font = h_size_map.get((headline_size or "M").upper(), "h/9")
+    s_font = s_size_map.get((subline_size or "M").upper(), "h/16")
 
-    # 2) Headline (auto-pick font based on script) — Antique Gold, larger
+    # Numeric ratios for dynamic stacking
+    h_ratio = {"S": 1 / 11, "M": 1 / 9, "L": 1 / 7}.get(
+        (headline_size or "M").upper(), 1 / 9)
+    s_ratio = {"S": 1 / 20, "M": 1 / 16, "L": 1 / 13}.get(
+        (subline_size or "M").upper(), 1 / 16)
+    b_ratio = 1 / 24
+    gap = 0.012  # vertical gap between stacked lines
+
+    # The brand strip auto-shrinks when the footer is hidden (no sub, no byline)
+    strip_h_ratio = 0.30 if show_footer else 0.20
+
+    # 1) Dark CHOCOLATE strip
+    if position == "top":
+        strip_top = 0.0
+        parts.append(
+            f"drawbox=x=0:y=0:w=iw:h=ih*{strip_h_ratio}:color=0x2B1810@0.85:t=fill"
+        )
+        parts.append(
+            f"drawbox=x=0:y=ih*{strip_h_ratio}-4:w=iw:h=4:color=0xBF8C32@1.0:t=fill"
+        )
+    else:
+        strip_top = 1.0 - strip_h_ratio
+        parts.append(
+            f"drawbox=x=0:y=ih*{strip_top}:w=iw:h=ih*{strip_h_ratio}:color=0x2B1810@0.85:t=fill"
+        )
+        parts.append(
+            f"drawbox=x=0:y=ih*{strip_top}:w=iw:h=4:color=0xBF8C32@1.0:t=fill"
+        )
+
+    # 2) Compute y positions dynamically so headline + sub + byline never collide
+    if show_footer:
+        pad = 0.018
+        y_h_r = strip_top + pad
+        y_s_r = y_h_r + h_ratio + gap
+        y_b_r = y_s_r + s_ratio + gap
+    else:
+        # Minimal strip — center the headline vertically
+        y_h_r = strip_top + (strip_h_ratio - h_ratio) / 2
+        y_s_r = 0  # unused
+        y_b_r = 0  # unused
+
+    y_h = f"h*{y_h_r:.4f}"
+    y_s = f"h*{y_s_r:.4f}"
+    y_b = f"h*{y_b_r:.4f}"
+
+    # 3) Headline — Antique Gold
     if headline:
         f = DEV_FONT if _has_devanagari(headline) else LATIN_FONT
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='{_ffmpeg_escape(headline)}':"
-                f"fontcolor=0xDCAE50:fontsize=h/9:"
+                f"fontcolor=0xDCAE50:fontsize={h_font}:"
                 f"x=(w-text_w)/2:y={y_h}:"
                 f"shadowcolor=black@0.8:shadowx=3:shadowy=3"
             )
 
-    # 3) Sub-headline — Warm Cream
-    if sub:
+    # 4) Sub-headline — Warm Cream (only when footer shown)
+    if sub and show_footer:
         f = DEV_FONT if _has_devanagari(sub) else LATIN_ITALIC
         if os.path.exists(f):
             parts.append(
                 f"drawtext=fontfile={f}:text='{_ffmpeg_escape(sub)}':"
-                f"fontcolor=0xFAF0DC:fontsize=h/16:"
+                f"fontcolor=0xFAF0DC:fontsize={s_font}:"
                 f"x=(w-text_w)/2:y={y_s}:"
                 f"shadowcolor=black@0.6:shadowx=2:shadowy=2"
             )
 
-    # 4) Byline — soft cream
-    if byline:
+    # 5) Byline (only when footer shown)
+    if byline and show_footer:
         f = DEV_FONT if _has_devanagari(byline) else LATIN_ITALIC
         if os.path.exists(f):
             parts.append(
@@ -115,8 +151,6 @@ def _build_filter(headline: str, sub: str, byline: str, has_logo: bool,
 
     chain = ",".join(parts)
     if has_logo:
-        # Logo: overlay top-right small. Use the second input.
-        # Full filter graph: [0:v]...[base];[1:v]scale=...[logo];[base][logo]overlay
         return (
             f"[0:v]{chain}[base];"
             f"[1:v]scale=ih*0.28:-1[logo];"
@@ -133,12 +167,21 @@ async def _process_video(
     byline: str,
     use_logo: bool,
     duration_limit: int = MAX_DURATION_S,
+    *,
+    position: str = "bottom",
+    show_footer: bool = True,
+    headline_size: str = "M",
+    subline_size: str = "M",
 ) -> dict:
     """Run ffmpeg with the composed filter, return {size_kb, duration_s}."""
     if not os.path.exists(src_path):
         raise HTTPException(500, "Uploaded file disappeared")
     has_logo = use_logo and os.path.exists(LOGO_PATH)
-    filter_complex = _build_filter(headline, sub, byline, has_logo)
+    filter_complex = _build_filter(
+        headline, sub, byline, has_logo,
+        position=position, show_footer=show_footer,
+        headline_size=headline_size, subline_size=subline_size,
+    )
     cmd = [
         "ffmpeg", "-y",
         "-i", src_path,
@@ -186,6 +229,9 @@ async def overlay_video(
     byline: str = Form(""),
     use_logo: bool = Form(True),
     position: str = Form("bottom"),
+    show_footer: bool = Form(True),
+    headline_size: str = Form("M"),     # S | M | L
+    subline_size: str = Form("M"),      # S | M | L
     video: UploadFile = File(...),
 ):
     session = await check_access(token)
@@ -223,7 +269,9 @@ async def overlay_video(
 
     try:
         meta = await _process_video(
-            src_path, dst_path, headline, sub, byline, use_logo
+            src_path, dst_path, headline, sub, byline, use_logo,
+            position=position, show_footer=show_footer,
+            headline_size=headline_size, subline_size=subline_size,
         )
     finally:
         try: os.remove(src_path)
@@ -237,6 +285,9 @@ async def overlay_video(
         "byline": byline,
         "use_logo": bool(use_logo),
         "position": position,
+        "show_footer": bool(show_footer),
+        "headline_size": headline_size,
+        "subline_size": subline_size,
         "asset_path": dst_path,
         "size_kb": meta["size_kb"],
         "duration_s": meta["duration_s"],
@@ -308,3 +359,90 @@ async def asset_get(video_id: str, token: str):
     if not p or not os.path.exists(p):
         raise HTTPException(404, "Asset missing")
     return StreamingResponse(open(p, "rb"), media_type="video/mp4")
+
+
+# ─────────────────── Instagram Audio Suggestions ─────────────────────────
+class MusicReq(BaseReq):
+    headline: str = ""
+    sub: str = ""
+    occasion: Optional[str] = None       # e.g. "Wedding", "Anniversary", "Festival"
+    mood: Optional[str] = None           # e.g. "Joyful", "Devotional", "Energetic"
+
+
+@router.post("/music-suggestions")
+async def music_suggestions(req: MusicReq):
+    """Suggest 4-6 Instagram Reels audio tracks that pair well with the video.
+
+    Uses Claude via the Emergent Universal Key. Tracks are chosen from the
+    royalty-free / trending-Reels-safe pool so managers can search them by
+    name inside Instagram's audio library.
+    """
+    await check_access(req.token)
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        raise HTTPException(503, f"LLM library not available: {e}")
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(503, "EMERGENT_LLM_KEY not configured")
+
+    system = (
+        "You are a Maharashtrian-restaurant social-media specialist who curates "
+        "Instagram Reels audio. Suggest 5 trending audio tracks (royalty-free "
+        "OR widely-available on Instagram's own audio library) that fit the "
+        "Purnabramha brand: authentic, premium, joyful, traditional. Favour "
+        "Maharashtrian folk, devotional lavani, dhol-tasha, soft sitar, "
+        "instrumental Marathi covers, OR safe Bollywood instrumental cuts. "
+        "AVOID copyrighted lyrics-heavy modern Bollywood that can mute the post."
+    )
+    user_prompt = f"""Suggest 5 Instagram Reels audio tracks for this branded restaurant video.
+
+Headline / caption: "{req.headline}"
+Sub-line: "{req.sub}"
+Occasion (optional): "{req.occasion or 'general showcase'}"
+Mood (optional): "{req.mood or 'warm, premium, Maharashtrian'}"
+
+Return STRICT JSON only, no preamble, no markdown:
+{{
+  "tracks": [
+    {{
+      "name": "exact searchable track name as it appears in Instagram audio",
+      "artist": "composer / performer (or 'Traditional' if folk)",
+      "vibe": "ONE short phrase describing why this fits, e.g. 'Soft sitar + tabla — calm pride'",
+      "why_fits": "ONE sentence justifying the pairing with the headline above"
+    }}
+  ]
+}}
+
+Constraints:
+- Provide exactly 5 tracks, ordered best→good.
+- Track names must be ACTUAL searchable Instagram audio (no fictional names).
+- Mix moods: 1 devotional, 1 folk-energetic, 1 cinematic-instrumental, 1 nostalgic-Marathi, 1 modern-uplifting.
+"""
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"video-music-{uuid.uuid4().hex[:8]}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+
+    raw = await chat.send_message(UserMessage(text=user_prompt))
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:].lstrip()
+    import json
+    try:
+        data = json.loads(text)
+        tracks = data.get("tracks") or []
+    except Exception:
+        logger.warning(f"music suggestions parse failed: {text[:200]}")
+        tracks = []
+    # Attach a deep-search link for each
+    for t in tracks:
+        q = f"{t.get('name','')} {t.get('artist','')}".strip()
+        if q:
+            t["instagram_search_url"] = (
+                f"https://www.instagram.com/reels/audio/?q={q.replace(' ', '+')}"
+            )
+    return {"tracks": tracks, "count": len(tracks)}

@@ -6,7 +6,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { useAuth } from '@/App';
-import { Loader2, Upload, Film, Download, Share2, History, X } from 'lucide-react';
+import { Loader2, Upload, Film, Download, Share2, History, X, Music } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -31,7 +31,14 @@ export default function VideoCreator() {
     byline: session?.managerName || '',
     use_logo: true,
     position: 'bottom',
+    show_footer: true,
+    headline_size: 'M',
+    subline_size: 'M',
+    occasion: '',
+    mood: '',
   });
+  const [musicTracks, setMusicTracks] = useState([]);
+  const [musicBusy, setMusicBusy] = useState(false);
 
   // ── Load centers + history ────────────────────────────────────────────
   const loadCenters = useCallback(async () => {
@@ -95,6 +102,9 @@ export default function VideoCreator() {
     fd.append('byline', form.byline || '');
     fd.append('use_logo', form.use_logo ? 'true' : 'false');
     fd.append('position', form.position || 'bottom');
+    fd.append('show_footer', form.show_footer ? 'true' : 'false');
+    fd.append('headline_size', form.headline_size || 'M');
+    fd.append('subline_size', form.subline_size || 'M');
     fd.append('video', videoFile);
 
     const xhr = new XMLHttpRequest();
@@ -145,6 +155,30 @@ export default function VideoCreator() {
     const text = encodeURIComponent(`${form.headline}\n${form.sub}\n\n— Purnabramha`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
     toast.info('WhatsApp opened — attach the downloaded video.');
+  };
+
+  // ── Instagram audio suggestions ───────────────────────────────────────
+  const fetchMusicSuggestions = async () => {
+    if (!form.headline) { toast.error('Add a headline first — needed to suggest matching audio'); return; }
+    setMusicBusy(true);
+    setMusicTracks([]);
+    try {
+      const res = await fetch(`${API}/api/marketing/videos/music-suggestions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.token, headline: form.headline, sub: form.sub,
+          occasion: form.occasion || '', mood: form.mood || '',
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || 'Failed to suggest music');
+      setMusicTracks(d.tracks || []);
+      if (!d.tracks?.length) toast.warning('No audio suggestions returned — try again');
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setMusicBusy(false);
+    }
   };
 
   const previewUrl = result
@@ -234,13 +268,53 @@ export default function VideoCreator() {
                 placeholder="e.g. Jayanti Kathale"
                 data-testid="video-byline" />
             </div>
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
-              <input type="checkbox" checked={form.use_logo}
-                onChange={e => setForm(f => ({ ...f, use_logo: e.target.checked }))}
-                className="w-3.5 h-3.5"
-                data-testid="video-use-logo" />
-              <span>Burn Purnabramha logo (top-right)</span>
-            </label>
+
+            {/* ── Polish controls ────────────────────────────────────── */}
+            <div className="rounded-md border bg-amber-50/40 p-3 space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                Polish
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Headline size</Label>
+                  <Select value={form.headline_size}
+                    onValueChange={v => setForm(f => ({ ...f, headline_size: v }))}>
+                    <SelectTrigger className="h-9" data-testid="video-headline-size"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="S">Small (subtle)</SelectItem>
+                      <SelectItem value="M">Medium (default)</SelectItem>
+                      <SelectItem value="L">Large (hero)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Sub-line size</Label>
+                  <Select value={form.subline_size}
+                    onValueChange={v => setForm(f => ({ ...f, subline_size: v }))}>
+                    <SelectTrigger className="h-9" data-testid="video-subline-size"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="S">Small (compact)</SelectItem>
+                      <SelectItem value="M">Medium (default)</SelectItem>
+                      <SelectItem value="L">Large (emphasis)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox" checked={form.use_logo}
+                  onChange={e => setForm(f => ({ ...f, use_logo: e.target.checked }))}
+                  className="w-3.5 h-3.5"
+                  data-testid="video-use-logo" />
+                <span>Burn <strong>Purnabramha logo</strong> (top-right)</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox" checked={form.show_footer}
+                  onChange={e => setForm(f => ({ ...f, show_footer: e.target.checked }))}
+                  className="w-3.5 h-3.5"
+                  data-testid="video-show-footer" />
+                <span>Show <strong>footer</strong> (sub-line + byline). Off = minimal strip with only headline.</span>
+              </label>
+            </div>
 
             <Button onClick={generate} disabled={busy || !videoFile}
               className="w-full bg-[#8B0000] hover:bg-[#5C0000] text-white"
@@ -286,7 +360,46 @@ export default function VideoCreator() {
                   <Button size="sm" variant="outline" onClick={shareWhatsapp} data-testid="video-share-wa">
                     <Share2 className="w-3.5 h-3.5 mr-1" />WhatsApp
                   </Button>
+                  <Button size="sm" variant="outline" onClick={fetchMusicSuggestions}
+                    disabled={musicBusy}
+                    className="border-amber-500 text-amber-900 hover:bg-amber-50"
+                    data-testid="video-music-suggest">
+                    {musicBusy
+                      ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Finding…</>
+                      : <><Music className="w-3.5 h-3.5 mr-1" />Suggest Instagram Audio</>}
+                  </Button>
                 </div>
+
+                {/* Suggested Instagram audio panel */}
+                {musicTracks.length > 0 && (
+                  <div className="mt-4 rounded-lg border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-rose-50 p-3"
+                       data-testid="music-suggestions-panel">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Music className="w-4 h-4 text-rose-700" />
+                      <p className="text-sm font-semibold text-amber-900">Suggested Instagram audio</p>
+                      <span className="text-[10px] text-muted-foreground">(tap to search on Instagram)</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {musicTracks.map((t, i) => (
+                        <li key={i} className="rounded-md bg-white/70 p-2 text-xs"
+                            data-testid={`music-track-${i}`}>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <a href={t.instagram_search_url || '#'} target="_blank" rel="noopener noreferrer"
+                               className="font-semibold text-rose-800 hover:underline truncate">
+                              {t.name}
+                            </a>
+                            <span className="text-[10px] text-muted-foreground italic shrink-0">{t.artist}</span>
+                          </div>
+                          {t.vibe && <p className="text-[11px] text-amber-900 mt-0.5">🎵 {t.vibe}</p>}
+                          {t.why_fits && <p className="text-[11px] text-muted-foreground italic mt-0.5">{t.why_fits}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-[10px] text-muted-foreground mt-2 italic">
+                      Open Instagram → Reels → "+ Use this audio" after searching the track name.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             {!videoPreviewUrl && !result && (

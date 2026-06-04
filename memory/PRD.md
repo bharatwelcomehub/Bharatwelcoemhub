@@ -62,6 +62,28 @@ Bonus reliability fix: the dark-chocolate panel now **auto-grows** between 55-70
 
 ⚠️ **Redeploy required.**
 
+### [2026-06-03 PM v6] Video Creator — polish controls + Instagram audio suggestions
+
+User request: *"the videos should also have option for all footer note, sizes of headline and subheading and anything u recommand , like any music which goes gr8 with that video so that managers can pull that on instagram"*
+
+Added 3 control + 1 power feature to `backend/routes/video_overlay.py` + `frontend/src/pages/VideoCreator.jsx`:
+
+1. **`show_footer`** (bool, default `true`) — toggles the sub-line + byline. When OFF, the chocolate strip auto-shrinks from 30% to 20% of video height and the headline is centered inside it for a minimal "single line" look.
+2. **`headline_size`** ('S' / 'M' / 'L') — drives `fontsize` (h/11, h/9, h/7). L is poster-sized.
+3. **`subline_size`** ('S' / 'M' / 'L') — drives `fontsize` (h/20, h/16, h/13).
+4. **NEW endpoint `POST /api/marketing/videos/music-suggestions`** — uses Claude (Emergent Universal Key) to suggest 5 Instagram Reels audio tracks that pair well with the video's headline/sub-line/occasion. Returns track name, artist, vibe, why-it-fits, and a deep-search Instagram URL.
+
+Bonus reliability fix: ffmpeg y-positions for headline/sub/byline are now **dynamically computed** from the font-size ratios so the larger L headline never overlaps the sub-line.
+
+**Verified end-to-end**:
+- Video V1 (footer ON, headline L, sub M): Marathi "पुरणपोळी मऊ मखमली" + English "Authentic since 2008" + "— Jayanti Kathale —" + circular logo. Independent analyzer **9/10** readability, no overlap.
+- Video V2 (footer OFF, headline M): minimal 20%-tall chocolate strip with only the headline centered.
+- Music endpoint: returns 5 hand-curated Marathi devotional/folk/instrumental tracks (Mauli Jaidev, Dhol Tasha, Sairat Zala Ji, Flute Marathi, Apsara Aali) with Instagram audio search URLs.
+
+UI: added "Polish" section with `video-headline-size`, `video-subline-size`, `video-show-footer` controls; new "Suggest Instagram Audio" button (data-testid `video-music-suggest`) opens a panel with clickable track tiles.
+
+⚠️ **Redeploy required.**
+
 ## What's Been Implemented (Latest)
 
 ### [2026-06-03] One logo only + new official logo PNG (BUG FIX)
