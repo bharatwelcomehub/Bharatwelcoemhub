@@ -94,6 +94,7 @@ class MemoryBoxRequest(BaseModel):
     generate_web: bool = False       # produce shareable HTML web link
     delivery_mode: str = "function"  # "function" (hosted) or "home" (delivery)
     website: Optional[str] = ""      # center website (for QR fallback)
+    music: bool = True               # add gentle tanpura drone to the MP4
 
 
 class BaseReq(BaseModel):
@@ -1293,6 +1294,7 @@ async def generate(req: MemoryBoxRequest):
                     guest_name=req.guest_name,
                     center_info=center_info,
                     center_qr_path=None,
+                    music=bool(req.music),
                 )
                 video_size = video_meta.get("size_bytes", 0)
             except Exception as e:

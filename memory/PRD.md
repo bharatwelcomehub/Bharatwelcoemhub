@@ -4,6 +4,20 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-10] Background music on Memory Box MP4 (+ enhancement)
+
+Added a pre-generated **tanpura drone** track (`backend/static/audio/tanpura_drone.mp3`, 235 KB, 60s loop) — Sa (C3 130.81 Hz) + Pa (G3 196 Hz) + Sa (C4 261.63 Hz) with subtle vibrato, soft envelope. Synthesised once via ffmpeg's sine generators so we ship it royalty-free with the repo.
+
+`build_video()` now accepts an optional `music_path` — when set, ffmpeg loops the track to match the video length, applies 1.2s fade-in + 1.5s fade-out, mixes at 55% volume, encodes as AAC 128 k stereo. Total MP4 size grows from ~1.2 → ~1.6 MB (still well under WhatsApp's 16 MB cap).
+
+Toggle exposed in:
+- `MemoryBoxRequest.music: bool = True` (defaults ON)
+- Frontend checkbox "🎵 Background music on MP4 (gentle tanpura drone)" (disabled when video is off)
+
+Verified end-to-end via the live `/api/memory-box/view-video/{id}` stream — output has `Stream #0:1 Audio: aac, 44.1 kHz, stereo`.
+
+---
+
 ### [2026-02-10] Animated Memory Box — MP4 video + shareable web link (P1)
 
 **User ask**: *"can we generate something else… some animation kind of thing which opens the memory box and first will come thank you… then event photos collage of 2-3 best, then team photo with names, then 'Your Story With Us', then 10% off QR, then center QR + Insta + Website."*

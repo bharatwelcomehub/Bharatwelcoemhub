@@ -49,6 +49,7 @@ FPS = 25
 
 LOGO_PATH = "/app/backend/static/purnabramha_logo.png"
 STATIC_QR_BOOKING = "/app/backend/static/purnabramha_booking_qr.png"
+DEFAULT_MUSIC_PATH = "/app/backend/static/audio/tanpura_drone.mp3"
 FONT_REG = "/app/backend/static/fonts/LiberationSerif-Regular.ttf"
 FONT_BOLD = "/app/backend/static/fonts/LiberationSerif-Bold.ttf"
 FONT_ITALIC = "/app/backend/static/fonts/LiberationSerif-Italic.ttf"
@@ -511,7 +512,7 @@ def render_center_contact(center: Dict[str, str], qr_path: Optional[str]) -> Ima
 
 
 def build_video(scene_images: List[Image.Image], durations: List[float],
-                out_path: str) -> None:
+                out_path: str, music_path: Optional[str] = None) -> None:
     """Stitch scenes into an MP4 with xfade transitions.
 
     Implementation note: We feed each scene as a single still PNG, looped at
@@ -519,9 +520,14 @@ def build_video(scene_images: List[Image.Image], durations: List[float],
     (avoids the zoompan output-frame explosion). The xfade filter handles the
     crossfade between consecutive scenes. libx264 + tune=stillimage keeps the
     file size tiny for our mostly-static content (~1-3 MB for 30-45 sec).
+
+    If `music_path` is given, the audio is looped to match the video length
+    and faded in/out for a soft entrance/exit.
     """
     assert len(scene_images) == len(durations) and scene_images, "scenes/durations mismatch"
     ff = _ff()
+    # Total video length AFTER xfades
+    total_len = sum(durations) - XFADE * max(0, len(durations) - 1)
 
     with tempfile.TemporaryDirectory() as tmp:
         # Write each scene PNG
@@ -536,6 +542,13 @@ def build_video(scene_images: List[Image.Image], durations: List[float],
         cmd: List[str] = [ff, "-y"]
         for p, dur in zip(png_paths, durations):
             cmd += ["-framerate", "1", "-loop", "1", "-t", f"{dur:.3f}", "-i", p]
+
+        # Audio input (optional) — appended AFTER all video inputs so its
+        # filter graph reference is [N:a] where N = len(durations).
+        has_music = bool(music_path and os.path.exists(music_path))
+        if has_music:
+            cmd += ["-stream_loop", "-1", "-i", music_path]
+        audio_input_idx = len(durations)  # only valid if has_music
 
         # Build filter graph
         # Step 1: normalise each input to FPS + format=yuv420p + label as [vN]
@@ -564,11 +577,28 @@ def build_video(scene_images: List[Image.Image], durations: List[float],
                 offset = prev_out_len - XFADE
                 prev_label = out_label
 
+        if has_music:
+            # Trim & fade audio to match the video length
+            fade_in = 1.2
+            fade_out = 1.5
+            fade_start = max(0.0, total_len - fade_out)
+            filter_parts.append(
+                f"[{audio_input_idx}:a]atrim=0:{total_len:.3f},"
+                f"asetpts=PTS-STARTPTS,"
+                f"afade=t=in:st=0:d={fade_in:.2f},"
+                f"afade=t=out:st={fade_start:.3f}:d={fade_out:.2f},"
+                f"volume=0.55[aout]"
+            )
+
         filter_complex = ";".join(filter_parts)
 
         cmd += [
             "-filter_complex", filter_complex,
             "-map", "[vout]",
+        ]
+        if has_music:
+            cmd += ["-map", "[aout]", "-c:a", "aac", "-b:a", "128k", "-ac", "2"]
+        cmd += [
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
             "-preset", "medium",
@@ -576,6 +606,7 @@ def build_video(scene_images: List[Image.Image], durations: List[float],
             "-crf", "26",
             "-movflags", "+faststart",
             "-r", str(FPS),
+            "-t", f"{total_len:.3f}",   # hard-cap output to video length
             out_path,
         ]
 
@@ -602,6 +633,8 @@ def render_memory_video(
     guest_name: str,
     center_info: Dict[str, str],
     center_qr_path: Optional[str] = None,
+    music: bool = True,
+    music_path: Optional[str] = None,
 ) -> Dict[str, float]:
     """Render the full Memory Box MP4. Returns metadata."""
 
@@ -641,10 +674,16 @@ def render_memory_video(
     scenes.append(render_center_contact(center_info, center_qr_path))
     durations.append(SCENE_DURATION["center"])
 
-    build_video(scenes, durations, out_path)
+    # Resolve music path (default to bundled tanpura drone)
+    chosen_music = None
+    if music:
+        chosen_music = music_path or DEFAULT_MUSIC_PATH
+
+    build_video(scenes, durations, out_path, music_path=chosen_music)
 
     return {
         "scenes": len(scenes),
         "duration_sec": round(sum(durations) - XFADE * max(0, len(scenes) - 1), 2),
         "size_bytes": os.path.getsize(out_path) if os.path.exists(out_path) else 0,
+        "has_audio": bool(chosen_music and os.path.exists(chosen_music)),
     }

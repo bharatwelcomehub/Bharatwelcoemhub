@@ -62,6 +62,7 @@ export default function MemoryBoxCreator() {
     generate_web: true,
     delivery_mode: 'function',  // 'function' or 'home'
     website: '',
+    music: true,
   });
   const [photos, setPhotos] = useState([]);          // [{ name, b64 }]
   const [teamPhoto, setTeamPhoto] = useState('');
@@ -592,6 +593,14 @@ export default function MemoryBoxCreator() {
                         className="w-3.5 h-3.5"
                         data-testid="mb-gen-web" />
                       <span>🌐 Generate <strong>shareable web link</strong> (magical animation, opens in browser)</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={form.music}
+                        onChange={e => setForm(f => ({ ...f, music: e.target.checked }))}
+                        className="w-3.5 h-3.5"
+                        disabled={!form.generate_video}
+                        data-testid="mb-music" />
+                      <span>🎵 Background music on MP4 (gentle tanpura drone)</span>
                     </label>
                   </div>
 
