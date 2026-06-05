@@ -258,22 +258,80 @@ async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
         raise RuntimeError("EMERGENT_LLM_KEY not set")
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
+        # Gold-standard blessing examples by occasion (user-approved Marathi).
+        # We include 2-3 anchor templates per occasion so GPT mimics this exact
+        # cadence and never invents broken Devanagari.
+        BLESSING_EXAMPLES = {
+            "Birthday": (
+                "श्री स्वामी समर्थ.\n"
+                "आयुष्य दीर्घ असो, आरोग्य उत्तम लाभो, सुख-समृद्धी नित्य वाढो.\n"
+                "कुटुंबात प्रेम, ऐक्य आणि आनंद सदैव नांदो."
+            ),
+            "Anniversary": (
+                "श्री स्वामी समर्थ.\n"
+                "तुमचे सहजीवन प्रेम, विश्वास आणि आनंदाने बहरलेले राहो.\n"
+                "एकमेकांची साथ, समजूत आणि आदर सदैव वाढत जावो."
+            ),
+            "Wedding": (
+                "श्री स्वामी समर्थ.\n"
+                "नवदाम्पत्याचे सहजीवन सुख, समाधान आणि स्नेहाने भरलेले राहो.\n"
+                "दोन्ही घराण्यांना आशीर्वाद आणि एकोपा सदैव लाभो."
+            ),
+            "Naming": (
+                "श्री स्वामी समर्थ.\n"
+                "नवजात बाळास उत्तम आरोग्य, तेजस्वी बुद्धी आणि दीर्घायुष्य लाभो.\n"
+                "आई-वडिलांच्या प्रेमळ छत्रछायेखाली बाळ आनंदाने वाढो."
+            ),
+            "Housewarming": (
+                "श्री स्वामी समर्थ.\n"
+                "नवीन घरात लक्ष्मीचे पाऊल पडो, सुख-समाधान सदैव नांदो.\n"
+                "कुटुंबात प्रेम, ऐक्य आणि भरभराट कायम राहो."
+            ),
+            "default": (
+                "श्री स्वामी समर्थ.\n"
+                "आयुष्य दीर्घ असो, आरोग्य उत्तम लाभो, सुख-समृद्धी नित्य वाढो.\n"
+                "कुटुंबात प्रेम, ऐक्य आणि आनंद सदैव नांदो."
+            ),
+        }
+        anchor_blessing = BLESSING_EXAMPLES.get(occ, BLESSING_EXAMPLES["default"])
         prompt = (
-            "You are composing a heartfelt 4-section memory book copy for a Purnabramha "
-            "(Maharashtrian restaurant) guest. Tone: warm, sincere, dignified, slightly "
-            "poetic — never salesy, never generic. 2-3 short paragraphs max per section.\n\n"
+            "You are composing 4-section memory book copy for a Purnabramha "
+            "(authentic Maharashtrian restaurant) guest. Tone: warm, sincere, "
+            "dignified, slightly poetic — never salesy, never generic. 2-3 short "
+            "paragraphs max per section.\n\n"
             "Guest details:\n"
             + "\n".join(f"  {k}: {v}" for k, v in answers.items() if v) + "\n\n"
+            "⚠️ MARATHI ACCURACY — CRITICAL ⚠️\n"
+            "The `blessing` field MUST be written in PERFECT, CULTURALLY-CORRECT Marathi.\n"
+            "Rules:\n"
+            "  1. Start with the traditional invocation \"श्री स्वामी समर्थ.\" on its own line.\n"
+            "  2. Use ONLY proper Devanagari spelling. NEVER misspell common words:\n"
+            "     • वाढदिवस  (NOT वाढदविस / वाढदविसाच्या)\n"
+            "     • हार्दिक   (NOT हार्दकि)\n"
+            "     • आशीर्वाद   (NOT आर्शीवाद)\n"
+            "     • वर्धापनदिन (NOT वर्धापनदनि)\n"
+            "  3. Use traditional, respectful blessing phrases — e.g.\n"
+            "     'आयुष्य दीर्घ असो', 'आरोग्य उत्तम लाभो', 'सुख-समृद्धी नित्य वाढो',\n"
+            "     'कुटुंबात प्रेम, ऐक्य आणि आनंद सदैव नांदो'.\n"
+            "  4. Keep to EXACTLY 3 short lines (one sentence per line).\n"
+            "  5. Match the cadence and tone of this anchor example for the occasion '" + occ + "':\n"
+            "     ───────────────────────────────\n     " + anchor_blessing.replace("\n", "\n     ") + "\n"
+            "     ───────────────────────────────\n"
+            "  6. You MAY personalise gently (use the guest's first name OR keep generic). "
+            "Do NOT translate the English sections into Marathi — only the blessing is in Marathi.\n\n"
             "Return STRICT JSON with these four keys (no markdown, no commentary):\n"
             '{\n'
-            '  "story":      "Warm 2-paragraph story of the event, woven from the guest answers above. Reference the family/organiser/special moment naturally.",\n'
-            '  "gratitude":  "Occasion-specific thank-you message from Purnabramha to the guest. 1 short paragraph.",\n'
-            '  "blessing":   "A traditional Maharashtrian blessing fitting the occasion. 2-3 lines.",\n'
-            '  "future_invitation": "A 1-line warm invitation back — NOT discount-based — e.g. complimentary taak / sweet / priority booking / chef special."\n'
+            '  "story":      "Warm 2-paragraph story of the event in English, woven from the guest answers above. Reference the family/organiser/special moment naturally.",\n'
+            '  "gratitude":  "Occasion-specific thank-you message from Purnabramha to the guest in English. 1 short paragraph.",\n'
+            '  "blessing":   "Exactly 3 short lines of TRADITIONAL Marathi blessing as per rules above. NO English in this field. NO typos.",\n'
+            '  "future_invitation": "A 1-line warm invitation back in English — NOT discount-based — e.g. complimentary taak / sweet / priority booking / chef special."\n'
             "}"
         )
         chat = (LlmChat(api_key=api_key, session_id=f"mbox-{uuid.uuid4().hex[:8]}",
-                       system_message="You write warm, dignified memory book copy for Indian family celebrations.")
+                       system_message=(
+                           "You write warm, dignified memory-book copy for Indian "
+                           "family celebrations. You are NATIVE-FLUENT in Marathi "
+                           "and never produce a misspelled Devanagari word."))
                 .with_model("openai", "gpt-5.2"))
         resp = await chat.send_message(UserMessage(text=prompt))
         import json
@@ -283,9 +341,22 @@ async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
         # Sanity defaults
         for k in ("story", "gratitude", "blessing", "future_invitation"):
             data.setdefault(k, "")
+        # ── Safety net: if the model emitted a known misspelling, replace
+        # with the anchor blessing for this occasion. This protects the user
+        # from any silent regression in GPT output quality.
+        TYPO_FLAGS = ("वाढदविस", "हार्दकि", "वर्धापनदनि", "आर्शीवाद", "आर्शिवाद")
+        b = (data.get("blessing") or "")
+        if not b.strip() or any(t in b for t in TYPO_FLAGS):
+            data["blessing"] = anchor_blessing
         return data
     except Exception as e:
         logger.warning(f"Memory box GPT generation fell back: {e}")
+        # Deterministic fallback so the feature still works without LLM.
+        fallback_blessing = (
+            "श्री स्वामी समर्थ.\n"
+            "आयुष्य दीर्घ असो, आरोग्य उत्तम लाभो, सुख-समृद्धी नित्य वाढो.\n"
+            "कुटुंबात प्रेम, ऐक्य आणि आनंद सदैव नांदो."
+        )
         # Deterministic fallback so the feature still works without LLM.
         return {
             "story": (
@@ -299,7 +370,7 @@ async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
                 f"Thank you, {req.guest_name}, for letting Purnabramha share this {occ.lower()} with you. "
                 "Every plate we serve carries a wish that your family stays close and your memories stay warm."
             ),
-            "blessing": "May the year ahead bring you health, joy, and meaningful moments shared at the family table.",
+            "blessing": fallback_blessing,
             "future_invitation": "A complimentary glass of fresh taak awaits you on your next visit — our small way of saying thank you.",
         }
 

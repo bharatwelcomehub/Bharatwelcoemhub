@@ -84,6 +84,32 @@ UI: added "Polish" section with `video-headline-size`, `video-subline-size`, `vi
 
 ⚠️ **Redeploy required.**
 
+### [2026-06-05 v2] Memory Box — culturally-correct Marathi blessings (P0 FIX)
+
+User feedback: *"see the text is not correct"* — pointed out previous GPT-generated blessings contained Devanagari typos ("वाढदविसाच्या" → should be "वाढदिवसाच्या", "हार्दकि" → "हार्दिक") and lacked the traditional "श्री स्वामी समर्थ" invocation cadence.
+
+User-provided gold standard:
+```
+श्री स्वामी समर्थ.
+आयुष्य दीर्घ असो, आरोग्य उत्तम लाभो, सुख-समृद्धी नित्य वाढो.
+कुटुंबात प्रेम, ऐक्य आणि आनंद सदैव नांदो.
+```
+
+Fix in `_gpt_story()` (backend/routes/memory_box.py):
+1. **Per-occasion anchor blessings**: hand-curated, Marathi-verified templates for Birthday, Anniversary, Wedding, Naming, Housewarming, + default.
+2. **Strict Marathi accuracy rules** in the GPT prompt — explicitly lists common misspellings to avoid (वाढदविस, हार्दकि, आर्शीवाद, वर्धापनदनि) and shows the anchor as a few-shot example.
+3. **System message upgrade**: GPT now told it is *"NATIVE-FLUENT in Marathi and never produces a misspelled Devanagari word"*.
+4. **Safety net post-process**: if the GPT output still contains any flagged typo OR returns empty, we substitute the occasion's anchor blessing automatically.
+5. Deterministic fallback (when GPT is unavailable) now also uses the user's gold-standard blessing — never English.
+
+**Verified end-to-end**:
+- Anniversary box `788e257c-…` → `श्री स्वामी समर्थ. तुमचे सहजीवन प्रेम, विश्वास आणि आनंदाने बहरलेले राहो. एकमेकांची साथ, समजूत आणि आदर सदैव वाढत जावो.` ✓
+- Birthday box `e0bec416-…` → `श्री स्वामी समर्थ. वाढदिवसाच्या हार्दिक शुभेच्छा; आयुष्य दीर्घ असो, आरोग्य उत्तम लाभो, सुख-समृद्धी नित्य वाढो. कुटुंबात प्रेम, ऐक्य आणि आनंद सदैव नांदो.` ✓ (correctly spelled "वाढदिवस" and "हार्दिक", invocation prefix present)
+
+Preview Birthday PDF: `https://balance-cascade-fix.preview.emergentagent.com/static/membox_birthday_v7.pdf`
+
+⚠️ **Redeploy required.**
+
 ## What's Been Implemented (Latest)
 
 ### [2026-06-05] Memory Box PDF — creative collage + per-member team avatars + gold-on-chocolate roster (P0 FIX)
