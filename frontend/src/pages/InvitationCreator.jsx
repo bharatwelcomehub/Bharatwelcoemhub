@@ -56,6 +56,10 @@ export default function InvitationCreator() {
     save_the_date: false,
     rsvp_contact: "",
     dress_code: "",
+    // Per-center branding embed (Feb 2026)
+    instagram_url: "",
+    phone: "",
+    show_qr: true,
   });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -67,11 +71,23 @@ export default function InvitationCreator() {
     });
   }, []);
 
-  // Auto-fill address when center changes
+  // Auto-fill address + per-center social/phone when center changes
   useEffect(() => {
     if (!form.center) return;
     const c = centers.find(x => x.code === form.center);
     if (c) setForm(f => ({ ...f, center_address: f.center_address || c.address || c.city || "" }));
+    // Fetch per-center branding (instagram + phone) if not already filled by user
+    fetch(`${API}/api/mgt/center_branding`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, code: form.center }),
+    }).then(r => r.ok && r.json()).then(d => {
+      if (!d) return;
+      setForm(f => ({
+        ...f,
+        instagram_url: f.instagram_url || d.instagram_url || "",
+        phone: f.phone || d.phone || "",
+      }));
+    }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.center, centers]);
 
@@ -339,6 +355,31 @@ export default function InvitationCreator() {
                   data-testid="invite-show-footer" />
                 <span>Show <strong>brand footer</strong> ("With warm regards · Purnabramha")</span>
               </label>
+
+              <div className="grid grid-cols-1 gap-2 pt-2 border-t border-amber-200/60">
+                <div>
+                  <Label className="text-xs">Instagram URL <span className="text-muted-foreground font-normal">(auto-filled from center, editable)</span></Label>
+                  <Input value={form.instagram_url}
+                    onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))}
+                    placeholder="https://instagram.com/purnabramha_hsr"
+                    data-testid="invite-instagram" />
+                </div>
+                <div>
+                  <Label className="text-xs">Center Phone <span className="text-muted-foreground font-normal">(auto-filled, editable)</span></Label>
+                  <Input value={form.phone}
+                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    placeholder="+91 98765 43210"
+                    data-testid="invite-phone" />
+                </div>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input type="checkbox"
+                    checked={form.show_qr}
+                    onChange={e => setForm(f => ({ ...f, show_qr: e.target.checked }))}
+                    className="w-3.5 h-3.5"
+                    data-testid="invite-show-qr" />
+                  <span>Show <strong>booking QR</strong> card on the invitation</span>
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

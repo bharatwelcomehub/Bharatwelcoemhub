@@ -41,6 +41,7 @@ export default function CentersManagement() {
     phone: "",
     email: "",
     address: "",
+    instagram_url: "",
     active: true,
     is_india_center: true
   });
@@ -68,6 +69,7 @@ export default function CentersManagement() {
       phone: "",
       email: "",
       address: "",
+      instagram_url: "",
       active: true,
       is_india_center: true
     });
@@ -104,6 +106,7 @@ export default function CentersManagement() {
       phone: center.phone || "",
       email: center.email || "",
       address: center.address || "",
+      instagram_url: center.instagram_url || "",
       active: center.active !== false,
       is_india_center: center.is_india_center !== false
     });
@@ -228,6 +231,15 @@ export default function CentersManagement() {
                   value={formData.address}
                   onChange={(e) => setFormData({...formData, address: e.target.value})}
                   placeholder="Full address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Instagram URL <span className="text-xs text-muted-foreground font-normal">(per-center, optional)</span></Label>
+                <Input
+                  data-testid="center-instagram-input"
+                  value={formData.instagram_url}
+                  onChange={(e) => setFormData({...formData, instagram_url: e.target.value})}
+                  placeholder="e.g. https://instagram.com/purnabramha_hsr"
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -399,6 +411,15 @@ export default function CentersManagement() {
                 value={formData.address}
                 onChange={(e) => setFormData({...formData, address: e.target.value})}
                 placeholder="Full address"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Instagram URL <span className="text-xs text-muted-foreground font-normal">(per-center, optional)</span></Label>
+              <Input
+                data-testid="center-instagram-edit-input"
+                value={formData.instagram_url}
+                onChange={(e) => setFormData({...formData, instagram_url: e.target.value})}
+                placeholder="e.g. https://instagram.com/purnabramha_hsr"
               />
             </div>
             <div className="flex items-center justify-between">

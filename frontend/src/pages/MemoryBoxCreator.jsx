@@ -50,6 +50,10 @@ export default function MemoryBoxCreator() {
     thank_family: '',
     mention_guests: '',
     emotion: 'Joy',
+    // Per-center branding (Feb 2026)
+    instagram_url: '',
+    phone: '',
+    show_qr: true,
   });
   const [photos, setPhotos] = useState([]);          // [{ name, b64 }]
   const [teamPhoto, setTeamPhoto] = useState('');
@@ -102,6 +106,23 @@ export default function MemoryBoxCreator() {
   }, [session?.token]);
 
   useEffect(() => { loadMasters(); loadHistory(); }, [loadMasters, loadHistory]);
+
+  // Auto-fill Instagram + phone from center config when center changes
+  useEffect(() => {
+    if (!session?.token || !form.center) return;
+    fetch(`${API}/api/mgt/center_branding`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session.token, code: form.center }),
+    }).then(r => r.ok && r.json()).then(d => {
+      if (!d) return;
+      setForm(f => ({
+        ...f,
+        instagram_url: f.instagram_url || d.instagram_url || '',
+        phone: f.phone || d.phone || '',
+      }));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.center, session?.token]);
 
   // ── Prefill from another module (e.g. Catering / Event Bookings) ──────
   useEffect(() => {
@@ -444,6 +465,32 @@ export default function MemoryBoxCreator() {
                     <Input value={form.thank_family}
                       onChange={e => setForm(f => ({ ...f, thank_family: e.target.value }))}
                       placeholder="e.g. The entire Kulkarni family" data-testid="mb-thank" />
+                  </div>
+                  <div className="rounded-md border bg-amber-50/40 p-3 space-y-2 mt-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                      Center Branding & Booking QR
+                    </div>
+                    <div>
+                      <Label className="text-xs">Instagram URL <span className="text-muted-foreground font-normal">(auto-filled, editable)</span></Label>
+                      <Input value={form.instagram_url}
+                        onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))}
+                        placeholder="https://instagram.com/purnabramha_hsr"
+                        data-testid="mb-instagram" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Center Phone</Label>
+                      <Input value={form.phone}
+                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                        placeholder="+91 98765 43210"
+                        data-testid="mb-phone" />
+                    </div>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={form.show_qr}
+                        onChange={e => setForm(f => ({ ...f, show_qr: e.target.checked }))}
+                        className="w-3.5 h-3.5"
+                        data-testid="mb-show-qr" />
+                      <span>Embed <strong>booking QR</strong> on cover + last page</span>
+                    </label>
                   </div>
                 </AccordionContent>
               </AccordionItem>

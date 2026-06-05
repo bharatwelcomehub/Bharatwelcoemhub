@@ -7,7 +7,6 @@ top/bottom band, then overlay crisp text using Pillow + Noto Sans Devanagari.
 import io
 import logging
 import os
-import textwrap
 from typing import Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
@@ -96,7 +95,8 @@ def composite_guest_photo(
     Fit mode:
     - is_group=True → contain-fit (whole photo visible, may have cream bars on
       sides). This preserves EVERY face in a wide group photo.
-    - is_group=False → cover-fit (faces dominate; outer edges may crop). Good
+    - is_group=False → cover-fit (faces dominate
+    outer edges may crop). Good
       for single-person portraits.
     """
     try:
@@ -568,6 +568,11 @@ def apply_invitation_overlay(
     rsvp_contact: str = "",        # optional "RSVP: +91 …" line
     save_the_date: bool = False,   # show "Save the Date" pill above occasion
     dress_code: str = "",          # optional dress code line
+    # NEW (Feb 2026) — per-center branding & QR
+    website: str = "",
+    instagram_url: str = "",
+    phone: str = "",
+    qr_path: Optional[str] = None,
 ) -> bytes:
     """Render a PREMIUM wedding-invitation style info panel on the lower half
     of the AI background.
@@ -690,14 +695,16 @@ def apply_invitation_overlay(
     if occ_marathi:
         f_occ_m = _pick_font(occ_marathi, int(64 * scale), bold=True)
         for L in _wrap_to_width(draw, occ_marathi, f_occ_m, inner_w - 80):
-            bb = draw.textbbox((0, 0), L, font=f_occ_m); tw = bb[2] - bb[0]
+            bb = draw.textbbox((0, 0), L, font=f_occ_m)
+            tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2 + 2, y + 2), L, font=f_occ_m, fill=(0, 0, 0, 130))
             draw.text(((W - tw) // 2, y), L, font=f_occ_m, fill=ANTIQUE_GOLD_BRIGHT)
             y += f_occ_m.size + 10
     if occ_english:
         f_occ_e = _font(LATIN_ITALIC, int(42 * scale))
         line = f"{occ_english} Celebration"
-        bb = draw.textbbox((0, 0), line, font=f_occ_e); tw = bb[2] - bb[0]
+        bb = draw.textbbox((0, 0), line, font=f_occ_e)
+        tw = bb[2] - bb[0]
         draw.text(((W - tw) // 2, y), line, font=f_occ_e, fill=WARM_CREAM)
         y += f_occ_e.size + 10
 
@@ -723,7 +730,8 @@ def apply_invitation_overlay(
             break
         fs_host = int(fs_host * 0.88)
     for L in lines:
-        bb = draw.textbbox((0, 0), L, font=f_host); tw = bb[2] - bb[0]
+        bb = draw.textbbox((0, 0), L, font=f_host)
+        tw = bb[2] - bb[0]
         # Triple-shadow for depth
         draw.text(((W - tw) // 2 + 4, y + 4), L, font=f_host, fill=(0, 0, 0, 220))
         draw.text(((W - tw) // 2, y), L, font=f_host, fill=ANTIQUE_GOLD_BRIGHT)
@@ -733,19 +741,22 @@ def apply_invitation_overlay(
     # ── Date / Time (premium serif, cream) ────────────────────────────────
     dt_line = f"{event_date}    ·    {event_time}"
     f_dt = _font(LATIN_BOLD, int(46 * scale))
-    bb = draw.textbbox((0, 0), dt_line, font=f_dt); tw = bb[2] - bb[0]
+    bb = draw.textbbox((0, 0), dt_line, font=f_dt)
+    tw = bb[2] - bb[0]
     draw.text(((W - tw) // 2, y), dt_line, font=f_dt, fill=WARM_CREAM)
     y += f_dt.size + int(18 * scale)
 
     # ── Venue ─────────────────────────────────────────────────────────────
     f_venue = _font(LATIN_BOLD, int(40 * scale))
-    bb = draw.textbbox((0, 0), venue_name, font=f_venue); tw = bb[2] - bb[0]
+    bb = draw.textbbox((0, 0), venue_name, font=f_venue)
+    tw = bb[2] - bb[0]
     draw.text(((W - tw) // 2, y), venue_name, font=f_venue, fill=ANTIQUE_GOLD_BRIGHT)
     y += f_venue.size + 6
     if venue_address:
         f_addr = _font(LATIN_REG, int(28 * scale))
         for L in _wrap_to_width(draw, venue_address, f_addr, inner_w - 100):
-            bb = draw.textbbox((0, 0), L, font=f_addr); tw = bb[2] - bb[0]
+            bb = draw.textbbox((0, 0), L, font=f_addr)
+            tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), L, font=f_addr, fill=WARM_CREAM_SOFT)
             y += f_addr.size + 4
 
@@ -760,7 +771,8 @@ def apply_invitation_overlay(
         y += label_size + 6
         f_menu = _pick_font(menu_highlights, int(28 * scale), bold=False)
         for L in _wrap_to_width(draw, menu_highlights, f_menu, inner_w - 120):
-            bb = draw.textbbox((0, 0), L, font=f_menu); tw = bb[2] - bb[0]
+            bb = draw.textbbox((0, 0), L, font=f_menu)
+            tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), L, font=f_menu, fill=WARM_CREAM)
             y += f_menu.size + 2
 
@@ -769,7 +781,8 @@ def apply_invitation_overlay(
         y += int(14 * scale)
         f_msg = _pick_font(custom_message, int(30 * scale), bold=False)
         for L in _wrap_to_width(draw, custom_message, f_msg, inner_w - 140):
-            bb = draw.textbbox((0, 0), L, font=f_msg); tw = bb[2] - bb[0]
+            bb = draw.textbbox((0, 0), L, font=f_msg)
+            tw = bb[2] - bb[0]
             draw.text(((W - tw) // 2, y), f'"{L}"', font=f_msg, fill=WARM_CREAM_SOFT)
             y += f_msg.size + 2
 
@@ -778,11 +791,13 @@ def apply_invitation_overlay(
         y += int(10 * scale)
         line = f"DRESS CODE  ·  {dress_code.strip().upper()}"
         f_dress = _font(LATIN_BOLD, int(24 * scale))
-        bb = draw.textbbox((0, 0), line, font=f_dress); tw = bb[2] - bb[0]
+        bb = draw.textbbox((0, 0), line, font=f_dress)
+        tw = bb[2] - bb[0]
         if tw > inner_w - 100:
             line = f"DRESS CODE · {dress_code.strip().upper()}"
             f_dress = _font(LATIN_BOLD, int(20 * scale))
-            bb = draw.textbbox((0, 0), line, font=f_dress); tw = bb[2] - bb[0]
+            bb = draw.textbbox((0, 0), line, font=f_dress)
+            tw = bb[2] - bb[0]
         draw.text(((W - tw) // 2, y), line, font=f_dress, fill=ANTIQUE_GOLD)
         y += f_dress.size + 2
 
@@ -791,10 +806,12 @@ def apply_invitation_overlay(
         y += int(8 * scale)
         line = f"RSVP  ·  {rsvp_contact.strip()}"
         f_rsvp = _font(LATIN_BOLD, int(26 * scale))
-        bb = draw.textbbox((0, 0), line, font=f_rsvp); tw = bb[2] - bb[0]
+        bb = draw.textbbox((0, 0), line, font=f_rsvp)
+        tw = bb[2] - bb[0]
         if tw > inner_w - 80:
             f_rsvp = _font(LATIN_BOLD, int(22 * scale))
-            bb = draw.textbbox((0, 0), line, font=f_rsvp); tw = bb[2] - bb[0]
+            bb = draw.textbbox((0, 0), line, font=f_rsvp)
+            tw = bb[2] - bb[0]
         draw.text(((W - tw) // 2, y), line, font=f_rsvp, fill=WARM_CREAM)
         y += f_rsvp.size + 2
 
@@ -819,6 +836,74 @@ def apply_invitation_overlay(
         tw = _measure_mixed(draw, brand_line_en, brand_size, bold=True)
         _draw_text_mixed(draw, (W - tw) // 2, block_top + line_gap, brand_line_en,
                          brand_size, ANTIQUE_GOLD, bold=True)
+
+    # ── Booking QR + social/website/phone strip (NEW Feb 2026) ───────────
+    # Renders a small "Scan to Book" QR card in the bottom-LEFT of the panel
+    # plus a single-line website / @instagram / phone strip just above the
+    # bottom edge of the panel (or above the brand footer if shown).
+    has_qr_strip = bool(qr_path and os.path.exists(qr_path))
+    has_contact_line = bool(website or instagram_url or phone)
+    if has_qr_strip or has_contact_line:
+        # Contact strip sits ABOVE the brand footer (or near the panel bottom)
+        if has_contact_line:
+            contact_bits = []
+            if website:
+                contact_bits.append(website.replace("https://", "").replace("http://", "").strip("/"))
+            if instagram_url:
+                handle = instagram_url.rstrip("/").split("/")[-1]
+                if handle:
+                    if not handle.startswith("@"):
+                        handle = "@" + handle
+                    contact_bits.append(handle)
+            if phone:
+                contact_bits.append(phone)
+            contact_line = "  ·  ".join(contact_bits)
+            c_size = int(26 * scale)
+            f_c = _font(LATIN_BOLD, c_size)
+            cbb = draw.textbbox((0, 0), contact_line, font=f_c)
+            ctw = cbb[2] - cbb[0]
+            while ctw > inner_w - 200 and c_size > 14:
+                c_size = int(c_size * 0.92)
+                f_c = _font(LATIN_BOLD, c_size)
+                cbb = draw.textbbox((0, 0), contact_line, font=f_c)
+                ctw = cbb[2] - cbb[0]
+            # Anchor: bottom of panel minus footer block (if any)
+            footer_reserve = (int(32 * scale) * 3 + int(60 * scale)) if show_footer else int(30 * scale)
+            cy = panel_top + panel_h - footer_reserve - c_size - int(8 * scale)
+            cx = (W - ctw) // 2
+            draw.text((cx, cy), contact_line, font=f_c, fill=ANTIQUE_GOLD_BRIGHT)
+
+        # QR card in the bottom-LEFT of the dark panel (~14% of panel width)
+        if has_qr_strip:
+            try:
+                qr = Image.open(qr_path).convert("RGBA")
+                qr_d = int(W * 0.13)
+                qr.thumbnail((qr_d, qr_d), Image.LANCZOS)
+                card_pad = int(8 * scale)
+                label_h = int(c_size * 0.95) if has_contact_line else int(24 * scale)
+                card_w = qr.width + card_pad * 2
+                card_h = qr.height + card_pad * 2 + label_h + 4
+                # Bottom-left within the dark panel
+                qx = side_pad + int(18 * scale)
+                qy = panel_top + panel_h - card_h - (
+                    int(32 * scale) * 3 + int(30 * scale) if show_footer else int(28 * scale)
+                )
+                # Cream backdrop card with gold border
+                draw.rounded_rectangle(
+                    [qx, qy, qx + card_w, qy + card_h],
+                    radius=10, fill=(252, 244, 220, 245), outline=ANTIQUE_GOLD_BRIGHT, width=2,
+                )
+                layer.paste(qr, (qx + card_pad, qy + card_pad), qr)
+                # "SCAN TO BOOK" label
+                f_lbl = _font(LATIN_BOLD, max(10, int(label_h * 0.65)))
+                lbl = "SCAN TO BOOK"
+                lbb = draw.textbbox((0, 0), lbl, font=f_lbl)
+                ltw = lbb[2] - lbb[0]
+                lx = qx + (card_w - ltw) // 2
+                ly = qy + card_pad + qr.height + 4
+                draw.text((lx, ly), lbl, font=f_lbl, fill=DARK_CHOCOLATE)
+            except Exception as e:
+                logger.warning(f"invitation QR paste failed: {e}")
 
     # ── Big top-right logo (transparent PNG, prominent brand mark) ────────
     if logo_path and os.path.exists(logo_path):
@@ -880,17 +965,20 @@ def render_text_only_card(
 
     y = int(H * 0.42)
     for L in _wrap_to_width(draw, headline_marathi, f_m, int(W * 0.85)):
-        bb = draw.textbbox((0, 0), L, font=f_m); tw = bb[2] - bb[0]
+        bb = draw.textbbox((0, 0), L, font=f_m)
+        tw = bb[2] - bb[0]
         draw.text(((W - tw) // 2, y), L, font=f_m, fill=MAROON)
         y += f_m.size + 14
     y += 10
     for L in _wrap_to_width(draw, headline_english, f_e, int(W * 0.85)):
-        bb = draw.textbbox((0, 0), L, font=f_e); tw = bb[2] - bb[0]
+        bb = draw.textbbox((0, 0), L, font=f_e)
+        tw = bb[2] - bb[0]
         draw.text(((W - tw) // 2, y), L, font=f_e, fill=GOLD)
         y += f_e.size + 8
     if byline:
         y += 12
-        bb = draw.textbbox((0, 0), byline, font=f_b); tw = bb[2] - bb[0]
+        bb = draw.textbbox((0, 0), byline, font=f_b)
+        tw = bb[2] - bb[0]
         draw.text(((W - tw) // 2, y), byline, font=f_b, fill=(120, 80, 0))
 
     if logo_path and os.path.exists(logo_path):
@@ -901,7 +989,8 @@ def render_text_only_card(
         except Exception:
             pass
     brand_line = f"— {brand} —"
-    bb = draw.textbbox((0, 0), brand_line, font=f_b); tw = bb[2] - bb[0]
+    bb = draw.textbbox((0, 0), brand_line, font=f_b)
+    tw = bb[2] - bb[0]
     draw.text(((W - tw) // 2, H - 80), brand_line, font=f_b, fill=GOLD)
 
     buf = io.BytesIO()
@@ -928,8 +1017,8 @@ def render_text_only_card(
 # deep-maroon / chocolate / paisley-cream styles for fresh feel each ad.
 # ═════════════════════════════════════════════════════════════════════════════
 
-import random as _random
-import math as _math
+import random as _random  # noqa: E402
+import math as _math  # noqa: E402
 
 SCENE_ARCHETYPES = [
     # (panel_fill, accent, text_pill_fill, text_pill_alpha)
@@ -1183,7 +1272,8 @@ def compose_premium_ad(
 ) -> bytes:
     """Compose the FINAL premium ad — golden-reference layout.
 
-    The AI food image (`food_bg_bytes`) is treated as a building block; the
+    The AI food image (`food_bg_bytes`) is treated as a building block
+    the
     layout is built deterministically in Pillow so the photo, logo, text and
     brand strip are ALWAYS present and correctly placed.
 
@@ -1294,14 +1384,16 @@ def compose_premium_ad(
             f = _font(LATIN_BOLD, int((y1 - y0) * 0.18))
             txt = "Guest"
             bb = draw.textbbox((0, 0), txt, font=f)
-            tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+            tw = bb[2] - bb[0]
+            th = bb[3] - bb[1]
             draw.text((x0 + ((x1 - x0) - tw) // 2,
                        y0 + ((y1 - y0) - th) // 2),
                       txt, font=f, fill=DEEP_MAROON)
     else:
         # No photo provided — leave a decorative emblem in its place
         x0, y0, x1, y1 = photo_box
-        cx = (x0 + x1) // 2; cy = (y0 + y1) // 2
+        cx = (x0 + x1) // 2
+        cy = (y0 + y1) // 2
         r = min(x1 - x0, y1 - y0) // 3
         for rr in [r, int(r * 0.75), int(r * 0.5)]:
             draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr],
@@ -1323,14 +1415,16 @@ def compose_premium_ad(
     f_brand = _font(LATIN_BOLD, int(BRAND_STRIP_H * 0.42))
     line = "Purnabramha  —  Authentic Maharashtrian Cuisine"
     bb = draw.textbbox((0, 0), line, font=f_brand)
-    tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+    tw = bb[2] - bb[0]
+    th = bb[3] - bb[1]
     # Shrink if too wide
     fb_size = int(BRAND_STRIP_H * 0.42)
     while tw > W - 40 and fb_size > 14:
         fb_size = int(fb_size * 0.92)
         f_brand = _font(LATIN_BOLD, fb_size)
         bb = draw.textbbox((0, 0), line, font=f_brand)
-        tw = bb[2] - bb[0]; th = bb[3] - bb[1]
+        tw = bb[2] - bb[0]
+        th = bb[3] - bb[1]
     tx = (W - tw) // 2
     ty = strip_y0 + (BRAND_STRIP_H - th) // 2 - 4
     draw.text((tx, ty), line, font=f_brand, fill=WARM_CREAM)
@@ -1438,14 +1532,18 @@ def apply_smart_brand_overlay(
     byline: str = "",
     brand: str = "Purnabramha — Authentic Maharashtrian Cuisine",
     logo_path: Optional[str] = None,
+    website: str = "",
+    instagram_url: str = "",
+    phone: str = "",
+    qr_path: Optional[str] = None,
 ) -> bytes:
     """Add bilingual caption + circular logo + thin brand strip on top of
     a FREE-FLOW AI advertisement. Layout untouched — we only overlay.
 
-    - The bilingual caption goes on a soft semi-transparent CREAM PILL in the
-      calmest top corner (auto-detected).
-    - The circular Purnabramha logo medallion goes in the opposite corner.
-    - A thin chocolate brand strip runs along the very bottom (~5% of height).
+    The brand strip at the bottom now carries (when provided):
+        @instagram_handle  ·  www.purnabramha.com  ·  +91 …
+    and the booking QR (`qr_path`) is placed as a small badge in the bottom
+    corner OPPOSITE to the logo.
 
     Raises:
         ValueError if `img_bytes` cannot be opened.
@@ -1461,8 +1559,9 @@ def apply_smart_brand_overlay(
     else:
         aspect = "4:5"
 
-    # Reserve bottom 5% for brand strip — exclude that band from corner scoring
-    BRAND_STRIP_H = max(56, int(H * 0.05))
+    # Reserve bottom 6% for brand strip when we have extra brand info
+    has_extra = bool(website or instagram_url or phone)
+    BRAND_STRIP_H = max(56, int(H * (0.07 if has_extra else 0.05)))
     scoring_img = base.crop((0, 0, W, H - BRAND_STRIP_H))
     corners = _pick_corners(scoring_img, aspect)
 
@@ -1484,23 +1583,102 @@ def apply_smart_brand_overlay(
         cy = (ly0 + ly1) // 2
         _draw_circle_logo(layer, logo_path, cx, cy, diameter)
 
-    # ── 3) Thin chocolate brand strip at the bottom ──────────────────────
+    # ── 3) QR badge (if provided) — opposite corner from the logo ─────────
+    if qr_path and os.path.exists(qr_path):
+        try:
+            logo_corner = corners.get("logo_corner", "BL")
+            qr_corner = {"TR": "BL", "TL": "BR", "BR": "TL", "BL": "TR"}.get(logo_corner, "TR")
+            pad = int(min(W, H) * 0.025)
+            qr_d = int(min(W, H) * 0.14)
+            anchor_map = {
+                "TR": (W - qr_d - pad, pad),
+                "TL": (pad, pad),
+                "BR": (W - qr_d - pad, H - BRAND_STRIP_H - qr_d - pad - 10),
+                "BL": (pad, H - BRAND_STRIP_H - qr_d - pad - 10),
+            }
+            x0, y0 = anchor_map[qr_corner]
+            qr_img = Image.open(qr_path).convert("RGBA")
+            qr_img.thumbnail((qr_d, qr_d), Image.LANCZOS)
+            # Cream backdrop card (so QR scans cleanly even on a busy bg)
+            card_pad = 10
+            card_w = qr_img.width + card_pad * 2
+            card_h = qr_img.height + card_pad * 2 + int(qr_d * 0.18)
+            draw.rounded_rectangle(
+                [x0, y0, x0 + card_w, y0 + card_h],
+                radius=12, fill=(252, 244, 220, 245), outline=ANTIQUE_GOLD_BRIGHT, width=2,
+            )
+            layer.paste(qr_img, (x0 + card_pad, y0 + card_pad), qr_img)
+            # "SCAN TO BOOK" label
+            label_fs = max(11, int(qr_d * 0.10))
+            f_lbl = _font(LATIN_BOLD, label_fs)
+            txt = "SCAN TO BOOK"
+            bb = draw.textbbox((0, 0), txt, font=f_lbl)
+            tw = bb[2] - bb[0]
+            tx = x0 + (card_w - tw) // 2
+            ty = y0 + card_pad + qr_img.height + 4
+            draw.text((tx, ty), txt, font=f_lbl, fill=DARK_CHOCOLATE)
+        except Exception as e:
+            logger.warning(f"QR badge paste failed: {e}")
+
+    # ── 4) Brand strip at the bottom ─────────────────────────────────────
     strip_y0 = H - BRAND_STRIP_H
     draw.rectangle([0, strip_y0, W, H], fill=DARK_CHOCOLATE)
     draw.rectangle([0, strip_y0, W, strip_y0 + 3], fill=ANTIQUE_GOLD_BRIGHT)
-    fs = int(BRAND_STRIP_H * 0.42)
-    f_brand = _font(LATIN_BOLD, fs)
-    line = brand if brand else "Purnabramha — Authentic Maharashtrian Cuisine"
-    bb = draw.textbbox((0, 0), line, font=f_brand)
-    tw = bb[2] - bb[0]; th = bb[3] - bb[1]
-    while tw > W - 60 and fs > 14:
-        fs = int(fs * 0.92)
-        f_brand = _font(LATIN_BOLD, fs)
-        bb = draw.textbbox((0, 0), line, font=f_brand)
-        tw = bb[2] - bb[0]; th = bb[3] - bb[1]
-    tx = (W - tw) // 2
-    ty = strip_y0 + (BRAND_STRIP_H - th) // 2 - 4
-    draw.text((tx, ty), line, font=f_brand, fill=WARM_CREAM)
+
+    # Build a single line of brand + extras
+    bits = [brand if brand else "Purnabramha — Authentic Maharashtrian Cuisine"]
+    if has_extra:
+        sub = []
+        if website:
+            sub.append(website.replace("https://", "").replace("http://", "").strip("/"))
+        if instagram_url:
+            # Show as @handle
+            handle = instagram_url.rstrip("/").split("/")[-1]
+            if handle:
+                if not handle.startswith("@"):
+                    handle = "@" + handle
+                sub.append(handle)
+        if phone:
+            sub.append(phone)
+        if sub:
+            bits.append("  ·  ".join(sub))
+
+    # Render line 1 (brand) larger, line 2 (extras) smaller
+    fs_main = int(BRAND_STRIP_H * (0.34 if has_extra else 0.42))
+    fs_sub = int(BRAND_STRIP_H * 0.22)
+    f_main = _font(LATIN_BOLD, fs_main)
+    f_sub = _font(LATIN_BOLD, fs_sub)
+
+    main_text = bits[0]
+    bb = draw.textbbox((0, 0), main_text, font=f_main)
+    tw = bb[2] - bb[0]
+    th = bb[3] - bb[1]
+    while tw > W - 60 and fs_main > 12:
+        fs_main = int(fs_main * 0.92)
+        f_main = _font(LATIN_BOLD, fs_main)
+        bb = draw.textbbox((0, 0), main_text, font=f_main)
+        tw = bb[2] - bb[0]
+        th = bb[3] - bb[1]
+
+    if has_extra and len(bits) > 1:
+        sub_text = bits[1]
+        bb2 = draw.textbbox((0, 0), sub_text, font=f_sub)
+        tw2 = bb2[2] - bb2[0]
+        th2 = bb2[3] - bb2[1]
+        while tw2 > W - 60 and fs_sub > 10:
+            fs_sub = int(fs_sub * 0.92)
+            f_sub = _font(LATIN_BOLD, fs_sub)
+            bb2 = draw.textbbox((0, 0), sub_text, font=f_sub)
+            tw2 = bb2[2] - bb2[0]
+            th2 = bb2[3] - bb2[1]
+        # Two-line vertical centering
+        total_h = th + th2 + 6
+        y_main = strip_y0 + (BRAND_STRIP_H - total_h) // 2 - 3
+        draw.text(((W - tw) // 2, y_main), main_text, font=f_main, fill=WARM_CREAM)
+        draw.text(((W - tw2) // 2, y_main + th + 6), sub_text, font=f_sub, fill=ANTIQUE_GOLD_BRIGHT)
+    else:
+        draw.text(((W - tw) // 2, strip_y0 + (BRAND_STRIP_H - th) // 2 - 4),
+                  main_text, font=f_main, fill=WARM_CREAM)
 
     out = Image.alpha_composite(base, layer).convert("RGB")
     buf = io.BytesIO()

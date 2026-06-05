@@ -81,6 +81,10 @@ class MemoryBoxRequest(BaseModel):
     team_photo: Optional[str] = ""
     # Step 5 — Team
     team: List[TeamMember] = []
+    # NEW (Feb 2026) — per-center branding embed
+    instagram_url: Optional[str] = ""
+    phone: Optional[str] = ""
+    show_qr: bool = True
 
 
 class BaseReq(BaseModel):
@@ -479,6 +483,48 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     story.append(Paragraph(f"{req.event_date}", sub))
     story.append(Spacer(1, 0.3 * inch))
     story.append(Paragraph(f"Purnabramha · {center_name}", small))
+    # ── Per-center contact line on cover ──
+    contact_bits = []
+    if (req.phone or "").strip():
+        contact_bits.append(req.phone.strip())
+    if (req.instagram_url or "").strip():
+        ig = req.instagram_url.strip()
+        handle = ig.rstrip("/").split("/")[-1]
+        if handle and not handle.startswith("@"):
+            handle = "@" + handle
+        contact_bits.append(handle)
+    contact_bits.append("www.purnabramha.com")
+    if contact_bits:
+        story.append(Spacer(1, 0.05 * inch))
+        story.append(Paragraph(
+            "  ·  ".join(contact_bits),
+            ParagraphStyle("cover_contact", parent=small,
+                           fontSize=9, textColor=GOLD_BRIGHT, alignment=1),
+        ))
+    # ── Small QR badge on cover ──
+    QR_PATH = "/app/backend/static/purnabramha_booking_qr.png"
+    if req.show_qr and os.path.exists(QR_PATH):
+        try:
+            from reportlab.platypus import Image as RLImage
+            qr_im = RLImage(QR_PATH, width=1.2 * inch, height=1.2 * inch)
+            story.append(Spacer(1, 0.20 * inch))
+            qr_wrap = Table([[qr_im], [Paragraph(
+                "<para align='center'><font color='#DCAE50' size='8'><b>SCAN TO BOOK</b></font></para>",
+                small)]],
+                colWidths=[1.4 * inch], rowHeights=[1.25 * inch, 0.20 * inch])
+            qr_wrap.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), CREAM),
+                ("BOX", (0, 0), (-1, -1), 1.5, GOLD_BRIGHT),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]))
+            story.append(qr_wrap)
+        except Exception as _e:
+            logger.warning(f"cover QR paste failed: {_e}")
     story.append(PageBreak())
 
     # ─── Page 2: Event Story ───
@@ -592,7 +638,54 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     story.append(Paragraph("Until We Meet Again", H))
     story.append(Spacer(1, 0.2 * inch))
     story.append(Paragraph(llm.get("future_invitation", ""), centerBody))
-    story.append(Spacer(1, 0.5 * inch))
+    story.append(Spacer(1, 0.35 * inch))
+
+    # ── Dedicated "Book Your Next Celebration" card ──
+    QR_PATH = "/app/backend/static/purnabramha_booking_qr.png"
+    if req.show_qr and os.path.exists(QR_PATH):
+        try:
+            from reportlab.platypus import Image as RLImage
+            qr_im = RLImage(QR_PATH, width=1.8 * inch, height=1.8 * inch)
+            # Right column: contact info
+            contact_bits = []
+            if (req.phone or "").strip():
+                contact_bits.append(f"<b>{req.phone.strip()}</b>")
+            if (req.instagram_url or "").strip():
+                ig = req.instagram_url.strip()
+                handle = ig.rstrip("/").split("/")[-1]
+                if handle and not handle.startswith("@"):
+                    handle = "@" + handle
+                contact_bits.append(handle)
+            contact_bits.append("www.purnabramha.com")
+            right_html = (
+                "<para align='left'>"
+                "<font color='#DCAE50' size='14'><b>Book Your Next Celebration</b></font><br/><br/>"
+                "<font color='#FAF0DC' size='10'>"
+                + "<br/>".join(contact_bits) + "</font><br/><br/>"
+                "<font color='#BF8C32' size='9'><i>Scan the QR — choose date, occasion, guests.</i></font>"
+                "</para>"
+            )
+            right_par = Paragraph(right_html, body)
+            booking_card = Table(
+                [[qr_im, right_par]],
+                colWidths=[2.0 * inch, 3.6 * inch],
+                rowHeights=[2.0 * inch],
+            )
+            booking_card.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                ("BACKGROUND", (0, 0), (-1, -1), CHOCOLATE),
+                ("BOX", (0, 0), (-1, -1), 2, GOLD_BRIGHT),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ]))
+            story.append(booking_card)
+        except Exception as _e:
+            logger.warning(f"booking QR card failed: {_e}")
+
+    story.append(Spacer(1, 0.25 * inch))
     story.append(Paragraph(f"— The Purnabramha Family · {center_name} —", small))
     story.append(Paragraph(
         "<i>पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक</i>",

@@ -63,6 +63,8 @@ BRAND_DESIGN = (
     "NEVER cartoonish, NEVER generic Canva-template look."
 )
 BRAND_NAME = "Purnabramha — Authentic Maharashtrian Cuisine"
+WEBSITE_URL = "www.purnabramha.com"
+QR_PATH = "/app/backend/static/purnabramha_booking_qr.png"
 
 # Aspect-ratio hints sent to Nano Banana
 ASPECT_PROMPT = {
@@ -122,6 +124,10 @@ class AdGenerateRequest(BaseModel):
     is_group_photo: bool = False
     # NEW — optional menu/dish reference image uploaded by the center manager
     menu_item_image_base64: Optional[str] = None
+    # NEW (Feb 2026) — per-center branding embed
+    instagram_url: Optional[str] = None    # e.g. https://instagram.com/purnabramha_hsr
+    phone: Optional[str] = None            # e.g. "+91 85500 78515"
+    show_qr: bool = True                   # embed booking QR badge
 
 
 def _is_balgopal(guest_name: Optional[str], subject_text: Optional[str] = None) -> bool:
@@ -462,6 +468,10 @@ async def generate_ad(req: AdGenerateRequest):
             byline=(req.guest_name or req.manager_name or ""),
             brand=BRAND_NAME,
             logo_path=LOGO_PATH if os.path.exists(LOGO_PATH) else None,
+            website=WEBSITE_URL,
+            instagram_url=(req.instagram_url or "").strip(),
+            phone=(req.phone or "").strip(),
+            qr_path=QR_PATH if (req.show_qr and os.path.exists(QR_PATH)) else None,
         )
     except Exception as e:
         logger.error(f"apply_smart_brand_overlay failed: {e}", exc_info=True)
@@ -543,6 +553,10 @@ class InvitationRequest(BaseModel):
     rsvp_contact: Optional[str] = None       # optional RSVP phone/email line
     save_the_date: bool = False              # show "Save the Date" pill above occasion
     dress_code: Optional[str] = None         # optional dress code
+    # NEW (Feb 2026) — per-center branding embed
+    instagram_url: Optional[str] = None
+    phone: Optional[str] = None
+    show_qr: bool = True
 
 
 def _build_invitation_prompt(req: InvitationRequest, center_name: str, address_line: str) -> str:
@@ -715,6 +729,10 @@ async def generate_invitation(req: InvitationRequest):
             rsvp_contact=req.rsvp_contact or "",
             save_the_date=req.save_the_date,
             dress_code=req.dress_code or "",
+            website=WEBSITE_URL,
+            instagram_url=(req.instagram_url or "").strip(),
+            phone=(req.phone or "").strip(),
+            qr_path=QR_PATH if (req.show_qr and os.path.exists(QR_PATH)) else None,
         )
     except Exception as e:
         logger.warning(f"invitation overlay failed, using raw AI image: {e}")

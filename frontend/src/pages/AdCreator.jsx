@@ -41,6 +41,10 @@ export default function AdCreator() {
     subject_text: '',
     is_group_photo: false,
     menu_item_image_base64: '',
+    // Per-center branding embed (Feb 2026)
+    instagram_url: '',
+    phone: '',
+    show_qr: true,
   });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [menuPreview, setMenuPreview] = useState(null);
@@ -67,6 +71,24 @@ export default function AdCreator() {
     } catch (e) { /* ignore */ }
   }, [session?.token]);
   useEffect(() => { if (session?.token) loadHistory(); }, [session?.token, loadHistory]);
+
+  // Auto-fill Instagram + phone from center config when center changes
+  useEffect(() => {
+    if (!session?.token || !form.center) return;
+    fetch(`${API}/api/mgt/center_branding`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session.token, code: form.center }),
+    }).then(r => r.ok && r.json()).then(d => {
+      if (!d) return;
+      setForm(f => ({
+        ...f,
+        instagram_url: f.instagram_url || d.instagram_url || '',
+        phone: f.phone || d.phone || '',
+      }));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.center, session?.token]);
+
 
   const onPhotoSelect = (e) => {
     const file = e.target.files?.[0];
@@ -326,6 +348,34 @@ export default function AdCreator() {
                         {(masters.output_formats || []).map(f => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+                <div className="rounded-md border bg-amber-50/40 p-3 space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                    Center Branding <span className="font-normal normal-case text-muted-foreground">(auto-filled, editable)</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <div>
+                      <Label className="text-xs">Instagram URL</Label>
+                      <Input value={form.instagram_url}
+                        onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))}
+                        placeholder="https://instagram.com/purnabramha_hsr"
+                        data-testid="ad-instagram-url" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Center Phone</Label>
+                      <Input value={form.phone}
+                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                        placeholder="+91 98765 43210"
+                        data-testid="ad-phone" />
+                    </div>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={form.show_qr}
+                        onChange={e => setForm(f => ({ ...f, show_qr: e.target.checked }))}
+                        className="w-3.5 h-3.5"
+                        data-testid="ad-show-qr" />
+                      <span>Embed <strong>Scan-to-Book QR</strong> badge</span>
+                    </label>
                   </div>
                 </div>
                 <Button onClick={generate} disabled={generating} className="w-full bg-[#8B0000] hover:bg-[#5C0000] text-white" size="lg" data-testid="ad-generate-btn">

@@ -112,6 +112,49 @@ Preview Birthday PDF: `https://balance-cascade-fix.preview.emergentagent.com/sta
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-05 v3] Per-center branding + Booking QR across ALL creatives
+
+User request: *"can u add the website link, insta page link and QR code for them, for each center it is different link for social media, website is one and QR code is one for all kind of bookings, and center number to get added"* + later: *"give option for center's admin panel"*
+
+**Implementation**:
+
+1. **Schema + Admin UI (`backend/routes/centers_managers.py` + `frontend/src/pages/CentersManagement.jsx`)**:
+   - Added `instagram_url` field to `centers` collection. Wired through `mgt_center_create` and `mgt_center_update` endpoints.
+   - Added "Instagram URL" input to both the Add Center and Edit Center dialogs (data-testid `center-instagram-input`, `center-instagram-edit-input`).
+
+2. **New `POST /api/mgt/center_branding` endpoint** (centers_managers.py):
+   - Returns `{code, name, phone, email, address, instagram_url}` for a single center.
+   - Uses async `check_access` so any logged-in session works.
+
+3. **QR code asset**: User's booking QR image saved at `backend/static/purnabramha_booking_qr.png` — embedded into all 4 creatives.
+
+4. **Ad Creator (`backend/routes/marketing_ads.py` + `frontend/src/pages/AdCreator.jsx`)**:
+   - Added `instagram_url`, `phone`, `show_qr` fields to `AdGenerateRequest`.
+   - `apply_smart_brand_overlay` extended to render: (a) Scan-to-Book QR card with cream backdrop + gold border in the opposite corner from the logo, (b) two-line chocolate brand strip: line 1 brand line, line 2 `www.purnabramha.com · @handle · +91 …`.
+   - Frontend auto-fetches branding when center changes; manager can override.
+   - Composition rated 8/10 by independent analyzer; all 4 elements confirmed.
+
+5. **Invitation (`apply_invitation_overlay` in text_overlay.py)**:
+   - Same `instagram_url`, `phone`, `show_qr` flow.
+   - Renders a small QR card inside the dark panel + a single gold contact line above the brand footer.
+
+6. **Memory Box (`backend/routes/memory_box.py`)**:
+   - Cover page: small "SCAN TO BOOK" QR badge + gold contact line under center name.
+   - Final page: dedicated dark-chocolate "Book Your Next Celebration" card with the QR on the left and `+91 phone / @handle / www.purnabramha.com` on the right.
+
+7. **Video Creator (`backend/routes/video_overlay.py` + `VideoCreator.jsx`)**:
+   - Form accepts `instagram_url` and `phone` (auto-filled from center).
+   - The contact line is appended to the existing sub-line so it appears in the chocolate strip alongside the existing branding.
+
+**Verified end-to-end**:
+- Branding endpoint: `POST /api/mgt/center_branding` returns the new `instagram_url` field.
+- Ad preview: `…/static/ad_with_qr.png` (8/10 by analyzer, all 4 elements present).
+- Memory Box preview: `…/static/membox_branded_v8.pdf` — analyzer confirmed cover QR + gold contact line + last-page booking card.
+
+⚠️ **Redeploy required.**
+
+
+
 ### [2026-06-05] Memory Box PDF — creative collage + per-member team avatars + gold-on-chocolate roster (P0 FIX)
 
 User feedback: *"all the memory box pdf are creating good but images are just coming as block instead create some creative box placing of images and team image should one which is right but team names are coming with black font i mean basic are error"*

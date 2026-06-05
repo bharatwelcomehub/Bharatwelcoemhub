@@ -56,6 +56,34 @@ async def mgt_get_centers(data: dict):
     return {"centers": centers}
 
 
+@router.post("/center_branding")
+async def mgt_center_branding(data: dict):
+    """Public-ish: return ONE center's branding fields (phone, instagram_url,
+    address, email, name). Used to prefill the Ad/Invitation/MemoryBox creative
+    forms so center managers don't have to type their own social link each
+    time. Token is required (any logged-in session)."""
+    # Use the async access checker which validates against BOTH the in-memory
+    # OTP store AND the persisted sessions collection.
+    from routes.center_accounts import check_access  # local import to avoid cycle at boot
+    await check_access(data.get("token"))
+    code = (data.get("code") or "").upper().strip()
+    if not code:
+        raise HTTPException(400, "Center code is required")
+    c = await db.centers.find_one({"code": code}, {"_id": 0})
+    if not c:
+        return {"code": code, "name": "", "phone": "", "email": "",
+                "address": "", "instagram_url": ""}
+    return {
+        "code": c.get("code", code),
+        "name": c.get("name", ""),
+        "phone": c.get("phone", ""),
+        "email": c.get("email", ""),
+        "address": c.get("address", ""),
+        "instagram_url": c.get("instagram_url", ""),
+    }
+
+
+
 @router.post("/center_create")
 async def mgt_center_create(data: dict):
     """Create a new center (MGT only)"""
@@ -78,6 +106,7 @@ async def mgt_center_create(data: dict):
         "phone": data.get("phone", "").strip(),
         "email": data.get("email", "").strip(),
         "address": data.get("address", "").strip(),
+        "instagram_url": data.get("instagram_url", "").strip(),
         "active": data.get("active", True),
         "is_india_center": data.get("is_india_center", True),
         "createdAt": datetime.now(timezone.utc).isoformat()
@@ -101,7 +130,7 @@ async def mgt_center_update(data: dict):
         raise HTTPException(400, "Center code is required")
 
     update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
-    for field in ["name", "phone", "email", "address"]:
+    for field in ["name", "phone", "email", "address", "instagram_url"]:
         if field in data and data[field] is not None:
             update_data[field] = data[field].strip()
     if "active" in data and data["active"] is not None:

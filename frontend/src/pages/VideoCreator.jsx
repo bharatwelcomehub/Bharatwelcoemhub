@@ -36,6 +36,8 @@ export default function VideoCreator() {
     subline_size: 'M',
     occasion: '',
     mood: '',
+    instagram_url: '',
+    phone: '',
   });
   const [musicTracks, setMusicTracks] = useState([]);
   const [musicBusy, setMusicBusy] = useState(false);
@@ -64,6 +66,23 @@ export default function VideoCreator() {
   }, [session?.token]);
 
   useEffect(() => { loadCenters(); loadHistory(); }, [loadCenters, loadHistory]);
+
+  // Auto-fill Instagram + phone from center config
+  useEffect(() => {
+    if (!session?.token || !form.center) return;
+    fetch(`${API}/api/mgt/center_branding`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session.token, code: form.center }),
+    }).then(r => r.ok && r.json()).then(d => {
+      if (!d) return;
+      setForm(f => ({
+        ...f,
+        instagram_url: f.instagram_url || d.instagram_url || '',
+        phone: f.phone || d.phone || '',
+      }));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.center, session?.token]);
 
   // ── File picker ───────────────────────────────────────────────────────
   const onVideoSelect = (e) => {
@@ -105,6 +124,8 @@ export default function VideoCreator() {
     fd.append('show_footer', form.show_footer ? 'true' : 'false');
     fd.append('headline_size', form.headline_size || 'M');
     fd.append('subline_size', form.subline_size || 'M');
+    fd.append('instagram_url', form.instagram_url || '');
+    fd.append('phone', form.phone || '');
     fd.append('video', videoFile);
 
     const xhr = new XMLHttpRequest();
@@ -314,6 +335,23 @@ export default function VideoCreator() {
                   data-testid="video-show-footer" />
                 <span>Show <strong>footer</strong> (sub-line + byline). Off = minimal strip with only headline.</span>
               </label>
+
+              <div className="grid grid-cols-1 gap-2 pt-2 border-t border-amber-200/60">
+                <div>
+                  <Label className="text-xs">Instagram URL <span className="text-muted-foreground font-normal">(auto-filled from center)</span></Label>
+                  <Input value={form.instagram_url}
+                    onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))}
+                    placeholder="https://instagram.com/purnabramha_hsr"
+                    data-testid="video-instagram" />
+                </div>
+                <div>
+                  <Label className="text-xs">Center Phone</Label>
+                  <Input value={form.phone}
+                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    placeholder="+91 98765 43210"
+                    data-testid="video-phone" />
+                </div>
+              </div>
             </div>
 
             <Button onClick={generate} disabled={busy || !videoFile}

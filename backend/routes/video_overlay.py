@@ -232,6 +232,8 @@ async def overlay_video(
     show_footer: bool = Form(True),
     headline_size: str = Form("M"),     # S | M | L
     subline_size: str = Form("M"),      # S | M | L
+    instagram_url: str = Form(""),       # NEW per-center social handle
+    phone: str = Form(""),               # NEW per-center phone
     video: UploadFile = File(...),
 ):
     session = await check_access(token)
@@ -267,9 +269,25 @@ async def overlay_video(
     if written == 0:
         raise HTTPException(400, "Empty upload")
 
+    # Augment sub-line with per-center contact info (single line, ' · ' separated)
+    extras = []
+    if instagram_url.strip():
+        handle = instagram_url.strip().rstrip("/").split("/")[-1]
+        if handle and not handle.startswith("@"):
+            handle = "@" + handle
+        if handle:
+            extras.append(handle)
+    if phone.strip():
+        extras.append(phone.strip())
+    extras.append("www.purnabramha.com")
+    extra_line = "  ·  ".join(extras)
+    final_sub = sub.strip()
+    if extra_line:
+        final_sub = (final_sub + "  ·  " + extra_line) if final_sub else extra_line
+
     try:
         meta = await _process_video(
-            src_path, dst_path, headline, sub, byline, use_logo,
+            src_path, dst_path, headline, final_sub, byline, use_logo,
             position=position, show_footer=show_footer,
             headline_size=headline_size, subline_size=subline_size,
         )
