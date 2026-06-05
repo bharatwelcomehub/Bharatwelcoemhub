@@ -57,6 +57,11 @@ export default function MemoryBoxCreator() {
     // Personalisation (Feb 2026)
     language: 'Bilingual',
     font_size: 'M',
+    // Animated Memory Box (Feb 2026)
+    generate_video: true,
+    generate_web: true,
+    delivery_mode: 'function',  // 'function' or 'home'
+    website: '',
   });
   const [photos, setPhotos] = useState([]);          // [{ name, b64 }]
   const [teamPhoto, setTeamPhoto] = useState('');
@@ -249,6 +254,45 @@ export default function MemoryBoxCreator() {
       toast.success('Downloaded PDF');
     } catch (e) { toast.error(e.message); }
   };
+
+  const downloadVideo = async (box_id, guest_name) => {
+    try {
+      const res = await fetch(`${API}/api/memory-box/video/${box_id}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token }),
+      });
+      if (!res.ok) throw new Error('Video download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MemoryBox_${(guest_name || 'guest').replace(/\s+/g, '_')}.mp4`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Downloaded MP4');
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const buildPublicUrl = (box_id) => `${API}/api/memory-box/view/${box_id}`;
+
+  const copyWebLink = async (box_id) => {
+    const url = buildPublicUrl(box_id);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied!');
+    } catch (e) {
+      toast.error('Could not copy — please copy manually');
+    }
+  };
+
+  const shareVideoOnWhatsApp = (box_id) => {
+    const url = buildPublicUrl(box_id);
+    const cleanPhone = (form.mobile || '').replace(/\D/g, '');
+    const msg = `Hi ${form.guest_name || ''}, here's your Memory Box from Purnabramha 💛\n${url}`;
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+  };
+
 
   const sendWhatsapp = async (box_id) => {
     try {
@@ -505,6 +549,52 @@ export default function MemoryBoxCreator() {
                     </div>
                   </div>
 
+                  <div className="rounded-md border-2 border-amber-400 bg-gradient-to-br from-amber-50 to-rose-50 p-3 space-y-2 mt-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-900 flex items-center gap-1">
+                      ✨ Animated Memory Box <Badge variant="secondary" className="text-[9px] h-4 px-1">NEW</Badge>
+                    </div>
+                    <p className="text-[10px] text-amber-800 leading-snug">
+                      Generates a 30-45 sec WhatsApp-friendly MP4 + a shareable web link with magical fade-in photos,
+                      team intros, MEMORY10 discount and center QR. AI auto-picks the 6-9 best photos.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <Label className="text-xs">Event Type</Label>
+                        <Select value={form.delivery_mode}
+                          onValueChange={v => setForm(f => ({ ...f, delivery_mode: v }))}>
+                          <SelectTrigger className="h-9" data-testid="mb-delivery-mode">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="function">Hosted Function</SelectItem>
+                            <SelectItem value="home">Home Delivery / Pickup</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Website (optional)</Label>
+                        <Input value={form.website}
+                          onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+                          placeholder="www.purnabramha.com"
+                          data-testid="mb-website" className="h-9" />
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer pt-1">
+                      <input type="checkbox" checked={form.generate_video}
+                        onChange={e => setForm(f => ({ ...f, generate_video: e.target.checked }))}
+                        className="w-3.5 h-3.5"
+                        data-testid="mb-gen-video" />
+                      <span>🎬 Generate <strong>MP4 video</strong> (downloadable, WhatsApp-ready)</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={form.generate_web}
+                        onChange={e => setForm(f => ({ ...f, generate_web: e.target.checked }))}
+                        className="w-3.5 h-3.5"
+                        data-testid="mb-gen-web" />
+                      <span>🌐 Generate <strong>shareable web link</strong> (magical animation, opens in browser)</span>
+                    </label>
+                  </div>
+
                   <div className="rounded-md border bg-amber-50/40 p-3 space-y-2 mt-2">
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
                       Center Branding & Booking QR
@@ -719,6 +809,73 @@ export default function MemoryBoxCreator() {
                     Email
                   </Button>
                 </div>
+
+                {/* ── Animated Memory Box deliverables ───────────────── */}
+                {(result.video_available || result.web_url) && (
+                  <div className="rounded-lg border-2 border-amber-400 bg-gradient-to-br from-amber-50 to-rose-50 p-3 space-y-3" data-testid="mb-animated-section">
+                    <div className="text-xs font-semibold text-amber-900 flex items-center gap-1">
+                      ✨ Animated Memory Box
+                      {result.ai_picked_photo_count > 0 && (
+                        <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-1">
+                          AI picked {result.ai_picked_photo_count} best photos
+                        </Badge>
+                      )}
+                    </div>
+
+                    {result.video_available && (
+                      <div className="space-y-2">
+                        <video
+                          className="w-full rounded-md border border-amber-300 shadow-md max-h-80"
+                          controls preload="metadata" data-testid="mb-video-player">
+                          <source
+                            src={`${API}/api/memory-box/view-video/${result.box_id}`}
+                            type="video/mp4" />
+                        </video>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" className="bg-amber-700 hover:bg-amber-800 text-white"
+                            onClick={() => downloadVideo(result.box_id, form.guest_name)}
+                            data-testid="mb-download-video">
+                            <Download className="w-3.5 h-3.5 mr-1" />MP4 ({result.video_size_kb} KB)
+                          </Button>
+                          <Button size="sm" variant="outline"
+                            onClick={() => shareVideoOnWhatsApp(result.box_id)}
+                            disabled={!form.mobile}
+                            data-testid="mb-wa-video">
+                            <MessageSquare className="w-3.5 h-3.5 mr-1" />Share via WhatsApp
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {result.web_url && (
+                      <div className="space-y-2 pt-1 border-t border-amber-200">
+                        <Label className="text-[11px] text-amber-900 font-semibold">
+                          🌐 Shareable Web Link (public, no login)
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input readOnly
+                            value={buildPublicUrl(result.box_id)}
+                            className="text-xs h-8 bg-white"
+                            data-testid="mb-web-url" />
+                          <Button size="sm" variant="outline"
+                            onClick={() => copyWebLink(result.box_id)}
+                            data-testid="mb-copy-link">
+                            Copy
+                          </Button>
+                          <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white"
+                            onClick={() => window.open(buildPublicUrl(result.box_id), '_blank')}
+                            data-testid="mb-open-link">
+                            Open
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-amber-800">
+                          Customer taps the link → magical box opens in their browser.
+                          Works on WhatsApp, iOS &amp; Android.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="text-[10px] text-muted-foreground">
                   WhatsApp opens with a pre-filled message; please attach the downloaded PDF in the chat.
                 </p>

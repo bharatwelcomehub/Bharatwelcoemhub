@@ -4,6 +4,48 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-10] Animated Memory Box — MP4 video + shareable web link (P1)
+
+**User ask**: *"can we generate something else… some animation kind of thing which opens the memory box and first will come thank you… then event photos collage of 2-3 best, then team photo with names, then 'Your Story With Us', then 10% off QR, then center QR + Insta + Website."*
+
+**Solution**: Brand-new animated Memory Box deliverable, in addition to the existing PDF.
+
+**6 Scenes**:
+1. 📦 **Box opens** — animated gold gift-box pictogram, "Dhanyavad!" + "Thank you for hosting your <Occasion> with us." + Center name + "एक छोटीशी आठवण" Marathi tagline.
+2. 🪄 **Photo collages × 3** — AI ranker scores all uploaded photos by sharpness + exposure + colour variance + resolution, picks top 6-9, splits into 3 polaroid sets of 2-3 photos with rotation & sparkle.
+3. 👥 **Team** — group photo (polaroid) + gold pill cards for every team member with name + role.
+4. 📖 **Your Story With Us** — LLM-written narrative recap on a cream parchment card.
+5. 🎁 **Discount** — "10% OFF your next order · MEMORY10" + scannable QR encoding the promo code.
+6. 📲 **Stay Connected** — center QR (Instagram / Website fallback) + Instagram handle + phone + website.
+
+**Two deliverables generated in parallel**:
+- 🎬 **MP4** — 1080×1080 square (WhatsApp + IG friendly), ~42 sec, ~1.2 MB. Built with ffmpeg (bundled via `imageio-ffmpeg`, no system dependency) using PNG-per-scene + `xfade` crossfade + `tune=stillimage` for tiny file size. PIL renders all scenes locally.
+- 🌐 **Shareable web link** — public `/api/memory-box/view/{box_id}` GET endpoint serving a single self-contained HTML page with CSS keyframe animations (box lid opens, photos fade-in with stagger, team pills cascade, QR cards). Tap-to-advance + auto-play. Works on WhatsApp in-app browsers, iOS, Android.
+
+**Stack**:
+- New: `qrcode==8.2`, `imageio-ffmpeg==0.6.0` (both vendored in `backend/requirements.txt`).
+- `backend/utils/memory_photo_rank.py` — Pillow-only photo scorer (no external API).
+- `backend/utils/memory_video.py` — scene renderer + ffmpeg stitcher.
+- `backend/utils/memory_web.py` — Jinja HTML template with CSS animation.
+- `backend/utils/memory_qr.py` — shared QR generator.
+- `backend/routes/memory_box.py` — `MemoryBoxRequest` extended with `generate_video / generate_web / delivery_mode / website`; new endpoints: `POST /video/{id}` (auth download), `GET /view/{id}` (public web view), `GET /view-video/{id}` (public MP4 stream for inline player).
+- `frontend/src/pages/MemoryBoxCreator.jsx` — new "Animated Memory Box" form section + result UI with inline `<video>` player, Copy-link / Open / WhatsApp share buttons.
+
+**Verified end-to-end** (`/tmp/test_memory_animated.py`):
+- AI auto-picked 7 of 7 test photos, split into [3,2,2] collage sets
+- MP4: 1.26 MB · 42.1 sec · h264 1080×1080 · 25fps · plays cleanly
+- HTML web view: 74 KB self-contained, public link returns 200, contains all 6 scenes
+- PDF still works (316 KB) — untouched
+
+**Marathi rendering**: Devanagari font loaded explicitly for the तagline so we don't regress to tofu boxes.
+
+**Existing PDF**: unchanged. User asked to keep it for now.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-10] Commission OVERVIEW vs LEDGER parity fix (P0 — financial)
 
 **User report**: *"Commission amount OVERVIEW madhye Actual peksha JAST yet aahe LEDGER madhye correct aahe Zomato upload kelyavar HSR & S NAGAR"* — the Overview / Status Card / WC Table showed a higher commission than the Ledger after Zomato Excel upload.

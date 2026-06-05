@@ -89,6 +89,11 @@ class MemoryBoxRequest(BaseModel):
     language: str = "Bilingual"     # English | Marathi | Bilingual
     font_size: str = "M"             # S | M | L
     generate_summary_image: bool = True   # also return a 1-page shareable PNG
+    # NEW (Feb 2026) — Animated Memory Box
+    generate_video: bool = False     # produce shareable MP4 (30-45s)
+    generate_web: bool = False       # produce shareable HTML web link
+    delivery_mode: str = "function"  # "function" (hosted) or "home" (delivery)
+    website: Optional[str] = ""      # center website (for QR fallback)
 
 
 class BaseReq(BaseModel):
@@ -1215,6 +1220,119 @@ async def generate(req: MemoryBoxRequest):
             f.write(cover_png)
 
     occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
+
+    # ── Animated Memory Box (MP4 + Web link) — optional ─────────────────
+    video_path = None
+    video_size = 0
+    web_path = None
+    web_url = None
+    video_meta: dict = {}
+    ai_pick_count = 0
+    if (req.generate_video or req.generate_web) and req.photos:
+        try:
+            from utils.memory_photo_rank import rank_photos, split_into_collage_sets
+            top_idx, _scores = rank_photos(req.photos, top_n=9)
+            ai_pick_count = len(top_idx)
+            collage_idx_sets = split_into_collage_sets(top_idx)
+
+            # Resolve center contact info for the closing scene
+            center_info = {
+                "name": center_name,
+                "instagram_url": req.instagram_url or cdoc.get("instagram_url") or "",
+                "website": req.website or cdoc.get("website") or "",
+                "phone": req.phone or cdoc.get("phone") or "",
+            }
+            delivery_mode = (req.delivery_mode or "function").strip().lower()
+            if delivery_mode not in {"function", "home"}:
+                delivery_mode = "function"
+        except Exception as e:
+            logger.warning(f"memory-box: AI ranking failed: {e}")
+            top_idx, collage_idx_sets, center_info = [], [[], [], []], {}
+            delivery_mode = "function"
+
+        # MP4
+        if req.generate_video:
+            try:
+                from utils.memory_video import render_memory_video
+                from PIL import Image as _PIL
+                import io as _io
+                # Decode ranked photos once (PIL)
+                decoded: list = []
+                for ix in top_idx:
+                    raw = _strip_data_url(req.photos[ix])
+                    if not raw:
+                        decoded.append(None)
+                        continue
+                    try:
+                        decoded.append(_PIL.open(_io.BytesIO(raw)).convert("RGB"))
+                    except Exception:
+                        decoded.append(None)
+                # Re-index collage sets to match `decoded` positions
+                pos_of = {orig: i for i, orig in enumerate(top_idx)}
+                collage_sets = [[pos_of[ix] for ix in s if ix in pos_of]
+                                for s in collage_idx_sets]
+                team_pil = None
+                if req.team_photo:
+                    raw_t = _strip_data_url(req.team_photo)
+                    if raw_t:
+                        try:
+                            team_pil = _PIL.open(_io.BytesIO(raw_t)).convert("RGB")
+                        except Exception:
+                            team_pil = None
+                video_path = os.path.join(sub, f"{box_id}.mp4")
+                video_meta = render_memory_video(
+                    out_path=video_path,
+                    center_name=center_name,
+                    occasion=occ,
+                    delivery_mode=delivery_mode,
+                    ranked_photos=[d for d in decoded if d is not None],
+                    collage_sets=collage_sets,
+                    team_photo=team_pil,
+                    team=[t.dict() for t in req.team],
+                    story_text=llm.get("story", ""),
+                    guest_name=req.guest_name,
+                    center_info=center_info,
+                    center_qr_path=None,
+                )
+                video_size = video_meta.get("size_bytes", 0)
+            except Exception as e:
+                logger.exception(f"memory-box video gen failed: {e}")
+                video_path = None
+                video_size = 0
+
+        # Web link
+        if req.generate_web:
+            try:
+                from utils.memory_web import render_memory_html
+                # Build collage sets as data-URL strings
+                photos_b64_by_set = [
+                    [req.photos[ix] for ix in s if ix < len(req.photos)]
+                    for s in collage_idx_sets
+                ]
+                web_path = os.path.join(sub, f"{box_id}.html")
+                web_meta = render_memory_html(
+                    out_path=web_path,
+                    guest_name=req.guest_name,
+                    center_name=center_name,
+                    occasion=occ,
+                    delivery_mode=delivery_mode,
+                    photos_b64_by_set=photos_b64_by_set,
+                    team_photo_b64=req.team_photo or None,
+                    team=[t.dict() for t in req.team],
+                    story_text=llm.get("story", ""),
+                    center_info=center_info,
+                )
+                _ = web_meta.get("size_bytes", 0)
+                # Build the public viewer URL using REACT_APP_BACKEND_URL if set,
+                # else fall back to relative path which the frontend resolves.
+                public_base = os.environ.get("PUBLIC_BACKEND_URL", "").rstrip("/")
+                web_url = (f"{public_base}/api/memory-box/view/{box_id}"
+                           if public_base else f"/api/memory-box/view/{box_id}")
+            except Exception as e:
+                logger.exception(f"memory-box web gen failed: {e}")
+                web_path = None
+                web_url = None
+
     doc = {
         "box_id": box_id,
         "center": req.center,
@@ -1232,16 +1350,24 @@ async def generate(req: MemoryBoxRequest):
         "host_message": req.host_message,
         "team": [t.dict() for t in req.team],
         "photo_count": len(req.photos),
+        "ai_picked_photo_count": ai_pick_count,
+        "delivery_mode": (req.delivery_mode or "function"),
         "story_text": llm.get("story", ""),
         "gratitude_text": llm.get("gratitude", ""),
         "blessing_text": llm.get("blessing", ""),
         "future_invitation_text": llm.get("future_invitation", ""),
         "asset_pdf": pdf_path,
         "asset_png": png_path if cover_png else None,
+        "asset_mp4": video_path,
+        "asset_html": web_path,
+        "video_size_bytes": video_size,
+        "video_duration_sec": video_meta.get("duration_sec") if video_meta else None,
+        "web_url": web_url,
         "size_bytes": len(pdf_bytes),
         "created_by": session.get("managerName") or session.get("mobile") or "Unknown",
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "delivery": {"whatsapp": None, "email": None, "downloads": 0},
+        "delivery": {"whatsapp": None, "email": None, "downloads": 0,
+                     "video_downloads": 0, "web_views": 0},
         "status": "active",
     }
     await db.memory_boxes.insert_one(doc)
@@ -1253,6 +1379,11 @@ async def generate(req: MemoryBoxRequest):
         "gratitude_text": llm.get("gratitude", ""),
         "blessing_text": llm.get("blessing", ""),
         "future_invitation_text": llm.get("future_invitation", ""),
+        "video_available": bool(video_path),
+        "video_size_kb": round(video_size / 1024.0, 1) if video_size else 0,
+        "video_duration_sec": video_meta.get("duration_sec") if video_meta else None,
+        "web_url": web_url,
+        "ai_picked_photo_count": ai_pick_count,
     }
 
 
@@ -1270,6 +1401,60 @@ async def asset(box_id: str, req: BaseReq):
                              headers={"Content-Disposition": f'attachment; filename="MemoryBox_{box["guest_name"].replace(" ","_")}_{box["event_date"]}.pdf"'})
 
 
+@router.post("/video/{box_id}")
+async def asset_video(box_id: str, req: BaseReq):
+    """Download the animated MP4 memory box (auth required)."""
+    await check_access(req.token)
+    box = await db.memory_boxes.find_one({"box_id": box_id}, {"_id": 0})
+    if not box:
+        raise HTTPException(404, "Memory box not found")
+    p = box.get("asset_mp4")
+    if not p or not os.path.exists(p):
+        raise HTTPException(404, "Video asset missing — re-generate with video enabled")
+    await db.memory_boxes.update_one({"box_id": box_id},
+                                     {"$inc": {"delivery.video_downloads": 1}})
+    fname = f'MemoryBox_{box["guest_name"].replace(" ","_")}_{box["event_date"]}.mp4'
+    return StreamingResponse(open(p, "rb"), media_type="video/mp4",
+                             headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+from fastapi.responses import HTMLResponse
+
+@router.get("/view/{box_id}")
+async def view_memory(box_id: str):
+    """PUBLIC viewer for the animated web Memory Box. Customer-facing,
+    shareable as a link — no token required."""
+    box = await db.memory_boxes.find_one({"box_id": box_id}, {"_id": 0})
+    if not box or box.get("status") == "deleted":
+        raise HTTPException(404, "Memory box not found")
+    p = box.get("asset_html")
+    if not p or not os.path.exists(p):
+        raise HTTPException(404, "Web view not generated for this Memory Box")
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            html = f.read()
+    except Exception as e:
+        raise HTTPException(500, f"Failed to load Memory Box: {e}")
+    # Best-effort view counter
+    await db.memory_boxes.update_one({"box_id": box_id},
+                                     {"$inc": {"delivery.web_views": 1}})
+    return HTMLResponse(content=html)
+
+
+@router.get("/view-video/{box_id}")
+async def view_video(box_id: str):
+    """PUBLIC stream of the animated MP4 — used by the inline player and
+    by anyone holding the shareable link. No token required."""
+    box = await db.memory_boxes.find_one({"box_id": box_id}, {"_id": 0})
+    if not box or box.get("status") == "deleted":
+        raise HTTPException(404, "Memory box not found")
+    p = box.get("asset_mp4")
+    if not p or not os.path.exists(p):
+        raise HTTPException(404, "Video not generated for this Memory Box")
+    return StreamingResponse(open(p, "rb"), media_type="video/mp4",
+                             headers={"Accept-Ranges": "bytes"})
+
+
 @router.post("/list")
 async def list_boxes(req: ListReq):
     session = await check_access(req.token)
@@ -1281,7 +1466,7 @@ async def list_boxes(req: ListReq):
         if own:
             q["center"] = own
     rows = await db.memory_boxes.find(
-        q, {"_id": 0, "asset_pdf": 0, "asset_png": 0}
+        q, {"_id": 0, "asset_pdf": 0, "asset_png": 0, "asset_mp4": 0, "asset_html": 0}
     ).sort("created_at", -1).limit(req.limit).to_list(req.limit)
     return {"items": rows, "count": len(rows)}
 
