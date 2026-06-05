@@ -54,6 +54,9 @@ export default function MemoryBoxCreator() {
     instagram_url: '',
     phone: '',
     show_qr: true,
+    // Personalisation (Feb 2026)
+    language: 'Bilingual',
+    font_size: 'M',
   });
   const [photos, setPhotos] = useState([]);          // [{ name, b64 }]
   const [teamPhoto, setTeamPhoto] = useState('');
@@ -468,6 +471,42 @@ export default function MemoryBoxCreator() {
                   </div>
                   <div className="rounded-md border bg-amber-50/40 p-3 space-y-2 mt-2">
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
+                      Personalisation
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Language</Label>
+                        <Select value={form.language}
+                          onValueChange={v => setForm(f => ({ ...f, language: v }))}>
+                          <SelectTrigger className="h-9" data-testid="mb-language">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="English">English</SelectItem>
+                            <SelectItem value="Marathi">Marathi</SelectItem>
+                            <SelectItem value="Bilingual">Bilingual (default)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Font Size</Label>
+                        <Select value={form.font_size}
+                          onValueChange={v => setForm(f => ({ ...f, font_size: v }))}>
+                          <SelectTrigger className="h-9" data-testid="mb-font-size">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="S">Small (compact)</SelectItem>
+                            <SelectItem value="M">Medium (default)</SelectItem>
+                            <SelectItem value="L">Large (elder-friendly)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border bg-amber-50/40 p-3 space-y-2 mt-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">
                       Center Branding & Booking QR
                     </div>
                     <div>
@@ -655,6 +694,19 @@ export default function MemoryBoxCreator() {
                     onClick={() => downloadPdf(result.box_id, form.guest_name)} data-testid="mb-download-pdf">
                     <Download className="w-3.5 h-3.5 mr-1" />PDF
                   </Button>
+                  {result.cover_png_base64 && (
+                    <Button size="sm" variant="outline"
+                      className="border-amber-500 text-amber-900 hover:bg-amber-50"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = `data:image/png;base64,${result.cover_png_base64}`;
+                        link.download = `MemoryBox_${(form.guest_name || 'guest').replace(/\s+/g, '_')}.png`;
+                        document.body.appendChild(link); link.click(); link.remove();
+                      }}
+                      data-testid="mb-download-png">
+                      <Download className="w-3.5 h-3.5 mr-1" />Summary Image
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => sendWhatsapp(result.box_id)}
                     disabled={!form.mobile} data-testid="mb-send-wa">
                     <MessageSquare className="w-3.5 h-3.5 mr-1" />WhatsApp

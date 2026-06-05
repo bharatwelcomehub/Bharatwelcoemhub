@@ -112,6 +112,60 @@ Preview Birthday PDF: `https://balance-cascade-fix.preview.emergentagent.com/sta
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-05 v4] Memory Box — language, font sizes, artistic collage, shareable summary image
+
+User request — 5 items:
+1. Language picker (English / Marathi / Bilingual)
+2. Font size picker (Small / Medium / Large)
+3. Per-center social link — DONE in v3, confirmed visible on the form
+4. Replace the block-grid photo page with TRUE artistic collage templates (multiple creative styles)
+5. ADD a single-page summary image (in addition to the PDF) containing ALL highlights
+
+**Implementation**:
+
+1. **Language toggle** (`MemoryBoxRequest.language`)
+   - `English` → story/gratitude/future_invitation in English. Blessing stays in Marathi as a cultural anchor (matches Indian practice).
+   - `Marathi` → all 4 sections in Devanagari.
+   - `Bilingual` (default) → English narrative + Marathi blessing.
+   - GPT prompt rewritten with explicit `lang_rules` block; safety net skips its Devanagari fallback in English mode.
+
+2. **Font size picker** (`MemoryBoxRequest.font_size`) — S=0.85×, M=1.0×, L=1.18×. Applied to every heading + body ParagraphStyle via a single `_fs()` helper.
+
+3. **Per-center social link** — already implemented in v3; confirmed UI is showing the Instagram + Phone inputs under "Center Branding & Booking QR" inside the Memory Box form.
+
+4. **True artistic photo collage** — `_render_artistic_collage()` (Pillow, 6.4"x7.4" @ 200 dpi) picks ONE of 4 creative templates:
+   - **Polaroid Scatter** — 4-6 rotated polaroids with paper texture + masking tape strips
+   - **Magazine Mosaic** — 1 hero photo + asymmetric tiles in cream/gold frames
+   - **Filmstrip** — wide hero banner + horizontal black-filmstrip with perforation dots
+   - **Mandala Radial** — circular hero + 4-6 mini circular thumbnails arranged radially
+   - Template chosen per-call via deterministic seed; outer gold double border, paisley dot texture, drop shadows on every tile. Replaces the boring hero-plus-grid layout from v3.
+   - Independent analyzer (post-test): *"definitively artistic, not block-grid... reminiscent of a casual collage / scrapbook with overlapping and slightly askew photos + masking tape tabs."*
+
+5. **Single-page summary image** — `_render_cover_png()` upgraded from a thank-you cover into a comprehensive WhatsApp-shareable card (1080×1620 PNG):
+   - Top: logo + brand + bilingual "MEMORY BOX · आठवणींची पेटी" header
+   - Big guest name in gold
+   - Occasion + date pill
+   - 3 tilted photo thumbnails in a strip
+   - Marathi blessing snippet
+   - "SCAN TO BOOK" QR card on left + contact info on right
+   - Gold brand footer with center name + bilingual Marathi line
+   - Returned as `cover_png_base64` in the existing API response.
+   - Independent analyzer: **8/10** WhatsApp-shareable card with all 8 elements verified present.
+
+**Frontend** (`MemoryBoxCreator.jsx`):
+   - New "Personalisation" panel with Language + Font Size dropdowns (data-testid `mb-language`, `mb-font-size`).
+   - New "Summary Image" download button next to the existing PDF button (data-testid `mb-download-png`).
+
+**Verified end-to-end**:
+- English / Marathi / Bilingual modes all generate correctly (`194061a9-…`, `d5e357c6-…`, `086cfcae-…`).
+- Latest sample (`c9c0314d-…`) confirmed collage is artistic + summary image looks premium.
+- Preview PDF: `https://balance-cascade-fix.preview.emergentagent.com/static/membox_v9.pdf`
+- Preview Summary Image: `https://balance-cascade-fix.preview.emergentagent.com/static/membox_v9.png`
+
+⚠️ **Redeploy required.**
+
+
+
 ### [2026-06-05 v3] Per-center branding + Booking QR across ALL creatives
 
 User request: *"can u add the website link, insta page link and QR code for them, for each center it is different link for social media, website is one and QR code is one for all kind of bookings, and center number to get added"* + later: *"give option for center's admin panel"*

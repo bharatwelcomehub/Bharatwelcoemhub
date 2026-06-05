@@ -85,6 +85,10 @@ class MemoryBoxRequest(BaseModel):
     instagram_url: Optional[str] = ""
     phone: Optional[str] = ""
     show_qr: bool = True
+    # NEW (Feb 2026) — Memory Box personalisation
+    language: str = "Bilingual"     # English | Marathi | Bilingual
+    font_size: str = "M"             # S | M | L
+    generate_summary_image: bool = True   # also return a 1-page shareable PNG
 
 
 class BaseReq(BaseModel):
@@ -139,100 +143,283 @@ def _initial_avatar_flowable(name: str, gold, chocolate, cream, size_in: float =
     return d
 
 
-def _build_scrapbook_pages(photos, img_fn, gold, gold_bright):
-    """Compose photos into a creative scrapbook collage.
+def _render_artistic_collage(photos, *, w_in=6.4, h_in=7.4, dpi=200,
+                              gold=(220, 175, 80), cream=(250, 240, 220),
+                              chocolate=(43, 24, 16),
+                              seed: int | None = None):
+    """Render ONE artistic photo-collage page as a Pillow PNG image.
 
-    Page 1 (always):    1 HERO photo on top + 4 small tiles in a 2x2 grid below.
-    Page 2 (optional):  6 medium tiles in a 2x3 grid (only if > 5 photos).
-    Empty cells get a thin gold dotted "memory tile" placeholder so the page
-    never looks half-finished.
+    Picks one of 4 creative templates based on photo count + seed:
+      1. POLAROID SCATTER — rotated cards with tape strips on a cream paper
+      2. MAGAZINE MOSAIC  — 1 hero + asymmetric tiles + paisley border
+      3. FILMSTRIP        — vertical filmstrip + wide hero banner
+      4. HEART / MANDALA  — centered hero + radial mini circles
+
+    Returns: bytes (PNG)  or  None if there are no photos.
     """
-    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, PageBreak
+    if not photos:
+        return None
+    import io as _io
+    from PIL import Image as _PIL, ImageDraw as _ID, ImageFilter as _IF
+    import random as _rnd
+    import math as _m
+
+    W = int(w_in * dpi)
+    H = int(h_in * dpi)
+    rng = _rnd.Random(seed if seed is not None else _rnd.randint(0, 10**9))
+
+    # Cream paper texture
+    canvas = _PIL.new("RGBA", (W, H), (*cream, 255))
+    paper = _ID.Draw(canvas)
+    # Faint paisley dots (low-alpha)
+    for _ in range(W * H // 7000):
+        x = rng.randint(0, W)
+        y = rng.randint(0, H)
+        r = rng.randint(3, 8)
+        paper.ellipse([x - r, y - r, x + r, y + r],
+                      fill=(*gold, rng.randint(8, 25)))
+
+    # Decode photos into PIL Images (cap to 7 for collage density)
+    pil_photos = []
+    for p in photos[:7]:
+        try:
+            raw = p if isinstance(p, bytes) else _strip_data_url(p)
+            if not raw:
+                continue
+            im = _PIL.open(_io.BytesIO(raw)).convert("RGBA")
+            pil_photos.append(im)
+        except Exception:
+            continue
+    if not pil_photos:
+        return None
+
+    def _frame(img, w, h, *, rotate=0, polaroid=False, tape=False, gold_ring=False):
+        """Cover-fit + frame an image, return RGBA tile."""
+        gw, gh = img.size
+        scale = max(w / gw, h / gh)
+        nw, nh = int(gw * scale), int(gh * scale)
+        scaled = img.resize((nw, nh), _PIL.LANCZOS)
+        left = (nw - w) // 2
+        top = (nh - h) // 2
+        cropped = scaled.crop((left, top, left + w, top + h))
+        # Build the tile
+        if polaroid:
+            pad = max(12, int(min(w, h) * 0.06))
+            pad_b = max(28, int(min(w, h) * 0.18))
+            tile_w = w + 2 * pad
+            tile_h = h + pad + pad_b
+            tile = _PIL.new("RGBA", (tile_w, tile_h), (255, 252, 244, 255))
+            tile.paste(cropped, (pad, pad))
+            # subtle inner shadow line
+            td = _ID.Draw(tile)
+            td.rectangle([pad - 1, pad - 1, pad + w, pad + h], outline=(150, 130, 90, 90), width=1)
+        else:
+            border = 6
+            tile = _PIL.new("RGBA", (w + border * 2, h + border * 2), (252, 244, 220, 255))
+            tile.paste(cropped, (border, border))
+            td = _ID.Draw(tile)
+            td.rounded_rectangle(
+                [border - 2, border - 2, border + w + 2, border + h + 2],
+                radius=8, outline=(*gold, 255) if gold_ring else (200, 170, 100, 200),
+                width=3 if gold_ring else 2,
+            )
+        if rotate:
+            tile = tile.rotate(rotate, expand=True, resample=_PIL.BICUBIC)
+        # Drop shadow
+        sh = _PIL.new("RGBA", (tile.width + 30, tile.height + 30), (0, 0, 0, 0))
+        sd = _ID.Draw(sh)
+        sd.rectangle([15, 15, tile.width + 15, tile.height + 15], fill=(0, 0, 0, 90))
+        try:
+            sh = sh.filter(_IF.GaussianBlur(radius=8))
+        except Exception:
+            pass
+        wrapper = _PIL.new("RGBA", (tile.width + 30, tile.height + 30), (0, 0, 0, 0))
+        wrapper.paste(sh, (0, 0), sh)
+        wrapper.paste(tile, (15, 15), tile)
+        # Optional masking tape
+        if tape:
+            tape_w = int(tile.width * 0.30)
+            tape_h = max(18, int(tile.height * 0.05))
+            t = _PIL.new("RGBA", (tape_w, tape_h), (240, 215, 130, 180))
+            t = t.rotate(rng.randint(-12, 12), expand=True, resample=_PIL.BICUBIC)
+            tx = (wrapper.width - t.width) // 2
+            ty = max(0, 15 - t.height // 2)
+            wrapper.paste(t, (tx, ty), t)
+        return wrapper
+
+    template = rng.choice(["polaroid_scatter", "magazine_mosaic", "filmstrip", "mandala"])
+    if len(pil_photos) == 1:
+        template = "magazine_mosaic"
+
+    if template == "polaroid_scatter":
+        # 4-6 polaroids scattered, randomly rotated
+        slots = [
+            (int(W * 0.10), int(H * 0.06), 0.36, 0.30, -7),
+            (int(W * 0.55), int(H * 0.08), 0.38, 0.32, 6),
+            (int(W * 0.05), int(H * 0.42), 0.34, 0.30, 9),
+            (int(W * 0.52), int(H * 0.40), 0.40, 0.34, -5),
+            (int(W * 0.20), int(H * 0.68), 0.34, 0.28, -3),
+            (int(W * 0.58), int(H * 0.72), 0.36, 0.26, 8),
+        ]
+        for i, (sx, sy, sw, sh, rot) in enumerate(slots):
+            if i >= len(pil_photos):
+                break
+            tw = int(W * sw)
+            th = int(H * sh)
+            tile = _frame(pil_photos[i], tw, th, polaroid=True, tape=True,
+                          rotate=rot + rng.randint(-3, 3))
+            canvas.paste(tile, (sx - 15, sy - 15), tile)
+
+    elif template == "magazine_mosaic":
+        # 1 hero + asymmetric mosaic
+        m = int(W * 0.04)
+        if len(pil_photos) == 1:
+            hero_w = W - 2 * m
+            hero_h = int(H * 0.75)
+            tile = _frame(pil_photos[0], hero_w, hero_h, gold_ring=True)
+            canvas.paste(tile, (m - 15, int(H * 0.10) - 15), tile)
+        else:
+            hero_w = int(W * 0.62)
+            hero_h = int(H * 0.46)
+            tile = _frame(pil_photos[0], hero_w, hero_h, gold_ring=True)
+            canvas.paste(tile, (m - 15, m - 15), tile)
+            # Right column: 2 small tiles
+            rx = int(W * 0.68)
+            ry = m
+            small_w = int(W * 0.28)
+            small_h = int(H * 0.22)
+            for i, p in enumerate(pil_photos[1:3], 1):
+                t = _frame(p, small_w, small_h)
+                canvas.paste(t, (rx - 15, ry - 15), t)
+                ry += small_h + 20
+            # Bottom row: 3 wide tiles
+            bx = m
+            by = m + hero_h + 30
+            wide_w = int((W - 2 * m - 40) / 3)
+            wide_h = int(H * 0.30)
+            for i, p in enumerate(pil_photos[3:6], 0):
+                t = _frame(p, wide_w, wide_h)
+                canvas.paste(t, (bx + i * (wide_w + 20) - 15, by - 15), t)
+
+    elif template == "filmstrip":
+        # Wide hero banner on top + horizontal filmstrip below
+        m = int(W * 0.05)
+        hero_w = W - 2 * m
+        hero_h = int(H * 0.42)
+        tile = _frame(pil_photos[0], hero_w, hero_h, gold_ring=True)
+        canvas.paste(tile, (m - 15, m - 15), tile)
+        # Black filmstrip background with perforations
+        strip_y = m + hero_h + 30
+        strip_h = int(H * 0.42)
+        strip = _PIL.new("RGBA", (W - 2 * m, strip_h), (chocolate[0], chocolate[1], chocolate[2], 255))
+        sd2 = _ID.Draw(strip)
+        # Perforations
+        peri_r = 6
+        peri_gap = 22
+        for x in range(peri_gap, strip.width - peri_gap, peri_gap):
+            sd2.ellipse([x - peri_r, 10, x + peri_r, 10 + 2 * peri_r], fill=cream)
+            sd2.ellipse([x - peri_r, strip_h - 10 - 2 * peri_r, x + peri_r, strip_h - 10], fill=cream)
+        canvas.paste(strip, (m, strip_y), strip)
+        # Fit up to 4 tiles inside filmstrip
+        inner = pil_photos[1:5]
+        if inner:
+            slot_w = (W - 2 * m - 80) // len(inner)
+            slot_h = strip_h - 60
+            for i, p in enumerate(inner):
+                t = _frame(p, slot_w, slot_h)
+                canvas.paste(
+                    t,
+                    (m + 40 + i * slot_w - 15, strip_y + 30 - 15),
+                    t,
+                )
+
+    else:  # mandala
+        # Center hero (circular) + 4-6 mini circles around it
+        cx, cy = W // 2, H // 2
+        hero_d = int(min(W, H) * 0.45)
+        # Mask hero to a circle
+        hero_img = pil_photos[0]
+        gw, gh = hero_img.size
+        s = max(hero_d / gw, hero_d / gh)
+        nw, nh = int(gw * s), int(gh * s)
+        resized = hero_img.resize((nw, nh), _PIL.LANCZOS)
+        lft = (nw - hero_d) // 2
+        tp = (nh - hero_d) // 2
+        sq = resized.crop((lft, tp, lft + hero_d, tp + hero_d))
+        m = _PIL.new("L", (hero_d, hero_d), 0)
+        _ID.Draw(m).ellipse([0, 0, hero_d, hero_d], fill=255)
+        # gold ring
+        ring = _PIL.new("RGBA", (hero_d + 30, hero_d + 30), (0, 0, 0, 0))
+        rd = _ID.Draw(ring)
+        rd.ellipse([0, 0, hero_d + 30, hero_d + 30], fill=(*gold, 255))
+        rd.ellipse([15, 15, hero_d + 15, hero_d + 15], fill=(0, 0, 0, 0))
+        canvas.paste(ring, (cx - (hero_d + 30) // 2, cy - (hero_d + 30) // 2), ring)
+        canvas.paste(sq, (cx - hero_d // 2, cy - hero_d // 2), m)
+        # Surrounding mini circles
+        radii_d = int(min(W, H) * 0.16)
+        for i, p in enumerate(pil_photos[1:7], 0):
+            angle = (_m.pi * 2) * i / max(6, len(pil_photos) - 1) - _m.pi / 2
+            r = int(min(W, H) * 0.36)
+            mx = cx + int(_m.cos(angle) * r) - radii_d // 2
+            my = cy + int(_m.sin(angle) * r) - radii_d // 2
+            gw, gh = p.size
+            s = max(radii_d / gw, radii_d / gh)
+            nw, nh = int(gw * s), int(gh * s)
+            resized = p.resize((nw, nh), _PIL.LANCZOS)
+            lft = (nw - radii_d) // 2
+            tp = (nh - radii_d) // 2
+            sq = resized.crop((lft, tp, lft + radii_d, tp + radii_d))
+            m2 = _PIL.new("L", (radii_d, radii_d), 0)
+            _ID.Draw(m2).ellipse([0, 0, radii_d, radii_d], fill=255)
+            ring2 = _PIL.new("RGBA", (radii_d + 16, radii_d + 16), (0, 0, 0, 0))
+            rd2 = _ID.Draw(ring2)
+            rd2.ellipse([0, 0, radii_d + 16, radii_d + 16], fill=(*gold, 240))
+            rd2.ellipse([8, 8, radii_d + 8, radii_d + 8], fill=(0, 0, 0, 0))
+            canvas.paste(ring2, (mx - 8, my - 8), ring2)
+            canvas.paste(sq, (mx, my), m2)
+
+    # Decorative outer border (thin gold double-line)
+    db = _ID.Draw(canvas)
+    db.rectangle([8, 8, W - 8, H - 8], outline=(*gold, 220), width=3)
+    db.rectangle([18, 18, W - 18, H - 18], outline=(*gold, 120), width=1)
+
+    out = _io.BytesIO()
+    canvas.convert("RGB").save(out, format="PNG", optimize=True)
+    return out.getvalue()
+
+
+def _build_scrapbook_pages(photos, img_fn, gold, gold_bright):
+    """Compose photos onto a SINGLE artistic collage page.
+
+    Replaces the old hero+grid layout with a true Pillow-rendered creative
+    template (polaroid scatter / magazine mosaic / filmstrip / mandala). All
+    photos fit on ONE page — no overflow grid.
+    """
+    from reportlab.platypus import Spacer
     from reportlab.lib.units import inch
-    from reportlab.lib import colors as _c
+    from reportlab.platypus import Image as RLImage
+    import tempfile as _tempfile
 
     flowables = []
     if not photos:
         return flowables
-
-    # Page 1: hero + 4 small tiles
-    hero = img_fn(photos[0], w=6.0, h=3.4)
-    if hero:
-        wrap = Table([[hero]], colWidths=[6.4 * inch], rowHeights=[3.6 * inch])
-        wrap.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), _c.HexColor("#FAF0DC")),
-            ("BOX", (0, 0), (-1, -1), 2.5, gold_bright),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
-        flowables.append(wrap)
-        flowables.append(Spacer(1, 0.20 * inch))
-
-    small_tiles = []
-    for p in photos[1:5]:
-        tile = img_fn(p, w=2.9, h=2.0)
-        small_tiles.append(tile or "")
-    while len(small_tiles) < 4:
-        small_tiles.append("")
-    grid_rows = [
-        [small_tiles[0], small_tiles[1]],
-        [small_tiles[2], small_tiles[3]],
-    ]
-    grid = Table(grid_rows,
-                 colWidths=[3.1 * inch, 3.1 * inch],
-                 rowHeights=[2.15 * inch, 2.15 * inch])
-    style = [
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("BACKGROUND", (0, 0), (-1, -1), _c.HexColor("#FAF0DC")),
-    ]
-    # Per-cell gold borders
-    for r in range(2):
-        for c in range(2):
-            style.append(("BOX", (c, r), (c, r), 1.5, gold))
-    grid.setStyle(TableStyle(style))
-    flowables.append(grid)
-
-    # Page 2: extra tiles (only if more than 5 photos)
-    extras = photos[5:11]
-    if extras:
-        flowables.append(PageBreak())
-        flowables.append(Paragraph("More Moments",
-            __import__("reportlab.lib.styles", fromlist=["getSampleStyleSheet"])
-            .getSampleStyleSheet()["Heading2"]))
-        flowables.append(Spacer(1, 0.15 * inch))
-        tiles = []
-        for p in extras:
-            t = img_fn(p, w=2.9, h=2.0)
-            tiles.append(t or "")
-        while len(tiles) < 6:
-            tiles.append("")
-        rows = [tiles[0:2], tiles[2:4], tiles[4:6]]
-        g2 = Table(rows,
-                   colWidths=[3.1 * inch, 3.1 * inch],
-                   rowHeights=[2.15 * inch] * 3)
-        s2 = [
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("BACKGROUND", (0, 0), (-1, -1), _c.HexColor("#FAF0DC")),
-        ]
-        for r in range(3):
-            for c in range(2):
-                s2.append(("BOX", (c, r), (c, r), 1.5, gold))
-        g2.setStyle(TableStyle(s2))
-        flowables.append(g2)
+    # Render the artistic collage (6.4"x7.4" @ 200 dpi)
+    collage_bytes = _render_artistic_collage(
+        photos, w_in=6.4, h_in=7.4, dpi=200,
+    )
+    if not collage_bytes:
+        return flowables
+    # Persist to a temp file so ReportLab can stream it
+    tf = _tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+    tf.write(collage_bytes)
+    tf.close()
+    try:
+        rl_img = RLImage(tf.name, width=6.4 * inch, height=7.4 * inch)
+        flowables.append(rl_img)
+        flowables.append(Spacer(1, 0.10 * inch))
+    finally:
+        # ReportLab reads the path lazily during build, so DON'T delete yet
+        pass
     return flowables
 
 
@@ -298,17 +485,46 @@ async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
             ),
         }
         anchor_blessing = BLESSING_EXAMPLES.get(occ, BLESSING_EXAMPLES["default"])
+        # ── Language rules ───────────────────────────────────────────────
+        lang = (getattr(req, "language", "Bilingual") or "Bilingual").strip()
+        if lang.lower() in ("marathi", "मराठी"):
+            lang_rules = (
+                "LANGUAGE: All four sections (story, gratitude, blessing, "
+                "future_invitation) MUST be written in PROPER MARATHI (Devanagari script). "
+                "Use the same spelling-accuracy rules described below. "
+                "Keep the cultural anchor 'श्री स्वामी समर्थ' on the blessing.\n"
+            )
+            lang_keys_note = (
+                '"story" (Marathi), "gratitude" (Marathi), '
+                '"blessing" (Marathi anchor style), "future_invitation" (Marathi)'
+            )
+        elif lang.lower() == "english":
+            lang_rules = (
+                "LANGUAGE: story / gratitude / future_invitation in ENGLISH. "
+                "blessing — keep 1 short transliterated English line (e.g. "
+                "'With Lord Swami Samarth's grace, may your life be long, healthy "
+                "and joyful.'). DO NOT include Devanagari script for English mode.\n"
+            )
+            lang_keys_note = '"story" (English), "gratitude" (English), "blessing" (English transliteration), "future_invitation" (English)'
+        else:
+            lang_rules = (
+                "LANGUAGE: Bilingual. story / gratitude / future_invitation in ENGLISH. "
+                "blessing in PROPER MARATHI per rules below. Default mode.\n"
+            )
+            lang_keys_note = '"story" (English), "gratitude" (English), "blessing" (Marathi), "future_invitation" (English)'
+
         prompt = (
             "You are composing 4-section memory book copy for a Purnabramha "
             "(authentic Maharashtrian restaurant) guest. Tone: warm, sincere, "
             "dignified, slightly poetic — never salesy, never generic. 2-3 short "
             "paragraphs max per section.\n\n"
+            + lang_rules + "\n"
             "Guest details:\n"
             + "\n".join(f"  {k}: {v}" for k, v in answers.items() if v) + "\n\n"
             "⚠️ MARATHI ACCURACY — CRITICAL ⚠️\n"
-            "The `blessing` field MUST be written in PERFECT, CULTURALLY-CORRECT Marathi.\n"
+            "Whenever Marathi is used, it MUST be written in PERFECT, CULTURALLY-CORRECT Marathi.\n"
             "Rules:\n"
-            "  1. Start with the traditional invocation \"श्री स्वामी समर्थ.\" on its own line.\n"
+            "  1. Start the blessing with the traditional invocation \"श्री स्वामी समर्थ.\" on its own line.\n"
             "  2. Use ONLY proper Devanagari spelling. NEVER misspell common words:\n"
             "     • वाढदिवस  (NOT वाढदविस / वाढदविसाच्या)\n"
             "     • हार्दिक   (NOT हार्दकि)\n"
@@ -317,18 +533,17 @@ async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
             "  3. Use traditional, respectful blessing phrases — e.g.\n"
             "     'आयुष्य दीर्घ असो', 'आरोग्य उत्तम लाभो', 'सुख-समृद्धी नित्य वाढो',\n"
             "     'कुटुंबात प्रेम, ऐक्य आणि आनंद सदैव नांदो'.\n"
-            "  4. Keep to EXACTLY 3 short lines (one sentence per line).\n"
+            "  4. Keep blessing to EXACTLY 3 short lines (one sentence per line).\n"
             "  5. Match the cadence and tone of this anchor example for the occasion '" + occ + "':\n"
             "     ───────────────────────────────\n     " + anchor_blessing.replace("\n", "\n     ") + "\n"
             "     ───────────────────────────────\n"
-            "  6. You MAY personalise gently (use the guest's first name OR keep generic). "
-            "Do NOT translate the English sections into Marathi — only the blessing is in Marathi.\n\n"
+            "  6. You MAY personalise gently (use the guest's first name OR keep generic).\n\n"
             "Return STRICT JSON with these four keys (no markdown, no commentary):\n"
-            '{\n'
-            '  "story":      "Warm 2-paragraph story of the event in English, woven from the guest answers above. Reference the family/organiser/special moment naturally.",\n'
-            '  "gratitude":  "Occasion-specific thank-you message from Purnabramha to the guest in English. 1 short paragraph.",\n'
-            '  "blessing":   "Exactly 3 short lines of TRADITIONAL Marathi blessing as per rules above. NO English in this field. NO typos.",\n'
-            '  "future_invitation": "A 1-line warm invitation back in English — NOT discount-based — e.g. complimentary taak / sweet / priority booking / chef special."\n'
+            "{\n"
+            f'  "story": "warm 2-paragraph story – {lang_keys_note}",\n'
+            '  "gratitude":  "1 short paragraph thank-you",\n'
+            '  "blessing":   "3 lines per language rules above",\n'
+            '  "future_invitation": "1 short warm line inviting back — NOT discount based."\n'
             "}"
         )
         chat = (LlmChat(api_key=api_key, session_id=f"mbox-{uuid.uuid4().hex[:8]}",
@@ -346,12 +561,13 @@ async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
         for k in ("story", "gratitude", "blessing", "future_invitation"):
             data.setdefault(k, "")
         # ── Safety net: if the model emitted a known misspelling, replace
-        # with the anchor blessing for this occasion. This protects the user
-        # from any silent regression in GPT output quality.
+        # with the anchor blessing for this occasion. SKIP for English mode
+        # because the anchor is in Devanagari.
         TYPO_FLAGS = ("वाढदविस", "हार्दकि", "वर्धापनदनि", "आर्शीवाद", "आर्शिवाद")
         b = (data.get("blessing") or "")
-        if not b.strip() or any(t in b for t in TYPO_FLAGS):
-            data["blessing"] = anchor_blessing
+        if lang.lower() != "english":
+            if not b.strip() or any(t in b for t in TYPO_FLAGS):
+                data["blessing"] = anchor_blessing
         return data
     except Exception as e:
         logger.warning(f"Memory box GPT generation fell back: {e}")
@@ -387,7 +603,6 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     from reportlab.lib.units import inch
     from reportlab.platypus import (
         SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle,
-        KeepTogether,
     )
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.pdfbase import pdfmetrics
@@ -432,23 +647,27 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
                             topMargin=0.6 * inch, bottomMargin=0.6 * inch,
                             title=f"Memory Box — {req.guest_name}")
     ss = getSampleStyleSheet()
+    # Font-size scaling driven by req.font_size: S=0.85, M=1.0, L=1.18
+    _fs_scale = {"S": 0.85, "M": 1.0, "L": 1.18}.get((req.font_size or "M").upper(), 1.0)
+    def _fs(n):  # scaled font size
+        return max(8, int(round(n * _fs_scale)))
     # All heading colours upgraded to ANTIQUE GOLD and font sizes increased
     H = ParagraphStyle("H", parent=ss["Heading1"], textColor=GOLD_BRIGHT,
-                       alignment=TA_CENTER, fontSize=40, spaceAfter=18,
-                       fontName="Times-Bold", leading=48)
+                       alignment=TA_CENTER, fontSize=_fs(40), spaceAfter=18,
+                       fontName="Times-Bold", leading=_fs(48))
     H2 = ParagraphStyle("H2", parent=ss["Heading2"], textColor=GOLD_BRIGHT,
-                        alignment=TA_CENTER, fontSize=32, spaceAfter=14,
-                        fontName="Times-Bold", leading=40)
+                        alignment=TA_CENTER, fontSize=_fs(32), spaceAfter=14,
+                        fontName="Times-Bold", leading=_fs(40))
     sub = ParagraphStyle("sub", parent=ss["Normal"], textColor=CREAM,
-                         alignment=TA_CENTER, fontSize=20, fontName="Times-Italic",
-                         spaceAfter=12, leading=26)
-    body = ParagraphStyle("body", parent=ss["BodyText"], fontSize=17, leading=26,
+                         alignment=TA_CENTER, fontSize=_fs(20), fontName="Times-Italic",
+                         spaceAfter=12, leading=_fs(26))
+    body = ParagraphStyle("body", parent=ss["BodyText"], fontSize=_fs(17), leading=_fs(26),
                           fontName="Times-Roman", textColor=CREAM,
                           spaceAfter=12, alignment=TA_LEFT)
     bodyDark = ParagraphStyle("bodyDark", parent=body, textColor=colors.HexColor("#3a2218"))  # noqa: F841
-    centerBody = ParagraphStyle("cb", parent=body, alignment=TA_CENTER, fontSize=18, leading=28)
-    small = ParagraphStyle("sm", parent=ss["BodyText"], fontSize=13,
-                           textColor=CREAM, alignment=TA_CENTER, leading=18)
+    centerBody = ParagraphStyle("cb", parent=body, alignment=TA_CENTER, fontSize=_fs(18), leading=_fs(28))
+    small = ParagraphStyle("sm", parent=ss["BodyText"], fontSize=_fs(13),
+                           textColor=CREAM, alignment=TA_CENTER, leading=_fs(18))
 
     def _img(b64_or_bytes, w=2.5, h=2.5):
         try:
@@ -729,11 +948,20 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     return buf.getvalue()
 
 
-def _render_cover_png(req: MemoryBoxRequest, center_name: str, box_id: str) -> bytes:
-    """Premium chocolate-and-gold PNG cover (WhatsApp preview / Memory Box hero)."""
+def _render_cover_png(req: MemoryBoxRequest, center_name: str, box_id: str,
+                      llm: dict | None = None) -> bytes:
+    """Premium chocolate-and-gold summary IMAGE — one-page shareable.
+
+    Replaces the old "thank-you cover" with a richer card that includes:
+      • Guest name + occasion + date
+      • Up to 3 photo thumbnails (artistic strip)
+      • Marathi blessing snippet
+      • Per-center contact + Scan-to-Book QR
+      • Brand footer
+    """
     try:
         from PIL import Image as PImage, ImageDraw, ImageFont
-        W, H = 1080, 1350
+        W, H = 1080, 1620
         canvas = PImage.new("RGB", (W, H), (43, 24, 16))   # DARK CHOCOLATE
         draw = ImageDraw.Draw(canvas, "RGBA")
         # Outer antique-gold double border
@@ -744,55 +972,183 @@ def _render_cover_png(req: MemoryBoxRequest, center_name: str, box_id: str) -> b
             for r in [16, 10, 5]:
                 draw.ellipse([cx - r, cy - r, cx + r, cy + r],
                              outline=(220, 174, 80), width=2)
-        # Paisley divider just under logo space
-        midx = W // 2
-        for dy in [510, 870]:
-            for dx in range(-4, 5):
-                r = 5 if dx == 0 else 3
-                draw.ellipse([midx + dx * 18 - r, dy, midx + dx * 18 + r, dy + 2 * r],
-                             fill=(220, 174, 80))
 
-        # Logo — BIG (brand-prominent)
-        if os.path.exists(LOGO_PATH):
-            logo = PImage.open(LOGO_PATH).convert("RGBA")
-            logo.thumbnail((600, 600), PImage.LANCZOS)
-            canvas.paste(logo, ((W - logo.width) // 2, 60), logo if logo.mode == "RGBA" else None)
-
-        # Fonts — XL sizes + premium serif + Devanagari for Marathi
+        # Fonts (prefer bundled, fallback to system)
+        _BF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "static", "fonts")
+        def _ff(name, sys_path):
+            return name if os.path.exists(name) else sys_path
         try:
-            f_big = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 108)
-            f_host = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 92)
-            f_med = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf", 56)
-            f_sm  = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 42)
-            f_mr  = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", 52)
+            LBOLD = _ff(os.path.join(_BF, "LiberationSerif-Bold.ttf"),
+                        "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf")
+            LREG = _ff(os.path.join(_BF, "LiberationSerif-Regular.ttf"),
+                       "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf")
+            LIT = _ff(os.path.join(_BF, "LiberationSerif-Italic.ttf"),
+                      "/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf")
+            DBOLD = _ff(os.path.join(_BF, "NotoSansDevanagari-Bold.ttf"),
+                        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf")
+            f_brand = ImageFont.truetype(LBOLD, 36)
+            f_host = ImageFont.truetype(LBOLD, 80)
+            f_occ = ImageFont.truetype(LBOLD, 44)
+            ImageFont.truetype(LIT, 36)
+            ImageFont.truetype(LREG, 28)
+            f_mr_big = ImageFont.truetype(DBOLD, 46)
+            f_mr_sm = ImageFont.truetype(DBOLD, 26)
+            f_sm = ImageFont.truetype(LBOLD, 26)
+            f_label = ImageFont.truetype(LBOLD, 20)
         except Exception:
-            f_big = f_host = f_med = f_sm = f_mr = ImageFont.load_default()
+            f_brand = f_host = f_occ = f_mr_big = f_mr_sm = f_sm = f_label = ImageFont.load_default()
 
-        def _center_text(y, text, font, fill):
+        def _center(y, text, font, fill):
             bb = draw.textbbox((0, 0), text, font=font)
             w = bb[2] - bb[0]
-            # Soft drop shadow
             draw.text(((W - w) // 2 + 2, y + 2), text, font=font, fill=(0, 0, 0, 200))
             draw.text(((W - w) // 2, y), text, font=font, fill=fill)
+            return bb[3] - bb[1]
 
-        # English headline (large gold)
-        _center_text(560, "Thank You", f_big, (220, 174, 80))
-        _center_text(660, "for making us part of your celebration",
-                     f_med, (250, 240, 220))
-        # Marathi bilingual subtitle
-        _center_text(740, "आमच्या सोबत आनंदाचे क्षण साजरे केल्याबद्दल धन्यवाद",
-                     f_mr, (220, 174, 80))
+        # ── Top section: Logo + brand ───────────────────────────────────
+        y = 70
+        if os.path.exists(LOGO_PATH):
+            try:
+                logo = PImage.open(LOGO_PATH).convert("RGBA")
+                logo.thumbnail((220, 220), PImage.LANCZOS)
+                canvas.paste(logo, ((W - logo.width) // 2, y), logo)
+                y += logo.height + 10
+            except Exception:
+                pass
+        _center(y, "MEMORY BOX  ·  आठवणींची पेटी", f_mr_sm, (220, 174, 80))
+        y += 50
 
-        # Guest name — BIGGEST
-        _center_text(910, req.guest_name[:34], f_host, (220, 174, 80))
+        # ── Guest name ───────────────────────────────────────────────────
+        gn = req.guest_name[:34]
+        _center(y, gn, f_host, (220, 174, 80))
+        y += 100
+
+        # ── Occasion + date pill ────────────────────────────────────────
         occ = req.occasion if req.occasion != "Other" else (req.occasion_other or "Celebration")
-        _center_text(1020, occ, f_sm, (250, 240, 220))
-        _center_text(1075, req.event_date, f_sm, (250, 240, 220))
+        pill_text = f"{occ}  ·  {req.event_date}"
+        bb = draw.textbbox((0, 0), pill_text, font=f_occ)
+        pw = bb[2] - bb[0]
+        ph = bb[3] - bb[1]
+        px = (W - pw) // 2 - 24
+        draw.rounded_rectangle([px, y - 8, px + pw + 48, y + ph + 12],
+                               radius=22, outline=(220, 174, 80), width=2)
+        _center(y, pill_text, f_occ, (250, 240, 220))
+        y += ph + 35
 
-        # Footer brand
-        _center_text(1220, f"Purnabramha · {center_name}", f_sm, (220, 174, 80))
-        _center_text(1268, "पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक",
-                     f_mr, (191, 140, 50))
+        # ── Photo strip (up to 3 thumbs) ────────────────────────────────
+        if req.photos:
+            strip_y = y
+            n = min(3, len(req.photos))
+            thumb_w = 290
+            thumb_h = 220
+            gap = 18
+            strip_w = n * thumb_w + (n - 1) * gap
+            sx = (W - strip_w) // 2
+            for i in range(n):
+                try:
+                    raw = _strip_data_url(req.photos[i])
+                    if not raw:
+                        continue
+                    im = PImage.open(io.BytesIO(raw)).convert("RGBA")
+                    gw, gh = im.size
+                    s = max(thumb_w / gw, thumb_h / gh)
+                    im2 = im.resize((int(gw * s), int(gh * s)), PImage.LANCZOS)
+                    lft = (im2.width - thumb_w) // 2
+                    tp = (im2.height - thumb_h) // 2
+                    cropped = im2.crop((lft, tp, lft + thumb_w, tp + thumb_h))
+                    # Frame
+                    border = 8
+                    frame = PImage.new("RGBA", (thumb_w + border * 2, thumb_h + border * 2),
+                                       (250, 240, 220, 255))
+                    frame.paste(cropped, (border, border))
+                    fd = ImageDraw.Draw(frame)
+                    fd.rectangle([border - 2, border - 2, border + thumb_w + 2, border + thumb_h + 2],
+                                 outline=(220, 174, 80), width=3)
+                    # Slight tilt for charm
+                    tilt = (-3, 2, -2)[i % 3]
+                    frame = frame.rotate(tilt, expand=True, resample=PImage.BICUBIC)
+                    canvas.paste(frame, (sx + i * (thumb_w + gap) - 8, strip_y - 8), frame)
+                except Exception as _e:
+                    logger.warning(f"summary thumb {i} failed: {_e}")
+            y += thumb_h + 50
+
+        # ── Marathi blessing snippet ────────────────────────────────────
+        blessing_text = (llm.get("blessing", "") if llm else "")
+        if blessing_text:
+            # Show 2nd line of blessing (after the "श्री स्वामी समर्थ" anchor)
+            lines_b = [ln.strip() for ln in blessing_text.strip().split("\n") if ln.strip()]
+            line = lines_b[1] if len(lines_b) > 1 else (lines_b[0] if lines_b else "")
+            if line:
+                # Auto-shrink font to fit width
+                _fs = 46
+                f_try = f_mr_big
+                bb = draw.textbbox((0, 0), line, font=f_try)
+                while (bb[2] - bb[0]) > W - 100 and _fs > 24:
+                    _fs -= 2
+                    try:
+                        f_try = ImageFont.truetype(DBOLD, _fs)
+                    except Exception:
+                        break
+                    bb = draw.textbbox((0, 0), line, font=f_try)
+                bw = bb[2] - bb[0]
+                draw.text(((W - bw) // 2 + 2, y + 2), line, font=f_try, fill=(0, 0, 0, 200))
+                draw.text(((W - bw) // 2, y), line, font=f_try, fill=(220, 174, 80))
+                y += (bb[3] - bb[1]) + 24
+
+        # ── Booking QR + contact ────────────────────────────────────────
+        qr_drawn_y = y
+        QR_PATH = "/app/backend/static/purnabramha_booking_qr.png"
+        if req.show_qr and os.path.exists(QR_PATH):
+            try:
+                qr = PImage.open(QR_PATH).convert("RGBA")
+                qr_d = 190
+                qr.thumbnail((qr_d, qr_d), PImage.LANCZOS)
+                card_pad = 12
+                card_w = qr.width + card_pad * 2
+                card_h = qr.height + card_pad * 2 + 30
+                qx = 120
+                qy = y
+                draw.rounded_rectangle([qx, qy, qx + card_w, qy + card_h],
+                                       radius=14, fill=(252, 244, 220, 245),
+                                       outline=(220, 174, 80), width=3)
+                canvas.paste(qr, (qx + card_pad, qy + card_pad), qr)
+                _lbl = "SCAN TO BOOK"
+                bb = draw.textbbox((0, 0), _lbl, font=f_label)
+                ltw = bb[2] - bb[0]
+                draw.text((qx + (card_w - ltw) // 2, qy + card_pad + qr.height + 4),
+                          _lbl, font=f_label, fill=(43, 24, 16))
+            except Exception as _e:
+                logger.warning(f"summary QR failed: {_e}")
+
+        # Contact info on right of QR
+        contact_x = 380
+        c_y = y + 12
+        contact_lines = []
+        if (req.phone or "").strip():
+            contact_lines.append(("☎ " + req.phone.strip(), f_sm, (250, 240, 220)))
+        if (req.instagram_url or "").strip():
+            handle = req.instagram_url.strip().rstrip("/").split("/")[-1]
+            if handle and not handle.startswith("@"):
+                handle = "@" + handle
+            contact_lines.append((handle, f_sm, (220, 174, 80)))
+        contact_lines.append(("www.purnabramha.com", f_sm, (250, 240, 220)))
+        # Heading
+        draw.text((contact_x, c_y), "BOOK YOUR NEXT CELEBRATION",
+                  font=f_label, fill=(220, 174, 80))
+        c_y += 32
+        for txt, fnt, color in contact_lines:
+            draw.text((contact_x, c_y), txt, font=fnt, fill=color)
+            c_y += 38
+
+        y = qr_drawn_y + 240
+
+        # ── Brand footer ────────────────────────────────────────────────
+        y = H - 130
+        _center(y, f"Purnabramha · {center_name}", f_brand, (220, 174, 80))
+        y += 50
+        _center(y, "पुर्णब्रह्म परिवाराकडून प्रेमपूर्वक",
+                f_mr_sm, (191, 140, 50))
 
         out = io.BytesIO()
         canvas.save(out, "PNG", optimize=True)
@@ -844,7 +1200,7 @@ async def generate(req: MemoryBoxRequest):
 
     box_id = str(uuid.uuid4())
     pdf_bytes = _build_pdf(req, center_name, llm, box_id)
-    cover_png = _render_cover_png(req, center_name, box_id)
+    cover_png = _render_cover_png(req, center_name, box_id, llm=llm)
 
     # Save assets
     center_safe = (req.center or "UNKNOWN").replace("/", "_")
