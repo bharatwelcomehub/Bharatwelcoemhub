@@ -86,6 +86,30 @@ UI: added "Polish" section with `video-headline-size`, `video-subline-size`, `vi
 
 ## What's Been Implemented (Latest)
 
+### [2026-06-05] Memory Box PDF — creative collage + per-member team avatars + gold-on-chocolate roster (P0 FIX)
+
+User feedback: *"all the memory box pdf are creating good but images are just coming as block instead create some creative box placing of images and team image should one which is right but team names are coming with black font i mean basic are error"*
+
+Three confirmed bugs fixed in `backend/routes/memory_box.py`:
+
+1. **Team names rendered in black** — root cause: `Table` `TEXTCOLOR` style was only set for the header row, leaving data rows at the ReportLab default (black). Fixed: replaced the entire team table with a **circular initial-avatar grid** (3 per row) where each cell has a chocolate background, gold border, gold-bright `Aniruddh Suryawanshi` initials in a `Circle()` flowable, cream member name, and gold-bright role tag.
+
+2. **Generic single team photo** — root cause: previous design just pasted one large group photo for the whole team. Fixed: new `_initial_avatar_flowable(name)` helper renders a gold-ringed chocolate disc with the member's initials (Slack-style avatar). The group `team_photo` (if uploaded) still shows but as a smaller cream-framed banner above the avatar grid, not as the sole representation.
+
+3. **Plain rectangular photo grid** — root cause: `Page 3` was a uniform 3×3 grid. Fixed: new `_build_scrapbook_pages()` helper composes:
+   - **Hero photo** (6" × 3.4") on top with cream + gold-bright frame
+   - **4 smaller tiles** (2.9" × 2.0") in a 2×2 grid below, each with cream + gold frames
+   - **Overflow page** (only when >5 photos): 6 more tiles in 2×3 grid
+
+Plus: Bundled Devanagari + Liberation fonts are now preferred over system paths so the PDF renders correctly on any container (same fix pattern we applied to the ads).
+
+**Verified end-to-end** (preview box `5b074c60-…`): independent analyzer confirms team names render in gold/cream, circular initial medallions present for every member, photos in hero+tile layout with cream/gold frames.
+Preview: `https://balance-cascade-fix.preview.emergentagent.com/static/memorybox_v6.pdf`
+
+⚠️ **Redeploy required.**
+
+
+
 ### [2026-06-03] One logo only + new official logo PNG (BUG FIX)
 
 **User report** (production): "Use one logo not multiple please — I am loading both the logos again." + uploaded fresh `Logo of Purnabramha.pdf` (4500×4500 official wordmark with bilingual `purnabramha` / `पूर्णब्रम्ह`, tagline *"The Largest Authentic Maharashtrian Restra"*, *"Manaswini Foods Pvt.Ltd"*, country list, ® mark).

@@ -111,6 +111,129 @@ def _strip_data_url(b64: str) -> bytes:
         return b""
 
 
+def _initial_avatar_flowable(name: str, gold, chocolate, cream, size_in: float = 1.0):
+    """Render a circular gold-on-chocolate medallion with the member's initials.
+
+    Returns a ReportLab Flowable (a tiny Drawing).
+    """
+    from reportlab.graphics.shapes import Drawing, Circle, String
+    from reportlab.lib.units import inch
+    parts = [p for p in (name or "?").strip().split() if p]
+    initials = (parts[0][0] + (parts[-1][0] if len(parts) > 1 else "")).upper() if parts else "?"
+    size_pts = size_in * inch
+    d = Drawing(size_pts, size_pts)
+    r = size_pts / 2
+    # Gold ring
+    d.add(Circle(r, r, r, fillColor=gold, strokeColor=gold))
+    # Chocolate disc
+    d.add(Circle(r, r, r * 0.88, fillColor=chocolate, strokeColor=chocolate))
+    # Initials in cream
+    s = String(r, r - size_pts * 0.13, initials,
+               fontName="Times-Bold", fontSize=size_pts * 0.40,
+               fillColor=cream, textAnchor="middle")
+    d.add(s)
+    return d
+
+
+def _build_scrapbook_pages(photos, img_fn, gold, gold_bright):
+    """Compose photos into a creative scrapbook collage.
+
+    Page 1 (always):    1 HERO photo on top + 4 small tiles in a 2x2 grid below.
+    Page 2 (optional):  6 medium tiles in a 2x3 grid (only if > 5 photos).
+    Empty cells get a thin gold dotted "memory tile" placeholder so the page
+    never looks half-finished.
+    """
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors as _c
+
+    flowables = []
+    if not photos:
+        return flowables
+
+    # Page 1: hero + 4 small tiles
+    hero = img_fn(photos[0], w=6.0, h=3.4)
+    if hero:
+        wrap = Table([[hero]], colWidths=[6.4 * inch], rowHeights=[3.6 * inch])
+        wrap.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), _c.HexColor("#FAF0DC")),
+            ("BOX", (0, 0), (-1, -1), 2.5, gold_bright),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        flowables.append(wrap)
+        flowables.append(Spacer(1, 0.20 * inch))
+
+    small_tiles = []
+    for p in photos[1:5]:
+        tile = img_fn(p, w=2.9, h=2.0)
+        small_tiles.append(tile or "")
+    while len(small_tiles) < 4:
+        small_tiles.append("")
+    grid_rows = [
+        [small_tiles[0], small_tiles[1]],
+        [small_tiles[2], small_tiles[3]],
+    ]
+    grid = Table(grid_rows,
+                 colWidths=[3.1 * inch, 3.1 * inch],
+                 rowHeights=[2.15 * inch, 2.15 * inch])
+    style = [
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("BACKGROUND", (0, 0), (-1, -1), _c.HexColor("#FAF0DC")),
+    ]
+    # Per-cell gold borders
+    for r in range(2):
+        for c in range(2):
+            style.append(("BOX", (c, r), (c, r), 1.5, gold))
+    grid.setStyle(TableStyle(style))
+    flowables.append(grid)
+
+    # Page 2: extra tiles (only if more than 5 photos)
+    extras = photos[5:11]
+    if extras:
+        flowables.append(PageBreak())
+        flowables.append(Paragraph("More Moments",
+            __import__("reportlab.lib.styles", fromlist=["getSampleStyleSheet"])
+            .getSampleStyleSheet()["Heading2"]))
+        flowables.append(Spacer(1, 0.15 * inch))
+        tiles = []
+        for p in extras:
+            t = img_fn(p, w=2.9, h=2.0)
+            tiles.append(t or "")
+        while len(tiles) < 6:
+            tiles.append("")
+        rows = [tiles[0:2], tiles[2:4], tiles[4:6]]
+        g2 = Table(rows,
+                   colWidths=[3.1 * inch, 3.1 * inch],
+                   rowHeights=[2.15 * inch] * 3)
+        s2 = [
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("BACKGROUND", (0, 0), (-1, -1), _c.HexColor("#FAF0DC")),
+        ]
+        for r in range(3):
+            for c in range(2):
+                s2.append(("BOX", (c, r), (c, r), 1.5, gold))
+        g2.setStyle(TableStyle(s2))
+        flowables.append(g2)
+    return flowables
+
+
+
+
 async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
     """Generate Event Story + Gratitude + Blessings via GPT-5.2.
     Returns dict with keys: story, gratitude, blessing, future_invitation.
@@ -153,7 +276,8 @@ async def _gpt_story(req: MemoryBoxRequest, center_name: str) -> dict:
                        system_message="You write warm, dignified memory book copy for Indian family celebrations.")
                 .with_model("openai", "gpt-5.2"))
         resp = await chat.send_message(UserMessage(text=prompt))
-        import json, re
+        import json
+        import re
         cleaned = re.sub(r"^```json\s*|\s*```$", "", resp.strip(), flags=re.MULTILINE)
         data = json.loads(cleaned)
         # Sanity defaults
@@ -195,15 +319,26 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     from reportlab.pdfbase.ttfonts import TTFont
 
     # ── Register Devanagari fonts so Marathi blessing renders correctly ──
-    DEV_REG_PATH = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
-    DEV_BOLD_PATH = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+    # Prefer bundled fonts (shipped with the repo) over system fonts so the
+    # PDF renders correctly even on containers without /usr/share/fonts.
+    _BUNDLED = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "static", "fonts")
+    def _ff(name: str, *fallbacks: str) -> str:
+        for p in (os.path.join(_BUNDLED, name), *fallbacks):
+            if p and os.path.exists(p):
+                return p
+        return ""
+    DEV_REG_PATH = _ff("NotoSansDevanagari-Regular.ttf",
+                       "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf")
+    DEV_BOLD_PATH = _ff("NotoSansDevanagari-Bold.ttf",
+                        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf")
     DEV_FONT = "Times-Italic"          # safe fallback
     DEV_BOLD_FONT = "Times-Bold"
     try:
-        if os.path.exists(DEV_REG_PATH):
+        if DEV_REG_PATH:
             pdfmetrics.registerFont(TTFont("NotoDev", DEV_REG_PATH))
             DEV_FONT = "NotoDev"
-        if os.path.exists(DEV_BOLD_PATH):
+        if DEV_BOLD_PATH:
             pdfmetrics.registerFont(TTFont("NotoDevBold", DEV_BOLD_PATH))
             DEV_BOLD_FONT = "NotoDevBold"
     except Exception as _e:
@@ -213,7 +348,6 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
     # Purnabramha 2026 brand palette
     GOLD = colors.HexColor("#BF8C32")             # rich antique gold
     GOLD_BRIGHT = colors.HexColor("#DCAE50")
-    MAROON = colors.HexColor("#660E0E")           # deep maroon (festive)
     CREAM = colors.HexColor("#FAF0DC")            # warm cream
     CHOCOLATE = colors.HexColor("#2B1810")        # dark chocolate (primary)
 
@@ -285,57 +419,82 @@ def _build_pdf(req: MemoryBoxRequest, center_name: str, llm: dict, box_id: str) 
         story.append(Paragraph(f'<i>"{req.host_message}"</i> — {req.organised_by or req.guest_name}', centerBody))
     story.append(PageBreak())
 
-    # ─── Page 3: Gallery ───
+    # ─── Page 3: Gallery — creative scrapbook collage ───
     if req.photos:
         story.append(Paragraph("Moments Captured", H))
-        story.append(Spacer(1, 0.1 * inch))
-        cells = []
-        row = []
-        for p in req.photos[:9]:                 # 3×3 grid max
-            im = _img(p, w=2.0, h=2.0)
-            if im:
-                row.append(im)
-            if len(row) == 3:
-                cells.append(row); row = []
-        if row:
-            while len(row) < 3:
-                row.append("")
-            cells.append(row)
-        if cells:
-            t = Table(cells, colWidths=[2.2 * inch] * 3, rowHeights=[2.2 * inch] * len(cells))
-            t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                                   ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                                   ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                                   ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                                   ("TOPPADDING", (0, 0), (-1, -1), 4),
-                                   ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
-            story.append(t)
+        story.append(Paragraph("A few favourite frames from the celebration.", sub))
+        story.append(Spacer(1, 0.15 * inch))
+        story.extend(_build_scrapbook_pages(req.photos, _img, GOLD, GOLD_BRIGHT))
         story.append(PageBreak())
 
-    # ─── Page 4: Team ───
+    # ─── Page 4: Team — circular initial-avatars + gold-on-chocolate roster ───
     if req.team or req.team_photo:
         story.append(Paragraph("Meet The Team", H))
         story.append(Paragraph("The people behind your celebration.", sub))
         story.append(Spacer(1, 0.15 * inch))
+        # If a team-group photo is provided, show it framed (smaller, polaroid-style)
         if req.team_photo:
-            im = _img(req.team_photo, w=4.5, h=3.0)
+            im = _img(req.team_photo, w=4.0, h=2.4)
             if im:
-                story.append(im)
-                story.append(Spacer(1, 0.15 * inch))
+                wrap = Table([[im]], colWidths=[4.0 * inch], rowHeights=[2.4 * inch])
+                wrap.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), CREAM),
+                    ("BOX", (0, 0), (-1, -1), 2, GOLD_BRIGHT),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                story.append(wrap)
+                story.append(Spacer(1, 0.20 * inch))
         if req.team:
-            data = [["Name", "Role"]] + [[t.name, t.role] for t in req.team[:15]]
-            tbl = Table(data, colWidths=[3.0 * inch, 3.0 * inch])
-            tbl.setStyle(TableStyle([
-                ("FONT", (0, 0), (-1, 0), "Times-Bold", 11),
-                ("FONT", (0, 1), (-1, -1), "Times-Roman", 11),
-                ("TEXTCOLOR", (0, 0), (-1, 0), MAROON),
-                ("BACKGROUND", (0, 0), (-1, 0), CREAM),
-                ("LINEBELOW", (0, 0), (-1, -1), 0.3, GOLD),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ]))
-            story.append(tbl)
+            # Build a roster: circular GOLD-on-CHOCOLATE initial avatars + names
+            # in CREAM on CHOCOLATE rows so the team page matches the brand.
+            avatar_cells = []
+            row = []
+            for member in req.team[:12]:
+                avatar = _initial_avatar_flowable(
+                    member.name, GOLD_BRIGHT, CHOCOLATE, CREAM, size_in=0.95,
+                )
+                label = Paragraph(
+                    f"<para align='center'><b><font color='#FAF0DC' size='10'>{member.name}</font></b><br/>"
+                    f"<font color='#DCAE50' size='8'><i>{member.role}</i></font></para>",
+                    body,
+                )
+                cell = Table([[avatar], [label]],
+                             colWidths=[1.7 * inch],
+                             rowHeights=[1.0 * inch, 0.65 * inch])
+                cell.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), CHOCOLATE),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("BOX", (0, 0), (-1, -1), 1, GOLD),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                row.append(cell)
+                if len(row) == 3:
+                    avatar_cells.append(row)
+                    row = []
+            if row:
+                while len(row) < 3:
+                    row.append("")
+                avatar_cells.append(row)
+            if avatar_cells:
+                grid = Table(avatar_cells,
+                             colWidths=[1.95 * inch] * 3,
+                             rowHeights=[1.75 * inch] * len(avatar_cells))
+                grid.setStyle(TableStyle([
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                story.append(grid)
         story.append(PageBreak())
 
     # ─── Page 5: Gratitude ───
