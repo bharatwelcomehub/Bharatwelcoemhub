@@ -180,22 +180,32 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
-    # Get monthly commissions — check multiple collections and field names
-    # 1. monthly_commissions uses: other_deductions (platform commissions)
+    # Get monthly commissions — MUST match canonical utils/commissions._row_total
+    # so Status Card / WC Table / Ledger / MIS Dashboard all reconcile.
+    # Rule (per row): if new-schema fields are populated use gst_tax_deductions
+    # + other_deductions; otherwise fall back to legacy commission_amount.
+    # TDS is excluded — booked separately as an operating expense.
     commission_months_1 = await db_ref.monthly_commissions.aggregate([
         {"$match": {"center": center_code}},
-        {"$group": {"_id": "$month", "total_commission": {"$sum": {
-            "$add": [
-                {"$ifNull": ["$commission_amount", 0]},
+        {"$addFields": {
+            "_new_sum": {"$add": [
                 {"$ifNull": ["$other_deductions", 0]},
                 {"$ifNull": ["$gst_tax_deductions", 0]},
-                {"$ifNull": ["$tds", 0]}
-            ]
-        }}}},
+            ]},
+        }},
+        {"$addFields": {
+            "_row_total": {"$cond": [
+                {"$gt": ["$_new_sum", 0]},
+                "$_new_sum",
+                {"$ifNull": ["$commission_amount", 0]},
+            ]},
+        }},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": "$_row_total"}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
-    # 2. commission_statements uses: commission_charged
+    # Legacy commission_statements: only as fallback when monthly_commissions
+    # has nothing for that month (matches canonical helper precedence).
     commission_months_2 = await db_ref.commission_statements.aggregate([
         {"$match": {"center": center_code}},
         {"$addFields": {"month": {"$substr": [{"$ifNull": ["$settlement_period_start", ""]}, 0, 7]}}},
@@ -203,12 +213,13 @@ async def calculate_working_capital_standing(db_ref, center_code: str, up_to_mon
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
-    # Merge commission data from both sources
     commission_map = {}
     for c in commission_months_1:
-        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+        commission_map[c["_id"]] = c["total_commission"]
     for c in commission_months_2:
-        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+        # Legacy is fallback only — do NOT add to existing uploaded month
+        if commission_map.get(c["_id"], 0) == 0:
+            commission_map[c["_id"]] = c["total_commission"]
     
     commission_months = [{"_id": m, "total_commission": v} for m, v in sorted(commission_map.items())]
     
@@ -502,17 +513,27 @@ async def get_wc_table(req: dict = Body(...)):
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
-    # Get monthly commissions — check both collections with correct field names
+    # Get monthly commissions — MUST match canonical utils/commissions._row_total
+    # so WC Table / Status Card / Ledger / MIS Dashboard all reconcile.
+    # Rule (per row): use gst_tax_deductions + other_deductions when populated,
+    # else fall back to legacy commission_amount. TDS is excluded (booked
+    # separately as an operating expense).
     commission_months_1 = await db.monthly_commissions.aggregate([
         {"$match": {"center": center}},
-        {"$group": {"_id": "$month", "total_commission": {"$sum": {
-            "$add": [
-                {"$ifNull": ["$commission_amount", 0]},
+        {"$addFields": {
+            "_new_sum": {"$add": [
                 {"$ifNull": ["$other_deductions", 0]},
                 {"$ifNull": ["$gst_tax_deductions", 0]},
-                {"$ifNull": ["$tds", 0]}
-            ]
-        }}}},
+            ]},
+        }},
+        {"$addFields": {
+            "_row_total": {"$cond": [
+                {"$gt": ["$_new_sum", 0]},
+                "$_new_sum",
+                {"$ifNull": ["$commission_amount", 0]},
+            ]},
+        }},
+        {"$group": {"_id": "$month", "total_commission": {"$sum": "$_row_total"}}},
         {"$sort": {"_id": 1}}
     ]).to_list(200)
     
@@ -525,9 +546,11 @@ async def get_wc_table(req: dict = Body(...)):
     
     commission_map = {}
     for c in commission_months_1:
-        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+        commission_map[c["_id"]] = c["total_commission"]
     for c in commission_months_2:
-        commission_map[c["_id"]] = commission_map.get(c["_id"], 0) + c["total_commission"]
+        # Legacy fallback only when monthly_commissions has nothing for the month
+        if commission_map.get(c["_id"], 0) == 0:
+            commission_map[c["_id"]] = c["total_commission"]
     commission_months = [{"_id": m, "total_commission": v} for m, v in sorted(commission_map.items())]
     
     # Get monthly eligible base for GST: (total_sale - swiggy - zomato - doordash)

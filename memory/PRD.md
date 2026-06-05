@@ -4,6 +4,38 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-10] Commission OVERVIEW vs LEDGER parity fix (P0 — financial)
+
+**User report**: *"Commission amount OVERVIEW madhye Actual peksha JAST yet aahe LEDGER madhye correct aahe Zomato upload kelyavar HSR & S NAGAR"* — the Overview / Status Card / WC Table showed a higher commission than the Ledger after Zomato Excel upload.
+
+**Root cause**: Two MongoDB aggregations in `routes/center_accounts.py` (lines ~185 inside `calculate_working_capital_standing` and ~506 inside `get_wc_table`) summed FOUR fields together:
+```
+commission_amount + other_deductions + gst_tax_deductions + tds
+```
+For new Zomato/Swiggy parser uploads this:
+1. Was correct for `commission_amount` (always 0 in new schema) — no harm but redundant.
+2. **Inflated by `tds`** — TDS is booked as a separate operating expense (per canonical helper `utils/commissions._row_total`); summing it here double-counts.
+
+The Ledger (`build_commission_ledger`) and MIS Dashboard (`get_total_commissions`) both use `_row_total` semantics: `gst_tax_deductions + other_deductions` if populated, else `commission_amount`. NEVER TDS.
+
+**Fix**: Rewrote both aggregations to mirror `_row_total` exactly using a `$cond` expression. Also corrected legacy `commission_statements` to be a fallback (used only when monthly_commissions has nothing for that month) — previously they were additively merged, causing further drift on centers with both data sources.
+
+**Verified end-to-end** (PB-SN 2026-02 via `/api/center-accounts/summary` + `/wc-table`):
+- Old buggy total: 9984.50 (TDS inflated by 20.34)
+- New total: **9964.16** — matches Ledger / canonical / `_row_total` to the paise
+
+**Regression tests added** (`backend/tests/test_commission_overview_vs_ledger_parity.py`):
+- `test_overview_aggregation_matches_canonical_row_total` — synthetic Zomato+Swiggy rows; agg == canonical for every month ✓
+- `test_tds_is_excluded_from_overview` — TDS-only row contributes 0 ✓
+- Existing `test_iteration84_commission_parity.py` — all 5 pass ✓
+
+**Files changed**: `backend/routes/center_accounts.py` (2 aggregation blocks).
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-06-03 PM v2] Free-flow AI creative + reliable brand overlay (P0 FIX — corrected)
 
 **User correction**: *"i dont want fixed layout why are not understanding et it be free flow .. still no text overlay no logo is visible on the image"* — rejecting the deterministic two-column composer from v1 of this fix.
