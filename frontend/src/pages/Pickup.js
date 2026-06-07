@@ -33,18 +33,29 @@ const Pickup = () => {
   const [cart, setCart] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
+  // Mobile-only: which categories are expanded (default: all collapsed so guest opens one at a time)
+  const [expandedCategories, setExpandedCategories] = useState({});
+  const toggleCategory = (id) => setExpandedCategories(prev => ({ ...prev, [id]: !prev[id] }));
   const [showCart, setShowCart] = useState(false);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [dbMenuItems, setDbMenuItems] = useState([]);
   const [menuLoading, setMenuLoading] = useState(false);
   const [promotions, setPromotions] = useState(null);
-  const [nowTick, setNowTick] = useState(Date.now());
+  const [nowTick, setNowTick] = useState(0);
 
-  // Fetch promotions on mount + tick every minute so window opens/closes auto-update
+  // Fetch promotions on mount
   useEffect(() => {
-    axios.get(`${API}/api/promotions`).then(r => setPromotions(r.data)).catch(() => {});
-    const t = setInterval(() => setNowTick(Date.now()), 60000);
+    let alive = true;
+    axios.get(`${API}/api/promotions`)
+      .then(r => { if (alive) setPromotions(r.data); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // Tick every minute so promo windows auto open/close
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(n => n + 1), 60000);
     return () => clearInterval(t);
   }, []);
 
@@ -131,7 +142,7 @@ const Pickup = () => {
       cart,
       promotions,
       country: currentCenter.country,
-      now: new Date(nowTick),
+      now: new Date(),
     });
   }, [cart, promotions, currentCenter, nowTick]);
 
@@ -323,7 +334,29 @@ const Pickup = () => {
               </div>
 
               {menuData ? (
-                <div className="space-y-6">
+                <div className="space-y-3 md:space-y-6">
+                  {/* Mobile-only: expand-all / collapse-all helper (only when not searching/filtering) */}
+                  {!activeCategory && !searchQuery && (
+                    <div className="flex items-center justify-end gap-3 text-[11px] font-body md:hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const all = {};
+                          menuData.categories.forEach(c => { all[c.id] = true; });
+                          setExpandedCategories(all);
+                        }}
+                        className="text-[#B8962E] underline"
+                        data-testid="pickup-expand-all"
+                      >Expand all</button>
+                      <span className="text-[#7A6F65]">·</span>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCategories({})}
+                        className="text-[#7A6F65] underline"
+                        data-testid="pickup-collapse-all"
+                      >Collapse all</button>
+                    </div>
+                  )}
                   {activeCategory ? (
                     <div className="grid grid-cols-1 gap-3">
                       {filteredItems.map(item => (<MenuItemCard key={item.id} item={item} cart={cart} updateCart={updateCart} formatPrice={formatPrice} />))}
@@ -332,12 +365,29 @@ const Pickup = () => {
                     menuData.categories.map(category => {
                       const categoryItems = filteredItems.filter(i => i.categoryId === category.id);
                       if (categoryItems.length === 0) return null;
+                      // If guest is searching, force-open to show matches.
+                      const isOpen = !!expandedCategories[category.id] || !!searchQuery;
                       return (
-                        <div key={category.id}>
-                          <h3 className="font-heading font-medium text-lg text-[#B8962E] mb-3 flex items-center gap-2">
-                            <ChefHat className="h-5 w-5" />{category.name}
-                          </h3>
-                          <div className="grid grid-cols-1 gap-3">
+                        <div key={category.id} className="border md:border-0 border-[#E8DFD0] md:!p-0" data-testid={`pickup-cat-${category.id}`}>
+                          {/* Mobile: button-style collapsible header. Desktop: plain title. */}
+                          <button
+                            type="button"
+                            onClick={() => toggleCategory(category.id)}
+                            className="w-full flex items-center justify-between md:cursor-default md:pointer-events-none p-3 md:p-0 mb-0 md:mb-3 bg-[#F8F5F0] md:bg-transparent border-b border-[#E8DFD0] md:border-0 text-left"
+                            data-testid={`pickup-cat-toggle-${category.id}`}
+                            aria-expanded={isOpen}
+                          >
+                            <h3 className="font-heading font-medium text-base md:text-lg text-[#B8962E] flex items-center gap-2">
+                              <ChefHat className="h-4 w-4 md:h-5 md:w-5" />{category.name}
+                              <span className="text-[10px] font-body text-[#5C4A3A] bg-white border border-[#E8DFD0] px-1.5 py-0.5 rounded-full md:hidden">{categoryItems.length}</span>
+                            </h3>
+                            <span className="md:hidden">
+                              {isOpen
+                                ? <ChevronUp className="h-4 w-4 text-[#5C4A3A]" />
+                                : <ChevronDown className="h-4 w-4 text-[#5C4A3A]" />}
+                            </span>
+                          </button>
+                          <div className={`${isOpen ? 'block' : 'hidden'} md:block grid grid-cols-1 gap-3 p-3 md:p-0`}>
                             {categoryItems.map(item => (<MenuItemCard key={item.id} item={item} cart={cart} updateCart={updateCart} formatPrice={formatPrice} />))}
                           </div>
                         </div>
@@ -345,7 +395,7 @@ const Pickup = () => {
                     })
                   )}
                   {filteredItems.length === 0 && (
-                    <div className="text-center py-12 text-[#5C4A3A] font-body"><p>No items found matching "{searchQuery}"</p></div>
+                    <div className="text-center py-12 text-[#5C4A3A] font-body"><p>No items found matching &quot;{searchQuery}&quot;</p></div>
                   )}
                 </div>
               ) : (
@@ -445,7 +495,7 @@ const Pickup = () => {
               <div className="bg-[#F8F5F0] border-b border-[#B8962E]/20 p-6 text-center">
                 <p className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-1">Purnabramha</p>
                 <h2 className="text-2xl font-heading font-medium text-[#2D1810] mb-1">Pickup Order Review</h2>
-                <p className="text-[#7A6F65] text-xs italic font-body">World's First Intelligent Restaurant Chain</p>
+                <p className="text-[#7A6F65] text-xs italic font-body">World&apos;s First Intelligent Restaurant Chain</p>
                 <div className="w-16 h-0.5 bg-[#B8962E] mx-auto mt-3" />
               </div>
               <div className="p-6 space-y-4">
