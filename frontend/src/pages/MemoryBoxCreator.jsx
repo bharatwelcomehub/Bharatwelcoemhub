@@ -294,6 +294,20 @@ export default function MemoryBoxCreator() {
     window.open(waUrl, '_blank');
   };
 
+  const deleteMemoryBox = async (box_id, guest_name) => {
+    if (!window.confirm(`Delete Memory Box for ${guest_name || box_id}? Admins can restore it within 30 days.`)) return;
+    try {
+      const res = await fetch(`${API}/api/creative-library/delete`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, type: 'memory_box', id: box_id }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || 'Delete failed');
+      toast.success('Memory Box deleted');
+      loadHistory();
+    } catch (e) { toast.error(e.message); }
+  };
+
 
   const sendWhatsapp = async (box_id) => {
     try {
@@ -952,6 +966,12 @@ export default function MemoryBoxCreator() {
                         <Button size="sm" variant="outline" className="h-7 text-[10px]"
                           onClick={() => sendEmail(h.box_id, h.email)}>
                           <Mail className="w-3 h-3 mr-1" />Email
+                        </Button>
+                        <Button size="sm" variant="outline"
+                          className="h-7 text-[10px] text-red-700 hover:bg-red-50 border-red-200"
+                          onClick={() => deleteMemoryBox(h.box_id, h.guest_name)}
+                          data-testid={`mb-delete-${h.box_id}`}>
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       </td>
                     </tr>

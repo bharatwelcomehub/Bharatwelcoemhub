@@ -2382,6 +2382,10 @@ set_menu_config_db(db)
 set_menu_config_verify_token(verify_token)
 app.include_router(menu_config_router)
 
+# Creative Studio Library — unified admin oversight + delete + bulk download
+from routes.creative_library import router as creative_library_router, auto_purge_soft_deleted
+app.include_router(creative_library_router)
+
 
 
 @app.on_event("startup")
@@ -2499,6 +2503,14 @@ async def _startup_db_tasks():
             logger.info(f"Startup: auto-completed expired transfer for {emp_name}")
         
         logger.info("Startup: all background DB tasks completed")
+
+        # Creative Studio Library: hard-purge any creatives soft-deleted > 30 days ago
+        try:
+            purge_summary = await auto_purge_soft_deleted()
+            if any(v for v in purge_summary.values()):
+                logger.info(f"Startup: creative auto-purge → {purge_summary}")
+        except Exception as e:
+            logger.warning(f"Startup: creative auto-purge skipped: {e}")
     except Exception as e:
         logger.warning(f"Startup cleanup failed: {e}")
 

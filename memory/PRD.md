@@ -4,6 +4,55 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-10] Creative Studio Library + per-creative delete (P1)
+
+**User ask**: *"please give delete options for each center to delete the creatives once they create the final one and delete all repeated ones coz it will eat memory. And super admin + admin should have option to see all and can download all and see each creative to keep the control."*
+
+**Solution**: Unified soft-delete + admin oversight across all 4 creative types.
+
+**Type registry** (`backend/routes/creative_library.py`):
+- Memory Box → `memory_boxes` (id=`box_id`)
+- Ad → `ad_creations` where `kind != invitation` (id=`ad_id`)
+- Invitation → `ad_creations` where `kind == invitation` (id=`ad_id`)
+- Video → `marketing_videos` (id=`video_id`)
+
+**Endpoints** (mounted at `/api/creative-library`):
+- `POST /list` — cross-type listing; admin sees all centers + can request `status=deleted` for the recycle bin; managers see only their own center's active items. Filters: types[], center, manager substring, from_date, to_date.
+- `POST /delete` — soft-delete (sets `status=deleted`, `deleted_at`, `deleted_by`). Manager: own center only. Admin: any center.
+- `POST /restore` — admin/super-admin only.
+- `POST /bulk-delete` / `/bulk-restore` — multi-select friendly.
+- `POST /bulk-download` — admin/super-admin only. Builds an on-the-fly ZIP grouped as `Center/Type/Date_Title_ShortId.ext`. Hard cap 100 items/ZIP.
+- `POST /types` — registry exposure for the UI.
+- **Startup auto-purge**: `auto_purge_soft_deleted()` runs once per backend boot and hard-deletes rows soft-deleted >30 days ago, plus unlinks their disk assets.
+
+**Permission model**:
+- Manager → can soft-delete only own-center creatives.
+- Admin / Super-Admin → can do everything across all centers (including restore, bulk download, view deleted).
+- Cross-center modify attempts return 403.
+
+**Frontend**:
+- New page `frontend/src/pages/CreativeLibrary.jsx` — admin-only. Type pills, full filter panel, multi-select with bulk download / delete / restore actions, type-aware open buttons (Memory Box → web view; Video → inline; Ad/Invitation → asset stream).
+- New tab `Library` added inside `AdCreator.jsx` (visible only to `is_admin / is_super_admin`).
+- Per-row Trash button added to:
+  - `MemoryBoxCreator.jsx` history table → `deleteMemoryBox()`
+  - `AdCreator.jsx` Marketing Gallery → `deleteCreative()` (auto-detects ad vs invitation via `kind`)
+  - `VideoCreator.jsx` videos list → `deleteVideo()`
+- All buttons confirm before delete, refresh the list, and show toast.
+
+**Soft-delete already filtered** for: `memory_boxes/list`, `marketing_videos/list`. Patched `marketing_ads/history` to add the same filter for non-admins.
+
+**Verified end-to-end** via curl:
+- `/list` → counts: `memory_box:8, ad:8, invitation:3, video:8`
+- soft-delete → recycle bin → restore round-trip ✓
+- bulk-delete + bulk-restore (2 items) ✓
+- bulk-download produced 1.9 MB ZIP with friendly paths: `PB-HSR/Memory Box/2026-06-05_Pranav_Joshi_a4543a99.{pdf,png,mp4,html}` ✓
+- Frontend Library page screenshot — perfect render with 41 creatives, 4 type pills, multi-select, action buttons.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-10] Background music on Memory Box MP4 (+ enhancement)
 
 Added a pre-generated **tanpura drone** track (`backend/static/audio/tanpura_drone.mp3`, 235 KB, 60s loop) — Sa (C3 130.81 Hz) + Pa (G3 196 Hz) + Sa (C4 261.63 Hz) with subtle vibrato, soft envelope. Synthesised once via ffmpeg's sine generators so we ship it royalty-free with the repo.

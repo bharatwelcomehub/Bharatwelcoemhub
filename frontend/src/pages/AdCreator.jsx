@@ -8,18 +8,20 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { useAuth } from "@/App";
-import { Loader2, Upload, Wand2, Download, Share2, History, Sparkles, RefreshCw, PartyPopper, BookHeart, Film } from 'lucide-react';
+import { Loader2, Upload, Wand2, Download, Share2, History, Sparkles, RefreshCw, PartyPopper, BookHeart, Film, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import InvitationCreator from '@/pages/InvitationCreator';
 import MemoryBoxCreator from '@/pages/MemoryBoxCreator';
 import VideoCreator from '@/pages/VideoCreator';
+import CreativeLibrary from '@/pages/CreativeLibrary';
+import { Library } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function AdCreator() {
   const { session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = ['create', 'invitation', 'memory-box', 'video', 'history'].includes(searchParams.get('tab'))
+  const initialTab = ['create', 'invitation', 'memory-box', 'video', 'history', 'library'].includes(searchParams.get('tab'))
     ? searchParams.get('tab') : 'create';
   const [activeTab, setActiveTab] = useState(initialTab);
   const onTabChange = (v) => {
@@ -174,6 +176,20 @@ export default function AdCreator() {
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
+  const deleteCreative = async (id, type, label) => {
+    if (!window.confirm(`Delete this ${type === 'invitation' ? 'invitation' : 'ad'} (${label || id})? Admins can restore within 30 days.`)) return;
+    try {
+      const res = await fetch(`${API}/api/creative-library/delete`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, type, id }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || 'Delete failed');
+      toast.success('Deleted');
+      loadHistory();
+    } catch (e) { toast.error(e.message); }
+  };
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -191,7 +207,14 @@ export default function AdCreator() {
           <TabsTrigger value="memory-box" data-testid="ad-tab-memory-box"><BookHeart className="w-4 h-4 mr-1" />Memory Box</TabsTrigger>
           <TabsTrigger value="video" data-testid="ad-tab-video"><Film className="w-4 h-4 mr-1" />Video</TabsTrigger>
           <TabsTrigger value="history" data-testid="ad-tab-history"><History className="w-4 h-4 mr-1" />Gallery</TabsTrigger>
+          {(session?.is_super_admin || session?.is_admin) && (
+            <TabsTrigger value="library" data-testid="ad-tab-library"><Library className="w-4 h-4 mr-1" />Library</TabsTrigger>
+          )}
         </TabsList>
+
+        <TabsContent value="library" className="space-y-4">
+          <CreativeLibrary />
+        </TabsContent>
 
         <TabsContent value="invitation" className="space-y-4">
           <InvitationCreator />
@@ -445,6 +468,12 @@ export default function AdCreator() {
                         <p className="text-muted-foreground">{(h.created_at || '').slice(0, 10)} · {h.download_count} dl</p>
                         <Button size="sm" variant="outline" className="w-full mt-1 h-7 text-xs" onClick={() => downloadAsset(h.ad_id, 'png')}>
                           <Download className="w-3 h-3 mr-1" />Download
+                        </Button>
+                        <Button size="sm" variant="outline"
+                          className="w-full mt-1 h-7 text-[10px] text-red-700 hover:bg-red-50 border-red-200"
+                          onClick={() => deleteCreative(h.ad_id, h.kind === 'invitation' ? 'invitation' : 'ad', h.menu_item || h.headline)}
+                          data-testid={`ad-delete-${h.ad_id}`}>
+                          <Trash2 className="w-3 h-3 mr-1" />Delete
                         </Button>
                       </div>
                     </div>

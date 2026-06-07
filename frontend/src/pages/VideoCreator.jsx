@@ -6,7 +6,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { useAuth } from '@/App';
-import { Loader2, Upload, Film, Download, Share2, History, X, Music } from 'lucide-react';
+import { Loader2, Upload, Film, Download, Share2, History, X, Music, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -176,6 +176,20 @@ export default function VideoCreator() {
     const text = encodeURIComponent(`${form.headline}\n${form.sub}\n\n— Purnabramha`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
     toast.info('WhatsApp opened — attach the downloaded video.');
+  };
+
+  const deleteVideo = async (video_id, label) => {
+    if (!window.confirm(`Delete this video (${label || video_id})? Admins can restore within 30 days.`)) return;
+    try {
+      const res = await fetch(`${API}/api/creative-library/delete`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token, type: 'video', id: video_id }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || 'Delete failed');
+      toast.success('Video deleted');
+      loadHistory();
+    } catch (e) { toast.error(e.message); }
   };
 
   // ── Instagram audio suggestions ───────────────────────────────────────
@@ -474,6 +488,12 @@ export default function VideoCreator() {
                       <Download className="w-3 h-3 mr-1" />Download
                     </Button>
                     <Badge variant="outline" className="h-7 text-[10px]">{h.download_count || 0} dl</Badge>
+                    <Button size="sm" variant="outline"
+                      className="h-7 text-[10px] text-red-700 hover:bg-red-50 border-red-200"
+                      onClick={() => deleteVideo(h.video_id, h.headline)}
+                      data-testid={`video-delete-${h.video_id}`}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
               ))}

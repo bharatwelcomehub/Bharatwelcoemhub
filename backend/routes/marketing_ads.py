@@ -796,7 +796,7 @@ async def list_history(req: HistoryRequest):
     if not _is_center_manager_or_above(session):
         raise HTTPException(403, "Not permitted")
 
-    q: dict = {}
+    q: dict = {"status": {"$ne": "deleted"}} if not _is_admin(session) else {}
     if req.center:
         q["center"] = req.center
     # Non-admin center managers can only see their own center's creations
