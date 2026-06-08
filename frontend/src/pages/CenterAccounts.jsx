@@ -14,8 +14,9 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail, FileBox, Activity
+  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail, FileBox, Activity, HeartPulse
 } from 'lucide-react';
+import FinancialHealth from '@/pages/FinancialHealth';
 
 import LedgersTab from '@/components/LedgersTab';
 import FinancialInsightsTab from '@/components/FinancialInsightsTab';
@@ -1079,6 +1080,7 @@ export default function CenterAccounts() {
               <TabsTrigger value="reports">Reports</TabsTrigger>
               <TabsTrigger value="adjustments" className="text-amber-700">Adjustments</TabsTrigger>
               <TabsTrigger value="insights" className="text-rose-700"><Activity className="w-3.5 h-3.5 mr-1" />Financial Insights</TabsTrigger>
+              <TabsTrigger value="health" className="text-rose-800"><HeartPulse className="w-3.5 h-3.5 mr-1" />Financial Health</TabsTrigger>
               <TabsTrigger value="ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
               <TabsTrigger value="invoices" className="text-purple-600">Invoice Export</TabsTrigger>
             </TabsList>
@@ -2400,6 +2402,11 @@ export default function CenterAccounts() {
             {/* Financial Insights Tab — analytics, ratios, trends, AI summary */}
             <TabsContent value="insights" className="space-y-4">
               <FinancialInsightsTab centersList={centers} />
+            </TabsContent>
+
+            {/* Financial Health Tab — profitability intelligence (11-section module) */}
+            <TabsContent value="health" className="space-y-4">
+              <FinancialHealth center={selectedCenter} />
             </TabsContent>
 
             {/* Expense Adjustments Tab — prepaid / advance / future-month carve */}

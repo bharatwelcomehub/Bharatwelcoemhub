@@ -4,6 +4,67 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-10] Financial Health & Profitability Intelligence Module (P1 — major)
+
+**User ask**: Build a complete executive-grade financial health module with 11 sections, auto-derived from existing data (sales, expenses, attendance, salary), visible in both Center Accounts and Franchise Owner Dashboard.
+
+**What shipped** (single-shot, per user direction):
+
+**Backend** (`backend/routes/financial_health.py` · 600 LOC):
+- `POST /api/financial-health/center` — full per-center snapshot for any period
+- `POST /api/financial-health/portfolio` — all centers side-by-side (admin only)
+- `POST /api/financial-health/list-centers` — center picker support
+
+**11 sections delivered** (Section 8 deferred per user — needs item-level POS data):
+
+| # | Section | Data Source |
+|---|---------|-------------|
+| 1 | Health Summary + Score /100 | aggregated from all sections |
+| 2 | Prime Cost Monitor | food+labor / sales |
+| 3 | Food Cost Intelligence (India 28% / AU 30%) | expenses (GROCERY/DAIRY/F&V/PAV/MANGO RASS/CYLINDER) |
+| 4 | Labor Cost Intelligence | expenses (SALARY/OT/ADVANCE/DIRECTOR FEES) + attendance hours |
+| 5 | Contribution Margin (sales − food) | derived |
+| 6 | Orders per Labor Hour | daily_sales.num_bills ÷ attendance hours |
+| 7 | Expense Leakage Monitor (14 buckets, MoM) | expenses |
+| 9 | Red Alerts (12+ rules) | derived from sections 1-7 |
+| 10 | AI Recommended Actions (rule-based) | mapped to each alert code |
+| 11 | Portfolio Ranking (best/worst/highest food/labor/profit) | all centers in one call |
+
+**Health Score (out of 100)**: Net Profit % (40) + Prime Cost band (30) + Leakage flags (20) + Sales-trend (10). Status thresholds: ≥75 Healthy · 50–75 Watch · <50 Action Required.
+
+**Period filters**: Month, Quarter (e.g. `2025-Q2`), FY (e.g. `FY26` = Apr 2025–Mar 2026), Custom date range. Every metric has a previous-period delta computed automatically.
+
+**Permission model**:
+- Manager → only own center
+- Admin / Super-Admin → any center + portfolio
+
+**Frontend** (`frontend/src/pages/FinancialHealth.jsx` · 470 LOC):
+- Health Score hero card with traffic-light colour
+- Alert stack with severity dots
+- Mini-cards for Prime Cost, Food Cost, Labor Cost, Contribution Margin, Orders/Hour
+- Leakage table (red/yellow/green dot per bucket, sorted by severity)
+- AI Recommendations panel (each alert → 2–4 specific actions)
+- Portfolio table with rankings cards above
+
+**Mount points**:
+- `CenterAccounts.jsx` → new **Financial Health** tab
+- `FranchiseOwnerDashboard.jsx` → new **Portfolio Health** tab (admin-only)
+
+**Verified end-to-end**:
+- `curl /center` for PB-HSR / PB-SN / PB-PERTH (AU) → all sections populated, AU food target correctly 30%
+- All 4 period kinds (month/quarter/fy/custom) parse correctly
+- Portfolio call enumerates 8 active centers, computes 6 rankings, excludes PB-MGT (HQ)
+- 4 pytest regression tests pass (`tests/test_financial_health.py`)
+- Frontend bundle compiled cleanly (12 MB)
+- Lint: 0 blocking issues on `financial_health.py` and `FinancialHealth.jsx`
+
+**Section 8 (Menu Profitability)** — explicitly skipped per user. Will need item-level POS sales data when we revisit.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-10] Creative Studio Library + per-creative delete (P1)
 
 **User ask**: *"please give delete options for each center to delete the creatives once they create the final one and delete all repeated ones coz it will eat memory. And super admin + admin should have option to see all and can download all and see each creative to keep the control."*

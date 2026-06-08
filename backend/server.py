@@ -2386,6 +2386,10 @@ app.include_router(menu_config_router)
 from routes.creative_library import router as creative_library_router, auto_purge_soft_deleted
 app.include_router(creative_library_router)
 
+# Financial Health & Profitability Intelligence (Center + Portfolio)
+from routes.financial_health import router as financial_health_router
+app.include_router(financial_health_router)
+
 
 
 @app.on_event("startup")
