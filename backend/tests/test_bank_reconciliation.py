@@ -155,8 +155,9 @@ class TestBankReconciliationUpload:
         assert "matched_count" in summary
         assert "unrecorded_count" in summary
         
-        # Should have parsed 5 debit transactions (credit-only skipped)
-        assert summary["total_bank_transactions"] == 5
+        # Should have parsed all 6 transactions (Phase 2: keeps credits too — they
+        # are reconciled against sales/settlements instead of being skipped).
+        assert summary["total_bank_transactions"] == 6
         
         # Store upload_id for later tests
         TestBankReconciliationUpload.upload_id = result["upload_id"]
@@ -495,7 +496,8 @@ class TestBankReconciliationExport:
             row = result["rows"][0]
             assert "Date" in row
             assert "Narration" in row
-            assert "Debit Amount" in row
+            assert "Debit (₹)" in row
+            assert "Credit (₹)" in row
             assert "Status" in row
     
     def test_export_nonexistent_upload(self, auth_token):

@@ -69,6 +69,55 @@ async def _get_session(token: str):
 
 # ── Category Suggestion Logic ───────────────────────────────────────────
 
+# ── Cash Withdrawal Detection (Phase 2) ─────────────────────────────────
+# ATM / Cash withdrawals are NOT operating expenses — they only move money
+# from bank to wallet. Auto-flag them as "ignored" with a reason so they
+# don't pollute reconciliation.
+CASH_WITHDRAWAL_PATTERNS = [
+    r"\bATM\b",
+    r"\bATW\b",
+    r"CASH\s*W[DH]L",
+    r"CSH\s*W[DH]L",
+    r"CASH\s*WITHDRAW",
+    r"CASH\s+WD",
+    r"\bNFS\b",            # ATM National Financial Switch
+    r"\bNWD\b",            # Network Withdrawal
+    r"ATM\s*-?\s*CASH",
+    r"CW\s*-",
+]
+
+def is_cash_withdrawal(narration: str) -> bool:
+    """True if the narration looks like an ATM / Cash counter withdrawal."""
+    if not narration:
+        return False
+    upper = narration.upper()
+    return any(re.search(p, upper) for p in CASH_WITHDRAWAL_PATTERNS)
+
+
+# ── Credit Source Detection (Phase 2) ───────────────────────────────────
+# Hints that map a credit narration to its likely sales/settlement source.
+CREDIT_SOURCE_HINTS = {
+    "phonepe": ["PHONEPE", "PHONE PE", "PHONPE"],
+    "razorpay": ["RAZORPAY", "RZP", "RAZOR PAY"],
+    "swiggy": ["SWIGGY", "BUNDL", "BUNDLE TECH"],
+    "zomato": ["ZOMATO", "ZOMATO MEDIA"],
+    "doordash": ["DOORDASH", "DASHPASS"],
+    "upi": ["UPI/", "UPI-", "UPI ", "@OKICICI", "@OKHDFC", "@OKAXIS", "@OKSBI", "@PAYTM", "@YBL"],
+    "card": ["VISA", "MASTERCARD", "RUPAY", "POS ", "MERCHANT", "MDR"],
+    "neft_imps": ["NEFT", "IMPS", "RTGS"],
+}
+
+def detect_credit_source(narration: str) -> Optional[str]:
+    if not narration:
+        return None
+    upper = narration.upper()
+    for source, keys in CREDIT_SOURCE_HINTS.items():
+        for k in keys:
+            if k in upper:
+                return source
+    return None
+
+
 KEYWORD_MAP = {
     "RENT": ["RENT PAID SHOP", "STAFF ROOM RENT"],
     "SHOP RENT": ["RENT PAID SHOP"],
@@ -216,9 +265,9 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
             logger.info(f"PDF parsing: {len(pdf.pages)} pages, year hint: {year_hint}")
             
             # Debug: Log raw text from first page to understand PDF structure
-            logger.info(f"=== DEBUG: First page raw text (first 1000 chars) ===")
+            logger.info("=== DEBUG: First page raw text (first 1000 chars) ===")
             logger.info(first_page_text[:1000] if first_page_text else "(empty)")
-            logger.info(f"=== END DEBUG ===")
+            logger.info("=== END DEBUG ===")
             
             # Column name mapping - normalize ANZ headers to expected names
             column_mapping = {
@@ -362,26 +411,21 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
                     credit_val = row[credit_idx] if credit_idx is not None and credit_idx < len(row) else ''
                     credit_amount = parse_amount(credit_val) if credit_val else 0
                     
-                    # Skip if no debit or if it's a credit transaction
-                    if debit_amount <= 0:
+                    # Skip pure zero-amount rows
+                    if debit_amount <= 0 and credit_amount <= 0:
                         continue
-                    
-                    # Skip credits based on narration keywords
-                    if narration and any(kw in narration.upper() for kw in [
-                        'TRANSFER FROM', 'DEPOSIT', 'CREDIT', 'REFUND', 'INTEREST PAID',
-                        'TAX REFUND', 'REVERSAL', 'REBATE'
-                    ]):
-                        continue
-                    
+
                     if not narration or len(narration) < 3:
                         narration = "Transaction"
-                    
+
+                    txn_type = "debit" if debit_amount > 0 else "credit"
                     transactions.append({
                         "transaction_id": str(uuid.uuid4())[:12],
                         "transaction_date": parsed_date,
                         "narration": narration,
                         "debit_amount": debit_amount,
                         "credit_amount": credit_amount,
+                        "txn_type": txn_type,
                         "reference_number": "",
                         "balance": None,
                     })
@@ -390,7 +434,7 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
                     logger.debug(f"Error parsing row: {e}")
                     continue
         
-        logger.info(f"PDF table extraction: {len(transactions)} debit transactions from {filename}")
+        logger.info(f"PDF table extraction: {len(transactions)} debit+credit transactions from {filename}")
         
         # If table extraction found 0 transactions, fall back to text parsing
         if not transactions:
@@ -488,8 +532,8 @@ async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint:
             if deposit_match:
                 is_credit = True
             
-            if is_credit:
-                continue
+            # Phase 2: keep credits (don't skip) — flag them as txn_type=credit so
+            # they can be reconciled against sales/settlements instead of expenses.
             
             # Skip header/footer text
             if any(kw in narration.upper() for kw in ['TELEPHONE', 'ENQUIRIES', 'PAGE', 'ACCOUNT TYPE', 'EFFECTIVE DATE']):
@@ -497,18 +541,19 @@ async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint:
             
             # Clean up narration - remove "EFFECTIVE DATE" suffix
             narration = re.sub(r'\s*EFFECTIVE DATE.*$', '', narration, flags=re.IGNORECASE).strip()
-            
+
             transactions.append({
                 "transaction_id": str(uuid.uuid4())[:12],
                 "transaction_date": parsed_date,
                 "narration": narration,
-                "debit_amount": amount,
-                "credit_amount": 0.0,
+                "debit_amount": 0.0 if is_credit else amount,
+                "credit_amount": amount if is_credit else 0.0,
+                "txn_type": "credit" if is_credit else "debit",
                 "reference_number": "",
                 "balance": None,
             })
         
-        logger.info(f"PDF text fallback: {len(transactions)} debit transactions from {filename}")
+        logger.info(f"PDF text fallback: {len(transactions)} debit+credit transactions from {filename}")
         
     except Exception as e:
         logger.error(f"Error in PDF text fallback: {e}")
@@ -658,19 +703,18 @@ async def parse_bank_statement(file_content: bytes, filename: str):
             debit_amount = parse_amount(debit_val)
             credit_amount = parse_amount(credit_val)
 
-            # Skip credit-only transactions (deposits)
-            if debit_amount == 0 and credit_amount > 0:
-                continue
-            # Skip zero-amount rows
+            # Phase 2: keep both credits and debits. Only skip zero-amount rows.
             if debit_amount == 0 and credit_amount == 0:
                 continue
 
+            txn_type = "debit" if debit_amount > 0 else "credit"
             transactions.append({
                 "transaction_id": str(uuid.uuid4())[:12],
                 "transaction_date": parsed_date,
                 "narration": str(narr_val or "").strip(),
                 "debit_amount": debit_amount,
                 "credit_amount": credit_amount,
+                "txn_type": txn_type,
                 "reference_number": str(ref_val or "").strip(),
                 "balance": parse_amount(bal_val) if bal_val else None,
             })
@@ -680,11 +724,100 @@ async def parse_bank_statement(file_content: bytes, filename: str):
     return transactions
 
 
-# ── Matching Logic ──────────────────────────────────────────────────────
+# ── Matching Logic (Phase 2) ────────────────────────────────────────────
+# Status taxonomy (per user directive 2026-02):
+#   matched               — exact date + exact amount hit
+#   partially_matched     — exact amount but fuzzy date (±2 days), OR
+#                           exact date with amount drift ≤5%
+#   unrecorded / unmatched — no candidate found (legacy "unrecorded" kept
+#                            for backward compatibility with existing UI)
+#   ignored               — auto-flagged ATM/cash withdrawal OR user-ignored
+#   manual_review         — high-value (≥ ₹50k) unmatched debit/credit OR
+#                           credit that hit multiple equally-likely sources
+HIGH_VALUE_THRESHOLD = 50000.0
+PARTIAL_AMOUNT_DRIFT_PCT = 0.05  # ±5%
+
+
+async def _load_credit_sources(center: str, month: str):
+    """Build a list of expected bank credits from sales + commission data.
+    Each entry: {date, amount, source, description}.
+    """
+    try:
+        year, mon = month.split("-")
+        start_date = f"{year}-{mon}-01"
+        end_date = f"{int(year) + 1}-01-01" if int(mon) == 12 else f"{year}-{int(mon) + 1:02d}-01"
+    except Exception:
+        return []
+
+    credits: list = []
+
+    # Daily sales (cash deposits, online / card, aggregator gross)
+    try:
+        sales = await db.daily_sales.find(
+            {"center": center, "date": {"$gte": start_date, "$lt": end_date}},
+            {"_id": 0},
+        ).to_list(500)
+        for s in sales:
+            d = s.get("date")
+            cash = float(s.get("total_cash_sale") or s.get("cash_sale") or 0)
+            online = float(s.get("total_online_sale") or s.get("online_sale") or s.get("card_sale") or 0)
+            swiggy = float(s.get("swiggy_sale") or s.get("swiggy") or 0)
+            zomato = float(s.get("zomato_sale") or s.get("zomato") or 0)
+            doordash = float(s.get("doordash_sale") or s.get("doordash") or 0)
+            phonepe = float(s.get("phonepe_sale") or s.get("phonepe") or 0)
+            if cash > 0:
+                credits.append({"date": d, "amount": round(cash, 2),
+                                "source": "cash_sales", "description": "Cash sales deposit"})
+            if online > 0:
+                credits.append({"date": d, "amount": round(online, 2),
+                                "source": "card", "description": "Card / Online sales"})
+            if phonepe > 0:
+                credits.append({"date": d, "amount": round(phonepe, 2),
+                                "source": "phonepe", "description": "PhonePe daily sales"})
+            for plat, val in (("swiggy", swiggy), ("zomato", zomato), ("doordash", doordash)):
+                if val > 0:
+                    credits.append({"date": d, "amount": round(val, 2),
+                                    "source": plat, "description": f"{plat.title()} order receipts"})
+    except Exception as e:
+        logger.warning(f"_load_credit_sources daily_sales: {e}")
+
+    # Monthly commission settlements (PhonePe / Razorpay / Aggregator nets)
+    try:
+        commission_rows = await db.monthly_commissions.find(
+            {"center": center, "month": month}, {"_id": 0}
+        ).to_list(500)
+        for c in commission_rows:
+            net = float(c.get("net_settlement_amount") or c.get("net_amount") or 0)
+            if net <= 0:
+                continue
+            platform = (c.get("platform") or "").lower()
+            settlement_date = c.get("settlement_date") or c.get("date") or f"{year}-{mon}-15"
+            credits.append({
+                "date": settlement_date,
+                "amount": round(net, 2),
+                "source": platform or "settlement",
+                "description": f"{platform.title()} net settlement",
+                "pg_commission": float(c.get("sundry_debtors") or 0),
+                "gst_on_commission": float(c.get("gst_tax_deductions") or 0),
+            })
+    except Exception as e:
+        logger.warning(f"_load_credit_sources monthly_commissions: {e}")
+
+    return credits
+
+
+def _amount_close(a: float, b: float, drift_pct: float = PARTIAL_AMOUNT_DRIFT_PCT) -> bool:
+    if a <= 0 or b <= 0:
+        return False
+    return abs(a - b) <= max(a, b) * drift_pct
+
 
 async def match_transactions(transactions: list, center: str, month: str):
-    """Match bank transactions against recorded expenses"""
-    # Parse month to get date range
+    """Match bank transactions against expenses (debits) and sales/settlements (credits).
+
+    Returns dict with buckets: matched, partially_matched, unmatched_debits,
+    unmatched_credits, ignored, manual_review, plus full lists for storage.
+    """
     try:
         year, mon = month.split("-")
         start_date = f"{year}-{mon}-01"
@@ -693,89 +826,206 @@ async def match_transactions(transactions: list, center: str, month: str):
         else:
             end_date = f"{year}-{int(mon) + 1:02d}-01"
     except Exception:
-        return transactions
+        return {"all": transactions}
 
-    # Load recorded expenses for the month/center
+    # ── Expenses pool (for debits) ──────────────────────────────────────
     expenses = await db.expenses.find({
         "center": center,
         "date": {"$gte": start_date, "$lt": end_date}
     }, {"_id": 0}).to_list(5000)
 
-    # Build expense lookup: (date, amount) -> list of expenses
-    expense_lookup = {}
+    expense_lookup: dict = {}
+    amount_lookup: dict = {}
     for exp in expenses:
-        key = (exp.get("date", ""), round(exp.get("amount", 0), 2))
-        if key not in expense_lookup:
-            expense_lookup[key] = []
-        expense_lookup[key].append(exp)
+        amt = round(float(exp.get("amount", 0) or 0), 2)
+        key = (exp.get("date", ""), amt)
+        expense_lookup.setdefault(key, []).append(exp)
+        amount_lookup.setdefault(amt, []).append(exp)
 
-    # Also build amount-only lookup for fuzzy date matching
-    amount_lookup = {}
-    for exp in expenses:
-        amt = round(exp.get("amount", 0), 2)
-        if amt not in amount_lookup:
-            amount_lookup[amt] = []
-        amount_lookup[amt].append(exp)
+    # ── Credit pool (for credits) ───────────────────────────────────────
+    credit_pool = await _load_credit_sources(center, month)
+    credit_by_key: dict = {}
+    credit_by_amount: dict = {}
+    for c in credit_pool:
+        amt = round(c["amount"], 2)
+        credit_by_key.setdefault((c.get("date", ""), amt), []).append(c)
+        credit_by_amount.setdefault(amt, []).append(c)
 
-    matched = []
-    unrecorded = []
+    matched: list = []
+    partially_matched: list = []
+    unmatched_debits: list = []
+    unmatched_credits: list = []
+    ignored: list = []
+    manual_review: list = []
 
     for txn in transactions:
-        txn_date = txn["transaction_date"]
-        txn_amount = round(txn["debit_amount"], 2)
-        found_match = False
+        txn_type = txn.get("txn_type") or ("credit" if (txn.get("credit_amount") or 0) > 0 else "debit")
+        narration = txn.get("narration", "")
+        debit_amt = round(float(txn.get("debit_amount") or 0), 2)
+        credit_amt = round(float(txn.get("credit_amount") or 0), 2)
+        txn_date = txn.get("transaction_date", "")
+        txn["txn_type"] = txn_type
 
-        # Primary match: exact date + exact amount
-        key = (txn_date, txn_amount)
-        if key in expense_lookup and expense_lookup[key]:
-            matched_exp = expense_lookup[key].pop(0)
-            txn["match_status"] = "matched"
-            txn["matched_expense"] = {
-                "description": matched_exp.get("description", ""),
-                "expense_type": matched_exp.get("expense_type", ""),
-                "payment_mode": matched_exp.get("payment_mode", ""),
-                "date": matched_exp.get("date", ""),
-                "amount": matched_exp.get("amount", 0),
-            }
-            txn["match_method"] = "exact_date_amount"
-            matched.append(txn)
-            found_match = True
+        # ── Auto-ignore ATM / Cash withdrawal ─────────────────────────
+        if txn_type == "debit" and is_cash_withdrawal(narration):
+            txn["match_status"] = "ignored"
+            txn["recon_status"] = "ignored"
+            txn["ignore_reason"] = "Cash Withdrawal (auto)"
+            txn["auto_ignored"] = True
+            ignored.append(txn)
             continue
 
-        # Secondary match: fuzzy date (+-2 days) + exact amount
-        if not found_match and txn_amount in amount_lookup:
+        amount_for_match = debit_amt if txn_type == "debit" else credit_amt
+
+        if txn_type == "debit":
+            # 1. Exact date + amount
+            key = (txn_date, amount_for_match)
+            if key in expense_lookup and expense_lookup[key]:
+                exp = expense_lookup[key].pop(0)
+                amount_lookup.get(amount_for_match, []).remove(exp) if exp in amount_lookup.get(amount_for_match, []) else None
+                txn["match_status"] = "matched"
+                txn["recon_status"] = "matched"
+                txn["matched_expense"] = {
+                    "description": exp.get("description", ""),
+                    "expense_type": exp.get("expense_type", ""),
+                    "payment_mode": exp.get("payment_mode", ""),
+                    "date": exp.get("date", ""),
+                    "amount": exp.get("amount", 0),
+                }
+                txn["match_method"] = "exact_date_amount"
+                matched.append(txn)
+                continue
+
+            # 2. Partial match — exact amount, fuzzy date (±2 days)
+            partial_hit = None
+            if amount_for_match in amount_lookup:
+                try:
+                    txn_dt = datetime.strptime(txn_date, "%Y-%m-%d")
+                    for exp in amount_lookup[amount_for_match]:
+                        try:
+                            exp_dt = datetime.strptime(exp.get("date", ""), "%Y-%m-%d")
+                            if abs((txn_dt - exp_dt).days) <= 2:
+                                partial_hit = (exp, "fuzzy_date_exact_amount")
+                                break
+                        except ValueError:
+                            continue
+                except ValueError:
+                    pass
+
+            # 3. Partial match — exact date, amount drift ≤5%
+            if not partial_hit:
+                for amt_key, exps in amount_lookup.items():
+                    if not _amount_close(amt_key, amount_for_match):
+                        continue
+                    for exp in exps:
+                        if exp.get("date", "") == txn_date:
+                            partial_hit = (exp, "exact_date_fuzzy_amount")
+                            break
+                    if partial_hit:
+                        break
+
+            if partial_hit:
+                exp, method = partial_hit
+                amount_lookup[round(float(exp.get("amount", 0) or 0), 2)].remove(exp)
+                txn["match_status"] = "partially_matched"
+                txn["recon_status"] = "partially_matched"
+                txn["matched_expense"] = {
+                    "description": exp.get("description", ""),
+                    "expense_type": exp.get("expense_type", ""),
+                    "payment_mode": exp.get("payment_mode", ""),
+                    "date": exp.get("date", ""),
+                    "amount": exp.get("amount", 0),
+                }
+                txn["match_method"] = method
+                partially_matched.append(txn)
+                continue
+
+            # 4. Manual review (high value) or unmatched
+            if amount_for_match >= HIGH_VALUE_THRESHOLD:
+                txn["match_status"] = "manual_review"
+                txn["recon_status"] = "manual_review"
+                txn["matched_expense"] = None
+                txn["match_method"] = None
+                manual_review.append(txn)
+            else:
+                # Legacy "unrecorded" preserved so existing UI continues to work
+                txn["match_status"] = "unrecorded"
+                txn["recon_status"] = "unmatched"
+                txn["matched_expense"] = None
+                txn["match_method"] = None
+                unmatched_debits.append(txn)
+            continue
+
+        # ── CREDIT side ───────────────────────────────────────────────
+        # 1. Exact date + amount against credit pool
+        key = (txn_date, amount_for_match)
+        if key in credit_by_key and credit_by_key[key]:
+            c = credit_by_key[key].pop(0)
+            credit_by_amount.get(amount_for_match, []).remove(c) if c in credit_by_amount.get(amount_for_match, []) else None
+            txn["match_status"] = "matched"
+            txn["recon_status"] = "matched"
+            txn["matched_credit"] = c
+            txn["match_method"] = "exact_date_amount_credit"
+            matched.append(txn)
+            continue
+
+        # 2. Partial — exact amount, fuzzy date (±3 days for settlements)
+        partial_hit = None
+        if amount_for_match in credit_by_amount:
             try:
                 txn_dt = datetime.strptime(txn_date, "%Y-%m-%d")
-                for exp in amount_lookup[txn_amount]:
-                    exp_date = exp.get("date", "")
+                for c in credit_by_amount[amount_for_match]:
                     try:
-                        exp_dt = datetime.strptime(exp_date, "%Y-%m-%d")
-                        if abs((txn_dt - exp_dt).days) <= 2:
-                            txn["match_status"] = "matched"
-                            txn["matched_expense"] = {
-                                "description": exp.get("description", ""),
-                                "expense_type": exp.get("expense_type", ""),
-                                "payment_mode": exp.get("payment_mode", ""),
-                                "date": exp.get("date", ""),
-                                "amount": exp.get("amount", 0),
-                            }
-                            txn["match_method"] = "fuzzy_date_exact_amount"
-                            matched.append(txn)
-                            amount_lookup[txn_amount].remove(exp)
-                            found_match = True
+                        c_dt = datetime.strptime(c.get("date", ""), "%Y-%m-%d")
+                        if abs((txn_dt - c_dt).days) <= 3:
+                            partial_hit = (c, "fuzzy_date_exact_amount_credit")
                             break
                     except ValueError:
                         continue
             except ValueError:
                 pass
 
-        if not found_match:
-            txn["match_status"] = "unrecorded"
-            txn["matched_expense"] = None
-            txn["match_method"] = None
-            unrecorded.append(txn)
+        # 3. Partial — exact date, amount drift ≤5%
+        if not partial_hit:
+            for amt_key, lst in credit_by_amount.items():
+                if not _amount_close(amt_key, amount_for_match):
+                    continue
+                for c in lst:
+                    if c.get("date", "") == txn_date:
+                        partial_hit = (c, "exact_date_fuzzy_amount_credit")
+                        break
+                if partial_hit:
+                    break
 
-    return matched, unrecorded
+        if partial_hit:
+            c, method = partial_hit
+            credit_by_amount[round(c["amount"], 2)].remove(c)
+            txn["match_status"] = "partially_matched"
+            txn["recon_status"] = "partially_matched"
+            txn["matched_credit"] = c
+            txn["match_method"] = method
+            partially_matched.append(txn)
+            continue
+
+        # 4. Tag the inferred credit source for analyst review
+        txn["credit_source_hint"] = detect_credit_source(narration)
+        if amount_for_match >= HIGH_VALUE_THRESHOLD:
+            txn["match_status"] = "manual_review"
+            txn["recon_status"] = "manual_review"
+            manual_review.append(txn)
+        else:
+            txn["match_status"] = "unrecorded_credit"
+            txn["recon_status"] = "unmatched"
+            unmatched_credits.append(txn)
+
+    return {
+        "matched": matched,
+        "partially_matched": partially_matched,
+        "unmatched_debits": unmatched_debits,
+        "unmatched_credits": unmatched_credits,
+        "ignored": ignored,
+        "manual_review": manual_review,
+    }
 
 
 # ── API Endpoints ───────────────────────────────────────────────────────
@@ -794,7 +1044,7 @@ async def upload_bank_statement(
     
     session = await _get_session(token)
     if not session:
-        print(f"[BANK_RECON] Auth failed - token empty or invalid", flush=True)
+        print("[BANK_RECON] Auth failed - token empty or invalid", flush=True)
         logger.warning(f"Authentication failed for token: {token[:10] if token else 'empty'}...")
         return {"detail": "Authentication required"}
 
@@ -806,7 +1056,7 @@ async def upload_bank_statement(
         return {"detail": "File too large (max 10MB)"}
     
     if len(content) == 0:
-        print(f"[BANK_RECON] ERROR: File is empty!", flush=True)
+        print("[BANK_RECON] ERROR: File is empty!", flush=True)
         return {"detail": "File is empty. Please select a valid file."}
 
     # Persist the raw bank statement so it can be re-downloaded later
@@ -851,25 +1101,49 @@ async def upload_bank_statement(
         logger.warning(f"No transactions parsed from {file.filename} (size={len(content)} bytes)")
         return {"detail": "Could not parse any transactions from the file. Ensure it has Date, Narration, and Debit columns."}
 
-    # Run matching
-    matched, unrecorded = await match_transactions(transactions, center, month)
+    # Run matching (Phase 2 — handles credits + debits + auto-ignore)
+    buckets = await match_transactions(transactions, center, month)
+    matched = buckets["matched"]
+    partially_matched = buckets["partially_matched"]
+    unmatched_debits = buckets["unmatched_debits"]
+    unmatched_credits = buckets["unmatched_credits"]
+    auto_ignored = buckets["ignored"]
+    manual_review = buckets["manual_review"]
 
-    # Suggest categories for unrecorded transactions
-    for txn in unrecorded:
-        txn["suggested_category"] = await suggest_category(txn.get("narration", ""))
+    # Combined unrecorded list (for legacy UI tab) = unmatched debits + manual review debits
+    unrecorded = unmatched_debits + [t for t in manual_review if t.get("txn_type") == "debit"]
+
+    # Suggest categories for unrecorded debits + manual review items
+    for txn in unrecorded + [t for t in manual_review if t.get("txn_type") == "credit"]:
+        if txn.get("txn_type") == "debit":
+            txn["suggested_category"] = await suggest_category(txn.get("narration", ""))
+    for txn in unmatched_credits:
+        # Surface the inferred credit source as the "suggested category" so the
+        # analyst can see at a glance whether it looks like PhonePe/Razorpay/etc.
+        if not txn.get("suggested_category"):
+            txn["suggested_category"] = txn.get("credit_source_hint") or ""
 
     # Create upload record
     upload_id = str(uuid.uuid4())[:16]
+    all_txns = matched + partially_matched + unmatched_debits + unmatched_credits + auto_ignored + manual_review
+    total_credit = round(sum((t.get("credit_amount") or 0) for t in all_txns), 2)
+    total_debit = round(sum((t.get("debit_amount") or 0) for t in all_txns), 2)
     upload_record = {
         "upload_id": upload_id,
         "filename": file.filename,
         "center": center,
         "month": month,
         "bank_account": bank_account,
-        "total_transactions": len(transactions),
-        "total_debit": round(sum(t["debit_amount"] for t in transactions), 2),
+        "total_transactions": len(all_txns),
+        "total_debit": total_debit,
+        "total_credit": total_credit,
         "matched_count": len(matched),
-        "unrecorded_count": len(unrecorded),
+        "partially_matched_count": len(partially_matched),
+        "unmatched_debit_count": len(unmatched_debits),
+        "unmatched_credit_count": len(unmatched_credits),
+        "auto_ignored_count": len(auto_ignored),
+        "manual_review_count": len(manual_review),
+        "unrecorded_count": len(unrecorded),  # legacy field kept for old UI
         "uploaded_by": session.get("name", session.get("mobile", "Unknown")),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "status": "reconciled",
@@ -877,13 +1151,13 @@ async def upload_bank_statement(
     await db.bank_statement_uploads.insert_one(upload_record)
 
     # Store transactions
-    for txn in matched + unrecorded:
+    for txn in all_txns:
         txn["upload_id"] = upload_id
         txn["center"] = center
         txn["month"] = month
-    if matched + unrecorded:
+    if all_txns:
         await db.bank_transactions.insert_many(
-            [{k: v for k, v in t.items()} for t in matched + unrecorded]
+            [{k: v for k, v in t.items()} for t in all_txns]
         )
 
     # Reconciliation log
@@ -893,15 +1167,25 @@ async def upload_bank_statement(
         "center": center,
         "month": month,
         "matched_count": len(matched),
+        "partially_matched_count": len(partially_matched),
+        "unmatched_debit_count": len(unmatched_debits),
+        "unmatched_credit_count": len(unmatched_credits),
+        "auto_ignored_count": len(auto_ignored),
+        "manual_review_count": len(manual_review),
         "unrecorded_count": len(unrecorded),
         "action_taken_by": session.get("name", session.get("mobile", "")),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
 
     # Calculate summary
-    total_bank_debit = round(sum(t["debit_amount"] for t in transactions), 2)
-    total_matched = round(sum(t["debit_amount"] for t in matched), 2)
-    total_unrecorded = round(sum(t["debit_amount"] for t in unrecorded), 2)
+    total_bank_debit = round(sum((t.get("debit_amount") or 0) for t in all_txns), 2)
+    total_bank_credit = round(sum((t.get("credit_amount") or 0) for t in all_txns), 2)
+    total_matched = round(sum((t.get("debit_amount") or 0) + (t.get("credit_amount") or 0) for t in matched), 2)
+    total_partially_matched = round(sum((t.get("debit_amount") or 0) + (t.get("credit_amount") or 0) for t in partially_matched), 2)
+    total_unmatched_debit = round(sum((t.get("debit_amount") or 0) for t in unmatched_debits), 2)
+    total_unmatched_credit = round(sum((t.get("credit_amount") or 0) for t in unmatched_credits), 2)
+    total_ignored = round(sum((t.get("debit_amount") or 0) for t in auto_ignored), 2)
+    total_manual_review = round(sum((t.get("debit_amount") or 0) + (t.get("credit_amount") or 0) for t in manual_review), 2)
 
     # Load expense total for comparison
     try:
@@ -924,16 +1208,32 @@ async def upload_bank_statement(
         "upload_id": upload_id,
         "summary": {
             "total_bank_debits": total_bank_debit,
+            "total_bank_credits": total_bank_credit,
             "total_expenses_recorded": recorded_total,
-            "total_bank_transactions": len(transactions),
+            "total_bank_transactions": len(all_txns),
             "recorded_expense_count": recorded_count,
             "matched_count": len(matched),
             "matched_amount": total_matched,
+            "partially_matched_count": len(partially_matched),
+            "partially_matched_amount": total_partially_matched,
+            "unmatched_debit_count": len(unmatched_debits),
+            "unmatched_debit_amount": total_unmatched_debit,
+            "unmatched_credit_count": len(unmatched_credits),
+            "unmatched_credit_amount": total_unmatched_credit,
+            "auto_ignored_count": len(auto_ignored),
+            "auto_ignored_amount": total_ignored,
+            "manual_review_count": len(manual_review),
+            "manual_review_amount": total_manual_review,
+            # Legacy fields kept for backward compat with existing UI
             "unrecorded_count": len(unrecorded),
-            "unrecorded_amount": total_unrecorded,
+            "unrecorded_amount": total_unmatched_debit,
         },
         "matched": [{k: v for k, v in t.items() if k != "_id"} for t in matched],
-        "unrecorded": [{k: v for k, v in t.items() if k != "_id"} for t in unrecorded],
+        "partially_matched": [{k: v for k, v in t.items() if k != "_id"} for t in partially_matched],
+        "unmatched_credits": [{k: v for k, v in t.items() if k != "_id"} for t in unmatched_credits],
+        "auto_ignored": [{k: v for k, v in t.items() if k != "_id"} for t in auto_ignored],
+        "manual_review": [{k: v for k, v in t.items() if k != "_id"} for t in manual_review],
+        "unrecorded": [{k: v for k, v in t.items() if k != "_id"} for t in unrecorded],  # legacy
     }
 
 
@@ -1229,29 +1529,45 @@ async def get_reconciliation_summary(req: ReconcileRequest):
     ).to_list(5000)
 
     matched = [t for t in transactions if t.get("match_status") == "matched"]
+    partially_matched = [t for t in transactions if t.get("match_status") == "partially_matched"]
     unrecorded = [t for t in transactions if t.get("match_status") == "unrecorded"]
+    unmatched_credits = [t for t in transactions if t.get("match_status") == "unrecorded_credit"]
     added = [t for t in transactions if t.get("match_status") == "added"]
     ignored = [t for t in transactions if t.get("match_status") == "ignored"]
+    manual_review = [t for t in transactions if t.get("match_status") == "manual_review"]
+
+    def _sum(rows, field):
+        return round(sum((t.get(field) or 0) for t in rows), 2)
 
     return {
         "success": True,
         "upload": upload,
         "summary": {
             "total_transactions": len(transactions),
-            "total_bank_debits": round(sum(t["debit_amount"] for t in transactions), 2),
+            "total_bank_debits": _sum(transactions, "debit_amount"),
+            "total_bank_credits": _sum(transactions, "credit_amount"),
             "matched_count": len(matched),
-            "matched_amount": round(sum(t["debit_amount"] for t in matched), 2),
+            "matched_amount": _sum(matched, "debit_amount") + _sum(matched, "credit_amount"),
+            "partially_matched_count": len(partially_matched),
+            "partially_matched_amount": _sum(partially_matched, "debit_amount") + _sum(partially_matched, "credit_amount"),
             "unrecorded_count": len(unrecorded),
-            "unrecorded_amount": round(sum(t["debit_amount"] for t in unrecorded), 2),
+            "unrecorded_amount": _sum(unrecorded, "debit_amount"),
+            "unmatched_credit_count": len(unmatched_credits),
+            "unmatched_credit_amount": _sum(unmatched_credits, "credit_amount"),
             "added_count": len(added),
-            "added_amount": round(sum(t["debit_amount"] for t in added), 2),
+            "added_amount": _sum(added, "debit_amount"),
             "ignored_count": len(ignored),
-            "ignored_amount": round(sum(t["debit_amount"] for t in ignored), 2),
+            "ignored_amount": _sum(ignored, "debit_amount") + _sum(ignored, "credit_amount"),
+            "manual_review_count": len(manual_review),
+            "manual_review_amount": _sum(manual_review, "debit_amount") + _sum(manual_review, "credit_amount"),
         },
         "matched": matched,
+        "partially_matched": partially_matched,
         "unrecorded": unrecorded,
+        "unmatched_credits": unmatched_credits,
         "added": added,
         "ignored": ignored,
+        "manual_review": manual_review,
     }
 
 
@@ -1274,12 +1590,15 @@ async def export_reconciliation(req: ExportRequest):
     for txn in transactions:
         rows.append({
             "Date": txn.get("transaction_date", ""),
+            "Type": (txn.get("txn_type") or "").upper(),
             "Narration": txn.get("narration", ""),
-            "Debit Amount": txn.get("debit_amount", 0),
-            "Suggested Category": txn.get("suggested_category", ""),
-            "Status": txn.get("match_status", "").upper(),
+            "Debit (₹)": txn.get("debit_amount", 0),
+            "Credit (₹)": txn.get("credit_amount", 0),
+            "Suggested Category / Source": txn.get("suggested_category") or txn.get("credit_source_hint") or "",
+            "Status": (txn.get("recon_status") or txn.get("match_status") or "").upper(),
             "Match Method": txn.get("match_method", "") or "",
             "Reference": txn.get("reference_number", ""),
+            "Ignore Reason": txn.get("ignore_reason", "") or "",
         })
 
     return {
@@ -1305,3 +1624,260 @@ async def list_uploads(center: str = "", token: str = ""):
     ).sort("uploaded_at", -1).to_list(50)
 
     return {"success": True, "uploads": uploads}
+
+# ── Phase 3: AI Categorization (Claude via Emergent LLM Key) ────────────
+# Auto-classifies unmatched bank narrations against the Category Master.
+# Used to bulk-tag IDFC / MGT statements before user converts to expenses.
+
+class AICategorizeRequest(BaseModel):
+    upload_id: str
+    token: str
+    transaction_ids: Optional[List[str]] = None  # if None, all unmatched debits
+
+
+@router.post("/ai-categorize")
+async def ai_categorize_transactions(req: AICategorizeRequest):
+    """Use Claude to suggest expense categories for unmatched bank debits.
+    The LLM is constrained to pick from the active Category Master so its
+    output is always valid for downstream conversion to expense rows.
+    """
+    import os
+    session = await _get_session(req.token)
+    if not session:
+        return {"detail": "Authentication required"}
+
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        return {"detail": "EMERGENT_LLM_KEY not configured", "success": False}
+
+    # Pull active category master
+    heads = await db.expense_heads.find(
+        {"is_active": {"$ne": False}}, {"_id": 0, "name": 1}
+    ).to_list(200)
+    cats = [h["name"] for h in heads if h.get("name")]
+    if not cats:
+        return {"detail": "No categories configured in Category Master", "success": False}
+
+    # Pull transactions to categorize — only unmatched debits / manual review
+    query: dict = {"upload_id": req.upload_id,
+                   "match_status": {"$in": ["unrecorded", "manual_review"]},
+                   "txn_type": "debit"}
+    if req.transaction_ids:
+        query["transaction_id"] = {"$in": req.transaction_ids}
+
+    txns = await db.bank_transactions.find(query, {"_id": 0}).to_list(500)
+    if not txns:
+        return {"success": True, "categorized": 0, "message": "No transactions need AI categorization"}
+
+    # Build batched prompt — Claude classifies each narration against the
+    # constrained category list. Returns JSON for safe parsing.
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except ImportError:
+        return {"detail": "emergentintegrations not installed", "success": False}
+
+    items = [{"id": t["transaction_id"],
+              "narration": t.get("narration", "")[:200],
+              "amount": t.get("debit_amount", 0)} for t in txns]
+
+    system_msg = (
+        "You are a financial categorization assistant for a restaurant franchise "
+        "in India. Given a bank transaction narration, pick the SINGLE most likely "
+        "expense category from the provided master list. Return strictly valid JSON: "
+        '{"assignments": [{"id": "...", "category": "...", "confidence": 0.0-1.0, "reasoning": "short"}]}\n'
+        f"Allowed categories (pick EXACTLY one per narration, case-sensitive): {cats}\n"
+        "If a narration is clearly NOT an operating expense (transfer between own accounts, "
+        "loan disbursement, capital injection), use category 'MISCELLANEOUS' and lower the "
+        "confidence to 0.3 with the reasoning explaining why."
+    )
+    user_msg = (
+        "Categorize these bank debits. Return ONLY the JSON, no preamble.\n\n"
+        f"{items}"
+    )
+
+    session_id = f"bank-recon-{req.upload_id}"
+    try:
+        chat = (
+            LlmChat(api_key=api_key, session_id=session_id, system_message=system_msg)
+            .with_model("anthropic", "claude-sonnet-4-5-20250929")
+        )
+        reply = await chat.send_message(UserMessage(text=user_msg))
+        raw = reply.strip() if isinstance(reply, str) else str(reply)
+    except Exception as e:
+        logger.error(f"Claude categorization failed: {e}")
+        return {"detail": f"AI categorization failed: {str(e)[:200]}", "success": False}
+
+    # Parse JSON robustly — strip markdown fences if present
+    import json
+    cleaned = re.sub(r"^```(?:json)?\s*", "", raw)
+    cleaned = re.sub(r"\s*```\s*$", "", cleaned)
+    try:
+        parsed = json.loads(cleaned)
+        assignments = parsed.get("assignments", [])
+    except Exception:
+        # Fallback: extract first JSON object substring
+        m = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if not m:
+            return {"detail": "Could not parse AI response", "success": False, "raw": raw[:500]}
+        try:
+            parsed = json.loads(m.group(0))
+            assignments = parsed.get("assignments", [])
+        except Exception:
+            return {"detail": "AI returned malformed JSON", "success": False, "raw": raw[:500]}
+
+    # Validate categories against master, persist as suggestions
+    cat_set = set(cats)
+    actor = session.get("name", session.get("mobile", ""))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    updated = 0
+    for a in assignments:
+        tid = a.get("id")
+        cat = a.get("category", "")
+        if not tid or cat not in cat_set:
+            continue
+        conf = float(a.get("confidence", 0) or 0)
+        reasoning = (a.get("reasoning") or "")[:300]
+        await db.bank_transactions.update_one(
+            {"transaction_id": tid, "upload_id": req.upload_id},
+            {"$set": {
+                "ai_suggested_category": cat,
+                "ai_confidence": conf,
+                "ai_reasoning": reasoning,
+                "ai_categorized_at": now_iso,
+                "ai_categorized_by": actor,
+            }}
+        )
+        updated += 1
+
+    # Audit log
+    await db.expense_reconciliation_log.insert_one({
+        "upload_id": req.upload_id,
+        "action": "ai_categorize_batch",
+        "categorized_count": updated,
+        "total_requested": len(items),
+        "action_taken_by": actor,
+        "timestamp": now_iso,
+    })
+
+    return {
+        "success": True,
+        "categorized": updated,
+        "total": len(items),
+        "message": f"Claude classified {updated} of {len(items)} transactions",
+    }
+
+
+# ── Phase 3: Auto-Convert AI categorization to Expense rows ─────────────
+
+class AutoConvertRequest(BaseModel):
+    upload_id: str
+    token: str
+    min_confidence: float = 0.7  # auto-convert only when AI is confident
+    transaction_ids: Optional[List[str]] = None
+    payment_mode: str = "Bank Transfer"
+
+
+@router.post("/auto-convert")
+async def auto_convert_to_expenses(req: AutoConvertRequest):
+    """Convert AI-categorized bank debits into expense rows in bulk.
+    Skips duplicates (same center+date+amount already booked) to avoid
+    double-entry when the user is re-uploading a previously processed file.
+    """
+    session = await _get_session(req.token)
+    if not session:
+        return {"detail": "Authentication required"}
+
+    query: dict = {
+        "upload_id": req.upload_id,
+        "match_status": {"$in": ["unrecorded", "manual_review"]},
+        "txn_type": "debit",
+        "ai_suggested_category": {"$exists": True, "$nin": [None, ""]},
+        "ai_confidence": {"$gte": req.min_confidence},
+    }
+    if req.transaction_ids:
+        query["transaction_id"] = {"$in": req.transaction_ids}
+
+    txns = await db.bank_transactions.find(query, {"_id": 0}).to_list(500)
+    if not txns:
+        return {"success": True, "converted": 0, "skipped_dupes": 0,
+                "message": "No AI-categorized transactions met the confidence threshold"}
+
+    actor = session.get("name", session.get("mobile", ""))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    converted = 0
+    skipped_dupes = 0
+    errors: List[str] = []
+
+    for txn in txns:
+        try:
+            cat = txn.get("ai_suggested_category")
+            # Duplicate guard — same center + date + amount already booked?
+            dup = await db.expenses.find_one({
+                "center": txn["center"],
+                "date": txn["transaction_date"],
+                "amount": txn["debit_amount"],
+            })
+            if dup:
+                skipped_dupes += 1
+                await db.bank_transactions.update_one(
+                    {"transaction_id": txn["transaction_id"], "upload_id": req.upload_id},
+                    {"$set": {"match_status": "matched", "recon_status": "matched",
+                              "matched_expense": {
+                                  "description": dup.get("description", ""),
+                                  "expense_type": dup.get("expense_type", ""),
+                                  "payment_mode": dup.get("payment_mode", ""),
+                                  "date": dup.get("date", ""),
+                                  "amount": dup.get("amount", 0),
+                              },
+                              "match_method": "auto_convert_dedupe"}}
+                )
+                continue
+
+            expense_id = str(uuid.uuid4())[:16]
+            await db.expenses.insert_one({
+                "expense_id": expense_id,
+                "center": txn["center"],
+                "date": txn["transaction_date"],
+                "description": txn.get("narration", "")[:300],
+                "amount": txn["debit_amount"],
+                "expense_type": cat,
+                "payment_mode": req.payment_mode,
+                "reference_number": txn.get("reference_number", ""),
+                "source": "bank_reconciliation_ai",
+                "ai_confidence": txn.get("ai_confidence"),
+                "ai_reasoning": txn.get("ai_reasoning"),
+                "bank_upload_id": req.upload_id,
+                "bank_transaction_id": txn["transaction_id"],
+                "created_by": actor,
+                "created_at": now_iso,
+            })
+            await db.bank_transactions.update_one(
+                {"transaction_id": txn["transaction_id"], "upload_id": req.upload_id},
+                {"$set": {"match_status": "added", "added_expense_id": expense_id,
+                          "auto_converted": True}}
+            )
+            await db.expense_reconciliation_log.insert_one({
+                "upload_id": req.upload_id,
+                "bank_transaction_id": txn["transaction_id"],
+                "matched_expense_id": expense_id,
+                "ai_suggested_category": cat,
+                "ai_confidence": txn.get("ai_confidence"),
+                "final_category": cat,
+                "action": "ai_auto_convert",
+                "reconciliation_status": "added",
+                "action_taken_by": actor,
+                "timestamp": now_iso,
+            })
+            converted += 1
+        except Exception as e:
+            errors.append(f"{txn.get('transaction_id', '')}: {str(e)[:100]}")
+
+    return {
+        "success": True,
+        "converted": converted,
+        "skipped_dupes": skipped_dupes,
+        "errors": errors[:20],
+        "message": (f"Converted {converted} AI-tagged transactions to expenses; "
+                    f"skipped {skipped_dupes} duplicate(s).")
+    }
+

@@ -4,6 +4,49 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-11] Bank Reconciliation Phase 2 + Phase 3 — Credit/Debit + AI Categorization (P0 — financial)
+
+**User directive**: *(1) Reconcile both credit and debit transactions. (2) Auto-ignore ATM/Cash Withdrawals. (3) Add new statuses: Matched, Partially Matched, Unmatched, Ignored, Manual Review. (4) Surface PhonePe Commission in bank-recon. (5) Allow MGT IDFC statement upload with AI vendor categorisation that auto-propagates to Sales/Expenses without duplicates.*
+
+**Phase 2 — Credit + Debit reconciliation** (`backend/routes/bank_reconciliation.py`):
+1. **Parser**: PDF / Excel / CSV now KEEP credit rows (previously skipped). Each transaction carries `txn_type ∈ {debit, credit}`.
+2. **Auto-Ignore Cash Withdrawals**: regex pattern catches `ATM, NFS, NWD, CASH WDL, CASH WITHDRAW, CSH WDL`. Marked `match_status=ignored`, `auto_ignored=True`, reason `"Cash Withdrawal (auto)"`. No expense double-count.
+3. **New 5-state status taxonomy** (`recon_status`):
+   - `matched` — exact date + amount
+   - `partially_matched` — fuzzy date (±2-3 days) OR fuzzy amount (≤5% drift)
+   - `unmatched` (legacy `unrecorded` retained for UI compat) — no candidate
+   - `ignored` — auto cash withdrawal OR user-ignored
+   - `manual_review` — high-value (≥ ₹50,000) unmatched
+4. **Credit reconciliation source pool**: built from `daily_sales` (cash/online/phonepe/swiggy/zomato/doordash) + `monthly_commissions` (PhonePe / Razorpay net settlements). Each matched credit row carries through `pg_commission` and `gst_on_commission` so PhonePe MDR is visible in the bank-recon UI.
+5. **Credit source hints**: for unmatched credits, `credit_source_hint` is detected from narration (PhonePe / Razorpay / Swiggy / Zomato / UPI / Card / NEFT_IMPS) so analyst can see at a glance what was likely deposited.
+6. **API `/upload` response** now exposes `partially_matched`, `unmatched_credits`, `auto_ignored`, `manual_review` buckets plus per-bucket amount totals.
+
+**Phase 3 — IDFC MGT statement → AI categorisation → auto-propagate to Expenses**:
+1. **NEW `POST /api/bank-reconciliation/ai-categorize`** — Claude Sonnet 4.5 (Emergent Universal Key) reads each unmatched debit narration and assigns the most likely category from the active Category Master. Returns JSON `{id, category, confidence, reasoning}`. Confidence ≥ 0.7 means the AI is sure enough for auto-conversion.
+2. **NEW `POST /api/bank-reconciliation/auto-convert`** — bulk-converts AI-tagged debits into expense rows. Duplicate guard: if an expense already exists for the same `(center, date, amount)` it is **NOT** re-booked — instead the bank transaction is auto-linked to the existing expense (`match_status=matched`, `match_method=auto_convert_dedupe`).
+3. **Audit trail**: every AI categorisation and auto-conversion writes a `expense_reconciliation_log` entry with the actor, confidence, AI reasoning and final category.
+
+**Frontend** (`frontend/src/pages/BankReconciliation.jsx`):
+- New tabs: **Partially Matched**, **Unmatched Credits**, **Manual Review** (in addition to existing Unmatched / Matched / Added / Ignored).
+- New violet "🤖 AI Categorizer" toolbar inside the Unmatched tab with **AI Categorize** + **Auto-Convert to Expenses** buttons (test IDs `br-ai-categorize`, `br-auto-convert`).
+- Each row now shows the AI suggestion (with confidence %) as a violet badge instead of the keyword-based suggestion when available.
+- Recent uploads table grew columns for **Partial · Manual Review · Ignored** counts.
+- Summary header shows debits + credits separately, plus per-bucket amounts.
+- File picker now accepts `.pdf` in addition to `.csv/.xls/.xlsx`.
+
+**Verified end-to-end** via new regression tests (`tests/test_bank_recon_phase2.py` — 6 tests, all green):
+- ATM auto-ignore ✓ · Debit exact match ✓ · Debit partial (fuzzy amount ≤5%) ✓
+- PhonePe settlement credit matched + `pg_commission` carried through ✓
+- Razorpay unmatched credit → `credit_source_hint=razorpay` ✓
+- ≥ ₹75,000 unmatched → `manual_review` ✓
+
+Existing bank-recon regression suite updated for new column names — **27 passed, 2 skipped, 0 regressions**.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-11] P&L correction — Gross Sales basis for management profitability (P0 — financial directive)
 
 **Owner directive**: *"GST is being deducted from Sales while calculating profitability — this distorts the operating picture. For management reporting, franchise profitability, center performance analysis and revenue-share calculations we must use **Gross Sales** and show GST separately. GST tracking + compliance reporting must stay intact."*

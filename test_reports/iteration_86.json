@@ -1,0 +1,50 @@
+{
+  "summary": "Bank Reconciliation Phase 2 + Phase 3 fully validated. Backend: 6/6 unit tests in test_bank_recon_phase2.py PASSED; 11/11 new HTTP integration tests in test_bank_recon_phase2_integration.py PASSED (including a real Claude /ai-categorize call with CLAUDE_BUDGET=1). Frontend: Bank Reconciliation page renders all 7 new tabs with correct counts, violet AI Categorizer toolbar with both action buttons, file picker accepts .csv/.xls/.xlsx/.pdf, Recent Uploads table shows Matched/Partial/Unmatched/Manual Review/Ignored columns.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Bank Reconciliation > Recent Uploads", "issues": ["Long count rows can wrap on smaller monitors but not blocking; ACTION column right-aligned, MANUAL REVIEW column header runs together as 'MANUALREVIEW' due to text-transform uppercase + no space — minor visual nit."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bank_recon_phase2.py",
+    "/app/backend/tests/test_bank_recon_phase2_integration.py",
+    "/app/test_reports/pytest/iteration86_phase2.xml",
+    "/app/test_reports/pytest/iteration86_integration.xml"
+  ],
+  "action_items": [
+    "(Optional minor) Add a small whitespace in the 'Manual Review' table header label or wrap each word in its own span so the uppercase CSS doesn't collapse it to 'MANUALREVIEW'. Cosmetic only."
+  ],
+  "critical_code_review_comments": [
+    "match_transactions() in routes/bank_reconciliation.py returns a clean 6-bucket dict (matched, partially_matched, unmatched_debits, unmatched_credits, ignored, manual_review). The /upload handler correctly derives the legacy 'unrecorded' bucket = unmatched_debits + manual_review-debits so the old UI tab still works.",
+    "Dedupe guard in /auto-convert uses (center, date, amount) as the key — correct for this domain since recon is monthly and amounts are exact-numeric. On dupe, the bank transaction is flipped to match_status='matched', match_method='auto_convert_dedupe', matched_expense snapshot stored — verified via integration test.",
+    "Claude prompt constrains categories to the active expense_heads master and forces strictly-valid JSON; response is parsed with markdown-fence stripping + regex fallback — robust. Unknown/invalid categories are silently dropped (good — avoids polluting expenses).",
+    "/ai-categorize correctly persists ai_suggested_category / ai_confidence / ai_reasoning / ai_categorized_at / ai_categorized_by on bank_transactions; audit row written to expense_reconciliation_log.",
+    "Credit-side reconciliation: _load_credit_sources fetches monthly_commissions and matches by (settlement_date, net_settlement_amount) with PG commission (sundry_debtors) carried into matched_credit.pg_commission so the UI can show pay-gateway commission inline.",
+    "ATM/cash-withdrawal detection uses keyword + regex against ATM/CASH WDL/CWDL/NWD etc; auto_ignored=true and ignore_reason='Cash Withdrawal' carried to the row.",
+    "High-value (>=50k) unknown debit is correctly routed to manual_review instead of unrecorded — verified.",
+    "credit_source_hint populated via detect_credit_source() against PHONEPE/RAZORPAY/SWIGGY/ZOMATO/PAYTM etc — verified for Razorpay narration in integration test.",
+    "FILE SIZE: routes/bank_reconciliation.py is 1884 lines — exceeds the 700-line guideline. Suggest splitting into recon_match.py (match_transactions + _load_credit_sources + cash-withdrawal), recon_ai.py (ai-categorize + auto-convert), recon_routes.py (HTTP handlers) in a future cleanup pass. Not blocking.",
+    "All MongoDB find calls correctly project away _id; no ObjectId leakage observed in any /api/bank-reconciliation/* response.",
+    "data-testid coverage on UI is solid: bank-reconciliation-page, br-center-select, br-month-input, br-file-input, br-upload-btn, br-uploads-table, br-summary, br-tab-{unrecorded,partial,matched,credits,manual,added,ignored}, br-ai-toolbar, br-ai-categorize, br-auto-convert, br-bulk-* all present.",
+    "Idempotency: /upload always inserts a NEW upload row + bank_transactions for the same file. There is no de-dup at upload level (same CSV uploaded twice creates two upload rows). Auto-convert's per-row dedupe guard mitigates duplicate expenses, but two upload records will exist. Consider adding a SHA256 of the raw bytes + a unique index on (center, month, file_hash) to dedupe re-uploads. Non-blocking for this release."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bank_recon_phase2_integration.py (new — 11 HTTP integration tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 unit + 11/11 HTTP integration, including 1 live Claude call)",
+    "frontend": "100% — all required data-testids present, all 7 tabs render, AI toolbar present, file picker accepts PDF, uploads table shows Matched/Partial/Unmatched/Manual Review/Ignored columns"
+  },
+  "test_credentials": "Super Admin 9741399190 / 123456 / PB-MGT used for both backend integration and live UI testing.",
+  "seed_data_creation": "Backend integration test seeds expenses (RENT, ELECTRICITY) + 1 PhonePe monthly_commissions row + 1 collision expense under TEST-BR-INT / 2026-02. Teardown deletes all seeded docs and all bank_statement_uploads + bank_transactions + expense_reconciliation_log entries for the test center.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "(a) Live Claude call is opt-in: re-run with `CLAUDE_BUDGET=1 pytest tests/test_bank_recon_phase2_integration.py`. Without that env it skips just the AI test (other 10 still run). (b) Tests need env loaded: `set -a && source backend/.env && source frontend/.env && set +a`. REACT_APP_BACKEND_URL is the public URL used for all HTTP calls. (c) Bank Recon page lives at /bank-reconciliation; sidebar entry 'Bank Reconciliation' only appears under Accounts group for SA/Admin/Accountant. (d) Recon view tabs only render after the user clicks 'View' on a Recent Uploads row OR uploads a fresh file. (e) Files written: /app/backend/tests/test_bank_recon_phase2_integration.py. Use it as the regression entry-point for any future bank-recon changes.",
+  "rca_of_the_issue": "N/A — no functional defects found. The 6-bucket reconciliation, PhonePe credit-match with PG commission carry-through, ATM auto-ignore, high-value manual-review routing, Claude categorization with confidence threshold, and duplicate-guard on auto-convert all work end-to-end via the public URL."
+}

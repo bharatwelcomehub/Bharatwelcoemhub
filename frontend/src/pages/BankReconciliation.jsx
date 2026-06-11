@@ -37,6 +37,7 @@ export default function BankReconciliation() {
   const [bulkExpenseType, setBulkExpenseType] = useState('');
   const [bulkPaymentMode, setBulkPaymentMode] = useState('Bank Transfer');
   const [bulkDescription, setBulkDescription] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
@@ -97,7 +98,8 @@ export default function BankReconciliation() {
       const res = await fetch(`${API}/api/bank-reconciliation/upload`, { method: 'POST', body: fd });
       const data = await res.json();
       if (data.detail) throw new Error(data.detail);
-      toast.success(`Parsed ${data.summary.total_bank_transactions} txns — Matched: ${data.summary.matched_count}, Unrecorded: ${data.summary.unrecorded_count}`);
+      const s = data.summary;
+      toast.success(`Parsed ${s.total_bank_transactions} txns — Matched: ${s.matched_count}, Partial: ${s.partially_matched_count || 0}, Unmatched: ${s.unrecorded_count}, Manual Review: ${s.manual_review_count || 0}, Auto-Ignored: ${s.auto_ignored_count || 0}`);
       setFile(null);
       await loadUploads();
       await loadSummary(data.upload_id);
@@ -199,6 +201,51 @@ export default function BankReconciliation() {
     finally { setBulkBusy(false); }
   };
 
+  const aiCategorize = async () => {
+    if (!activeUpload) return;
+    setAiBusy(true);
+    try {
+      toast.info('Asking Claude to categorize unmatched transactions...');
+      const res = await fetch(`${API}/api/bank-reconciliation/ai-categorize`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          upload_id: activeUpload,
+          token: session.token,
+          transaction_ids: selectedIds.length > 0 ? selectedIds : null,
+        }),
+      });
+      const data = await res.json();
+      if (data.detail && !data.success) throw new Error(data.detail);
+      toast.success(data.message || `AI categorized ${data.categorized} transactions`);
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+    finally { setAiBusy(false); }
+  };
+
+  const autoConvert = async () => {
+    if (!activeUpload) return;
+    if (!window.confirm('Auto-convert AI-categorized debits to Expense rows? Duplicates (same date+amount already booked) will be skipped.')) return;
+    setAiBusy(true);
+    try {
+      const res = await fetch(`${API}/api/bank-reconciliation/auto-convert`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          upload_id: activeUpload,
+          token: session.token,
+          transaction_ids: selectedIds.length > 0 ? selectedIds : null,
+          min_confidence: 0.7,
+          payment_mode: 'Bank Transfer',
+        }),
+      });
+      const data = await res.json();
+      if (data.detail && !data.success) throw new Error(data.detail);
+      toast.success(data.message || `Converted ${data.converted}`);
+      setSelectedIds([]);
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+    finally { setAiBusy(false); }
+  };
+
   const resetTxn = async (txn, fromStatus, silent = false) => {
     if (!silent) {
       const msg = fromStatus === 'added'
@@ -244,14 +291,14 @@ export default function BankReconciliation() {
     <div className="max-w-7xl mx-auto p-6 space-y-6" data-testid="bank-reconciliation-page">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Banknote className="w-6 h-6 text-sky-700" /> Bank Reconciliation</h1>
-        <p className="text-sm text-muted-foreground">Upload a bank statement (CSV / Excel). The system matches each debit against your recorded expenses and surfaces unrecorded transactions for quick booking.</p>
+        <p className="text-sm text-muted-foreground">Upload a bank statement (CSV / Excel / PDF). The system reconciles both credits (sales/PhonePe/Razorpay/aggregators) and debits (expenses), auto-flags cash withdrawals as Ignored, and routes high-value unknowns to Manual Review.</p>
       </div>
 
       {/* Upload */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Upload Bank Statement</CardTitle>
-          <CardDescription>Supported: CSV, XLS, XLSX. Expected columns: Date, Narration, Debit.</CardDescription>
+        <CardDescription>Supported: CSV, XLS, XLSX, PDF. Matches both <strong>credits</strong> (sales / PhonePe / Razorpay / Aggregators) and <strong>debits</strong> (expenses). ATM / cash withdrawals are auto-ignored.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
@@ -268,7 +315,7 @@ export default function BankReconciliation() {
             </div>
             <div className="md:col-span-2">
               <label className="text-xs font-semibold text-muted-foreground">File</label>
-              <Input type="file" accept=".csv,.xls,.xlsx" onChange={e => setFile(e.target.files[0])} data-testid="br-file-input" />
+              <Input type="file" accept=".csv,.xls,.xlsx,.pdf" onChange={e => setFile(e.target.files[0])} data-testid="br-file-input" />
             </div>
             <Button className="bg-sky-700 hover:bg-sky-800 text-white" onClick={doUpload} data-testid="br-upload-btn">
               <Upload className="w-4 h-4 mr-1" /> Upload & Reconcile
@@ -293,7 +340,10 @@ export default function BankReconciliation() {
                     <th className="p-2 text-left">File</th>
                     <th className="p-2 text-right">Txns</th>
                     <th className="p-2 text-right">Matched</th>
-                    <th className="p-2 text-right">Unrecorded</th>
+                    <th className="p-2 text-right">Partial</th>
+                    <th className="p-2 text-right">Unmatched</th>
+                    <th className="p-2 text-right">Manual Review</th>
+                    <th className="p-2 text-right">Ignored</th>
                     <th className="p-2 text-right">Action</th>
                   </tr>
                 </thead>
@@ -303,9 +353,12 @@ export default function BankReconciliation() {
                       <td className="p-2 text-xs text-muted-foreground">{u.uploaded_at?.slice(0, 10)}</td>
                       <td className="p-2">{u.month}</td>
                       <td className="p-2 text-xs">{u.filename}</td>
-                      <td className="p-2 text-right">{u.total_transactions || u.summary?.total_bank_transactions || '—'}</td>
-                      <td className="p-2 text-right text-green-700">{u.matched_count || u.summary?.matched_count || '—'}</td>
-                      <td className="p-2 text-right text-amber-700">{u.unrecorded_count || u.summary?.unrecorded_count || '—'}</td>
+                      <td className="p-2 text-right">{u.total_transactions || '—'}</td>
+                      <td className="p-2 text-right text-green-700">{u.matched_count || '—'}</td>
+                      <td className="p-2 text-right text-yellow-700">{u.partially_matched_count || '—'}</td>
+                      <td className="p-2 text-right text-amber-700">{u.unrecorded_count || '—'}</td>
+                      <td className="p-2 text-right text-rose-700">{u.manual_review_count || '—'}</td>
+                      <td className="p-2 text-right text-slate-500">{u.auto_ignored_count || '—'}</td>
                       <td className="p-2 text-right">
                         <Button size="sm" variant="outline" onClick={() => loadSummary(u.upload_id)} data-testid={`br-view-${u.upload_id}`}>
                           <FileText className="w-3 h-3 mr-1" /> View
@@ -325,20 +378,50 @@ export default function BankReconciliation() {
         <Card data-testid="br-summary">
           <CardHeader>
             <CardTitle className="text-base">Reconciliation — {summary.upload?.filename || activeUpload}</CardTitle>
-            <CardDescription>
-              Bank Debits: <strong>{fmtINR(summary.summary.total_bank_debits)}</strong> · Matched: <strong className="text-green-700">{fmtINR(summary.summary.matched_amount)}</strong> · Unrecorded: <strong className="text-amber-700">{fmtINR(summary.summary.unrecorded_amount)}</strong>
+            <CardDescription className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              <span>Debits: <strong>{fmtINR(summary.summary.total_bank_debits)}</strong></span>
+              <span>Credits: <strong className="text-emerald-700">{fmtINR(summary.summary.total_bank_credits || 0)}</strong></span>
+              <span>Matched: <strong className="text-green-700">{fmtINR(summary.summary.matched_amount)}</strong></span>
+              <span>Partial: <strong className="text-yellow-700">{fmtINR(summary.summary.partially_matched_amount || 0)}</strong></span>
+              <span>Unmatched: <strong className="text-amber-700">{fmtINR(summary.summary.unrecorded_amount)}</strong></span>
+              <span>Manual Review: <strong className="text-rose-700">{fmtINR(summary.summary.manual_review_amount || 0)}</strong></span>
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="unrecorded">
-              <TabsList>
-                <TabsTrigger value="unrecorded" data-testid="br-tab-unrecorded">Unrecorded ({summary.summary.unrecorded_count})</TabsTrigger>
+              <TabsList className="flex-wrap h-auto">
+                <TabsTrigger value="unrecorded" data-testid="br-tab-unrecorded">Unmatched ({summary.summary.unrecorded_count})</TabsTrigger>
+                <TabsTrigger value="partial" data-testid="br-tab-partial">Partially Matched ({summary.summary.partially_matched_count || 0})</TabsTrigger>
                 <TabsTrigger value="matched" data-testid="br-tab-matched">Matched ({summary.summary.matched_count})</TabsTrigger>
+                <TabsTrigger value="credits" data-testid="br-tab-credits">Unmatched Credits ({summary.summary.unmatched_credit_count || 0})</TabsTrigger>
+                <TabsTrigger value="manual" data-testid="br-tab-manual">Manual Review ({summary.summary.manual_review_count || 0})</TabsTrigger>
                 <TabsTrigger value="added" data-testid="br-tab-added">Added ({summary.summary.added_count || 0})</TabsTrigger>
                 <TabsTrigger value="ignored" data-testid="br-tab-ignored">Ignored ({summary.summary.ignored_count || 0})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="unrecorded" className="mt-3">
+                {/* Phase 3: AI categorize + auto-convert toolbar (always visible) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 mb-3 bg-violet-50 border border-violet-200 rounded-lg" data-testid="br-ai-toolbar">
+                  <div className="text-sm">
+                    <strong className="text-violet-800">🤖 AI Categorizer</strong>
+                    <span className="text-muted-foreground ml-2 text-xs">
+                      Claude reads each bank narration and suggests the best Category Master tag.
+                      Confidence ≥ 0.7 → can auto-convert to expense rows (duplicates skipped).
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="border-violet-300 text-violet-800 hover:bg-violet-100"
+                      disabled={aiBusy} onClick={aiCategorize} data-testid="br-ai-categorize">
+                      {aiBusy && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
+                      🤖 AI Categorize {selectedIds.length > 0 ? `(${selectedIds.length} selected)` : '(all unmatched)'}
+                    </Button>
+                    <Button size="sm" className="bg-violet-700 hover:bg-violet-800 text-white"
+                      disabled={aiBusy} onClick={autoConvert} data-testid="br-auto-convert">
+                      ⚡ Auto-Convert to Expenses
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Bulk-add toolbar — appears when 1+ row(s) selected */}
                 {selectedIds.length > 0 && (
                   <div className="flex flex-wrap items-center justify-between gap-3 p-3 mb-3 bg-sky-50 border border-sky-200 rounded-lg" data-testid="br-bulk-toolbar">
@@ -377,6 +460,30 @@ export default function BankReconciliation() {
               </TabsContent>
               <TabsContent value="matched" className="mt-3">
                 <TxnTable rows={summary.matched} empty="No matched transactions yet." badgeColor="bg-green-100 text-green-700 border-green-300" />
+              </TabsContent>
+              <TabsContent value="partial" className="mt-3">
+                <p className="text-xs text-slate-500 mb-2">💡 Fuzzy match — date within ±2-3 days OR amount drift ≤5%. Verify these manually.</p>
+                <TxnTable rows={summary.partially_matched} empty="No partially-matched transactions." badgeColor="bg-yellow-100 text-yellow-800 border-yellow-300" />
+              </TabsContent>
+              <TabsContent value="credits" className="mt-3">
+                <p className="text-xs text-slate-500 mb-2">💰 Credits (Sales / PhonePe / Razorpay / Aggregator) that don&apos;t tie back to recorded sources. Investigate to ensure no missed sales recording.</p>
+                <TxnTable rows={summary.unmatched_credits || []} empty="All credit deposits reconciled with recorded sales / settlements." badgeColor="bg-emerald-100 text-emerald-700 border-emerald-300" />
+              </TabsContent>
+              <TabsContent value="manual" className="mt-3">
+                <p className="text-xs text-slate-500 mb-2">🚨 High-value (≥ ₹50,000) transactions that didn&apos;t match. Review and either Add as Expense or Ignore.</p>
+                <TxnTable
+                  rows={summary.manual_review || []}
+                  empty="No transactions need manual review."
+                  badgeColor="bg-rose-100 text-rose-700 border-rose-300"
+                  actions={(txn) => txn.txn_type === 'debit' ? (
+                    <div className="flex gap-1 justify-end">
+                      <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => openAdd(txn)} data-testid={`br-add-${txn.transaction_id}`}><Plus className="w-3 h-3 mr-1" /> Add</Button>
+                      <Button size="sm" variant="outline" className="border-red-300 text-red-700" onClick={() => ignoreTxn(txn)} data-testid={`br-ignore-${txn.transaction_id}`}><X className="w-3 h-3 mr-1" /> Ignore</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" className="border-red-300 text-red-700" onClick={() => ignoreTxn(txn)} data-testid={`br-ignore-${txn.transaction_id}`}><X className="w-3 h-3 mr-1" /> Ignore</Button>
+                  )}
+                />
               </TabsContent>
               <TabsContent value="added" className="mt-3">
                 <TxnTable
@@ -553,6 +660,8 @@ function TxnTable({ rows, empty, badgeColor, actions, selection }) {
   };
   // Group similar narrations: stable hash on first 3 words / 30 chars
   const narrationKey = (n) => (n || '').replace(/\s+/g, ' ').trim().slice(0, 30).toUpperCase();
+  // Show Credit column whenever ANY row has a credit OR is a credit type
+  const hasCredits = rows.some(r => (r.credit_amount || 0) > 0 || r.txn_type === 'credit');
   return (
     <div className="overflow-x-auto border rounded">
       <table className="w-full text-sm">
@@ -566,40 +675,66 @@ function TxnTable({ rows, empty, badgeColor, actions, selection }) {
             <th className="p-2 text-left">Date</th>
             <th className="p-2 text-left">Narration</th>
             <th className="p-2 text-right">Debit (₹)</th>
-            <th className="p-2 text-left">Suggested Category</th>
+            {hasCredits && <th className="p-2 text-right text-emerald-700">Credit (₹)</th>}
+            <th className="p-2 text-left">Suggested / Source</th>
             <th className="p-2 text-center">Status</th>
             {actions && <th className="p-2 text-right">Action</th>}
           </tr>
         </thead>
         <tbody>
-          {rows.map((t) => (
-            <tr key={t.transaction_id} className={`border-t hover:bg-slate-50 ${showSelect && selection.selected.includes(t.transaction_id) ? 'bg-sky-50' : ''}`}>
-              {showSelect && (
-                <td className="p-2 text-center">
-                  <Checkbox checked={selection.selected.includes(t.transaction_id)} onCheckedChange={() => toggleOne(t.transaction_id)} data-testid={`br-select-${t.transaction_id}`} />
+          {rows.map((t) => {
+            const isCredit = (t.credit_amount || 0) > 0 || t.txn_type === 'credit';
+            const aiTag = t.ai_suggested_category;
+            const aiConf = t.ai_confidence;
+            const hint = aiTag || t.suggested_category || t.credit_source_hint || (t.matched_credit?.source) || (t.matched_expense?.expense_type) || '—';
+            const statusLabel = (t.recon_status || t.match_status || 'unknown').replace(/_/g, ' ').toUpperCase();
+            // Show PhonePe MDR commission if the matched credit carried it through
+            const pgComm = t.matched_credit?.pg_commission;
+            return (
+              <tr key={t.transaction_id} className={`border-t hover:bg-slate-50 ${showSelect && selection.selected.includes(t.transaction_id) ? 'bg-sky-50' : ''}`}>
+                {showSelect && (
+                  <td className="p-2 text-center">
+                    <Checkbox checked={selection.selected.includes(t.transaction_id)} onCheckedChange={() => toggleOne(t.transaction_id)} data-testid={`br-select-${t.transaction_id}`} />
+                  </td>
+                )}
+                <td className="p-2 text-xs">{t.transaction_date}</td>
+                <td className="p-2 text-xs max-w-sm">
+                  <span className="cursor-pointer text-sky-700 underline-offset-2 hover:underline" title="Click to select all rows with same narration"
+                    onClick={(e) => {
+                      if (!showSelect) return;
+                      e.stopPropagation();
+                      const key = narrationKey(t.narration);
+                      const ids = rows.filter(r => narrationKey(r.narration) === key).map(r => r.transaction_id);
+                      selection.setSelected([...new Set([...selection.selected, ...ids])]);
+                    }}>
+                    {t.narration}
+                  </span>
+                  {t.auto_ignored && <Badge className="ml-2 bg-slate-200 text-slate-700 text-[10px]">AUTO</Badge>}
+                  {pgComm > 0 && <span className="block text-[10px] text-purple-700 mt-0.5">PG Comm: {fmtINR(pgComm)}</span>}
                 </td>
-              )}
-              <td className="p-2 text-xs">{t.transaction_date}</td>
-              <td className="p-2 text-xs max-w-sm truncate" title={t.narration}>
-                <span className="cursor-pointer text-sky-700 underline-offset-2 hover:underline" title="Click to select all rows with same narration"
-                  onClick={(e) => {
-                    if (!showSelect) return;
-                    e.stopPropagation();
-                    const key = narrationKey(t.narration);
-                    const ids = rows.filter(r => narrationKey(r.narration) === key).map(r => r.transaction_id);
-                    selection.setSelected([...new Set([...selection.selected, ...ids])]);
-                  }}>
-                  {t.narration}
-                </span>
-              </td>
-              <td className="p-2 text-right font-semibold">{fmtINR(t.debit_amount)}</td>
-              <td className="p-2 text-xs text-sky-700">{t.suggested_category || '—'}</td>
-              <td className="p-2 text-center">
-                <Badge className={badgeColor}>{(t.match_status || 'unknown').toUpperCase()}</Badge>
-              </td>
-              {actions && <td className="p-2 text-right">{actions(t)}</td>}
-            </tr>
-          ))}
+                <td className="p-2 text-right font-semibold text-slate-700">{(t.debit_amount || 0) > 0 ? fmtINR(t.debit_amount) : '—'}</td>
+                {hasCredits && (
+                  <td className="p-2 text-right font-semibold text-emerald-700">{(t.credit_amount || 0) > 0 ? fmtINR(t.credit_amount) : '—'}</td>
+                )}
+                <td className="p-2 text-xs text-sky-700">
+                  {aiTag ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Badge className="bg-violet-100 text-violet-800 border-violet-300 text-[10px]">🤖 AI</Badge>
+                      <span className="font-semibold">{aiTag}</span>
+                      {typeof aiConf === 'number' && (
+                        <span className={`text-[10px] ${aiConf >= 0.7 ? 'text-green-600' : 'text-amber-600'}`}>{(aiConf * 100).toFixed(0)}%</span>
+                      )}
+                    </span>
+                  ) : (hint)}
+                </td>
+                <td className="p-2 text-center">
+                  <Badge className={badgeColor}>{statusLabel}</Badge>
+                  {isCredit && <Badge className="ml-1 bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">CR</Badge>}
+                </td>
+                {actions && <td className="p-2 text-right">{actions(t)}</td>}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

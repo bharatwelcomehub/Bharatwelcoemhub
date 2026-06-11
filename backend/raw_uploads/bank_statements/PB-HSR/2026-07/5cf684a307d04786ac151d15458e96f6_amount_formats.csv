@@ -1,0 +1,5 @@
+Date,Narration,Debit
+2026-07-01,Plain number,1000
+2026-07-02,With comma,1,500
+2026-07-03,With rupee symbol,₹2000
+2026-07-04,With decimal,2500.50
