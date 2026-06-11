@@ -4,6 +4,40 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-11 Phase 3 — Gap closure] Credit→Sales auto-convert + AI for credits + Inline edit + Sales Dashboard link + Original-narration tracking (P0)
+
+User reviewed the full Bank Reconciliation spec and confirmed Phase 1+2 + Phase 3 (debit→expense) are deployed. Five remaining gaps shipped in one pass:
+
+**A. Auto-convert credits → daily_sales** — NEW `POST /api/bank-reconciliation/auto-convert-credits-to-sales`
+- Groups AI-categorized credits with confidence ≥ 0.7 by `(center, transaction_date)`.
+- For each bucket: if a `daily_sales` row already exists → **skip** and link the bank txn (dedupe guard via `match_method=auto_convert_dedupe_credit`). Otherwise CREATE a new row with `source=bank_reconciliation` and `ai_provenance[]` listing each contributing bank txn.
+- AI category → daily_sales field mapping: Cash Sale → `total_cash_sale`, PhonePe Sale → `phonepe`, Swiggy → `swiggy`, Zomato → `zomato`, Card Sale → `card_idfc`, UPI Sale → `bharat_pay`, Online Sale → `total_online_sale`, Razorpay/Other Income → `online_other`. `total_online_sale` is re-derived from the buckets (single source of truth). `Inter-Account Transfer` rows are skipped (not revenue).
+
+**B. AI categorize for credits** — `POST /api/bank-reconciliation/ai-categorize` now runs **two** Claude passes (one per side) with separate constrained masters:
+- Credit master: Cash / Online / Card / UPI / PhonePe / Razorpay / Swiggy / Zomato / Doordash / Franchise Payment / Other Income / Inter-Account Transfer.
+- Each `bank_transactions` doc gets `ai_side ∈ {debit,credit}` so downstream filters can target the right side.
+- Response now exposes `debit_categorized` and `credit_categorized` counts separately.
+
+**C. Inline narration edit** — NEW `POST /api/bank-reconciliation/edit-transaction`
+- Edits any of: `narration`, `ai_suggested_category`, `transaction_date`, `debit_amount`, `credit_amount`, `user_notes`.
+- Tracks per-field `{field, old, new}` changes in the response + writes an entry to `expense_reconciliation_log` (action='edit_transaction'). Stores `edited_by`, `edited_at`. **Preserves `original_narration`** (never overwritten).
+- Frontend: each row in `TxnTable` now has a small `✎ edit` button. Inline Input with Save/Cancel. After save, the row shows the new narration plus a small italic `(raw: ...)` line showing the original — full audit visible at-a-glance.
+
+**D. Sales Dashboard quick link** — `SalesExpenses.jsx` header now shows an emerald "📄 Import sales from Bank Statement" link for Super Admin / Admin (gated on `session?.is_super_admin || session?.is_admin`). `data-testid="sales-import-from-bank-link"`. Page route is `/sales` (NOT `/sales-expenses`).
+
+**E. Original-narration immutability** — All 3 parsers (PDF table, PDF text-fallback, CSV/Excel) now write `original_narration = narration` at upload time. The field is never overwritten by `/edit-transaction`. UI shows both side-by-side when they differ, giving MGT Admin a full audit trail of what the bank reported vs what they re-titled it as.
+
+**Tests**: `tests/test_bank_recon_phase3_gaps.py` — 10 HTTP integration tests, 100% pass. Includes a real Claude /ai-categorize call (3 txns) verifying `debit_categorized` + `credit_categorized` counts. Phase 2 regression suite still 100%.
+
+**Frontend wiring** confirmed by testing agent: `br-tab-credits`, `br-credit-ai-categorize`, `br-auto-convert-credits-to-sales`, `br-edit-narration-{id}`, `br-edit-save-{id}`, `br-edit-narration-input-{id}`, `sales-import-from-bank-link` — all present and functional.
+
+⚠️ **Known refactor backlog**: `routes/bank_reconciliation.py` is now 2181 lines — should be split into `recon_match.py + recon_ai.py + recon_credit_to_sale.py + recon_edit.py` in a future cleanup turn.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-11 sweep] Profit/Loss + Revenue Share Base propagated across ALL reports (P0 — financial consistency)
 
 **User directive**: *"now with this calculation we have to reapply at all reports and every place"*
