@@ -273,6 +273,8 @@ async def _snapshot(center: str, period: dict) -> Dict[str, Any]:
     labor_cost = sum(amt for h, amt in expenses_by_head.items() if h in LABOR_COST_HEADS)
     prime_cost = food_cost + labor_cost
     gross_profit = sales["sales"] - food_cost
+    # Per Feb-2026 management-reporting directive: net profit uses GROSS sales
+    # — GST is displayed separately and does NOT reduce profitability math.
     net_profit = sales["sales"] - total_expenses
     contribution_margin = gross_profit  # by definition
 

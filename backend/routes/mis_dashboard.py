@@ -378,8 +378,16 @@ async def get_mis_overview(data: dict):
     #   Profit (op) = Net Revenue − Expenses
     # GST is INCLUSIVE in receipt totals (carved out via shared utility),
     # and is treated as a govt pass-through, NOT center revenue.
-    net_revenue = total_sales - total_commissions - total_gst
+    # Per Feb-2026 management-reporting directive: profitability uses GROSS
+    # sales — GST is displayed separately and does NOT reduce sales.
+    net_revenue = total_sales - total_commissions
     profit = net_revenue - total_expenses
+    revenue_per_day = total_sales / max(1, period_days)
+    avg_daily_sales = revenue_per_day
+    
+    # Previous period (same gross-sales rule)
+    prev_net_revenue = prev_total_sales - 0  # commissions baseline 0
+    prev_profit = prev_net_revenue - prev_total_expenses
     profit_margin = round((profit / total_sales * 100) if total_sales > 0 else 0, 2)
     
     # Calculate totals - Previous Period
@@ -403,7 +411,8 @@ async def get_mis_overview(data: dict):
         pass
     prev_gst_calc = compute_gst_from_rows(prev_sales_data, country=None, center=(center if center and center != "all" else None))
     prev_gst = prev_gst_calc["gst_amount"]
-    prev_net_revenue = prev_total_sales - prev_gst  # commissions assumed 0 for prev (matches existing baseline)
+    # Same gross-sales rule for previous period (do not subtract GST)
+    prev_net_revenue = prev_total_sales
     prev_profit = prev_net_revenue - prev_total_expenses
     
     # Calculate changes
@@ -1981,7 +1990,7 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
          "change": f"{changes.get('expenses_change', 0):+.1f}% vs prev"},
         {"label": "Commissions", "value": fmt_short(s.get("total_commissions")), "change": ""},
         {"label": "GST (Eligible Sales 5% incl.)", "value": fmt_short(s.get("total_gst")), "change": "Govt pass-through"},
-        {"label": "Net Revenue", "value": fmt_short(net_revenue_base), "change": "Sales − Comm − GST"},
+        {"label": "Net Revenue", "value": fmt_short(net_revenue_base), "change": "Gross Sales − Comm"},
         {"label": "Net Profit" if profit >= 0 else "Net Profit (Loss)", "value": fmt_short(profit),
          "change": f"{changes.get('profit_change', 0):+.1f}% vs prev", "raw_value": profit},
         {"label": "Working Capital", "value": fmt_short(available_wc), "change": ""},
@@ -2021,8 +2030,8 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
         ["Total Sales", fmt(s.get("total_sales")), f"{changes.get('sales_change', 0):+.1f}%"],
         ["Less: Total Commissions", fmt(s.get("total_commissions")), ""],
         ["Less: GST on Eligible Sales (5% incl.)", fmt(s.get("total_gst")), "Govt pass-through"],
-        ["= Net Revenue", fmt(net_revenue_base), "Sales − Comm − GST"],
-        ["Eligible Rev Share Base", fmt(net_revenue_base), "Sales − Comm − Comm GST − GST"],
+        ["= Net Revenue", fmt(net_revenue_base), "Gross Sales − Commissions (GST shown separately)"],
+        ["Eligible Rev Share Base", fmt(net_revenue_base), "Gross Sales − Commissions (Feb-2026 directive)"],
         ["Less: Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
         ["= Net Profit", fmt(profit), f"{changes.get('profit_change', 0):+.1f}%"],
         ["Working Capital", fmt(available_wc), f"as of {wc_data.get('up_to_month', '')}"],

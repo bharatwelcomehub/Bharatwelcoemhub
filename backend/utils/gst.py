@@ -98,16 +98,24 @@ def compute_gst_from_totals(total_sale: float, aggregator_sale: float,
 def compute_net_revenue(total_sale: float, total_commissions: float,
                         gst_on_sales: float, total_expenses: float = 0.0,
                         country: Optional[str] = None) -> float:
-    """Single source of truth for Net Revenue.
+    """Single source of truth for Management Net Revenue (revenue line in P&L).
 
-    India     : Net Revenue = Total Sale − Commissions − GST   (expenses NOT subtracted; deducted in P&L only)
-    Outside-IN: Net Revenue = Total Sale − GST − Commissions × (1 + rate)
-                              (i.e. Sales minus Deductions only — expenses are NOT subtracted here.
-                               Profitability = Net Revenue − Expenses is computed separately and
-                               drives the 80/20 profit share.)
+    Per Feb-2026 management-reporting correction (Owner directive): GST is
+    displayed separately for compliance but does NOT reduce the management
+    sales figure. Profitability uses GROSS sales.
+
+    India     : Net Revenue = Gross Sale − Commissions
+    Outside-IN: Net Revenue = Gross Sale − Commissions × (1 + commGSTRate)
+
+    `gst_on_sales` is kept in the signature for backward compatibility +
+    surfaced separately for compliance reporting (GST Collected card).
+    `total_expenses` similarly retained for callers that pass it; expenses
+    are subtracted downstream in P&L / Revenue-Share, not here.
     """
     is_india = (not country) or str(country).lower() == "india"
+    _ = gst_on_sales  # intentionally ignored — see Feb-2026 directive
+    _ = total_expenses
     if is_india:
-        return round(float(total_sale) - float(total_commissions) - float(gst_on_sales), 2)
+        return round(float(total_sale) - float(total_commissions), 2)
     rate = gst_rate_for(country, None)
-    return round(float(total_sale) - float(gst_on_sales) - float(total_commissions) * (1.0 + rate), 2)
+    return round(float(total_sale) - float(total_commissions) * (1.0 + rate), 2)

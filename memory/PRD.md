@@ -4,6 +4,42 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-11] P&L correction — Gross Sales basis for management profitability (P0 — financial directive)
+
+**Owner directive**: *"GST is being deducted from Sales while calculating profitability — this distorts the operating picture. For management reporting, franchise profitability, center performance analysis and revenue-share calculations we must use **Gross Sales** and show GST separately. GST tracking + compliance reporting must stay intact."*
+
+**New canonical formula**:
+```
+PBT = Gross Sales − Adjusted Expenses − Commissions
+```
+GST stays visible (Collected / Paid / Payable / Receivable) but does **NOT** reduce sales in any management calc.
+
+**Files changed**:
+1. `routes/ledgers.py` — `build_monthly_pnl` now computes `pbt = gross − adj_expenses − commissions`. P&L PDF + Excel renamed columns: **Gross Sales · GST (Display) · Expenses (Raw) · Adjustments · Adj. Expenses · Commissions · PBT** (removed "Sales (Ex-GST)" from the math columns).
+2. `utils/gst.py` — `compute_net_revenue` rewritten. India: `Gross − Commissions`. Overseas: `Gross − Commissions × (1 + commGSTRate)`. GST argument retained for signature compat but explicitly ignored (with a comment + Feb-2026 directive reference).
+3. `routes/financial_health.py` — `_snapshot` net_profit was already using gross; added explicit comment to lock the directive in place.
+4. `routes/mis_dashboard.py` — `net_revenue = sales − commissions` (was `− commissions − gst`). Previous-period mirror updated for apples-to-apples MoM. UI labels updated: *"Gross Sales − Comm"*.
+
+**Auto-propagated** (all consume the same helpers above):
+- Center Accounts summary → revenue / share-eligible base
+- Franchise Owner Dashboard → Net Revenue / PBT cards
+- Revenue Share calculations (India + Overseas)
+- Financial Insights tab
+- Monthly + Annual reports
+- Ledger Exports + PDF + Excel + CA Bundle Reports
+
+**Verified end-to-end** via new pytest `tests/test_pnl_gross_sales.py`:
+- User's worked example: Sales ₹10L · GST ₹50k · Expenses ₹7L · Commission ₹50k
+- New PBT = ₹2,50,000 ✓  (was ₹2,00,000 before)
+- All 12 existing regression tests still pass (Financial Health, Adjustments propagation, Commission parity)
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After redeploy, every PBT figure across the platform will jump by exactly the period's GST amount — that's by design.
+
+**Phase 2 (Bank Reconciliation credit/debit upgrade) and Phase 3 (MGT IDFC bank-statement → sales/expenses with Claude categorisation) deferred to the next turn — couldn't safely fit in this context.**
+
+---
+
+
 ### [2026-02-11] Phase 1 — PIB inline-PDF preview + PhonePe Commission visibility
 
 **User pain solved**:
