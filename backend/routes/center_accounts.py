@@ -1316,24 +1316,19 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # Total deduction = gst_tax_deductions + other_deductions (new schema)
     # Fallback to commission_amount for old records
     commission_by_platform = {
-        "swiggy": {"gross": 0, "deduction": 0, "net": 0},
-        "zomato": {"gross": 0, "deduction": 0, "net": 0},
-        "doordash": {"gross": 0, "deduction": 0, "net": 0},
-        "phonepe": {"gross": 0, "deduction": 0, "net": 0},
-        "cards": {"gross": 0, "deduction": 0, "net": 0},
+        "swiggy": {"gross": 0, "deduction": 0, "net": 0, "pg_commission": 0},
+        "zomato": {"gross": 0, "deduction": 0, "net": 0, "pg_commission": 0},
+        "doordash": {"gross": 0, "deduction": 0, "net": 0, "pg_commission": 0},
+        "phonepe": {"gross": 0, "deduction": 0, "net": 0, "pg_commission": 0,
+                    "settlement_date": None, "txn_count": 0},
+        "cards": {"gross": 0, "deduction": 0, "net": 0, "pg_commission": 0},
     }
 
     for comm in commission_records:
         platform = comm.get("platform", "").lower()
         if platform not in commission_by_platform:
-            commission_by_platform[platform] = {"gross": 0, "deduction": 0, "net": 0}
+            commission_by_platform[platform] = {"gross": 0, "deduction": 0, "net": 0, "pg_commission": 0}
         commission_by_platform[platform]["gross"] += comm.get("gross_amount", 0)
-        # Total deduction MUST match utils.commissions._row_total so the
-        # canonical total equals the sum of the per-platform breakdown shown in
-        # PIB Section 3 / Center Accounts Commission tab.
-        # Rule: if new-schema fields (gst_tax_deductions / other_deductions)
-        # are populated, use those; otherwise fall back to legacy commission_amount.
-        # TDS is excluded — it is booked separately as an operating expense.
         gst_ded = float(comm.get("gst_tax_deductions", 0) or 0)
         other_ded = float(comm.get("other_deductions", 0) or 0)
         if gst_ded or other_ded:
@@ -1342,6 +1337,19 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             total_ded = float(comm.get("commission_amount", 0) or 0)
         commission_by_platform[platform]["deduction"] += total_ded
         commission_by_platform[platform]["net"] += comm.get("net_payout", 0)
+        # Payment-gateway commission = Gross − Net (PhonePe MDR + cards MDR).
+        # The parser already stores this in `sundry_debtors`; fall back to
+        # computed gross-minus-net when missing so older uploads still surface.
+        sundry = float(comm.get("sundry_debtors", 0) or 0)
+        if not sundry and platform in {"phonepe", "cards"}:
+            sundry = max(0.0, float(comm.get("gross_amount", 0) or 0) -
+                              float(comm.get("net_payout", 0) or 0) - total_ded)
+        commission_by_platform[platform]["pg_commission"] += sundry
+        if platform == "phonepe":
+            commission_by_platform[platform]["txn_count"] += int(comm.get("order_count") or 0)
+            sd = comm.get("settlement_date") or comm.get("upload_date")
+            if sd and not commission_by_platform[platform]["settlement_date"]:
+                commission_by_platform[platform]["settlement_date"] = str(sd)[:10]
 
     total_aggregator_commission = (
         commission_by_platform["swiggy"]["deduction"] +
@@ -1352,6 +1360,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         commission_by_platform["phonepe"]["deduction"] +
         commission_by_platform["cards"]["deduction"]
     )
+    # Payment-gateway commission (PhonePe MDR + cards MDR) — surfaced
+    # separately so Commission Dashboard / PIB / Reports can show
+    # "Payment Gateway Deductions" as its own line.
+    payment_gateway_commission = (
+        commission_by_platform["phonepe"]["pg_commission"] +
+        commission_by_platform["cards"]["pg_commission"]
+    )
+    phonepe_block = commission_by_platform.get("phonepe", {})
 
     # ==========================================
     # Canonical commission total (single source of truth across all surfaces).
@@ -1719,6 +1735,15 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         "commissions": {
             "aggregator_total": round(total_aggregator_commission, 2),
             "card_total": round(card_commission, 2),
+            "payment_gateway_total": round(payment_gateway_commission, 2),
+            "phonepe": {
+                "gross": round(phonepe_block.get("gross", 0), 2),
+                "pg_commission": round(phonepe_block.get("pg_commission", 0), 2),
+                "gst_on_commission": round(phonepe_block.get("deduction", 0), 2),
+                "net_settlement": round(phonepe_block.get("net", 0), 2),
+                "settlement_date": phonepe_block.get("settlement_date"),
+                "txn_count": phonepe_block.get("txn_count", 0),
+            },
             "total": round(total_commission, 2),
             "commission_gst": round(commission_gst, 2) if country == "Australia" else 0,
             "total_with_gst": round(total_commission_with_gst, 2) if country == "Australia" else round(total_commission, 2),

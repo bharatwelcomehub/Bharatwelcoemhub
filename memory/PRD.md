@@ -4,6 +4,40 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-11] Phase 1 — PIB inline-PDF preview + PhonePe Commission visibility
+
+**User pain solved**:
+1. *"Preview for PIB is not visible — it's showing only number cards. Everytime we have to download and see it."*
+2. *"PhonePe Commission is being calculated correctly but not visible on screen — only the net settlement shows."*
+
+**1. PIB Preview now mirrors the full PDF inline**
+- `openPibPreview()` in `CenterAccounts.jsx` now fires `preview-pib` and `generate-pib` in parallel; the PDF blob is materialised into a `URL.createObjectURL` and embedded in an `<iframe>` (70vh) inside the existing dialog.
+- Dialog widened (`max-w-6xl`, `max-h-92vh`).
+- "Open in new tab" link on the iframe header for users who want a full-screen view.
+- Blob URL revoked on close.
+- No backend changes — reuses the existing `generate-pib` route.
+
+**2. PhonePe Commission now visible**
+- Backend (`routes/center_accounts.py`):
+  - Per-platform commission map now tracks `pg_commission` (= `sundry_debtors`, falls back to Gross − Net for legacy rows) plus `settlement_date` and `txn_count` for PhonePe.
+  - Summary response exposes a new `commissions.phonepe = {gross, pg_commission, gst_on_commission, net_settlement, settlement_date, txn_count}` block and a top-level `commissions.payment_gateway_total` (PhonePe MDR + Cards MDR).
+- Frontend (`CenterAccounts.jsx`):
+  - New **"Payment Gateway Deductions"** stat card (purple) next to Payment Mode Deductions.
+  - New full-width **PhonePe Settlement** card with 5 metrics (Gross · Commission · GST on Commission · Net Settlement · Txn count + date).
+  - Uploaded Commission Reports table now has a **PG Comm.** column (purple) so PhonePe and Cards rows show their MDR.
+
+**Verified end-to-end** with real data (PB-SN / 2026-02):
+- PhonePe gross ₹3,55,532.00 → PG commission ₹17,604.64 → net ₹3,37,927.36 (was hidden before; now visible in 3 places: summary card, dedicated PhonePe card, table column) ✓
+- 228 transactions · settled 2026-03-30 ✓
+- All other commission totals (`aggregator_total`, `card_total`, `total`) unchanged ✓
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+**Phase 2 (Bank Reconciliation upgrade) and Phase 3 (MGT bank-statement → sales/expenses with IDFC parser + AI categorisation) deferred per phased plan.**
+
+
 ### [2026-02-10] Expense Adjustments propagation to ALL reports (P0 — financial)
 
 **User report**: *"Expense adjustments are happening correctly and showing in the Adjustments report — but we need this calculation to flow into P&L, Ledger, Franchise reports and everywhere else expenses are shown."*

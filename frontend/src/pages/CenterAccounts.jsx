@@ -809,15 +809,28 @@ export default function CenterAccounts() {
     setPibPreviewLoading(true);
     setPibPreview({ loading: true });
     try {
-      const res = await fetch(`${API}/api/center-accounts/preview-pib`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
+      // Fire both in parallel: summary numbers (existing) + full PDF blob for inline iframe.
+      const [sumRes, pdfRes] = await Promise.all([
+        fetch(`${API}/api/center-accounts/preview-pib`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth }),
+        }),
+        fetch(`${API}/api/center-accounts/generate-pib`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth }),
+        }),
+      ]);
+      if (!sumRes.ok) {
+        const err = await sumRes.json();
         throw new Error(err.detail || 'Failed to load preview');
       }
-      setPibPreview(await res.json());
+      const summary = await sumRes.json();
+      let pdfBlobUrl = null;
+      if (pdfRes.ok) {
+        const blob = await pdfRes.blob();
+        pdfBlobUrl = URL.createObjectURL(blob);
+      }
+      setPibPreview({ ...summary, pdfBlobUrl });
     } catch (e) {
       toast.error(e.message || 'Failed');
       setPibPreview(null);
@@ -1748,6 +1761,7 @@ export default function CenterAccounts() {
                           <th className="text-right p-3 text-sm font-medium">Gross Amount</th>
                           <th className="text-right p-3 text-sm font-medium">GST/Tax Ded.</th>
                           <th className="text-right p-3 text-sm font-medium">Other Ded.</th>
+                          <th className="text-right p-3 text-sm font-medium" title="PhonePe Commission / MDR (Gross − Net)">PG Comm.</th>
                           <th className="text-right p-3 text-sm font-medium">Net Payout</th>
                           <th className="text-right p-3 text-sm font-medium">Orders</th>
                           <th className="text-left p-3 text-sm font-medium">File</th>
@@ -1757,7 +1771,7 @@ export default function CenterAccounts() {
                       <tbody>
                         {commissionStatements.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="text-center py-8 text-gray-500">
+                            <td colSpan={10} className="text-center py-8 text-gray-500">
                               No commission uploads for this period. Upload an Excel report to get started.
                             </td>
                           </tr>
@@ -1773,6 +1787,7 @@ export default function CenterAccounts() {
                               <td className="p-3 text-right">{formatCurrency(stmt.gross_amount, accountSummary?.country)}</td>
                               <td className="p-3 text-right text-orange-600">{formatCurrency(stmt.gst_tax_deductions || stmt.gst_on_commission || 0, accountSummary?.country)}</td>
                               <td className="p-3 text-right text-red-600">{formatCurrency(stmt.other_deductions || stmt.commission_amount || 0, accountSummary?.country)}</td>
+                              <td className="p-3 text-right text-purple-700" title="Payment-Gateway commission (PhonePe MDR, etc.)">{formatCurrency(stmt.sundry_debtors || 0, accountSummary?.country)}</td>
                               <td className="p-3 text-right text-green-600">{formatCurrency(stmt.net_payout, accountSummary?.country)}</td>
                               <td className="p-3 text-right">{stmt.order_count}</td>
                               <td className="p-3 text-sm text-gray-500 max-w-[150px] truncate" title={stmt.original_filename}>
@@ -1817,6 +1832,15 @@ export default function CenterAccounts() {
                     <p className="text-xs text-blue-500 mt-1">Cards + PhonePe</p>
                   </CardContent>
                 </Card>
+                <Card className="bg-purple-50" data-testid="payment-gateway-deductions-card">
+                  <CardContent className="p-4">
+                    <p className="text-sm text-purple-700">Payment Gateway Deductions</p>
+                    <p className="text-xl font-bold text-purple-900">
+                      {formatCurrency(accountSummary.commissions.payment_gateway_total || 0, accountSummary.country)}
+                    </p>
+                    <p className="text-xs text-purple-500 mt-1">PhonePe MDR + Cards MDR</p>
+                  </CardContent>
+                </Card>
                 {accountSummary.country === 'Australia' && (
                   <Card className="bg-purple-50">
                     <CardContent className="p-4">
@@ -1840,6 +1864,43 @@ export default function CenterAccounts() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Dedicated PhonePe Settlement Card */}
+              {accountSummary.commissions?.phonepe?.gross > 0 && (
+                <Card className="border-purple-300 border-2" data-testid="phonepe-settlement-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Badge className="bg-purple-100 text-purple-800">PhonePe</Badge>
+                      <span className="text-purple-900">Payment Gateway Settlement</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                    <div>
+                      <p className="text-[11px] uppercase text-stone-500 tracking-wider">Gross</p>
+                      <p className="font-bold text-stone-800">{formatCurrency(accountSummary.commissions.phonepe.gross, accountSummary.country)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase text-stone-500 tracking-wider">PhonePe Commission</p>
+                      <p className="font-bold text-purple-800">{formatCurrency(accountSummary.commissions.phonepe.pg_commission, accountSummary.country)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase text-stone-500 tracking-wider">GST on Commission</p>
+                      <p className="font-bold text-orange-700">{formatCurrency(accountSummary.commissions.phonepe.gst_on_commission, accountSummary.country)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase text-stone-500 tracking-wider">Net Settlement</p>
+                      <p className="font-bold text-emerald-700">{formatCurrency(accountSummary.commissions.phonepe.net_settlement, accountSummary.country)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase text-stone-500 tracking-wider">Transactions</p>
+                      <p className="font-bold text-stone-800">{accountSummary.commissions.phonepe.txn_count || 0}</p>
+                      {accountSummary.commissions.phonepe.settlement_date && (
+                        <p className="text-[10px] text-stone-500">{accountSummary.commissions.phonepe.settlement_date}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             {/* Revenue/Profit Share Tab */}
@@ -3784,11 +3845,16 @@ export default function CenterAccounts() {
       </Dialog>
 
       {/* PIB Preview Dialog — View before Download */}
-      <Dialog open={!!pibPreview} onOpenChange={(open) => { if (!open) setPibPreview(null); }}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" data-testid="pib-preview-dialog">
+      <Dialog open={!!pibPreview} onOpenChange={(open) => {
+        if (!open) {
+          if (pibPreview?.pdfBlobUrl) URL.revokeObjectURL(pibPreview.pdfBlobUrl);
+          setPibPreview(null);
+        }
+      }}>
+        <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto" data-testid="pib-preview-dialog">
           <DialogHeader>
             <DialogTitle>PIB Report Preview — {selectedCenter} · {selectedMonth}</DialogTitle>
-            <DialogDescription>Review the figures, then click Download to save the PDF.</DialogDescription>
+            <DialogDescription>Full report below. Scroll or use Download to save the PDF.</DialogDescription>
           </DialogHeader>
           {pibPreviewLoading || (pibPreview && pibPreview.loading) ? (
             <div className="py-12 text-center text-muted-foreground">Loading preview…</div>
@@ -3829,17 +3895,30 @@ export default function CenterAccounts() {
                         <p className="text-lg font-bold">₹{Math.round(revShare.share_amount || revShare.amount || finCur.revenue_share || 0).toLocaleString('en-IN')}</p>
                       </div>
                     </div>
-                    <div className="rounded-lg border p-3 bg-muted/40">
-                      <p className="font-semibold text-xs text-muted-foreground mb-2">SALES BREAKDOWN</p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                        <div>Cash: ₹{Math.round(sales.total_cash_sale || sales.cash_sale || 0).toLocaleString('en-IN')}</div>
-                        <div>Online/Card: ₹{Math.round(sales.total_online_sale || sales.card_sale || sales.online_sale || 0).toLocaleString('en-IN')}</div>
-                        <div>Swiggy: ₹{Math.round(sales.swiggy || sales.swiggy_sale || 0).toLocaleString('en-IN')}</div>
-                        <div>Zomato: ₹{Math.round(sales.zomato || sales.zomato_sale || 0).toLocaleString('en-IN')}</div>
+
+                    {/* Full PDF rendered inline — exact mirror of what download would save */}
+                    {pibPreview.pdfBlobUrl ? (
+                      <div className="border rounded-lg overflow-hidden bg-stone-900" data-testid="pib-preview-pdf-iframe">
+                        <div className="px-3 py-2 bg-stone-100 text-xs text-stone-700 border-b flex items-center justify-between">
+                          <span>Full PIB Report (PDF)</span>
+                          <a href={pibPreview.pdfBlobUrl} target="_blank" rel="noopener noreferrer"
+                             className="text-blue-700 hover:underline text-[11px]">Open in new tab ↗</a>
+                        </div>
+                        <iframe
+                          src={pibPreview.pdfBlobUrl}
+                          title="PIB Report PDF"
+                          className="w-full"
+                          style={{ height: '70vh', border: 'none' }}
+                        />
                       </div>
-                    </div>
+                    ) : (
+                      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                        PDF could not be rendered inline. Use Download below.
+                      </div>
+                    )}
+
                     <details className="rounded-lg border p-2 bg-muted/20">
-                      <summary className="cursor-pointer text-xs font-semibold">Show full summary JSON</summary>
+                      <summary className="cursor-pointer text-xs font-semibold">Show raw summary JSON</summary>
                       <pre className="text-[10px] mt-2 overflow-auto max-h-60">{JSON.stringify(s, null, 2)}</pre>
                     </details>
                   </>
@@ -3850,7 +3929,10 @@ export default function CenterAccounts() {
             <p className="text-sm text-muted-foreground py-8">No data to preview.</p>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPibPreview(null)} data-testid="pib-preview-cancel">Close</Button>
+            <Button variant="outline" onClick={() => {
+              if (pibPreview?.pdfBlobUrl) URL.revokeObjectURL(pibPreview.pdfBlobUrl);
+              setPibPreview(null);
+            }} data-testid="pib-preview-cancel">Close</Button>
             <Button
               onClick={async () => {
                 try {
