@@ -1277,6 +1277,16 @@ export default function SalesExpenses() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Sales & Cash Summary</h1>
           <p className="text-muted-foreground">Track daily sales, payments, and expenses</p>
+          {/* Phase 3 (D): Quick link for MGT Admin to bulk-import sales from bank statement */}
+          {(session?.is_super_admin || session?.is_admin) && (
+            <a
+              href="/bank-reconciliation"
+              className="inline-flex items-center gap-1 mt-2 text-xs text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline"
+              data-testid="sales-import-from-bank-link"
+            >
+              📄 Import sales from Bank Statement (Phase 3 — AI auto-categorize credits)
+            </a>
+          )}
         </div>
         
         {/* Filters */}

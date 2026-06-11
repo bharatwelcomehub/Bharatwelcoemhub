@@ -423,6 +423,7 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
                         "transaction_id": str(uuid.uuid4())[:12],
                         "transaction_date": parsed_date,
                         "narration": narration,
+                        "original_narration": narration,  # immutable raw from bank
                         "debit_amount": debit_amount,
                         "credit_amount": credit_amount,
                         "txn_type": txn_type,
@@ -546,6 +547,7 @@ async def parse_pdf_text_fallback(file_content: bytes, filename: str, year_hint:
                 "transaction_id": str(uuid.uuid4())[:12],
                 "transaction_date": parsed_date,
                 "narration": narration,
+                "original_narration": narration,  # immutable raw from bank
                 "debit_amount": 0.0 if is_credit else amount,
                 "credit_amount": amount if is_credit else 0.0,
                 "txn_type": "credit" if is_credit else "debit",
@@ -708,10 +710,12 @@ async def parse_bank_statement(file_content: bytes, filename: str):
                 continue
 
             txn_type = "debit" if debit_amount > 0 else "credit"
+            _narr = str(narr_val or "").strip()
             transactions.append({
                 "transaction_id": str(uuid.uuid4())[:12],
                 "transaction_date": parsed_date,
-                "narration": str(narr_val or "").strip(),
+                "narration": _narr,
+                "original_narration": _narr,  # immutable raw from bank
                 "debit_amount": debit_amount,
                 "credit_amount": credit_amount,
                 "txn_type": txn_type,
@@ -1658,16 +1662,22 @@ async def ai_categorize_transactions(req: AICategorizeRequest):
     if not cats:
         return {"detail": "No categories configured in Category Master", "success": False}
 
-    # Pull transactions to categorize — only unmatched debits / manual review
+    # Phase 3 (B): handle BOTH credits and debits in one batch. Credits get
+    # mapped to revenue categories (Cash Sale / Online Sale / PhonePe / etc.)
+    # so the analyst can one-click convert them to daily_sales rows.
     query: dict = {"upload_id": req.upload_id,
-                   "match_status": {"$in": ["unrecorded", "manual_review"]},
-                   "txn_type": "debit"}
+                   "match_status": {"$in": ["unrecorded", "unrecorded_credit", "manual_review"]}}
     if req.transaction_ids:
         query["transaction_id"] = {"$in": req.transaction_ids}
 
     txns = await db.bank_transactions.find(query, {"_id": 0}).to_list(500)
     if not txns:
         return {"success": True, "categorized": 0, "message": "No transactions need AI categorization"}
+
+    # Split into debits and credits so we can prompt Claude with the correct
+    # category master for each side.
+    debits = [t for t in txns if (t.get("txn_type") or "debit") == "debit"]
+    credits = [t for t in txns if (t.get("txn_type") or "debit") == "credit"]
 
     # Build batched prompt — Claude classifies each narration against the
     # constrained category list. Returns JSON for safe parsing.
@@ -1676,85 +1686,109 @@ async def ai_categorize_transactions(req: AICategorizeRequest):
     except ImportError:
         return {"detail": "emergentintegrations not installed", "success": False}
 
-    items = [{"id": t["transaction_id"],
-              "narration": t.get("narration", "")[:200],
-              "amount": t.get("debit_amount", 0)} for t in txns]
-
-    system_msg = (
-        "You are a financial categorization assistant for a restaurant franchise "
-        "in India. Given a bank transaction narration, pick the SINGLE most likely "
-        "expense category from the provided master list. Return strictly valid JSON: "
-        '{"assignments": [{"id": "...", "category": "...", "confidence": 0.0-1.0, "reasoning": "short"}]}\n'
-        f"Allowed categories (pick EXACTLY one per narration, case-sensitive): {cats}\n"
-        "If a narration is clearly NOT an operating expense (transfer between own accounts, "
-        "loan disbursement, capital injection), use category 'MISCELLANEOUS' and lower the "
-        "confidence to 0.3 with the reasoning explaining why."
-    )
-    user_msg = (
-        "Categorize these bank debits. Return ONLY the JSON, no preamble.\n\n"
-        f"{items}"
-    )
-
-    session_id = f"bank-recon-{req.upload_id}"
-    try:
-        chat = (
-            LlmChat(api_key=api_key, session_id=session_id, system_message=system_msg)
-            .with_model("anthropic", "claude-sonnet-4-5-20250929")
-        )
-        reply = await chat.send_message(UserMessage(text=user_msg))
-        raw = reply.strip() if isinstance(reply, str) else str(reply)
-    except Exception as e:
-        logger.error(f"Claude categorization failed: {e}")
-        return {"detail": f"AI categorization failed: {str(e)[:200]}", "success": False}
-
-    # Parse JSON robustly — strip markdown fences if present
-    import json
-    cleaned = re.sub(r"^```(?:json)?\s*", "", raw)
-    cleaned = re.sub(r"\s*```\s*$", "", cleaned)
-    try:
-        parsed = json.loads(cleaned)
-        assignments = parsed.get("assignments", [])
-    except Exception:
-        # Fallback: extract first JSON object substring
-        m = re.search(r"\{.*\}", cleaned, re.DOTALL)
-        if not m:
-            return {"detail": "Could not parse AI response", "success": False, "raw": raw[:500]}
-        try:
-            parsed = json.loads(m.group(0))
-            assignments = parsed.get("assignments", [])
-        except Exception:
-            return {"detail": "AI returned malformed JSON", "success": False, "raw": raw[:500]}
-
-    # Validate categories against master, persist as suggestions
-    cat_set = set(cats)
+    # Constrained credit-side category master (revenue sources).
+    CREDIT_CATEGORIES = [
+        "Cash Sale", "Online Sale", "Card Sale", "UPI Sale",
+        "PhonePe Sale", "Razorpay Sale",
+        "Swiggy Sale", "Zomato Sale", "Doordash Sale",
+        "Franchise Payment", "Other Income",
+        "Inter-Account Transfer",  # for transfers between own accounts — low confidence
+    ]
     actor = session.get("name", session.get("mobile", ""))
     now_iso = datetime.now(timezone.utc).isoformat()
-    updated = 0
-    for a in assignments:
-        tid = a.get("id")
-        cat = a.get("category", "")
-        if not tid or cat not in cat_set:
-            continue
-        conf = float(a.get("confidence", 0) or 0)
-        reasoning = (a.get("reasoning") or "")[:300]
-        await db.bank_transactions.update_one(
-            {"transaction_id": tid, "upload_id": req.upload_id},
-            {"$set": {
-                "ai_suggested_category": cat,
-                "ai_confidence": conf,
-                "ai_reasoning": reasoning,
-                "ai_categorized_at": now_iso,
-                "ai_categorized_by": actor,
-            }}
+    import json
+
+    async def _claude_batch(items_list, allowed_cats, side_label):
+        """Run one Claude pass for a batch. Returns list of valid assignments."""
+        if not items_list:
+            return []
+        system_msg = (
+            f"You are a financial categorization assistant for a restaurant "
+            f"franchise in India. Given a bank {side_label} narration, pick the "
+            f"SINGLE most likely category from the master list. Return strictly "
+            'valid JSON: {"assignments": [{"id": "...", "category": "...", '
+            '"confidence": 0.0-1.0, "reasoning": "short"}]}\n'
+            f"Allowed categories (pick EXACTLY one, case-sensitive): {allowed_cats}\n"
+            "If a narration is clearly NOT what we expect (transfer between own "
+            "accounts, loan disbursement, capital injection), pick the closest "
+            "fallback category and lower confidence to 0.3 with the reasoning "
+            "explaining why."
         )
-        updated += 1
+        user_msg = (f"Categorize these bank {side_label}s. Return ONLY the JSON, "
+                    f"no preamble.\n\n{items_list}")
+        sess_id = f"bank-recon-{req.upload_id}-{side_label}"
+        try:
+            chat = (
+                LlmChat(api_key=api_key, session_id=sess_id, system_message=system_msg)
+                .with_model("anthropic", "claude-sonnet-4-5-20250929")
+            )
+            reply = await chat.send_message(UserMessage(text=user_msg))
+            raw = reply.strip() if isinstance(reply, str) else str(reply)
+        except Exception as e:
+            logger.error(f"Claude categorization ({side_label}) failed: {e}")
+            return []
+        cleaned = re.sub(r"^```(?:json)?\s*", "", raw)
+        cleaned = re.sub(r"\s*```\s*$", "", cleaned)
+        try:
+            parsed = json.loads(cleaned)
+            return parsed.get("assignments", []) or []
+        except Exception:
+            m = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            if not m:
+                return []
+            try:
+                return json.loads(m.group(0)).get("assignments", []) or []
+            except Exception:
+                return []
+
+    # Debit batch
+    debit_items = [{"id": t["transaction_id"],
+                    "narration": t.get("narration", "")[:200],
+                    "amount": t.get("debit_amount", 0)} for t in debits]
+    debit_assignments = await _claude_batch(debit_items, cats, "debit")
+
+    # Credit batch
+    credit_items = [{"id": t["transaction_id"],
+                     "narration": t.get("narration", "")[:200],
+                     "amount": t.get("credit_amount", 0)} for t in credits]
+    credit_assignments = await _claude_batch(credit_items, CREDIT_CATEGORIES, "credit")
+
+    # Validate + persist
+    cat_set_debit = set(cats)
+    cat_set_credit = set(CREDIT_CATEGORIES)
+    updated = 0
+    for side, assignments, allowed in (
+        ("debit", debit_assignments, cat_set_debit),
+        ("credit", credit_assignments, cat_set_credit),
+    ):
+        for a in assignments:
+            tid = a.get("id")
+            cat = a.get("category", "")
+            if not tid or cat not in allowed:
+                continue
+            conf = float(a.get("confidence", 0) or 0)
+            reasoning = (a.get("reasoning") or "")[:300]
+            await db.bank_transactions.update_one(
+                {"transaction_id": tid, "upload_id": req.upload_id},
+                {"$set": {
+                    "ai_suggested_category": cat,
+                    "ai_confidence": conf,
+                    "ai_reasoning": reasoning,
+                    "ai_categorized_at": now_iso,
+                    "ai_categorized_by": actor,
+                    "ai_side": side,
+                }}
+            )
+            updated += 1
 
     # Audit log
     await db.expense_reconciliation_log.insert_one({
         "upload_id": req.upload_id,
         "action": "ai_categorize_batch",
         "categorized_count": updated,
-        "total_requested": len(items),
+        "total_requested": len(debits) + len(credits),
+        "debit_count": len(debits),
+        "credit_count": len(credits),
         "action_taken_by": actor,
         "timestamp": now_iso,
     })
@@ -1762,8 +1796,10 @@ async def ai_categorize_transactions(req: AICategorizeRequest):
     return {
         "success": True,
         "categorized": updated,
-        "total": len(items),
-        "message": f"Claude classified {updated} of {len(items)} transactions",
+        "total": len(debits) + len(credits),
+        "debit_categorized": sum(1 for a in debit_assignments if a.get("category") in cat_set_debit),
+        "credit_categorized": sum(1 for a in credit_assignments if a.get("category") in cat_set_credit),
+        "message": f"Claude classified {updated} of {len(debits) + len(credits)} transactions",
     }
 
 
@@ -1880,4 +1916,265 @@ async def auto_convert_to_expenses(req: AutoConvertRequest):
         "message": (f"Converted {converted} AI-tagged transactions to expenses; "
                     f"skipped {skipped_dupes} duplicate(s).")
     }
+
+
+# ── Phase 3 (A): Auto-Convert credits → daily_sales rows ────────────────
+# Mirrors `/auto-convert` (debits → expenses). Used by MGT centers that
+# don't enter sales through the standard Sales Dashboard — the bank
+# statement IS the source of truth for revenue.
+
+# Map AI category → daily_sales field name.
+CREDIT_CATEGORY_TO_SALES_FIELD = {
+    "Cash Sale": "total_cash_sale",
+    "Online Sale": "total_online_sale",
+    "Card Sale": "card_idfc",
+    "UPI Sale": "bharat_pay",          # closest existing UPI bucket
+    "PhonePe Sale": "phonepe",
+    "Swiggy Sale": "swiggy",
+    "Zomato Sale": "zomato",
+    "Doordash Sale": "doordash",
+    "Razorpay Sale": "online_other",
+    "Franchise Payment": "online_other",
+    "Other Income": "online_other",
+    # Inter-Account Transfer is NOT a sale — skip when converting
+}
+
+
+class AutoConvertCreditsRequest(BaseModel):
+    upload_id: str
+    token: str
+    min_confidence: float = 0.7
+    transaction_ids: Optional[List[str]] = None
+
+
+@router.post("/auto-convert-credits-to-sales")
+async def auto_convert_credits_to_sales(req: AutoConvertCreditsRequest):
+    """Convert AI-categorized bank CREDITS into daily_sales rows in bulk.
+
+    Behaviour:
+      - Groups credits by `transaction_date` per center.
+      - For each (center, date) bucket:
+          • If a daily_sales row already exists → skip (dedupe), mark bank
+            txns as `matched` linked to that row. This protects existing
+            manual sales entries from being overwritten.
+          • Otherwise create a new daily_sales row with the categorized
+            credits poured into the appropriate fields, source =
+            'bank_reconciliation', so downstream aggregations (MIS, P&L,
+            Center Accounts, Bank Recon credit-pool) all see it.
+      - 'Inter-Account Transfer' credits are skipped (not revenue).
+    """
+    session = await _get_session(req.token)
+    if not session:
+        return {"detail": "Authentication required"}
+
+    query: dict = {
+        "upload_id": req.upload_id,
+        "match_status": {"$in": ["unrecorded_credit", "manual_review"]},
+        "txn_type": "credit",
+        "ai_suggested_category": {"$exists": True, "$nin": [None, ""]},
+        "ai_confidence": {"$gte": req.min_confidence},
+    }
+    if req.transaction_ids:
+        query["transaction_id"] = {"$in": req.transaction_ids}
+
+    txns = await db.bank_transactions.find(query, {"_id": 0}).to_list(500)
+    if not txns:
+        return {"success": True, "created": 0, "skipped_dupes": 0,
+                "message": "No AI-categorized credits met the confidence threshold"}
+
+    # Group by (center, date)
+    from collections import defaultdict
+    grouped: dict = defaultdict(list)
+    for t in txns:
+        key = (t.get("center"), t.get("transaction_date"))
+        grouped[key].append(t)
+
+    actor = session.get("name", session.get("mobile", ""))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    created = 0
+    skipped_dupes = 0
+    skipped_transfers = 0
+    errors: List[str] = []
+
+    for (center, date), bucket in grouped.items():
+        if not center or not date:
+            continue
+        try:
+            # Dedupe — daily_sales row already exists?
+            existing = await db.daily_sales.find_one({"center": center, "date": date})
+            if existing:
+                skipped_dupes += 1
+                # Link bank txns to the existing daily_sales row
+                ids = [b["transaction_id"] for b in bucket]
+                await db.bank_transactions.update_many(
+                    {"upload_id": req.upload_id, "transaction_id": {"$in": ids}},
+                    {"$set": {
+                        "match_status": "matched",
+                        "recon_status": "matched",
+                        "matched_sale_date": date,
+                        "match_method": "auto_convert_dedupe_credit",
+                        "auto_converted": True,
+                    }}
+                )
+                continue
+
+            # Build the daily_sales record from the AI categorizations
+            record: dict = {
+                "center": center,
+                "date": date,
+                "total_sale": 0.0,
+                "card_idfc": 0.0,
+                "bharat_pay": 0.0,
+                "phonepe": 0.0,
+                "swiggy": 0.0,
+                "zomato": 0.0,
+                "doordash": 0.0,
+                "online_other": 0.0,
+                "total_cash_sale": 0.0,
+                "total_online_sale": 0.0,
+                "source": "bank_reconciliation",
+                "bank_upload_id": req.upload_id,
+                "created_by": actor,
+                "created_at": now_iso,
+                "ai_provenance": [],
+            }
+            converted_in_bucket: List[str] = []
+            for t in bucket:
+                cat = t.get("ai_suggested_category", "")
+                if cat == "Inter-Account Transfer":
+                    skipped_transfers += 1
+                    continue
+                field = CREDIT_CATEGORY_TO_SALES_FIELD.get(cat)
+                if not field:
+                    continue
+                amt = float(t.get("credit_amount") or 0)
+                record[field] = round(record.get(field, 0.0) + amt, 2)
+                record["total_sale"] = round(record["total_sale"] + amt, 2)
+                record["ai_provenance"].append({
+                    "transaction_id": t["transaction_id"],
+                    "category": cat,
+                    "amount": amt,
+                    "ai_confidence": t.get("ai_confidence"),
+                    "original_narration": t.get("original_narration") or t.get("narration"),
+                    "edited_narration": t.get("narration"),
+                })
+                converted_in_bucket.append(t["transaction_id"])
+            # Re-derive total_online_sale from buckets
+            record["total_online_sale"] = round(
+                record["card_idfc"] + record["bharat_pay"] + record["phonepe"]
+                + record["swiggy"] + record["zomato"] + record["doordash"]
+                + record["online_other"], 2,
+            )
+            if record["total_sale"] <= 0 or not converted_in_bucket:
+                continue
+            await db.daily_sales.insert_one(record)
+            created += 1
+            await db.bank_transactions.update_many(
+                {"upload_id": req.upload_id, "transaction_id": {"$in": converted_in_bucket}},
+                {"$set": {
+                    "match_status": "added",
+                    "recon_status": "matched",
+                    "matched_sale_date": date,
+                    "match_method": "auto_convert_credit_to_sale",
+                    "auto_converted": True,
+                }}
+            )
+            # Audit
+            for tid in converted_in_bucket:
+                await db.expense_reconciliation_log.insert_one({
+                    "upload_id": req.upload_id,
+                    "bank_transaction_id": tid,
+                    "matched_sale_date": date,
+                    "action": "ai_auto_convert_credit_to_sale",
+                    "reconciliation_status": "added",
+                    "final_category": "sale",
+                    "action_taken_by": actor,
+                    "timestamp": now_iso,
+                })
+        except Exception as e:
+            errors.append(f"{center}/{date}: {str(e)[:120]}")
+
+    return {
+        "success": True,
+        "created": created,
+        "skipped_dupes": skipped_dupes,
+        "skipped_transfers": skipped_transfers,
+        "errors": errors[:20],
+        "message": (f"Created {created} daily_sales row(s) from AI-tagged "
+                    f"credits; skipped {skipped_dupes} duplicate day(s) and "
+                    f"{skipped_transfers} inter-account transfer(s).")
+    }
+
+
+# ── Edit narration / category before posting (E + C) ───────────────────
+# Lets MGT Admin clean up the bank-import narration / fix the AI suggestion
+# BEFORE running auto-convert. Both original_narration and edited_narration
+# are preserved for the audit trail.
+
+class EditTransactionRequest(BaseModel):
+    upload_id: str
+    transaction_id: str
+    token: str
+    narration: Optional[str] = None
+    ai_suggested_category: Optional[str] = None
+    transaction_date: Optional[str] = None
+    debit_amount: Optional[float] = None
+    credit_amount: Optional[float] = None
+    notes: Optional[str] = None
+
+
+@router.post("/edit-transaction")
+async def edit_transaction(req: EditTransactionRequest):
+    session = await _get_session(req.token)
+    if not session:
+        return {"detail": "Authentication required"}
+
+    txn = await db.bank_transactions.find_one(
+        {"upload_id": req.upload_id, "transaction_id": req.transaction_id},
+        {"_id": 0},
+    )
+    if not txn:
+        return {"detail": "Transaction not found", "success": False}
+
+    updates: dict = {}
+    changes: List[dict] = []
+
+    def _track(field, old, new):
+        if new is not None and new != old:
+            updates[field] = new
+            changes.append({"field": field, "old": old, "new": new})
+
+    _track("narration", txn.get("narration"), req.narration)
+    _track("ai_suggested_category", txn.get("ai_suggested_category"), req.ai_suggested_category)
+    _track("transaction_date", txn.get("transaction_date"), req.transaction_date)
+    _track("debit_amount", txn.get("debit_amount"), req.debit_amount)
+    _track("credit_amount", txn.get("credit_amount"), req.credit_amount)
+    _track("user_notes", txn.get("user_notes"), req.notes)
+
+    if not updates:
+        return {"success": True, "message": "No changes", "changes": []}
+
+    actor = session.get("name", session.get("mobile", ""))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    updates["edited_by"] = actor
+    updates["edited_at"] = now_iso
+    # Preserve original_narration if it wasn't set yet
+    if "narration" in updates and not txn.get("original_narration"):
+        updates["original_narration"] = txn.get("narration") or ""
+
+    await db.bank_transactions.update_one(
+        {"upload_id": req.upload_id, "transaction_id": req.transaction_id},
+        {"$set": updates},
+    )
+
+    await db.expense_reconciliation_log.insert_one({
+        "upload_id": req.upload_id,
+        "bank_transaction_id": req.transaction_id,
+        "action": "edit_transaction",
+        "changes": changes,
+        "action_taken_by": actor,
+        "timestamp": now_iso,
+    })
+
+    return {"success": True, "changes": changes, "message": f"Updated {len(changes)} field(s)"}
 

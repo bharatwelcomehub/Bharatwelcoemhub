@@ -246,6 +246,52 @@ export default function BankReconciliation() {
     finally { setAiBusy(false); }
   };
 
+  const autoConvertCreditsToSales = async () => {
+    if (!activeUpload) return;
+    if (!window.confirm('Auto-convert AI-categorized CREDITS into Daily Sales rows? Days that already have a sales record will be skipped (no overwrite).')) return;
+    setAiBusy(true);
+    try {
+      const res = await fetch(`${API}/api/bank-reconciliation/auto-convert-credits-to-sales`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          upload_id: activeUpload,
+          token: session.token,
+          transaction_ids: selectedIds.length > 0 ? selectedIds : null,
+          min_confidence: 0.7,
+        }),
+      });
+      const data = await res.json();
+      if (data.detail && !data.success) throw new Error(data.detail);
+      toast.success(data.message || `Created ${data.created} sales row(s)`);
+      setSelectedIds([]);
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+    finally { setAiBusy(false); }
+  };
+
+  const editTxnInline = async (txn, patch) => {
+    try {
+      const res = await fetch(`${API}/api/bank-reconciliation/edit-transaction`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          upload_id: activeUpload,
+          transaction_id: txn.transaction_id,
+          token: session.token,
+          ...patch,
+        }),
+      });
+      const data = await res.json();
+      if (data.detail && !data.success) throw new Error(data.detail);
+      if (data.changes && data.changes.length > 0) toast.success(`Updated ${data.changes.length} field(s)`);
+      loadSummary(activeUpload);
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const autoConvert_legacy_removed = async () => {
+    // placeholder removed
+    return;
+  };
+
   const resetTxn = async (txn, fromStatus, silent = false) => {
     if (!silent) {
       const msg = fromStatus === 'added'
@@ -450,6 +496,7 @@ export default function BankReconciliation() {
                   empty="All bank debits are reconciled!"
                   badgeColor="bg-amber-100 text-amber-700 border-amber-300"
                   selection={{ selected: selectedIds, setSelected: setSelectedIds }}
+                  onEdit={editTxnInline}
                   actions={(txn) => (
                     <div className="flex gap-1 justify-end">
                       <Button size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={() => openAdd(txn)} data-testid={`br-add-${txn.transaction_id}`}><Plus className="w-3 h-3 mr-1" /> Add</Button>
@@ -466,8 +513,27 @@ export default function BankReconciliation() {
                 <TxnTable rows={summary.partially_matched} empty="No partially-matched transactions." badgeColor="bg-yellow-100 text-yellow-800 border-yellow-300" />
               </TabsContent>
               <TabsContent value="credits" className="mt-3">
-                <p className="text-xs text-slate-500 mb-2">💰 Credits (Sales / PhonePe / Razorpay / Aggregator) that don&apos;t tie back to recorded sources. Investigate to ensure no missed sales recording.</p>
-                <TxnTable rows={summary.unmatched_credits || []} empty="All credit deposits reconciled with recorded sales / settlements." badgeColor="bg-emerald-100 text-emerald-700 border-emerald-300" />
+                <p className="text-xs text-slate-500 mb-2">💰 Credits (Sales / PhonePe / Razorpay / Aggregator) that don&apos;t tie back to recorded sources. Run AI Categorize to classify, then Convert to Sales to auto-create daily_sales rows.</p>
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 mb-3 bg-emerald-50 border border-emerald-200 rounded-lg" data-testid="br-credit-ai-toolbar">
+                  <div className="text-sm">
+                    <strong className="text-emerald-800">🤖 AI Sales Classifier</strong>
+                    <span className="text-muted-foreground ml-2 text-xs">
+                      Claude tags each credit as Cash / Online / PhonePe / Swiggy / Zomato / etc. then auto-creates daily_sales rows. Existing manual sales are NEVER overwritten.
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                      disabled={aiBusy} onClick={aiCategorize} data-testid="br-credit-ai-categorize">
+                      {aiBusy && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
+                      🤖 AI Categorize {selectedIds.length > 0 ? `(${selectedIds.length} selected)` : '(all unmatched)'}
+                    </Button>
+                    <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white"
+                      disabled={aiBusy} onClick={autoConvertCreditsToSales} data-testid="br-auto-convert-credits-to-sales">
+                      ⚡ Convert Credits to Sales
+                    </Button>
+                  </div>
+                </div>
+                <TxnTable rows={summary.unmatched_credits || []} empty="All credit deposits reconciled with recorded sales / settlements." badgeColor="bg-emerald-100 text-emerald-700 border-emerald-300" onEdit={editTxnInline} />
               </TabsContent>
               <TabsContent value="manual" className="mt-3">
                 <p className="text-xs text-slate-500 mb-2">🚨 High-value (≥ ₹50,000) transactions that didn&apos;t match. Review and either Add as Expense or Ignore.</p>
@@ -646,7 +712,9 @@ export default function BankReconciliation() {
   );
 }
 
-function TxnTable({ rows, empty, badgeColor, actions, selection }) {
+function TxnTable({ rows, empty, badgeColor, actions, selection, onEdit }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState('');
   if (!rows || rows.length === 0) return <p className="text-sm text-muted-foreground p-4">{empty}</p>;
   const showSelect = !!selection;
   const allOnPage = showSelect && rows.every(r => selection.selected.includes(r.transaction_id));
@@ -699,18 +767,49 @@ function TxnTable({ rows, empty, badgeColor, actions, selection }) {
                 )}
                 <td className="p-2 text-xs">{t.transaction_date}</td>
                 <td className="p-2 text-xs max-w-sm">
-                  <span className="cursor-pointer text-sky-700 underline-offset-2 hover:underline" title="Click to select all rows with same narration"
-                    onClick={(e) => {
-                      if (!showSelect) return;
-                      e.stopPropagation();
-                      const key = narrationKey(t.narration);
-                      const ids = rows.filter(r => narrationKey(r.narration) === key).map(r => r.transaction_id);
-                      selection.setSelected([...new Set([...selection.selected, ...ids])]);
-                    }}>
-                    {t.narration}
-                  </span>
-                  {t.auto_ignored && <Badge className="ml-2 bg-slate-200 text-slate-700 text-[10px]">AUTO</Badge>}
-                  {pgComm > 0 && <span className="block text-[10px] text-purple-700 mt-0.5">PG Comm: {fmtINR(pgComm)}</span>}
+                  {editingId === t.transaction_id ? (
+                    <span className="flex items-center gap-1">
+                      <Input
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        className="h-7 text-xs"
+                        data-testid={`br-edit-narration-input-${t.transaction_id}`}
+                      />
+                      <Button size="sm" variant="outline" className="h-7 px-2"
+                        onClick={() => { onEdit && onEdit(t, { narration: editDraft }); setEditingId(null); }}
+                        data-testid={`br-edit-save-${t.transaction_id}`}>Save</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2"
+                        onClick={() => setEditingId(null)}>Cancel</Button>
+                    </span>
+                  ) : (
+                    <span>
+                      <span className="cursor-pointer text-sky-700 underline-offset-2 hover:underline" title="Click to select all rows with same narration"
+                        onClick={(e) => {
+                          if (!showSelect) return;
+                          e.stopPropagation();
+                          const key = narrationKey(t.narration);
+                          const ids = rows.filter(r => narrationKey(r.narration) === key).map(r => r.transaction_id);
+                          selection.setSelected([...new Set([...selection.selected, ...ids])]);
+                        }}>
+                        {t.narration}
+                      </span>
+                      {onEdit && (
+                        <button
+                          className="ml-1 text-[10px] text-violet-600 hover:text-violet-900"
+                          title="Edit narration"
+                          onClick={() => { setEditingId(t.transaction_id); setEditDraft(t.narration || ''); }}
+                          data-testid={`br-edit-narration-${t.transaction_id}`}
+                        >✎ edit</button>
+                      )}
+                      {t.original_narration && t.original_narration !== t.narration && (
+                        <span className="block text-[9px] text-slate-400 italic mt-0.5" title="Original bank narration before edit">
+                          (raw: {t.original_narration})
+                        </span>
+                      )}
+                      {t.auto_ignored && <Badge className="ml-2 bg-slate-200 text-slate-700 text-[10px]">AUTO</Badge>}
+                      {pgComm > 0 && <span className="block text-[10px] text-purple-700 mt-0.5">PG Comm: {fmtINR(pgComm)}</span>}
+                    </span>
+                  )}
                 </td>
                 <td className="p-2 text-right font-semibold text-slate-700">{(t.debit_amount || 0) > 0 ? fmtINR(t.debit_amount) : '—'}</td>
                 {hasCredits && (

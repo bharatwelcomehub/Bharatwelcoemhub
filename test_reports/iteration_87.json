@@ -1,0 +1,42 @@
+{
+  "summary": "Bank Reconciliation Phase 3 — all 5 gaps (A credit auto-convert, B AI credits, C inline edit, D Sales→BankRecon link, E original_narration immutable) validated end-to-end. Backend: 10/10 pytest passed in /app/backend/tests/test_bank_recon_phase3_gaps.py including a LIVE Claude /ai-categorize call against 3 transactions returning both debit_categorized and credit_categorized counts. Frontend: all required data-testids present and inline edit / tab / toolbar buttons render correctly. Regression: Phase 2 integration suite (10/10 + 1 opt-in skipped) still 100%.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bank_recon_phase3_gaps.py",
+    "/app/backend/tests/test_bank_recon_phase2_integration.py",
+    "/app/test_reports/pytest/iteration87_phase3_gaps.xml",
+    "/app/test_reports/pytest/iteration87_phase2_regression.xml"
+  ],
+  "action_items": [
+    "(Cosmetic) Test function test_original_narration_populated_on_upload returns a list — pytest warns PytestReturnNotNoneWarning. Change `return loop.run_until_complete(check())` to just call it. Non-functional.",
+    "(Info) Sales & Cash Summary page is mounted at /sales (NOT /sales-expenses). The sales-import-from-bank-link is correctly visible only at /sales for Super Admin/Admin. The user-facing link to /bank-reconciliation works as designed.",
+    "(Carry-forward from iter86) routes/bank_reconciliation.py is now 2181 lines (was 1884) — exceeds the 700-line guideline. Split into recon_match.py / recon_ai.py / recon_credit_to_sale.py / recon_edit.py in a future cleanup."
+  ],
+  "critical_code_review_comments": [
+    "/auto-convert-credits-to-sales: correctly groups by (center, transaction_date), dedupes against existing daily_sales, skips Inter-Account Transfer, populates ai_provenance with both narration AND original_narration. total_online_sale derived from buckets (single source of truth). source='bank_reconciliation' + bank_upload_id stored for traceability. Verified end-to-end.",
+    "/ai-categorize now runs TWO Claude passes (one per side) with separate constrained category masters. Persists ai_side='debit'|'credit' for downstream filters. Response includes debit_categorized + credit_categorized counts as advertised.",
+    "/edit-transaction: tracks per-field changes with old/new tuples; preserves original_narration only if it wasn't already populated (idempotent); writes edited_by/edited_at; logs to expense_reconciliation_log with action='edit_transaction'. Returns success=False when transaction not found (verified).",
+    "Parsers (CSV at line ~426, Excel ~545, PDF ~717) all write original_narration === narration at upload time. Verified in DB across 5 different rows.",
+    "Dedupe behavior verified: pre-existing daily_sales (source='manual') on 2026-02-15 was NOT overwritten — its total_sale=5000.0 stayed intact. The PHONEPE bank txn for that day was correctly flipped to match_status='matched', match_method='auto_convert_dedupe_credit'.",
+    "Frontend wiring solid: br-tab-credits, br-credit-ai-categorize, br-auto-convert-credits-to-sales, br-edit-narration-{id}, br-edit-save-{id}, br-edit-narration-input-{id}, sales-import-from-bank-link all present and functional.",
+    "Quick link gate (session?.is_super_admin || session?.is_admin) correctly hides the bank-import shortcut from non-admin users (negative test not executed against a non-admin login due to no separate test user, but condition is straightforward and visible in code at SalesExpenses.jsx:1281)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bank_recon_phase3_gaps.py (new — 10 HTTP integration tests for Phase 3 gaps A/B/C/E)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 phase3 + 10/10 phase2 regression, including 1 live Claude call)",
+    "frontend": "100% — all 5 required data-testids visible, inline edit Save/Cancel render, credits tab + emerald toolbar render, sales-import link present at /sales for admin"
+  },
+  "test_credentials": "Super Admin 9741399190 / 123456 / PB-MGT (from /app/memory/test_credentials.md). Non-admin negative test for sales-import-from-bank-link NOT executed — relies on code-review of the SalesExpenses.jsx gate. Franchise Owner creds 8888888888/123456 PB-HSR available if main agent wants a hard negative test.",
+  "seed_data_creation": "Phase 3 test seeds a daily_sales row at TEST-MGT-CREDIT / 2026-02-15 (PhonePe 5000) to exercise the dedupe path, then uploads a 5-row CSV with credits across 4 days plus 1 debit. Auto-tagged 4 credits via direct Mongo update (deterministic; avoids live Claude) before calling /auto-convert-credits-to-sales. The opt-in Claude test (CLAUDE_BUDGET=1) uses 3 real transactions only. Teardown removes all seeded docs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "(a) Run with `cd /app && set -a && source backend/.env && source frontend/.env && set +a && pytest backend/tests/test_bank_recon_phase3_gaps.py`. Add CLAUDE_BUDGET=1 to enable the live AI test (3 txns, very cheap). (b) Tests are stateful within a module — TestUpload runs first and shares upload_id via class-attr to TestEditTransaction / TestAICategorize / TestAutoConvertCredits. (c) SalesExpenses page route is /sales (not /sales-expenses or /sales-and-expenses). (d) The PhonePe→PhonePe Sale, Razorpay→Razorpay Sale (online_other), Swiggy→Swiggy Sale field mapping is verified working end-to-end. (e) Inter-Account Transfer credits are dropped early (skipped_transfers counter); they don't create a daily_sales row.",
+  "rca_of_the_issue": "N/A — no functional defects. All 5 gap implementations match the spec."
+}
