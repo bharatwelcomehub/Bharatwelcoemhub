@@ -198,11 +198,11 @@ export default function MISDashboard() {
       ["Cash Sales", s?.total_cash_sales],
       ["Online Sales", s?.total_online_sales],
       ["Less: Commissions", s?.total_commissions || 0],
+      ["= Net Revenue (Sales − Comm)", s?.net_revenue ?? ((s?.total_sales || 0) - (s?.total_commissions || 0))],
       ["Less: GST on Eligible Sales (5% incl.)", s?.total_gst || 0],
-      ["= Total Deductions", (s?.total_commissions || 0) + (s?.total_gst || 0)],
-      ["= Net Revenue (Sales − Deductions)", (s?.total_sales || 0) - ((s?.total_commissions || 0) + (s?.total_gst || 0))],
+      ["= Revenue Share Base (Sales − Comm − GST)", s?.revenue_share_base ?? ((s?.total_sales || 0) - (s?.total_commissions || 0) - (s?.total_gst || 0))],
       ["Less: Total Expenses", s?.total_expenses],
-      ["= Net Profit (P&L)", s?.profit || 0],
+      ["= Profit / Loss (Sales − Exp − Comm)", s?.profit_loss ?? s?.profit ?? 0],
       ["Total Guests", s?.total_guests], ["Total Bills", s?.total_bills],
       ["Avg per Guest", s?.avg_per_guest], ["Avg per Bill", s?.avg_per_bill],
       ["Working Capital", workingCapital?.available_working_capital || "N/A"]]);
@@ -296,30 +296,31 @@ export default function MISDashboard() {
   const centerObj = centersList.find(c => c.code === selectedCenter);
   const isIntl = centerObj?.is_india_center === false;
 
-  // Per Apr-2026 rule (mirrors Owner/Franchise dashboard):
-  //   Total Deductions  = Commissions + GST on Sales
-  //   Net Revenue       = Total Sales − Total Deductions
-  //   Revenue Share     = revenue_share_pct × Net Revenue   (NOT × Net Profit)
-  // Default revenue_share_pct = 15% (India). The per-center mix is applied in PIB exports.
+  // ── Three canonical metrics (Feb-2026 owner directive) ─────────
+  //   Net Revenue        = Sales − Commissions          (management view)
+  //   Revenue Share Base = Sales − Commissions − GST    (80/20 split base)
+  //   Profit / Loss      = Sales − Expenses − Commissions  (operational)
+  // Revenue Share is computed on Revenue Share Base (NOT Net Revenue, NOT P&L).
   const totalCommissions = s?.total_commissions || 0;
   const totalGst = s?.total_gst || 0;
-  const totalDeductions = totalCommissions + totalGst;
   const totalSales = s?.total_sales || 0;
-  const netRevenue = totalSales - totalDeductions;
+  const netRevenue = s?.net_revenue ?? (totalSales - totalCommissions);
+  const revenueShareBase = s?.revenue_share_base ?? (totalSales - totalCommissions - totalGst);
+  const profitLoss = s?.profit_loss ?? s?.profit ?? 0;
   const defaultSharePct = selectedCenter === "all" ? 15 : (centerObj?.revenue_share_percentage ?? 15);
-  const revenueShareAmount = netRevenue * (defaultSharePct / 100);
+  const revenueShareAmount = revenueShareBase * (defaultSharePct / 100);
 
   const kpiCards = s ? [
     { label: "Total Sales", value: s.total_sales, change: overview?.changes?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50", changeBad: false },
     { label: "Total Expenses", value: s.total_expenses, change: overview?.changes?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50", changeBad: true },
     { label: "Commissions", value: null, displayValue: formatFullCurrency(totalCommissions, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
     { label: `GST on Eligible Sales (${isIntl ? "10" : "5"}% incl.)`, value: null, displayValue: formatFullCurrency(totalGst, isIntl), icon: Receipt, gradient: "from-fuchsia-600 to-fuchsia-400", textColor: "text-fuchsia-50" },
-    { label: "Total Deductions", value: null, displayValue: formatFullCurrency(totalDeductions, isIntl), icon: Receipt, gradient: "from-orange-600 to-orange-400", textColor: "text-orange-50" },
     { label: "Net Revenue", value: null, displayValue: formatFullCurrency(netRevenue, isIntl), icon: Activity, gradient: netRevenue >= 0 ? "from-cyan-700 to-cyan-500" : "from-rose-700 to-rose-500", textColor: "text-cyan-50" },
-    { label: "Net Profit (P&L)", value: null, displayValue: formatFullCurrency(s.profit || 0, isIntl), change: overview?.changes?.profit_change, icon: Activity, gradient: s.profit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
+    { label: "Rev Share Base", value: null, displayValue: formatFullCurrency(revenueShareBase, isIntl), icon: Activity, gradient: revenueShareBase >= 0 ? "from-sky-700 to-sky-500" : "from-rose-700 to-rose-500", textColor: "text-sky-50" },
+    { label: "Profit / Loss", value: null, displayValue: formatFullCurrency(profitLoss, isIntl), change: overview?.changes?.profit_change, icon: Activity, gradient: profitLoss >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
     { label: "Working Capital", value: null, displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: "from-amber-600 to-amber-400", textColor: "text-amber-50" },
     { label: "Avg / Bill", value: null, displayValue: formatFullCurrency(s.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
-    { label: `Revenue Share (${defaultSharePct}% × Net Rev)`, value: null, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
+    { label: `Revenue Share (${defaultSharePct}% × Rev Share Base)`, value: null, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
   ] : [];
 
   return (

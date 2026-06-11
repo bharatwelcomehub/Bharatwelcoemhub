@@ -119,3 +119,58 @@ def compute_net_revenue(total_sale: float, total_commissions: float,
         return round(float(total_sale) - float(total_commissions), 2)
     rate = gst_rate_for(country, None)
     return round(float(total_sale) - float(total_commissions) * (1.0 + rate), 2)
+
+
+def compute_revenue_share_base(total_sale: float, total_commissions: float,
+                               gst_on_sales: float,
+                               country: Optional[str] = None) -> float:
+    """Single source of truth for the Revenue Share Base across the app.
+
+    Per Feb-2026 owner directive (re-confirmed Feb-2026 follow-up):
+        Revenue Share Base = Total Sales − Total Commissions − GST on Sales
+
+    This is the amount the franchise owner gets a percentage of in the 80/20
+    (or any other) split. Expenses are NOT subtracted here — they only feed
+    Profit / Loss (the operational-health metric).
+
+    Distinct from `compute_net_revenue`: that helper returns the management
+    "Net Revenue" tile (Sales − Commissions, GST informational), whereas this
+    helper returns the share-eligible base (Sales − Commissions − GST).
+
+    India     : Sale − Commissions − GST
+    Outside-IN: Sale − Commissions × (1 + commGSTRate) − GST_on_sales
+                (already aligned with `compute_net_revenue` since AU subtracts
+                GST in `compute_net_revenue` too — kept symmetric for callers.)
+    """
+    is_india = (not country) or str(country).lower() == "india"
+    if is_india:
+        return round(float(total_sale) - float(total_commissions) - float(gst_on_sales), 2)
+    rate = gst_rate_for(country, None)
+    return round(
+        float(total_sale) - float(total_commissions) * (1.0 + rate) - float(gst_on_sales),
+        2,
+    )
+
+
+def compute_profit_loss(total_sale: float, total_expenses: float,
+                        total_commissions: float,
+                        country: Optional[str] = None) -> float:
+    """Single source of truth for Profit / Loss (a.k.a. Operational Balance).
+
+    Per Feb-2026 owner directive:
+        Profit / Loss = Total Sales − Total Expenses − Total Commissions
+
+    GST is DELIBERATELY excluded — it's a govt pass-through that lands as the
+    auto-created 'GST PAYMENT' expense row in Month M+1, so subtracting it
+    here would double-count the cash impact.
+
+    Used for: Operational Sustainability Check, WC restoration logic, the
+    P&L tile on the Center Accounts page, and the monthly trend in MIS.
+    """
+    is_india = (not country) or str(country).lower() == "india"
+    if is_india:
+        return round(float(total_sale) - float(total_expenses) - float(total_commissions), 2)
+    # AU/Overseas: commissions are inclusive of comm-GST per the canonical
+    # helper, so the formula is the same shape.
+    return round(float(total_sale) - float(total_expenses) - float(total_commissions), 2)
+

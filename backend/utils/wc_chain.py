@@ -96,7 +96,13 @@ async def compute_wc_chain(
         expense_adj = float(ov.get("expense_adjustment", 0) or 0)
         expenses_real = expenses_db - expense_adj  # informational
 
+        # Profit / Loss = Sales − Expenses − Commissions (NO GST)
+        # Per Feb-2026 owner directive: GST is a govt pass-through booked in
+        # M+1 as 'GST PAYMENT' expense — subtracting it here would double-count.
         pnl = sale - expenses_db - commission
+        # Companion metrics for downstream consumers:
+        net_revenue = sale - commission                  # management view
+        revenue_share_base = sale - commission - gst     # 80/20 split base
 
         topup = float(topups_by_month.get(month, 0) or 0)
         oi = float(other_income_by_month.get(month, 0) or 0)
@@ -126,7 +132,10 @@ async def compute_wc_chain(
             "commission_source": round(commission_src, 2),
             "gst": round(gst, 2),
             "pnl": round(pnl, 2),
+            "profit_loss": round(pnl, 2),                   # alias for clarity
             "operational_balance": round(pnl, 2),
+            "net_revenue": round(net_revenue, 2),           # Sales − Commissions
+            "revenue_share_base": round(revenue_share_base, 2),  # Sales − Comm − GST
             "opening_wc": round(opening_wc, 2),
             "wc_adjustment": round(wc_adj, 2),
             "topup": round(topup, 2),

@@ -182,27 +182,36 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
         {"center": center, "month": month}, {"_id": 0}
     )
     
-    # Net Revenue = Total Sales − (Commission incl. comm GST) − GST on Sales
-    # GST is removed because it's a govt pass-through. Expenses are NOT subtracted
-    # at this level — see net_pl below for actual P/L.
-    net_revenue = round(total_sales - total_commission - gst_amount, 2)
-    # Backwards-compat alias (existing consumers still read 'pnl' = Net Revenue).
-    pnl = net_revenue
-
-    # Country detection — needed to surface Profitability for Australia centers.
+    # ── Three distinct financial metrics (Feb-2026 owner directive) ─────────
+    # 1. Net Revenue          = Sales − Commissions          (management view)
+    # 2. Revenue Share Base   = Sales − Commissions − GST    (80/20 split base)
+    # 3. Profit / Loss        = Sales − Expenses − Commissions  (operational health)
+    from utils.gst import (
+        compute_net_revenue as _cnr,
+        compute_revenue_share_base as _crsb,
+        compute_profit_loss as _cpl,
+    )
+    # Country detection — needed for the helpers
     center_doc = await db.centers.find_one({"code": center}, {"_id": 0, "country": 1})
     country = (center_doc or {}).get("country") or ("Australia" if str(center).upper().endswith("-PERTH") else "India")
-    # Net P/L = Net Revenue − ADJUSTED Expenses (raw expenses with prepaid/advance
-    # carve removed). This drives Revenue Share so timing differences don't distort
-    # the franchise owner's share for the wrong month.
-    net_pl = round(net_revenue - adjusted_expenses, 2)
-    # For Australia: Profitability is the 80/20 base (Net Revenue − Expenses) — equivalent to net_pl.
-    profitability = net_pl if country == "Australia" else None
-    # Eligible Rev Share Base — explicit breakout for the dashboard:
-    #   = Sales − Commission − Commission GST − GST on Sales
-    # For India this equals net_revenue (since total_commission already includes
-    # commission GST via the sum-of-deduction-fields above).
-    eligible_rev_share_base = round(total_sales - (total_commission - commission_gst) - commission_gst - gst_amount, 2)
+
+    net_revenue = _cnr(total_sales, total_commission, gst_amount, total_expenses, country)
+    revenue_share_base = _crsb(total_sales, total_commission, gst_amount, country)
+    profit_loss = _cpl(total_sales, total_expenses, total_commission, country)
+    # Backwards-compat alias — historical consumers read 'pnl' as Net Revenue.
+    # Keep the alias but ALSO surface the new explicit fields so future
+    # consumers can switch to the correctly-named metric.
+    pnl = net_revenue
+
+    # Net P/L using ADJUSTED expenses (raw expenses with prepaid/advance carve
+    # removed) — drives Revenue Share so timing differences don't distort the
+    # franchise owner's share for the wrong month.
+    net_pl_adjusted = round(total_sales - adjusted_expenses - total_commission, 2)
+    # For Australia: Profitability is the 80/20 base (Net Revenue − Expenses)
+    profitability = round(net_revenue - adjusted_expenses, 2) if country == "Australia" else None
+    # Eligible Rev Share Base — same as revenue_share_base for India.
+    # For AU: Sales − Comm − Comm-GST − GST_on_sales (already aligned via _crsb).
+    eligible_rev_share_base = revenue_share_base
 
     return {
         "center": center, "month": month,
@@ -240,9 +249,13 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
             "commission_gst": commission_gst,
             "by_platform": commission_breakdown,
         },
-        "pnl": pnl,                                  # = net_revenue (kept for back-compat)
-        "net_revenue": net_revenue,
-        "net_pl": net_pl,                            # true P/L: net_revenue − expenses
+        # ── New canonical fields ─────────────────────────────────────────
+        "net_revenue": net_revenue,                  # Sales − Comm (management)
+        "revenue_share_base": revenue_share_base,    # Sales − Comm − GST (80/20)
+        "profit_loss": profit_loss,                  # Sales − Exp − Comm
+        # ── Legacy aliases (kept until all consumers migrate) ───────────
+        "pnl": pnl,                                  # = net_revenue (back-compat)
+        "net_pl": net_pl_adjusted,                   # adjusted-expenses variant
         "eligible_rev_share_base": eligible_rev_share_base,
         "profitability": profitability,
     }

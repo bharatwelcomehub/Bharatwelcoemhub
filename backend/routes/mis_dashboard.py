@@ -373,24 +373,28 @@ async def get_mis_overview(data: dict):
     # / Owner Reports / MG Payout. Keeping the comment block as breadcrumb.
     # ov_map was previously fetched here; commission application is now centralised.
     
-    # Net Revenue & Profit calculation (per user requirement Apr-2026):
-    #   Net Revenue = Total Sale − Commissions − GST on Sale
-    #   Profit (op) = Net Revenue − Expenses
-    # GST is INCLUSIVE in receipt totals (carved out via shared utility),
-    # and is treated as a govt pass-through, NOT center revenue.
-    # Per Feb-2026 management-reporting directive: profitability uses GROSS
-    # sales — GST is displayed separately and does NOT reduce sales.
+    # ── Three canonical financial metrics (Feb-2026 owner directive) ────────
+    # 1. Net Revenue        = Sales − Commissions          (management view)
+    # 2. Revenue Share Base = Sales − Commissions − GST    (80/20 split base)
+    # 3. Profit / Loss      = Sales − Expenses − Commissions  (operational)
+    # GST is INCLUSIVE in receipt totals (carved out via shared utility) and
+    # is a govt pass-through. The same Total Sales feeds all three metrics.
     net_revenue = total_sales - total_commissions
-    profit = net_revenue - total_expenses
+    revenue_share_base = total_sales - total_commissions - total_gst
+    profit = total_sales - total_expenses - total_commissions   # P/L (no GST)
+    # period_days defensive fallback — used for avg daily sales only.
+    try:
+        from datetime import datetime as _dt
+        period_days = max(1, (_dt.fromisoformat(end_date) - _dt.fromisoformat(start_date)).days + 1)
+    except Exception:
+        period_days = 30
     revenue_per_day = total_sales / max(1, period_days)
-    avg_daily_sales = revenue_per_day
-    
-    # Previous period (same gross-sales rule)
-    prev_net_revenue = prev_total_sales - 0  # commissions baseline 0
-    prev_profit = prev_net_revenue - prev_total_expenses
+    avg_daily_sales = revenue_per_day  # noqa: F841 (kept for downstream consumers)
+
     profit_margin = round((profit / total_sales * 100) if total_sales > 0 else 0, 2)
-    
-    # Calculate totals - Previous Period
+
+    # Calculate totals - Previous Period (computed AFTER profit_margin so
+    # prev_net_revenue / prev_profit get their proper values below at L415-416).
     prev_total_sales = sum(float(s.get("total_sale", 0) or 0) for s in prev_sales_data)
     prev_total_expenses = sum(float(e.get("amount", 0) or 0) for e in prev_expenses_data)
     # Apply prev-period adjustments too so MoM delta is comparing like-for-like
@@ -574,7 +578,9 @@ async def get_mis_overview(data: dict):
             "total_commissions": total_commissions,
             "total_deductions": round(total_commissions + total_gst, 2),
             "net_revenue": round(net_revenue, 2),
+            "revenue_share_base": round(revenue_share_base, 2),
             "profit": round(profit, 2),
+            "profit_loss": round(profit, 2),  # alias for clarity
             "profit_margin": profit_margin,
             "total_guests": total_guests,
             "total_bills": total_bills,
@@ -1978,10 +1984,12 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
     changes = overview_data.get("changes", {})
     profit = s.get("profit", 0)
     available_wc = wc_data.get("available_working_capital", 0) if wc_data else 0
-    # Net Revenue = Total Sales − Commissions − GST (per Apr-2026 rule).
-    # Revenue Share is computed on Net Revenue (NOT profit).
+    # Net Revenue (Sales − Comm) vs Revenue Share Base (Sales − Comm − GST)
+    # Per Feb-2026 owner directive — Revenue Share is computed on Revenue Share
+    # Base (NOT Net Revenue, NOT Profit).
     net_revenue_base = s.get("net_revenue", 0)
-    revenue_share_amount = net_revenue_base * (revenue_share_pct / 100) if revenue_share_pct else 0
+    revenue_share_base = s.get("revenue_share_base", net_revenue_base - s.get("total_gst", 0))
+    revenue_share_amount = revenue_share_base * (revenue_share_pct / 100) if revenue_share_pct else 0
 
     kpi_list = [
         {"label": "Total Sales", "value": fmt_short(s.get("total_sales")),
@@ -1990,13 +1998,13 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
          "change": f"{changes.get('expenses_change', 0):+.1f}% vs prev"},
         {"label": "Commissions", "value": fmt_short(s.get("total_commissions")), "change": ""},
         {"label": "GST (Eligible Sales 5% incl.)", "value": fmt_short(s.get("total_gst")), "change": "Govt pass-through"},
-        {"label": "Net Revenue", "value": fmt_short(net_revenue_base), "change": "Gross Sales − Comm"},
-        {"label": "Net Profit" if profit >= 0 else "Net Profit (Loss)", "value": fmt_short(profit),
-         "change": f"{changes.get('profit_change', 0):+.1f}% vs prev", "raw_value": profit},
+        {"label": "Net Revenue", "value": fmt_short(net_revenue_base), "change": "Sales − Comm"},
+        {"label": "Rev Share Base", "value": fmt_short(revenue_share_base), "change": "Sales − Comm − GST"},
+        {"label": "Profit / Loss" if profit >= 0 else "Profit (Loss)", "value": fmt_short(profit),
+         "change": f"{changes.get('profit_change', 0):+.1f}% vs prev · Sales − Exp − Comm", "raw_value": profit},
         {"label": "Working Capital", "value": fmt_short(available_wc), "change": ""},
-        {"label": "Avg / Bill", "value": fmt_short(s.get("avg_per_bill")), "change": ""},
         {"label": "Revenue Share", "value": fmt_short(revenue_share_amount),
-         "change": f"{revenue_share_pct}% of Net Revenue"},
+         "change": f"{revenue_share_pct}% of Rev Share Base"},
     ]
 
     card_tables = _build_kpi_cards_table(kpi_list, sym)
@@ -2029,13 +2037,13 @@ def _build_franchise_pdf(overview_data, expense_data, wc_data, center_code, fran
         [Paragraph("<b>Metric</b>", normal_style), Paragraph("<b>Value</b>", normal_style), Paragraph("<b>vs Prev / Note</b>", normal_style)],
         ["Total Sales", fmt(s.get("total_sales")), f"{changes.get('sales_change', 0):+.1f}%"],
         ["Less: Total Commissions", fmt(s.get("total_commissions")), ""],
+        ["= Net Revenue", fmt(net_revenue_base), "Sales − Commissions (management view)"],
         ["Less: GST on Eligible Sales (5% incl.)", fmt(s.get("total_gst")), "Govt pass-through"],
-        ["= Net Revenue", fmt(net_revenue_base), "Gross Sales − Commissions (GST shown separately)"],
-        ["Eligible Rev Share Base", fmt(net_revenue_base), "Gross Sales − Commissions (Feb-2026 directive)"],
+        ["= Revenue Share Base", fmt(revenue_share_base), "Sales − Comm − GST (80/20 split base)"],
         ["Less: Total Expenses", fmt(s.get("total_expenses")), f"{changes.get('expenses_change', 0):+.1f}%"],
-        ["= Net Profit", fmt(profit), f"{changes.get('profit_change', 0):+.1f}%"],
+        ["= Profit / Loss", fmt(profit), "Sales − Expenses − Commissions (GST excluded)"],
         ["Working Capital", fmt(available_wc), f"as of {wc_data.get('up_to_month', '')}"],
-        [f"Revenue Share Payable ({revenue_share_pct}% × Net Revenue)", fmt(revenue_share_amount), ""],
+        [f"Revenue Share Payable ({revenue_share_pct}% × Rev Share Base)", fmt(revenue_share_amount), ""],
         ["Avg per Bill", fmt(s.get("avg_per_bill")), ""],
     ]
 

@@ -170,6 +170,49 @@ def _prev_period(p: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Building blocks — pull data for a center within [from, to]
 # ---------------------------------------------------------------------------
+async def _commissions_for_period(center: str, df: str, dt: str) -> float:
+    """Sum of platform commissions (PhonePe/Razorpay/Swiggy/Zomato/etc.) for
+    months that overlap the period. Used by Financial Health to compute the
+    canonical Profit/Loss formula (Sales − Expenses − Commissions) per the
+    Feb-2026 owner directive."""
+    months = set()
+    try:
+        f = datetime.fromisoformat(df)
+        t = datetime.fromisoformat(dt)
+        cur_m = f.replace(day=1)
+        while cur_m <= t:
+            months.add(cur_m.strftime("%Y-%m"))
+            # advance one month
+            if cur_m.month == 12:
+                cur_m = cur_m.replace(year=cur_m.year + 1, month=1)
+            else:
+                cur_m = cur_m.replace(month=cur_m.month + 1)
+    except Exception:
+        return 0.0
+    if not months:
+        return 0.0
+    cur = db.monthly_commissions.aggregate([
+        {"$match": {"center": center, "month": {"$in": list(months)}}},
+        {"$group": {
+            "_id": None,
+            "total": {
+                "$sum": {
+                    "$ifNull": [
+                        "$total_commission_amount",
+                        {"$add": [
+                            {"$ifNull": ["$gst_tax_deductions", 0]},
+                            {"$ifNull": ["$other_deductions", 0]},
+                            {"$ifNull": ["$sundry_debtors", 0]},
+                        ]}
+                    ]
+                }
+            },
+        }},
+    ])
+    docs = await cur.to_list(1)
+    return float((docs[0]["total"] if docs else 0) or 0)
+
+
 async def _sales_and_orders(center: str, df: str, dt: str) -> Dict[str, float]:
     cur = db.daily_sales.aggregate([
         {"$match": {"center": center, "date": {"$gte": df, "$lte": dt}}},
@@ -273,9 +316,12 @@ async def _snapshot(center: str, period: dict) -> Dict[str, Any]:
     labor_cost = sum(amt for h, amt in expenses_by_head.items() if h in LABOR_COST_HEADS)
     prime_cost = food_cost + labor_cost
     gross_profit = sales["sales"] - food_cost
-    # Per Feb-2026 management-reporting directive: net profit uses GROSS sales
-    # — GST is displayed separately and does NOT reduce profitability math.
-    net_profit = sales["sales"] - total_expenses
+    # ── Profit / Loss (per Feb-2026 owner directive) ────────────────────
+    # Net Profit = Sales − Expenses − Commissions (GST excluded — pass-through).
+    # Same formula as Operational Balance on Center Accounts so dashboards
+    # stay reconciled.
+    total_commissions = await _commissions_for_period(center, df, dt)
+    net_profit = sales["sales"] - total_expenses - total_commissions
     contribution_margin = gross_profit  # by definition
 
     food_pct = _safe_pct(food_cost, sales["sales"])
@@ -295,7 +341,8 @@ async def _snapshot(center: str, period: dict) -> Dict[str, Any]:
     p_food_cost = sum(amt for h, amt in p_expenses_by_head.items() if h in FOOD_COST_HEADS)
     p_labor_cost = sum(amt for h, amt in p_expenses_by_head.items() if h in LABOR_COST_HEADS)
     p_prime_cost = p_food_cost + p_labor_cost
-    p_net_profit = p_sales["sales"] - p_total_expenses
+    p_total_commissions = await _commissions_for_period(center, prev_df, prev_dt)
+    p_net_profit = p_sales["sales"] - p_total_expenses - p_total_commissions
 
     def _delta_pct(cur: float, prev: float) -> float:
         if not prev:
@@ -492,9 +539,11 @@ async def _snapshot(center: str, period: dict) -> Dict[str, Any]:
             "labor_cost_pct": labor_pct,
             "prime_cost": round(prime_cost, 2),
             "prime_cost_pct": prime_pct,
+            "total_commissions": round(total_commissions, 2),
             "gross_profit": round(gross_profit, 2),
             "net_profit": round(net_profit, 2),
             "net_profit_pct": np_pct,
+            "profit_loss_formula": "Sales − Expenses − Commissions (GST excluded)",
             "health_score": health_score,
             "status": status,
             "status_color": status_color,

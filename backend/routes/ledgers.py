@@ -622,12 +622,15 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         st, en = _month_range(m)
         sales = await _get_daily_sales(center, st, en)
 
-        # ── Use the SAME formula as PIB / MIS Dashboard / Center Accounts ──
-        # Single source of truth = utils.gst.compute_net_revenue:
-        #   India     : Net Rev = Total Sale − Commissions − GST
-        #   Outside-IN: Net Rev = Total Sale − GST − Commissions × (1 + rate)
-        # Revenue Share = Net Revenue × rev_pct%
-        from utils.gst import compute_gst_from_rows, compute_net_revenue
+        # ── Three canonical metrics (Feb-2026 owner directive) ──────────────
+        # Net Revenue        = Sales − Commissions          (management view)
+        # Revenue Share Base = Sales − Commissions − GST    (80/20 split base)
+        # Profit / Loss      = Sales − Expenses − Commissions  (operational)
+        from utils.gst import (
+            compute_gst_from_rows,
+            compute_net_revenue,
+            compute_revenue_share_base,
+        )
         total_sales = sum((s.get("total_sale") or 0) for s in sales)
         gst_calc = compute_gst_from_rows(sales, country=country, center=center)
         gst_amount = float(gst_calc.get("gst_amount") or 0)
@@ -647,6 +650,8 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         period_total_gst_on_sales += float(gst_amount or 0)
 
         net_revenue = max(0.0, compute_net_revenue(total_sales, comm_total, gst_amount, 0, country))
+        # The 80/20 (or any %) split is on Revenue Share Base, NOT Net Revenue.
+        rev_share_base = max(0.0, compute_revenue_share_base(total_sales, comm_total, gst_amount, country))
         if _overseas:
             # Overseas: Eligible Profit = Sales − GST − Commission − CommGST − Expenses
             # (commission already includes CommGST for AU). Share Owner = 80% × Eligible Profit.
@@ -667,7 +672,7 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
             else:
                 mfpl_accrued_month = 0.0
         else:
-            rev_share = round(net_revenue * rev_pct / 100, 2)
+            rev_share = round(rev_share_base * rev_pct / 100, 2)
             mg_delta = max(0, mg - rev_share)  # HQ owes franchisee extra if rev_share < MG
             mfpl_accrued_month = 0.0
         total_rev_share += rev_share
@@ -757,11 +762,19 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
             "total_commission_base": round(period_total_commission_base, 2),
             "total_commission_gst": round(period_total_commission_gst, 2),
             "total_gst_on_sales": round(period_total_gst_on_sales, 2),
+            # Sales − Commissions − GST (the 80/20 split base per Feb-2026)
             "eligible_rev_share_base": round(
                 period_total_sales
                 - period_total_commission_base
                 - period_total_commission_gst
                 - period_total_gst_on_sales,
+                2,
+            ),
+            # Net Revenue (management view): Sales − Commissions (GST informational)
+            "net_revenue": round(
+                period_total_sales
+                - period_total_commission_base
+                - period_total_commission_gst,
                 2,
             ),
         },
@@ -1211,19 +1224,19 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
             franchise_details.append(["Closing Balance", _inr(data.get("closing_balance", 0))])
             sections.append(("Franchise Details", franchise_details))
 
-            # Eligible Rev Share Base — explicit formula breakout right before
-            # the Final Payout block, so the franchise owner can trace exactly
-            # how the payout base is calculated:
-            #   Sales − Commission − Commission GST − GST on Sales
+            # Two distinct metrics per Feb-2026 owner directive:
+            #   Net Revenue        = Sales − Commissions  (management view)
+            #   Revenue Share Base = Sales − Commissions − GST  (80/20 split)
             pt = data.get("period_totals") or {}
             if pt and pt.get("total_sales", 0) > 0:
-                sections.append(("Net Revenue Calculation", [
+                sections.append(("Net Revenue & Revenue Share Base", [
                     ["Description", "Amount"],
                     ["Total Sales", _inr(pt.get("total_sales", 0))],
                     ["Less: Commission (excl. GST)", _inr(pt.get("total_commission_base", 0))],
                     ["Less: Commission GST", _inr(pt.get("total_commission_gst", 0))],
+                    ["= Net Revenue (Sales − Commissions)", _inr(pt.get("net_revenue", 0))],
                     ["Less: GST on Eligible Sales", _inr(pt.get("total_gst_on_sales", 0))],
-                    ["Eligible Rev Share Base (Net Revenue)", _inr(pt.get("eligible_rev_share_base", 0))],
+                    ["= Revenue Share Base (Sales − Comm − GST)", _inr(pt.get("eligible_rev_share_base", 0))],
                 ]))
 
             # Final Payout block — mirrors PIB Section 8B & MIS Franchise PDF.

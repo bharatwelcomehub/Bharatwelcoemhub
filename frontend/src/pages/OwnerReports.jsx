@@ -709,27 +709,27 @@ export default function OwnerReports() {
               <div className="text-[10px] text-muted-foreground mt-1">Base: {fmtINR(report.gst.eligible_base)} · {report.gst.liability_paid ? <Badge className="bg-green-100 text-green-700 border-green-300 ml-1">Paid</Badge> : <Badge className="bg-amber-100 text-amber-700 border-amber-300 ml-1">Payable</Badge>}</div>
             </CardContent></Card>
             <Card data-testid="or-net-revenue-card"><CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">{report.country === 'Australia' ? 'Net Revenue' : 'Net Revenue'}</p>
+              <p className="text-xs text-muted-foreground">Net Revenue</p>
               <p className={`text-xl font-bold ${(report.net_revenue ?? report.pnl) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {(report.net_revenue ?? report.pnl) >= 0 ? <TrendingUp className="inline w-4 h-4 mr-1" /> : <TrendingDown className="inline w-4 h-4 mr-1" />}
                 {fmtINR(report.net_revenue ?? report.pnl)}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">Sales − Comm (incl. GST) − GST</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Sales − Commissions (management view)</p>
             </CardContent></Card>
-            <Card data-testid="or-eligible-rev-share-card"><CardContent className="p-4">
-              <p className="text-xs text-indigo-700">Eligible Rev Share Base</p>
-              <p className={`text-xl font-bold ${(report.eligible_rev_share_base ?? 0) >= 0 ? 'text-indigo-700' : 'text-red-600'}`}>
-                {fmtINR(report.eligible_rev_share_base ?? 0)}
+            <Card data-testid="or-eligible-rev-share-card" className="bg-sky-50"><CardContent className="p-4">
+              <p className="text-xs text-sky-700">Revenue Share Base</p>
+              <p className={`text-xl font-bold ${(report.revenue_share_base ?? report.eligible_rev_share_base ?? 0) >= 0 ? 'text-sky-900' : 'text-red-600'}`}>
+                {fmtINR(report.revenue_share_base ?? report.eligible_rev_share_base ?? 0)}
               </p>
-              <p className="text-[10px] text-indigo-700 mt-1">Sales − Comm − Comm GST − GST</p>
+              <p className="text-[10px] text-sky-700 mt-1">Sales − Commissions − GST (for 80/20 split)</p>
             </CardContent></Card>
-            <Card data-testid="or-net-pl-card"><CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Net P/L</p>
-              <p className={`text-xl font-bold ${(report.net_pl ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {(report.net_pl ?? 0) >= 0 ? <TrendingUp className="inline w-4 h-4 mr-1" /> : <TrendingDown className="inline w-4 h-4 mr-1" />}
-                {fmtINR(report.net_pl ?? 0)}
+            <Card data-testid="or-net-pl-card" className="bg-rose-50"><CardContent className="p-4">
+              <p className="text-xs text-rose-700">Profit / Loss</p>
+              <p className={`text-xl font-bold ${(report.profit_loss ?? report.net_pl ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {(report.profit_loss ?? report.net_pl ?? 0) >= 0 ? <TrendingUp className="inline w-4 h-4 mr-1" /> : <TrendingDown className="inline w-4 h-4 mr-1" />}
+                {fmtINR(report.profit_loss ?? report.net_pl ?? 0)}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-1">Net Revenue − Expenses</p>
+              <p className="text-[10px] text-rose-700 mt-1">Sales − Expenses − Commissions (GST excluded)</p>
             </CardContent></Card>
             {report.country === 'Australia' && (
               <Card data-testid="or-profitability-card"><CardContent className="p-4">

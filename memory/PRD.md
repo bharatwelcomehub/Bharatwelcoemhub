@@ -4,6 +4,59 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-11 sweep] Profit/Loss + Revenue Share Base propagated across ALL reports (P0 — financial consistency)
+
+**User directive**: *"now with this calculation we have to reapply at all reports and every place"*
+
+**Goal**: Every report, dashboard tile, PDF section, and ledger entry across the app must use the SAME two canonical formulas:
+1. **Revenue Share Base** = `Total Sales − Commissions − GST` *(the 80/20 split base)*
+2. **Profit / Loss** = `Total Sales − Total Expenses − Commissions` *(GST excluded — operational health)*
+
+Both metrics share the same `Total Sales` but never confuse each other.
+
+**Canonical helpers added** (`utils/gst.py`):
+- `compute_revenue_share_base(total_sale, total_commissions, gst_on_sales, country)` — Sale − Comm − GST for India
+- `compute_profit_loss(total_sale, total_expenses, total_commissions, country)` — Sale − Exp − Comm
+- These join the existing `compute_net_revenue` so the three SSOT helpers cover the three management metrics.
+
+**Files updated** (with verified end-to-end via curl smoke + 12-test pytest suite):
+
+| File | Surface | Change |
+|------|---------|--------|
+| `utils/gst.py` | SSOT helpers | Added `compute_revenue_share_base` + `compute_profit_loss` |
+| `routes/center_accounts.py` | `/summary` payload | `operational_sustainability` now exposes `profit_loss`, `profit_loss_formula`, `revenue_share_base`, `revenue_share_formula` |
+| `routes/center_accounts.py` | `get_payout_summary` (India) | Payout-split now uses `revenue_share_base = Sales − Comm − GST` |
+| `routes/owner_reports.py` | `/monthly-report` payload | Surfaces `net_revenue`, `revenue_share_base`, `profit_loss` as 3 distinct fields (legacy `pnl/net_pl` kept for back-compat) |
+| `routes/mis_dashboard.py` | `/overview` payload | `summary.net_revenue` (Sales−Comm), `summary.revenue_share_base` (Sales−Comm−GST), `summary.profit_loss` (Sales−Exp−Comm) |
+| `routes/mis_dashboard.py` | Franchise PDF export | KPI cards + Financial Summary now show **Net Revenue · Rev Share Base · Profit/Loss** as 3 distinct lines. Revenue Share Payable = pct × Rev Share Base (not Net Revenue). |
+| `routes/mis_dashboard.py` | Latent bug fix | `period_days` was previously undefined (would `NameError` at runtime). Defensive fallback added. Dead `prev_net_revenue/prev_profit` pre-allocation removed. |
+| `routes/ledgers.py` | Monthly ledger PDF | Net Revenue & Revenue Share Base shown as **two separate lines** with both formulas. Monthly payout uses `rev_share_base` (not net_revenue) for the % split. |
+| `routes/ledgers.py` | Period totals | `period_totals.net_revenue` + `period_totals.eligible_rev_share_base` both exposed. |
+| `routes/financial_health.py` | `/center` payload | `net_profit` formula switched from `Sales − Expenses` to **`Sales − Expenses − Commissions`** (now aligned with Profit/Loss across the app). New helper `_commissions_for_period` aggregates monthly commissions. `total_commissions` + `profit_loss_formula` added to headline. |
+| `utils/wc_chain.py` | WC chain row | Each month row now carries `profit_loss`, `net_revenue`, `revenue_share_base` alongside legacy `pnl`. |
+| `utils/pdf_generator.py` | PIB Section 5 | (from prior turn) Split into **A. Profit/Loss** + **B. Revenue Share Base** sub-tables with explanatory note. |
+| `frontend/pages/CenterAccounts.jsx` | KPI tiles | Net Revenue, Profit/Loss, Revenue Share Base — 3 distinct tiles with formula captions |
+| `frontend/pages/OwnerReports.jsx` | KPI tiles | Renamed "Net P/L" → "Profit / Loss", "Eligible Rev Share Base" → "Revenue Share Base", with corrected formula captions |
+| `frontend/pages/MISDashboard.jsx` | KPI grid + Excel export | New "Rev Share Base" KPI card, "Net Profit (P&L)" relabelled "Profit / Loss". Excel summary sheet now lists all 3 metrics on separate rows. Revenue Share computed on Rev Share Base. |
+
+**Worked example — PB-HSR · May 2026** (your numbers):
+| Metric | Formula | Value |
+|--------|---------|------:|
+| Net Revenue | `Sales − Commissions` | ₹11,94,738 |
+| **Revenue Share Base** | `Sales − Commissions − GST` | **₹11,42,610** |
+| **Profit / Loss** | `Sales − Expenses − Commissions` | **₹-1,69,420** |
+
+**Regression suite**: 12/12 passing (`test_profit_loss_vs_revenue_share.py` · `test_pnl_gross_sales.py` · `test_bank_recon_phase2.py` · `test_commission_overview_vs_ledger_parity.py`).
+
+**API contracts verified** end-to-end via curl on `/api/center-accounts/summary`, `/api/owner-reports/monthly-report`, `/api/mis/overview`, `/api/financial-health/center` — all four return the new fields cleanly.
+
+⚠️ **Click Deploy** to push the consistency sweep to `intra.purnabramha.com`. After deploy, the three metrics will read identically wherever they appear: Center Accounts page · MIS Dashboard · Franchise PIB PDF · Owner Reports · Ledgers PDF · Financial Health.
+
+⚠️ **Behavioral change**: India franchise owner payout is now computed on Revenue Share Base (Sales − Comm − **GST**) instead of Net Revenue (Sales − Comm). For PB-HSR May 2026 this is a ₹52,128 reduction in the share base → at 15% split that's ~₹7,800 lower owner payout. If you want me to keep the *legacy* payout base (Net Revenue, no GST deduction), say the word and I'll revert just the ledger payout split.
+
+---
+
+
 ### [2026-02-11 follow-up] Two distinct metrics: Profit/Loss vs Revenue Share Base (P0 clarification)
 
 **User directive** (verbatim):
