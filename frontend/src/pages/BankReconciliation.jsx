@@ -342,7 +342,7 @@ export default function BankReconciliation() {
                     <th className="p-2 text-right">Matched</th>
                     <th className="p-2 text-right">Partial</th>
                     <th className="p-2 text-right">Unmatched</th>
-                    <th className="p-2 text-right">Manual Review</th>
+                    <th className="p-2 text-right whitespace-nowrap">Manual Review</th>
                     <th className="p-2 text-right">Ignored</th>
                     <th className="p-2 text-right">Action</th>
                   </tr>
