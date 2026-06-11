@@ -392,17 +392,21 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                 f"{currency} {gst_on_sales:,.2f}",
             ])
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
-    # Eligible Revenue Share Base — explicit breakout requested by user.
-    # India (Feb-2026): Sales − Commissions (GST is informational, not deducted).
+    # Eligible Revenue Share Base — explicit breakout per Feb-2026 user directive.
+    # India: Sales − Commissions − GST (GST DOES reduce the share base because
+    #        franchise owner is entitled to ex-GST revenue only).
     # Australia: Sales − Commission − Commission GST − GST on Eligible Sales.
-    rev_share_formula = (
-        "Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
-        if is_australia
-        else "Eligible Rev Share Base (Sales − Commissions)"
-    )
+    if is_australia:
+        rev_share_formula = "Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
+        rev_share_value = fin['net_revenue']
+    else:
+        rev_share_formula = "Eligible Rev Share Base (Sales − Commissions − GST)"
+        # India: NET REVENUE tile above is Sales − Comm (no GST). The SHARE
+        # base subtracts GST as well.
+        rev_share_value = round(fin['net_revenue'] - gst_on_sales, 2)
     fin_data.append([
         rev_share_formula,
-        f"{currency} {fin['net_revenue']:,.2f}",
+        f"{currency} {rev_share_value:,.2f}",
     ])
     if is_australia:
         # Australia: show explicit Profitability chain after Net Revenue
@@ -542,14 +546,18 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     # --- 5. Commission Summary (continued) ---------------------------------
 
-    # --- 5. Operational Sustainability -------------------------------------
-    # GST is NOT deducted from Operational Balance (it's a govt pass-through
-    # already booked in M+1 expenses as 'GST PAYMENT'). Per Feb-2026 directive,
-    # show GST as an informational footnote only.
+    # --- 5. Operational Sustainability + Revenue Share Base ----------------
+    # TWO distinct calculations per Feb-2026 user directive:
+    #   1. PROFIT / LOSS (Operational Balance) = Sales − Expenses − Commissions
+    #      GST is NOT deducted (it's a govt pass-through booked in M+1).
+    #   2. REVENUE SHARE BASE = Sales − Commissions − GST
+    #      GST IS deducted (franchise owner's entitlement is on ex-GST revenue).
     ops = summary.get("operational_sustainability", {})
     story.append(Paragraph("5. OPERATIONAL SUSTAINABILITY CHECK", styles["PIBSection"]))
+
+    # 5a — Profit / Loss
     ops_data = [
-        ["Description", "Amount"],
+        ["A. Profit / Loss Calculation", "Amount"],
         ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
         ["Less: Total Expenses", f"({currency} {ops.get('total_expenses', 0):,.2f})"],
         ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
@@ -558,11 +566,13 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     if gst_liability > 0:
         gst_label_rate = "5%" if summary.get("country") == "India" else "10%"
         ops_data.append([
-            f"GST on Eligible Sales ({gst_label_rate}) — informational",
+            f"GST on Eligible Sales ({gst_label_rate}) — informational only",
             f"{currency} {gst_liability:,.2f}",
         ])
     ops_data.append(["", ""])
-    ops_data.append(["OPERATIONAL BALANCE", f"{currency} {ops.get('operational_balance', 0):,.2f}"])
+    pl_value = ops.get("profit_loss", ops.get("operational_balance", 0))
+    ops_data.append(["PROFIT / LOSS (OPERATIONAL BALANCE)",
+                     f"{currency} {pl_value:,.2f}"])
     ops_balance_positive = ops.get("is_positive", True)
     ops_table = Table(ops_data, colWidths=[280, 170])
     ops_table.setStyle(TableStyle([
@@ -578,6 +588,43 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.append(ops_table)
+    story.append(Spacer(1, 8))
+
+    # 5b — Revenue Share Base (separate from Profit/Loss above)
+    rev_share_base = ops.get("revenue_share_base", 0)
+    rev_share_data = [
+        ["B. Revenue Share Base (for franchise owner % split)", "Amount"],
+        ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
+        ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
+    ]
+    if gst_liability > 0:
+        rev_share_data.append([
+            f"Less: GST on Eligible Sales ({gst_label_rate} inclusive)",
+            f"({currency} {gst_liability:,.2f})",
+        ])
+    rev_share_data.append(["", ""])
+    rev_share_data.append(["REVENUE SHARE BASE", f"{currency} {rev_share_base:,.2f}"])
+    rev_share_table = Table(rev_share_data, colWidths=[280, 170])
+    rev_share_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e3f2fd")),
+        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(rev_share_table)
+    story.append(Spacer(1, 6))
+    note_style = styles.get("Italic", styles["BodyText"])
+    story.append(Paragraph(
+        "<b>Note:</b> Profit/Loss measures operational health (expenses included, GST excluded). "
+        "Revenue Share Base measures the franchise owner's entitlement (commissions &amp; GST excluded, expenses excluded). "
+        "Both are computed from the same Total Sales but serve different purposes.",
+        note_style,
+    ))
     story.append(Spacer(1, 15))
 
     # --- 6. Working Capital Status -----------------------------------------

@@ -1541,6 +1541,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         "gst_on_sales": round(gst_for_ops, 2),
         "gst_informational_only": True,  # signal to PDF/UI not to deduct
         "operational_balance": round(operational_balance, 2),
+        "profit_loss": round(operational_balance, 2),  # alias for clarity
+        "profit_loss_formula": "Total Sales − Total Expenses − Total Commissions",
+        "revenue_share_base": round(total_sale - total_commission - (gst_for_ops if country == "India" else 0), 2),
+        "revenue_share_formula": (
+            "Total Sales − Commissions − GST"
+            if country == "India"
+            else "Total Sales − Commissions − GST (AU 10% inclusive)"
+        ),
         "is_positive": operational_balance >= 0,
     }
     
@@ -2997,16 +3005,22 @@ async def get_payout_summary(data: dict = Body(...)):
         gst_on_sales = gst_calc["gst_amount"]
 
         if franchise_country == "India":
-            # Feb-2026 Gross-Sales directive: GST is informational, NOT
-            # deducted from Net Revenue for management reporting.
+            # India (Feb-2026 directive):
+            #   - "Net Revenue" tile (management view) = Sale − Commission (NO GST)
+            #   - "Revenue Share Base" (for the 80/20 split)
+            #     = Sale − Commission − GST_on_sales
+            # GST IS deducted from the Share Base because the franchise owner's
+            # entitlement is on the ex-GST revenue (GST is govt pass-through).
             net_revenue = round(total_sale - total_commission, 2)
-            net_revenue_for_share = max(0, net_revenue)
+            revenue_share_base = round(total_sale - total_commission - gst_on_sales, 2)
+            net_revenue_for_share = max(0, revenue_share_base)
         else:
             # AU: total_commission from canonical helper is ALREADY inclusive of
             # 10% commission GST. Net Revenue (no expenses subtracted) matches
             # the canonical chain across all surfaces; the 80/20 share is on
             # Profitability = Net Revenue − Expenses (computed below).
             net_revenue = round(total_sale - total_commission - gst_on_sales, 2)
+            revenue_share_base = net_revenue
             # Share-bearing base clamped at 0 (no negative payouts).
             # Uses adjusted_expenses so advance/prepaid expenses don't depress
             # the franchise owner's share for the wrong month.

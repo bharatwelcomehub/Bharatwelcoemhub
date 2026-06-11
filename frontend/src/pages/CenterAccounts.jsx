@@ -1054,13 +1054,47 @@ export default function CenterAccounts() {
                       {formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}
                     </p>
                     <p className="text-[10px] text-green-700 mt-1">
-                      {accountSummary.country === "Australia" ? "Sales − Deductions" : "Sales − GST − Commissions"}
+                      {accountSummary.country === "Australia" ? "Sales − Deductions" : "Sales − Commissions"}
                     </p>
                   </div>
                   <TrendingUp className="w-8 h-8 text-green-400" />
                 </div>
               </CardContent>
             </Card>
+
+            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability && (
+              <Card className="bg-gradient-to-br from-rose-50 to-rose-100" data-testid="kpi-profit-loss-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-rose-700">Profit / Loss</p>
+                      <p className={`text-2xl font-bold ${(accountSummary.operational_sustainability.profit_loss ?? 0) >= 0 ? 'text-emerald-800' : 'text-rose-800'}`} data-testid="kpi-profit-loss">
+                        {formatCurrency(accountSummary.operational_sustainability.profit_loss ?? accountSummary.operational_sustainability.operational_balance ?? 0, accountSummary.country)}
+                      </p>
+                      <p className="text-[10px] text-rose-700 mt-1">Sales − Expenses − Commissions (GST excluded)</p>
+                    </div>
+                    <TrendingUp className={`w-8 h-8 ${(accountSummary.operational_sustainability.profit_loss ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability?.revenue_share_base !== undefined && (
+              <Card className="bg-gradient-to-br from-sky-50 to-sky-100" data-testid="kpi-revenue-share-base-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-sky-700">Revenue Share Base</p>
+                      <p className="text-2xl font-bold text-sky-900" data-testid="kpi-revenue-share-base">
+                        {formatCurrency(accountSummary.operational_sustainability.revenue_share_base, accountSummary.country)}
+                      </p>
+                      <p className="text-[10px] text-sky-700 mt-1">Sales − Commissions − GST (for owner % split)</p>
+                    </div>
+                    <TrendingUp className="w-8 h-8 text-sky-400" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {accountSummary.country === "Australia" && (
               <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100">

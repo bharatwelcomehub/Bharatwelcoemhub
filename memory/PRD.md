@@ -4,6 +4,54 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-11 follow-up] Two distinct metrics: Profit/Loss vs Revenue Share Base (P0 clarification)
+
+**User directive** (verbatim):
+> 1) Revenue Share = `Total Sale − Commission − GST of current month`
+> 2) Profit / Loss = `Total Sale − Total Expense − Commission` *(without GST)*
+
+**Worked example — PB-HSR · May 2026**:
+| Component        | Value         |
+|------------------|--------------:|
+| Sales            | ₹12,53,972    |
+| Expenses         | ₹13,64,786    |
+| Commissions      | ₹59,234       |
+| GST on Sales     | ₹52,128       |
+| **Profit / Loss**       | **₹-1,70,048** = Sales − Expenses − Commissions |
+| **Revenue Share Base**  | **₹11,42,610** = Sales − Commissions − GST      |
+
+**Key insight**: Profit/Loss and Revenue Share Base are *distinct* metrics that should never be conflated:
+- Profit/Loss measures **operational health** (expenses included, GST excluded — GST is a govt pass-through booked in M+1)
+- Revenue Share Base is the **franchise owner's entitlement** (commissions & GST excluded, expenses excluded)
+
+**Backend changes** (`routes/center_accounts.py`):
+- `operational_sustainability` payload now exposes BOTH metrics explicitly: `profit_loss`, `profit_loss_formula`, `revenue_share_base`, `revenue_share_formula`, plus existing `operational_balance` (alias for `profit_loss`).
+- Payout-split logic at `get_payout_summary`:
+  - India: `revenue_share_base = Sales − Commissions − GST` (used for the % split)
+  - India: `net_revenue = Sales − Commissions` (used for the management Net Revenue tile)
+  - Two distinct fields — no longer collapsed.
+
+**PIB PDF** (`utils/pdf_generator.py`):
+- Section 5 "Operational Sustainability Check" now has **two sub-tables**:
+  - **A. Profit / Loss Calculation** (red/green per sign) — Sales − Expenses − Commissions, GST shown as informational only.
+  - **B. Revenue Share Base** (blue) — Sales − Commissions − GST, used for the franchise owner % split.
+- Both sub-tables share the same Total Sales but the deductions differ, with an explanatory note underneath.
+- Financial Summary "Eligible Rev Share Base" line for India now correctly shows `Sales − Commissions − GST` value (not `Sales − Commissions`).
+
+**Frontend** (`pages/CenterAccounts.jsx`):
+- Net Revenue tile label corrected for India: now reads **"Sales − Commissions"** (was wrongly "Sales − GST − Commissions").
+- NEW **Profit / Loss** KPI tile (rose/emerald based on sign) with formula "Sales − Expenses − Commissions (GST excluded)". `data-testid="kpi-profit-loss"`.
+- NEW **Revenue Share Base** KPI tile (sky blue) with formula "Sales − Commissions − GST (for owner % split)". `data-testid="kpi-revenue-share-base"`.
+
+**Tests**: `tests/test_profit_loss_vs_revenue_share.py` locks in both formulas + guards against future collisions. 4/4 passing (3 new + existing P&L Gross-Sales).
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy:
+- Center Accounts page → expect **3 distinct tiles** (Net Revenue / Profit-Loss / Rev Share Base) with the correct numbers above.
+- PIB PDF section 5 → two sub-tables (A & B) clearly labelled.
+
+---
+
+
 ### [2026-02-11 hotfix] Operational Balance was still deducting GST in PIB PDF & API (P0 bug)
 
 **Symptom** (user-reported, PB-HSR · 2026-05):
