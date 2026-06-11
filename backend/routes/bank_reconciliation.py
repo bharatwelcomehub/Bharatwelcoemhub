@@ -320,13 +320,31 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
             
             # Extract tables from all pages
             for page_num, page in enumerate(pdf.pages):
-                # Try with custom settings first
-                tables = page.extract_tables(table_settings=table_settings)
-                
-                # If no tables found, try default settings
-                if not tables:
-                    tables = page.extract_tables()
-                
+                # Try DEFAULT extraction first — works for banks with visible
+                # grid lines (IDFC, HDFC, ICICI, SBI, etc.).
+                tables = page.extract_tables()
+
+                # If default returned nothing OR the table has no valid header,
+                # fall back to text-strategy (works for ANZ and other gridless
+                # PDFs). We detect "no valid header" by checking if any row
+                # contains both a date-like header and an amount-like header.
+                def _has_valid_header(tbls):
+                    if not tbls:
+                        return False
+                    for tbl in tbls:
+                        for row in tbl[:3]:
+                            if not row:
+                                continue
+                            row_lower = [re.sub(r"\s+", " ", str(c or "").lower()).strip() for c in row]
+                            has_date = any(c in column_mapping and column_mapping[c] == "date" for c in row_lower)
+                            has_amt = any(c in column_mapping and column_mapping[c] in ("debit", "credit", "narration") for c in row_lower)
+                            if has_date and has_amt:
+                                return True
+                    return False
+
+                if not _has_valid_header(tables):
+                    tables = page.extract_tables(table_settings=table_settings)
+
                 logger.debug(f"Page {page_num + 1}: Found {len(tables) if tables else 0} tables")
                 
                 for table in tables:
@@ -342,14 +360,18 @@ async def parse_pdf_bank_statement(file_content: bytes, filename: str):
                         
                         # Check if this is a header row
                         if not header_found:
-                            row_lower = [c.lower() for c in cleaned_row]
-                            
-                            # Look for header keywords
+                            # Normalize whitespace — IDFC PDFs wrap headers across
+                            # lines so "Transaction\nDate" must match "transaction date".
+                            row_lower = [re.sub(r"\s+", " ", c.lower()).strip() for c in cleaned_row]
+
+                            # Look for header keywords. First-match-wins so the
+                            # primary column ("Transaction Date" at index 0)
+                            # wins over secondary ones ("Value Date" at index 1).
                             for i, cell in enumerate(row_lower):
                                 normalized = column_mapping.get(cell)
-                                if normalized:
+                                if normalized and normalized not in col_indices:
                                     col_indices[normalized] = i
-                            
+
                             # If we found at least date and (debit or description), this is the header
                             if 'date' in col_indices and ('debit' in col_indices or 'narration' in col_indices):
                                 header_found = True

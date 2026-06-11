@@ -143,16 +143,24 @@ class TestANZPDFParsing:
             f"Expected ~$33,182.40"
         )
         
-        # Check matched and unrecorded counts
+        # Check matched and unrecorded counts (Phase 2: now 6 buckets — total includes
+        # matched + partially_matched + unrecorded + unmatched_credits + auto_ignored + manual_review)
         matched_count = summary.get("matched_count", 0)
+        partial_count = summary.get("partially_matched_count", 0)
         unrecorded_count = summary.get("unrecorded_count", 0)
-        
-        print(f"Matched: {matched_count}, Unrecorded: {unrecorded_count}")
-        
-        # Total should equal total_bank_transactions
-        assert matched_count + unrecorded_count == total_bank_transactions, (
-            f"Matched ({matched_count}) + Unrecorded ({unrecorded_count}) != "
-            f"Total ({total_bank_transactions})"
+        credits_unmatched = summary.get("unmatched_credit_count", 0)
+        auto_ignored = summary.get("auto_ignored_count", 0)
+        manual_review = summary.get("manual_review_count", 0)
+        bucket_total = matched_count + partial_count + unrecorded_count + credits_unmatched + auto_ignored + manual_review
+
+        print(f"Matched: {matched_count}, Partial: {partial_count}, Unrecorded: {unrecorded_count}, "
+              f"Credits: {credits_unmatched}, AutoIgnored: {auto_ignored}, ManualReview: {manual_review}")
+
+        # All 6 buckets should sum to total_bank_transactions
+        assert bucket_total == total_bank_transactions, (
+            f"Bucket sum ({bucket_total}) != Total ({total_bank_transactions}). "
+            f"matched={matched_count} partial={partial_count} unrec={unrecorded_count} "
+            f"credits={credits_unmatched} auto_ignored={auto_ignored} mr={manual_review}"
         )
         
         # Verify upload_id was returned
