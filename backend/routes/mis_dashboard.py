@@ -305,6 +305,26 @@ async def get_mis_overview(data: dict):
     except Exception as hx:
         logger.warning(f"MIS: historical merge failed: {hx}")
         hist_by_center = {}
+
+    # Apply expense adjustments — keeps MIS Dashboard expense totals in sync
+    # with Center Accounts → Adjustments / P&L / Franchise Ledger.
+    try:
+        adj_q = {
+            "$or": [
+                {"expense_date": {"$gte": start_date, "$lte": end_date}},
+                {"expense_date": {"$exists": False},
+                 "month": {"$gte": start_date[:7], "$lte": end_date[:7]}},
+            ],
+        }
+        if center and center != "all":
+            adj_q["center"] = center
+        adj_rows = await db.expense_adjustments.find(adj_q, {"_id": 0}).to_list(5000)
+        total_adjustments = round(sum(float(r.get("adjustment_amount", 0) or 0)
+                                      for r in adj_rows), 2)
+    except Exception as ax:
+        logger.warning(f"MIS: adjustments merge failed: {ax}")
+        total_adjustments = 0.0
+    total_expenses = round(total_expenses - total_adjustments, 2)
     
     # Commission calculation — uses canonical helper from utils/commissions.py
     # so every surface (MIS, Center Accounts, Owner Reports, MG Payout) shows
@@ -365,6 +385,22 @@ async def get_mis_overview(data: dict):
     # Calculate totals - Previous Period
     prev_total_sales = sum(float(s.get("total_sale", 0) or 0) for s in prev_sales_data)
     prev_total_expenses = sum(float(e.get("amount", 0) or 0) for e in prev_expenses_data)
+    # Apply prev-period adjustments too so MoM delta is comparing like-for-like
+    try:
+        prev_adj_q = {
+            "$or": [
+                {"expense_date": {"$gte": prev_start, "$lte": prev_end}},
+                {"expense_date": {"$exists": False},
+                 "month": {"$gte": prev_start[:7], "$lte": prev_end[:7]}},
+            ],
+        }
+        if center and center != "all":
+            prev_adj_q["center"] = center
+        prev_adj_rows = await db.expense_adjustments.find(prev_adj_q, {"_id": 0}).to_list(5000)
+        prev_total_expenses -= round(sum(float(r.get("adjustment_amount", 0) or 0)
+                                          for r in prev_adj_rows), 2)
+    except Exception:
+        pass
     prev_gst_calc = compute_gst_from_rows(prev_sales_data, country=None, center=(center if center and center != "all" else None))
     prev_gst = prev_gst_calc["gst_amount"]
     prev_net_revenue = prev_total_sales - prev_gst  # commissions assumed 0 for prev (matches existing baseline)

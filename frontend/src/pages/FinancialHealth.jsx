@@ -150,7 +150,17 @@ function HealthScoreHero({ s }) {
           <div><div className="text-[11px] text-stone-500">Net Profit</div><div className={`font-bold ${c.text}`}>{fmtMoney(s.net_profit)}</div></div>
           <div><div className="text-[11px] text-stone-500">Net Profit %</div><div className={`font-bold ${c.text}`}>{fmtPct(s.net_profit_pct)}</div></div>
           <div><div className="text-[11px] text-stone-500">Sales</div><div className="font-bold">{fmtMoney(s.total_sales)}</div></div>
-          <div><div className="text-[11px] text-stone-500">Expenses</div><div className="font-bold">{fmtMoney(s.total_expenses)}</div></div>
+          <div>
+            <div className="text-[11px] text-stone-500">
+              {s.adjustments > 0 ? 'Adj. Expenses' : 'Expenses'}
+            </div>
+            <div className="font-bold">{fmtMoney(s.total_expenses)}</div>
+            {s.adjustments > 0 && (
+              <div className="text-[9px] text-amber-700">
+                less ₹{Math.round(s.adjustments).toLocaleString('en-IN')} adj
+              </div>
+            )}
+          </div>
           <div><div className="text-[11px] text-stone-500">Prime Cost</div><div className="font-bold">{fmtPct(s.prime_cost_pct)}</div></div>
           <div><div className="text-[11px] text-stone-500">Sales MoM</div><div className="font-bold">
             <DeltaBadge value={s.sales_delta_pct} />
@@ -508,7 +518,12 @@ export default function FinancialHealth({ center: propCenter, portfolio = false 
             <StatCard testid="fh-stat-sales" label="Total Sales" value={fmtMoney(data.summary.total_sales)}
               sub={`${data.period.label} · ${data.period.from} → ${data.period.to}`}
               color="green" Icon={IndianRupee} />
-            <StatCard testid="fh-stat-expenses" label="Total Expenses" value={fmtMoney(data.summary.total_expenses)}
+            <StatCard testid="fh-stat-expenses"
+              label={data.summary.adjustments > 0 ? "Adjusted Expenses" : "Total Expenses"}
+              value={fmtMoney(data.summary.total_expenses)}
+              sub={data.summary.adjustments > 0
+                ? `Raw ${fmtMoney(data.summary.total_expenses_raw)} − Adj ${fmtMoney(data.summary.adjustments)}`
+                : null}
               color="yellow" Icon={Activity} />
             <StatCard testid="fh-stat-np" label="Net Profit"
               value={`${fmtMoney(data.summary.net_profit)} (${fmtPct(data.summary.net_profit_pct)})`}

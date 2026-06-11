@@ -206,6 +206,15 @@ async def _expenses_by_head(center: str, df: str, dt: str) -> Dict[str, float]:
     return out
 
 
+async def _adjustments_for_period(center: str, df: str, dt: str) -> float:
+    """Sum of expense adjustments that should be subtracted from total
+    expenses for this date range — keeps Financial Health in sync with the
+    Adjustments tab / P&L / Franchise Ledger."""
+    from utils.adjustments import get_adjustments_for_period
+    res = await get_adjustments_for_period(db, center, df, dt)
+    return float(res.get("total") or 0)
+
+
 async def _labor_hours(center: str, df: str, dt: str) -> Tuple[float, int]:
     """Total labour hours (Section 4 + 6) + distinct employee headcount."""
     cur = db.attendance.find(
@@ -256,8 +265,10 @@ async def _snapshot(center: str, period: dict) -> Dict[str, Any]:
     sales = await _sales_and_orders(center, df, dt)
     expenses_by_head = await _expenses_by_head(center, df, dt)
     hours, emp_count = await _labor_hours(center, df, dt)
+    adj_total = await _adjustments_for_period(center, df, dt)
 
-    total_expenses = sum(expenses_by_head.values())
+    total_expenses_raw = sum(expenses_by_head.values())
+    total_expenses = round(total_expenses_raw - adj_total, 2)
     food_cost = sum(amt for h, amt in expenses_by_head.items() if h in FOOD_COST_HEADS)
     labor_cost = sum(amt for h, amt in expenses_by_head.items() if h in LABOR_COST_HEADS)
     prime_cost = food_cost + labor_cost
@@ -275,8 +286,10 @@ async def _snapshot(center: str, period: dict) -> Dict[str, Any]:
     p_sales = await _sales_and_orders(center, prev_df, prev_dt)
     p_expenses_by_head = await _expenses_by_head(center, prev_df, prev_dt)
     p_hours, _p_emp = await _labor_hours(center, prev_df, prev_dt)
+    p_adj_total = await _adjustments_for_period(center, prev_df, prev_dt)
 
-    p_total_expenses = sum(p_expenses_by_head.values())
+    p_total_expenses_raw = sum(p_expenses_by_head.values())
+    p_total_expenses = round(p_total_expenses_raw - p_adj_total, 2)
     p_food_cost = sum(amt for h, amt in p_expenses_by_head.items() if h in FOOD_COST_HEADS)
     p_labor_cost = sum(amt for h, amt in p_expenses_by_head.items() if h in LABOR_COST_HEADS)
     p_prime_cost = p_food_cost + p_labor_cost
@@ -469,6 +482,8 @@ async def _snapshot(center: str, period: dict) -> Dict[str, Any]:
         "summary": {
             "total_sales": round(sales["sales"], 2),
             "total_expenses": round(total_expenses, 2),
+            "total_expenses_raw": round(total_expenses_raw, 2),
+            "adjustments": round(adj_total, 2),
             "food_cost": round(food_cost, 2),
             "labor_cost": round(labor_cost, 2),
             "food_cost_pct": food_pct,

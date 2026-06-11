@@ -539,6 +539,7 @@ async def build_gst_summary(center: str, start: str, end: str, months: List[str]
 
 async def build_monthly_pnl(center: str, months: List[str]) -> Dict[str, Any]:
     from utils.gst import compute_gst_from_rows
+    from utils.adjustments import get_total_adjustments
     from_months = sorted(months)
     rows = []
     for m in from_months:
@@ -550,19 +551,29 @@ async def build_monthly_pnl(center: str, months: List[str]) -> Dict[str, Any]:
         gst = compute_gst_from_rows(sales, country=None, center=center)["gst_amount"]
         sales_ex_gst = total_sale - gst
         total_exp = sum((e.get("amount") or 0) for e in expenses)
+        # Apply expense adjustments (prepaid / advance) — same logic that the
+        # Adjustments tab uses, so this P&L stays in sync with the on-screen
+        # Adjusted Expenses figure.
+        _adj = await get_total_adjustments(db, center, m)
+        adjustments = float(_adj.get("total") or 0)
+        adjusted_exp = round(total_exp - adjustments, 2)
         comms = await _get_commissions(center, [m])
         comm_total = sum((float(c.get("gst_tax_deductions") or 0) + float(c.get("other_deductions") or 0)) or float(c.get("commission_amount") or 0) for c in comms)
-        pbt = sales_ex_gst - total_exp - comm_total
+        pbt = sales_ex_gst - adjusted_exp - comm_total
         rows.append({
             "month": m,
             "sales_gross": total_sale,
             "gst": gst,
             "sales_ex_gst": sales_ex_gst,
-            "expenses": total_exp,
+            "expenses": adjusted_exp,           # ← use adjusted as the primary figure
+            "expenses_raw": total_exp,          # keep raw for auditing
+            "adjustments": adjustments,
             "commissions": comm_total,
             "pbt": pbt,
         })
-    totals = {k: sum(r[k] for r in rows) for k in ("sales_gross", "gst", "sales_ex_gst", "expenses", "commissions", "pbt")}
+    totals = {k: sum(r[k] for r in rows) for k in
+              ("sales_gross", "gst", "sales_ex_gst", "expenses",
+               "expenses_raw", "adjustments", "commissions", "pbt")}
     return {"rows": rows, "totals": totals}
 
 async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[str, Any]:
@@ -636,7 +647,12 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
             # Overseas: Eligible Profit = Sales − GST − Commission − CommGST − Expenses
             # (commission already includes CommGST for AU). Share Owner = 80% × Eligible Profit.
             exp_rows = await _get_expenses(center, st, en)
-            month_expenses = sum(float(e.get("amount") or 0) for e in exp_rows)
+            month_expenses_raw = sum(float(e.get("amount") or 0) for e in exp_rows)
+            # Adjustments carve out prepaid / future-period expenses (keeps in
+            # sync with the Adjustments tab + Profitability card).
+            from utils.adjustments import get_total_adjustments as _gta
+            _adj = await _gta(db, center, m)
+            month_expenses = round(month_expenses_raw - float(_adj.get("total") or 0), 2)
             eligible_profit_local = max(0.0, total_sales - gst_amount - comm_total - month_expenses)
             rev_share = round(eligible_profit_local * 80.0 / 100.0, 2)
             mg_delta = 0.0
@@ -1027,21 +1043,38 @@ def _gst_to_excel(data: Dict[str, Any]) -> List[List[Any]]:
             ["Net GST Liability (Output − ITC)", data["net_liability"]]]
 
 def _pnl_to_table(data: Dict[str, Any]) -> List[List[str]]:
-    hdr = ["Month", "Sales (Gross)", "GST", "Sales (Ex-GST)", "Expenses", "Commissions", "PBT"]
+    hdr = ["Month", "Sales (Gross)", "GST", "Sales (Ex-GST)",
+           "Expenses (Raw)", "Adjustments", "Adj. Expenses", "Commissions", "PBT"]
     rows = [hdr]
     for r in data["rows"]:
-        rows.append([r["month"], _inr(r["sales_gross"]), _inr(r["gst"]), _inr(r["sales_ex_gst"]),
-                     _inr(r["expenses"]), _inr(r["commissions"]), _inr(r["pbt"])])
+        rows.append([r["month"], _inr(r["sales_gross"]), _inr(r["gst"]),
+                     _inr(r["sales_ex_gst"]),
+                     _inr(r.get("expenses_raw", r["expenses"])),
+                     _inr(r.get("adjustments", 0)),
+                     _inr(r["expenses"]),
+                     _inr(r["commissions"]), _inr(r["pbt"])])
     t = data["totals"]
-    rows.append(["TOTAL", _inr(t["sales_gross"]), _inr(t["gst"]), _inr(t["sales_ex_gst"]), _inr(t["expenses"]), _inr(t["commissions"]), _inr(t["pbt"])])
+    rows.append(["TOTAL", _inr(t["sales_gross"]), _inr(t["gst"]),
+                 _inr(t["sales_ex_gst"]),
+                 _inr(t.get("expenses_raw", t["expenses"])),
+                 _inr(t.get("adjustments", 0)),
+                 _inr(t["expenses"]),
+                 _inr(t["commissions"]), _inr(t["pbt"])])
     return rows
 
 def _pnl_to_excel(data: Dict[str, Any]) -> List[List[Any]]:
-    rows = [["Month", "Sales (Gross)", "GST", "Sales (Ex-GST)", "Expenses", "Commissions", "PBT"]]
+    rows = [["Month", "Sales (Gross)", "GST", "Sales (Ex-GST)",
+             "Expenses (Raw)", "Adjustments", "Adj. Expenses", "Commissions", "PBT"]]
     for r in data["rows"]:
-        rows.append([r["month"], r["sales_gross"], r["gst"], r["sales_ex_gst"], r["expenses"], r["commissions"], r["pbt"]])
+        rows.append([r["month"], r["sales_gross"], r["gst"], r["sales_ex_gst"],
+                     r.get("expenses_raw", r["expenses"]),
+                     r.get("adjustments", 0),
+                     r["expenses"], r["commissions"], r["pbt"]])
     t = data["totals"]
-    rows.append(["TOTAL", t["sales_gross"], t["gst"], t["sales_ex_gst"], t["expenses"], t["commissions"], t["pbt"]])
+    rows.append(["TOTAL", t["sales_gross"], t["gst"], t["sales_ex_gst"],
+                 t.get("expenses_raw", t["expenses"]),
+                 t.get("adjustments", 0),
+                 t["expenses"], t["commissions"], t["pbt"]])
     return rows
 
 def _owner_ledger_to_table(data: Dict[str, Any]) -> List[List[str]]:

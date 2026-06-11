@@ -4,6 +4,43 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-10] Expense Adjustments propagation to ALL reports (P0 — financial)
+
+**User report**: *"Expense adjustments are happening correctly and showing in the Adjustments report — but we need this calculation to flow into P&L, Ledger, Franchise reports and everywhere else expenses are shown."*
+
+**Root cause**: The Adjustments tab and Owner-Reports correctly subtracted prepaid/advance adjustments, but the rest of the reporting surface (`build_monthly_pnl`, MIS Dashboard overview, Financial Health module, overseas Franchise Owner Ledger) summed raw `expenses.amount` and ignored `expense_adjustments` — so the P&L PDF showed ₹13,64,158 even though the Adjustments tab had carved out ₹46,756.
+
+**Fix**: One shared helper, applied in every monthly/period-aware report.
+
+1. **`utils/adjustments.py`** — added `get_adjustments_for_period(db, center, df, dt)` that supports arbitrary date ranges (not just months). Existing `get_total_adjustments` (per-month) preserved.
+
+2. **`routes/ledgers.py`** — `build_monthly_pnl` now subtracts `get_total_adjustments` per month. Output rows expose both `expenses_raw` and the adjusted `expenses` plus the `adjustments` figure. PDF & Excel renderers updated with **Expenses (Raw) · Adjustments · Adj. Expenses** columns so auditors can trace every rupee.
+
+3. **`routes/ledgers.py`** — overseas (AU) Franchise Owner Ledger eligible-profit math now uses adjusted expenses too.
+
+4. **`routes/financial_health.py`** — `_snapshot` subtracts period-aware adjustments. Summary payload exposes `total_expenses` (adjusted), `total_expenses_raw`, and `adjustments`.
+
+5. **`routes/mis_dashboard.py`** — Sales / MIS Overview now subtracts adjustments for the chosen period AND the previous period (so MoM delta stays apples-to-apples).
+
+6. **`frontend/src/pages/FinancialHealth.jsx`** — when adjustments > 0 the "Expenses" card relabels to **"Adj. Expenses"** with a `Raw − Adj` sub-line so managers see exactly why the number differs from the raw expense tab.
+
+**Already adjusted** (no change needed):
+- `owner_reports.py` (already subtracted via `get_total_adjustments`)
+- `financial_insights.py` (already aggregated `expense_adjustments` per-month)
+- Per-center Status Card + WC Table (already used `compute_wc_chain` which respects month overrides)
+
+**Verified end-to-end** via regression test (`tests/test_adjustments_propagation.py`):
+- Insert ₹50,000 adjustment for PB-HSR / 2026-02
+- `build_monthly_pnl` → PBT shifts by exactly +₹50,000 ✓
+- `financial_health._snapshot` → net_profit shifts by exactly +₹50,000 ✓
+- `total_expenses_raw` stays constant, `adjustments` = ₹50,000, `total_expenses` = raw − 50,000 ✓
+- All 6 existing tests + 1 new propagation test pass
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. The P&L PDF in your screenshot will then show ₹13,17,401.74 (adjusted) instead of ₹13,64,158 (raw).
+
+---
+
+
 ### [2026-02-10] Financial Health & Profitability Intelligence Module (P1 — major)
 
 **User ask**: Build a complete executive-grade financial health module with 11 sections, auto-derived from existing data (sales, expenses, attendance, salary), visible in both Center Accounts and Franchise Owner Dashboard.

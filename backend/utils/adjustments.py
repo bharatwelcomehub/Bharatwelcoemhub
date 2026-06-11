@@ -19,3 +19,27 @@ async def get_total_adjustments(db, center: str, month: str) -> Dict:
     ).to_list(500)
     total = round(sum(float(r.get("adjustment_amount", 0) or 0) for r in rows), 2)
     return {"total": total, "rows": rows}
+
+
+async def get_adjustments_for_period(db, center: str, df: str, dt: str) -> Dict:
+    """Sum adjustments over a date range — used by Financial Health,
+    quarter/FY/custom P&L views, franchise ledgers etc.
+
+    Adjustments are bucketed by `month` (YYYY-MM) but each row carries
+    `expense_date`. We match by expense_date for date-range queries, with
+    fallback to `month` when expense_date is missing.
+    """
+    if not center or not df or not dt:
+        return {"total": 0.0, "rows": []}
+    q = {
+        "center": center,
+        "$or": [
+            {"expense_date": {"$gte": df, "$lte": dt}},
+            # legacy rows that only have a month field
+            {"expense_date": {"$exists": False},
+             "month": {"$gte": df[:7], "$lte": dt[:7]}},
+        ],
+    }
+    rows: List[Dict] = await db.expense_adjustments.find(q, {"_id": 0}).to_list(2000)
+    total = round(sum(float(r.get("adjustment_amount", 0) or 0) for r in rows), 2)
+    return {"total": total, "rows": rows}
