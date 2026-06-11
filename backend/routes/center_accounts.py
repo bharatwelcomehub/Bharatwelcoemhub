@@ -1523,22 +1523,23 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         _loans_taken_memo = {"total": 0, "count": 0, "rows": [], "outstanding": 0, "repaid": 0}
     
     # ==========================================
-    # OPERATIONAL SUSTAINABILITY CHECK (NEW)
+    # OPERATIONAL SUSTAINABILITY CHECK
     # ==========================================
-    # Operational Balance = Total Sales - Total Expenses - Commissions
+    # Operational Balance = Total Sales − Total Expenses − Commissions.
     # GST for Month M is booked as a liability and paid in Month M+1 via the
     # auto-created 'GST PAYMENT' expense row — so it naturally flows through
-    # M+1 expenses. Subtracting it here would double-count the cash impact.
-    gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount  # kept for display only
-    # Operational balance: Sales − Expenses − Commissions − GST on Sales
-    # (GST is a govt pass-through, not center revenue)
-    operational_balance = total_sale - total_expenses - total_commission - sales_gst_amount
-    
+    # M+1 expenses. Subtracting it again here would DOUBLE-COUNT the cash
+    # impact. Per the Feb-2026 Gross-Sales directive, GST is informational
+    # only in management reports.
+    gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount  # informational only
+    operational_balance = total_sale - total_expenses - total_commission
+
     operational_sustainability = {
         "total_sales": round(total_sale, 2),
         "total_expenses": round(total_expenses, 2),
         "total_commissions": round(total_commission, 2),
         "gst_on_sales": round(gst_for_ops, 2),
+        "gst_informational_only": True,  # signal to PDF/UI not to deduct
         "operational_balance": round(operational_balance, 2),
         "is_positive": operational_balance >= 0,
     }
@@ -2996,7 +2997,9 @@ async def get_payout_summary(data: dict = Body(...)):
         gst_on_sales = gst_calc["gst_amount"]
 
         if franchise_country == "India":
-            net_revenue = round(total_sale - total_commission - gst_on_sales, 2)
+            # Feb-2026 Gross-Sales directive: GST is informational, NOT
+            # deducted from Net Revenue for management reporting.
+            net_revenue = round(total_sale - total_commission, 2)
             net_revenue_for_share = max(0, net_revenue)
         else:
             # AU: total_commission from canonical helper is ALREADY inclusive of

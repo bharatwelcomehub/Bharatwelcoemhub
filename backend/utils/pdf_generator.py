@@ -374,22 +374,34 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             "Less: Commission GST (10%)",
             f"({currency} {fin['commission_gst']:,.2f})",
         ])
-    # GST on Sales — INCLUSIVE carve-out (5% India, 10% Australia/Perth) on
-    # eligible non-aggregator sales. Subtracted from Net Revenue per Apr-2026 rule.
+    # GST on Sales — Per Feb-2026 directive, GST is INFORMATIONAL only in
+    # management reports and does NOT reduce Net Revenue for India. For
+    # Australia/Perth it remains an inclusive carve-out from Net Revenue.
     if gst_on_sales > 0:
         gst_rate_label = "5%" if summary.get("country") == "India" else "10%"
-        fin_data.append([
-            f"Less: GST on Eligible Sales ({gst_rate_label} inclusive)",
-            f"({currency} {gst_on_sales:,.2f})",
-        ])
+        if is_australia:
+            fin_data.append([
+                f"Less: GST on Eligible Sales ({gst_rate_label} inclusive)",
+                f"({currency} {gst_on_sales:,.2f})",
+            ])
+        else:
+            # India: informational footnote — keeps the math consistent with
+            # the Net Revenue UI tile (Total Sales − Commissions, no GST).
+            fin_data.append([
+                f"GST on Eligible Sales ({gst_rate_label}) — informational",
+                f"{currency} {gst_on_sales:,.2f}",
+            ])
     fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
     # Eligible Revenue Share Base — explicit breakout requested by user.
-    # = Sales − Commission − Commission GST − GST on Eligible Sales.
-    # For India this equals NET REVENUE (the canonical Net Revenue chain already
-    # subtracts inclusive commissions via the deduction-fields sum). We surface
-    # it as a separate line so the franchise owner sees the formula spelled out.
+    # India (Feb-2026): Sales − Commissions (GST is informational, not deducted).
+    # Australia: Sales − Commission − Commission GST − GST on Eligible Sales.
+    rev_share_formula = (
+        "Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
+        if is_australia
+        else "Eligible Rev Share Base (Sales − Commissions)"
+    )
     fin_data.append([
-        "Eligible Rev Share Base (Sales − Comm − Comm GST − GST)",
+        rev_share_formula,
         f"{currency} {fin['net_revenue']:,.2f}",
     ])
     if is_australia:
@@ -531,6 +543,9 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     # --- 5. Commission Summary (continued) ---------------------------------
 
     # --- 5. Operational Sustainability -------------------------------------
+    # GST is NOT deducted from Operational Balance (it's a govt pass-through
+    # already booked in M+1 expenses as 'GST PAYMENT'). Per Feb-2026 directive,
+    # show GST as an informational footnote only.
     ops = summary.get("operational_sustainability", {})
     story.append(Paragraph("5. OPERATIONAL SUSTAINABILITY CHECK", styles["PIBSection"]))
     ops_data = [
@@ -543,8 +558,8 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     if gst_liability > 0:
         gst_label_rate = "5%" if summary.get("country") == "India" else "10%"
         ops_data.append([
-            f"Less: GST on Eligible Sales ({gst_label_rate} inclusive)",
-            f"({currency} {gst_liability:,.2f})",
+            f"GST on Eligible Sales ({gst_label_rate}) — informational",
+            f"{currency} {gst_liability:,.2f}",
         ])
     ops_data.append(["", ""])
     ops_data.append(["OPERATIONAL BALANCE", f"{currency} {ops.get('operational_balance', 0):,.2f}"])

@@ -4,6 +4,34 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-11 hotfix] Operational Balance was still deducting GST in PIB PDF & API (P0 bug)
+
+**Symptom** (user-reported, PB-HSR · 2026-05):
+- Total Sale ₹12,53,972 · Total Expenses ₹13,64,158 · Total Commissions ₹59,234 · GST (info) ₹52,128
+- PIB PDF page 4 ("Operational Sustainability Check") showed Operational Balance = **-₹2,21,548**
+- User expected ~**-₹1,69,420** (Sales − Expenses − Commissions, GST NOT deducted)
+
+**Root cause**: Previous Feb-2026 Gross-Sales correction fixed `compute_net_revenue` and the UI tiles BUT missed three places where GST was still being subtracted:
+1. `routes/center_accounts.py:1535` — `operational_balance = total_sale - total_expenses - total_commission - sales_gst_amount` (the comment even said "would double-count", but the code did anyway)
+2. `routes/center_accounts.py:3000` — payout-split net revenue for India was `total_sale - total_commission - gst_on_sales`
+3. `utils/pdf_generator.py` — Financial Summary AND Operational Sustainability Check sections still rendered "Less: GST on Eligible Sales" deduction lines
+
+**Fix**:
+- `operational_balance = total_sale - total_expenses - total_commission` (no GST). GST is a govt pass-through — it lands in M+1 as the auto-generated "GST PAYMENT" expense row, so subtracting it here was double-counting.
+- Added `gst_informational_only: true` flag in `operational_sustainability` payload so any future UI can short-circuit GST deduction logic.
+- India payout-split: `net_revenue = total_sale - total_commission` (no GST).
+- PDF generator:
+  - Financial Summary: India shows GST as `"GST on Eligible Sales (5%) — informational"` (no "Less:" prefix, no parentheses); Australia unchanged.
+  - Operational Sustainability Check: same informational treatment — GST row is shown but NOT deducted.
+  - "Eligible Rev Share Base" formula label simplified to `"Sales − Commissions"` for India.
+
+**Verified** via API contract test: `/api/center-accounts/summary` now returns `operational_sustainability.gst_informational_only=true` and `operational_balance = total_sales - total_expenses - total_commissions` (GST NOT subtracted). Pre-existing `test_pnl_gross_sales.py` still passes.
+
+⚠️ **Click Deploy** to push the fix to `intra.purnabramha.com`. After deploy, PIB Preview for PB-HSR · 2026-05 should show Operational Balance ≈ **-₹1,69,420** (not -₹2,21,548).
+
+---
+
+
 ### [2026-02-11] Bank Reconciliation Phase 2 + Phase 3 — Credit/Debit + AI Categorization (P0 — financial)
 
 **User directive**: *(1) Reconcile both credit and debit transactions. (2) Auto-ignore ATM/Cash Withdrawals. (3) Add new statuses: Matched, Partially Matched, Unmatched, Ignored, Manual Review. (4) Surface PhonePe Commission in bank-recon. (5) Allow MGT IDFC statement upload with AI vendor categorisation that auto-propagates to Sales/Expenses without duplicates.*
