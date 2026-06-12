@@ -726,8 +726,9 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     # --- 7. Revenue/Profit Share Calculation -------------------------------
     share = summary["share_calculation"]
-    # For Australia (profit_share) the base is Profitability (NetRev − Expenses).
-    base_label = "Profitability" if share["type"] == "profit_share" else "Total Sales"
+    # India "revenue_share" uses Revenue Share Base (Sales − Commissions − GST) as the base.
+    # Australia "profit_share" uses Profitability (NetRev − Expenses).
+    base_label = "Profitability" if share["type"] == "profit_share" else "Revenue Share Base"
     wc_gated = share.get("wc_gated", False)
     section_title = f"7. {share['type'].upper().replace('_', ' ')} CALCULATION"
     if wc_gated:
