@@ -3091,6 +3091,13 @@ export default function CenterAccounts() {
                           <p className="text-xs text-purple-600">Monthly MG</p>
                           <p className="text-lg font-bold text-purple-800">{formatCurrency(payoutSummary.franchise?.mg_amount, accountSummary?.country)}</p>
                         </div>
+                        <div className="p-3 bg-sky-50 rounded-lg text-center border border-sky-200" title="Calculated as Revenue Share Base × Franchise Revenue Share Percentage configured in Franchise Management.">
+                          <p className="text-xs text-sky-700 font-semibold">Total Revenue Share Payout</p>
+                          <p className="text-lg font-bold text-sky-900" data-testid="kpi-total-rev-share-payout">
+                            {formatCurrency(payoutSummary.totals?.revenue_share || 0, accountSummary?.country)}
+                          </p>
+                          <p className="text-[10px] text-sky-700">@ {payoutSummary.franchise?.revenue_share_percentage || 0}% of Rev Share Base</p>
+                        </div>
                         <div className="p-3 bg-green-50 rounded-lg text-center">
                           <p className="text-xs text-green-600">Total Payable</p>
                           <p className="text-lg font-bold text-green-800">{formatCurrency(payoutSummary.totals?.payable, accountSummary?.country)}</p>
@@ -3115,6 +3122,10 @@ export default function CenterAccounts() {
                               <th className="text-right py-3 px-4 font-medium text-gray-600">GST</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Commissions</th>
                               <th className="text-right py-3 px-4 font-bold text-sky-700">⭐ Revenue Share Base</th>
+                              <th className="text-right py-3 px-4 font-semibold text-sky-700" title="Revenue Share Base × Franchise Revenue Share %">
+                                Revenue Share Payout
+                                <span className="block text-[10px] font-normal opacity-75">@ {payoutSummary.franchise?.revenue_share_percentage || 0}%</span>
+                              </th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">MG</th>
                               <th className="text-center py-3 px-4 font-medium text-gray-600">Type</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Payable</th>
@@ -3130,6 +3141,8 @@ export default function CenterAccounts() {
                                 month.revenue_share_base
                                 ?? Math.max(0, (month.total_sales || 0) - (month.total_commissions || 0) - (month.gst_on_sales || 0))
                               );
+                              const revSharePct = payoutSummary.franchise?.revenue_share_percentage || 0;
+                              const revSharePayoutRow = month.revenue_share ?? (revShareBaseRow * revSharePct / 100);
                               return (
                               <tr key={month.month} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/50`}>
                                 <td className="py-3 px-4 font-medium">
@@ -3139,6 +3152,7 @@ export default function CenterAccounts() {
                                 <td className="py-3 px-4 text-right text-orange-600">{formatCurrency(month.gst_on_sales || 0, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-rose-600">{formatCurrency(month.total_commissions || 0, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-sky-800 font-bold">{formatCurrency(revShareBaseRow, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-sky-700 font-semibold" data-testid={`rev-share-payout-${month.month}`}>{formatCurrency(revSharePayoutRow, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-purple-600">{formatCurrency(month.mg_amount, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-center">
                                   <Badge variant={month.payable_type === 'mg' ? 'default' : 'secondary'} className="text-xs">

@@ -1075,21 +1075,25 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
                           totals: Dict[str, Any], period: Dict[str, Any],
                           franchise_info: Dict[str, Any]) -> bytes:
     buf = io.BytesIO()
+    rs_pct = float(franchise_info.get("revenue_share_percentage", 0) or 0)
     rows = []
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
         # Revenue Share Base = Sales − Comm − GST (Feb-2026 owner directive).
-        # Net Revenue is HIDDEN — use Rev Share Base as primary column.
+        # Revenue Share Payout = Base × franchise %. Both columns surfaced
+        # per Feb-2026 transparency spec.
         sales_m = float(m.get("total_sales", 0) or 0)
         gst_m = float(m.get("gst_on_sales", 0) or 0)
         comm_m = float(m.get("total_commissions", 0) or 0)
         rev_share_base_m = round(sales_m - comm_m - gst_m, 2)
+        rev_share_payout_m = float(m.get("revenue_share", round(rev_share_base_m * rs_pct / 100, 2)) or 0)
         rows.append({
             "Month": month_label,
             "Total Sales": sales_m,
             "GST": gst_m,
             "Commissions": comm_m,
             "Revenue Share Base": rev_share_base_m,
+            f"Revenue Share Payout ({rs_pct:g}%)": rev_share_payout_m,
             "MG": m.get("mg_amount", 0),
             "Type": "MG" if m.get("payable_type") == "mg" else "Revenue Share",
             "Payable": m.get("payable_amount", 0),
@@ -1101,12 +1105,14 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
     total_gst = sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data)
     total_comm = sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data)
     total_rev_share_base = round(total_sales - total_comm - total_gst, 2)
+    total_rev_share_payout = sum(float(m.get("revenue_share", 0) or 0) for m in monthly_data)
     rows.append({
         "Month": "TOTAL",
         "Total Sales": total_sales,
         "GST": total_gst,
         "Commissions": total_comm,
         "Revenue Share Base": total_rev_share_base,
+        f"Revenue Share Payout ({rs_pct:g}%)": total_rev_share_payout,
         "MG": totals.get("mg", 0),
         "Type": "",
         "Payable": totals.get("payable", 0),
@@ -1114,25 +1120,28 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
         "Pending": totals.get("pending", 0),
         "Status": "",
     })
-    # Final Payout grossup — 18% for India centers, 10% for Australia / Perth.
+    # Final Payout grossup
     is_intl = str(center or "").upper().endswith("-PERTH") or (str(franchise_info.get("country", "")).lower() == "australia")
     final_gst_rate = 10 if is_intl else 18
     payable_total = float(totals.get("payable", 0) or 0)
     final_gst_amt = round(payable_total * final_gst_rate / 100.0, 2)
     final_payout_incl_gst = round(payable_total + final_gst_amt, 2)
+    blank_cols = {
+        "Total Sales": "", "GST": "", "Commissions": "",
+        "Revenue Share Base": "",
+        f"Revenue Share Payout ({rs_pct:g}%)": "",
+        "MG": "", "Type": "",
+        "Paid": "", "Pending": "", "Status": "",
+    }
     rows.append({
         "Month": f"Add: {final_gst_rate}% GST on Rev Share",
-        "Total Sales": "", "GST": "", "Commissions": "", "Revenue Share Base": "",
-        "MG": "", "Type": "",
+        **blank_cols,
         "Payable": final_gst_amt,
-        "Paid": "", "Pending": "", "Status": "",
     })
     rows.append({
         "Month": f"Total Final Payout (incl. {final_gst_rate}% GST)",
-        "Total Sales": "", "GST": "", "Commissions": "", "Revenue Share Base": "",
-        "MG": "", "Type": "",
+        **blank_cols,
         "Payable": final_payout_incl_gst,
-        "Paid": "", "Pending": "", "Status": "",
     })
     df = pd.DataFrame(rows)
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
@@ -1223,9 +1232,12 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     elements.append(summary_table)
     elements.append(Spacer(1, 16))
 
-    # Per Feb-2026 owner directive: replace "Net Rev" column with "Rev Share Base"
-    # = Sales − Comm − GST. Drop "Rev Share" amount column (redundant with Payable).
-    table_header = ["Month", "Total Sales", "GST", "Comm", "Rev Share Base", "MG", "Type", "Payable", "Paid", "Pending", "Status"]
+    # Per Feb-2026 spec: include Revenue Share Payout column for transparency.
+    # Order: Rev Share Base → Rev Share Payout → MG → Type → Payable
+    rs_pct = float(franchise_info.get("revenue_share_percentage", 0) or 0)
+    table_header = ["Month", "Total Sales", "GST", "Comm", "Rev Share Base",
+                    f"Rev Share Payout ({rs_pct:g}%)", "MG", "Type",
+                    "Payable", "Paid", "Pending", "Status"]
     table_rows: List[List[Any]] = [table_header]
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
@@ -1234,12 +1246,14 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         g_m = float(m.get("gst_on_sales", 0) or 0)
         c_m = float(m.get("total_commissions", 0) or 0)
         rsb_m = round(s_m - c_m - g_m, 2)
+        rs_payout_m = float(m.get("revenue_share", round(rsb_m * rs_pct / 100, 2)) or 0)
         table_rows.append([
             month_label,
             f'{s_m:,.0f}',
             f'{g_m:,.0f}',
             f'{c_m:,.0f}',
             f'{rsb_m:,.0f}',
+            f'{rs_payout_m:,.0f}',
             f'{m.get("mg_amount", 0):,.0f}',
             ptype,
             f'{m.get("payable_amount", 0):,.0f}',
@@ -1253,6 +1267,7 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         f'{sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data):,.0f}',
         f'{sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data):,.0f}',
         f'{(sum(float(m.get("total_sales", 0) or 0) for m in monthly_data) - sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data) - sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data)):,.0f}',
+        f'{sum(float(m.get("revenue_share", 0) or 0) for m in monthly_data):,.0f}',
         f'{totals.get("mg", 0):,.0f}',
         "",
         f'{totals.get("payable", 0):,.0f}',
@@ -1269,19 +1284,19 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     final_payout_pdf = round(payable_total_pdf + final_gst_amt_pdf, 2)
     table_rows.append([
         f"Add: {final_gst_rate_pdf}% GST on Rev Share",
-        "", "", "", "", "", "",
+        "", "", "", "", "", "", "",
         f'{final_gst_amt_pdf:,.0f}',
         "", "", "",
     ])
     table_rows.append([
         f"Total Final Payout (incl. {final_gst_rate_pdf}% GST)",
-        "", "", "", "", "", "",
+        "", "", "", "", "", "", "",
         f'{final_payout_pdf:,.0f}',
         "", "", "",
     ])
 
-    # Column widths: 11 cols (was 12; dropped "Rev Share" amount column).
-    data_table = Table(table_rows, colWidths=[48, 56, 42, 42, 60, 48, 30, 56, 46, 48, 42], repeatRows=1)
+    # 12 columns. Compress widths.
+    data_table = Table(table_rows, colWidths=[45, 52, 38, 38, 56, 60, 44, 28, 52, 42, 44, 38], repeatRows=1)
     table_style = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -1290,7 +1305,7 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         ("FONTSIZE", (0, 1), (-1, -1), 6.5),
         ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("ALIGN", (6, 0), (6, -1), "CENTER"),
+        ("ALIGN", (7, 0), (7, -1), "CENTER"),
         ("ALIGN", (-1, 0), (-1, -1), "CENTER"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 4),

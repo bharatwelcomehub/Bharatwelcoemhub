@@ -4,6 +4,39 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-12] Revenue Share Payout column re-added across all surfaces (P0 transparency)
+
+**User directive**: *"Revenue Share Payout is not separately visible. Make it clear how much payout is coming from the Revenue Share calculation versus MG."*
+
+**Column position** (everywhere): `Rev Share Base → Revenue Share Payout → MG → Type → Payable`
+
+**Formula**: `Revenue Share Payout = Revenue Share Base × Franchise Revenue Share %` — percentage pulled automatically from Franchise Management (`franchise_info.revenue_share_percentage`). No manual entry on payout reports.
+
+**Surfaces updated**:
+
+| Surface | Change |
+|---------|--------|
+| `pages/CenterAccounts.jsx` — Monthly Payout table | New "Revenue Share Payout" column between Rev Share Base and MG, with the `% from Franchise Management` displayed in the header subtitle. Per-row testid `rev-share-payout-{month}` for testing. |
+| `pages/CenterAccounts.jsx` — Summary tiles | NEW **Total Revenue Share Payout** card (sky blue) alongside Total MG and Total Payable. Shows totals.revenue_share + `@ X% of Rev Share Base` caption. Tooltip per spec. `data-testid="kpi-total-rev-share-payout"`. |
+| `utils/pdf_generator.py` — MG-Payout PDF | Column re-added: header shows `Rev Share Payout (15%)` (dynamic). Total row carries the running sum. Column layout now: Month · Total Sales · GST · Comm · Rev Share Base · **Rev Share Payout** · MG · Type · Payable · Paid · Pending · Status. Column widths recalibrated for 12 columns. |
+| `utils/pdf_generator.py` — MG-Payout Excel | Same column structure. Header includes the % for clarity: `"Revenue Share Payout (15%)"`. Totals row + Final-Payout-Add-GST + Grand-Total rows updated to leave the column blank correctly. |
+
+**Backend payload — already correct**:
+- `payout_summary.monthly_data[i].revenue_share` is computed by `get_payout_summary` (line 3052/3055): `net_revenue_for_share × franchise_owner_pct%` where `net_revenue_for_share = max(0, revenue_share_base)` for India after the prior Feb-2026 fix. No backend changes needed.
+- `payout_summary.totals.revenue_share` and `payout_summary.franchise.revenue_share_percentage` already exposed — frontend reads them as the source of truth.
+
+**Tooltip** wired on the column header + the summary tile: *"Calculated as Revenue Share Base × Franchise Revenue Share Percentage configured in Franchise Management."*
+
+**Tests**: 14/14 regression passing. Lint clean.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy:
+- Center Accounts page → Monthly Payout table gets the new column.
+- Summary cards above the table now show 4 cards: Months · Monthly MG · **Total Revenue Share Payout** · Total Payable.
+- Re-download a MG Payout PDF or Excel → new "Revenue Share Payout (X%)" column visible between Rev Share Base and MG.
+
+---
+
+
 ### [2026-02-12] Payout Release Status Banner — informational only, NO calc changes (P0)
 
 **User directive**: *"Do not change existing Franchise Owner Ledger, PIB Reports, Revenue Share Reports or Payout Calculations. However, if WC Protection Mode is active or payout manually blocked, the report should clearly indicate that the calculated payout is currently not eligible for release."*
