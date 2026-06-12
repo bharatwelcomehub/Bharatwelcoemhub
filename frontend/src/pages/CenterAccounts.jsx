@@ -3977,7 +3977,17 @@ export default function CenterAccounts() {
                 const finCur = s.financial_summary || s.financial || s.summary || {};
                 const comms = s.commissions || {};
                 const revShare = s.share_calculation || s.revenue_share || {};
-                const pnlFig = finCur.net_revenue ?? finCur.profit ?? finCur.pnl;
+                // Canonical Revenue Share Base = Sales − Commissions − GST (matches main dashboard tile).
+                // Falls back to net_revenue only if the canonical field is unavailable.
+                const rsBase = s.operational_sustainability?.revenue_share_base
+                  ?? finCur.net_revenue ?? finCur.profit ?? finCur.pnl ?? 0;
+                const ownerPct = revShare.franchise_owner?.percentage
+                  ?? s.payout_summary?.franchise?.revenue_share_percentage
+                  ?? 15;
+                // Revenue Share = Revenue Share Base × Franchise % (gross, ungated).
+                // Protection-Mode gating is communicated separately via the payout status banner.
+                const revenueShareAmount = Math.round((rsBase || 0) * (ownerPct || 0) / 100);
+                const pnlFig = rsBase;
                 return (
                   <>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -3997,13 +4007,13 @@ export default function CenterAccounts() {
                         <p className="text-xs text-muted-foreground">Total Expenses</p>
                         <p className="text-lg font-bold">₹{Math.round(finCur.total_expenses || finCur.expenses || 0).toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="rounded-lg border-2 border-sky-300 p-3 bg-sky-50 dark:bg-sky-900/20" title="The amount available for owner/company percentage sharing after deducting GST and commissions from sales.">
+                      <div className="rounded-lg border-2 border-sky-300 p-3 bg-sky-50 dark:bg-sky-900/20" title="Sales − Commissions − GST. Canonical base for the revenue-share split.">
                         <p className="text-xs font-semibold text-sky-700">⭐ Revenue Share Base</p>
                         <p className="text-lg font-bold text-sky-900">₹{Math.round(pnlFig || 0).toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="rounded-lg border p-3 bg-purple-50 dark:bg-purple-900/20">
-                        <p className="text-xs text-muted-foreground">Revenue Share</p>
-                        <p className="text-lg font-bold">₹{Math.round(revShare.share_amount || revShare.amount || finCur.revenue_share || 0).toLocaleString('en-IN')}</p>
+                      <div className="rounded-lg border p-3 bg-purple-50 dark:bg-purple-900/20" title={`Revenue Share Base × ${ownerPct}% (gross, before any Protection-Mode gating).`}>
+                        <p className="text-xs text-muted-foreground">Revenue Share ({ownerPct}%)</p>
+                        <p className="text-lg font-bold">₹{revenueShareAmount.toLocaleString('en-IN')}</p>
                       </div>
                     </div>
 
