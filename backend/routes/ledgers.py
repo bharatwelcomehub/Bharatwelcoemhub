@@ -790,16 +790,19 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
 # PDF / Excel rendering
 # =========================================================
 def _render_pdf(title: str, subtitle: str, sections: List[Tuple[str, List[List[str]]]],
-                country: Optional[str] = "India") -> bytes:
+                country: Optional[str] = "India",
+                payout_release_status: Optional[Dict[str, Any]] = None) -> bytes:
     """Generic PDF renderer: sections is [(section_title, table_data_with_header_row), ...].
     Appends Accounts CFO signature block at the end (Manaswini Foods Pvt Ltd / Purnabramha LLC Pty Ltd
-    based on country)."""
+    based on country). If `payout_release_status` is provided, renders a coloured
+    banner at the very top (per Feb-2026 owner directive)."""
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
     from utils.signature import signature_block
+    from utils.pdf_generator import _append_payout_status_banner
 
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
@@ -810,6 +813,8 @@ def _render_pdf(title: str, subtitle: str, sections: List[Tuple[str, List[List[s
     section_style = ParagraphStyle("Section", parent=styles["Heading3"], fontSize=12, textColor=colors.HexColor("#0F172A"), spaceBefore=10, spaceAfter=6)
 
     story = [Paragraph(title, title_style), Paragraph(subtitle, sub_style), Spacer(1, 10)]
+    if payout_release_status:
+        _append_payout_status_banner(story, payout_release_status)
     for sec_title, data in sections:
         if sec_title:
             story.append(Paragraph(sec_title, section_style))
@@ -1159,8 +1164,8 @@ async def _fetch_ledger_data(req: LedgerRequest, ltype: str):
         raise HTTPException(400, f"Unknown ledger type: {ltype}")
     return data, label, start, end, months
 
-def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fmt: str,
-                   country: Optional[str] = "India") -> Tuple[bytes, str, str]:
+async def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fmt: str,
+                         country: Optional[str] = "India") -> Tuple[bytes, str, str]:
     title = LEDGER_TYPES.get(ltype, ltype.title())
     subtitle = f"Center: {center} · Period: {label} · Generated: {datetime.now(timezone.utc).strftime('%d-%b-%Y %H:%M UTC')}"
     if fmt == "pdf":
@@ -1224,19 +1229,18 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
             franchise_details.append(["Closing Balance", _inr(data.get("closing_balance", 0))])
             sections.append(("Franchise Details", franchise_details))
 
-            # Two distinct metrics per Feb-2026 owner directive:
-            #   Net Revenue        = Sales − Commissions  (management view)
-            #   Revenue Share Base = Sales − Commissions − GST  (80/20 split)
+            # Per Feb-2026 owner directive: Net Revenue is HIDDEN.
+            # Revenue Share Base = Sales − Commissions − GST is the canonical metric.
             pt = data.get("period_totals") or {}
             if pt and pt.get("total_sales", 0) > 0:
-                sections.append(("Net Revenue & Revenue Share Base", [
+                sections.append(("⭐ Revenue Share Base Calculation", [
                     ["Description", "Amount"],
                     ["Total Sales", _inr(pt.get("total_sales", 0))],
+                    ["Less: GST on Eligible Sales", _inr(pt.get("total_gst_on_sales", 0))],
                     ["Less: Commission (excl. GST)", _inr(pt.get("total_commission_base", 0))],
                     ["Less: Commission GST", _inr(pt.get("total_commission_gst", 0))],
-                    ["= Net Revenue (Sales − Commissions)", _inr(pt.get("net_revenue", 0))],
-                    ["Less: GST on Eligible Sales", _inr(pt.get("total_gst_on_sales", 0))],
-                    ["= Revenue Share Base (Sales − Comm − GST)", _inr(pt.get("eligible_rev_share_base", 0))],
+                    ["= ⭐ Revenue Share Base (used for owner % split)",
+                     _inr(pt.get("eligible_rev_share_base", 0))],
                 ]))
 
             # Final Payout block — mirrors PIB Section 8B & MIS Franchise PDF.
@@ -1281,7 +1285,30 @@ def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: str, fm
                     sections.append(("Final Payout (Payout × GST)", final_rows))
         else:
             sections = [("Data", [[str(data)]])]
-        pdf = _render_pdf(title, subtitle, sections, country=country)
+        # Derive payout release status for the banner (Feb-2026 directive).
+        # Only adds a banner to ledger types that show payout figures.
+        payout_status_banner = None
+        if ltype in ("franchise_owner",):  # payout-bearing ledger
+            try:
+                from utils.payout_status import derive_payout_release_status
+                # Use the latest month in the data window as the canonical month
+                last_month = None
+                try:
+                    months_in_data = data.get("monthly_data") or []
+                    if months_in_data:
+                        last_month = months_in_data[-1].get("month")
+                except Exception:
+                    last_month = None
+                # Cheap protection mode flag: prefer explicit "is_protection_mode"
+                # else infer from data totals
+                pm_flag = bool(data.get("protection_mode") or data.get("is_protection_mode"))
+                payout_status_banner = await derive_payout_release_status(
+                    db, center, last_month or "", protection_mode=pm_flag,
+                )
+            except Exception:
+                payout_status_banner = None
+        pdf = _render_pdf(title, subtitle, sections, country=country,
+                          payout_release_status=payout_status_banner)
         return pdf, "application/pdf", f"{ltype}_{center}_{label}.pdf"
     elif fmt == "excel":
         if ltype == "sales":
@@ -1377,7 +1404,7 @@ def _type_endpoint(ltype: str):
         cdoc = await db.centers.find_one({"code": req.center}, {"_id": 0, "country": 1})
         if cdoc and cdoc.get("country"):
             country = cdoc["country"]
-        content, mime, filename = _render_ledger(ltype, data, req.center, label, fmt, country=country)
+        content, mime, filename = await _render_ledger(ltype, data, req.center, label, fmt, country=country)
         return Response(content=content, media_type=mime, headers={"Content-Disposition": f"attachment; filename={filename}"})
     endpoint.__name__ = f"ledger_{ltype}"
     return endpoint
@@ -1431,9 +1458,9 @@ async def ca_bundle(req: BundleRequest):
     with ZipFile(zip_buf, "w", ZIP_DEFLATED) as zf:
         # PDFs
         for ltype, data in ledgers_data.items():
-            pdf, _mime, _fn = _render_ledger(ltype, data, req.center, label, "pdf", country=country)
+            pdf, _mime, _fn = await _render_ledger(ltype, data, req.center, label, "pdf", country=country)
             zf.writestr(f"01_PDFs/{ltype}_{req.center}_{label}.pdf", pdf)
-            xlsx, _mime, _fn = _render_ledger(ltype, data, req.center, label, "excel", country=country)
+            xlsx, _mime, _fn = await _render_ledger(ltype, data, req.center, label, "excel", country=country)
             zf.writestr(f"02_Excel/{ltype}_{req.center}_{label}.xlsx", xlsx)
 
         # Bills — fetch all expense attachments + invoice group attachments for the period

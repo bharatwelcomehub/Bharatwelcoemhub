@@ -337,22 +337,19 @@ export default function FranchiseOwnerDashboard() {
     const totalSales = sm?.total_sales || 0;
     const totalComm = sm?.total_commissions || 0;
     const totalGst = sm?.total_gst || 0;
-    const totalDeductions = totalComm + totalGst;
-    const netRev = totalSales - totalDeductions;
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
       ["Franchise Report - Purnabramha"], ["Center", selectedCenter], ["Period", period], [],
       ["Metric", "Value"],
       ["Total Sales", totalSales],
-      ["Less: Commissions", totalComm],
       ["Less: GST on Eligible Sales (5% incl.)", totalGst],
-      ["= Total Deductions", totalDeductions],
-      ["= Net Revenue (Sales − Deductions)", netRev],
+      ["Less: Commissions", totalComm],
+      ["⭐ Revenue Share Base (Sales − Comm − GST)", totalSales - totalComm - totalGst],
       ["Less: Total Expenses", sm?.total_expenses || 0],
-      ["= Net Profit (P&L)", sm?.profit || 0],
+      ["= Profit / Loss (Sales − Exp − Comm)", sm?.profit || 0],
       [],
       ["Revenue Share %", sharePct],
-      [`Revenue Share Payable (${sharePct}% × Net Revenue)`, netRev * (sharePct / 100)],
+      [`Owner Share (${sharePct}% × Revenue Share Base)`, (totalSales - totalComm - totalGst) * (sharePct / 100)],
     ]);
     XLSX.utils.book_append_sheet(wb, ws, "Summary");
     XLSX.writeFile(wb, `Franchise_Report_${selectedCenter}_${period}.xlsx`);
@@ -394,20 +391,20 @@ export default function FranchiseOwnerDashboard() {
   // India uses the configured % from franchise settings (default 15%).
   const revenueSharePct = isIntl ? 80 : (franchiseInfo?.revenue_share_percentage || 0);
   const netProfit = sm?.profit || 0;
-  // Per Apr-2026 rule:
-  //   Total Deductions  = Commissions + GST on Sales
-  //   Net Revenue       = Total Sales − Total Deductions   (NOT minus expenses)
-  //   Revenue Share     = revenue_share_pct × Net Revenue  (NOT × Net Profit)
+  // Per Feb-2026 owner directive:
+  //   Revenue Share Base = Sales − Commissions − GST  (the canonical metric)
+  //   Owner Share        = revenue_share_pct × Revenue Share Base
   // Overseas (Australia) override:
-  //   Eligible Profit   = Net Revenue − Total Expenses     (Sales − GST − Comm − CommGST − Exp)
+  //   Eligible Profit   = Revenue Share Base − Expenses
   //   Profit Share      = 80% × Eligible Profit
-  //   MFPL Royalty 5%   = 5% × Net Sales (Sales − GST) — accrued, not paid
+  //   MFPL Royalty 5%   = 5% × Net Sales (Sales − GST) — accrued
   const totalCommissions = sm?.total_commissions || 0;
   const totalGst = sm?.total_gst || 0;
   const totalExpenses = sm?.total_expenses || 0;
-  const totalDeductions = totalCommissions + totalGst;
-  const netRevenue = (sm?.total_sales || 0) - totalDeductions;
-  const eligibleProfit = isIntl ? Math.max(0, netRevenue - totalExpenses) : netRevenue;
+  // Net Revenue concept HIDDEN per Feb-2026 directive — was creating confusion.
+  // Revenue Share Base is the single canonical metric.
+  const revenueShareBase = (sm?.total_sales || 0) - totalCommissions - totalGst;
+  const eligibleProfit = isIntl ? Math.max(0, revenueShareBase - totalExpenses) : revenueShareBase;
   const revenueShareAmount = eligibleProfit * (revenueSharePct / 100);
   // Final Payout: payout base = MAX(Revenue Share, Monthly Guarantee) for India.
   // Overseas has NO MG — base is just the 80% profit share.
@@ -429,15 +426,14 @@ export default function FranchiseOwnerDashboard() {
 
   const kpiCards = sm ? [
     { label: "Total Sales", value: sm.total_sales, change: ch?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50" },
-    { label: "Total Expenses", value: sm.total_expenses, change: ch?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50" },
+    { label: `GST (${isIntl ? "10" : "5"}% on eligible)`, displayValue: formatFullCurrency(totalGst, isIntl), icon: Receipt, gradient: "from-fuchsia-600 to-fuchsia-400", textColor: "text-fuchsia-50" },
     { label: "Commissions", displayValue: formatFullCurrency(totalCommissions, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
-    { label: `GST on Eligible Sales (${isIntl ? "10" : "5"}% incl.)`, displayValue: formatFullCurrency(totalGst, isIntl), icon: Receipt, gradient: "from-fuchsia-600 to-fuchsia-400", textColor: "text-fuchsia-50" },
-    { label: "Total Deductions", displayValue: formatFullCurrency(totalDeductions, isIntl), icon: Receipt, gradient: "from-orange-600 to-orange-400", textColor: "text-orange-50" },
-    { label: "Net Revenue", displayValue: formatFullCurrency(netRevenue, isIntl), icon: Activity, gradient: netRevenue >= 0 ? "from-cyan-700 to-cyan-500" : "from-rose-700 to-rose-500", textColor: "text-cyan-50" },
-    { label: "Net Profit (P&L)", displayValue: formatFullCurrency(netProfit, isIntl), change: ch?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
+    { label: "⭐ Revenue Share Base", displayValue: formatFullCurrency(revenueShareBase, isIntl), icon: Activity, gradient: revenueShareBase >= 0 ? "from-sky-700 to-sky-500" : "from-rose-700 to-rose-500", textColor: "text-sky-50", emphasize: true },
+    { label: `${isIntl ? 'Profit' : 'Owner'} Share (${revenueSharePct}% × ${isIntl ? 'Eligible Profit' : 'Rev Share Base'})`, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
+    { label: "Total Expenses", value: sm.total_expenses, change: ch?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50" },
+    { label: "Profit / Loss", displayValue: formatFullCurrency(netProfit, isIntl), change: ch?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },
     { label: "Working Capital", displayValue: formatFullCurrency(workingCapital?.available_working_capital || 0, isIntl), icon: Wallet, gradient: (workingCapital?.available_working_capital || 0) < 0 ? "from-red-700 to-red-500" : (workingCapital?.available_working_capital || 0) < (workingCapital?.initial_working_capital || 0) * 0.5 ? "from-rose-700 to-rose-500" : (workingCapital?.available_working_capital || 0) < (workingCapital?.initial_working_capital || 0) ? "from-amber-600 to-amber-400" : "from-emerald-600 to-emerald-400", textColor: "text-amber-50" },
     { label: "Avg / Bill", displayValue: formatFullCurrency(sm.avg_per_bill, isIntl), icon: Activity, gradient: "from-teal-600 to-teal-400", textColor: "text-teal-50" },
-    { label: `${isIntl ? 'Profit' : 'Revenue'} Share (${revenueSharePct}% × ${isIntl ? 'Eligible Profit' : 'Net Rev'})`, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
     {
       label: `Final Payout (incl. ${finalGstRate}% GST)`,
       displayValue: formatFullCurrency(finalPayoutAmount, isIntl),

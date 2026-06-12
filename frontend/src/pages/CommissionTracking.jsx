@@ -216,7 +216,7 @@ export default function CommissionTracking() {
                     { label: "GST on Commission", val: dashboardData.grand_totals.gst_on_commission, icon: Percent, color: "text-orange-600" },
                     { label: "Payment Commission", val: dashboardData.grand_totals.payment_commission, icon: TrendingDown, color: "text-purple-600" },
                     { label: "Total Commission", val: dashboardData.grand_totals.total_commission, icon: TrendingDown, color: "text-red-700 font-bold" },
-                    { label: "Net Revenue", val: dashboardData.grand_totals.net_revenue, icon: DollarSign, color: "text-emerald-700 font-bold" },
+                    { label: "Revenue Share Base", val: dashboardData.grand_totals.net_revenue, icon: DollarSign, color: "text-sky-700 font-bold" },
                   ].map((item, i) => (
                     <Card key={i}>
                       <CardContent className="p-3 text-center">
@@ -246,7 +246,7 @@ export default function CommissionTracking() {
                             <th className="p-2 text-right">GST</th>
                             <th className="p-2 text-right">Payment Comm.</th>
                             <th className="p-2 text-right font-bold">Total Comm.</th>
-                            <th className="p-2 text-right font-bold">Net Revenue</th>
+                            <th className="p-2 text-right font-bold">Rev Share Base</th>
                           </tr>
                         </thead>
                         <tbody>

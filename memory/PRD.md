@@ -4,6 +4,92 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-12] Payout Release Status Banner — informational only, NO calc changes (P0)
+
+**User directive**: *"Do not change existing Franchise Owner Ledger, PIB Reports, Revenue Share Reports or Payout Calculations. However, if WC Protection Mode is active or payout manually blocked, the report should clearly indicate that the calculated payout is currently not eligible for release."*
+
+**Implementation**:
+- **Backend** (`utils/payout_status.py` — NEW canonical helper):
+  - `derive_payout_release_status(db, center, month, protection_mode)` returns `{status, label, color, narrative, reason, source, override_active}` with three statuses: `eligible` (🟢) / `review` (🟠) / `blocked` (🔴).
+  - Priority order: **(1) manual override** in `center_settings` (per-month or per-center) → **(2) WC Protection Mode active → blocked** → **(3) default eligible**.
+  - Manual `eligible` override beats WC Protection — gives Accounts the explicit "release anyway" authority you specified.
+- **API**:
+  - `POST /api/center-accounts/set-payout-release-status` (Super Admin / Admin / Accounts only). Value: `eligible | review | blocked | auto`. Audit-logged in `expense_reconciliation_log`.
+  - `payout_release_status` now exposed in `/api/center-accounts/summary` response.
+- **PDF banners** added at the TOP (after logo / header) of:
+  - PIB Report (`utils/pdf_generator.py:build_pib_pdf`)
+  - Franchise Owner Ledger / Revenue Share Report (`routes/ledgers.py:_render_pdf`)
+  - Franchise Payout Report / MG-Payout multi-month (`utils/pdf_generator.py:build_mg_payout_pdf`)
+  - Reusable helper `_append_payout_status_banner(story, status)` keeps the banner uniform across all 4 PDF surfaces. ReportLab Table with coloured strip + body + reason.
+- **Frontend** (`pages/CenterAccounts.jsx`):
+  - NEW `<PayoutStatusBanner>` component above the KPI tiles — coloured strip + label + reason + narrative.
+  - Super Admin / Admin / Accounts see an inline dropdown to set: `Auto (WC-driven) · 🟢 Eligible · 🟠 Review · 🔴 Blocked`.
+  - `data-testid="payout-release-banner"`, `payout-release-label`, `payout-release-select`.
+
+**NO calculation changed**: Profit/Loss, Revenue Share Base, Revenue Share Amount, Payable, MG, Paid, Pending — all unchanged. Only the visible status indicator is new.
+
+**Tests**: `tests/test_payout_release_status.py` — 5/5 passing covering default / WC auto / manual override-beats-WC / review / invalid-value rejection. End-to-end curl verified all 4 transitions (blocked → review → eligible → auto).
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy:
+- Center Accounts page → coloured banner appears at the top of the report area; admins get the override dropdown.
+- Re-download PIB PDF / Franchise Owner Ledger PDF / MG Payout PDF — coloured banner appears at top of each.
+- If WC Protection is currently active for a center, the banner reads 🔴 *Currently Blocked* with reason `"Working Capital Protection Mode active"`. Accounts can override via the dropdown without touching any numbers.
+
+---
+
+
+### [2026-02-12] Net Revenue HIDDEN · Revenue Share Base elevated as primary metric (P0 visibility sweep)
+
+**User directive**: *"Hide Net Revenue from all user-facing screens and reports. Highlight Revenue Share Base instead — Sales − Commissions − GST — this is the actual amount used for owner percentage split and payout calculations."*
+
+**Worked example — PB-HSR · May 2026** (still verifiable):
+- Total Sales: ₹12,53,972
+- GST: ₹52,128
+- Commissions: ₹59,234
+- **⭐ Revenue Share Base = ₹11,42,610** *(Sales − Comm − GST)*
+- ~~Net Revenue ₹11,94,738~~ ← removed from UI
+
+**Frontend changes** (all data-testids preserved/added):
+
+| File | Change |
+|------|--------|
+| `pages/CenterAccounts.jsx` | Net Revenue tile **removed**. Revenue Share Base tile now **PROMINENT** with `border-2 border-sky-400 shadow-lg`, ⭐ icon, larger font (text-3xl extrabold), tooltip per spec, `data-testid="kpi-revenue-share-base-card"`. Formula chain block "= Net Revenue (Base for Split)" renamed "⭐ = Revenue Share Base (Base for Split)" with sky-blue emphasis. Monthly payout table column renamed: **Revenue Share Base** (replacing "Net Revenue" + dropped redundant "Revenue Share" amount column — Payable is the canonical amount). PIB preview KPI card "Net Revenue" renamed "⭐ Revenue Share Base". |
+| `pages/OwnerReports.jsx` | Net Revenue tile **removed**. Revenue Share Base now primary (col-span-1 sky gradient + shadow). Tooltip added per spec. |
+| `pages/MISDashboard.jsx` | "Net Revenue" KPI card removed. ⭐ Revenue Share Base reordered ahead of Owner Share per visual priority. Excel export sheet drops "Net Revenue" row. |
+| `pages/FranchiseOwnerDashboard.jsx` | Variable `netRevenue` renamed `revenueShareBase` (was already computing the right number). KPI "Net Revenue" + "Total Deductions" cards both removed. Excel export updated. Eligible Profit chain for AU continues to use Rev Share Base − Expenses. |
+| `pages/CenterHealth.jsx` | KPI "Net Revenue" relabelled "⭐ Revenue Share Base" (tone sky). Profitability formula chain "= Net Revenue" → "= ⭐ Revenue Share Base". |
+| `pages/CommissionTracking.jsx` | Grand totals card + table column renamed Net Revenue → Rev Share Base. |
+
+**Backend PDF / Excel changes**:
+
+| File | Change |
+|------|--------|
+| `utils/pdf_generator.py` — PIB PDF (Section 4 Financial Summary) | India: "NET REVENUE" row **removed**. "⭐ REVENUE SHARE BASE" is now the highlighted (BRAND_GOLD background) row. Australia keeps Net Revenue + Profitability chain. |
+| `utils/pdf_generator.py` — Multi-month MG Payout Excel | Column "Net Revenue" **removed**. New column "Revenue Share Base" (= Sales − Comm − GST). Columns now: Month · Total Sales · GST · Commissions · **Revenue Share Base** · MG · Type · Payable · Paid · Pending · Status (matches user's spec exactly). |
+| `utils/pdf_generator.py` — Multi-month MG Payout PDF | Same column overhaul. Table widths recalibrated (12 → 11 cols). Dropped redundant "Rev Share" amount column. |
+| `routes/ledgers.py` — Ledger PDF section | Renamed "Net Revenue & Revenue Share Base" → "⭐ Revenue Share Base Calculation". The intermediate "= Net Revenue" line removed; chain goes straight Sales − GST − Comm − Comm-GST → ⭐ Revenue Share Base. |
+
+**Visual priority** implemented per spec:
+1. Gross Sales
+2. GST
+3. Commissions
+4. ⭐ **Revenue Share Base** *(larger font, sky border, gold highlight in PDF)*
+5. Owner Share
+6. Profit / Loss
+7. Working Capital + Final Payout
+
+**Tooltip** added to all Rev Share Base tiles: *"The amount available for owner/company percentage sharing after deducting GST and commissions from sales."*
+
+**Tests**: 10/10 regression suite passing. Lint clean.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy:
+- Every dashboard tile that previously said "Net Revenue" now says "⭐ Revenue Share Base" (or has been removed)
+- PIB PDF Section 4 highlights Revenue Share Base in gold
+- MG Payout PDF + Excel columns now read: Month · Total Sales · GST · Comm · **Rev Share Base** · MG · Type · Payable · Paid · Pending · Status
+
+---
+
+
 ### [2026-02-11 Phase 3 — Gap closure] Credit→Sales auto-convert + AI for credits + Inline edit + Sales Dashboard link + Original-narration tracking (P0)
 
 User reviewed the full Bank Reconciliation spec and confirmed Phase 1+2 + Phase 3 (debit→expense) are deployed. Five remaining gaps shipped in one pass:

@@ -349,14 +349,14 @@ export default function CenterHealth() {
             <KpiCard icon={ShieldAlert} label="GST" tone="fuchsia"
               value={fmt(cur.gst, currency)}
               sub={`${pct(r.gst_pct)} of sales`} data-testid="kpi-gst" />
-            <KpiCard icon={LineIcon} label="Net Revenue" tone="indigo"
+            <KpiCard icon={LineIcon} label="⭐ Revenue Share Base" tone="sky"
               value={fmt(cur.net_revenue, currency)}
-              sub="Sales − Comm − GST" data-testid="kpi-net-rev" />
+              sub="Sales − Comm − GST · payout base" data-testid="kpi-rev-share-base" />
             <KpiCard icon={TrendingDown} label="Expenses" tone="amber"
               value={fmt(cur.expenses_total, currency)}
               sub={`${pct((cur.expenses_total/(cur.sales.total||1))*100)} of sales`} data-testid="kpi-expenses" />
             <KpiCard icon={cur.net_profit >= 0 ? TrendingUp : TrendingDown}
-              label="Net P/L" tone={cur.net_profit >= 0 ? "emerald" : "red"}
+              label="Profit / Loss" tone={cur.net_profit >= 0 ? "emerald" : "red"}
               value={fmt(cur.net_profit, currency)}
               sub={`${pct(r.net_margin_pct)} margin`}
               trend={profitTrend} data-testid="kpi-pl" />
@@ -371,13 +371,13 @@ export default function CenterHealth() {
               <CardContent className="text-sm">
                 {[
                   ["Total Sales", cur.sales.total, "bold"],
-                  ["Less: Platform Commission", -cur.commission],
                   ["Less: GST (inclusive carve)", -cur.gst],
-                  ["= Net Revenue", cur.net_revenue, "bold-indigo"],
+                  ["Less: Platform Commission", -cur.commission],
+                  ["= ⭐ Revenue Share Base", cur.net_revenue, "bold-sky"],
                   ["Less: Operating Expenses", -cur.expenses_total],
-                  ["= Net Profit / (Loss)", cur.net_profit, cur.net_profit >= 0 ? "bold-green" : "bold-red"],
+                  ["= Profit / (Loss)", cur.net_profit, cur.net_profit >= 0 ? "bold-green" : "bold-red"],
                 ].map(([label, value, tone], i) => (
-                  <div key={i} className={`flex justify-between py-2 border-b border-slate-100 last:border-0 ${tone?.includes("bold") ? "font-bold" : ""} ${tone === "bold-green" ? "text-emerald-700 text-base" : tone === "bold-red" ? "text-red-700 text-base" : tone === "bold-indigo" ? "text-indigo-700" : ""}`}>
+                  <div key={i} className={`flex justify-between py-2 border-b border-slate-100 last:border-0 ${tone?.includes("bold") ? "font-bold" : ""} ${tone === "bold-green" ? "text-emerald-700 text-base" : tone === "bold-red" ? "text-red-700 text-base" : tone === "bold-sky" ? "text-sky-700 text-base" : ""}`}>
                     <span>{label}</span>
                     <span>{fmt(value, currency)}</span>
                   </div>

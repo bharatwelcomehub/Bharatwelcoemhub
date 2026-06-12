@@ -52,6 +52,54 @@ const formatCurrency = (value, country) => {
 
 const formatPercent = (value) => `${(value || 0).toFixed(1)}%`;
 
+// ── Payout Release Status Banner (Feb-2026 directive) ──────────────────
+// Informational only — does NOT change any calculations or payout amounts.
+// Auto-derived from WC Protection Mode + manual override stored in
+// center_settings. Super Admin / Accounts can change via the dropdown.
+function PayoutStatusBanner({ status, isAdmin, onChange }) {
+  if (!status) return null;
+  const tone = status.color === 'red'
+    ? { border: 'border-rose-400', bg: 'bg-rose-50', text: 'text-rose-900', strip: 'bg-rose-500', icon: '🔴' }
+    : status.color === 'amber'
+    ? { border: 'border-amber-400', bg: 'bg-amber-50', text: 'text-amber-900', strip: 'bg-amber-500', icon: '🟠' }
+    : { border: 'border-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-900', strip: 'bg-emerald-500', icon: '🟢' };
+  return (
+    <div className={`mb-6 flex items-stretch rounded-lg border-2 ${tone.border} ${tone.bg} shadow-sm overflow-hidden`} data-testid="payout-release-banner">
+      <div className={`w-1.5 ${tone.strip}`} />
+      <div className="flex-1 p-4 flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <p className={`font-bold text-base ${tone.text} flex items-center gap-2`} data-testid="payout-release-label">
+            <span>{tone.icon}</span>
+            <span>Payout Status: {status.label}</span>
+            {status.reason && (
+              <span className="text-xs font-normal opacity-75 italic">({status.reason})</span>
+            )}
+          </p>
+          <p className={`text-sm mt-1 ${tone.text} opacity-80`}>{status.narrative}</p>
+        </div>
+        {isAdmin && (
+          <div className="flex-shrink-0">
+            <label className="text-[10px] uppercase tracking-wide font-semibold text-slate-600 block mb-1">Admin Override</label>
+            <select
+              defaultValue={status.source === 'manual' ? status.status : 'auto'}
+              className="text-xs border border-slate-300 rounded px-2 py-1 bg-white"
+              onChange={(e) => onChange(e.target.value)}
+              data-testid="payout-release-select"
+            >
+              <option value="auto">Auto (WC-driven)</option>
+              <option value="eligible">🟢 Eligible For Release</option>
+              <option value="review">🟠 Management Review Required</option>
+              <option value="blocked">🔴 Currently Blocked</option>
+            </select>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
 export default function CenterAccounts() {
   const { session } = useAuth();
   const token = session?.token;
@@ -992,6 +1040,24 @@ export default function CenterAccounts() {
             </div>
           )}
 
+          {/* Payout Release Status Banner (Feb-2026 directive — informational only) */}
+          <PayoutStatusBanner
+            status={accountSummary.payout_release_status}
+            isAdmin={!!(session?.is_super_admin || session?.is_admin || session?.role === 'Accounts')}
+            onChange={async (value) => {
+              try {
+                const res = await fetch(`${API}/api/center-accounts/set-payout-release-status`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ center: selectedCenter, token: session.token, value, month: selectedMonth }),
+                });
+                const data = await res.json();
+                if (data.detail) throw new Error(data.detail);
+                toast.success(`Payout release status set to "${value}"`);
+                fetchAccountSummary();
+              } catch (e) { toast.error(e.message); }
+            }}
+          />
+
           {/* Key Metrics */}
           <div className={`grid grid-cols-2 ${accountSummary.country === "Australia" ? "md:grid-cols-5" : "md:grid-cols-4"} gap-4 mb-6`}>
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100">
@@ -1045,22 +1111,26 @@ export default function CenterAccounts() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-50 to-green-100">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-green-600">Net Revenue</p>
-                    <p className="text-2xl font-bold text-green-800" data-testid="kpi-net-revenue">
-                      {formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}
-                    </p>
-                    <p className="text-[10px] text-green-700 mt-1">
-                      {accountSummary.country === "Australia" ? "Sales − Deductions" : "Sales − Commissions"}
-                    </p>
+            {/* Net Revenue tile HIDDEN per Feb-2026 owner directive — Net Revenue
+                creates confusion since it's NOT the basis for owner payout.
+                Revenue Share Base (below) is the canonical primary metric. */}
+
+            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability?.revenue_share_base !== undefined && (
+              <Card className="bg-gradient-to-br from-sky-100 to-sky-200 border-2 border-sky-400 shadow-lg" data-testid="kpi-revenue-share-base-card" title="The amount available for owner/company percentage sharing after deducting GST and commissions from sales.">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-sky-800 uppercase tracking-wide">⭐ Revenue Share Base</p>
+                      <p className="text-3xl font-extrabold text-sky-900" data-testid="kpi-revenue-share-base">
+                        {formatCurrency(accountSummary.operational_sustainability.revenue_share_base, accountSummary.country)}
+                      </p>
+                      <p className="text-[11px] text-sky-800 mt-1 font-medium">Sales − Commissions − GST · used for owner % split</p>
+                    </div>
+                    <TrendingUp className="w-10 h-10 text-sky-600" />
                   </div>
-                  <TrendingUp className="w-8 h-8 text-green-400" />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
 
             {accountSummary.country !== "Australia" && accountSummary.operational_sustainability && (
               <Card className="bg-gradient-to-br from-rose-50 to-rose-100" data-testid="kpi-profit-loss-card">
@@ -1074,23 +1144,6 @@ export default function CenterAccounts() {
                       <p className="text-[10px] text-rose-700 mt-1">Sales − Expenses − Commissions (GST excluded)</p>
                     </div>
                     <TrendingUp className={`w-8 h-8 ${(accountSummary.operational_sustainability.profit_loss ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability?.revenue_share_base !== undefined && (
-              <Card className="bg-gradient-to-br from-sky-50 to-sky-100" data-testid="kpi-revenue-share-base-card">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-sky-700">Revenue Share Base</p>
-                      <p className="text-2xl font-bold text-sky-900" data-testid="kpi-revenue-share-base">
-                        {formatCurrency(accountSummary.operational_sustainability.revenue_share_base, accountSummary.country)}
-                      </p>
-                      <p className="text-[10px] text-sky-700 mt-1">Sales − Commissions − GST (for owner % split)</p>
-                    </div>
-                    <TrendingUp className="w-8 h-8 text-sky-400" />
                   </div>
                 </CardContent>
               </Card>
@@ -2014,11 +2067,11 @@ export default function CenterAccounts() {
                         {/* Divider */}
                         <div className="border-t-2 border-dashed border-gray-300 my-1" />
 
-                        {/* Result: Net Revenue */}
-                        <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-                          <span className="text-green-800 font-bold text-base">= Net Revenue (Base for Split)</span>
-                          <span className="text-green-900 font-bold text-lg" data-testid="india-net-revenue">
-                            {formatCurrency(accountSummary.financial_summary.net_revenue, accountSummary.country)}
+                        {/* Result: Revenue Share Base (India) */}
+                        <div className="flex justify-between items-center bg-sky-50 border-2 border-sky-300 rounded-lg px-4 py-3 shadow-sm">
+                          <span className="text-sky-800 font-bold text-base">⭐ = Revenue Share Base (Base for Split)</span>
+                          <span className="text-sky-900 font-extrabold text-xl" data-testid="india-revenue-share-base" title="The amount available for owner/company percentage sharing after deducting GST and commissions from sales.">
+                            {formatCurrency(accountSummary.operational_sustainability?.revenue_share_base ?? (accountSummary.financial_summary.net_revenue - (accountSummary.financial_summary.sales_gst || 0)), accountSummary.country)}
                           </span>
                         </div>
 
@@ -2084,7 +2137,7 @@ export default function CenterAccounts() {
                         <span className="text-gray-600">
                           {accountSummary.share_calculation.type === 'profit_share' 
                             ? `Net Profit (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)` 
-                            : `Net Revenue (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
+                            : `⭐ Revenue Share Base (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
                         </span>
                         <span className="text-xl font-bold">
                           {formatCurrency(accountSummary.share_calculation.net_profit_or_sales, accountSummary.country)}
@@ -3061,8 +3114,7 @@ export default function CenterAccounts() {
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Total Sales</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">GST</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Commissions</th>
-                              <th className="text-right py-3 px-4 font-medium text-gray-600">Net Revenue</th>
-                              <th className="text-right py-3 px-4 font-medium text-gray-600">Revenue Share</th>
+                              <th className="text-right py-3 px-4 font-bold text-sky-700">⭐ Revenue Share Base</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">MG</th>
                               <th className="text-center py-3 px-4 font-medium text-gray-600">Type</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Payable</th>
@@ -3073,7 +3125,12 @@ export default function CenterAccounts() {
                             </tr>
                           </thead>
                           <tbody>
-                            {payoutSummary.monthly_data.map((month, idx) => (
+                            {payoutSummary.monthly_data.map((month, idx) => {
+                              const revShareBaseRow = (
+                                month.revenue_share_base
+                                ?? Math.max(0, (month.total_sales || 0) - (month.total_commissions || 0) - (month.gst_on_sales || 0))
+                              );
+                              return (
                               <tr key={month.month} className={`border-t ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/50`}>
                                 <td className="py-3 px-4 font-medium">
                                   {new Date(month.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
@@ -3081,8 +3138,7 @@ export default function CenterAccounts() {
                                 <td className="py-3 px-4 text-right">{formatCurrency(month.total_sales, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-orange-600">{formatCurrency(month.gst_on_sales || 0, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-rose-600">{formatCurrency(month.total_commissions || 0, accountSummary?.country)}</td>
-                                <td className="py-3 px-4 text-right text-blue-700 font-medium">{formatCurrency(month.net_revenue || 0, accountSummary?.country)}</td>
-                                <td className="py-3 px-4 text-right text-green-600">{formatCurrency(month.revenue_share, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-sky-800 font-bold">{formatCurrency(revShareBaseRow, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-purple-600">{formatCurrency(month.mg_amount, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-center">
                                   <Badge variant={month.payable_type === 'mg' ? 'default' : 'secondary'} className="text-xs">
@@ -3114,7 +3170,8 @@ export default function CenterAccounts() {
                                   </Button>
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -3920,9 +3977,9 @@ export default function CenterAccounts() {
                         <p className="text-xs text-muted-foreground">Total Expenses</p>
                         <p className="text-lg font-bold">₹{Math.round(finCur.total_expenses || finCur.expenses || 0).toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="rounded-lg border p-3 bg-green-50 dark:bg-green-900/20">
-                        <p className="text-xs text-muted-foreground">Net Revenue</p>
-                        <p className="text-lg font-bold">₹{Math.round(pnlFig || 0).toLocaleString('en-IN')}</p>
+                      <div className="rounded-lg border-2 border-sky-300 p-3 bg-sky-50 dark:bg-sky-900/20" title="The amount available for owner/company percentage sharing after deducting GST and commissions from sales.">
+                        <p className="text-xs font-semibold text-sky-700">⭐ Revenue Share Base</p>
+                        <p className="text-lg font-bold text-sky-900">₹{Math.round(pnlFig || 0).toLocaleString('en-IN')}</p>
                       </div>
                       <div className="rounded-lg border p-3 bg-purple-50 dark:bg-purple-900/20">
                         <p className="text-xs text-muted-foreground">Revenue Share</p>

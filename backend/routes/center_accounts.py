@@ -1835,7 +1835,24 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "share_gst_rate": AUSTRALIA_GST_ON_PROFIT_SHARE * 100 if country == "Australia" else INDIA_GST_ON_REVENUE_SHARE * 100
         }
     }
-    
+
+    # Payout Release Status banner (Feb-2026 directive — informational only,
+    # does NOT change any calculations). Reads center_settings override; falls
+    # back to WC Protection Mode; default = eligible.
+    try:
+        from utils.payout_status import derive_payout_release_status
+        _pm = bool(locals().get("protection_mode", False))
+        summary["payout_release_status"] = await derive_payout_release_status(
+            db, req.center, req.month, protection_mode=_pm,
+        )
+    except Exception as e:
+        logger.warning(f"payout_release_status derive failed: {e}")
+        summary["payout_release_status"] = {
+            "status": "eligible", "label": "Eligible For Release",
+            "color": "green", "narrative": "", "reason": "",
+            "source": "default", "override_active": False,
+        }
+
     return {"success": True, "summary": summary}
 
 # =======================================
@@ -3127,7 +3144,16 @@ async def export_mg_payout(data: dict = Body(...)):
     if fmt == "excel":
         return _export_mg_excel(center, monthly_data, totals, period, franchise_info)
     else:
-        return _export_mg_pdf(center, monthly_data, totals, period, franchise_info)
+        # Derive payout release status for the banner (Feb-2026 directive).
+        try:
+            from utils.payout_status import derive_payout_release_status
+            last_month = monthly_data[-1].get("month") if monthly_data else (to_month or "")
+            pm = any(bool(m.get("protection_mode")) for m in monthly_data)
+            payout_status = await derive_payout_release_status(db, center, last_month, protection_mode=pm)
+        except Exception:
+            payout_status = None
+        return _export_mg_pdf(center, monthly_data, totals, period, franchise_info,
+                              payout_release_status=payout_status)
 
 
 def _export_mg_excel(center, monthly_data, totals, period, franchise_info):
@@ -3142,13 +3168,53 @@ def _export_mg_excel(center, monthly_data, totals, period, franchise_info):
     )
 
 
-def _export_mg_pdf(center, monthly_data, totals, period, franchise_info):
+def _export_mg_pdf(center, monthly_data, totals, period, franchise_info, payout_release_status=None):
     """Generate MG Payout PDF export"""
     from utils.pdf_generator import build_mg_payout_pdf
-    pdf_bytes = build_mg_payout_pdf(center, monthly_data, totals, period, franchise_info)
+    pdf_bytes = build_mg_payout_pdf(center, monthly_data, totals, period, franchise_info,
+                                    payout_release_status=payout_release_status)
     filename = f"MG_Payout_{center}_{period.get('from', 'start')}_to_{period.get('to', 'end')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+
+# ── Payout Release Status override (Feb-2026) ──────────────────────────
+class PayoutReleaseStatusRequest(BaseModel):
+    center: str
+    token: str
+    value: str  # eligible | review | blocked | auto
+    month: Optional[str] = None  # if None, applies as center-wide default
+
+
+@router.post("/set-payout-release-status")
+async def api_set_payout_release_status(req: PayoutReleaseStatusRequest):
+    """Super Admin / Accounts only — sets the manual override banner.
+    Does NOT modify any calculations or payouts; it only controls the visible
+    status banner on PDFs and dashboards.
+    """
+    session = verify_token(req.token)
+    if not session:
+        return {"detail": "Authentication required"}
+    if not (session.get("is_super_admin") or session.get("is_admin")
+            or session.get("role") in ("Super Admin", "Admin", "Accounts")):
+        return {"detail": "Only Super Admin / Accounts can change payout release status"}
+
+    from utils.payout_status import set_payout_release_status
+    actor = session.get("name", session.get("mobile", ""))
+    result = await set_payout_release_status(db, req.center, req.value, actor, month=req.month)
+    if not result.get("success"):
+        return result
+    # Audit
+    await db.expense_reconciliation_log.insert_one({
+        "center": req.center,
+        "month": req.month,
+        "action": "set_payout_release_status",
+        "new_value": req.value,
+        "action_taken_by": actor,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    return result

@@ -708,20 +708,14 @@ export default function OwnerReports() {
               <p className="text-xl font-bold">{fmtINR(report.gst.gst_amount)}</p>
               <div className="text-[10px] text-muted-foreground mt-1">Base: {fmtINR(report.gst.eligible_base)} · {report.gst.liability_paid ? <Badge className="bg-green-100 text-green-700 border-green-300 ml-1">Paid</Badge> : <Badge className="bg-amber-100 text-amber-700 border-amber-300 ml-1">Payable</Badge>}</div>
             </CardContent></Card>
-            <Card data-testid="or-net-revenue-card"><CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Net Revenue</p>
-              <p className={`text-xl font-bold ${(report.net_revenue ?? report.pnl) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {(report.net_revenue ?? report.pnl) >= 0 ? <TrendingUp className="inline w-4 h-4 mr-1" /> : <TrendingDown className="inline w-4 h-4 mr-1" />}
-                {fmtINR(report.net_revenue ?? report.pnl)}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1">Sales − Commissions (management view)</p>
-            </CardContent></Card>
-            <Card data-testid="or-eligible-rev-share-card" className="bg-sky-50"><CardContent className="p-4">
-              <p className="text-xs text-sky-700">Revenue Share Base</p>
-              <p className={`text-xl font-bold ${(report.revenue_share_base ?? report.eligible_rev_share_base ?? 0) >= 0 ? 'text-sky-900' : 'text-red-600'}`}>
+            {/* Net Revenue tile HIDDEN per Feb-2026 owner directive — Revenue
+                Share Base is the canonical metric for owner payout. */}
+            <Card data-testid="or-eligible-rev-share-card" className="bg-gradient-to-br from-sky-100 to-sky-200 border-2 border-sky-400 shadow-lg col-span-1" title="The amount available for owner/company percentage sharing after deducting GST and commissions from sales."><CardContent className="p-5">
+              <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">⭐ Revenue Share Base</p>
+              <p className={`text-3xl font-extrabold ${(report.revenue_share_base ?? report.eligible_rev_share_base ?? 0) >= 0 ? 'text-sky-900' : 'text-red-700'}`}>
                 {fmtINR(report.revenue_share_base ?? report.eligible_rev_share_base ?? 0)}
               </p>
-              <p className="text-[10px] text-sky-700 mt-1">Sales − Commissions − GST (for 80/20 split)</p>
+              <p className="text-[11px] text-sky-800 mt-1 font-medium">Sales − Commissions − GST · used for owner % split</p>
             </CardContent></Card>
             <Card data-testid="or-net-pl-card" className="bg-rose-50"><CardContent className="p-4">
               <p className="text-xs text-rose-700">Profit / Loss</p>
@@ -737,7 +731,7 @@ export default function OwnerReports() {
                 <p className={`text-xl font-bold ${(report.profitability ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                   {fmtINR(report.profitability ?? 0)}
                 </p>
-                <p className="text-[10px] text-emerald-700 mt-1">Net Revenue − Expenses · 80/20 base</p>
+                <p className="text-[10px] text-emerald-700 mt-1">Rev Share Base − Expenses · 80/20 base</p>
               </CardContent></Card>
             )}
           </div>

@@ -233,6 +233,59 @@ def _pib_styles():
     return styles
 
 
+
+def _append_payout_status_banner(story, status: Optional[Dict[str, Any]]) -> None:
+    """Append the Payout Release Status banner to a PDF story.
+
+    Renders a single boxed paragraph at the top of the report. Calculations
+    elsewhere in the report are UNCHANGED — this only conveys whether the
+    calculated payout is approved for release.
+
+    Color mapping:
+        green  → Eligible For Release
+        amber  → Management Review Required
+        red    → Currently Blocked
+    Falls through quietly if status is None.
+    """
+    if not status:
+        return
+    color_map = {
+        "green": (colors.HexColor("#16a34a"), colors.HexColor("#dcfce7"), colors.HexColor("#14532d"), "[OK]"),
+        "amber": (colors.HexColor("#d97706"), colors.HexColor("#fef3c7"), colors.HexColor("#78350f"), "[REVIEW]"),
+        "red":   (colors.HexColor("#dc2626"), colors.HexColor("#fee2e2"), colors.HexColor("#7f1d1d"), "[BLOCKED]"),
+    }
+    border, bg, fg, icon = color_map.get(status.get("color", "green"), color_map["green"])
+    label = status.get("label", "Eligible For Release")
+    narrative = status.get("narrative", "")
+    reason = status.get("reason", "")
+    banner_style = ParagraphStyle(
+        "PayoutBanner", parent=getSampleStyleSheet()["Normal"],
+        fontSize=10, leading=13, textColor=fg, fontName="Helvetica",
+        spaceBefore=0, spaceAfter=0,
+    )
+    title = (
+        f"<font name='Helvetica-Bold' size='12'>"
+        f"{icon} Payout Status: {label}</font>"
+        f"{'<br/><i>(' + reason + ')</i>' if reason else ''}"
+    )
+    body = f"<br/>{narrative}" if narrative else ""
+    banner_para = Paragraph(title + body, banner_style)
+    banner_table = Table([[banner_para]], colWidths=[460])
+    banner_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), bg),
+        ("BOX", (0, 0), (-1, -1), 1.8, border),
+        ("LINEBEFORE", (0, 0), (0, -1), 5, border),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    story.append(banner_table)
+    story.append(Spacer(1, 14))
+
+
+
+
 def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     """Full PIB PDF — 9 sections. Expects the summary dict produced by
     `get_center_account_summary`."""
@@ -264,7 +317,12 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
     ]))
     story.append(info_table)
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 12))
+
+    # ── 0. Payout Release Status Banner ────────────────────────────────
+    # Per Feb-2026 owner directive — informational banner, does NOT change
+    # any calculations. Auto-derived from WC Protection Mode + manual override.
+    _append_payout_status_banner(story, summary.get("payout_release_status"))
 
     # --- 1. Sales Summary ---------------------------------------------------
     story.append(Paragraph("1. SALES SUMMARY", styles["PIBSection"]))
@@ -391,18 +449,17 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                 f"GST on Eligible Sales ({gst_rate_label}) — informational",
                 f"{currency} {gst_on_sales:,.2f}",
             ])
-    fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
-    # Eligible Revenue Share Base — explicit breakout per Feb-2026 user directive.
-    # India: Sales − Commissions − GST (GST DOES reduce the share base because
-    #        franchise owner is entitled to ex-GST revenue only).
-    # Australia: Sales − Commission − Commission GST − GST on Eligible Sales.
+    # Per Feb-2026 owner directive — Net Revenue is HIDDEN. Revenue Share Base
+    # is the canonical primary metric.
     if is_australia:
-        rev_share_formula = "Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
+        # Australia keeps the AU-specific chain (Net Revenue line retained because
+        # AU has the comm-GST inclusivity calc that's clearer as a chain)
+        fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
+        rev_share_formula = "⭐ Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
         rev_share_value = fin['net_revenue']
     else:
-        rev_share_formula = "Eligible Rev Share Base (Sales − Commissions − GST)"
-        # India: NET REVENUE tile above is Sales − Comm (no GST). The SHARE
-        # base subtracts GST as well.
+        # India: Revenue Share Base = Sales − Comm − GST
+        rev_share_formula = "⭐ REVENUE SHARE BASE (Sales − Commissions − GST)"
         rev_share_value = round(fin['net_revenue'] - gst_on_sales, 2)
     fin_data.append([
         rev_share_formula,
@@ -450,11 +507,16 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     net_revenue_row_idx = 5 if len(fin_data) > 5 else len(fin_data) - 3
     profitability_row_idx = None
-    # Find NET REVENUE / PROFITABILITY rows accurately
+    # Find highlighted row — prefer REVENUE SHARE BASE (India), fall back to
+    # NET REVENUE (Australia), then PROFITABILITY (AU additional emphasis).
     for i, r in enumerate(fin_data):
-        if r and r[0] == "NET REVENUE":
+        if r and isinstance(r[0], str) and "REVENUE SHARE BASE" in r[0].upper():
             net_revenue_row_idx = i
-        elif r and r[0].startswith("PROFITABILITY"):
+        elif r and r[0] == "NET REVENUE":
+            # Only used as fallback when REVENUE SHARE BASE isn't present (AU)
+            if net_revenue_row_idx == 5:
+                net_revenue_row_idx = i
+        elif r and isinstance(r[0], str) and r[0].startswith("PROFITABILITY"):
             profitability_row_idx = i
     fin_table = Table(fin_data, colWidths=[280, 170])
     fin_style = [
@@ -1016,28 +1078,36 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
     rows = []
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
+        # Revenue Share Base = Sales − Comm − GST (Feb-2026 owner directive).
+        # Net Revenue is HIDDEN — use Rev Share Base as primary column.
+        sales_m = float(m.get("total_sales", 0) or 0)
+        gst_m = float(m.get("gst_on_sales", 0) or 0)
+        comm_m = float(m.get("total_commissions", 0) or 0)
+        rev_share_base_m = round(sales_m - comm_m - gst_m, 2)
         rows.append({
             "Month": month_label,
-            "Total Sales": m.get("total_sales", 0),
-            "GST": m.get("gst_on_sales", 0),
-            "Commissions": m.get("total_commissions", 0),
-            "Net Revenue": m.get("net_revenue", 0),
-            "Revenue Share": m.get("revenue_share", 0),
-            "MG Amount": m.get("mg_amount", 0),
+            "Total Sales": sales_m,
+            "GST": gst_m,
+            "Commissions": comm_m,
+            "Revenue Share Base": rev_share_base_m,
+            "MG": m.get("mg_amount", 0),
             "Type": "MG" if m.get("payable_type") == "mg" else "Revenue Share",
             "Payable": m.get("payable_amount", 0),
             "Paid": m.get("paid", 0),
             "Pending": m.get("pending", 0),
             "Status": m.get("status", "").capitalize(),
         })
+    total_sales = sum(float(m.get("total_sales", 0) or 0) for m in monthly_data)
+    total_gst = sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data)
+    total_comm = sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data)
+    total_rev_share_base = round(total_sales - total_comm - total_gst, 2)
     rows.append({
         "Month": "TOTAL",
-        "Total Sales": sum(m.get("total_sales", 0) for m in monthly_data),
-        "GST": sum(m.get("gst_on_sales", 0) for m in monthly_data),
-        "Commissions": sum(m.get("total_commissions", 0) for m in monthly_data),
-        "Net Revenue": sum(m.get("net_revenue", 0) for m in monthly_data),
-        "Revenue Share": totals.get("revenue_share", 0),
-        "MG Amount": totals.get("mg", 0),
+        "Total Sales": total_sales,
+        "GST": total_gst,
+        "Commissions": total_comm,
+        "Revenue Share Base": total_rev_share_base,
+        "MG": totals.get("mg", 0),
         "Type": "",
         "Payable": totals.get("payable", 0),
         "Paid": totals.get("paid", 0),
@@ -1052,15 +1122,15 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
     final_payout_incl_gst = round(payable_total + final_gst_amt, 2)
     rows.append({
         "Month": f"Add: {final_gst_rate}% GST on Rev Share",
-        "Total Sales": "", "GST": "", "Commissions": "", "Net Revenue": "",
-        "Revenue Share": "", "MG Amount": "", "Type": "",
+        "Total Sales": "", "GST": "", "Commissions": "", "Revenue Share Base": "",
+        "MG": "", "Type": "",
         "Payable": final_gst_amt,
         "Paid": "", "Pending": "", "Status": "",
     })
     rows.append({
         "Month": f"Total Final Payout (incl. {final_gst_rate}% GST)",
-        "Total Sales": "", "GST": "", "Commissions": "", "Net Revenue": "",
-        "Revenue Share": "", "MG Amount": "", "Type": "",
+        "Total Sales": "", "GST": "", "Commissions": "", "Revenue Share Base": "",
+        "MG": "", "Type": "",
         "Payable": final_payout_incl_gst,
         "Paid": "", "Pending": "", "Status": "",
     })
@@ -1086,7 +1156,8 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
 
 def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
                         totals: Dict[str, Any], period: Dict[str, Any],
-                        franchise_info: Dict[str, Any]) -> bytes:
+                        franchise_info: Dict[str, Any],
+                        payout_release_status: Optional[Dict[str, Any]] = None) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=30, rightMargin=30, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
@@ -1098,6 +1169,10 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
             elements.append(Image(str(logo_path), width=1.2 * inch, height=0.7 * inch))
         except Exception:
             pass
+
+    # Banner appears at the top, right after the logo
+    if payout_release_status:
+        _append_payout_status_banner(elements, payout_release_status)
 
     elements.append(Paragraph("MG Payout Report",
                               ParagraphStyle("MGTitle", parent=styles["Heading1"],
@@ -1148,18 +1223,23 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     elements.append(summary_table)
     elements.append(Spacer(1, 16))
 
-    table_header = ["Month", "Total Sales", "GST", "Comm", "Net Rev", "Rev Share", "MG", "Type", "Payable", "Paid", "Pending", "Status"]
+    # Per Feb-2026 owner directive: replace "Net Rev" column with "Rev Share Base"
+    # = Sales − Comm − GST. Drop "Rev Share" amount column (redundant with Payable).
+    table_header = ["Month", "Total Sales", "GST", "Comm", "Rev Share Base", "MG", "Type", "Payable", "Paid", "Pending", "Status"]
     table_rows: List[List[Any]] = [table_header]
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
         ptype = "MG" if m.get("payable_type") == "mg" else "RS"
+        s_m = float(m.get("total_sales", 0) or 0)
+        g_m = float(m.get("gst_on_sales", 0) or 0)
+        c_m = float(m.get("total_commissions", 0) or 0)
+        rsb_m = round(s_m - c_m - g_m, 2)
         table_rows.append([
             month_label,
-            f'{m.get("total_sales", 0):,.0f}',
-            f'{m.get("gst_on_sales", 0):,.0f}',
-            f'{m.get("total_commissions", 0):,.0f}',
-            f'{m.get("net_revenue", 0):,.0f}',
-            f'{m.get("revenue_share", 0):,.0f}',
+            f'{s_m:,.0f}',
+            f'{g_m:,.0f}',
+            f'{c_m:,.0f}',
+            f'{rsb_m:,.0f}',
             f'{m.get("mg_amount", 0):,.0f}',
             ptype,
             f'{m.get("payable_amount", 0):,.0f}',
@@ -1169,11 +1249,10 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         ])
     table_rows.append([
         "TOTAL",
-        f'{sum(m.get("total_sales", 0) for m in monthly_data):,.0f}',
-        f'{sum(m.get("gst_on_sales", 0) for m in monthly_data):,.0f}',
-        f'{sum(m.get("total_commissions", 0) for m in monthly_data):,.0f}',
-        f'{sum(m.get("net_revenue", 0) for m in monthly_data):,.0f}',
-        f'{totals.get("revenue_share", 0):,.0f}',
+        f'{sum(float(m.get("total_sales", 0) or 0) for m in monthly_data):,.0f}',
+        f'{sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data):,.0f}',
+        f'{sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data):,.0f}',
+        f'{(sum(float(m.get("total_sales", 0) or 0) for m in monthly_data) - sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data) - sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data)):,.0f}',
         f'{totals.get("mg", 0):,.0f}',
         "",
         f'{totals.get("payable", 0):,.0f}',
@@ -1190,18 +1269,19 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     final_payout_pdf = round(payable_total_pdf + final_gst_amt_pdf, 2)
     table_rows.append([
         f"Add: {final_gst_rate_pdf}% GST on Rev Share",
-        "", "", "", "", "", "", "",
+        "", "", "", "", "", "",
         f'{final_gst_amt_pdf:,.0f}',
         "", "", "",
     ])
     table_rows.append([
         f"Total Final Payout (incl. {final_gst_rate_pdf}% GST)",
-        "", "", "", "", "", "", "",
+        "", "", "", "", "", "",
         f'{final_payout_pdf:,.0f}',
         "", "", "",
     ])
 
-    data_table = Table(table_rows, colWidths=[44, 50, 38, 38, 50, 50, 42, 28, 50, 42, 45, 38], repeatRows=1)
+    # Column widths: 11 cols (was 12; dropped "Rev Share" amount column).
+    data_table = Table(table_rows, colWidths=[48, 56, 42, 42, 60, 48, 30, 56, 46, 48, 42], repeatRows=1)
     table_style = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -1210,7 +1290,7 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         ("FONTSIZE", (0, 1), (-1, -1), 6.5),
         ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("ALIGN", (7, 0), (7, -1), "CENTER"),
+        ("ALIGN", (6, 0), (6, -1), "CENTER"),
         ("ALIGN", (-1, 0), (-1, -1), "CENTER"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 4),
