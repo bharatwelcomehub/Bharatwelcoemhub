@@ -25,6 +25,8 @@ from reportlab.platypus import (
     Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
+from .entity import entity_share_label
+
 # -----------------------------------------------------------------------------
 # Brand palette — single source of truth for all branded PDFs
 # -----------------------------------------------------------------------------
@@ -787,7 +789,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                                 f"{currency} {overseas_share_pdf.get('eligible_profit', 0):,.2f}"])
             payout_data.append(["Franchise Owner Share (80%)",
                                 f"{currency} {overseas_share_pdf.get('owner_share', 0):,.2f}"])
-            payout_data.append(["Purnabramha LLC Share (20%)",
+            payout_data.append([f"{entity_share_label(summary.get('country'))} (20%)",
                                 f"{currency} {overseas_share_pdf.get('franchisor_share', 0):,.2f}"])
             payout_data.append(["MFPL Royalty Accrued (5% Net Sales)",
                                 f"{currency} {overseas_share_pdf.get('mfpl_royalty', 0):,.2f}"])

@@ -52,6 +52,12 @@ const formatCurrency = (value, country) => {
 
 const formatPercent = (value) => `${(value || 0).toFixed(1)}%`;
 
+// Country-aware legal entity name for share / payout labels.
+//   India     → "Manaswini Foods Pvt Ltd"
+//   Australia → "Purnabramha LLC Pty Ltd"
+const entityName = (country) =>
+  country === 'Australia' ? 'Purnabramha LLC Pty Ltd' : 'Manaswini Foods Pvt Ltd';
+
 // ── Payout Release Status Banner (Feb-2026 directive) ──────────────────
 // Informational only — does NOT change any calculations or payout amounts.
 // Auto-derived from WC Protection Mode + manual override stored in
@@ -2174,7 +2180,7 @@ export default function CenterAccounts() {
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-3">
                             <DollarSign className="w-5 h-5 text-orange-600" />
-                            <h4 className="font-medium text-orange-800">Purnabramha LLC Share</h4>
+                            <h4 className="font-medium text-orange-800">{entityName(accountSummary.country)} Share</h4>
                           </div>
                           <div className="space-y-2">
                             <div className="flex justify-between">
@@ -2627,7 +2633,7 @@ export default function CenterAccounts() {
                       </Card>
                       <Card className="border-2 border-indigo-400 bg-indigo-50">
                         <CardContent className="p-4 text-center">
-                          <p className="text-xs text-gray-600">Purnabramha LLC ({accountSummary.overseas_share.franchisor_pct}%)</p>
+                          <p className="text-xs text-gray-600">{entityName(accountSummary.country)} ({accountSummary.overseas_share.franchisor_pct}%)</p>
                           <p className="text-2xl font-bold text-indigo-700" data-testid="overseas-franchisor-share">
                             {formatCurrency(accountSummary.overseas_share.franchisor_share, accountSummary.country)}
                           </p>
@@ -2941,18 +2947,18 @@ export default function CenterAccounts() {
                       Final Payout (incl. 10% GST on Franchisor Share) — {accountSummary.period}
                     </CardTitle>
                     <CardDescription>
-                      Owner gets 80% of Eligible Profit. Purnabramha LLC invoices 20% + 10% GST. MFPL royalty is accrued separately as a liability.
+                      Owner gets 80% of Eligible Profit. {entityName(accountSummary.country)} invoices 20% + 10% GST. MFPL royalty is accrued separately as a liability.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between"><span>Franchise Owner Payout (80%)</span>
                         <span className="font-medium text-green-700">{formatCurrency(accountSummary.overseas_share.owner_share, accountSummary.country)}</span></div>
-                      <div className="flex justify-between"><span>Purnabramha LLC Share (20%)</span>
+                      <div className="flex justify-between"><span>{entityName(accountSummary.country)} Share (20%)</span>
                         <span className="font-medium">{formatCurrency(accountSummary.share_calculation.purnabramha.base_amount, accountSummary.country)}</span></div>
                       <div className="flex justify-between"><span className="pl-4 text-gray-500">Add: GST @ 10%</span>
                         <span className="text-gray-700">{formatCurrency(accountSummary.share_calculation.purnabramha.gst_amount, accountSummary.country)}</span></div>
-                      <div className="flex justify-between border-t pt-2"><span className="font-medium">Purnabramha LLC Invoice (incl. GST)</span>
+                      <div className="flex justify-between border-t pt-2"><span className="font-medium">{entityName(accountSummary.country)} Invoice (incl. GST)</span>
                         <span className="font-bold text-indigo-700">{formatCurrency(accountSummary.share_calculation.purnabramha.total_payable, accountSummary.country)}</span></div>
                       <div className="flex justify-between"><span>MFPL Royalty Accrued (5% of Net Sales)</span>
                         <span className="font-medium text-amber-700">{formatCurrency(accountSummary.overseas_share.mfpl_royalty, accountSummary.country)}</span></div>

@@ -4,6 +4,42 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-12] Legal Entity Name Correction Across All Reports (P0)
+
+**User directive**: *Replace hardcoded "Purnabramha LLC Share" with the legal entity name resolved by the center's country.*
+
+**Naming convention**:
+- India center → **"Manaswini Foods Pvt Ltd Share"**
+- Australia center → **"Purnabramha LLC Pty Ltd Share"**
+
+**New shared helper**:
+- `backend/utils/entity.py` → `entity_for_country(country)` + `entity_share_label(country)` — single source of truth.
+- Frontend mirror helper `entityName(country)` declared at top of `pages/CenterAccounts.jsx`.
+
+**Surfaces updated**:
+
+| Surface | Change |
+|---------|--------|
+| `backend/utils/pdf_generator.py` (Section 8 — Payout Determination) | Row label for franchisor 20% share now `entity_share_label(country) + " (20%)"`. Renders "Manaswini Foods Pvt Ltd Share (20%)" for India PDFs, "Purnabramha LLC Pty Ltd Share (20%)" for Australia. |
+| `backend/routes/center_accounts.py` (monthly accounting email signature) | Footer now picks the single correct entity per center country instead of listing both. |
+| `backend/utils/agreement_generator.py` (Australian franchise agreement — 6 references) | Hardcoded "Purnabramha LLC" upgraded to legally-correct "Purnabramha LLC Pty Ltd" across Definitions 1.15, Profit Share clause 4.1.2, Director Honorarium 4.2.1, and Special Termination 7.7.1 / 7.7.2. |
+| `frontend/src/pages/CenterAccounts.jsx` (5 places) | Share-card heading, overseas-share KPI tile, overseas-payout description, overseas-payout 20% row, and overseas-payout invoice row — all now driven by `entityName(accountSummary.country)`. |
+
+**Already country-aware (no change needed)**:
+- `backend/utils/signature.py` — CFO signature block already resolves entity by country.
+- `backend/routes/ledgers.py` — uses `signature.py` for sign-off.
+- `backend/utils/agreement_generator.py::_set_franchisor_details` — `franchisor_name`/`franchisor_short` already differ per country.
+
+**Regression tests**: `backend/tests/test_entity_naming.py` — 7 tests covering the helper, both PDF source guard (no legacy string in `pdf_generator.py`) and frontend source guard (no legacy string outside the `entityName` helper). Australian agreement PDF rendered live and verified — 6 occurrences of "Purnabramha LLC Pty Ltd" present.
+
+**Test suite**: 15/15 passing across `test_entity_naming.py`, `test_payout_release_status.py`, `test_profit_loss_vs_revenue_share.py`.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. After deploy, India centers will see "Manaswini Foods Pvt Ltd Share" everywhere; Australia centers will see "Purnabramha LLC Pty Ltd Share".
+
+---
+
+
+
 ### [2026-02-12] Revenue Share Payout column re-added across all surfaces (P0 transparency)
 
 **User directive**: *"Revenue Share Payout is not separately visible. Make it clear how much payout is coming from the Revenue Share calculation versus MG."*

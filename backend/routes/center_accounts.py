@@ -2245,7 +2245,7 @@ def _build_monthly_email_text(summary: dict) -> Tuple[str, str]:
         f"every line item is open for discussion and improvement.\n\n"
         f"With warm regards and gratitude,\n"
         f"— Purnabramha Accounts Team\n"
-        f"   Manaswini Foods Pvt. Ltd. / Purnabramha LLC Pty. Ltd."
+        f"   {'Purnabramha LLC Pty. Ltd.' if (country or 'India').lower() != 'india' else 'Manaswini Foods Pvt. Ltd.'}"
     )
     return subject, body
 

@@ -822,7 +822,7 @@ class FranchiseAgreementGenerator:
                 
                 ("1.14", "\"Profit Share\"", f"means the distribution of Net Profit between the Parties, with {100 - self.revenue_share}% allocated to the Franchisor and {self.revenue_share}% allocated to the Franchisee."),
                 
-                ("1.15", "\"Director Operational Honorarium\"", "means the monthly payment to directors of Purnabramha LLC who are actively involved in on-ground operations at the Franchise Premises."),
+                ("1.15", "\"Director Operational Honorarium\"", "means the monthly payment to directors of Purnabramha LLC Pty Ltd who are actively involved in on-ground operations at the Franchise Premises."),
                 
                 ("1.16", "\"Loss Exit Condition\"", "means the condition under which the Franchisee may request termination due to continuous operational losses as specified in Clause 4.4."),
                 
@@ -1319,7 +1319,7 @@ class FranchiseAgreementGenerator:
             self._add_body(f"""
             The Net Profit of the Franchise Premises shall be distributed as follows:
             <br/><br/>
-            <b>Franchisor (Purnabramha LLC):</b> {100 - self.revenue_share}%<br/>
+            <b>Franchisor (Purnabramha LLC Pty Ltd):</b> {100 - self.revenue_share}%<br/>
             <b>Franchisee:</b> {self.revenue_share}%
             """)
             
@@ -1340,7 +1340,7 @@ class FranchiseAgreementGenerator:
             
             self._add_clause("4.2.1 Amount")
             self._add_body("""
-            Directors of Purnabramha LLC who are actively involved in on-ground operations at the Franchise 
+            Directors of Purnabramha LLC Pty Ltd who are actively involved in on-ground operations at the Franchise 
             Premises shall be entitled to a monthly Director Operational Honorarium as specified in Schedule C.
             """)
             
@@ -2213,14 +2213,14 @@ class FranchiseAgreementGenerator:
             
             self._add_clause("7.7.1 Franchisee Cannot Evict LLC")
             self._add_body("""
-            In recognition of the FOCO model and the operational investments made by Purnabramha LLC, the 
-            Franchisee acknowledges and agrees that they cannot evict or remove Purnabramha LLC from the 
+            In recognition of the FOCO model and the operational investments made by Purnabramha LLC Pty Ltd, the 
+            Franchisee acknowledges and agrees that they cannot evict or remove Purnabramha LLC Pty Ltd from the 
             Franchise Premises except through the termination provisions of this Agreement.
             """)
             
             self._add_clause("7.7.2 LLC Can Continue Operations After Termination")
             self._add_body("""
-            Upon termination, Purnabramha LLC may continue operations at the Franchise Premises for a 
+            Upon termination, Purnabramha LLC Pty Ltd may continue operations at the Franchise Premises for a 
             transition period of up to 90 days to ensure operational continuity and protect brand interests.
             """)
         
