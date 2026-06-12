@@ -1407,7 +1407,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     
     # Net Eligible Sales for GST = Total - Aggregators (Swiggy + Zomato + DoorDash).
     # Use shared utility (single source of truth, INCLUSIVE basis).
-    from utils.gst import compute_gst_from_totals, compute_net_revenue
+    from utils.gst import compute_gst_from_totals, compute_net_revenue, compute_revenue_share_base
     _gst_calc = compute_gst_from_totals(total_sale, aggregator_sale, country=country, center=req.center)
     eligible_base = _gst_calc["eligible_base"]
     sales_gst_amount = _gst_calc["gst_amount"]
@@ -1455,7 +1455,13 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # NOT change the math on the dashboard. This matches user spec
         # "GST same calculation everywhere".
         gst_on_sales = sales_gst_amount
-        india_net_revenue = compute_net_revenue(total_sale, total_commission, gst_on_sales, 0, "India")
+        # IMPORTANT (Feb-2026 owner directive — re-confirmed Dombivali fix):
+        # The owner/company share split MUST be computed on the canonical
+        # Revenue Share Base = Sales − Commissions − GST.  `compute_net_revenue`
+        # intentionally ignores GST for the management "Net Revenue" tile, so
+        # using it here would inflate the base and give a wrong franchise-owner
+        # share (the Section 7 bug reported on PB-DV).
+        india_net_revenue = compute_revenue_share_base(total_sale, total_commission, gst_on_sales, "India")
 
         # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
         franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
