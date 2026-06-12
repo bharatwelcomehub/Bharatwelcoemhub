@@ -25,7 +25,7 @@ from reportlab.platypus import (
     Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
-from .entity import entity_share_label
+from .entity import entity_for_country, entity_share_label
 
 # -----------------------------------------------------------------------------
 # Brand palette — single source of truth for all branded PDFs
@@ -743,7 +743,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ["", "", ""],
         ["FRANCHISE OWNER SHARE", f"{share['franchise_owner']['percentage']}%", f"{currency} {share['franchise_owner']['amount']:,.2f}"],
         ["", "", ""],
-        ["PURNABRAMHA LLC SHARE", f"{share['purnabramha']['percentage']}%", f"{currency} {share['purnabramha']['base_amount']:,.2f}"],
+        [entity_share_label(summary.get("country")).upper(), f"{share['purnabramha']['percentage']}%", f"{currency} {share['purnabramha']['base_amount']:,.2f}"],
     ]
     if summary["country"] == "India":
         share_data.append(["  Add: CGST (9%)", "", f"{currency} {share['purnabramha']['cgst']:,.2f}"])
@@ -751,7 +751,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     else:
         share_data.append([f"  Add: GST ({summary['tax_rules']['share_gst_rate']:.0f}%)", "",
                            f"{currency} {share['purnabramha']['gst_amount']:,.2f}"])
-    share_data.append(["PURNABRAMHA TOTAL (WITH GST)", "", f"{currency} {share['purnabramha']['total_payable']:,.2f}"])
+    share_data.append([f"{entity_for_country(summary.get('country')).upper()} TOTAL (WITH GST)", "", f"{currency} {share['purnabramha']['total_payable']:,.2f}"])
 
     share_table = Table(share_data, colWidths=[220, 80, 150])
     share_table.setStyle(TableStyle([

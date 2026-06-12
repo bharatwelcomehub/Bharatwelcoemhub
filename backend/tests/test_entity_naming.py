@@ -43,12 +43,17 @@ def test_entity_share_label_drives_payout_pdf_string(country, expected_label):
 
 def test_pdf_generator_no_longer_uses_legacy_label():
     """Hard regression — the legacy 'Purnabramha LLC Share' constant must
-    not exist anywhere in pdf_generator.py. All payout labels must be
-    derived via entity_share_label(country)."""
+    not exist anywhere in pdf_generator.py (any case). All payout labels
+    must be derived via entity_share_label(country)."""
     src = (Path(__file__).resolve().parent.parent / "utils" / "pdf_generator.py").read_text()
-    assert "Purnabramha LLC Share" not in src, (
-        "pdf_generator.py still hardcodes 'Purnabramha LLC Share'; "
+    lower = src.lower()
+    assert "purnabramha llc share" not in lower, (
+        "pdf_generator.py still hardcodes 'Purnabramha LLC Share' (any case); "
         "use entity_share_label(country) instead."
+    )
+    assert "purnabramha total (with gst)" not in lower, (
+        "pdf_generator.py still hardcodes 'PURNABRAMHA TOTAL (WITH GST)'; "
+        "use entity_for_country(country) instead."
     )
     assert "entity_share_label" in src, (
         "pdf_generator.py should import and use entity_share_label."

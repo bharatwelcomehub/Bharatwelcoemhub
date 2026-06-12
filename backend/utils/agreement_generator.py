@@ -710,7 +710,7 @@ class FranchiseAgreementGenerator:
             <b>M/s. {self.franchisor_name}</b>, a company incorporated under the Corporations Act 2001 
             ({self.franchisor_cin}) (which expression shall, unless repugnant to the meaning and context thereof, 
             be deemed to mean and include its successors and assignees), having its registered office at 
-            {self.franchisor_address}, through its authorized Directors (the "<b>FRANCHISOR</b>" or "<b>PURNABRAMHA LLC</b>" 
+            {self.franchisor_address}, through its authorized Directors (the "<b>FRANCHISOR</b>" or "<b>PURNABRAMHA LLC PTY LTD</b>" 
             or "<b>PB LLC</b>") of the <b>ONE PART</b>;
             """
         else:
