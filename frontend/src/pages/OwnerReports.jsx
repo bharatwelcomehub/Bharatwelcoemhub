@@ -298,9 +298,26 @@ export default function OwnerReports() {
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6" data-testid="owner-reports-page">
+      {/* Phase-3 deprecation banner — these standalone PDFs are being
+          consolidated into the 3 master bundles. The page still works
+          (PIB / GST / Sales / Expenses email pack), but new consumers
+          should download the persona-specific bundle instead. */}
+      <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm" data-testid="owner-reports-deprecation-banner">
+        <p className="font-medium text-amber-900 dark:text-amber-100">
+          ℹ️ This page is moving.
+        </p>
+        <p className="text-amber-800 dark:text-amber-200 mt-1">
+          The standalone PIB / Email Pack PDFs are being consolidated into the new <b>3-bundle architecture</b>.
+          For Franchise Owners → use the new <a href="/dashboard/franchise-owner" className="underline font-medium">Franchise Owner Dashboard</a> →
+          <b> Bundle</b> button. For Accounts Team → <a href="/dashboard/ca" className="underline font-medium">CA Dashboard</a>.
+          For Founders → <a href="/dashboard/franchisor" className="underline font-medium">Franchisor Dashboard</a>.
+          This page will remain available for historical generation but will not receive new features.
+        </p>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-[#8B0000]" /> Monthly Reports</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-[#8B0000]" /> Monthly Reports <span className="text-xs font-normal text-muted-foreground">(legacy)</span></h1>
           <p className="text-sm text-muted-foreground">PIB · GST · Sales · Expenses — by center & month</p>
         </div>
       </div>

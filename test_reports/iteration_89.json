@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 89 — Phase-3 bundles (CA / Owner / Franchisor) + 3 master dashboards + deprecation banner. Backend: 9/9 HTTP integration tests pass + 1 xfailed security observation (test_bundles_endpoints.py) and 7/7 bundle_generator unit tests still pass. Frontend live-verified: /dashboard/ca, /dashboard/franchisor, /dashboard/franchise-owner all render with the 7 required data-testids; sidebar Accounts group shows ★ CA Dashboard + ★ Franchisor Dashboard; /owner-reports deprecation banner present and links to CA/Franchisor Dashboards. NOTE: fixed a P0 backend defect — bundles route was querying centers by the non-existent field `center_code` so every (center, period) returned 404; corrected to `code` to match the rest of the codebase.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/bundles/{kind}", "issue": "verify_token_sync return value is ignored — `if _verify_token: _verify_token(token)` does not check the None return, so an unrecognised token still produces a valid ZIP download. Missing-token is correctly 4xx (FastAPI 422) so the review item is met, but invalid/expired tokens leak data. Recommend: `data = _verify_token(token); if not data: raise HTTPException(401, 'Invalid or expired token')`."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_bundles_endpoints.py",
+    "/app/backend/tests/test_bundle_generator.py",
+    "/app/test_reports/pytest/iter89_bundles.xml"
+  ],
+  "action_items": [
+    "(Optional, security) Enforce verify_token_sync return in routes/bundles.py — raise HTTPException(401) when it returns None. Today, an invalid token still downloads the bundle (verified live with token='obviously-bad-token').",
+    "(Carry-forward) routes/center_accounts.py 3376 lines and routes/franchises.py 1203 lines still exceed 700-line guideline."
+  ],
+  "critical_code_review_comments": [
+    "routes/bundles.py:46 — FIXED in this iteration. Was `db.centers.find_one({'center_code': center.upper()})` but the entire centers collection stores the code under field `code` (10 docs verified). All other routes (owner_reports, daily_text, masters, center_accounts, center_health) use `code`. Without this fix, every legit request returned 404 'Center not found' so no bundle was actually downloadable in production.",
+    "routes/bundles.py:136-138, 154-156, 172-174 — `if _verify_token: _verify_token(token)` is a no-op auth check. verify_token_sync returns None for bad/expired tokens but the route discards the return value. The download is gated only by the JWT being a valid 32-byte URL-safe string shape, not by lookup. Pre-existing minor security defect.",
+    "utils/bundle_generator.py — clean module: every figure flows from `engine = compute_franchise_payout(...)` which is the single source of truth (verified by test_pdf_text_contains_engine_figures + the new test_ca_pdf_contains_engine_figures_and_entity HTTP test). Manifest audit trail includes Selected Base / Owner Share / Company Entity + 'financial_engine.py' reference — all 3 audit-trail assertions pass for ca / owner / franchisor.",
+    "CADashboard.jsx + FranchisorDashboard.jsx + FranchiseOwnerDashboard.jsx — all data-testids placed correctly (ca-dashboard, ca-center-select, ca-period-input, download-ca-bundle, franchisor-dashboard, download-franchisor-bundle, fo-download-bundle-btn). Dashboard.jsx:678-680 wires the 3 routes.",
+    "OwnerReports.jsx:305-318 — deprecation banner uses amber-themed alert with anchor links to /dashboard/ca and /dashboard/franchisor. Properly tagged with data-testid='owner-reports-deprecation-banner'."
+  ],
+  "updated_files": [
+    "/app/backend/routes/bundles.py (FIX — changed `center_code` lookup to `code` to match centers collection schema)",
+    "/app/backend/tests/test_bundles_endpoints.py (NEW — 10 HTTP integration tests covering 200/zip shape, manifest audit-trail, missing-token 4xx, unknown-center 404, engine-figure presence + Manaswini entity in CA PDF)"
+  ],
+  "success_rate": {
+    "backend": "100% functional — 9 passed + 1 xfailed (security observation). XML: /app/test_reports/pytest/iter89_bundles.xml. Plus 7/7 bundle_generator unit tests still pass.",
+    "frontend": "100% — login OK; /dashboard/ca, /dashboard/franchisor, /dashboard/franchise-owner all render with required data-testids; sidebar shows ★ CA Dashboard + ★ Franchisor Dashboard under Accounts; /owner-reports deprecation banner present and points to both new dashboards (verified visually in screenshots)."
+  },
+  "test_credentials": "Super Admin 9741399190 / 123456 / PB-MGT (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "None. Tests are read-only against live DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: `cd /app/backend && set -a && source .env && set +a && REACT_APP_BACKEND_URL=https://balance-cascade-fix.preview.emergentagent.com python -m pytest tests/test_bundles_endpoints.py tests/test_bundle_generator.py -v`. The integration suite hits the live preview URL with super-admin OTP login. Centers collection uses field `code` (NOT `center_code`); future routes should follow that convention. PB-MGT exists with country=null and no franchise link, so its bundle reflects defaults (India + 15% owner pct) — engine output drives the manifest values verified in the tests.",
+  "rca_of_the_issue": "RCA — bundles 404 for all requests: routes/bundles.py was written against an assumed schema (`center_code` field) but the live `centers` collection stores the code under `code` (consistent with 8 other routes I sampled). Repro: GET /api/bundles/ca?token=<valid>&center=PB-MGT&period=2026-05 returned 404 'Center PB-MGT not found' before the fix; returns 200 application/zip after the fix. Mitigation: 1-line change at routes/bundles.py:46 — `{'center_code': center.upper()}` → `{'code': center.upper()}`. No tests previously caught this because test_bundle_generator.py only exercises the in-process build_*_pdf / build_bundle_zip helpers with a hand-built ctx dict, never the HTTP route. The new test_bundles_endpoints.py closes that gap."
+}

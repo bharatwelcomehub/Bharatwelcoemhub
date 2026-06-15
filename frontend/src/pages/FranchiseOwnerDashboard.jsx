@@ -536,6 +536,28 @@ export default function FranchiseOwnerDashboard() {
               <FileText className={`w-4 h-4 mr-1 ${pdfLoading ? 'animate-pulse' : ''}`} />
               {pdfLoading ? "..." : "PDF"}
             </Button>
+            <Button
+              variant="outline" size="sm"
+              className="bg-emerald-600/90 border-emerald-500 text-white h-9 hover:bg-emerald-500"
+              data-testid="fo-download-bundle-btn"
+              onClick={async () => {
+                if (!selectedCenter || !selectedMonth) { toast.error("Pick a center & month first."); return; }
+                try {
+                  const url = `${API}/bundles/owner?token=${encodeURIComponent(session.token)}&center=${encodeURIComponent(selectedCenter)}&period=${encodeURIComponent(selectedMonth)}`;
+                  const res = await fetch(url);
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  const blob = await res.blob();
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `OWNER_${selectedCenter}_${selectedMonth}.zip`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                  toast.success("Franchise Owner Bundle downloaded");
+                } catch (e) { toast.error(`Bundle download failed: ${e.message}`); }
+              }}
+            >
+              <Download className="w-4 h-4 mr-1" /> Bundle
+            </Button>
             <Button variant="outline" size="sm" className="bg-slate-800/80 border-slate-600 text-white h-9" onClick={handleExportReport}>
               <Download className="w-4 h-4 mr-1" /> Export
             </Button>

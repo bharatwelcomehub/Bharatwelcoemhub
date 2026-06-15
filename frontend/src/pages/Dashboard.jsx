@@ -46,6 +46,7 @@ import {
   Sparkles,
   Activity,
   Calculator,
+  Crown,
   Scale,
   Utensils,
   PartyPopper,
@@ -68,6 +69,10 @@ import RoleManagement from "@/pages/RoleManagement";
 import FranchiseManagement from "@/pages/FranchiseManagement";
 import FranchiseExit from "@/pages/FranchiseExit";
 import MISDashboard from "@/pages/MISDashboard";
+// Phase-3 master dashboards (Feb-2026 architecture refactor) — 3 persona-
+// focused hubs that consume the Financial Engine exclusively.
+import CADashboard from "@/pages/CADashboard";
+import FranchisorDashboard from "@/pages/FranchisorDashboard";
 import CenterAccounts from "@/pages/CenterAccounts";
 import GSTReconciliation from "@/pages/GSTReconciliation";
 import BankReconciliation from "@/pages/BankReconciliation";
@@ -135,6 +140,9 @@ const menuCategories = [
     icon: BarChart3,
     forAccounts: true,
     items: [
+      // Phase-3 master dashboards — single source of truth.
+      { path: "/dashboard/ca", icon: Calculator, label: "★ CA Dashboard", forAccounts: true },
+      { path: "/dashboard/franchisor", icon: Crown, label: "★ Franchisor Dashboard", forAccounts: true, superAdminOnly: true },
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
       { path: "/center-health", icon: Activity, label: "Center Health Dashboard", forAccounts: true },
       { path: "/expense-adjustments-report", icon: Scale, label: "Expense Adjustments Report", forAccounts: true },
@@ -666,6 +674,10 @@ export default function Dashboard() {
             <Route path="/ad-creator" element={<AdCreator />} />
             <Route path="/loan-entries" element={<LoanEntries />} />
             <Route path="/mis-dashboard" element={<MISDashboard />} />
+            {/* Phase-3 master dashboards */}
+            <Route path="/dashboard/ca" element={<CADashboard />} />
+            <Route path="/dashboard/franchisor" element={<FranchisorDashboard />} />
+            <Route path="/dashboard/franchise-owner" element={<FranchiseOwnerDashboard />} />
             <Route path="/booking-intelligence" element={<BookingIntelligence />} />
             <Route path="/tiffin-bookings" element={<TiffinBookings />} />
             <Route path="/catering-orders" element={<CateringOrders />} />
