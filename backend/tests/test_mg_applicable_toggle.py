@@ -94,6 +94,42 @@ def test_franchise_model_has_mg_calculation_applicable_field():
     assert "mg_calculation_applicable: Optional[bool] = None" in src
 
 
+def test_franchise_update_endpoint_whitelists_mg_calculation_applicable():
+    """CRITICAL: update_franchise() builds an `updatable_fields` whitelist.
+    If `mg_calculation_applicable` is missing from the list, the field is
+    SILENTLY DROPPED on every save — the user sees "saved successfully"
+    but the checkbox reverts on reload (bug reported on PB-MGT 2026-06)."""
+    src = (Path(__file__).resolve().parent.parent / "routes" / "franchises.py").read_text()
+    # The whitelist string must include the field, NOT just the model.
+    assert '"mg_calculation_applicable"' in src
+    # And there must be a list of strings (the whitelist), not only the model.
+    # Locate the updatable_fields list and confirm membership.
+    idx = src.find("updatable_fields = [")
+    assert idx >= 0, "Could not locate updatable_fields whitelist"
+    # Find the matching closing bracket of THIS list specifically.
+    end = src.find("]", idx)
+    assert end > idx
+    whitelist_block = src[idx:end]
+    assert '"mg_calculation_applicable"' in whitelist_block, (
+        "update_franchise() must whitelist 'mg_calculation_applicable' — "
+        "otherwise the toggle never persists."
+    )
+
+
+def test_franchise_create_endpoint_persists_mg_calculation_applicable():
+    """Create endpoint must also persist the field so newly-created
+    franchises retain whatever the user chose on the form."""
+    src = (Path(__file__).resolve().parent.parent / "routes" / "franchises.py").read_text()
+    # Find the franchise dict in create_franchise and confirm the field is set.
+    idx = src.find('"gst_applicable": data.get("gst_applicable"')
+    assert idx >= 0
+    after = src[idx:idx + 800]
+    assert "mg_calculation_applicable" in after, (
+        "create_franchise() must persist mg_calculation_applicable on the "
+        "new franchise document."
+    )
+
+
 def test_frontend_franchise_management_has_mg_toggle():
     """The Franchise Management form must expose the new checkbox."""
     src = (

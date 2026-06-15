@@ -609,6 +609,13 @@ async def create_franchise(data: dict):
         "status": data.get("status", "Active"),
         "notes": data.get("notes", ""),
         "gst_applicable": data.get("gst_applicable", False),  # NEW: GST toggle for India
+        # MG calculation toggle — when False, payout uses Revenue Share %
+        # only; when True (default for legacy parity) MG-vs-RS comparison runs.
+        # Cast explicitly so JSON `false` is preserved instead of being coerced
+        # to the default True.
+        "mg_calculation_applicable": (
+            data.get("mg_calculation_applicable") if data.get("mg_calculation_applicable") is not None else True
+        ),
         "documents": [],  # Will hold document references
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": session.get("managerName", ""),
@@ -671,7 +678,12 @@ async def update_franchise(franchise_code: str, data: dict):
         "franchise_type", "working_capital", "total_investment", "setup_costs", "operations_start_date",
         "revenue_share_percentage", "service_contract_fee", "nominees",
         # NEW fields for MG, GST, and revenue share start
-        "gst_applicable", "revenue_share_start_date"
+        "gst_applicable", "revenue_share_start_date",
+        # MG Calculation toggle — per-franchise payout model selector. Must be
+        # whitelisted here otherwise unchecking it silently no-ops (the issue
+        # reported on PB-MGT 2026-06: "save shows success but checkbox stays
+        # checked"). `False` is a legitimate persisted value.
+        "mg_calculation_applicable",
     ]
     
     changes = {}
