@@ -785,6 +785,27 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         section_title += f" ({split} SPLIT)"
     story.append(Paragraph(section_title, styles["PIBSection"]))
 
+    # Explanatory note for WC Protection mode — makes it absolutely clear
+    # WHY the base for split differs from the Revenue / Profit Share Base
+    # shown earlier in Section 5. Without this, users see "10% × big number
+    # ≠ amount" and assume the math is wrong.
+    _is_protection_gated = ("Protection" in (base_label or "")) or (summary.get("payout", {}) or {}).get("protection_mode", False)
+    if _is_protection_gated:
+        _model_word_inline = (
+            "Profit Share" if (summary.get("payout_model") or "").lower() == "profit_share"
+            else "Revenue Share"
+        )
+        story.append(Paragraph(
+            f"<b>Note — Why is the base different from the {_model_word_inline} Base?</b> "
+            f"Under <b>Working Capital Protection Mode</b> the owner payout is intentionally gated "
+            f"to <b>Operational Balance</b> (Sales − Expenses − Commissions) instead of the gross "
+            f"{_model_word_inline} Base. This prevents the franchise from paying out cash it cannot "
+            f"afford while Working Capital is below the 50% safety threshold. The math below uses "
+            f"the gated <b>Operational Balance</b> as the Base for Split.",
+            styles.get("Italic", styles["BodyText"]),
+        ))
+        story.append(Spacer(1, 8))
+
     # Base row label: under WC Protection the backend label already
     # encodes the gating (e.g. "Operational Balance (Base under WC
     # Protection)") — don't double-append "(Base for Calculation)" or it
@@ -793,16 +814,23 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         base_label if ("Base" in base_label and "Protection" in base_label)
         else f"{base_label} (Base for Calculation)"
     )
+    # Show the formula on each share row so the math is visible:
+    # "10% × Rs. 2,42,855.78"  →  "Rs. 24,285.58"
+    _base_for_split = share['net_profit_or_sales']
+    _owner_pct = share['franchise_owner']['percentage']
+    _company_pct = share['purnabramha']['percentage']
+    _owner_formula = f"{_owner_pct}% × {currency} {_base_for_split:,.2f}"
+    _company_formula = f"{_company_pct}% × {currency} {_base_for_split:,.2f}"
     share_data = [
-        ["Description", "Percentage", "Amount"],
-        [_base_row_label, "", f"{currency} {share['net_profit_or_sales']:,.2f}"],
+        ["Description", "Calculation", "Amount"],
+        [_base_row_label, "(Base for Split)", f"{currency} {_base_for_split:,.2f}"],
         ["", "", ""],
         [owner_model_share_label(summary.get("payout_model")).upper(),
-         f"{share['franchise_owner']['percentage']}%",
+         _owner_formula,
          f"{currency} {share['franchise_owner']['amount']:,.2f}"],
         ["", "", ""],
         [entity_model_share_label(summary.get("country"), summary.get("payout_model")).upper(),
-         f"{share['purnabramha']['percentage']}%",
+         _company_formula,
          f"{currency} {share['purnabramha']['base_amount']:,.2f}"],
     ]
     if summary["country"] == "India":
@@ -813,7 +841,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                            f"{currency} {share['purnabramha']['gst_amount']:,.2f}"])
     share_data.append([f"{entity_model_share_label(summary.get('country'), summary.get('payout_model')).upper()} TOTAL (WITH GST)", "", f"{currency} {share['purnabramha']['total_payable']:,.2f}"])
 
-    share_table = Table(share_data, colWidths=[220, 80, 150])
+    share_table = Table(share_data, colWidths=[200, 120, 130])
     share_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"),

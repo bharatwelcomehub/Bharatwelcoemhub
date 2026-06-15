@@ -134,3 +134,38 @@ def test_pib_wc_protection_section_title_still_indicates_closure():
     text = _pdf_text(pdf)
     assert "*** CLOSED" in text, f"WC closure marker missing. Text: {text[:500]}"
     assert "WC BELOW 50%" in text, f"WC threshold marker missing. Text: {text[:500]}"
+
+
+
+def test_pib_wc_protection_formula_visible_on_each_share_row():
+    """Section 7 must show the formula '10% × Rs. 2,42,856.00' on the
+    Franchise Owner row and '90% × Rs. 2,42,856.00' on the Manaswini row,
+    so users can verify the math at a glance (the Feb-2026 PB-SN complaint
+    was that 24,285.58 didn't look like 10% of 13,60,891.94 — they didn't
+    realise WC Protection had gated the base)."""
+    pdf = build_pib_pdf(_stub_summary_wc_protection())
+    text = _pdf_text(pdf)
+    # Franchise Owner row: must show "10% × Rs. 2,42,856" formula
+    assert "10.0% ×" in text or "10% ×" in text, \
+        f"Owner-share formula missing. Text: {text[:1000]}"
+    # Manaswini row: must show "90% × Rs. 2,42,856" formula
+    assert "90.0% ×" in text or "90% ×" in text, \
+        f"Company-share formula missing. Text: {text[:1000]}"
+    # Both formulas must reference the gated base (2,42,856), NOT the
+    # regular Revenue Share Base (13,60,891).
+    section7_idx = text.find("REVENUE SHARE CALCULATION")
+    section7_block = text[section7_idx:section7_idx + 1500]
+    assert "242,856" in section7_block, \
+        f"Formula must reference the gated base 242,856. Section 7: {section7_block[:600]}"
+
+
+def test_pib_wc_protection_includes_explainer_note():
+    """A plain-English note must appear right under the Section 7 heading
+    explaining WHY the base differs from the gross Revenue Share Base shown
+    in Section 5. Without this note users assume the math is wrong."""
+    pdf = build_pib_pdf(_stub_summary_wc_protection())
+    text = _pdf_text(pdf)
+    assert "Working Capital Protection" in text, \
+        f"WC Protection explainer missing. Text: {text[:2000]}"
+    assert "Operational Balance" in text and "gated" in text.lower(), \
+        f"Explainer must mention gating. Text: {text[:2000]}"

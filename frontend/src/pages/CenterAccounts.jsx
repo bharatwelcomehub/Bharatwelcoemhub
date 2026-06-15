@@ -1742,6 +1742,20 @@ export default function CenterAccounts() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
+                    {/* Protection Mode explainer — makes WHY the base is gated absolutely clear */}
+                    {accountSummary.payout.protection_mode && (
+                      <div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-lg text-sm" data-testid="protection-mode-explainer">
+                        <p className="text-red-800">
+                          <strong>Why is the {accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} calculated on Rs. {Math.round(accountSummary.share_calculation?.net_profit_or_sales || 0).toLocaleString('en-IN')} instead of Rs. {Math.round(accountSummary?.payout_model === 'profit_share' ? (accountSummary.engine?.profit_share_base || 0) : (accountSummary.engine?.revenue_share_base || 0)).toLocaleString('en-IN')}?</strong>
+                        </p>
+                        <p className="text-red-700 mt-1 text-xs">
+                          Working Capital is below the 50% safety threshold. To protect the franchise from paying cash it can't afford,
+                          the engine gates the {accountSummary?.payout_model === 'profit_share' ? 'profit share' : 'revenue share'} to the <strong>Operational Balance</strong> (Sales − Expenses − Commissions)
+                          instead of the gross {accountSummary?.payout_model === 'profit_share' ? 'Profit Share Base' : 'Revenue Share Base'}. MG is also blocked.
+                          Normal calculation resumes once WC ≥ 100% of the base.
+                        </p>
+                      </div>
+                    )}
                     <div className="grid md:grid-cols-3 gap-4">
                       <Card className={`border-2 ${accountSummary.payout.type === 'minimum_guarantee' ? 'border-purple-400 bg-purple-50' : 'border-gray-200'} ${accountSummary.payout.protection_mode || accountSummary.mg_calculation_applicable === false ? 'opacity-50' : ''}`}>
                         <CardContent className="p-4 text-center">
@@ -1771,6 +1785,18 @@ export default function CenterAccounts() {
                           <p className="text-2xl font-bold text-green-600">
                             {formatCurrency(accountSummary.payout.revenue_share_amount, accountSummary.country)}
                           </p>
+                          {/* Formula — makes "% × base = amount" visible so user can verify math */}
+                          {(() => {
+                            const pct = accountSummary.share_calculation?.franchise_owner?.percentage || 0;
+                            const base = accountSummary.share_calculation?.net_profit_or_sales || 0;
+                            const baseLabel = accountSummary.payout?.protection_mode ? 'Operational Balance' : (accountSummary?.payout_model === 'profit_share' ? 'Profit Share Base' : 'Revenue Share Base');
+                            return (
+                              <p className="text-[11px] text-gray-500 mt-1 font-mono" data-testid="share-formula">
+                                = {pct}% × {formatCurrency(base, accountSummary.country)}
+                                <span className="block text-[10px] not-italic text-gray-400">({baseLabel})</span>
+                              </p>
+                            );
+                          })()}
                           {(accountSummary.payout.type === 'revenue_share' || accountSummary.payout.type === 'revenue_share_protection') && (
                             <Badge className="mt-2 bg-green-600">Payable</Badge>
                           )}
