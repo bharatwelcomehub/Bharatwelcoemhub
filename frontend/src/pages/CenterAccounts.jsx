@@ -2172,7 +2172,14 @@ export default function CenterAccounts() {
                               || (isProfit ? "Profit Share Base" : "Revenue Share Base");
                             const fp = accountSummary.share_calculation.franchise_owner?.percentage || (isProfit ? 80 : 15);
                             const pp = accountSummary.share_calculation.purnabramha?.percentage || (isProfit ? 20 : 85);
-                            return `⭐ ${label} (Base for ${fp}/${pp} Split)`;
+                            // Under WC Protection the backend already encodes
+                            // the gating in the label (e.g. "Operational
+                            // Balance (Base under WC Protection)") — don't
+                            // double-up the "(Base for X/Y Split)" suffix.
+                            const suffix = /Base/i.test(label) && /Protection/i.test(label)
+                              ? ` — ${fp}/${pp} Split applied`
+                              : ` (Base for ${fp}/${pp} Split)`;
+                            return `⭐ ${label}${suffix}`;
                           })()}
                         </span>
                         <span className="text-xl font-bold" data-testid="share-split-base-value">

@@ -4,6 +4,34 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — second pass] WC Protection Mode Display Consistency (P0)
+
+**User report**: Section 7 of PIB and the Center Accounts page (e.g. PB-SN · 2026-05 in WC Protection) showed:
+- Revenue Share Base = Rs. 13,60,891.94 (regular base)
+- Franchise Owner 10% = Rs. 24,285.58 (10% of operational balance 2.42L, NOT 10% of 13.6L)
+- Manaswini 90% = Rs. 2,18,570.20
+
+The displayed base and the displayed share amounts were computed from two different bases → users could not reconcile the math (`10% × 13,60,891.94 ≠ 24,285.58`).
+
+**Fix** (`routes/center_accounts.py`):
+1. When `protection_mode=True`, set `net_revenue_for_share = max(0, operational_balance)` so the "Base for Calculation" row equals the base actually used.
+2. Override `summary.base_label` to `"Operational Balance (Base under WC Protection)"` so the label tells the user why the base is gated.
+3. PIB Section 7 (`utils/pdf_generator.py`) suppresses the redundant "(Base for Calculation)" suffix when the label already contains "Protection". Same suppression on the Center Accounts page (`CenterAccounts.jsx`).
+
+**Net effect**: under WC Protection, Section 7 now reads:
+```
+Operational Balance (Base under WC Protection)        Rs. 2,42,856.00
+FRANCHISE OWNER SHARE                       10.0%     Rs. 24,285.60
+MANASWINI FOODS PVT LTD SHARE               90.0%     Rs. 2,18,570.40
+```
+Math is now visibly self-consistent. Section 7 title still includes `*** CLOSED - WC BELOW 50% ***` so users immediately see the gating cause.
+
+**Tests**: `tests/test_wc_protection_base_display.py` (2 new tests) + 55/55 full unit suite green.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`.
+
+---
+
 ### [2026-02-16] Post-Phase-3 Stabilization — 3 P0 Bug Fixes + 1 Critical Data-Source Fix (P0)
 
 **User report after deploying Phase 3**:

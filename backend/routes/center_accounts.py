@@ -1669,7 +1669,13 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             purnabramha_share = 0
             wc_recovery_amount = 0
             payout_reason = "Protection Mode: Operational Balance negative. No Revenue Share, No MG. Loss absorbed by Working Capital."
-        
+
+        # The "Base for Split" surfaced to Section 7 / Center Accounts UI must
+        # match the base the shares were actually computed against — under WC
+        # Protection that's `operational_balance` (clamped to 0), NOT the
+        # regular Revenue/Profit Share Base. This keeps the math visible
+        # consistent: 10% × displayed base ≡ displayed owner share.
+        net_revenue_for_share = max(0.0, operational_balance)
         # Recalculate tax on updated purnabramha share
         if country == "India":
             cgst_val = round(purnabramha_share * INDIA_CGST, 2)
@@ -1910,7 +1916,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         "payout_model": engine_payload["payout_model"],
         "payout_model_label": "Profit Share" if engine_payload["payout_model"] == "profit_share" else "Revenue Share",
         "section_heading": engine_payload["section_heading"],
-        "base_label": engine_payload["base_label"],
+        # Base label — under WC Protection the displayed base is the
+        # operational balance (clamped to 0), NOT the regular Revenue/Profit
+        # Share Base. Surface that explicitly so the value-and-label match
+        # in Section 7 / Center Accounts UI.
+        "base_label": (
+            "Operational Balance (Base under WC Protection)" if protection_mode
+            else engine_payload["base_label"]
+        ),
         # Both bases surfaced for transparency. Consumers pick whichever one
         # matches their context.
         "engine": {

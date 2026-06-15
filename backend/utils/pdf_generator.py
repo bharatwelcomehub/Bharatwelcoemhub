@@ -744,9 +744,17 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         section_title += f" ({split} SPLIT)"
     story.append(Paragraph(section_title, styles["PIBSection"]))
 
+    # Base row label: under WC Protection the backend label already
+    # encodes the gating (e.g. "Operational Balance (Base under WC
+    # Protection)") — don't double-append "(Base for Calculation)" or it
+    # reads "... Protection) (Base for Calculation)" which is confusing.
+    _base_row_label = (
+        base_label if ("Base" in base_label and "Protection" in base_label)
+        else f"{base_label} (Base for Calculation)"
+    )
     share_data = [
         ["Description", "Percentage", "Amount"],
-        [f"{base_label} (Base for Calculation)", "", f"{currency} {share['net_profit_or_sales']:,.2f}"],
+        [_base_row_label, "", f"{currency} {share['net_profit_or_sales']:,.2f}"],
         ["", "", ""],
         ["FRANCHISE OWNER SHARE", f"{share['franchise_owner']['percentage']}%", f"{currency} {share['franchise_owner']['amount']:,.2f}"],
         ["", "", ""],
