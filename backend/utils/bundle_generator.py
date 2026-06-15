@@ -101,25 +101,35 @@ def _header(title: str, ctx: Dict[str, Any]) -> List[Any]:
 
 def _executive_summary(ctx: Dict[str, Any]) -> List[Any]:
     """Common Executive Summary block — same shape across all 3 bundles
-    so readers see consistent figures regardless of persona."""
+    so readers see consistent figures regardless of persona.
+
+    Strictly model-aware: only the active payout model's base is shown
+    in the summary table. Both bases are still preserved in the manifest
+    for auditors who need to compare alternatives.
+    """
     engine = ctx.get("engine", {}) or {}
     fin = ctx.get("financial_summary", {}) or {}
     payout = ctx.get("payout", {}) or {}
     currency = ctx.get("currency", "Rs.")
+    model = (engine.get("payout_model") or "revenue_share").lower()
     rows = [
         ["Metric", "Value"],
         ["Total Sales", _fmt_money(fin.get("total_sales"), currency)],
         ["GST on Sales", _fmt_money(fin.get("sales_gst"), currency)],
         ["Total Commissions", _fmt_money(fin.get("total_commissions"), currency)],
-        ["Revenue Share Base", _fmt_money(engine.get("revenue_share_base"), currency)],
-        ["Profit Share Base",  _fmt_money(engine.get("profit_share_base"), currency)],
-        ["Total Expenses", _fmt_money(fin.get("total_expenses"), currency)],
-        [f"Payout Model", str(engine.get("payout_model", "—")).replace("_", " ").title()],
+    ]
+    if model == "profit_share":
+        rows.append(["Total Expenses", _fmt_money(fin.get("total_expenses"), currency)])
+        rows.append(["Profit Share Base", _fmt_money(engine.get("profit_share_base"), currency)])
+    else:
+        rows.append(["Revenue Share Base", _fmt_money(engine.get("revenue_share_base"), currency)])
+    rows.extend([
+        ["Payout Model", str(engine.get("payout_model", "—")).replace("_", " ").title()],
         [f"Owner Share ({engine.get('owner_pct', 0):g}%)", _fmt_money(engine.get("owner_share"), currency)],
         [f"Company Share ({engine.get('company_pct', 0):g}%)", _fmt_money(engine.get("company_share"), currency)],
         ["Final Payable", _fmt_money(payout.get("amount"), currency)],
         ["Payable Reason", str(payout.get("reason", "—"))[:80]],
-    ]
+    ])
     return [
         Paragraph("Executive Summary", _H2),
         _kv_table(rows),
@@ -128,14 +138,22 @@ def _executive_summary(ctx: Dict[str, Any]) -> List[Any]:
 
 
 def _payout_block(ctx: Dict[str, Any]) -> List[Any]:
-    """Revenue / Profit Share calculation table — driven by engine."""
+    """Revenue / Profit Share calculation table — driven by engine.
+
+    Strictly respects `engine.payout_model`: when the franchise is on
+    Revenue Share we never surface Profit Share numbers (and vice-versa).
+    The non-active base is still available via the manifest for auditors.
+    """
     engine = ctx.get("engine", {}) or {}
     currency = ctx.get("currency", "Rs.")
     heading = engine.get("section_heading") or "Share Calculation"
     base_label = engine.get("base_label") or "Base"
+    # Engine returns the selected base under `base`; legacy code shipped
+    # with `selected_base` which always read as 0. Honour both for safety.
+    base_value = engine.get("base", engine.get("selected_base", 0))
     rows = [
         ["Description", "Percentage", "Amount"],
-        [base_label, "", _fmt_money(engine.get("selected_base"), currency)],
+        [base_label, "", _fmt_money(base_value, currency)],
         ["Franchise Owner Share", f"{engine.get('owner_pct', 0):g}%", _fmt_money(engine.get("owner_share"), currency)],
         [engine.get("company_entity_label", "Company Share"), f"{engine.get('company_pct', 0):g}%", _fmt_money(engine.get("company_share"), currency)],
     ]
@@ -273,7 +291,7 @@ def build_bundle_zip(bundle_kind: str, ctx: Dict[str, Any]) -> bytes:
             f"Payout Model: {engine.get('payout_model', '—')}\n"
             f"Revenue Share Base: {engine.get('revenue_share_base', 0)}\n"
             f"Profit Share Base:  {engine.get('profit_share_base', 0)}\n"
-            f"Selected Base:      {engine.get('selected_base', 0)}\n"
+            f"Selected Base:      {engine.get('base', engine.get('selected_base', 0))}\n"
             f"Owner %:            {engine.get('owner_pct', 0)}\n"
             f"Owner Share:        {engine.get('owner_share', 0)}\n"
             f"Company %:          {engine.get('company_pct', 0)}\n"

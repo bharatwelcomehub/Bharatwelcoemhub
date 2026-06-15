@@ -802,11 +802,16 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                                 f"{currency} {overseas_share_pdf.get('mfpl_royalty', 0):,.2f}"])
         else:
             mg_applies = summary.get("mg_calculation_applicable", True)
+            engine_model_inline = (summary.get("payout_model") or "").lower()
+            owner_share_label = (
+                "Franchise Owner Profit Share" if engine_model_inline == "profit_share"
+                else "Franchise Owner Revenue Share"
+            )
             if mg_applies:
                 payout_data.append(["MG (Minimum Guarantee)", f"{currency} {payout.get('mg_amount', 0):,.2f}"])
             else:
-                payout_data.append(["MG Applicable", "No (Revenue-Share-only model)"])
-            payout_data.append(["Franchise Owner Revenue Share", f"{currency} {payout.get('revenue_share_amount', 0):,.2f}"])
+                payout_data.append(["MG Applicable", "No (Revenue-Share-only model)" if engine_model_inline != "profit_share" else "No (Profit-Share model)"])
+            payout_data.append([owner_share_label, f"{currency} {payout.get('revenue_share_amount', 0):,.2f}"])
         payout_data.append(["", ""])
         if payout.get("protection_mode"):
             if payout.get("operational_balance", 0) > 0:
@@ -861,6 +866,12 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             tax_rules_block = summary.get("tax_rules", {}) or {}
             share_gst_rate = float(tax_rules_block.get("share_gst_rate") or 0)
             payable_amount = float(payout.get("amount") or 0)
+            # Honour the Single Financial Engine's payout model strictly —
+            # PIBs for Revenue-Share franchises must NEVER say "Profit
+            # Share" and vice-versa (Feb-2026 owner directive).
+            engine_model = (summary.get("payout_model") or "").lower()
+            is_profit_share = engine_model == "profit_share"
+            model_word = "Profit Share" if is_profit_share else "Revenue Share"
             if share_gst_rate > 0 and payable_amount > 0:
                 country_block = (tax_rules_block.get("country") or "").lower()
                 if country_block == "india":
@@ -870,13 +881,15 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                     total_gst = round(cgst + sgst, 2)
                     final_total = round(payable_amount + total_gst, 2)
                     final_label = "Total Final Payout (incl. 18% GST)"
-                    # Label the base row honestly: if MG > Rev Share, the
-                    # payout reflects MG, not the bare revenue share.
+                    # Label the base row honestly: if MG > model payout, the
+                    # payable reflects MG (only when MG is applicable).
                     mg_amount = float(payout.get("mg_amount") or 0)
                     rev_amount = float(payout.get("revenue_share_amount") or 0)
-                    base_label = ("Monthly Guarantee Payout (MG > Rev Share)"
-                                  if mg_amount > rev_amount and abs(payable_amount - mg_amount) < 0.01
-                                  else "Revenue Share Payable")
+                    mg_applies_inline = bool(summary.get("mg_calculation_applicable", True))
+                    if mg_applies_inline and mg_amount > rev_amount and abs(payable_amount - mg_amount) < 0.01:
+                        base_label = f"Monthly Guarantee Payout (MG > {model_word})"
+                    else:
+                        base_label = f"{model_word} Payable"
                     final_data = [
                         ["Description", "Amount"],
                         [base_label,                     f"{currency} {payable_amount:,.2f}"],
@@ -903,7 +916,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                             f"{currency} {_mfpl_outstanding:,.2f}",
                         ])
 
-                story.append(Paragraph("8B. FINAL PAYOUT (Revenue Share + GST)", styles["PIBSection"]))
+                story.append(Paragraph(f"8B. FINAL PAYOUT ({model_word} + GST)", styles["PIBSection"]))
                 final_table = Table(final_data, colWidths=[280, 170])
                 final_table.setStyle(TableStyle([
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),

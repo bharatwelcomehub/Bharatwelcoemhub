@@ -1695,7 +1695,14 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     overseas_flag = is_overseas(country)
 
     mg_data = None
-    payable_type = "revenue_share"  # Default
+    # Default payable_type derived from the Single Financial Engine — Revenue
+    # Share or Profit Share based on the per-franchise Payout Model. Strict
+    # adherence: a Revenue-Share franchise can never surface a "profit_share"
+    # payable type from this point on (Feb-2026 owner directive).
+    engine_model_str = engine_payload.get("payout_model", "revenue_share")
+    is_engine_profit_share = engine_model_str == "profit_share"
+    payable_type = "profit_share" if is_engine_profit_share else "revenue_share"
+    model_word_inline = "Profit Share" if is_engine_profit_share else "Revenue Share"
     franchise_owner_share_for_comparison = franchise_owner_share
     payable_amount = franchise_owner_share_for_comparison
     overseas_share_data = None
@@ -1762,33 +1769,38 @@ async def get_center_account_summary(req: AccountPeriodRequest):
 
         if protection_mode:
             # WC Protection always applies (even for MG-OFF centers) —
-            # payout is gated to operational_balance × revenue_share %.
-            # Reason text differentiates MG-ON vs MG-OFF for clarity.
-            payable_type = "revenue_share_protection"
+            # payout is gated to operational_balance × owner-share %.
+            # Use the model word matching the franchise's Payout Model.
+            payable_type = (
+                "profit_share_protection" if is_engine_profit_share
+                else "revenue_share_protection"
+            )
             payable_amount = franchise_owner_share
             if operational_balance <= 0:
                 payable_type = "wc_protection_no_payout"
                 payable_amount = 0
         elif mg_calculation_applicable:
-            # Normal Mode + MG ON: MG vs Revenue Share comparison
+            # Normal Mode + MG ON: MG vs owner share comparison
             if monthly_mg > franchise_owner_share_for_comparison:
                 payable_type = "minimum_guarantee"
                 payable_amount = monthly_mg
         # Normal Mode + MG OFF: payable_amount stays as franchise_owner_share
-        # (Revenue Share Base × Revenue Share %), payable_type stays "revenue_share".
+        # (Engine base × Owner %), payable_type stays per-model from above.
 
     if not payout_reason:
         if payable_type == "minimum_guarantee":
-            payout_reason = f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > Revenue Share ({round(franchise_owner_share, 2)})"
-        elif payable_type in ("profit_share", "profit_share_protection"):
-            pass  # set above
+            payout_reason = f"MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)}) > {model_word_inline} ({round(franchise_owner_share, 2)})"
+        elif payable_type in ("profit_share_protection",):
+            pass  # set above (overseas branch)
+        elif payable_type == "profit_share" and overseas_flag:
+            pass  # set above (overseas branch)
         elif franchise and not bool(franchise.get("mg_calculation_applicable", True)):
             payout_reason = (
-                f"Revenue Share only — MG not applicable for this franchise "
-                f"(Revenue Share Base × {franchise.get('revenue_share_percentage', 15)}% = {round(franchise_owner_share, 2)})"
+                f"{model_word_inline} only — MG not applicable for this franchise "
+                f"({model_word_inline} Base × {franchise.get('revenue_share_percentage', 15)}% = {round(franchise_owner_share, 2)})"
             )
         else:
-            payout_reason = f"Revenue Share ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
+            payout_reason = f"{model_word_inline} ({round(franchise_owner_share, 2)}) >= MG ({round(mg_data.get('monthly_mg', 0) if mg_data else 0, 2)})"
     
     # ==========================================
     # 5. Build Response

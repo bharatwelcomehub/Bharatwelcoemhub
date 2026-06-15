@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api/bundles", tags=["Bundles"])
 
 _db = None
 _verify_token = None
+_verify_token_async = None
 
 
 def set_db(db):
@@ -35,15 +36,59 @@ def set_verify_token(fn):
     _verify_token = fn
 
 
-def _require_valid_token(token: str) -> None:
+def set_verify_token_async(fn):
+    global _verify_token_async
+    _verify_token_async = fn
+
+
+async def _require_valid_token(token: str) -> None:
     """Enforce the auth check — `_verify_token` returns None for bad /
     expired tokens; the route MUST surface that as 401 (testing agent
-    caught the prior silent-bypass)."""
-    if _verify_token is None:
-        return
-    session = _verify_token(token)
+    caught the prior silent-bypass).
+
+    Multi-worker fix (Feb-2026): the synchronous in-memory `otp_store`
+    is *per process*. With multiple uvicorn workers, a token minted on
+    worker-A is invisible to worker-B. Prefer the async verifier which
+    falls back to MongoDB session lookup; fall back to sync only when
+    the async hook is not wired (unit tests).
+    """
+    session = None
+    if _verify_token_async is not None:
+        session = await _verify_token_async(token)
+    if not session and _verify_token is not None:
+        session = _verify_token(token)
+    if _verify_token is None and _verify_token_async is None:
+        return  # No hook wired (unit-test mode)
     if not session:
         raise HTTPException(401, "Invalid or expired token")
+
+
+async def _resolve_center_code(identifier: str) -> dict:
+    """Resolve a free-form identifier (center code OR franchise code) to a
+    concrete center document.
+
+    The Master Dashboards (CA / Franchisor) populate their dropdowns from
+    the franchises list, so the value sent over the wire is often a
+    `franchise_code` (e.g. `FR-TEST-INDIA`). Center docs live under their
+    own `code` (e.g. `PB-HSR`). We try the direct match first, then fall
+    back to "first center linked to this franchise" so the bundles UX
+    keeps working without forcing every caller to also send a center code.
+    """
+    ident = (identifier or "").upper()
+    # 1) Direct center-code match.
+    doc = await _db.centers.find_one({"code": ident})
+    if doc:
+        return doc
+    # 2) Treat input as a franchise_code; pick the first active center.
+    doc = await _db.centers.find_one(
+        {"franchise_code": ident, "active": {"$ne": False}}
+    ) or await _db.centers.find_one({"franchise_code": ident})
+    if doc:
+        return doc
+    raise HTTPException(
+        404,
+        f"No center found for {identifier!r} (tried center_code and franchise_code).",
+    )
 
 
 async def _resolve_period_data(center: str, period: str) -> dict:
@@ -54,9 +99,11 @@ async def _resolve_period_data(center: str, period: str) -> dict:
     if not center or not period:
         raise HTTPException(400, "center and period (YYYY-MM) are required")
 
-    center_doc = await _db.centers.find_one({"code": center.upper()})
-    if not center_doc:
-        raise HTTPException(404, f"Center {center!r} not found")
+    center_doc = await _resolve_center_code(center)
+    # Use the resolved center's actual code for all downstream lookups so
+    # passing a franchise_code still pulls sales/expenses for the right
+    # center.
+    center = center_doc.get("code", center).upper()
     country = center_doc.get("country") or ("India" if center_doc.get("is_india_center") else "India")
 
     franchise = await _db.franchises.find_one({"franchise_code": center_doc.get("franchise_code")}) or {}
@@ -144,7 +191,7 @@ async def download_ca_bundle(
     period: str = Query(...),
 ):
     """CA Bundle — Accounts Team. ZIP of PDF + manifest."""
-    _require_valid_token(token)
+    await _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
     zip_bytes = build_bundle_zip("ca", ctx)
     return Response(
@@ -161,7 +208,7 @@ async def download_owner_bundle(
     period: str = Query(...),
 ):
     """Franchise Owner Bundle. ZIP of PDF + manifest."""
-    _require_valid_token(token)
+    await _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
     zip_bytes = build_bundle_zip("owner", ctx)
     return Response(
@@ -178,7 +225,7 @@ async def download_franchisor_bundle(
     period: str = Query(...),
 ):
     """Franchisor Bundle — Founder / Director / Super Admin."""
-    _require_valid_token(token)
+    await _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
     zip_bytes = build_bundle_zip("franchisor", ctx)
     return Response(

@@ -24,10 +24,12 @@ export default function CADashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await axios.post(`${API}/franchises/list`, { token: session.token });
-        const list = res.data.franchises || [];
-        setCenters(list.map(f => ({ code: f.franchise_code, name: f.franchise_name, country: f.country })));
-        if (list.length && !center) setCenter(list[0].franchise_code);
+        // Bundles are per-center: load centers (not franchises) so the
+        // bundle endpoint receives an actual `center_code`.
+        const res = await axios.get(`${API}/centers`);
+        const list = (res.data.centers || []).filter(c => c.active !== false);
+        setCenters(list.map(c => ({ code: c.code, name: c.name, country: c.country })));
+        if (list.length && !center) setCenter(list[0].code);
       } catch (e) {
         // graceful fallback — let user type center code manually
       }

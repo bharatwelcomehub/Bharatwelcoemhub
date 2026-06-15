@@ -2202,9 +2202,10 @@ app.include_router(ledgers_router)
 # Bundles router — 3 consolidated downloadable bundles per persona
 # (CA / Franchise Owner / Franchisor). Replaces the legacy collection of
 # Revenue Share Report / Profit Share Report / Email Pack standalone PDFs.
-from routes.bundles import router as bundles_router, set_db as set_bundles_db, set_verify_token as set_bundles_verify_token
+from routes.bundles import router as bundles_router, set_db as set_bundles_db, set_verify_token as set_bundles_verify_token, set_verify_token_async as set_bundles_verify_token_async
 set_bundles_db(db)
 set_bundles_verify_token(verify_token_sync)
+set_bundles_verify_token_async(verify_token_async)
 app.include_router(bundles_router)
 
 # Include Other Income router
