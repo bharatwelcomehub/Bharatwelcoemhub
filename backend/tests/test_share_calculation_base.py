@@ -43,21 +43,28 @@ def test_compute_net_revenue_intentionally_ignores_gst_for_india():
 
 
 def test_section_7_must_not_call_compute_net_revenue_for_share_split():
-    """Hard guard — the share-calculation block for India must use
-    `compute_revenue_share_base`, NOT `compute_net_revenue`. If a future
-    refactor reintroduces the wrong helper, this test trips."""
+    """Hard guard — the India share-split must NOT use the management
+    `compute_net_revenue` helper (which intentionally ignores GST). Either
+    use `compute_revenue_share_base` directly or — preferred after Feb-2026
+    refactor — route through the single `compute_franchise_payout` engine."""
     src = (Path(__file__).resolve().parent.parent / "routes" / "center_accounts.py").read_text()
 
     # Locate the India share-split block.
     idx = src.find("if country == \"India\":")
     assert idx >= 0, "Could not locate the India share-split block"
-    # Grab the next 40 lines as the block under test.
-    block = "\n".join(src[idx:].splitlines()[:40])
+    block = "\n".join(src[idx:].splitlines()[:80])
 
-    assert "compute_revenue_share_base(" in block, (
-        "India share-split must call compute_revenue_share_base() — "
-        "found compute_net_revenue() (or no helper at all), which would "
+    # Either the legacy helper OR the engine must be in scope.
+    uses_engine = "compute_franchise_payout" in block
+    uses_legacy_helper = "compute_revenue_share_base(" in block
+    assert uses_engine or uses_legacy_helper, (
+        "India share-split must call compute_franchise_payout() (preferred) "
+        "or compute_revenue_share_base() — using compute_net_revenue() would "
         "skip the GST deduction and reproduce the Section 7 bug."
+    )
+    # Most importantly — the broken helper must NOT be wired in here.
+    assert "compute_net_revenue(total_sale" not in block, (
+        "Section 7 must NOT use compute_net_revenue (it ignores GST)."
     )
 
 

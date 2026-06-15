@@ -333,7 +333,7 @@ export default function FranchiseOwnerDashboard() {
   const handleExportReport = () => {
     if (!overview?.summary) return;
     const sm = overview.summary;
-    const sharePct = franchiseInfo?.revenue_share_percentage || 0;
+    const sharePct = franchiseInfo?.franchise_owner_share_percentage ?? franchiseInfo?.revenue_share_percentage ?? 0;
     const totalSales = sm?.total_sales || 0;
     const totalComm = sm?.total_commissions || 0;
     const totalGst = sm?.total_gst || 0;
@@ -365,7 +365,7 @@ export default function FranchiseOwnerDashboard() {
         token: session.token, period, center: selectedCenter,
         custom_start: customStart || undefined, custom_end: customEnd || undefined,
         franchise_info: franchiseInfo || {},
-        revenue_share_pct: franchiseInfo?.revenue_share_percentage || 0,
+        revenue_share_pct: franchiseInfo?.franchise_owner_share_percentage ?? franchiseInfo?.revenue_share_percentage ?? 0,
       }, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');
@@ -389,7 +389,12 @@ export default function FranchiseOwnerDashboard() {
   const ch = overview?.changes;
   // Revenue/Profit share %: overseas is a fixed 80% to the franchise owner.
   // India uses the configured % from franchise settings (default 15%).
-  const revenueSharePct = isIntl ? 80 : (franchiseInfo?.revenue_share_percentage || 0);
+  const revenueSharePct = isIntl ? 80
+    : (franchiseInfo?.franchise_owner_share_percentage ?? franchiseInfo?.revenue_share_percentage ?? 0);
+  // Payout Model — drives dynamic labelling everywhere.
+  const ownerPayoutModel = franchiseInfo?.payout_model
+    || (isIntl ? "profit_share" : "revenue_share");
+  const ownerIsProfitShare = ownerPayoutModel === "profit_share";
   const netProfit = sm?.profit || 0;
   // Per Feb-2026 owner directive:
   //   Revenue Share Base = Sales − Commissions − GST  (the canonical metric)
@@ -428,7 +433,7 @@ export default function FranchiseOwnerDashboard() {
     { label: "Total Sales", value: sm.total_sales, change: ch?.sales_change, icon: IndianRupee, gradient: "from-emerald-600 to-emerald-400", textColor: "text-emerald-50" },
     { label: `GST (${isIntl ? "10" : "5"}% on eligible)`, displayValue: formatFullCurrency(totalGst, isIntl), icon: Receipt, gradient: "from-fuchsia-600 to-fuchsia-400", textColor: "text-fuchsia-50" },
     { label: "Commissions", displayValue: formatFullCurrency(totalCommissions, isIntl), icon: Receipt, gradient: "from-purple-600 to-purple-400", textColor: "text-purple-50" },
-    { label: "⭐ Revenue Share Base", displayValue: formatFullCurrency(revenueShareBase, isIntl), icon: Activity, gradient: revenueShareBase >= 0 ? "from-sky-700 to-sky-500" : "from-rose-700 to-rose-500", textColor: "text-sky-50", emphasize: true },
+    { label: ownerIsProfitShare ? "⭐ Profit Share Base" : "⭐ Revenue Share Base", displayValue: formatFullCurrency(revenueShareBase, isIntl), icon: Activity, gradient: revenueShareBase >= 0 ? "from-sky-700 to-sky-500" : "from-rose-700 to-rose-500", textColor: "text-sky-50", emphasize: true },
     { label: `${isIntl ? 'Profit' : 'Owner'} Share (${revenueSharePct}% × ${isIntl ? 'Eligible Profit' : 'Rev Share Base'})`, displayValue: formatFullCurrency(revenueShareAmount, isIntl), icon: Percent, gradient: revenueShareAmount >= 0 ? "from-blue-600 to-blue-400" : "from-rose-600 to-rose-400", textColor: "text-blue-50" },
     { label: "Total Expenses", value: sm.total_expenses, change: ch?.expenses_change, icon: Receipt, gradient: "from-red-600 to-red-400", textColor: "text-red-50" },
     { label: "Profit / Loss", displayValue: formatFullCurrency(netProfit, isIntl), change: ch?.profit_change, icon: Activity, gradient: netProfit >= 0 ? "from-emerald-700 to-emerald-500" : "from-red-700 to-red-500", textColor: "text-emerald-50" },

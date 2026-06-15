@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 88 — Financial Calculation Engine + per-franchise Payout Model + Franchise Owner Share % refactor: 35/35 backend tests pass (12 new HTTP integration + 14 engine unit + 9 MG-toggle regression). Frontend verified live: all required data-testids render on /franchises (payout-model-select, franchise-owner-share-pct-input, mg-applicable-checkbox, franchise-payout-model). Summary card shows 'Payout Model: Revenue Share' + 'Franchise Owner Share: 15%'. Center Accounts summary correctly exposes top-level payout_model, section_heading, base_label and engine{} payload with both revenue_share_base and profit_share_base. Switching FR-TEST-INDIA → profit_share via PUT and re-fetching summary flips section_heading to 'PROFIT SHARE CALCULATION' and base_label to 'Profit Share Base'. mg_calculation_applicable=False persistence regression holds.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_payout_model_engine_integration.py",
+    "/app/backend/tests/test_financial_engine.py",
+    "/app/backend/tests/test_mg_applicable_toggle.py",
+    "/app/test_reports/pytest/iter88_engine_integration.xml",
+    "/app/test_reports/pytest/iter88_financial_engine.xml",
+    "/app/test_reports/pytest/iter88_full.xml"
+  ],
+  "action_items": [
+    "(Info, non-blocking) The /api/franchises/list & /get/{code} endpoints return franchise docs as-stored from Mongo — they do NOT inject a `payout_model` default for legacy rows that lack the field. The defaulting happens correctly at engine call time (utils/financial_engine.normalize_model + default_payout_model_for_country) and the frontend defaults visually via `selectedFranchise.payout_model || (country === 'India' ? 'revenue_share' : 'profit_share')` (FranchiseManagement.jsx:808). If product wants the GET endpoint itself to surface the defaulted value (matching the review item's literal wording), add a post-read transform in routes/franchises.py list_franchises + get_franchise. Today the dashboards / PDFs are correct either way.",
+    "(Carry-forward) routes/center_accounts.py is 3376 lines and routes/franchises.py is 1203 lines — both exceed the 700-line guideline. Split into focused modules in a future cleanup."
+  ],
+  "critical_code_review_comments": [
+    "utils/financial_engine.py is a clean pure-function module — both bases computed unconditionally, model resolved with normalize_model, owner_share rounded to 2dp, clamps negative bases to 0 for split math, WC Protection cleanly supersedes MG and model. No DB / IO — trivially testable. Reuse contract for ALL downstream readers is well-documented in the module docstring.",
+    "routes/franchises.py:746-749 — mirror-write between legacy revenue_share_percentage and new franchise_owner_share_percentage is bidirectional (writing either field updates both on disk). Verified live: both writes propagate correctly.",
+    "routes/franchises.py:703-721 — updatable_fields whitelist now includes 'payout_model' AND 'franchise_owner_share_percentage' AND 'mg_calculation_applicable'. The MG-OFF regression fix holds (verified live: setting mg_calculation_applicable=false persists and re-fetch returns false).",
+    "routes/center_accounts.py:1898-1919 — engine payload exposure is complete: top-level payout_model + payout_model_label + section_heading + base_label, and the nested engine{} object carries both bases + selected_base + owner_pct/share + company_pct/share + company_entity_label + adjustments breakdown. share_calculation.franchise_owner.amount equals engine.owner_share — verified live (both 0.0 for PB-HSR/2026-01).",
+    "FranchiseManagement.jsx:806-813 — summary card shows Payout Model with country-default fallback when franchise.payout_model is null. Color-coded (emerald for revenue_share, blue for profit_share). Live render verified: 'Payout Model: Revenue Share'.",
+    "FranchiseManagement.jsx:1252 / 1266 / 1296 — all three required data-testids (franchise-owner-share-pct-input, payout-model-select, mg-applicable-checkbox) are correctly placed on the input/SelectTrigger/Checkbox elements respectively.",
+    "test_financial_engine.py — strong contract guards: test_pdf_generator_uses_engine_section_heading and test_center_accounts_route_imports_engine pin the central rule that nobody re-implements the formulas. Also pins Pydantic model has both new fields."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_payout_model_engine_integration.py (NEW — 12 HTTP integration tests covering auth, franchise CRUD with payout_model + new % field + mirror-write, MG regression, center accounts engine payload, model-switch flips section_heading/base_label)"
+  ],
+  "success_rate": {
+    "backend": "100% — 35/35 tests passed (12 integration + 14 engine unit + 9 MG regression). XML at /app/test_reports/pytest/iter88_full.xml.",
+    "frontend": "100% — all 4 required data-testids visible & populated; summary-card 'Payout Model' + 'Franchise Owner Share %' labels render correctly; Edit dialog opens with payout-model-select='Revenue Share', share %=15, MG checkbox=checked for FR-TEST-INDIA."
+  },
+  "test_credentials": "Super Admin 9741399190 / 123456 / PB-MGT (from /app/memory/test_credentials.md).",
+  "seed_data_creation": "No new seed data created. Tests mutate FR-TEST-INDIA's payout_model + franchise_owner_share_percentage + mg_calculation_applicable then RESTORE via module-scope fixture. No production-data centers (PB-DV, PB-HSR-actual-franchise-link) were modified. Note: pre-test DB inspection shows no PB-DV franchise document — only FR-PERTH (Australia) and FR-TEST-INDIA + 4 other TEST-* India franchises. Live testing used FR-TEST-INDIA + PB-HSR center (which is linked to FR-TEST-INDIA via centers collection).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: `cd /app && set -a && source backend/.env && source frontend/.env && set +a && cd backend && python -m pytest tests/test_payout_model_engine_integration.py tests/test_financial_engine.py tests/test_mg_applicable_toggle.py -v`. The integration suite is stateful within the module — TestPayoutModelPersistence + TestMGApplicableRegression + TestSwitchPayoutModelFlow all mutate FR-TEST-INDIA, but a module-scope `original_india_state` fixture restores the franchise state on teardown. The center-accounts/summary endpoint returns the engine payload UNDER a top-level 'summary' key — unwrap with `body.get('summary', body)`. Frontend route is /franchises (NOT /franchise-management). Login flow requires using the Center dropdown (not text input). Critical observation: GET /api/franchises/list & /get do not inject payout_model country-default — the defaulting is engine-time and frontend-fallback, not endpoint-time. Flag for product if explicit defaulting in GET endpoints is required.",
+  "rca_of_the_issue": "N/A — no functional defects. All 12 reported features in the review request validated. The one observation (list/get endpoints don't synthesize payout_model default) is by design per the codebase: engine.normalize_model() + country fallback is the source-of-truth for resolution, and the frontend mirrors that fallback at render time (FranchiseManagement.jsx:808)."
+}

@@ -209,6 +209,16 @@ class FranchiseCreate(BaseModel):
     gst_applicable: bool = False  # NEW: Toggle for 18% GST on Revenue Share (India only)
 
     # Payout Model Settings
+    # Per-franchise payout model. Defaults to country convention
+    # (India → revenue_share, Australia → profit_share) but explicitly
+    # overridable. See `utils/financial_engine.py` for the calculation.
+    payout_model: Optional[str] = None   # "revenue_share" | "profit_share" | None (=country default)
+
+    # Franchise Owner Share %. Replaces the legacy `revenue_share_percentage`
+    # name. Both fields are persisted in parallel for backwards-compatibility;
+    # readers prefer this one and fall back to `revenue_share_percentage`.
+    franchise_owner_share_percentage: Optional[float] = None
+
     # When True (default), payout = max(MG, Revenue Share). When False, payout
     # is computed purely on Revenue Share % × Revenue Share Base. Setting is
     # center/franchise specific. Australia (profit-share) is unaffected — MG
@@ -243,6 +253,8 @@ class FranchiseUpdate(BaseModel):
     notes: Optional[str] = None
     gst_applicable: Optional[bool] = None  # NEW: GST toggle for India locations
     mg_calculation_applicable: Optional[bool] = None  # Toggle MG vs Revenue-Share-only payout model
+    payout_model: Optional[str] = None  # "revenue_share" | "profit_share"
+    franchise_owner_share_percentage: Optional[float] = None  # Renamed % field
 
 class TokenRequest(BaseModel):
     token: str
@@ -600,7 +612,26 @@ async def create_franchise(data: dict):
         "revenue_share_start_date": data.get("revenue_share_start_date", "") or operations_start_date,  # NEW: Default to operations start
         
         # Revenue model
-        "revenue_share_percentage": float(data.get("revenue_share_percentage", REVENUE_SHARE_PERCENTAGE) or REVENUE_SHARE_PERCENTAGE),
+        # Both `revenue_share_percentage` (legacy) and the new
+        # `franchise_owner_share_percentage` are persisted in parallel so
+        # readers can transition gradually. They always carry the same value.
+        "revenue_share_percentage": float(
+            data.get("franchise_owner_share_percentage")
+            if data.get("franchise_owner_share_percentage") is not None
+            else (data.get("revenue_share_percentage", REVENUE_SHARE_PERCENTAGE) or REVENUE_SHARE_PERCENTAGE)
+        ),
+        "franchise_owner_share_percentage": float(
+            data.get("franchise_owner_share_percentage")
+            if data.get("franchise_owner_share_percentage") is not None
+            else (data.get("revenue_share_percentage", REVENUE_SHARE_PERCENTAGE) or REVENUE_SHARE_PERCENTAGE)
+        ),
+        # Payout model — defaults to country convention if not provided.
+        # India → "revenue_share", Australia → "profit_share".
+        "payout_model": (
+            data.get("payout_model")
+            if data.get("payout_model") in ("revenue_share", "profit_share")
+            else ("revenue_share" if (country or "India").lower() == "india" else "profit_share")
+        ),
         "service_contract_fee": float(data.get("service_contract_fee", MONTHLY_SERVICE_CONTRACT) or MONTHLY_SERVICE_CONTRACT),
         
         # Nominees
@@ -684,6 +715,9 @@ async def update_franchise(franchise_code: str, data: dict):
         # reported on PB-MGT 2026-06: "save shows success but checkbox stays
         # checked"). `False` is a legitimate persisted value.
         "mg_calculation_applicable",
+        # Payout Model + Franchise Owner Share % — Feb-2026 refactor for the
+        # single Financial Calculation Engine.
+        "payout_model", "franchise_owner_share_percentage",
     ]
     
     changes = {}
@@ -693,7 +727,8 @@ async def update_franchise(franchise_code: str, data: dict):
             old_value = existing.get(field)
             
             # Handle special types
-            if field in ["franchise_fee", "working_capital", "revenue_share_percentage", "service_contract_fee"]:
+            if field in ["franchise_fee", "working_capital", "revenue_share_percentage",
+                         "franchise_owner_share_percentage", "service_contract_fee"]:
                 new_value = float(new_value or 0)
             elif field == "primary_contact_email" and isinstance(new_value, str):
                 new_value = new_value.strip().lower()
@@ -703,6 +738,15 @@ async def update_franchise(franchise_code: str, data: dict):
             if new_value != old_value:
                 update_fields[field] = new_value
                 changes[field] = {"old": old_value, "new": new_value}
+
+    # Mirror writes between legacy `revenue_share_percentage` and new
+    # `franchise_owner_share_percentage`. Either field on the wire updates
+    # both fields on disk so old + new readers stay in sync until the
+    # legacy field is fully retired.
+    if "franchise_owner_share_percentage" in update_fields:
+        update_fields["revenue_share_percentage"] = update_fields["franchise_owner_share_percentage"]
+    elif "revenue_share_percentage" in update_fields:
+        update_fields["franchise_owner_share_percentage"] = update_fields["revenue_share_percentage"]
     
     # Auto-calculate agreement_end_date if operations_start_date is provided
     if "operations_start_date" in update_fields and update_fields["operations_start_date"]:

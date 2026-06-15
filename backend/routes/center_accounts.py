@@ -1452,33 +1452,98 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # screens (KPI cards, WC Standing, GST Liabilities, Reports). The
         # `gst_applicable` franchise flag only controls whether a payable
         # liability row is created in the gst_liabilities collection — it does
-        # NOT change the math on the dashboard. This matches user spec
-        # "GST same calculation everywhere".
+        # NOT change the math on the dashboard.
         gst_on_sales = sales_gst_amount
-        # IMPORTANT (Feb-2026 owner directive — re-confirmed Dombivali fix):
-        # The owner/company share split MUST be computed on the canonical
-        # Revenue Share Base = Sales − Commissions − GST.  `compute_net_revenue`
-        # intentionally ignores GST for the management "Net Revenue" tile, so
-        # using it here would inflate the base and give a wrong franchise-owner
-        # share (the Section 7 bug reported on PB-DV).
-        india_net_revenue = compute_revenue_share_base(total_sale, total_commission, gst_on_sales, "India")
-
-        # Uses revenue_share_percentage from franchise (default 15% to Franchise Owner)
-        franchise_owner_percentage = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
-        purnabramha_percentage = 100 - franchise_owner_percentage
-        # Calculate on Net Revenue (after commissions + GST)
-        purnabramha_share = india_net_revenue * (purnabramha_percentage / 100)
-        franchise_owner_share = india_net_revenue * (franchise_owner_percentage / 100)
-        share_type = "revenue_share"
-        # Store for display
-        net_revenue_for_share = india_net_revenue
     else:
-        # Outside India (Australia, etc.): Profit share model - FIXED 80/20 split
-        # 80% to Franchise Owner, 20% to Purnabramha (on PROFITABILITY, not Net Revenue)
-        # Profitability = Net Revenue − Total Expenses. Net Revenue = Sales − Deductions.
-        franchise_owner_percentage = 80
-        purnabramha_percentage = 20
-        profit_before_share = profitability  # Net Revenue minus total expenses
+        gst_on_sales = sales_gst_amount
+
+    # ==========================================
+    # Single Financial Calculation Engine (Feb-2026 architecture refactor).
+    # The engine resolves the Payout Model (Revenue Share vs Profit Share)
+    # from the franchise config, computes both bases, applies the owner/
+    # company split and surfaces the canonical payable amount. ALL downstream
+    # code (PDF Section 7, payout summary, ledger, dashboards) now reads
+    # from this single payload.
+    # ==========================================
+    from utils.financial_engine import (
+        compute_franchise_payout, default_payout_model_for_country, normalize_model
+    )
+    # Owner share % — read from new field first, fall back to legacy.
+    franchise_owner_percentage = float(
+        (franchise.get("franchise_owner_share_percentage") if franchise else None)
+        or (franchise.get("revenue_share_percentage") if franchise else None)
+        or (80 if country != "India" else 15)
+    )
+    payout_model_resolved = normalize_model(
+        (franchise.get("payout_model") if franchise else None),
+        country,
+    )
+    purnabramha_percentage = round(100 - franchise_owner_percentage, 4)
+
+    # WC adjustments + manual adjustments contribute to Profit Share Base.
+    # WC adjustments come from `wc_adjustments` collection (debit notes that
+    # already affect the WC chain). Manual adjustments come from
+    # `manual_adjustments` if present. Both default to 0.
+    try:
+        wc_adj_docs = await db.wc_adjustments.find({
+            "center": req.center, "month": req.month
+        }).to_list(None) if hasattr(db, "wc_adjustments") else []
+        wc_adjustments_total = sum(float(d.get("amount", 0) or 0) for d in wc_adj_docs)
+    except Exception:
+        wc_adjustments_total = 0.0
+    try:
+        ma_docs = await db.manual_adjustments.find({
+            "center": req.center, "month": req.month
+        }).to_list(None) if hasattr(db, "manual_adjustments") else []
+        manual_adjustments_total = sum(float(d.get("amount", 0) or 0) for d in ma_docs)
+    except Exception:
+        manual_adjustments_total = 0.0
+
+    if country == "India":
+        engine_payload = compute_franchise_payout(
+            sales=total_sale,
+            commissions=total_commission,
+            gst_on_sales=gst_on_sales,
+            expenses=total_expenses,
+            wc_adjustments=wc_adjustments_total,
+            manual_adjustments=manual_adjustments_total,
+            payout_model=payout_model_resolved,
+            franchise_owner_pct=franchise_owner_percentage,
+            mg_applicable=True,  # MG handled separately below (legacy gating)
+            monthly_mg=0,        # don't apply MG inside engine here — Section 8 still does the legacy max(MG, RS)
+            operational_balance=0,
+            protection_mode=False,
+            country=country,
+        )
+        # Mirror the engine output into the existing variables so the rest of
+        # this function (Section 8 / payout determination) keeps working
+        # unchanged. The engine is the source of truth; this is just a glue
+        # layer for the incremental refactor.
+        india_net_revenue = engine_payload["base"]
+        purnabramha_share = engine_payload["company_share"]
+        franchise_owner_share = engine_payload["owner_share"]
+        share_type = engine_payload["payout_model"]
+        net_revenue_for_share = engine_payload["base"]
+    else:
+        # Outside India: Profit share — engine returns Profit Share Base etc.
+        engine_payload = compute_franchise_payout(
+            sales=total_sale,
+            commissions=total_commission,
+            gst_on_sales=gst_on_sales,
+            expenses=total_expenses,
+            wc_adjustments=wc_adjustments_total,
+            manual_adjustments=manual_adjustments_total,
+            payout_model="profit_share",
+            franchise_owner_pct=franchise_owner_percentage,
+            mg_applicable=False,
+            monthly_mg=0,
+            operational_balance=0,
+            protection_mode=False,
+            country=country,
+        )
+        # Australia legacy variables — Profit Share Base derived from
+        # `profitability` for backwards compatibility with overseas reports.
+        profit_before_share = profitability
         purnabramha_share = profit_before_share * (purnabramha_percentage / 100)
         franchise_owner_share = profit_before_share * (franchise_owner_percentage / 100)
         share_type = "profit_share"
@@ -1827,6 +1892,31 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # Whether MG comparison applies to this franchise for the period.
         # Used by UI/PDFs to render "MG Applicable: Yes/No".
         "mg_calculation_applicable": bool(franchise.get("mg_calculation_applicable", True)) if (franchise and country == "India") else False,
+        # Payout Model — canonical from the Financial Engine. Drives the
+        # dynamic Section 7 heading and ALL "Revenue Share" vs "Profit Share"
+        # labelling across reports/dashboards.
+        "payout_model": engine_payload["payout_model"],
+        "payout_model_label": "Profit Share" if engine_payload["payout_model"] == "profit_share" else "Revenue Share",
+        "section_heading": engine_payload["section_heading"],
+        "base_label": engine_payload["base_label"],
+        # Both bases surfaced for transparency. Consumers pick whichever one
+        # matches their context.
+        "engine": {
+            "payout_model": engine_payload["payout_model"],
+            "revenue_share_base": engine_payload["revenue_share_base"],
+            "profit_share_base": engine_payload["profit_share_base"],
+            "selected_base": engine_payload["base"],
+            "base_label": engine_payload["base_label"],
+            "owner_pct": engine_payload["owner_pct"],
+            "company_pct": engine_payload["company_pct"],
+            "owner_share": engine_payload["owner_share"],
+            "company_share": engine_payload["company_share"],
+            "company_entity_label": engine_payload["company_entity_label"],
+            "adjustments": {
+                "wc_adjustments": round(wc_adjustments_total, 2),
+                "manual_adjustments": round(manual_adjustments_total, 2),
+            },
+        },
         # Overseas-only: 80/20 profit share + 5% MFPL royalty accrual
         "overseas_share": overseas_share_data,
         "mfpl_royalty": mfpl_data,
@@ -3078,11 +3168,21 @@ async def get_payout_summary(data: dict = Body(...)):
         # Outside India: Fixed 80% to Franchise Owner on profit
         
         if franchise_country == "India":
-            franchise_owner_pct = float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
+            # Prefer new field, fall back to legacy. Single source: franchise doc.
+            franchise_owner_pct = float(
+                (franchise.get("franchise_owner_share_percentage") if franchise else None)
+                or (franchise.get("revenue_share_percentage") if franchise else None)
+                or 15
+            )
             revenue_share = net_revenue_for_share * (franchise_owner_pct / 100)  # Franchise Owner's share on NET revenue
         else:
-            # Outside India: Fixed 80% to Franchise Owner on net profit
-            revenue_share = net_revenue_for_share * 0.80
+            # Outside India: prefer new field, fall back to 80% legacy default.
+            franchise_owner_pct = float(
+                (franchise.get("franchise_owner_share_percentage") if franchise else None)
+                or (franchise.get("revenue_share_percentage") if franchise else None)
+                or 80
+            )
+            revenue_share = net_revenue_for_share * (franchise_owner_pct / 100)
         
         # Determine payable amount.
         # If MG is not applicable for this franchise (mg_calculation_applicable
@@ -3132,7 +3232,25 @@ async def get_payout_summary(data: dict = Body(...)):
             "name": franchise.get("franchise_name") if franchise else None,
             "mg_amount": round(mg_amount, 2),
             "mg_calculation_applicable": mg_calculation_applicable and franchise_country_for_mg.lower() == "india",
-            "revenue_share_percentage": float(franchise.get("revenue_share_percentage", 15) or 15) if franchise else 15
+            # Payout Model surfaced for the Month-wise Payout Summary UI to
+            # render the right column labels (Revenue Share Payout vs Profit
+            # Share Payout) and section heading.
+            "payout_model": (
+                franchise.get("payout_model")
+                if franchise and franchise.get("payout_model") in ("revenue_share", "profit_share")
+                else ("revenue_share" if franchise_country_for_mg.lower() == "india" else "profit_share")
+            ),
+            # Prefer the new field name, fall back to legacy.
+            "franchise_owner_share_percentage": float(
+                (franchise.get("franchise_owner_share_percentage") if franchise else None)
+                or (franchise.get("revenue_share_percentage") if franchise else None)
+                or (80 if franchise_country_for_mg.lower() != "india" else 15)
+            ),
+            "revenue_share_percentage": float(
+                (franchise.get("franchise_owner_share_percentage") if franchise else None)
+                or (franchise.get("revenue_share_percentage") if franchise else None)
+                or (80 if franchise_country_for_mg.lower() != "india" else 15)
+            ),
         },
         "period": {
             "from": from_month,

@@ -726,11 +726,17 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     # --- 7. Revenue/Profit Share Calculation -------------------------------
     share = summary["share_calculation"]
-    # India "revenue_share" uses Revenue Share Base (Sales − Commissions − GST) as the base.
-    # Australia "profit_share" uses Profitability (NetRev − Expenses).
-    base_label = "Profitability" if share["type"] == "profit_share" else "Revenue Share Base"
+    # Heading + base label come from the Financial Engine — single source of
+    # truth. Falls back to legacy detection for backwards compat with stale
+    # cached payloads.
+    base_label = summary.get("base_label") or (
+        "Profit Share Base" if share["type"] == "profit_share" else "Revenue Share Base"
+    )
+    engine_section_heading = summary.get("section_heading") or (
+        "PROFIT SHARE CALCULATION" if share["type"] == "profit_share" else "REVENUE SHARE CALCULATION"
+    )
     wc_gated = share.get("wc_gated", False)
-    section_title = f"7. {share['type'].upper().replace('_', ' ')} CALCULATION"
+    section_title = f"7. {engine_section_heading}"
     if wc_gated:
         section_title += " (*** CLOSED - WC BELOW 50% ***)"
     else:

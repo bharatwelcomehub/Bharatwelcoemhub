@@ -160,6 +160,8 @@ export default function FranchiseManagement() {
       agreement_end_date: "",
       revenue_share_start_date: "",  // NEW: When revenue share calculation starts
       revenue_share_percentage: REVENUE_SHARE_PERCENTAGE,
+      franchise_owner_share_percentage: REVENUE_SHARE_PERCENTAGE,  // Renamed % (kept in sync with above)
+      payout_model: "revenue_share",  // "revenue_share" | "profit_share" — overridable per franchise
       service_contract_fee: MONTHLY_SERVICE_CONTRACT,
       nominees: [],
       status: "Active",
@@ -300,7 +302,10 @@ export default function FranchiseManagement() {
       total_investment: franchise.total_investment || 0,
       setup_costs: franchise.setup_costs || { shop_security_deposit: 0, first_month_rent: 0, initial_salary_fund: 0, initial_grocery_cost: 0, staff_traveling_expense: 0 },
       revenue_share_start_date: franchise.revenue_share_start_date || franchise.operations_start_date || "",
-      revenue_share_percentage: franchise.revenue_share_percentage || REVENUE_SHARE_PERCENTAGE,
+      revenue_share_percentage: franchise.franchise_owner_share_percentage ?? franchise.revenue_share_percentage ?? REVENUE_SHARE_PERCENTAGE,
+      franchise_owner_share_percentage: franchise.franchise_owner_share_percentage ?? franchise.revenue_share_percentage ?? REVENUE_SHARE_PERCENTAGE,
+      // Payout model: explicit field wins; otherwise default by country.
+      payout_model: franchise.payout_model || (franchise.country === "India" ? "revenue_share" : "profit_share"),
       service_contract_fee: franchise.service_contract_fee || MONTHLY_SERVICE_CONTRACT,
       nominees: franchise.nominees || [],
       gst_applicable: franchise.gst_applicable || false,
@@ -793,7 +798,18 @@ export default function FranchiseManagement() {
                         </p>
                         <p className="flex items-center gap-1">
                           <Percent className="w-3 h-3 text-muted-foreground" />
-                          Revenue Share: {selectedFranchise.revenue_share_percentage || 15}%
+                          Franchise Owner Share: {selectedFranchise.franchise_owner_share_percentage ?? selectedFranchise.revenue_share_percentage ?? 15}%
+                          <span className="text-xs text-muted-foreground">
+                            (Company: {(100 - (parseFloat(selectedFranchise.franchise_owner_share_percentage ?? selectedFranchise.revenue_share_percentage ?? 15) || 0)).toFixed(1)}%)
+                          </span>
+                        </p>
+                        <p data-testid="franchise-payout-model">
+                          <span className="text-muted-foreground">Payout Model:</span>{" "}
+                          {(selectedFranchise.payout_model || (selectedFranchise.country === "India" ? "revenue_share" : "profit_share")) === "profit_share" ? (
+                            <span className="text-blue-300 font-medium">Profit Share</span>
+                          ) : (
+                            <span className="text-emerald-300 font-medium">Revenue Share</span>
+                          )}
                         </p>
                         <p><span className="text-muted-foreground">Working Capital:</span> {formatCurrency(selectedFranchise.working_capital, selectedFranchise.country)}</p>
                         <p><span className="text-muted-foreground">Service Fee:</span> {formatCurrency(selectedFranchise.service_contract_fee || 10000, selectedFranchise.country)}/month</p>
@@ -1218,14 +1234,48 @@ export default function FranchiseManagement() {
                   </p>
                 </div>
                 <div>
-                  <Label>Revenue Share % (to Franchise Owner)</Label>
+                  <Label>Franchise Owner Share %</Label>
                   <Input
                     type="number"
                     step="0.1"
-                    value={formData.revenue_share_percentage}
-                    onChange={(e) => setFormData(p => ({ ...p, revenue_share_percentage: parseFloat(e.target.value) || 15 }))}
+                    value={formData.franchise_owner_share_percentage ?? formData.revenue_share_percentage}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value) || 0;
+                      // Keep both fields in sync for backwards compatibility.
+                      setFormData(p => ({
+                        ...p,
+                        franchise_owner_share_percentage: v,
+                        revenue_share_percentage: v,
+                      }));
+                    }}
                     className="bg-background"
+                    data-testid="franchise-owner-share-pct-input"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Company Share auto = <span className="font-semibold text-foreground">{(100 - (parseFloat(formData.franchise_owner_share_percentage ?? formData.revenue_share_percentage) || 0)).toFixed(1)}%</span>
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <Label>Payout Model</Label>
+                  <Select
+                    value={formData.payout_model || (formData.country === "India" ? "revenue_share" : "profit_share")}
+                    onValueChange={(v) => setFormData(p => ({ ...p, payout_model: v }))}
+                  >
+                    <SelectTrigger className="bg-background" data-testid="payout-model-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="revenue_share">Revenue Share</SelectItem>
+                      <SelectItem value="profit_share">Profit Share</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.payout_model === "profit_share"
+                      ? <>Owner share = <b>Profit Share Base × {(formData.franchise_owner_share_percentage ?? formData.revenue_share_percentage) || 0}%</b> (Sales − Comm − Expenses − Adjustments)</>
+                      : <>Owner share = <b>Revenue Share Base × {(formData.franchise_owner_share_percentage ?? formData.revenue_share_percentage) || 0}%</b> (Sales − Comm − GST)</>}
+                  </p>
                 </div>
               </div>
             </div>

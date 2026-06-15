@@ -2029,9 +2029,12 @@ export default function CenterAccounts() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    {accountSummary.share_calculation.type === 'profit_share' 
+                    {/* Heading from Financial Engine (single source of truth). */}
+                    {accountSummary.section_heading
+                      ? `${accountSummary.section_heading.charAt(0)}${accountSummary.section_heading.slice(1).toLowerCase()} (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`
+                      : accountSummary.share_calculation.type === 'profit_share'
                       ? `Profit Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)`
-                      : `Revenue Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`
+                      : `Revenue Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
                     }
                   </CardTitle>
                   <CardDescription>
@@ -2141,7 +2144,9 @@ export default function CenterAccounts() {
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">
-                          {accountSummary.share_calculation.type === 'profit_share' 
+                          {accountSummary.base_label
+                            ? `⭐ ${accountSummary.base_label} (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`
+                            : accountSummary.share_calculation.type === 'profit_share' 
                             ? `Net Profit (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)` 
                             : `⭐ Revenue Share Base (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
                         </span>
