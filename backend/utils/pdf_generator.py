@@ -795,7 +795,11 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             payout_data.append(["MFPL Royalty Accrued (5% Net Sales)",
                                 f"{currency} {overseas_share_pdf.get('mfpl_royalty', 0):,.2f}"])
         else:
-            payout_data.append(["MG (Minimum Guarantee)", f"{currency} {payout.get('mg_amount', 0):,.2f}"])
+            mg_applies = summary.get("mg_calculation_applicable", True)
+            if mg_applies:
+                payout_data.append(["MG (Minimum Guarantee)", f"{currency} {payout.get('mg_amount', 0):,.2f}"])
+            else:
+                payout_data.append(["MG Applicable", "No (Revenue-Share-only model)"])
             payout_data.append(["Franchise Owner Revenue Share", f"{currency} {payout.get('revenue_share_amount', 0):,.2f}"])
         payout_data.append(["", ""])
         if payout.get("protection_mode"):
@@ -803,11 +807,11 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                 payout_data.append(["PAYABLE (REVENUE SHARE - PROTECTION MODE)", f"{currency} {payout.get('amount', 0):,.2f}"])
                 if payout.get("wc_recovery_amount", 0) > 0:
                     payout_data.append(["WC Recovery Amount", f"{currency} {payout.get('wc_recovery_amount', 0):,.2f}"])
-                if not overseas_pdf:
+                if not overseas_pdf and summary.get("mg_calculation_applicable", True):
                     payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
             else:
                 payout_data.append(["PAYABLE", f"{currency} 0.00"])
-                if not overseas_pdf:
+                if not overseas_pdf and summary.get("mg_calculation_applicable", True):
                     payout_data.append(["MG Status", "BLOCKED (Protection Mode)"])
             payout_data.append(["Reason", payout.get("reason", "")])
         else:
@@ -1079,6 +1083,8 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
                           franchise_info: Dict[str, Any]) -> bytes:
     buf = io.BytesIO()
     rs_pct = float(franchise_info.get("revenue_share_percentage", 0) or 0)
+    # MG-applicable: franchise-level toggle. Defaults to True for legacy data.
+    mg_applies_global = bool(franchise_info.get("mg_calculation_applicable", True))
     rows = []
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
@@ -1090,6 +1096,7 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
         comm_m = float(m.get("total_commissions", 0) or 0)
         rev_share_base_m = round(sales_m - comm_m - gst_m, 2)
         rev_share_payout_m = float(m.get("revenue_share", round(rev_share_base_m * rs_pct / 100, 2)) or 0)
+        mg_applies_m = bool(m.get("mg_applicable", mg_applies_global))
         rows.append({
             "Month": month_label,
             "Total Sales": sales_m,
@@ -1097,8 +1104,9 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
             "Commissions": comm_m,
             "Revenue Share Base": rev_share_base_m,
             f"Revenue Share Payout ({rs_pct:g}%)": rev_share_payout_m,
-            "MG": m.get("mg_amount", 0),
-            "Type": "MG" if m.get("payable_type") == "mg" else "Revenue Share",
+            "MG Applicable": "Yes" if mg_applies_m else "No",
+            "MG": m.get("mg_amount", 0) if mg_applies_m else "N/A",
+            "Type": ("MG" if m.get("payable_type") == "mg" else "Revenue Share") if mg_applies_m else "Revenue Share",
             "Payable": m.get("payable_amount", 0),
             "Paid": m.get("paid", 0),
             "Pending": m.get("pending", 0),
@@ -1116,7 +1124,8 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
         "Commissions": total_comm,
         "Revenue Share Base": total_rev_share_base,
         f"Revenue Share Payout ({rs_pct:g}%)": total_rev_share_payout,
-        "MG": totals.get("mg", 0),
+        "MG Applicable": "",
+        "MG": totals.get("mg", 0) if mg_applies_global else "N/A",
         "Type": "",
         "Payable": totals.get("payable", 0),
         "Paid": totals.get("paid", 0),
@@ -1133,7 +1142,7 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
         "Total Sales": "", "GST": "", "Commissions": "",
         "Revenue Share Base": "",
         f"Revenue Share Payout ({rs_pct:g}%)": "",
-        "MG": "", "Type": "",
+        "MG Applicable": "", "MG": "", "Type": "",
         "Paid": "", "Pending": "", "Status": "",
     }
     rows.append({
@@ -1149,10 +1158,10 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
     df = pd.DataFrame(rows)
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         header_df = pd.DataFrame([
-            ["MG Payout Report"],
+            ["MG Payout Report" if mg_applies_global else "Revenue Share Payout Report"],
             [f"Center: {center}"],
             [f"Franchise: {franchise_info.get('name', 'N/A')} ({franchise_info.get('code', 'N/A')})"],
-            [f"Monthly MG: {franchise_info.get('mg_amount', 0)}"],
+            [f"Monthly MG: {franchise_info.get('mg_amount', 0)}" if mg_applies_global else "MG Calculation: Not applicable (Revenue-Share-only model)"],
             [f"Period: {period.get('from', '')} to {period.get('to', '')}"],
             [""],
         ])
@@ -1186,9 +1195,11 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     if payout_release_status:
         _append_payout_status_banner(elements, payout_release_status)
 
-    elements.append(Paragraph("MG Payout Report",
-                              ParagraphStyle("MGTitle", parent=styles["Heading1"],
-                                             fontSize=16, alignment=TA_CENTER, spaceAfter=6)))
+    mg_applies_pdf_title = bool(franchise_info.get("mg_calculation_applicable", True))
+    elements.append(Paragraph(
+        "MG Payout Report" if mg_applies_pdf_title else "Revenue Share Payout Report",
+        ParagraphStyle("MGTitle", parent=styles["Heading1"],
+                       fontSize=16, alignment=TA_CENTER, spaceAfter=6)))
     elements.append(Spacer(1, 6))
 
     sub_style = ParagraphStyle("MGSub", parent=styles["Normal"], fontSize=9,
@@ -1196,9 +1207,12 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     elements.append(Paragraph(
         f"Center: {center} | Franchise: {franchise_info.get('name', 'N/A')} ({franchise_info.get('code', 'N/A')})",
         sub_style))
-    elements.append(Paragraph(
-        f"Monthly MG: Rs. {franchise_info.get('mg_amount', 0):,.2f} | Period: {period.get('from', '')} to {period.get('to', '')}",
-        sub_style))
+    mg_subtitle = (
+        f"Monthly MG: Rs. {franchise_info.get('mg_amount', 0):,.2f} | Period: {period.get('from', '')} to {period.get('to', '')}"
+        if mg_applies_pdf_title else
+        f"MG: Not applicable (Revenue-Share-only model) | Period: {period.get('from', '')} to {period.get('to', '')}"
+    )
+    elements.append(Paragraph(mg_subtitle, sub_style))
     elements.append(Spacer(1, 12))
 
     # Compute Final Payout (incl. GST) once so summary + footer agree.
@@ -1238,18 +1252,21 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
     # Per Feb-2026 spec: include Revenue Share Payout column for transparency.
     # Order: Rev Share Base → Rev Share Payout → MG → Type → Payable
     rs_pct = float(franchise_info.get("revenue_share_percentage", 0) or 0)
+    mg_applies_global_pdf = bool(franchise_info.get("mg_calculation_applicable", True))
     table_header = ["Month", "Total Sales", "GST", "Comm", "Rev Share Base",
                     f"Rev Share Payout ({rs_pct:g}%)", "MG", "Type",
                     "Payable", "Paid", "Pending", "Status"]
     table_rows: List[List[Any]] = [table_header]
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
-        ptype = "MG" if m.get("payable_type") == "mg" else "RS"
+        mg_applies_m = bool(m.get("mg_applicable", mg_applies_global_pdf))
+        ptype = ("MG" if m.get("payable_type") == "mg" else "RS") if mg_applies_m else "RS"
         s_m = float(m.get("total_sales", 0) or 0)
         g_m = float(m.get("gst_on_sales", 0) or 0)
         c_m = float(m.get("total_commissions", 0) or 0)
         rsb_m = round(s_m - c_m - g_m, 2)
         rs_payout_m = float(m.get("revenue_share", round(rsb_m * rs_pct / 100, 2)) or 0)
+        mg_display = f'{m.get("mg_amount", 0):,.0f}' if mg_applies_m else "N/A"
         table_rows.append([
             month_label,
             f'{s_m:,.0f}',
@@ -1257,7 +1274,7 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
             f'{c_m:,.0f}',
             f'{rsb_m:,.0f}',
             f'{rs_payout_m:,.0f}',
-            f'{m.get("mg_amount", 0):,.0f}',
+            mg_display,
             ptype,
             f'{m.get("payable_amount", 0):,.0f}',
             f'{m.get("paid", 0):,.0f}',
@@ -1271,7 +1288,7 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         f'{sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data):,.0f}',
         f'{(sum(float(m.get("total_sales", 0) or 0) for m in monthly_data) - sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data) - sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data)):,.0f}',
         f'{sum(float(m.get("revenue_share", 0) or 0) for m in monthly_data):,.0f}',
-        f'{totals.get("mg", 0):,.0f}',
+        f'{totals.get("mg", 0):,.0f}' if mg_applies_global_pdf else "N/A",
         "",
         f'{totals.get("payable", 0):,.0f}',
         f'{totals.get("paid", 0):,.0f}',

@@ -208,6 +208,13 @@ class FranchiseCreate(BaseModel):
     # GST Settings (for India locations)
     gst_applicable: bool = False  # NEW: Toggle for 18% GST on Revenue Share (India only)
 
+    # Payout Model Settings
+    # When True (default), payout = max(MG, Revenue Share). When False, payout
+    # is computed purely on Revenue Share % × Revenue Share Base. Setting is
+    # center/franchise specific. Australia (profit-share) is unaffected — MG
+    # never applies overseas.
+    mg_calculation_applicable: bool = True
+
 class FranchiseUpdate(BaseModel):
     franchise_name: Optional[str] = None
     legal_entity_name: Optional[str] = None
@@ -235,6 +242,7 @@ class FranchiseUpdate(BaseModel):
     nominees: Optional[List[Dict]] = None
     notes: Optional[str] = None
     gst_applicable: Optional[bool] = None  # NEW: GST toggle for India locations
+    mg_calculation_applicable: Optional[bool] = None  # Toggle MG vs Revenue-Share-only payout model
 
 class TokenRequest(BaseModel):
     token: str

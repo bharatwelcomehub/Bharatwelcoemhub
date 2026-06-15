@@ -2870,16 +2870,21 @@ export default function CenterAccounts() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid md:grid-cols-3 gap-4">
-                      <Card className={`border-2 ${accountSummary.payout.type === 'minimum_guarantee' ? 'border-purple-400 bg-purple-50' : 'border-gray-200'} ${accountSummary.payout.protection_mode ? 'opacity-50' : ''}`}>
+                      <Card className={`border-2 ${accountSummary.payout.type === 'minimum_guarantee' ? 'border-purple-400 bg-purple-50' : 'border-gray-200'} ${accountSummary.payout.protection_mode || accountSummary.mg_calculation_applicable === false ? 'opacity-50' : ''}`}>
                         <CardContent className="p-4 text-center">
                           <p className="text-sm text-gray-500">Minimum Guarantee</p>
                           <p className="text-2xl font-bold text-purple-600">
-                            {formatCurrency(accountSummary.payout.mg_amount, accountSummary.country)}
+                            {accountSummary.mg_calculation_applicable === false
+                              ? <span className="text-gray-400 text-base">N/A</span>
+                              : formatCurrency(accountSummary.payout.mg_amount, accountSummary.country)}
                           </p>
-                          {accountSummary.payout.type === 'minimum_guarantee' && !accountSummary.payout.protection_mode && (
+                          {accountSummary.mg_calculation_applicable === false && (
+                            <p className="text-xs text-gray-500 mt-2">MG not applicable<br/><span className="text-[10px]">(Revenue-Share-only)</span></p>
+                          )}
+                          {accountSummary.mg_calculation_applicable !== false && accountSummary.payout.type === 'minimum_guarantee' && !accountSummary.payout.protection_mode && (
                             <Badge className="mt-2 bg-purple-600">Payable</Badge>
                           )}
-                          {accountSummary.payout.protection_mode && (
+                          {accountSummary.mg_calculation_applicable !== false && accountSummary.payout.protection_mode && (
                             <Badge className="mt-2 bg-red-600 text-white">BLOCKED</Badge>
                           )}
                         </CardContent>
@@ -3095,7 +3100,14 @@ export default function CenterAccounts() {
                         </div>
                         <div className="p-3 bg-purple-50 rounded-lg text-center">
                           <p className="text-xs text-purple-600">Monthly MG</p>
-                          <p className="text-lg font-bold text-purple-800">{formatCurrency(payoutSummary.franchise?.mg_amount, accountSummary?.country)}</p>
+                          <p className="text-lg font-bold text-purple-800" data-testid="kpi-monthly-mg">
+                            {payoutSummary.franchise?.mg_calculation_applicable === false
+                              ? <span className="text-gray-500 text-sm">N/A</span>
+                              : formatCurrency(payoutSummary.franchise?.mg_amount, accountSummary?.country)}
+                          </p>
+                          {payoutSummary.franchise?.mg_calculation_applicable === false && (
+                            <p className="text-[10px] text-gray-500 mt-1">Revenue-Share-only model</p>
+                          )}
                         </div>
                         <div className="p-3 bg-sky-50 rounded-lg text-center border border-sky-200" title="Calculated as Revenue Share Base × Franchise Revenue Share Percentage configured in Franchise Management.">
                           <p className="text-xs text-sky-700 font-semibold">Total Revenue Share Payout</p>
@@ -3159,10 +3171,14 @@ export default function CenterAccounts() {
                                 <td className="py-3 px-4 text-right text-rose-600">{formatCurrency(month.total_commissions || 0, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-sky-800 font-bold">{formatCurrency(revShareBaseRow, accountSummary?.country)}</td>
                                 <td className="py-3 px-4 text-right text-sky-700 font-semibold" data-testid={`rev-share-payout-${month.month}`}>{formatCurrency(revSharePayoutRow, accountSummary?.country)}</td>
-                                <td className="py-3 px-4 text-right text-purple-600">{formatCurrency(month.mg_amount, accountSummary?.country)}</td>
+                                <td className="py-3 px-4 text-right text-purple-600">
+                                  {month.mg_applicable === false
+                                    ? <span className="text-gray-400 text-xs">N/A</span>
+                                    : formatCurrency(month.mg_amount, accountSummary?.country)}
+                                </td>
                                 <td className="py-3 px-4 text-center">
                                   <Badge variant={month.payable_type === 'mg' ? 'default' : 'secondary'} className="text-xs">
-                                    {month.payable_type === 'mg' ? 'MG' : 'RS'}
+                                    {month.mg_applicable === false ? 'RS' : (month.payable_type === 'mg' ? 'MG' : 'RS')}
                                   </Badge>
                                 </td>
                                 <td className="py-3 px-4 text-right font-medium">{formatCurrency(month.payable_amount, accountSummary?.country)}</td>

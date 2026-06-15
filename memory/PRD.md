@@ -4,6 +4,64 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-15] MG Calculation ON/OFF per Franchise (P0 feature)
+
+**User directive** *Different franchises follow different payout models. Some
+have an MG (minimum-guarantee) floor; others are pure Revenue Share. All
+calculations, ledgers and reports must first check this flag.*
+
+**New field**: `mg_calculation_applicable` (bool, default `True`) on the
+`franchises` collection. Default `True` preserves today's behaviour for every
+existing center (1.a).
+
+**Calculation logic** (`routes/center_accounts.py` & `routes/ledgers.py`):
+
+| Mode | Computation | `payable_type` |
+|------|-------------|----------------|
+| MG ON, Normal | `max(MG, Revenue Share Base × %)` | `minimum_guarantee` or `revenue_share` |
+| MG OFF, Normal | `Revenue Share Base × %` (no MG calc) | `revenue_share` |
+| MG ON, WC Protection | `operational_balance × %` (MG blocked) | `revenue_share_protection` — reason: *"MG Blocked"* |
+| MG OFF, WC Protection | `operational_balance × %` | `revenue_share_protection` — reason: *"WC Protection"* (no MG mention) |
+| Australia (any toggle) | 80/20 profit-share, untouched | `profit_share` |
+
+**UI / Report surfaces updated**:
+1. **Franchise Management** (`FranchiseManagement.jsx`) — new amber checkbox above
+   "Total Investment (for MG Calculation)" block. When OFF, the entire Total
+   Investment / MG-deductions panel is hidden. Read-only summary card shows
+   "MG Calculation: Applicable" vs "Not Applicable (Revenue Share only)".
+2. **Center Accounts dashboard** (`CenterAccounts.jsx`) — the MG vs Revenue Share
+   "versus" tile renders **N/A** with the explanation "Revenue-Share-only" when
+   MG is OFF; the Month-wise Payout Summary table replaces MG amount with "N/A"
+   and forces Type = "RS".
+2. **PIB PDF Section 8 (`utils/pdf_generator.py`)** — shows "MG Applicable: No"
+   instead of the MG amount when toggle is OFF.
+3. **MG Payout Excel + PDF (`build_mg_payout_excel/pdf`)** — title becomes
+   "Revenue Share Payout Report", "Monthly MG" header replaced with "MG: Not
+   applicable (Revenue-Share-only model)", new "MG Applicable" column added to
+   per-month rows.
+4. **Franchise Owner Ledger** (`routes/ledgers.py`) — sets `mg = 0` for MG-OFF
+   centers so the comparison never picks MG.
+5. **API response** — `summary.mg_calculation_applicable` and
+   `payout_summary.franchise.mg_calculation_applicable` exposed for the UI to
+   render correctly.
+
+**Regression**: `backend/tests/test_mg_applicable_toggle.py` (7 tests) plus
+source-guard tests ensure the toggle is wired into:
+- The Pydantic FranchiseCreate / FranchiseUpdate models
+- The MG-vs-RS comparison in payout summary
+- The summary response shape
+- The Franchise Management UI
+
+Total test suite: **26/26 passing**.
+
+⚠️ **All existing franchises default to MG ON** — no behavioural change for
+already-onboarded centers. To switch a center to Revenue-Share-only, open
+Franchise Management → edit franchise → uncheck "MG Calculation Applicable" → Save.
+
+---
+
+
+
 ### [2026-02-12] Legal Entity Name Correction Across All Reports (P0)
 
 **User directive**: *Replace hardcoded "Purnabramha LLC Share" with the legal entity name resolved by the center's country.*

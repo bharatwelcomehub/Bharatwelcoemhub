@@ -597,15 +597,21 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
                     await db.franchises.find_one({"center": center}, {"_id": 0})
     rev_pct = 0.0
     mg = 0.0
+    mg_applicable = True  # default True for legacy data
     if franchise:
         rev_pct = float(franchise.get("revenue_share_percentage") or franchise.get("revenue_share_percent") or franchise.get("revenue_share") or 0)
         mg = float(franchise.get("monthly_guarantee") or franchise.get("mg") or franchise.get("minimum_guarantee") or 0)
+        mg_applicable = bool(franchise.get("mg_calculation_applicable", True))
     # Overseas centers do NOT have an MG — they use a fixed 80/20 profit share
     # with a 5% MFPL royalty accrued separately. Set rev_pct=80, mg=0.
     from utils.overseas_share import is_overseas as _is_overseas, MFPL_ROYALTY_PCT, MFPL_ACCRUAL_START_MONTH
     _overseas = _is_overseas(country)
     if _overseas:
         rev_pct = 80.0
+        mg = 0.0
+        mg_applicable = False
+    # MG-OFF India centers: skip MG comparison entirely.
+    if not mg_applicable:
         mg = 0.0
 
     running = 0.0

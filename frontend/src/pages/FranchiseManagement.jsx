@@ -164,7 +164,8 @@ export default function FranchiseManagement() {
       nominees: [],
       status: "Active",
       notes: "",
-      gst_applicable: false  // NEW: GST toggle for India locations
+      gst_applicable: false,  // NEW: GST toggle for India locations
+      mg_calculation_applicable: true  // Default ON for new franchises (legacy behaviour)
     };
   }
 
@@ -302,7 +303,9 @@ export default function FranchiseManagement() {
       revenue_share_percentage: franchise.revenue_share_percentage || REVENUE_SHARE_PERCENTAGE,
       service_contract_fee: franchise.service_contract_fee || MONTHLY_SERVICE_CONTRACT,
       nominees: franchise.nominees || [],
-      gst_applicable: franchise.gst_applicable || false
+      gst_applicable: franchise.gst_applicable || false,
+      // Legacy franchises without this field default to MG ON.
+      mg_calculation_applicable: franchise.mg_calculation_applicable !== false
     });
     setShowForm(true);
   };
@@ -794,6 +797,14 @@ export default function FranchiseManagement() {
                         </p>
                         <p><span className="text-muted-foreground">Working Capital:</span> {formatCurrency(selectedFranchise.working_capital, selectedFranchise.country)}</p>
                         <p><span className="text-muted-foreground">Service Fee:</span> {formatCurrency(selectedFranchise.service_contract_fee || 10000, selectedFranchise.country)}/month</p>
+                        <p data-testid="franchise-mg-status">
+                          <span className="text-muted-foreground">MG Calculation:</span>{" "}
+                          {selectedFranchise.mg_calculation_applicable !== false ? (
+                            <span className="text-amber-300 font-medium">Applicable (MG vs Revenue Share)</span>
+                          ) : (
+                            <span className="text-emerald-300 font-medium">Not Applicable (Revenue Share only)</span>
+                          )}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1219,8 +1230,37 @@ export default function FranchiseManagement() {
               </div>
             </div>
 
-            {/* Total Investment for MG Calculation */}
-            <div className="space-y-4">
+            {/* MG Calculation Toggle — gates the entire Total Investment / MG block.
+                When OFF, payouts use Revenue Share % × Revenue Share Base only. */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-white border-b border-border pb-2">Payout Model</h3>
+              <label
+                className="flex items-start gap-3 p-4 bg-amber-900/20 border border-amber-500/30 rounded-lg cursor-pointer hover:bg-amber-900/30 transition-colors"
+                data-testid="mg-applicable-toggle-label"
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.mg_calculation_applicable !== false}
+                  onChange={(e) => setFormData(p => ({ ...p, mg_calculation_applicable: e.target.checked }))}
+                  className="mt-1 h-4 w-4 rounded border-amber-400 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                  data-testid="mg-applicable-checkbox"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-amber-100">MG Calculation Applicable</div>
+                  <p className="text-xs text-amber-200/80 mt-1">
+                    {formData.mg_calculation_applicable !== false ? (
+                      <>✓ <b>ON</b> — Payout is the higher of MG vs Revenue Share. Total Investment & MG deductions are required (below).</>
+                    ) : (
+                      <>✗ <b>OFF</b> — Payout uses Revenue Share % × Revenue Share Base only. No MG calculation, no MG comparison. Total Investment / MG inputs are hidden.</>
+                    )}
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Total Investment for MG Calculation — only shown when MG is applicable */}
+            {formData.mg_calculation_applicable !== false && (
+            <div className="space-y-4" data-testid="total-investment-block">
               <h3 className="font-semibold text-white border-b border-border pb-2">Total Investment (for MG Calculation)</h3>
               <div className="grid grid-cols-1 gap-4">
                 <div className="p-4 bg-purple-900/30 border border-purple-500/30 rounded-lg">
@@ -1297,6 +1337,7 @@ export default function FranchiseManagement() {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Setup Costs */}
             <div className="space-y-4">
