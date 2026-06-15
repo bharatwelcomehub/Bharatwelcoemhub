@@ -1121,22 +1121,34 @@ export default function CenterAccounts() {
                 creates confusion since it's NOT the basis for owner payout.
                 Revenue Share Base (below) is the canonical primary metric. */}
 
-            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability?.revenue_share_base !== undefined && (
-              <Card className="bg-gradient-to-br from-sky-100 to-sky-200 border-2 border-sky-400 shadow-lg" data-testid="kpi-revenue-share-base-card" title="The amount available for owner/company percentage sharing after deducting GST and commissions from sales.">
+            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability?.revenue_share_base !== undefined && (() => {
+              // Model-aware KPI tile — single base shown, matching the franchise's
+              // Payout Model from Franchise Management. No mixed bases anywhere.
+              const isProfit = accountSummary.payout_model === 'profit_share';
+              const baseValue = isProfit
+                ? (accountSummary.engine?.profit_share_base ?? accountSummary.engine?.selected_base ?? 0)
+                : (accountSummary.operational_sustainability.revenue_share_base ?? 0);
+              const baseLabel = isProfit ? "Profit Share Base" : "Revenue Share Base";
+              const formula = isProfit
+                ? "Sales − Commissions − Expenses − Adjustments · used for owner % split"
+                : "Sales − Commissions − GST · used for owner % split";
+              return (
+              <Card className="bg-gradient-to-br from-sky-100 to-sky-200 border-2 border-sky-400 shadow-lg" data-testid="kpi-revenue-share-base-card" title="Base for the owner / company % split, as configured in Franchise Management → Payout Model.">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-sky-800 uppercase tracking-wide">⭐ Revenue Share Base</p>
+                      <p className="text-sm font-semibold text-sky-800 uppercase tracking-wide" data-testid="kpi-base-label">⭐ {baseLabel}</p>
                       <p className="text-3xl font-extrabold text-sky-900" data-testid="kpi-revenue-share-base">
-                        {formatCurrency(accountSummary.operational_sustainability.revenue_share_base, accountSummary.country)}
+                        {formatCurrency(baseValue, accountSummary.country)}
                       </p>
-                      <p className="text-[11px] text-sky-800 mt-1 font-medium">Sales − Commissions − GST · used for owner % split</p>
+                      <p className="text-[11px] text-sky-800 mt-1 font-medium">{formula}</p>
                     </div>
                     <TrendingUp className="w-10 h-10 text-sky-600" />
                   </div>
                 </CardContent>
               </Card>
-            )}
+              );
+            })()}
 
             {accountSummary.country !== "Australia" && accountSummary.operational_sustainability && (
               <Card className="bg-gradient-to-br from-rose-50 to-rose-100" data-testid="kpi-profit-loss-card">
@@ -2028,19 +2040,28 @@ export default function CenterAccounts() {
               )}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">
-                    {/* Heading from Financial Engine (single source of truth). */}
-                    {accountSummary.section_heading
-                      ? `${accountSummary.section_heading.charAt(0)}${accountSummary.section_heading.slice(1).toLowerCase()} (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`
-                      : accountSummary.share_calculation.type === 'profit_share'
-                      ? `Profit Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)`
-                      : `Revenue Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
-                    }
+                  <CardTitle className="text-lg flex items-center gap-2" data-testid="share-calc-heading">
+                    {/* Heading + Payout Model badge — both sourced from the Financial Engine. */}
+                    <span>
+                      {accountSummary.section_heading
+                        ? `${accountSummary.section_heading.charAt(0)}${accountSummary.section_heading.slice(1).toLowerCase()} (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`
+                        : accountSummary.share_calculation.type === 'profit_share'
+                        ? `Profit Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)`
+                        : `Revenue Share Calculation (${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      data-testid="payout-model-badge"
+                      className={accountSummary.payout_model === 'profit_share'
+                        ? 'border-blue-300 text-blue-700 bg-blue-50'
+                        : 'border-emerald-300 text-emerald-700 bg-emerald-50'}>
+                      Payout Model: {accountSummary.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'}
+                    </Badge>
                   </CardTitle>
                   <CardDescription>
-                    {accountSummary.country === 'India' 
-                      ? 'India: Revenue share model (% of total sales)'
-                      : `${accountSummary.country}: Profit share model (% of net profit) - Fixed 80/20`}
+                    {accountSummary.payout_model === 'profit_share'
+                      ? `${accountSummary.country}: Profit share model — owner / company split on Profit Share Base (Sales − Comm − Expenses − Adjustments).`
+                      : `${accountSummary.country}: Revenue share model — owner / company split on Revenue Share Base (Sales − Comm − GST).`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -2140,17 +2161,21 @@ export default function CenterAccounts() {
                       </div>
                     )}
 
-                    {/* Base Amount */}
+                    {/* Base Amount — model-aware (Payout Model from Franchise Management). */}
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-600">
-                          {accountSummary.base_label
-                            ? `⭐ ${accountSummary.base_label} (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`
-                            : accountSummary.share_calculation.type === 'profit_share' 
-                            ? `Net Profit (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 80}/${accountSummary.share_calculation.purnabramha?.percentage || 20} Split)` 
-                            : `⭐ Revenue Share Base (Base for ${accountSummary.share_calculation.franchise_owner?.percentage || 15}/${accountSummary.share_calculation.purnabramha?.percentage || 85} Split)`}
+                        <span className="text-gray-600" data-testid="share-split-base-label">
+                          {(() => {
+                            const isProfit = accountSummary.payout_model === 'profit_share'
+                              || accountSummary.share_calculation.type === 'profit_share';
+                            const label = accountSummary.base_label
+                              || (isProfit ? "Profit Share Base" : "Revenue Share Base");
+                            const fp = accountSummary.share_calculation.franchise_owner?.percentage || (isProfit ? 80 : 15);
+                            const pp = accountSummary.share_calculation.purnabramha?.percentage || (isProfit ? 20 : 85);
+                            return `⭐ ${label} (Base for ${fp}/${pp} Split)`;
+                          })()}
                         </span>
-                        <span className="text-xl font-bold">
+                        <span className="text-xl font-bold" data-testid="share-split-base-value">
                           {formatCurrency(accountSummary.share_calculation.net_profit_or_sales, accountSummary.country)}
                         </span>
                       </div>
