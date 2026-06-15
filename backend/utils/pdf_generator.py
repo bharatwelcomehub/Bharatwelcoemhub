@@ -785,11 +785,15 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         section_title += f" ({split} SPLIT)"
     story.append(Paragraph(section_title, styles["PIBSection"]))
 
-    # Explanatory note for WC Protection mode — makes it absolutely clear
-    # WHY the base for split differs from the Revenue / Profit Share Base
-    # shown earlier in Section 5. Without this, users see "10% × big number
-    # ≠ amount" and assume the math is wrong.
-    _is_protection_gated = ("Protection" in (base_label or "")) or (summary.get("payout", {}) or {}).get("protection_mode", False)
+    # Explanatory note for WC Protection mode — only show when the user has
+    # opted in to the Operational Sustainability gating for this month. When
+    # the toggle is OFF the share is computed on the regular base, so this
+    # explainer would be misleading.
+    _gating_applied_section7 = bool((summary.get("payout") or {}).get("protection_gating_applied"))
+    _is_protection_gated = _gating_applied_section7 and (
+        ("Protection" in (base_label or ""))
+        or (summary.get("payout", {}) or {}).get("protection_mode", False)
+    )
     if _is_protection_gated:
         _model_word_inline = (
             "Profit Share" if (summary.get("payout_model") or "").lower() == "profit_share"
@@ -930,13 +934,17 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         payout_table.setStyle(TableStyle(payout_style))
         story.append(payout_table)
         story.append(Spacer(1, 10))
-        _dist_word = "Profit share" if (summary.get("payout_model") or "").lower() == "profit_share" else "Revenue share"
-        story.append(Paragraph(
-            f"<i>{_dist_word} distribution follows Operational Sustainability rules. "
-            "Operational costs and working capital protection are prioritized before owner distribution.</i>",
-            styles["PIBBody"],
-        ))
-        story.append(Spacer(1, 15))
+        # Operational Sustainability note — only show when the user has
+        # actively opted in for this month (per-month gating toggle).
+        _gating_on = bool((summary.get("payout") or {}).get("protection_gating_applied"))
+        if _gating_on:
+            _dist_word = "Profit share" if (summary.get("payout_model") or "").lower() == "profit_share" else "Revenue share"
+            story.append(Paragraph(
+                f"<i>{_dist_word} distribution follows Operational Sustainability rules. "
+                "Operational costs and working capital protection are prioritized before owner distribution.</i>",
+                styles["PIBBody"],
+            ))
+            story.append(Spacer(1, 15))
 
         # --- 8B. Final Payout (Revenue Share + GST) -------------------------
         # Section 9 already captures the tax rules; users wanted the final

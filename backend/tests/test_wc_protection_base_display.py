@@ -88,6 +88,8 @@ def _stub_summary_wc_protection() -> dict:
             "reason": "Protection Mode: Revenue Share on Operational Balance only.",
             "mg_amount": 0, "revenue_share_amount": owner_share,
             "protection_mode": True,
+            "protection_gating_applied": True,
+            "protection_gating_available": True,
         },
         "tax_rules": {
             "country": "India", "share_gst_rate": 18.0,

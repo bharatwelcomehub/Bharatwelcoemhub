@@ -996,6 +996,72 @@ async def export_wc_table_excel(req: dict = Body(...)):
     )
 
 
+# =======================================
+# Operational Sustainability — per-month opt-in toggle
+# =======================================
+class ProtectionGatingRequest(BaseModel):
+    """Per-month opt-in for Operational Sustainability (WC Protection) gating.
+
+    Default behaviour is OFF: Revenue/Profit Share is always Base × % even when
+    WC drops below 50 %. When the user toggles ON for a specific (center, month),
+    the engine gates the share to Operational Balance × %.
+    """
+    token: str
+    center: str
+    month: str
+    apply: bool
+
+
+@router.post("/protection-gating/get")
+async def get_protection_gating(req: dict = Body(...)):
+    """Read current opt-in state for a (center, month). Default = False."""
+    await check_access(req.get("token"))
+    center = (req.get("center") or "").upper()
+    month = req.get("month") or ""
+    if not center or not month:
+        raise HTTPException(400, "center and month required")
+    doc = await db.protection_gating_overrides.find_one(
+        {"center_code": center, "month": month}
+    )
+    return {
+        "center": center,
+        "month": month,
+        "apply": bool(doc and doc.get("apply", False)),
+        "updated_at": (doc or {}).get("updated_at"),
+        "updated_by": (doc or {}).get("updated_by"),
+    }
+
+
+@router.post("/protection-gating/set")
+async def set_protection_gating(req: ProtectionGatingRequest):
+    """Toggle the per-month Operational Sustainability opt-in.
+
+    When `apply=False` (default), Revenue/Profit Share is always
+    `Base × %` even when WC < 50 %. When `apply=True`, the engine gates
+    the share to Operational Balance × % for that specific month.
+    """
+    session = await check_access(req.token)
+    center = (req.center or "").upper()
+    if not center or not req.month:
+        raise HTTPException(400, "center and month required")
+    await db.protection_gating_overrides.update_one(
+        {"center_code": center, "month": req.month},
+        {"$set": {
+            "center_code": center,
+            "month": req.month,
+            "apply": bool(req.apply),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": session.get("user_email") or session.get("user_id") or session.get("mobile") or "unknown",
+        }},
+        upsert=True,
+    )
+    return {
+        "center": center, "month": req.month,
+        "apply": bool(req.apply), "success": True,
+    }
+
+
+
 # Colors for PDF
 BRAND_MAROON = colors.HexColor("#800020")
 BRAND_GOLD = colors.HexColor("#C9A227")
@@ -1023,6 +1089,7 @@ class PIBGenerateRequest(BaseModel):
         super().__init__(**data)
         if not self.month and self.period:
             self.month = self.period
+
 
 # =======================================
 # HELPER FUNCTIONS
@@ -1635,7 +1702,19 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     wc_percentage = wc_standing.get("wc_percentage", 100)
     protection_mode = not wc_revenue_share_active and initial_wc_from_franchise > 0
     wc_status_label = "Protection Mode" if protection_mode else ("Restoring" if wc_status == "restoring" else "Healthy")
-    
+
+    # ----- Per-month "Apply Protection Gating" override -----
+    # Default: False. Operational Sustainability gating is NEVER auto-applied.
+    # The user opts in per month via the Center Accounts MG Payout toggle.
+    # When False, the share = Base × % regardless of WC level. When True,
+    # the existing gating logic kicks in (share = Operational Balance × %).
+    _gating_doc = await db.protection_gating_overrides.find_one(
+        {"center_code": (req.center or "").upper(), "month": req.month}
+    )
+    apply_protection_gating = bool(_gating_doc and _gating_doc.get("apply", False))
+    # Effective gating: only when WC is in Protection AND the user has opted in.
+    gating_active = bool(protection_mode and apply_protection_gating)
+
     working_capital_status = {
         "base_wc": round(initial_wc_from_franchise, 2),
         "initial_wc": round(initial_wc_from_franchise, 2),
@@ -1661,8 +1740,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     wc_recovery_amount = 0
     payout_reason = ""
     
-    if protection_mode:
-        # PROTECTION MODE (WC < 50%)
+    if gating_active:
+        # PROTECTION MODE (WC < 50%) + USER OPTED IN
+        # Without the opt-in, share stays as Base × % even when WC is below 50%.
         if operational_balance > 0:
             # Revenue Share = Operational Balance × Franchise %
             franchise_owner_share = operational_balance * (franchise_owner_percentage / 100)
@@ -1745,9 +1825,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
 
         # In Protection Mode (WC < 50%) the 80/20 was already adjusted above to
         # operate on operational_balance — keep that and just label as profit_share.
-        payable_type = "profit_share_protection" if protection_mode else "profit_share"
+        payable_type = "profit_share_protection" if gating_active else "profit_share"
         payable_amount = franchise_owner_share
-        if protection_mode and operational_balance <= 0:
+        if gating_active and operational_balance <= 0:
             payable_type = "wc_protection_no_payout"
             payable_amount = 0
         if not payout_reason:
@@ -1779,8 +1859,8 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             mg_data = None
             monthly_mg = 0
 
-        if protection_mode:
-            # WC Protection always applies (even for MG-OFF centers) —
+        if gating_active:
+            # WC Protection applies only when the user has opted in for this month —
             # payout is gated to operational_balance × owner-share %.
             # Use the model word matching the franchise's Payout Model.
             payable_type = (
@@ -1927,7 +2007,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # Share Base. Surface that explicitly so the value-and-label match
         # in Section 7 / Center Accounts UI.
         "base_label": (
-            "Operational Balance (Base under WC Protection)" if protection_mode
+            "Operational Balance (Base under WC Protection)" if gating_active
             else engine_payload["base_label"]
         ),
         # Both bases surfaced for transparency. Consumers pick whichever one
@@ -1970,8 +2050,11 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "mfpl_cumulative_outstanding": (mfpl_data.get("outstanding_mfpl", 0) if mfpl_data else 0),
             "revenue_share_amount": round(franchise_owner_share, 2),
             "original_revenue_share": round(original_franchise_owner_share, 2),
-            "wc_gated": protection_mode,
-            "protection_mode": protection_mode,
+            "wc_gated": gating_active,
+            "protection_mode": gating_active,
+            "wc_below_threshold": protection_mode,
+            "protection_gating_applied": apply_protection_gating,
+            "protection_gating_available": protection_mode,
             "wc_recovery_amount": round(wc_recovery_amount, 2),
             "operational_balance": round(operational_balance, 2),
             "reason": payout_reason
@@ -1989,7 +2072,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # back to WC Protection Mode; default = eligible.
     try:
         from utils.payout_status import derive_payout_release_status
-        _pm = bool(locals().get("protection_mode", False))
+        _pm = bool(locals().get("gating_active", False))
         summary["payout_release_status"] = await derive_payout_release_status(
             db, req.center, req.month, protection_mode=_pm,
         )
