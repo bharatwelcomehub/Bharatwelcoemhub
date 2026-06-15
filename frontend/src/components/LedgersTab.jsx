@@ -15,16 +15,22 @@ import {
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const LEDGER_CATALOG = [
-  { key: 'sales', label: 'Sales Register', desc: 'Daily sales with platform & GST breakdown', color: 'emerald' },
-  { key: 'expenses', label: 'Expense / Purchase Register', desc: 'All expenses with category & payment mode', color: 'rose' },
-  { key: 'cash', label: 'Cash Book', desc: 'Daily cash movement (opening → closing)', color: 'amber' },
-  { key: 'bank', label: 'Bank Book', desc: 'Deposits, withdrawals, running bank balance', color: 'blue' },
-  { key: 'commission', label: 'Commission / Aggregator Ledger', desc: 'Swiggy / Zomato / Card / UPI deductions', color: 'purple' },
-  { key: 'loans', label: 'Loan / Counterparty Ledger', desc: 'Inter-center + HQ loans with balances', color: 'indigo' },
-  { key: 'payroll', label: 'Payroll Register', desc: 'Employee-wise salary + bank details', color: 'teal' },
-  { key: 'gst', label: 'GST Summary', desc: 'Output GST vs commissions (GSTR-ready)', color: 'orange' },
-  { key: 'pnl', label: 'Monthly P&L', desc: 'Sales − Expenses − Commissions = PBT', color: 'slate' },
-  { key: 'owner', label: 'Franchise Owner Ledger', desc: 'Running current account with HQ', color: 'fuchsia' },
+  { key: 'pnl', label: 'General Ledger (P&L)', desc: 'Sales − Expenses − Commissions = PBT', color: 'slate', group: 'financial' },
+  { key: 'sales', label: 'Sales Register', desc: 'Daily sales with platform & GST breakdown', color: 'emerald', group: 'financial' },
+  { key: 'expenses', label: 'Expense / Purchase Register', desc: 'All expenses with category & payment mode', color: 'rose', group: 'financial' },
+  { key: 'cash', label: 'Cash Ledger', desc: 'Daily cash movement (opening → closing)', color: 'amber', group: 'financial' },
+  { key: 'bank', label: 'Bank Ledger', desc: 'Deposits, withdrawals, running bank balance', color: 'blue', group: 'financial' },
+  { key: 'gst', label: 'GST Summary', desc: 'Output GST vs commissions (GSTR-ready)', color: 'orange', group: 'financial' },
+  { key: 'owner', label: 'Franchise Running Account', desc: 'Running current account with HQ', color: 'fuchsia', group: 'franchise' },
+  { key: 'loans', label: 'Settlement Ledger (Loans & Inter-Center)', desc: 'Inter-center + HQ loans with balances', color: 'indigo', group: 'franchise' },
+  { key: 'commission', label: 'Commission Ledger', desc: 'Swiggy / Zomato / Card / UPI deductions', color: 'purple', group: 'adjustment' },
+  { key: 'payroll', label: 'Payroll Register', desc: 'Employee-wise salary + bank details', color: 'teal', group: 'adjustment' },
+];
+
+const LEDGER_GROUPS = [
+  { key: 'financial', label: 'Financial Ledgers', accent: 'border-blue-500' },
+  { key: 'franchise', label: 'Franchise Ledgers', accent: 'border-fuchsia-500' },
+  { key: 'adjustment', label: 'Adjustment Ledgers', accent: 'border-amber-500' },
 ];
 
 const colorClasses = (c) => ({
@@ -273,54 +279,67 @@ export default function LedgersTab({ session, selectedCenter, country, readOnly 
         </div>
       )}
 
-      {/* Ledger cards */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {LEDGER_CATALOG.map((l) => (
-          <Card key={l.key} className={`border-2 ${colorClasses(l.color)} transition-all`} data-testid={`ledger-card-${l.key}`}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span>{l.label}</span>
-                {l.key === 'owner' && ownerReleasedStatus === 'released' && (
-                  <Badge className="bg-emerald-100 text-emerald-800">Released to Owner</Badge>
-                )}
-                {l.key === 'owner' && ownerReleasedStatus === 'hidden' && (
-                  <Badge className="bg-slate-100 text-slate-700">Not released</Badge>
-                )}
-              </CardTitle>
-              <CardDescription className="text-xs">{l.desc}</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => previewLedger(l.key)} disabled={busy === `${l.key}-preview`} data-testid={`ledger-${l.key}-preview`}>
-                  {busy === `${l.key}-preview` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
-                  Preview
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => downloadLedger(l.key, 'pdf')} disabled={busy === `${l.key}-pdf`} data-testid={`ledger-${l.key}-pdf`}>
-                  {busy === `${l.key}-pdf` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1" />}
-                  PDF
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => downloadLedger(l.key, 'excel')} disabled={busy === `${l.key}-excel`} data-testid={`ledger-${l.key}-excel`}>
-                  {busy === `${l.key}-excel` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />}
-                  Excel
-                </Button>
-                {l.key === 'owner' && periodType === 'month' && !readOnly && (
-                  <Button
-                    size="sm"
-                    onClick={toggleOwnerRelease}
-                    disabled={releaseBusy}
-                    className={ownerReleasedStatus === 'released' ? 'bg-slate-600 hover:bg-slate-700 text-white' : 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'}
-                    data-testid="ledger-owner-release"
-                  >
-                    {releaseBusy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> :
-                      ownerReleasedStatus === 'released' ? <EyeOff className="w-3.5 h-3.5 mr-1" /> : <Send className="w-3.5 h-3.5 mr-1" />}
-                    {ownerReleasedStatus === 'released' ? 'Hide from Owner' : 'Send to Owner'}
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Ledger cards — grouped into 3 sections per Center Accounts spec */}
+      {LEDGER_GROUPS.map((g) => {
+        const items = LEDGER_CATALOG.filter((l) => l.group === g.key);
+        if (items.length === 0) return null;
+        return (
+          <div key={g.key} className="space-y-2" data-testid={`ledger-group-${g.key}`}>
+            <Card className={`border-l-4 ${g.accent}`}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{g.label}</CardTitle>
+              </CardHeader>
+            </Card>
+            <div className="grid md:grid-cols-2 gap-4">
+              {items.map((l) => (
+                <Card key={l.key} className={`border-2 ${colorClasses(l.color)} transition-all`} data-testid={`ledger-card-${l.key}`}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center justify-between">
+                      <span>{l.label}</span>
+                      {l.key === 'owner' && ownerReleasedStatus === 'released' && (
+                        <Badge className="bg-emerald-100 text-emerald-800">Released to Owner</Badge>
+                      )}
+                      {l.key === 'owner' && ownerReleasedStatus === 'hidden' && (
+                        <Badge className="bg-slate-100 text-slate-700">Not released</Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription className="text-xs">{l.desc}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => previewLedger(l.key)} disabled={busy === `${l.key}-preview`} data-testid={`ledger-${l.key}-preview`}>
+                        {busy === `${l.key}-preview` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
+                        Preview
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => downloadLedger(l.key, 'pdf')} disabled={busy === `${l.key}-pdf`} data-testid={`ledger-${l.key}-pdf`}>
+                        {busy === `${l.key}-pdf` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1" />}
+                        PDF
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => downloadLedger(l.key, 'excel')} disabled={busy === `${l.key}-excel`} data-testid={`ledger-${l.key}-excel`}>
+                        {busy === `${l.key}-excel` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />}
+                        Excel
+                      </Button>
+                      {l.key === 'owner' && periodType === 'month' && !readOnly && (
+                        <Button
+                          size="sm"
+                          onClick={toggleOwnerRelease}
+                          disabled={releaseBusy}
+                          className={ownerReleasedStatus === 'released' ? 'bg-slate-600 hover:bg-slate-700 text-white' : 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'}
+                          data-testid="ledger-owner-release"
+                        >
+                          {releaseBusy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> :
+                            ownerReleasedStatus === 'released' ? <EyeOff className="w-3.5 h-3.5 mr-1" /> : <Send className="w-3.5 h-3.5 mr-1" />}
+                          {ownerReleasedStatus === 'released' ? 'Hide from Owner' : 'Send to Owner'}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
+      })}
 
       {/* CA Bundle contents */}
       {!readOnly && (

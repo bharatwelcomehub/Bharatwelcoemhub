@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 91 — Validated the 5-tab Center Accounts refactor + strict Revenue/Profit Share wording sweep on a Revenue-Share franchise (PB-SN). All structural assertions pass: TabsList has exactly the 5 prescribed triggers (tab-overview, tab-mg-payout, tab-reports, tab-ledgers, tab-bundles) and no leak of the old tabs (Sales Breakdown, Financial Insights, Adjustments, Invoice Export). Overview shows all 11 KPI tiles with correct data-testids. Reports tab renders all 13 tiles across the 4 prescribed sections (Financial / Settlement / Reconciliation / Compliance) and the 'Revenue Share Calculation (PIB)' tile is correctly labeled (no 'Profit Share' leak). Ledgers tab renders 3 groups (financial/franchise/adjustment) via LedgersTab. Bundles tab renders the exact 3 cards (CA, Email, Full) with the prescribed download buttons. Backend strict-wording: NEW pytest test_iter91_5tab_strict_wording.py — 2/2 PASS: PIB PDF for PB-SN 2026-05 contains 'FRANCHISE OWNER REVENUE SHARE', 'MANASWINI FOODS PVT LTD REVENUE SHARE', 'Revenue & Income Balance Report' and NO 'Profit Share' / 'Profit & Income Balance Report' leaks; Email Pack subject contains 'Revenue Share Report', body contains '1. PIB Report (Revenue & Income Balance)', no 'Profit Share' leak anywhere. Existing test_payout_model_strict_pdf.py also still passes 2/2.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/center-accounts/generate-pib & /email-pack", "issue": "Pydantic body schema requires field 'month' (not 'period') — the review request used 'period' which returns 422. Both names accepted only if both are sent. Consider supporting either alias for forward compat. Tests updated to send both."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter91_5tab_strict_wording.py",
+    "/app/backend/tests/test_payout_model_strict_pdf.py",
+    "/app/test_reports/pytest/iter91.xml"
+  ],
+  "action_items": [
+    "Optional: accept 'period' as alias for 'month' on POST /api/center-accounts/generate-pib and /email-pack to match the review request payload contract."
+  ],
+  "critical_code_review_comments": [
+    "CenterAccounts.jsx:1328-2293 — Six orphan <TabsContent> blocks (sales, commissions, share, insights, health, adjustments) still exist in source but are unreachable (no matching TabsTrigger). They add ~1300 lines of dead code and risk drift. Recommend removing them to land the 5-tab refactor cleanly.",
+    "CenterAccounts.jsx Overview tile mapping is correct — all 11 review-requested testids (gross-sales, gst, commissions, expenses, adjustments, revenue-share-base, profit-share-base, pbt, wc-status, mg-status, payout-status) render with data-testid='overview-tile-{key}' prefix.",
+    "LedgersTab.jsx:30-34 — LEDGER_GROUPS array is the single source of truth for the 3-group layout; data-testids ledger-group-financial / -franchise / -adjustment all present.",
+    "Reports tab Settlement section label switches correctly: payout_model==='profit_share' ? 'Profit Share Calculation (PIB)' : 'Revenue Share Calculation (PIB)' — verified live for PB-SN (Revenue Share) shows 'Revenue Share Calculation (PIB)'.",
+    "Backend PIB strict wording (utils/pdf_generator.py:302, 794-796) verified via pdfminer extraction on the live API; no Profit Share leak on a Revenue Share franchise."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter91_5tab_strict_wording.py (NEW — 2 tests, both PASS)"
+  ],
+  "success_rate": {
+    "backend": "100% (4/4 strict-wording pytest pass: 2 new iter91 + 2 existing test_payout_model_strict_pdf)",
+    "frontend": "100% on structural review checks (5/5 tabs, 11/11 overview tiles, 13/13 report tiles, 3/3 ledger groups, 3/3 bundle cards, 3/3 bundle buttons, Revenue Share badge present, no old-tab leaks, Email Pack subject in dialog clearly shows 'Monthly Revenue Share Report')."
+  },
+  "test_credentials": "Super Admin 9741399190 / OTP 123456 / center PB-MGT (from /app/memory/test_credentials.md). Target franchise tested: PB-SN (Revenue Share model).",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && python -m pytest tests/test_iter91_5tab_strict_wording.py tests/test_payout_model_strict_pdf.py -v   — 4 tests, all pass against the preview backend. NOTE: when calling /api/center-accounts/generate-pib or /email-pack via curl, the body field is 'month' (YYYY-MM), not 'period' — review request used 'period' which 422s. Tests send both keys for safety. For UI playwright, the Email Pack dialog subject/body are inside a <textarea> — use elem.input_value() or page.evaluate to read textarea.value; .innerText returns empty for textareas. Six orphan TabsContent blocks (sales/commissions/share/insights/health/adjustments) remain in CenterAccounts.jsx but are unreachable — recommend cleanup in a follow-up.",
+  "rca_of_the_issue": "No regressions found. The 5-tab refactor is structurally complete and the strict Revenue/Profit Share wording flips correctly across UI labels (Reports tab settlement section), PIB PDF (Section 7 owner heading + Section 8 brand-name share label + cover title), and Email Pack (subject + body attachments line)."
+}

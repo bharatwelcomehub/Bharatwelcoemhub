@@ -14,7 +14,7 @@ import {
   Download, Calculator, Receipt, Wallet, CreditCard, ShoppingBag,
   Link, Unlink, RefreshCw, Loader2, ChevronRight, PieChart,
   IndianRupee, AlertCircle, CheckCircle, FileSpreadsheet, Trash2, Pencil,
-  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail, FileBox, Activity, HeartPulse
+  Check, X, Shield, Save, Plus, BookOpen, Eye, Mail, FileBox, Activity, HeartPulse, Archive
 } from 'lucide-react';
 import FinancialHealth from '@/pages/FinancialHealth';
 
@@ -1189,441 +1189,139 @@ export default function CenterAccounts() {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList className="flex-wrap">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="sales">Sales Breakdown</TabsTrigger>
-              <TabsTrigger value="commissions">Commissions</TabsTrigger>
-              <TabsTrigger value="share">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'}</TabsTrigger>
-              <TabsTrigger value="payout">{accountSummary?.country && accountSummary.country !== 'India' ? 'Payout' : 'MG & Payout'}</TabsTrigger>
-              <TabsTrigger value="reports">Reports</TabsTrigger>
-              <TabsTrigger value="adjustments" className="text-amber-700">Adjustments</TabsTrigger>
-              <TabsTrigger value="insights" className="text-rose-700"><Activity className="w-3.5 h-3.5 mr-1" />Financial Insights</TabsTrigger>
-              <TabsTrigger value="health" className="text-rose-800"><HeartPulse className="w-3.5 h-3.5 mr-1" />Financial Health</TabsTrigger>
-              <TabsTrigger value="ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
-              <TabsTrigger value="invoices" className="text-purple-600">Invoice Export</TabsTrigger>
+            <TabsList className="flex-wrap" data-testid="center-accounts-tabs">
+              <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+              <TabsTrigger value="mg-payout" data-testid="tab-mg-payout">MG Payout</TabsTrigger>
+              <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
+              <TabsTrigger value="ledgers" data-testid="tab-ledgers">Ledgers</TabsTrigger>
+              <TabsTrigger value="bundles" data-testid="tab-bundles">Bundles &amp; Exports</TabsTrigger>
             </TabsList>
 
-            {/* Overview Tab */}
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                {/* Center Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Building2 className="w-5 h-5" />
-                      Center Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Center Code</span>
-                        <span className="font-medium">{accountSummary.center}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Country</span>
-                        <Badge variant={accountSummary.country === 'Australia' ? 'secondary' : 'default'}>
-                          {accountSummary.country}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Period</span>
-                        <span className="font-medium">{accountSummary.period}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Sales Days</span>
-                        <span className="font-medium">{accountSummary.sales.num_days} days</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            {/* Overview Tab — 11-item Snapshot */}
+            <TabsContent value="overview" className="space-y-4" data-testid="overview-tab-content">
+              {(() => {
+                const cur = accountSummary?.country || 'India';
+                const fin = accountSummary?.financial_summary || {};
+                const eng = accountSummary?.engine || {};
+                const wc = accountSummary?.working_capital_status || {};
+                const payout = accountSummary?.payout || {};
+                const shareCalc = accountSummary?.share_calculation || {};
+                const modelWord = accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share';
 
-                {/* Franchise Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <ShoppingBag className="w-5 h-5" />
-                      Franchise Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {accountSummary.franchise.linked ? (
-                      <div className="space-y-3">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Franchise Code</span>
-                          <span className="font-medium">{accountSummary.franchise.code}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Franchise Name</span>
-                          <span className="font-medium">{accountSummary.franchise.name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Legal Entity</span>
-                          <span className="font-medium text-sm">{accountSummary.franchise.legal_entity}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Status</span>
-                          <Badge className="bg-green-100 text-green-800">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Linked
-                          </Badge>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-6 text-gray-500">
-                        <Unlink className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                        <p>No franchise linked</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+                const totalSales = fin.total_sales || 0;
+                const gst = fin.sales_gst || 0;
+                const commissions = fin.total_commissions || 0;
+                const expenses = fin.total_expenses || 0;
+                const wcAdj = fin.wc_adjustments || eng.adjustments?.wc_adjustments || 0;
+                const manualAdj = fin.manual_adjustments || eng.adjustments?.manual_adjustments || 0;
+                const adjustments = wcAdj + manualAdj;
+                const revenueShareBase = eng.revenue_share_base ?? (totalSales - commissions - gst);
+                const profitShareBase = eng.profit_share_base ?? (totalSales - commissions - expenses + wcAdj + manualAdj);
+                const pbt = totalSales - expenses - commissions;
 
-              {/* WC Status Banner */}
-              {wcTableData?.revenue_share_status === "stopped" && (
-                <div className="p-4 bg-red-50 border-2 border-red-300 rounded-lg" data-testid="wc-closed-banner">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                    <div>
-                      <p className="font-semibold text-red-800">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} STOPPED</p>
-                      <p className="text-sm text-red-700">Working Capital is at or below 50% of initial. {accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} will resume once WC is restored.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                const wcCurrent = wc.current_wc || 0;
+                const wcBase = wc.base_wc || wc.initial_wc || 0;
+                const wcPct = wc.wc_percentage || (wcBase > 0 ? (wcCurrent / wcBase) * 100 : 100);
+                const wcStatus = wc.status || (wc.protection_mode ? 'Protection' : 'Healthy');
+                const wcSafe = !wc.protection_mode && wcPct >= 50;
 
-              {/* Working Capital Summary Cards */}
-              {wcTableData && (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="wc-summary-cards">
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/60 shadow-sm">
-                    <p className="text-xs text-blue-600 font-medium">Initial WC</p>
-                    <p className="text-lg font-bold text-blue-800">{formatCurrency(wcTableData.initial_wc, accountSummary?.country)}</p>
-                    {wcEditingInitial ? (
-                      <div className="flex gap-1 mt-1">
-                        <Input type="number" value={wcInitialValue} onChange={(e) => setWcInitialValue(e.target.value)} className="h-7 text-xs w-28" data-testid="wc-initial-input" />
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => saveWcOverride(null, wcInitialValue)}><Check className="w-3 h-3 text-green-600" /></Button>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWcEditingInitial(false)}><X className="w-3 h-3 text-red-600" /></Button>
-                      </div>
-                    ) : (
-                      <Button variant="ghost" size="sm" className="h-5 px-1 text-xs mt-1" onClick={() => { setWcEditingInitial(true); setWcInitialValue(wcTableData.initial_wc); }} data-testid="edit-initial-wc-btn">
-                        <Pencil className="w-3 h-3 mr-1" /> Edit
-                      </Button>
-                    )}
-                  </div>
-                  <div className={`p-4 rounded-xl border shadow-sm ${wcTableData.current_wc >= wcTableData.initial_wc ? 'bg-gradient-to-br from-green-50 to-green-100/50 border-green-200/60' : wcTableData.current_wc > wcTableData.initial_wc * 0.5 ? 'bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200/60' : 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60'}`}>
-                    <p className="text-xs font-medium text-gray-600">Current WC</p>
-                    <p className={`text-lg font-bold ${wcTableData.current_wc >= wcTableData.initial_wc ? 'text-green-800' : wcTableData.current_wc > wcTableData.initial_wc * 0.5 ? 'text-amber-800' : 'text-red-800'}`}>
-                      {formatCurrency(wcTableData.current_wc, accountSummary?.country)}
-                    </p>
-                    <p className="text-xs text-gray-500">{wcTableData.initial_wc > 0 ? ((wcTableData.current_wc / wcTableData.initial_wc) * 100).toFixed(0) : 0}% of initial</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-200/60 shadow-sm">
-                    <p className="text-xs font-medium text-gray-600">P/L This Month</p>
-                    {wcTableData.rows?.length > 0 && (() => {
-                      const last = wcTableData.rows[wcTableData.rows.length - 1];
-                      return <p className={`text-lg font-bold ${last.pnl >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(last.pnl, accountSummary?.country)}</p>;
-                    })()}
-                  </div>
-                  <div className={`p-4 rounded-xl border shadow-sm ${wcTableData.revenue_share_status === 'active' ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/60' : 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60'}`}>
-                    <p className="text-xs font-medium text-gray-600">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'}</p>
-                    <p className={`text-lg font-bold ${wcTableData.revenue_share_status === 'active' ? 'text-emerald-700' : 'text-red-700'}`}>
-                      {wcTableData.revenue_share_status === 'active' ? 'Active' : 'Stopped'}
-                    </p>
-                    <p className="text-xs text-gray-500">50% threshold</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200/60 shadow-sm">
-                    <p className="text-xs text-purple-600 font-medium">Last Top-up</p>
-                    {wcTableData.last_topup ? (
-                      <>
-                        <p className="text-lg font-bold text-purple-800">{formatCurrency(wcTableData.last_topup.amount, accountSummary?.country)}</p>
-                        <p className="text-xs text-purple-500 truncate">{wcTableData.last_topup.reason || 'No reason'}</p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-purple-400 mt-1">None</p>
-                    )}
-                  </div>
-                </div>
-              )}
+                const mgApplicable = accountSummary?.mg_calculation_applicable !== false;
+                const mgAmount = payout.mg_amount || 0;
+                const mgWon = payout.type === 'minimum_guarantee';
 
-              {/* WC Actions */}
-              <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={fetchWcTable} disabled={wcLoading} className="gap-1">
-                  <RefreshCw className={`w-4 h-4 ${wcLoading ? 'animate-spin' : ''}`} /> Refresh
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => { setShowTopupDialog(true); setTopupMonth(new Date().toISOString().slice(0, 7)); }} className="gap-1 text-purple-600 border-purple-200" data-testid="wc-topup-btn">
-                  <DollarSign className="w-4 h-4" /> Add Top-up / Adjustment
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setShowTopupLog(!showTopupLog)} className="gap-1 text-gray-500" data-testid="wc-log-btn">
-                  <FileText className="w-4 h-4" /> {showTopupLog ? 'Hide' : 'Show'} Audit Log
-                </Button>
-              </div>
+                const payoutAmount = payout.amount || 0;
+                const payoutType = payout.type || '—';
+                const payoutLabel = payout.protection_mode
+                  ? 'Protection Mode'
+                  : payoutType === 'minimum_guarantee'
+                    ? 'MG'
+                    : payoutType.includes('share')
+                      ? modelWord
+                      : payoutType.replace(/_/g, ' ');
 
-              {/* Top-up Audit Log */}
-              {showTopupLog && wcTableData?.topup_log?.length > 0 && (
-                <Card className="border-purple-200">
-                  <CardContent className="pt-4">
-                    <table className="w-full text-sm">
-                      <thead><tr className="border-b"><th className="text-left py-1 px-2 text-xs text-muted-foreground">Date</th><th className="text-left py-1 px-2 text-xs text-muted-foreground">Month</th><th className="text-right py-1 px-2 text-xs text-muted-foreground">Amount</th><th className="text-left py-1 px-2 text-xs text-muted-foreground">Reason</th><th className="text-left py-1 px-2 text-xs text-muted-foreground">By</th></tr></thead>
-                      <tbody>
-                        {wcTableData.topup_log.map((t, i) => (
-                          <tr key={i} className="border-b last:border-0">
-                            <td className="py-1 px-2 text-xs">{new Date(t.date).toLocaleDateString()}</td>
-                            <td className="py-1 px-2 text-xs">{t.month}</td>
-                            <td className="py-1 px-2 text-xs text-right font-medium text-purple-600">{formatCurrency(t.amount, accountSummary?.country)}</td>
-                            <td className="py-1 px-2 text-xs">{t.reason || '-'}</td>
-                            <td className="py-1 px-2 text-xs">{t.added_by}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Top-up Dialog */}
-              {showTopupDialog && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                  <Card className="w-full max-w-md shadow-xl">
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2"><DollarSign className="w-5 h-5 text-purple-600" /> WC Top-up / Adjustment</CardTitle>
-                      <CardDescription>Manual fund infusion or adjustment. This will be logged with audit trail.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <label className="text-sm font-medium">Amount *</label>
-                        <Input type="number" value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} placeholder="Enter amount (negative to deduct)" data-testid="topup-amount" />
+                const tile = (label, value, opts = {}) => (
+                  <Card className={`border ${opts.tone || 'border-gray-200'} ${opts.bg || 'bg-white'} hover:shadow-md transition-shadow`} data-testid={`overview-tile-${opts.testid}`}>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{label}</p>
+                      <div className="mt-2 flex items-baseline justify-between gap-2">
+                        <p className={`text-2xl font-bold ${opts.text || 'text-gray-900'}`}>{value}</p>
+                        {opts.badge && <Badge className={opts.badgeClass}>{opts.badge}</Badge>}
                       </div>
-                      <div>
-                        <label className="text-sm font-medium">Month</label>
-                        <Input type="month" value={topupMonth} onChange={(e) => setTopupMonth(e.target.value)} data-testid="topup-month" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Reason *</label>
-                        <Input value={topupReason} onChange={(e) => setTopupReason(e.target.value)} placeholder="e.g., Fund arrangement, Partner infusion" data-testid="topup-reason" />
-                      </div>
+                      {opts.sub && <p className="text-[11px] text-muted-foreground mt-1">{opts.sub}</p>}
                     </CardContent>
-                    <div className="flex justify-end gap-2 p-4 pt-0">
-                      <Button variant="outline" onClick={() => setShowTopupDialog(false)}>Cancel</Button>
-                      <Button onClick={addWcTopup} disabled={!topupAmount || !topupReason} data-testid="topup-confirm-btn">Add Top-up</Button>
-                    </div>
                   </Card>
-                </div>
-              )}
+                );
 
-              {/* Working Capital Month-by-Month Table */}
-              <Card data-testid="wc-table-card">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Wallet className="w-5 h-5" /> Month-by-Month WC Breakdown
-                      </CardTitle>
-                      <CardDescription>P/L = Sale − Expenses − Commission. Opening WC = Last month's Balance WC. Balance WC = Opening WC + P/L + WC Adj + Topup. GST is shown for reference — it's paid as an expense in the following month (M+1). <strong>Other Income (incl. Loans Taken) is memo only and does NOT alter WC</strong> — a loan is a liability, not real WC.</CardDescription>
+                return (
+                  <>
+                    {/* Header strip — Center / Period / Payout Model context */}
+                    <Card className="bg-gradient-to-r from-stone-50 to-stone-100 border-stone-200">
+                      <CardContent className="p-4 flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Center · Period</p>
+                          <p className="text-xl font-bold text-stone-800">{accountSummary?.center_name || selectedCenter} <span className="text-stone-400 text-base">·</span> {accountSummary?.period}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">Payout Model</p>
+                            <Badge className={accountSummary?.payout_model === 'profit_share' ? 'bg-purple-700' : 'bg-sky-700'}>{modelWord}</Badge>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">Country</p>
+                            <Badge variant="outline">{cur}</Badge>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* 11-item Snapshot Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {tile('Gross Sales', formatCurrency(totalSales, cur), { tone: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-900', testid: 'gross-sales' })}
+                      {tile('GST', formatCurrency(gst, cur), { tone: 'border-rose-200', bg: 'bg-rose-50', text: 'text-rose-800', testid: 'gst' })}
+                      {tile('Commissions', formatCurrency(commissions, cur), { tone: 'border-orange-200', bg: 'bg-orange-50', text: 'text-orange-800', testid: 'commissions' })}
+                      {tile('Expenses', formatCurrency(expenses, cur), { tone: 'border-amber-200', bg: 'bg-amber-50', text: 'text-amber-800', testid: 'expenses' })}
+                      {tile('Adjustments', formatCurrency(adjustments, cur), { tone: 'border-violet-200', bg: 'bg-violet-50', text: 'text-violet-800', testid: 'adjustments', sub: `WC: ${formatCurrency(wcAdj, cur)} · Manual: ${formatCurrency(manualAdj, cur)}` })}
+                      {tile('Revenue Share Base', formatCurrency(revenueShareBase, cur), { tone: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-900', testid: 'revenue-share-base', sub: 'Sales − Commissions − GST' })}
+                      {tile('Profit Share Base', formatCurrency(profitShareBase, cur), { tone: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-900', testid: 'profit-share-base', sub: 'Sales − Commissions − Expenses + Adj' })}
+                      {tile('PBT', formatCurrency(pbt, cur), { tone: 'border-indigo-200', bg: 'bg-indigo-50', text: pbt >= 0 ? 'text-indigo-900' : 'text-red-700', testid: 'pbt', sub: 'Profit Before Tax' })}
+                      {tile('Working Capital', formatCurrency(wcCurrent, cur), {
+                        tone: wcSafe ? 'border-green-300' : 'border-red-300',
+                        bg: wcSafe ? 'bg-green-50' : 'bg-red-50',
+                        text: wcSafe ? 'text-green-800' : 'text-red-700',
+                        testid: 'wc-status',
+                        badge: wcStatus,
+                        badgeClass: wcSafe ? 'bg-green-600 text-white' : 'bg-red-600 text-white',
+                        sub: `${wcPct.toFixed(0)}% of base · ${formatCurrency(wcBase, cur)}`
+                      })}
+                      {tile('MG Status', mgApplicable ? formatCurrency(mgAmount, cur) : 'N/A', {
+                        tone: mgWon ? 'border-purple-300' : 'border-gray-200',
+                        bg: mgWon ? 'bg-purple-50' : 'bg-gray-50',
+                        text: mgWon ? 'text-purple-800' : 'text-gray-700',
+                        testid: 'mg-status',
+                        badge: mgApplicable ? (mgWon ? 'Won' : 'Applicable') : 'Off',
+                        badgeClass: mgWon ? 'bg-purple-600 text-white' : mgApplicable ? 'bg-gray-300 text-gray-700' : 'bg-stone-300 text-stone-700',
+                        sub: mgApplicable ? `Monthly MG floor` : `${modelWord}-only model`
+                      })}
+                      {tile('Payout Status', formatCurrency(payoutAmount, cur), {
+                        tone: payout.protection_mode ? 'border-red-300' : 'border-teal-300',
+                        bg: payout.protection_mode ? 'bg-red-50' : 'bg-teal-50',
+                        text: payout.protection_mode ? 'text-red-800' : 'text-teal-800',
+                        testid: 'payout-status',
+                        badge: payoutLabel,
+                        badgeClass: payout.protection_mode ? 'bg-red-600 text-white' : 'bg-teal-600 text-white',
+                        sub: payout.reason ? (payout.reason.length > 60 ? payout.reason.slice(0, 60) + '…' : payout.reason) : '—'
+                      })}
                     </div>
-                    <Button size="sm" disabled={wcSaving || wcLoading} onClick={async () => {
-                      if (!wcTableData?.rows) return;
-                      setWcSaving(true);
-                      try {
-                        const saves = [];
-                        wcTableData.rows.forEach(r => {
-                          const edit = wcEdits[r.month];
-                          if (!edit) return;
-                          const origExpense = Math.round(r.expenses || 0);
-                          const origAdj = Math.round(r.wc_adjustment || 0);
-                          const origCommission = Math.round(r.commission || 0);
-                          const origGst = Math.round(r.gst || 0);
-                          const newExpense = Math.round(Number(edit.expense) || 0);
-                          const newAdj = Math.round(Number(edit.wc_adj) || 0);
-                          const newCommission = Math.round(Number(edit.commission) || 0);
-                          const newGst = Math.round(Number(edit.gst) || 0);
-                          const body = { token: session?.token, center: selectedCenter, month: r.month };
-                          let dirty = false;
-                          if (newExpense !== origExpense) {
-                            body.target_expenses = newExpense;
-                            dirty = true;
-                          }
-                          if (newAdj !== origAdj) {
-                            body.wc_adjustment = newAdj;
-                            dirty = true;
-                          }
-                          if (newCommission !== origCommission) {
-                            body.commission_target = newCommission;
-                            dirty = true;
-                          }
-                          if (newGst !== origGst) {
-                            body.gst_target = newGst;
-                            dirty = true;
-                          }
-                          if (dirty) {
-                            saves.push(fetch(`${API}/api/center-accounts/wc-row-save`, {
-                              method: 'POST', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify(body)
-                            }));
-                          }
-                        });
-                        if (saves.length > 0) {
-                          await Promise.all(saves);
-                          await fetchWcTable();
-                          toast.success(`Saved ${saves.length} row${saves.length > 1 ? 's' : ''} (Expense Master updated on last day of month)`);
-                        } else {
-                          toast.info("No changes to save");
-                        }
-                      } finally {
-                        setWcSaving(false);
-                      }
-                    }} className="bg-[#8B0000] hover:bg-[#6B0000]" data-testid="wc-save-all-btn">
-                      <Save className="w-4 h-4 mr-1" /> {wcSaving ? 'Saving...' : 'Save All'}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={async () => {
-                      try {
-                        const res = await fetch(`${API}/api/center-accounts/wc-table/export-pdf`, {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ token: session?.token, center: selectedCenter })
-                        });
-                        if (!res.ok) { toast.error("PDF export failed"); return; }
-                        const blob = await res.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a'); a.href = url;
-                        a.download = `WC_Statement_${selectedCenter}.pdf`;
-                        document.body.appendChild(a); a.click(); a.remove();
-                        toast.success("PDF downloaded");
-                      } catch { toast.error("PDF export failed"); }
-                    }} data-testid="wc-pdf-btn">
-                      <Download className="w-4 h-4 mr-1" /> PDF
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={async () => {
-                      try {
-                        const res = await fetch(`${API}/api/center-accounts/wc-table/export-excel`, {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ token: session?.token, center: selectedCenter })
-                        });
-                        if (!res.ok) { toast.error("Excel export failed"); return; }
-                        const blob = await res.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a'); a.href = url;
-                        a.download = `WC_Statement_${selectedCenter}.xlsx`;
-                        document.body.appendChild(a); a.click(); a.remove();
-                        toast.success("Excel downloaded");
-                      } catch { toast.error("Excel export failed"); }
-                    }} data-testid="wc-excel-btn">
-                      <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {wcLoading ? (
-                    <div className="text-center py-8 text-muted-foreground">Loading...</div>
-                  ) : computedWcRows.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse" data-testid="wc-assessment-table">
-                        <thead className="bg-muted sticky top-0">
-                          <tr>
-                            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-b text-xs">Month</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">Sale</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-amber-50" title="Editable">Expenses</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-rose-50" title="Editable">GST</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-orange-50" title="Editable">Commission</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs">P/L</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-blue-50">Working Capital</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-green-50">Bal. WC</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-cyan-50">Diff of WC</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-emerald-50" title="WC Top-ups affect chain. Negative = WC withdrawal.">Topup</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-yellow-50" title="Other Income / Loans Taken — memo only, does NOT alter WC chain.">Other Inc (memo)</th>
-                            <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-purple-50" title="Editable">WC Adj</th>
-                            <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Rev Share'}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {computedWcRows.map((row) => {
-                            const monthLabel = new Date(row.month + '-01').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-                            const fmt = (v) => Math.round(v).toLocaleString('en-IN');
-                            const edit = wcEdits[row.month] || { expense: row.expenses, wc_adj: row.wc_adjustment || 0, commission: row.commission || 0, gst: row.gst || 0 };
-                            const mergeEdit = (patch) => setWcEdits(prev => ({
-                              ...prev,
-                              [row.month]: {
-                                expense: prev[row.month]?.expense ?? row.expenses ?? 0,
-                                wc_adj: prev[row.month]?.wc_adj ?? row.wc_adjustment ?? 0,
-                                commission: prev[row.month]?.commission ?? row.commission ?? 0,
-                                gst: prev[row.month]?.gst ?? row.gst ?? 0,
-                                ...patch,
-                              }
-                            }));
-                            return (
-                              <tr key={row.month} className={`border-b hover:bg-muted/30 ${row._dirty ? 'bg-yellow-50/60' : ''}`} data-testid={`wc-row-${row.month}`}>
-                                <td className="px-2 py-2 font-medium text-xs">{monthLabel}{row._dirty && <span className="ml-1 text-[10px] text-amber-700" title="Unsaved change">*</span>}</td>
-                                <td className="px-2 py-2 text-right font-mono text-xs">{fmt(row.sale)}</td>
-                                <td className="px-2 py-2 text-right bg-amber-50/50">
-                                  <input type="number"
-                                    className="w-24 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
-                                    value={edit.expense}
-                                    onChange={(e) => {
-                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                      mergeEdit({ expense: isNaN(v) ? 0 : v });
-                                    }}
-                                    data-testid={`wc-expense-${row.month}`}
-                                  />
-                                </td>
-                                <td className="px-2 py-2 text-right bg-rose-50/50">
-                                  <input type="number"
-                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
-                                    value={edit.gst}
-                                    onChange={(e) => {
-                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                      mergeEdit({ gst: isNaN(v) ? 0 : v });
-                                    }}
-                                    data-testid={`wc-gst-${row.month}`}
-                                  />
-                                </td>
-                                <td className="px-2 py-2 text-right bg-orange-50/50">
-                                  <input type="number"
-                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
-                                    value={edit.commission}
-                                    onChange={(e) => {
-                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                      mergeEdit({ commission: isNaN(v) ? 0 : v });
-                                    }}
-                                    data-testid={`wc-commission-${row.month}`}
-                                  />
-                                </td>
-                                <td className={`px-2 py-2 text-right font-mono text-xs font-semibold ${row.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {fmt(row.pnl)}
-                                </td>
-                                <td className="px-2 py-2 text-right font-mono text-xs bg-blue-50/50 font-medium">{fmt(row.opening_wc)}</td>
-                                <td className="px-2 py-2 text-right font-mono text-xs bg-green-50/50 font-bold">{fmt(row.balance_wc)}</td>
-                                <td className="px-2 py-2 text-right font-mono text-xs bg-cyan-50/50 font-bold">{fmt(row.diff_wc || row.balance_wc)}</td>
-                                <td className={`px-2 py-2 text-right font-mono text-xs bg-emerald-50/50 ${(row.topup || 0) < 0 ? 'text-red-600 font-semibold' : ''}`}>{row.topup ? fmt(row.topup) : '–'}</td>
-                                <td className="px-2 py-2 text-right font-mono text-xs bg-yellow-50/40 text-gray-500">{row.other_income ? fmt(row.other_income) : '–'}</td>
-                                <td className="px-2 py-2 text-right bg-purple-50/50">
-                                  <input type="number"
-                                    className="w-20 text-right font-mono text-xs border rounded px-1 py-0.5 bg-white"
-                                    value={edit.wc_adj}
-                                    onChange={(e) => {
-                                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                      mergeEdit({ wc_adj: isNaN(v) ? 0 : v });
-                                    }}
-                                    data-testid={`wc-adj-${row.month}`}
-                                  />
-                                </td>
-                                <td className="px-2 py-2 text-center">
-                                  {row.rev_share_status === 'active' ? (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
-                                  ) : row.rev_share_status === 'restoring' ? (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Restoring</span>
-                                  ) : (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">Blocked</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-muted-foreground">No WC data for this center</div>
-                  )}
-                </CardContent>
-              </Card>
+
+                    {/* Footer hint */}
+                    <p className="text-[11px] text-muted-foreground italic pt-2">
+                      All numbers driven by the Single Financial Engine. Open <strong>MG Payout</strong> for payout breakdown,
+                      <strong> Reports</strong> for full P&amp;L / GST / Settlement reports, <strong>Ledgers</strong> for books of account,
+                      <strong> Bundles &amp; Exports</strong> for one-click ZIP downloads.
+                    </p>
+                  </>
+                );
+              })()}
             </TabsContent>
 
             {/* Sales Breakdown Tab */}
@@ -2456,139 +2154,116 @@ export default function CenterAccounts() {
             </TabsContent>
 
             {/* Reports Tab */}
-            <TabsContent value="reports" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Generate Reports</CardTitle>
-                  <CardDescription>Download PDF reports for the selected period</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* Step 1: Pre-Send Checklist — preview every report that goes into the Email Pack */}
-                  <div className="mb-4">
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <Badge className="bg-blue-600 text-white">Step 1</Badge>
-                      <p className="text-sm font-semibold">Preview each report inside the Email Pack</p>
+            <TabsContent value="reports" className="space-y-4" data-testid="reports-tab-content">
+              {(() => {
+                const linked = !!accountSummary?.franchise?.linked;
+                const ReportTile = ({ icon, label, testid, onPreview, onDownload, disabled, comingSoon, tone = 'border-gray-200', accent = 'text-gray-700' }) => (
+                  <div className={`rounded-lg border ${tone} bg-white p-3 flex items-center justify-between gap-2`} data-testid={`report-tile-${testid}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`shrink-0 ${accent}`}>{icon}</span>
+                      <span className="text-sm font-medium truncate text-stone-800">{label}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mb-3">Click the eye icon on each report to review before generating the bundle. Single-PDF downloads also available for audit / one-off use.</p>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0"><FileText className="w-4 h-4 text-blue-700 shrink-0" /><span className="text-sm font-medium truncate">PIB Report</span></div>
-                        <div className="flex gap-1 shrink-0">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={!accountSummary?.franchise?.linked}
-                                  onClick={() => openPibPreview()} data-testid="pib-preview-btn" title="Preview">
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={!accountSummary?.franchise?.linked}
-                                  onClick={() => downloadReport('pib')} data-testid="pib-download-btn" title="Download">
-                            <Download className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0"><Calculator className="w-4 h-4 text-green-700 shrink-0" /><span className="text-sm font-medium truncate">GST Summary</span></div>
-                        <div className="flex gap-1 shrink-0">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openPdfPreview('gst')} data-testid="gst-preview-btn" title="Preview">
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('gst')} data-testid="gst-download-btn" title="Download">
-                            <Download className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0"><CreditCard className="w-4 h-4 text-orange-700 shrink-0" /><span className="text-sm font-medium truncate">Commission Summary</span></div>
-                        <div className="flex gap-1 shrink-0">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openPdfPreview('commission')} data-testid="commission-preview-btn" title="Preview">
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('commission')} data-testid="commission-download-btn" title="Download">
-                            <Download className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0"><Building2 className="w-4 h-4 text-sky-700 shrink-0" /><span className="text-sm font-medium truncate">Bank Statement</span></div>
-                        <div className="flex gap-1 shrink-0">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openPdfPreview('bank')} data-testid="bank-preview-btn" title="Preview">
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => downloadReport('bank')} data-testid="bank-download-btn" title="Download">
-                            <Download className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="rounded border bg-white p-3 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0"><FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" /><span className="text-sm font-medium truncate">Sales / Expense Excel</span></div>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
-                                  onClick={() => downloadSalesExpenseExcel(seCaMode, seCaStart, seCaEnd)}
-                                  data-testid="se-excel-download-btn" title="Download">
-                            <Download className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Select value={seCaMode} onValueChange={setSeCaMode}>
-                            <SelectTrigger className="h-7 text-xs w-28" data-testid="se-ca-mode"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="month">Full Month</SelectItem>
-                              <SelectItem value="range">Date Range</SelectItem>
-                              <SelectItem value="date">Single Date</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {seCaMode === 'range' && (
-                            <>
-                              <Input type="date" value={seCaStart} onChange={e => setSeCaStart(e.target.value)} className="h-7 text-xs w-36" data-testid="se-ca-start" />
-                              <span className="text-[10px] text-muted-foreground">to</span>
-                              <Input type="date" value={seCaEnd} onChange={e => setSeCaEnd(e.target.value)} className="h-7 text-xs w-36" data-testid="se-ca-end" />
-                            </>
+                    <div className="flex gap-1 shrink-0 items-center">
+                      {comingSoon ? (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">Coming Soon</Badge>
+                      ) : (
+                        <>
+                          {onPreview && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={disabled}
+                                    onClick={onPreview} data-testid={`${testid}-preview-btn`} title="Preview">
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
                           )}
-                          {seCaMode === 'date' && (
-                            <Input type="date" value={seCaStart} onChange={e => setSeCaStart(e.target.value)} className="h-7 text-xs w-36" data-testid="se-ca-date" />
+                          {onDownload && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={disabled}
+                                    onClick={onDownload} data-testid={`${testid}-download-btn`} title="Download">
+                              <Download className="w-3.5 h-3.5" />
+                            </Button>
                           )}
-                          {seCaMode === 'month' && (
-                            <span className="text-[10px] text-muted-foreground">({selectedMonth})</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="rounded border bg-white p-3 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0"><FileBox className="w-4 h-4 text-amber-700 shrink-0" /><span className="text-sm font-medium truncate">Raw Uploads (Swiggy/Zomato/Bank)</span></div>
-                        <Badge variant="secondary" className="text-[10px]">included</Badge>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-2">Note: the Franchise Owner Ledger is intentionally NOT included in the accounts Email Pack (it's available separately on the Ledgers page).</p>
-                  </div>
-
-                  {/* Step 2: Generate + Send the Email Pack */}
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <Badge className="bg-rose-600 text-white">Step 2</Badge>
-                    <p className="text-sm font-semibold">Generate &amp; send the Email Pack</p>
-                  </div>
-                  <Card className="border-2 border-rose-300 bg-rose-50/50">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between flex-wrap gap-4">
-                        <div className="flex items-start gap-4">
-                          <div className="w-14 h-14 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0">
-                            <Mail className="w-7 h-7 text-rose-700" />
-                          </div>
-                          <div>
-                            <h4 className="text-lg font-semibold text-rose-900">Monthly Franchise Email Pack</h4>
-                            <p className="text-sm text-rose-700 mt-1 max-w-xl">
-                              Preview the email body, download the ZIP, or <strong>send it directly</strong> to the franchise owner via SMTP.
-                            </p>
-                          </div>
-                        </div>
-                        <Button onClick={() => openEmailPack()} disabled={!accountSummary?.franchise?.linked}
-                                className="bg-rose-700 hover:bg-rose-800 text-white" size="lg" data-testid="email-pack-btn">
-                          <Mail className="w-4 h-4 mr-2" />Open Email Pack
-                        </Button>
-                      </div>
-                      {!accountSummary?.franchise?.linked && (
-                        <p className="text-xs text-rose-600 mt-2">Link franchise to this center first.</p>
+                        </>
                       )}
+                    </div>
+                  </div>
+                );
+
+                const Section = ({ title, color, children }) => (
+                  <Card className={`border-l-4 ${color}`}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">{title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">{children}</div>
                     </CardContent>
                   </Card>
-                </CardContent>
-              </Card>
+                );
+
+                return (
+                  <>
+                    <Card className="bg-gradient-to-r from-stone-50 to-stone-100 border-stone-200">
+                      <CardContent className="p-4">
+                        <p className="text-sm text-stone-700">
+                          All reports for <strong>{selectedCenter}</strong> · <strong>{selectedMonth}</strong>.
+                          Each report shows only its own purpose. Engine: <Badge variant="outline" className="ml-1">Single Financial Engine</Badge>
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Financial Reports */}
+                    <Section title="Financial Reports" color="border-blue-500">
+                      <ReportTile icon={<FileText className="w-4 h-4" />} label="Profit & Loss" testid="pnl" accent="text-blue-700" tone="border-blue-200" comingSoon />
+                      <ReportTile icon={<FileSpreadsheet className="w-4 h-4" />} label="Sales Summary"
+                                  testid="sales-summary" accent="text-emerald-700" tone="border-emerald-200" disabled={!linked}
+                                  onDownload={() => downloadSalesExpenseExcel('month', '', '')} />
+                      <ReportTile icon={<FileSpreadsheet className="w-4 h-4" />} label="Expense Summary"
+                                  testid="expense-summary" accent="text-amber-700" tone="border-amber-200" disabled={!linked}
+                                  onDownload={() => downloadSalesExpenseExcel('month', '', '')} />
+                      <ReportTile icon={<Calculator className="w-4 h-4" />} label="GST Summary"
+                                  testid="gst-summary" accent="text-green-700" tone="border-green-200"
+                                  onPreview={() => openPdfPreview('gst')} onDownload={() => downloadReport('gst')} />
+                    </Section>
+
+                    {/* Settlement Reports */}
+                    <Section title="Settlement Reports" color="border-sky-500">
+                      <ReportTile icon={<FileText className="w-4 h-4" />}
+                                  label={accountSummary?.payout_model === 'profit_share' ? 'Profit Share Calculation (PIB)' : 'Revenue Share Calculation (PIB)'}
+                                  testid="rev-share-calc" accent="text-sky-700" tone="border-sky-200" disabled={!linked}
+                                  onPreview={() => openPibPreview()} onDownload={() => downloadReport('pib')} />
+                      <ReportTile icon={<Wallet className="w-4 h-4" />}
+                                  label="MG Summary"
+                                  testid="mg-summary" accent="text-purple-700" tone="border-purple-200" comingSoon />
+                      <ReportTile icon={<Wallet className="w-4 h-4" />}
+                                  label="Payout Summary"
+                                  testid="payout-summary" accent="text-indigo-700" tone="border-indigo-200" comingSoon />
+                    </Section>
+
+                    {/* Reconciliation Reports */}
+                    <Section title="Reconciliation Reports" color="border-orange-500">
+                      <ReportTile icon={<Building2 className="w-4 h-4" />} label="Bank Reconciliation"
+                                  testid="bank-recon" accent="text-sky-700" tone="border-sky-200"
+                                  onPreview={() => openPdfPreview('bank')} onDownload={() => downloadReport('bank')} />
+                      <ReportTile icon={<CreditCard className="w-4 h-4" />} label="PhonePe Reconciliation"
+                                  testid="phonepe-recon" accent="text-violet-700" tone="border-violet-200" comingSoon />
+                      <ReportTile icon={<CreditCard className="w-4 h-4" />} label="Commission Reconciliation"
+                                  testid="commission-recon" accent="text-orange-700" tone="border-orange-200"
+                                  onPreview={() => openPdfPreview('commission')} onDownload={() => downloadReport('commission')} />
+                    </Section>
+
+                    {/* Compliance Reports */}
+                    <Section title="Compliance Reports" color="border-rose-500">
+                      <ReportTile icon={<Calculator className="w-4 h-4" />} label="GST Paid"
+                                  testid="gst-paid" accent="text-green-700" tone="border-green-200" comingSoon />
+                      <ReportTile icon={<FileBox className="w-4 h-4" />} label="Missing Bills"
+                                  testid="missing-bills" accent="text-rose-700" tone="border-rose-200" comingSoon />
+                      <ReportTile icon={<FileBox className="w-4 h-4" />} label="Expense Attachments"
+                                  testid="expense-attachments" accent="text-amber-700" tone="border-amber-200" comingSoon />
+                    </Section>
+
+                    <p className="text-[11px] text-muted-foreground italic px-1">
+                      Each report shows only its own purpose. Email Pack &amp; one-click ZIP bundles live under <strong>Bundles &amp; Exports</strong>.
+                    </p>
+                  </>
+                );
+              })()}
             </TabsContent>
 
             {/* Ledgers Tab — CA-ready books of accounts */}
@@ -2618,7 +2293,7 @@ export default function CenterAccounts() {
             </TabsContent>
 
             {/* MG & Payout Tab */}
-            <TabsContent value="payout" className="space-y-4">
+            <TabsContent value="mg-payout" className="space-y-4">
               {/* Protection Mode Banner */}
               {accountSummary.payout?.protection_mode && (
                 <div className="p-4 bg-red-50 border-2 border-red-300 rounded-lg" data-testid="payout-protection-banner">
@@ -3267,298 +2942,145 @@ export default function CenterAccounts() {
             </TabsContent>
 
             {/* Invoice Export Tab (CA/Auditor Ready) */}
-            <TabsContent value="invoices" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-purple-600" />
-                    Invoice & Bill Export (CA/Auditor Ready)
-                  </CardTitle>
-                  <CardDescription>
-                    Export expense invoices with attachment status, grouped invoice summary, and missing bill reports
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Filters */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <Label className="text-xs">From Date</Label>
-                      <Input
-                        type="date"
-                        value={invoiceExportState.startDate}
-                        onChange={(e) => setInvoiceExportState(p => ({ ...p, startDate: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">To Date</Label>
-                      <Input
-                        type="date"
-                        value={invoiceExportState.endDate}
-                        onChange={(e) => setInvoiceExportState(p => ({ ...p, endDate: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Attachment Status</Label>
-                      <Select 
-                        value={invoiceExportState.attachmentStatus} 
-                        onValueChange={(v) => setInvoiceExportState(p => ({ ...p, attachmentStatus: v }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="attached">With Attachment</SelectItem>
-                          <SelectItem value="missing">Missing Attachment</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Grouped Status</Label>
-                      <Select 
-                        value={invoiceExportState.groupedStatus} 
-                        onValueChange={(v) => setInvoiceExportState(p => ({ ...p, groupedStatus: v }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="grouped">Grouped Only</SelectItem>
-                          <SelectItem value="ungrouped">Ungrouped Only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+            <TabsContent value="bundles" className="space-y-4" data-testid="bundles-tab-content">
+              {(() => {
+                const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+                const linked = !!accountSummary?.franchise?.linked;
+                const period = selectedMonth;
+                const center = selectedCenter;
 
-                  {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      onClick={async () => {
-                        if (!invoiceExportState.startDate || !invoiceExportState.endDate) {
-                          toast.error('Please select date range');
-                          return;
-                        }
-                        setAuditLoading(true);
-                        try {
-                          const res = await fetch(`${API}/api/expense-attachments/audit-report`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              token,
-                              center: selectedCenter,
-                              start_date: invoiceExportState.startDate,
-                              end_date: invoiceExportState.endDate,
-                              attachment_status: invoiceExportState.attachmentStatus === 'all' ? null : invoiceExportState.attachmentStatus,
-                              grouped_status: invoiceExportState.groupedStatus === 'all' ? null : invoiceExportState.groupedStatus
-                            })
-                          });
-                          const data = await res.json();
-                          if (data.success) {
-                            setAuditReport(data);
-                            toast.success(`Found ${data.summary.total_count} expenses`);
-                          }
-                        } catch (err) {
-                          toast.error('Failed to generate report');
-                        } finally {
-                          setAuditLoading(false);
-                        }
-                      }}
-                      disabled={auditLoading}
-                      className="gap-2"
-                    >
-                      {auditLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                      Generate Audit Report
-                    </Button>
+                const downloadZip = async (url, filename) => {
+                  try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const blob = await res.blob();
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                    toast.success(`${filename} downloaded`);
+                  } catch (e) {
+                    toast.error(`Download failed: ${e.message}`);
+                  }
+                };
 
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        if (!invoiceExportState.startDate || !invoiceExportState.endDate) {
-                          toast.error('Please select date range');
-                          return;
-                        }
-                        setAuditLoading(true);
-                        try {
-                          const res = await fetch(`${API}/api/expense-attachments/export-zip`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              token,
-                              center: selectedCenter,
-                              start_date: invoiceExportState.startDate,
-                              end_date: invoiceExportState.endDate
-                            })
-                          });
-                          
-                          const contentType = res.headers.get('content-type') || '';
-                          if (contentType.includes('application/json')) {
-                            // Batching response
-                            const data = await res.json();
-                            if (data.requires_batching) {
-                              setExportBatches(data.batches);
-                              toast.info(data.message);
-                            } else if (data.detail) {
-                              toast.error(data.detail);
-                            }
-                          } else {
-                            // Direct ZIP download
-                            const blob = await res.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `${selectedCenter}_Invoices_${invoiceExportState.startDate}_to_${invoiceExportState.endDate}.zip`;
-                            document.body.appendChild(a);
-                            a.click();
-                            a.remove();
-                            window.URL.revokeObjectURL(url);
-                            toast.success('ZIP downloaded');
-                          }
-                        } catch (err) {
-                          toast.error('Failed to export ZIP');
-                        } finally {
-                          setAuditLoading(false);
-                        }
-                      }}
-                      disabled={auditLoading}
-                      className="gap-2"
-                    >
-                      <Download className="w-4 h-4" /> Download ZIP
-                    </Button>
-                  </div>
+                const dlCA = () => downloadZip(
+                  `${API}/bundles/ca?token=${encodeURIComponent(session?.token || '')}&center=${encodeURIComponent(center)}&period=${encodeURIComponent(period)}`,
+                  `CA_${center}_${period}.zip`,
+                );
+                const dlFull = () => downloadZip(
+                  `${API}/bundles/franchisor?token=${encodeURIComponent(session?.token || '')}&center=${encodeURIComponent(center)}&period=${encodeURIComponent(period)}`,
+                  `FullCenter_${center}_${period}.zip`,
+                );
 
-                  {/* Export Batches (when >3 months) */}
-                  {exportBatches && (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className="text-sm text-amber-800 mb-3 font-medium">
-                        Date range exceeds 3 months. Download in batches:
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {exportBatches.map((batch, idx) => (
-                          <Button
-                            key={idx}
-                            size="sm"
-                            variant="outline"
-                            onClick={async () => {
-                              const res = await fetch(`${API}/api/expense-attachments/export-zip-batch`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  token,
-                                  center: selectedCenter,
-                                  start_date: batch.start_date,
-                                  end_date: batch.end_date
-                                })
-                              });
-                              const blob = await res.blob();
-                              const url = window.URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `${selectedCenter}_${batch.label.replace(/\s/g, '_')}.zip`;
-                              a.click();
-                            }}
-                            className="gap-1"
-                          >
-                            <Download className="w-3 h-3" /> {batch.label}
+                const ExportCard = ({ tone, icon, title, desc, contents, action, testid, disabled }) => (
+                  <Card className={`border-2 ${tone}`} data-testid={`bundle-card-${testid}`}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        {icon}
+                        {title}
+                      </CardTitle>
+                      <CardDescription>{desc}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <p className="text-xs font-semibold text-stone-600 mb-2">Contains</p>
+                        <ul className="text-xs text-stone-700 space-y-1 list-disc pl-5">
+                          {contents.map((c, i) => <li key={i}>{c}</li>)}
+                        </ul>
+                      </div>
+                      {action}
+                    </CardContent>
+                  </Card>
+                );
+
+                return (
+                  <>
+                    <Card className="bg-gradient-to-r from-stone-50 to-stone-100 border-stone-200">
+                      <CardContent className="p-4">
+                        <p className="text-sm text-stone-700">
+                          One-click exports for <strong>{center}</strong> · <strong>{period}</strong>.
+                          All packages pull from the <strong>Single Financial Engine</strong> — no duplicate calculations.
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid md:grid-cols-3 gap-4" data-testid="bundle-export-grid">
+                      <ExportCard
+                        tone="border-emerald-300 hover:border-emerald-500"
+                        icon={<Archive className="w-5 h-5 text-emerald-700" />}
+                        title="CA Bundle"
+                        desc="Complete Accounts Package — for the CA / Auditor."
+                        testid="ca"
+                        contents={[
+                          'All Ledgers (PDF + Excel)',
+                          'Bills / Attachments (by date)',
+                          'P&L, GST Summary, Bank & Commission Recon',
+                          'Engine-snapshot manifest for audit trail',
+                        ]}
+                        action={
+                          <Button onClick={dlCA} disabled={!center || !period}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
+                                  data-testid="bundle-ca-download">
+                            <Download className="w-4 h-4 mr-2" />
+                            Download CA Bundle (.zip)
                           </Button>
-                        ))}
-                      </div>
+                        }
+                      />
+
+                      <ExportCard
+                        tone="border-rose-300 hover:border-rose-500"
+                        icon={<Mail className="w-5 h-5 text-rose-700" />}
+                        title="Email Package"
+                        desc="Professional email-ready package for the Franchise Owner."
+                        testid="email"
+                        contents={[
+                          'Executive Summary (subject + body)',
+                          'Key Financial Numbers',
+                          'PIB Report, GST, Commission, Bank',
+                          'Raw aggregator / bank uploads (where available)',
+                        ]}
+                        action={
+                          <Button onClick={() => openEmailPack()} disabled={!linked}
+                                  className="bg-rose-700 hover:bg-rose-800 text-white w-full"
+                                  data-testid="bundle-email-open">
+                            <Mail className="w-4 h-4 mr-2" />
+                            Open Email Package
+                          </Button>
+                        }
+                      />
+
+                      <ExportCard
+                        tone="border-indigo-300 hover:border-indigo-500"
+                        icon={<FileBox className="w-5 h-5 text-indigo-700" />}
+                        title="Full Center Package"
+                        desc="Master bundle — everything for this center, one click."
+                        testid="full"
+                        contents={[
+                          'All Reports (Financial · Settlement · Recon · Compliance)',
+                          'All Ledgers (Financial · Franchise · Adjustment)',
+                          'Payout Summary (MG / Revenue / Profit Share)',
+                          'Executive cover-sheet + engine manifest',
+                        ]}
+                        action={
+                          <Button onClick={dlFull} disabled={!center || !period}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white w-full"
+                                  data-testid="bundle-full-download">
+                            <Download className="w-4 h-4 mr-2" />
+                            Download Full Center Package (.zip)
+                          </Button>
+                        }
+                      />
                     </div>
-                  )}
 
-                  {/* Audit Report Summary */}
-                  {auditReport && (
-                    <div className="space-y-4">
-                      {/* Summary Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        <div className="p-3 bg-blue-50 rounded-lg text-center">
-                          <p className="text-2xl font-bold text-blue-700">{auditReport.summary.total_count}</p>
-                          <p className="text-xs text-blue-600">Total Expenses</p>
-                        </div>
-                        <div className="p-3 bg-green-50 rounded-lg text-center">
-                          <p className="text-2xl font-bold text-green-700">{auditReport.summary.attached_count}</p>
-                          <p className="text-xs text-green-600">With Attachments</p>
-                        </div>
-                        <div className="p-3 bg-red-50 rounded-lg text-center">
-                          <p className="text-2xl font-bold text-red-700">{auditReport.summary.missing_count}</p>
-                          <p className="text-xs text-red-600">Missing Bills</p>
-                        </div>
-                        <div className="p-3 bg-purple-50 rounded-lg text-center">
-                          <p className="text-2xl font-bold text-purple-700">{auditReport.summary.grouped_count}</p>
-                          <p className="text-xs text-purple-600">Grouped</p>
-                        </div>
-                        <div className="p-3 bg-amber-50 rounded-lg text-center">
-                          <p className="text-2xl font-bold text-amber-700">{auditReport.summary.mismatch_count}</p>
-                          <p className="text-xs text-amber-600">Mismatched</p>
-                        </div>
-                      </div>
-
-                      {/* Expense List with Audit Details */}
-                      <div className="border rounded-lg overflow-hidden">
-                        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 sticky top-0">
-                              <tr>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Date</th>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Description</th>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Category</th>
-                                <th className="text-right py-2 px-3 font-medium text-gray-600">Amount</th>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Vendor</th>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Invoice #</th>
-                                <th className="text-center py-2 px-3 font-medium text-gray-600">Bill</th>
-                                <th className="text-left py-2 px-3 font-medium text-gray-600">Uploaded By</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {auditReport.expenses.map((exp, idx) => (
-                                <tr 
-                                  key={idx} 
-                                  className={`border-t ${
-                                    exp.attachment_status === 'missing' ? 'bg-red-50' : 
-                                    exp.amount_match === 'mismatch' ? 'bg-amber-50' : ''
-                                  }`}
-                                >
-                                  <td className="py-2 px-3">{exp.date}</td>
-                                  <td className="py-2 px-3">{exp.description}</td>
-                                  <td className="py-2 px-3">
-                                    <Badge variant="outline" className="text-xs">{exp.expense_type}</Badge>
-                                  </td>
-                                  <td className="py-2 px-3 text-right font-medium">
-                                    {formatCurrency(exp.amount, accountSummary?.country)}
-                                  </td>
-                                  <td className="py-2 px-3 text-xs">
-                                    {exp.group_info?.vendor_name || '-'}
-                                  </td>
-                                  <td className="py-2 px-3 text-xs">
-                                    {exp.group_info?.invoice_number || '-'}
-                                  </td>
-                                  <td className="py-2 px-3 text-center">
-                                    {exp.attachment_status === 'attached' ? (
-                                      <Badge className="bg-green-100 text-green-800 text-xs">✓</Badge>
-                                    ) : exp.attachment_status === 'attached_via_group' ? (
-                                      <Badge className="bg-blue-100 text-blue-800 text-xs">Grp</Badge>
-                                    ) : (
-                                      <Badge className="bg-red-100 text-red-800 text-xs">✗</Badge>
-                                    )}
-                                  </td>
-                                  <td className="py-2 px-3 text-xs text-gray-500">
-                                    {exp.uploaded_by || exp.created_by || '-'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Total */}
-                      <div className="text-right text-lg font-bold">
-                        Total: {formatCurrency(auditReport.summary.total_amount, accountSummary?.country)}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <p className="text-[11px] text-muted-foreground italic px-1">
+                      All three packages are independent — pick the one that matches your audience (CA, Owner, or full archive).
+                      No duplicated calculations: the same Financial Engine output feeds every report inside.
+                    </p>
+                  </>
+                );
+              })()}
             </TabsContent>
           </Tabs>
         </>
