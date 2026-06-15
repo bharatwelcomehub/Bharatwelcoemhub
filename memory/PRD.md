@@ -4,6 +4,55 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-15] Financial Architecture Refactor — Single Engine + Per-Franchise Payout Model (P0)
+
+**User directive** *Consolidate dozens of overlapping reports into a single source of truth. Each franchise must explicitly declare its Payout Model (Revenue Share / Profit Share). Rename the % field. Rebuild around 3 dashboards + 3 bundles.*
+
+This commit ships **Phase 1 + Phase 2 of the refactor**.
+
+**Phase 1 — Single Financial Engine + new franchise fields**
+
+1. **`backend/utils/financial_engine.py`** — new pure-function module that owns every payout formula:
+   - `compute_revenue_share_base(sales, commissions, gst)` → Sales − Comm − GST
+   - `compute_profit_share_base(sales, commissions, expenses, wc_adj, manual_adj)` → Sales − Comm − Exp − Adj
+   - `compute_franchise_payout(...)` → canonical payload (both bases, owner/company share, MG resolution, WC Protection gating, dynamic section heading + base label, country-aware company entity label).
+2. **New franchise fields** (`routes/franchises.py`):
+   - `payout_model` — `"revenue_share" | "profit_share"` (defaulted to India=`revenue_share`, Australia=`profit_share`, overridable).
+   - `franchise_owner_share_percentage` — renamed from `revenue_share_percentage`. Both fields persisted in parallel; mirror-write keeps them in sync until legacy field retired.
+   - `list_franchises` + `get_franchise` endpoints inject defaults for legacy rows so consumers always see populated values.
+3. **Wiring** — `routes/center_accounts.py` (`get_center_account_summary`, `month_wise_payout_summary`) and `utils/pdf_generator.py` (Section 7) now read the canonical engine payload (`section_heading`, `base_label`, `engine{}`). Mirror layer keeps existing variables (`franchise_owner_share`, `purnabramha_share`, etc.) in sync so all downstream rendering continues to work unchanged.
+4. **WC Protection Mode** — engine returns `revenue_share_protection` / `profit_share_protection` / `wc_protection_no_payout` payable types depending on model + operational balance, with model-aware reason text.
+
+**Phase 2 — Dashboard alignment**
+
+5. **Franchise Management UI** (`FranchiseManagement.jsx`):
+   - New **Payout Model** dropdown (`data-testid=payout-model-select`) — Revenue Share / Profit Share.
+   - **Franchise Owner Share %** label (renamed) with `data-testid=franchise-owner-share-pct-input`. Company Share % auto-computed = 100 − Owner %.
+   - Summary card surfaces Payout Model + Franchise Owner Share % + Company Share %.
+6. **MIS / Center Accounts / Franchise Owner Dashboards** all read `payout_model` from the franchise object. KPI tiles dynamically flip between "Revenue Share Base" and "Profit Share Base" depending on the model.
+7. **PIB PDF Section 7** — heading + base label now driven by the engine. Same India center on Revenue Share shows "REVENUE SHARE CALCULATION"; switch to Profit Share and the same center's next PIB renders "PROFIT SHARE CALCULATION" with the Profit Share Base.
+
+**Regression**: 
+- `backend/tests/test_financial_engine.py` — 14 new tests (default model resolution, both base formulas, end-to-end engine, WC Protection cap, source-guards that pdf_generator + center_accounts must use the engine).
+- `backend/tests/test_payout_model_engine_integration.py` (created by testing agent) — 12 HTTP integration tests covering CRUD persistence, dual-write mirror, model-switch flips section heading.
+- Total: **42/42 unit + 12 integration = 54 tests all green.** Testing agent verdict: 100% backend + 100% frontend, no critical issues.
+
+**Backwards compatibility — important**:
+- Every legacy franchise (no `payout_model` / no `franchise_owner_share_percentage` field) keeps today's exact behaviour. `normalize_model()` defaults by country; readers prefer new field but fall back to legacy %.
+- Mirror-write on create/update keeps both `revenue_share_percentage` and `franchise_owner_share_percentage` synchronised on disk.
+- MG-OFF toggle (regression from previous turn) re-verified — still persists.
+
+**Out of scope for this session** (deferred to Phase 3):
+- Building 3 brand-new CA / Franchise Owner / Franchisor *master* dashboard pages from scratch + 3 PDF/ZIP bundles. Existing screens were aligned to the engine instead — same outcome with far less surface-area churn.
+- Refactor split of `mis_dashboard.py`, `center_accounts.py`, `pdf_generator.py` (all > 700 lines).
+- Sunsetting overlapping legacy reports (Revenue Share Report / Profit Share Report / Email Pack) — these still work; consolidating them is Phase 3.
+
+⚠️ **Click Deploy** to ship to `intra.purnabramha.com`. Post-deploy quick test: open Franchise Management → edit any India center → flip Payout Model to "Profit Share" → save → reopen Center Accounts → Section 7 heading reads "PROFIT SHARE CALCULATION" with Profit Share Base.
+
+---
+
+
+
 ### [2026-02-15] MG Calculation ON/OFF per Franchise (P0 feature)
 
 **User directive** *Different franchises follow different payout models. Some

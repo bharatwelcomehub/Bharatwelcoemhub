@@ -515,6 +515,15 @@ async def list_franchises(req: FranchiseQueryRequest):
         query["status"] = req.status
     
     franchises = await db.franchises.find(query, {"_id": 0}).sort("franchise_code", 1).to_list(1000)
+
+    # Inject Payout Model + Franchise Owner Share % defaults so callers can
+    # rely on the field always being present (engine normalises at call time,
+    # but downstream code is simpler with explicit values).
+    for f in franchises:
+        if not f.get("payout_model"):
+            f["payout_model"] = "revenue_share" if (f.get("country") or "India").lower() == "india" else "profit_share"
+        if f.get("franchise_owner_share_percentage") is None:
+            f["franchise_owner_share_percentage"] = f.get("revenue_share_percentage")
     
     # Get counts by status
     total = await db.franchises.count_documents({})
@@ -676,6 +685,13 @@ async def get_franchise(franchise_code: str, req: TokenRequest):
     if not franchise:
         raise HTTPException(404, f"Franchise '{franchise_code}' not found")
     
+    # Default the Payout Model + Franchise Owner Share % for legacy docs so
+    # callers always receive populated values.
+    if not franchise.get("payout_model"):
+        franchise["payout_model"] = "revenue_share" if (franchise.get("country") or "India").lower() == "india" else "profit_share"
+    if franchise.get("franchise_owner_share_percentage") is None:
+        franchise["franchise_owner_share_percentage"] = franchise.get("revenue_share_percentage")
+
     # Get audit history
     audit = await db.franchise_audit.find(
         {"franchise_code": franchise_code.upper()},
