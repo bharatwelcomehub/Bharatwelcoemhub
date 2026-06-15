@@ -1150,16 +1150,16 @@ export default function CenterAccounts() {
               );
             })()}
 
-            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability && (
+            {accountSummary.country !== "Australia" && accountSummary.operational_sustainability && accountSummary.payout_model === 'profit_share' && (
               <Card className="bg-gradient-to-br from-rose-50 to-rose-100" data-testid="kpi-profit-loss-card">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-rose-700">Profit / Loss</p>
+                      <p className="text-sm text-rose-700">Profit Share Base (Operational)</p>
                       <p className={`text-2xl font-bold ${(accountSummary.operational_sustainability.profit_loss ?? 0) >= 0 ? 'text-emerald-800' : 'text-rose-800'}`} data-testid="kpi-profit-loss">
                         {formatCurrency(accountSummary.operational_sustainability.profit_loss ?? accountSummary.operational_sustainability.operational_balance ?? 0, accountSummary.country)}
                       </p>
-                      <p className="text-[10px] text-rose-700 mt-1">Sales − Expenses − Commissions (GST excluded)</p>
+                      <p className="text-[10px] text-rose-700 mt-1">Sales − Expenses − Commissions (base for 80/20 split)</p>
                     </div>
                     <TrendingUp className={`w-8 h-8 ${(accountSummary.operational_sustainability.profit_loss ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} />
                   </div>
@@ -1193,7 +1193,7 @@ export default function CenterAccounts() {
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="sales">Sales Breakdown</TabsTrigger>
               <TabsTrigger value="commissions">Commissions</TabsTrigger>
-              <TabsTrigger value="share">Revenue/Profit Share</TabsTrigger>
+              <TabsTrigger value="share">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'}</TabsTrigger>
               <TabsTrigger value="payout">{accountSummary?.country && accountSummary.country !== 'India' ? 'Payout' : 'MG & Payout'}</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
               <TabsTrigger value="adjustments" className="text-amber-700">Adjustments</TabsTrigger>
@@ -1285,8 +1285,8 @@ export default function CenterAccounts() {
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                     <div>
-                      <p className="font-semibold text-red-800">Revenue Share / Profit Share STOPPED</p>
-                      <p className="text-sm text-red-700">Working Capital is at or below 50% of initial. Revenue Share will resume once WC is restored.</p>
+                      <p className="font-semibold text-red-800">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} STOPPED</p>
+                      <p className="text-sm text-red-700">Working Capital is at or below 50% of initial. {accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} will resume once WC is restored.</p>
                     </div>
                   </div>
                 </div>

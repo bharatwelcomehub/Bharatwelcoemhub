@@ -27,16 +27,16 @@ from typing import Optional, Dict, Any
 
 STATUS_LABELS = {
     "eligible": ("Eligible For Release", "green",
-                 "Revenue Share has been approved and is eligible for payment "
-                 "release as per current settlement rules."),
+                 "The franchise owner payout has been approved and is eligible "
+                 "for release as per current settlement rules."),
     "review": ("Management Review Required", "amber",
-               "Revenue Share has been calculated correctly. However, final "
-               "release is pending review by Accounts/Admin."),
+               "The franchise owner payout has been calculated correctly. "
+               "However, final release is pending review by Accounts/Admin."),
     "blocked": ("Currently Blocked", "red",
-                "Revenue Share has been calculated correctly for reporting "
-                "purposes. However, payout release is currently blocked due "
-                "to Working Capital Protection Mode, settlement review, "
-                "adjustment requirements, contractual obligations or "
+                "The franchise owner payout has been calculated correctly for "
+                "reporting purposes. However, payout release is currently "
+                "blocked due to Working Capital Protection Mode, settlement "
+                "review, adjustment requirements, contractual obligations or "
                 "management decision. The displayed payout amount is "
                 "informational only and does not represent an approved "
                 "payment release."),

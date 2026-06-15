@@ -453,12 +453,23 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             ])
     # Per Feb-2026 owner directive — Net Revenue is HIDDEN. Revenue Share Base
     # is the canonical primary metric.
+    _section4_model = (summary.get("payout_model") or "revenue_share").lower()
+    _section4_is_profit = _section4_model == "profit_share"
     if is_australia:
         # Australia keeps the AU-specific chain (Net Revenue line retained because
         # AU has the comm-GST inclusivity calc that's clearer as a chain)
         fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
         rev_share_formula = "⭐ Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
         rev_share_value = fin['net_revenue']
+    elif _section4_is_profit:
+        # India + Profit Share franchise — surface the Profit Share Base
+        # instead of the Revenue Share Base so the document never mentions
+        # "Revenue Share" for a profit-share franchise.
+        rev_share_formula = "⭐ PROFIT SHARE BASE (Sales − Commissions − Expenses)"
+        ops_for_section4 = summary.get("operational_sustainability", {}) or {}
+        rev_share_value = round(
+            ops_for_section4.get("profit_loss",
+                                 ops_for_section4.get("operational_balance", 0)) or 0, 2)
     else:
         # India: Revenue Share Base = Sales − Comm − GST
         rev_share_formula = "⭐ REVENUE SHARE BASE (Sales − Commissions − GST)"
@@ -505,17 +516,18 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         fin_data.append(["WC Status", f"{wc_pct:.0f}% - {status_label}"])
         if not wc_st.get("revenue_share_active", True) and fin.get("working_capital", 0) > 0:
             fin_data.append(["", ""])
-            fin_data.append(["*** REVENUE SHARE & MG: CLOSED ***", "WC below 50% threshold"])
+            _closed_word = "PROFIT SHARE" if (summary.get("payout_model") or "").lower() == "profit_share" else "REVENUE SHARE"
+            fin_data.append([f"*** {_closed_word} & MG: CLOSED ***", "WC below 50% threshold"])
 
     net_revenue_row_idx = 5 if len(fin_data) > 5 else len(fin_data) - 3
     profitability_row_idx = None
-    # Find highlighted row — prefer REVENUE SHARE BASE (India), fall back to
-    # NET REVENUE (Australia), then PROFITABILITY (AU additional emphasis).
+    # Find highlighted row — prefer REVENUE SHARE BASE / PROFIT SHARE BASE
+    # (India), fall back to NET REVENUE (Australia), then PROFITABILITY.
     for i, r in enumerate(fin_data):
-        if r and isinstance(r[0], str) and "REVENUE SHARE BASE" in r[0].upper():
+        if r and isinstance(r[0], str) and ("REVENUE SHARE BASE" in r[0].upper() or "PROFIT SHARE BASE" in r[0].upper()):
             net_revenue_row_idx = i
         elif r and r[0] == "NET REVENUE":
-            # Only used as fallback when REVENUE SHARE BASE isn't present (AU)
+            # Only used as fallback when REVENUE/PROFIT SHARE BASE isn't present (AU)
             if net_revenue_row_idx == 5:
                 net_revenue_row_idx = i
         elif r and isinstance(r[0], str) and r[0].startswith("PROFITABILITY"):
@@ -610,101 +622,124 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     # --- 5. Commission Summary (continued) ---------------------------------
 
-    # --- 5. Operational Sustainability + Revenue Share Base ----------------
-    # TWO distinct calculations per Feb-2026 user directive:
-    #   1. PROFIT / LOSS (Operational Balance) = Sales − Expenses − Commissions
-    #      GST is NOT deducted (it's a govt pass-through booked in M+1).
-    #   2. REVENUE SHARE BASE = Sales − Commissions − GST
-    #      GST IS deducted (franchise owner's entitlement is on ex-GST revenue).
+    # --- 5. Operational Sustainability + Revenue/Profit Share Base ---------
+    # Strictly model-aware (Feb-2026 owner directive): when the franchise is
+    # on Revenue Share, NEVER show "Profit / Loss" / "Profit Share Base"
+    # blocks — and vice-versa. The user does not want the word "Profit"
+    # appearing anywhere on a Revenue-Share statement.
     ops = summary.get("operational_sustainability", {})
-    story.append(Paragraph("5. OPERATIONAL SUSTAINABILITY CHECK", styles["PIBSection"]))
+    engine_model_section5 = (summary.get("payout_model") or "revenue_share").lower()
+    is_profit_share_section5 = engine_model_section5 == "profit_share"
+    # Section heading reflects the active model so users immediately see
+    # only the relevant calculation block below.
+    section5_title = (
+        "5. OPERATIONAL SUSTAINABILITY — PROFIT SHARE BASE"
+        if is_profit_share_section5
+        else "5. OPERATIONAL SUSTAINABILITY — REVENUE SHARE BASE"
+    )
+    story.append(Paragraph(section5_title, styles["PIBSection"]))
 
-    # 5a — Profit / Loss
-    ops_data = [
-        ["A. Profit / Loss Calculation", "Amount"],
-        ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
-        ["Less: Total Expenses", f"({currency} {ops.get('total_expenses', 0):,.2f})"],
-        ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
-    ]
     gst_liability = ops.get("gst_on_sales", 0)
-    if gst_liability > 0:
-        gst_label_rate = "5%" if summary.get("country") == "India" else "10%"
-        ops_data.append([
-            f"GST on Eligible Sales ({gst_label_rate}) — informational only",
-            f"{currency} {gst_liability:,.2f}",
-        ])
-    ops_data.append(["", ""])
-    pl_value = ops.get("profit_loss", ops.get("operational_balance", 0))
-    ops_data.append(["PROFIT / LOSS (OPERATIONAL BALANCE)",
-                     f"{currency} {pl_value:,.2f}"])
+    gst_label_rate = "5%" if summary.get("country") == "India" else "10%"
     ops_balance_positive = ops.get("is_positive", True)
-    ops_table = Table(ops_data, colWidths=[280, 170])
-    ops_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("BACKGROUND", (0, -1), (-1, -1),
-         colors.HexColor("#e8f5e9") if ops_balance_positive else colors.HexColor("#ffcdd2")),
-        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(ops_table)
-    story.append(Spacer(1, 8))
 
-    # 5b — Revenue Share Base (separate from Profit/Loss above)
-    rev_share_base = ops.get("revenue_share_base", 0)
-    rev_share_data = [
-        ["B. Revenue Share Base (for franchise owner % split)", "Amount"],
-        ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
-        ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
-    ]
-    if gst_liability > 0:
-        rev_share_data.append([
-            f"Less: GST on Eligible Sales ({gst_label_rate} inclusive)",
-            f"({currency} {gst_liability:,.2f})",
-        ])
-    rev_share_data.append(["", ""])
-    rev_share_data.append(["REVENUE SHARE BASE", f"{currency} {rev_share_base:,.2f}"])
-    rev_share_table = Table(rev_share_data, colWidths=[280, 170])
-    rev_share_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e3f2fd")),
-        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(rev_share_table)
-    story.append(Spacer(1, 6))
-    note_style = styles.get("Italic", styles["BodyText"])
-    story.append(Paragraph(
-        "<b>Note:</b> Profit/Loss measures operational health (expenses included, GST excluded). "
-        "Revenue Share Base measures the franchise owner's entitlement (commissions &amp; GST excluded, expenses excluded). "
-        "Both are computed from the same Total Sales but serve different purposes.",
-        note_style,
-    ))
-    story.append(Spacer(1, 15))
+    if is_profit_share_section5:
+        # 5a — Operating Surplus / Deficit (= Profit Share Base for India when
+        # franchise is on Profit Share; equals Operational Balance / Profit
+        # /Loss). Avoid the word "Profit" outside of "Profit Share" itself.
+        ops_data = [
+            ["A. Profit Share Base (Sales − Expenses − Commissions)", "Amount"],
+            ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
+            ["Less: Total Expenses", f"({currency} {ops.get('total_expenses', 0):,.2f})"],
+            ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
+        ]
+        if gst_liability > 0:
+            ops_data.append([
+                f"GST on Eligible Sales ({gst_label_rate}) — informational only",
+                f"{currency} {gst_liability:,.2f}",
+            ])
+        ops_data.append(["", ""])
+        pl_value = ops.get("profit_loss", ops.get("operational_balance", 0))
+        ops_data.append(["PROFIT SHARE BASE (OPERATIONAL BALANCE)",
+                         f"{currency} {pl_value:,.2f}"])
+        ops_table = Table(ops_data, colWidths=[280, 170])
+        ops_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("BACKGROUND", (0, -1), (-1, -1),
+             colors.HexColor("#e8f5e9") if ops_balance_positive else colors.HexColor("#ffcdd2")),
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(ops_table)
+        story.append(Spacer(1, 6))
+        note_style = styles.get("Italic", styles["BodyText"])
+        story.append(Paragraph(
+            "<b>Note:</b> Profit Share Base = Sales − Expenses − Commissions. "
+            "It's the amount distributed between the Franchise Owner and "
+            f"{entity_for_country(summary.get('country'))} in the configured share split.",
+            note_style,
+        ))
+        story.append(Spacer(1, 15))
+    else:
+        # Revenue Share franchise — show ONLY Revenue Share Base. No
+        # "Profit / Loss" block, no "Profit Share Base" mentions.
+        rev_share_base = ops.get("revenue_share_base", 0)
+        rev_share_data = [
+            ["A. Revenue Share Base (for franchise owner % split)", "Amount"],
+            ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
+            ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
+        ]
+        if gst_liability > 0:
+            rev_share_data.append([
+                f"Less: GST on Eligible Sales ({gst_label_rate} inclusive)",
+                f"({currency} {gst_liability:,.2f})",
+            ])
+        rev_share_data.append(["", ""])
+        rev_share_data.append(["REVENUE SHARE BASE", f"{currency} {rev_share_base:,.2f}"])
+        rev_share_table = Table(rev_share_data, colWidths=[280, 170])
+        rev_share_table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BACKGROUND", (0, 0), (-1, 0), BRAND_NAVY),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e3f2fd")),
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(rev_share_table)
+        story.append(Spacer(1, 6))
+        note_style = styles.get("Italic", styles["BodyText"])
+        story.append(Paragraph(
+            "<b>Note:</b> Revenue Share Base = Sales − Commissions − GST. "
+            "It's the amount distributed between the Franchise Owner and "
+            f"{entity_for_country(summary.get('country'))} in the configured share split. "
+            "Operational expenses are tracked separately for management reporting.",
+            note_style,
+        ))
+        story.append(Spacer(1, 15))
 
     # --- 6. Working Capital Status -----------------------------------------
     wc_st_info = summary.get("working_capital_status", {})
     story.append(Paragraph("6. WORKING CAPITAL STATUS", styles["PIBSection"]))
     wc_protection = wc_st_info.get("protection_mode", False)
+    _wc_model_word = "Profit Share" if (summary.get("payout_model") or "").lower() == "profit_share" else "Revenue Share"
     wc_status_data = [
         ["Description", "Value"],
         ["Base Working Capital", f"{currency} {wc_st_info.get('base_wc', wc_st_info.get('initial_wc', 0)):,.2f}"],
         ["Opening WC (This Month)", f"{currency} {wc_st_info.get('opening_wc', 0):,.2f}"],
         ["WC Used for Operational Loss", f"{currency} {wc_st_info.get('wc_used', 0):,.2f}"],
-        ["WC Restored from Profit", f"{currency} {wc_st_info.get('wc_restored', 0):,.2f}"],
+        ["WC Restored from Operating Surplus", f"{currency} {wc_st_info.get('wc_restored', 0):,.2f}"],
         ["Current Working Capital", f"{currency} {wc_st_info.get('current_wc', 0):,.2f}"],
         ["WC % vs Base", f"{wc_st_info.get('wc_percentage', 100):.0f}%"],
         ["Threshold", wc_st_info.get("threshold", "50%")],
-        ["Revenue Share Status",
+        [f"{_wc_model_word} Status",
          "BLOCKED" if wc_protection or not wc_st_info.get("revenue_share_active", True) else "Active"],
         ["Status", wc_st_info.get("status", "Healthy")],
     ]
@@ -857,9 +892,10 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         payout_table.setStyle(TableStyle(payout_style))
         story.append(payout_table)
         story.append(Spacer(1, 10))
+        _dist_word = "Profit share" if (summary.get("payout_model") or "").lower() == "profit_share" else "Revenue share"
         story.append(Paragraph(
-            "<i>Revenue share distribution follows Operational Sustainability rules. "
-            "Operational costs and working capital protection are prioritized before profit distribution.</i>",
+            f"<i>{_dist_word} distribution follows Operational Sustainability rules. "
+            "Operational costs and working capital protection are prioritized before owner distribution.</i>",
             styles["PIBBody"],
         ))
         story.append(Spacer(1, 15))
