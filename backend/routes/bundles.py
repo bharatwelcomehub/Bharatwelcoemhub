@@ -35,6 +35,17 @@ def set_verify_token(fn):
     _verify_token = fn
 
 
+def _require_valid_token(token: str) -> None:
+    """Enforce the auth check — `_verify_token` returns None for bad /
+    expired tokens; the route MUST surface that as 401 (testing agent
+    caught the prior silent-bypass)."""
+    if _verify_token is None:
+        return
+    session = _verify_token(token)
+    if not session:
+        raise HTTPException(401, "Invalid or expired token")
+
+
 async def _resolve_period_data(center: str, period: str) -> dict:
     """Pull the canonical inputs for a (center, period) and run them
     through the Financial Engine. This is the *only* place a bundle ever
@@ -133,8 +144,7 @@ async def download_ca_bundle(
     period: str = Query(...),
 ):
     """CA Bundle — Accounts Team. ZIP of PDF + manifest."""
-    if _verify_token:
-        _verify_token(token)
+    _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
     zip_bytes = build_bundle_zip("ca", ctx)
     return Response(
@@ -151,8 +161,7 @@ async def download_owner_bundle(
     period: str = Query(...),
 ):
     """Franchise Owner Bundle. ZIP of PDF + manifest."""
-    if _verify_token:
-        _verify_token(token)
+    _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
     zip_bytes = build_bundle_zip("owner", ctx)
     return Response(
@@ -169,8 +178,7 @@ async def download_franchisor_bundle(
     period: str = Query(...),
 ):
     """Franchisor Bundle — Founder / Director / Super Admin."""
-    if _verify_token:
-        _verify_token(token)
+    _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
     zip_bytes = build_bundle_zip("franchisor", ctx)
     return Response(

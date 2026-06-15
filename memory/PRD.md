@@ -4,6 +4,46 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-15] Phase 3 — 3 Master Dashboards + 3 Bundles + Legacy Sunset (P0)
+
+**User directive** *Build 3 brand-new master dashboard pages (CA / Franchise Owner / Franchisor) consuming the engine exclusively. 3 PDF/ZIP bundles (CA / Franchise Owner / Franchisor). Sunset overlapping legacy reports.*
+
+**Shipped**:
+1. **`backend/utils/bundle_generator.py`** — single consolidated PDF generator with 3 builders (`build_ca_bundle_pdf`, `build_franchise_owner_bundle_pdf`, `build_franchisor_bundle_pdf`) and a `build_bundle_zip` wrapper that emits `PDF + manifest.txt`. Every number sourced from `compute_franchise_payout()`. The manifest is the audit trail (engine inputs + outputs + reference to `financial_engine.py`).
+2. **`backend/routes/bundles.py`** — three GET endpoints:
+   - `GET /api/bundles/ca?token=&center=&period=`
+   - `GET /api/bundles/owner?token=&center=&period=`
+   - `GET /api/bundles/franchisor?token=&center=&period=`
+   All gated by `_require_valid_token()` (returns 401 for bad tokens — security fix from iteration 89). Returns `application/zip`.
+3. **3 new dashboard pages**:
+   - `frontend/src/pages/CADashboard.jsx` → `/dashboard/ca` — Accounts persona
+   - `frontend/src/pages/FranchisorDashboard.jsx` → `/dashboard/franchisor` — Founder / Director persona
+   - `/dashboard/franchise-owner` re-uses existing `FranchiseOwnerDashboard.jsx` with a new "Bundle" download button (`data-testid=fo-download-bundle-btn`)
+4. **Sidebar nav** — `★ CA Dashboard` and `★ Franchisor Dashboard` added to Accounts group (Crown icon, super-admin-only for Franchisor).
+5. **Legacy sunset** — `OwnerReports.jsx` gets a prominent amber deprecation banner pointing users to the new 3-bundle architecture. Page kept available for historical generation but flagged "(legacy)" in title.
+
+**Architecture wins**:
+- **Single source of truth** verified — testing agent's PDF text extraction proved bundles contain engine-computed `Revenue Share Base` & `Owner Share` verbatim + correct legal entity (`Manaswini` for India).
+- **Manifest audit trail** every bundle ZIP includes a `_manifest.txt` listing Selected Base / Owner % / Owner Share / Company Entity + the source-file path. Auditors can re-derive figures without opening the PDF.
+- **Security**: invalid/expired tokens → **401** (closed silent-bypass that returned valid downloads).
+- **Schema correctness**: bundle resolver queries `centers` by `code` (not `center_code`) — matches the rest of the codebase (testing agent caught this P0 before it hit production).
+
+**Tests**: 49/49 unit tests + 9/9 HTTP integration tests (test_bundles_endpoints.py) all green. Testing agent verdict: 100% backend + 100% frontend.
+
+**Out of scope (still in Phase 3 backlog)**:
+- Refactor split of `routes/center_accounts.py` (3376 lines) and `utils/pdf_generator.py` (1500+ lines) into focused modules. Deferred to a maintenance pass — current files work, refactor would not change any user-visible behaviour.
+- Full removal of legacy Revenue Share / Profit Share / Email Pack PDFs. Today they remain available (with deprecation banner pointing to new bundles) so users can fall back during the transition.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. Post-deploy quick test:
+1. Open Accounts → ★ CA Dashboard → pick a center + month → click "Download CA Bundle (.zip)" — should download `CA_<CENTER>_<PERIOD>.zip` containing a PDF + manifest.
+2. Repeat for Franchisor Dashboard.
+3. Inside Franchise Owner Dashboard, new green "Bundle" button next to "PDF" / "Export" — clicks download Owner Bundle ZIP.
+4. /owner-reports page — see amber deprecation banner at the top.
+
+---
+
+
+
 ### [2026-02-15] Financial Architecture Refactor — Single Engine + Per-Franchise Payout Model (P0)
 
 **User directive** *Consolidate dozens of overlapping reports into a single source of truth. Each franchise must explicitly declare its Payout Model (Revenue Share / Profit Share). Rename the % field. Rebuild around 3 dashboards + 3 bundles.*
