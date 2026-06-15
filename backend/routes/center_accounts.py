@@ -1016,7 +1016,13 @@ class AccountPeriodRequest(BaseModel):
 class PIBGenerateRequest(BaseModel):
     token: str
     center: str
-    month: str  # YYYY-MM format
+    month: Optional[str] = None  # YYYY-MM format; 'period' accepted as alias for backward compat
+    period: Optional[str] = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not self.month and self.period:
+            self.month = self.period
 
 # =======================================
 # HELPER FUNCTIONS
@@ -2297,8 +2303,14 @@ async def generate_commission_summary(req: PIBGenerateRequest):
 class EmailPackRequest(BaseModel):
     token: str
     center: str
-    month: str
+    month: Optional[str] = None
+    period: Optional[str] = None
     format: str = "json"  # 'json' (metadata only) or 'zip' (download bundle)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not self.month and self.period:
+            self.month = self.period
 
 
 def _format_currency_inr_or_aud(amount: float, country: str) -> str:

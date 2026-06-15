@@ -4,6 +4,40 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — Center Accounts 5-Tab Restructure — Phases A + B + C + D] (P0)
+
+**User directive** (Message 324, re-issued 327): Eliminate every standalone dashboard / duplicate report and collapse the Center Accounts page to **exactly 5 tabs**: Overview · MG Payout · Reports · Ledgers · Bundles & Exports. One Single Financial Engine driving every screen. No duplicate calculations. Each report shows only its own purpose.
+
+**Implementation (delivered in one session)**:
+
+`frontend/src/pages/CenterAccounts.jsx`:
+- TabsList replaced — old 11 tabs ➜ exactly 5 (`tab-overview`, `tab-mg-payout`, `tab-reports`, `tab-ledgers`, `tab-bundles`).
+- **Tab 1 Overview** — rebuilt from scratch as an 11-tile KPI grid (Gross Sales · GST · Commissions · Expenses · Adjustments · Revenue Share Base · Profit Share Base · PBT · WC · MG · Payout). Each tile has a stable `overview-tile-{key}` data-testid. Header strip surfaces Payout Model badge.
+- **Tab 2 MG Payout** — `value="payout"` renamed to `value="mg-payout"`, content preserved (MG vs share comparison, payout determination, monthly grid).
+- **Tab 3 Reports** — rewritten as 4 grouped sections (Financial · Settlement · Reconciliation · Compliance) with 13 report tiles. Settlement tile flips between "Revenue Share Calculation (PIB)" / "Profit Share Calculation (PIB)" based on `payout_model`. Reports not yet implemented show a "Coming Soon" badge.
+- **Tab 4 Ledgers** — `LedgersTab.jsx` internally re-grouped into 3 sections (Financial · Franchise · Adjustment). LEDGER_CATALOG gained a `group` field; new LEDGER_GROUPS array drives 3 sub-sections (`ledger-group-financial` / `-franchise` / `-adjustment`). Re-categorised existing 10 ledgers; renamed "P&L" → "General Ledger (P&L)", "Loans" → "Settlement Ledger", "Cash/Bank Book" → "Cash/Bank Ledger" per spec.
+- **Tab 5 Bundles & Exports** — rewritten as exactly 3 cards (CA Bundle / Email Package / Full Center Package). Each card has a "Contains" list + download button. CA → `/api/bundles/ca`, Email Pack → existing `openEmailPack()`, Full Center → `/api/bundles/franchisor`.
+- **Dead code cleanup**: 6 orphan `<TabsContent>` blocks (sales, commissions, share, insights, health, adjustments) deleted — ~63 KB / 850 lines removed. File shrunk 3811 → 2965 lines (−22 %).
+
+`backend/routes/center_accounts.py`:
+- `PIBGenerateRequest` and `EmailPackRequest` now accept `period` as alias for `month` (forward-compat with new callers that use the spec field name).
+
+**Tests (38/38 PASS)**:
+- `test_payout_model_strict_pdf.py` (2)
+- `test_iter91_5tab_strict_wording.py` (2 — NEW: live PIB PDF + Email Pack body extraction confirms no "Profit Share" leak on a Revenue-Share franchise)
+- `test_financial_engine.py` (14)
+- `test_entity_naming.py` (7)
+- `test_share_calculation_base.py` (4)
+- `test_bundle_generator.py` (7)
+- `test_wc_protection_base_display.py` (2)
+
+**testing_agent iteration_91**: 100 % structural pass on frontend (5/5 tabs · 11/11 overview tiles · 13/13 report tiles · 3/3 ledger groups · 3/3 bundle cards) + 100 % strict-wording pass on backend.
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com` — Preview only until deployed.
+
+---
+
+
 ### [2026-02-16 — Strict Model Wording Sweep — All Surfaces] (P0)
 
 **User report**: Despite previous fixes, the Center Accounts share-split cards still showed generic "Franchise Owner Share" / "Manaswini Foods Pvt Ltd Share" / "Total Payable", and the PIB PDF title still read **"Profit & Income Balance Report"** even when the franchise was set to Revenue Share. User was emphatic: when model is Revenue Share, EVERY label must say "Revenue Share"; same for Profit Share — including the calculation rows.
