@@ -125,8 +125,8 @@ def _executive_summary(ctx: Dict[str, Any]) -> List[Any]:
         rows.append(["Revenue Share Base", _fmt_money(engine.get("revenue_share_base"), currency)])
     rows.extend([
         ["Payout Model", str(engine.get("payout_model", "—")).replace("_", " ").title()],
-        [f"Owner Share ({engine.get('owner_pct', 0):g}%)", _fmt_money(engine.get("owner_share"), currency)],
-        [f"Company Share ({engine.get('company_pct', 0):g}%)", _fmt_money(engine.get("company_share"), currency)],
+        [f"Owner {('Profit Share' if model == 'profit_share' else 'Revenue Share')} ({engine.get('owner_pct', 0):g}%)", _fmt_money(engine.get("owner_share"), currency)],
+        [f"Company {('Profit Share' if model == 'profit_share' else 'Revenue Share')} ({engine.get('company_pct', 0):g}%)", _fmt_money(engine.get("company_share"), currency)],
         ["Final Payable", _fmt_money(payout.get("amount"), currency)],
         ["Payable Reason", str(payout.get("reason", "—"))[:80]],
     ])
@@ -151,11 +151,23 @@ def _payout_block(ctx: Dict[str, Any]) -> List[Any]:
     # Engine returns the selected base under `base`; legacy code shipped
     # with `selected_base` which always read as 0. Honour both for safety.
     base_value = engine.get("base", engine.get("selected_base", 0))
+    _model = (engine.get("payout_model") or "revenue_share").lower()
+    _share_word = "Profit Share" if _model == "profit_share" else "Revenue Share"
+    _company_label = engine.get("company_entity_label") or "Company Share"
+    # company_entity_label from the engine ends with the model phrase already
+    # (e.g. "Manaswini Foods Pvt Ltd Revenue Share"). Legacy callers still
+    # emit "<Entity> Share" — append the model word if missing so PDFs
+    # never read "<Entity> Share" alone.
+    if _share_word.lower() not in _company_label.lower():
+        if _company_label.lower().endswith(" share"):
+            _company_label = f"{_company_label[:-len(' Share')]} {_share_word}"
+        else:
+            _company_label = f"{_company_label} ({_share_word})"
     rows = [
         ["Description", "Percentage", "Amount"],
         [base_label, "", _fmt_money(base_value, currency)],
-        ["Franchise Owner Share", f"{engine.get('owner_pct', 0):g}%", _fmt_money(engine.get("owner_share"), currency)],
-        [engine.get("company_entity_label", "Company Share"), f"{engine.get('company_pct', 0):g}%", _fmt_money(engine.get("company_share"), currency)],
+        [f"Franchise Owner {_share_word}", f"{engine.get('owner_pct', 0):g}%", _fmt_money(engine.get("owner_share"), currency)],
+        [_company_label, f"{engine.get('company_pct', 0):g}%", _fmt_money(engine.get("company_share"), currency)],
     ]
     t = Table(rows, colWidths=[70 * mm, 40 * mm, 50 * mm])
     t.setStyle(_BANNER_TABLE_STYLE)

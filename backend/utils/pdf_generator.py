@@ -25,7 +25,7 @@ from reportlab.platypus import (
     Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
-from .entity import entity_for_country, entity_share_label
+from .entity import entity_for_country, entity_share_label, entity_model_share_label, model_share_phrase, owner_model_share_label
 
 # -----------------------------------------------------------------------------
 # Brand palette — single source of truth for all branded PDFs
@@ -299,7 +299,13 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
 
     # --- Title --------------------------------------------------------------
     story.append(Paragraph("PURNABRAMHA", styles["PIBTitle"]))
-    story.append(Paragraph("Profit & Income Balance Report", styles["PIBSubtitle"]))
+    _engine_model_title = (summary.get("payout_model") or "").lower()
+    _is_profit_share_title = _engine_model_title == "profit_share"
+    _report_brand_name = (
+        "Profit & Income Balance Report" if _is_profit_share_title
+        else "Revenue & Income Balance Report"
+    )
+    story.append(Paragraph(_report_brand_name, styles["PIBSubtitle"]))
     story.append(Spacer(1, 10))
 
     info_data = [
@@ -791,9 +797,13 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ["Description", "Percentage", "Amount"],
         [_base_row_label, "", f"{currency} {share['net_profit_or_sales']:,.2f}"],
         ["", "", ""],
-        ["FRANCHISE OWNER SHARE", f"{share['franchise_owner']['percentage']}%", f"{currency} {share['franchise_owner']['amount']:,.2f}"],
+        [owner_model_share_label(summary.get("payout_model")).upper(),
+         f"{share['franchise_owner']['percentage']}%",
+         f"{currency} {share['franchise_owner']['amount']:,.2f}"],
         ["", "", ""],
-        [entity_share_label(summary.get("country")).upper(), f"{share['purnabramha']['percentage']}%", f"{currency} {share['purnabramha']['base_amount']:,.2f}"],
+        [entity_model_share_label(summary.get("country"), summary.get("payout_model")).upper(),
+         f"{share['purnabramha']['percentage']}%",
+         f"{currency} {share['purnabramha']['base_amount']:,.2f}"],
     ]
     if summary["country"] == "India":
         share_data.append(["  Add: CGST (9%)", "", f"{currency} {share['purnabramha']['cgst']:,.2f}"])
@@ -801,7 +811,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     else:
         share_data.append([f"  Add: GST ({summary['tax_rules']['share_gst_rate']:.0f}%)", "",
                            f"{currency} {share['purnabramha']['gst_amount']:,.2f}"])
-    share_data.append([f"{entity_for_country(summary.get('country')).upper()} TOTAL (WITH GST)", "", f"{currency} {share['purnabramha']['total_payable']:,.2f}"])
+    share_data.append([f"{entity_model_share_label(summary.get('country'), summary.get('payout_model')).upper()} TOTAL (WITH GST)", "", f"{currency} {share['purnabramha']['total_payable']:,.2f}"])
 
     share_table = Table(share_data, colWidths=[220, 80, 150])
     share_table.setStyle(TableStyle([
@@ -837,9 +847,9 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         if overseas_pdf:
             payout_data.append(["Eligible Profit (Sales − GST − Comm − CommGST − Exp)",
                                 f"{currency} {overseas_share_pdf.get('eligible_profit', 0):,.2f}"])
-            payout_data.append(["Franchise Owner Share (80%)",
+            payout_data.append([f"{owner_model_share_label(summary.get('payout_model'))} (80%)",
                                 f"{currency} {overseas_share_pdf.get('owner_share', 0):,.2f}"])
-            payout_data.append([f"{entity_share_label(summary.get('country'))} (20%)",
+            payout_data.append([f"{entity_model_share_label(summary.get('country'), summary.get('payout_model'))} (20%)",
                                 f"{currency} {overseas_share_pdf.get('franchisor_share', 0):,.2f}"])
             payout_data.append(["MFPL Royalty Accrued (5% Net Sales)",
                                 f"{currency} {overseas_share_pdf.get('mfpl_royalty', 0):,.2f}"])
@@ -949,7 +959,7 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
                     final_total = round(payable_amount + gst_amount, 2)
                     final_data = [
                         ["Description", "Amount"],
-                        ["Profit Share Payable (80% of Eligible Profit)",     f"{currency} {payable_amount:,.2f}"],
+                        [f"{model_word} Payable (80% of Eligible Profit)",     f"{currency} {payable_amount:,.2f}"],
                         [f"Add: GST @ {share_gst_rate:.0f}%",                 f"{currency} {gst_amount:,.2f}"],
                         [f"Total Final Payout (incl. {share_gst_rate:.0f}% GST)", f"{currency} {final_total:,.2f}"],
                     ]

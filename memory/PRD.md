@@ -4,6 +4,39 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — Strict Model Wording Sweep — All Surfaces] (P0)
+
+**User report**: Despite previous fixes, the Center Accounts share-split cards still showed generic "Franchise Owner Share" / "Manaswini Foods Pvt Ltd Share" / "Total Payable", and the PIB PDF title still read **"Profit & Income Balance Report"** even when the franchise was set to Revenue Share. User was emphatic: when model is Revenue Share, EVERY label must say "Revenue Share"; same for Profit Share — including the calculation rows.
+
+**Fix (one pass, all surfaces)**:
+
+`backend/utils/entity.py` — added 3 helpers (`model_share_phrase`, `entity_model_share_label`, `owner_model_share_label`) so the model phrase ("Revenue Share" / "Profit Share") is appended consistently.
+
+`backend/utils/financial_engine.py` — `company_entity_label` now returns "Manaswini Foods Pvt Ltd Revenue Share" / "... Profit Share" by model.
+
+`backend/utils/pdf_generator.py` — PIB title flips between **"Revenue & Income Balance Report"** and **"Profit & Income Balance Report"**. Section 7 rows now say "FRANCHISE OWNER REVENUE SHARE" / "MANASWINI FOODS PVT LTD REVENUE SHARE" (and "... PROFIT SHARE" for profit centers). Section 8 overseas rows and Section 8B base-row labels are model-aware.
+
+`backend/utils/bundle_generator.py` — CA / Owner / Franchisor bundle PDFs: share-calculation table rows ("Franchise Owner Revenue Share" / "<Entity> Revenue Share") + executive summary rows model-aware.
+
+`backend/routes/center_accounts.py` — Email Pack attachments line now reads "1. PIB Report (Revenue & Income Balance)" or "(Profit & Income Balance)" by model. Subject was already model-aware.
+
+`frontend/src/pages/CenterAccounts.jsx` — Share-split cards (Franchise Owner / Entity), Total Payable, WC status tile, Protection-Mode banner, Restoring banner, MG vs Share comparison card, Payout Badge label, italic distribution note, GST notice, MG & Payout KPI tiles ("Total Revenue Share", "Total Revenue Share Payout", subtitle "@ X% of Rev Share Base"), Month-wise table column headers, WC table "Rev Share" column header, PIB Preview Dialog footer tiles — ALL now switch wording based on `accountSummary.payout_model` / `share_calculation.type`.
+
+**Live smoke test** (PB-SN · 2026-05 — a Revenue-Share franchise):
+- PIB PDF title: `Revenue & Income Balance Report` ✓
+- Section 7 rows: `FRANCHISE OWNER REVENUE SHARE`, `MANASWINI FOODS PVT LTD REVENUE SHARE` ✓
+- Section 8B title: `8B. FINAL PAYOUT (Revenue Share + GST)` ✓
+- Email subject: `Monthly Revenue Share Report · May 2026` ✓
+- Email attachments: `1. PIB Report (Revenue & Income Balance)` ✓
+- ZERO "Profit Share" leak anywhere in the rendered PDF or email body ✓
+
+**Tests**: `tests/test_payout_model_strict_pdf.py` extended with title-brand-name + entity-label assertions for both models (2/2 pass). Full strict suite green (27/27).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com` — Preview only until deployed.
+
+---
+
+
 ### [2026-02-16 — second pass] WC Protection Mode Display Consistency (P0)
 
 **User report**: Section 7 of PIB and the Center Accounts page (e.g. PB-SN · 2026-05 in WC Protection) showed:

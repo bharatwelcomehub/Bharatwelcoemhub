@@ -21,7 +21,7 @@ testable.
 from __future__ import annotations
 from typing import Optional, Dict, Any
 
-from .entity import entity_share_label
+from .entity import entity_share_label, entity_model_share_label
 
 # Supported payout-model identifiers.
 REVENUE_SHARE = "revenue_share"
@@ -195,7 +195,7 @@ def compute_franchise_payout(
         "company_pct": company_pct,
         "owner_share": owner_share,
         "company_share": company_share,
-        "company_entity_label": entity_share_label(country),
+        "company_entity_label": entity_model_share_label(country, model),
         # MG --------------------------------------------------------------
         "mg_applicable": bool(mg_applicable),
         "mg_amount": mg_amount,

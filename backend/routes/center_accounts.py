@@ -2393,8 +2393,12 @@ def _build_monthly_email_text(summary: dict) -> Tuple[str, str]:
             f"the numbers back into the green. Your dedication is what defines us, not a single month's figure."
         )
 
+    # Strict model-aware report brand name for attachments line + email body.
+    _model_brand_report = (
+        "Profit & Income Balance" if is_profit_share_email else "Revenue & Income Balance"
+    )
     attachments_line = (
-        "1. PIB Report (Profit & Income Balance)\n"
+        f"1. PIB Report ({_model_brand_report})\n"
         "2. GST Summary\n"
         "3. Commission Summary (Aggregator & Card)\n"
         "4. Franchise Owner Ledger (HQ ↔ Franchise running account)\n"

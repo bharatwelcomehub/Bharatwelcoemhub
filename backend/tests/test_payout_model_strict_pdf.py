@@ -108,10 +108,15 @@ def test_pib_revenue_share_never_shows_profit_share_labels():
     # Required sections.
     assert "7. REVENUE SHARE CALCULATION" in text
     assert "FRANCHISE OWNER REVENUE SHARE" in text
+    assert "MANASWINI FOODS PVT LTD REVENUE SHARE" in text
     assert "8B. FINAL PAYOUT (REVENUE SHARE + GST)" in text
     assert "REVENUE SHARE PAYABLE" in text
+    # Title brand name flips with model.
+    assert "REVENUE & INCOME BALANCE REPORT" in text
+    assert "PROFIT & INCOME BALANCE REPORT" not in text
     # Forbidden labels.
     assert "FRANCHISE OWNER PROFIT SHARE" not in text
+    assert "MANASWINI FOODS PVT LTD PROFIT SHARE" not in text
     assert "8B. FINAL PAYOUT (PROFIT SHARE + GST)" not in text
     assert "PROFIT SHARE PAYABLE" not in text
 
@@ -122,12 +127,17 @@ def test_pib_profit_share_never_shows_revenue_share_payable_labels():
     # Required.
     assert "7. PROFIT SHARE CALCULATION" in text
     assert "FRANCHISE OWNER PROFIT SHARE" in text
+    assert "MANASWINI FOODS PVT LTD PROFIT SHARE" in text
     assert "8B. FINAL PAYOUT (PROFIT SHARE + GST)" in text
     assert "PROFIT SHARE PAYABLE" in text
+    # Title brand name flips with model.
+    assert "PROFIT & INCOME BALANCE REPORT" in text
+    assert "REVENUE & INCOME BALANCE REPORT" not in text
     # Forbidden specifically — Section 8/8B should NOT call the franchise
     # owner's row "Revenue Share" for a Profit-Share franchise. Generic
     # "REVENUE SHARE" mentions (e.g. ⭐ Operational Sustainability rev-share
     # base block) are allowed.
     assert "FRANCHISE OWNER REVENUE SHARE" not in text
+    assert "MANASWINI FOODS PVT LTD REVENUE SHARE" not in text
     assert "8B. FINAL PAYOUT (REVENUE SHARE + GST)" not in text
     assert "REVENUE SHARE PAYABLE" not in text

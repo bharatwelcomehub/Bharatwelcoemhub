@@ -1325,7 +1325,7 @@ export default function CenterAccounts() {
                     })()}
                   </div>
                   <div className={`p-4 rounded-xl border shadow-sm ${wcTableData.revenue_share_status === 'active' ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/60' : 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/60'}`}>
-                    <p className="text-xs font-medium text-gray-600">Revenue Share</p>
+                    <p className="text-xs font-medium text-gray-600">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'}</p>
                     <p className={`text-lg font-bold ${wcTableData.revenue_share_status === 'active' ? 'text-emerald-700' : 'text-red-700'}`}>
                       {wcTableData.revenue_share_status === 'active' ? 'Active' : 'Stopped'}
                     </p>
@@ -1530,7 +1530,7 @@ export default function CenterAccounts() {
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-emerald-50" title="WC Top-ups affect chain. Negative = WC withdrawal.">Topup</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-yellow-50" title="Other Income / Loans Taken — memo only, does NOT alter WC chain.">Other Inc (memo)</th>
                             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-b text-xs bg-purple-50" title="Editable">WC Adj</th>
-                            <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">Rev Share</th>
+                            <th className="px-2 py-2 text-center font-medium text-muted-foreground border-b text-xs">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Rev Share'}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2195,7 +2195,9 @@ export default function CenterAccounts() {
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-3">
                             <Building2 className="w-5 h-5 text-green-600" />
-                            <h4 className="font-medium text-green-800">Franchise Owner Share</h4>
+                            <h4 className="font-medium text-green-800" data-testid="franchise-owner-share-label">
+                              Franchise Owner {accountSummary.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'}
+                            </h4>
                           </div>
                           <div className="space-y-2">
                             <div className="flex justify-between">
@@ -2217,7 +2219,9 @@ export default function CenterAccounts() {
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-3">
                             <DollarSign className="w-5 h-5 text-orange-600" />
-                            <h4 className="font-medium text-orange-800">{entityName(accountSummary.country)} Share</h4>
+                            <h4 className="font-medium text-orange-800" data-testid="entity-share-label">
+                              {entityName(accountSummary.country)} {accountSummary.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'}
+                            </h4>
                           </div>
                           <div className="space-y-2">
                             <div className="flex justify-between">
@@ -2249,7 +2253,9 @@ export default function CenterAccounts() {
                             <hr className="border-orange-200 my-2" />
                             
                             <div className="flex justify-between text-lg font-bold">
-                              <span className="text-orange-800">Total Payable</span>
+                              <span className="text-orange-800">
+                                Total {accountSummary.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Payable
+                              </span>
                               <span className="text-orange-900">
                                 {formatCurrency(accountSummary.share_calculation.purnabramha?.total_payable || 0, accountSummary.country)}
                               </span>
@@ -2866,7 +2872,7 @@ export default function CenterAccounts() {
                         <p className="text-lg font-bold text-green-600">{formatCurrency(accountSummary.working_capital_status.wc_restored || 0, accountSummary.country)}</p>
                       </div>
                       <div className="p-3 bg-white rounded border text-center">
-                        <p className="text-xs text-gray-500">Revenue Share</p>
+                        <p className="text-xs text-gray-500">{accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'}</p>
                         <p className={`text-lg font-bold ${accountSummary.working_capital_status.revenue_share_active ? 'text-green-600' : 'text-red-600'}`}>
                           {accountSummary.working_capital_status.revenue_share_active ? 'Active' : 'Blocked'}
                         </p>
@@ -2878,12 +2884,12 @@ export default function CenterAccounts() {
                     </div>
                     {accountSummary.working_capital_status.protection_mode && (
                       <div className="p-3 bg-red-100 border border-red-300 rounded text-sm text-red-800">
-                        <strong>Protection Mode Active:</strong> WC is below 50% of Base. MG payouts are blocked. Revenue share blocked. All profit directed to WC recovery.
+                        <strong>Protection Mode Active:</strong> WC is below 50% of Base. MG payouts are blocked. {accountSummary?.payout_model === 'profit_share' ? 'Profit share' : 'Revenue share'} blocked. All operational surplus directed to WC recovery.
                       </div>
                     )}
                     {accountSummary.working_capital_status.status === 'Restoring' && !accountSummary.working_capital_status.protection_mode && (
                       <div className="p-3 bg-amber-100 border border-amber-300 rounded text-sm text-amber-800">
-                        <strong>WC Restoring:</strong> Working Capital is between 50-100% of Base. Revenue share is blocked until WC is fully restored to Base level. Profits are being used to restore WC.
+                        <strong>WC Restoring:</strong> Working Capital is between 50-100% of Base. {accountSummary?.payout_model === 'profit_share' ? 'Profit share' : 'Revenue share'} is blocked until WC is fully restored to Base level. Operational surplus is being used to restore WC.
                       </div>
                     )}
                   </CardContent>
@@ -2900,8 +2906,8 @@ export default function CenterAccounts() {
                     </CardTitle>
                     <CardDescription>
                       {accountSummary.payout.protection_mode
-                        ? "Protection Mode: Revenue share on operational balance only. MG blocked."
-                        : "Comparison: MG vs Franchise Owner's Revenue Share - Higher amount is payable to Franchise Owner"
+                        ? `Protection Mode: ${accountSummary?.payout_model === 'profit_share' ? 'Profit share' : 'Revenue share'} on operational balance only. MG blocked.`
+                        : `Comparison: MG vs Franchise Owner's ${accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} - Higher amount is payable to Franchise Owner`
                       }
                     </CardDescription>
                   </CardHeader>
@@ -2916,7 +2922,7 @@ export default function CenterAccounts() {
                               : formatCurrency(accountSummary.payout.mg_amount, accountSummary.country)}
                           </p>
                           {accountSummary.mg_calculation_applicable === false && (
-                            <p className="text-xs text-gray-500 mt-2">MG not applicable<br/><span className="text-[10px]">(Revenue-Share-only)</span></p>
+                            <p className="text-xs text-gray-500 mt-2">MG not applicable<br/><span className="text-[10px]">({accountSummary?.payout_model === 'profit_share' ? 'Profit-Share-only' : 'Revenue-Share-only'})</span></p>
                           )}
                           {accountSummary.mg_calculation_applicable !== false && accountSummary.payout.type === 'minimum_guarantee' && !accountSummary.payout.protection_mode && (
                             <Badge className="mt-2 bg-purple-600">Payable</Badge>
@@ -2931,7 +2937,7 @@ export default function CenterAccounts() {
                       </div>
                       <Card className={`border-2 ${accountSummary.payout.type === 'revenue_share' || accountSummary.payout.type === 'revenue_share_protection' ? 'border-green-400 bg-green-50' : 'border-gray-200'} ${accountSummary.payout.protection_mode && accountSummary.payout.operational_balance <= 0 ? 'opacity-50' : ''}`}>
                         <CardContent className="p-4 text-center">
-                          <p className="text-sm text-gray-500">Franchise Owner's Revenue Share ({accountSummary.share_calculation?.franchise_owner?.percentage || 15}%)</p>
+                          <p className="text-sm text-gray-500">Franchise Owner's {accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} ({accountSummary.share_calculation?.franchise_owner?.percentage || 15}%)</p>
                           <p className="text-2xl font-bold text-green-600">
                             {formatCurrency(accountSummary.payout.revenue_share_amount, accountSummary.country)}
                           </p>
@@ -2958,11 +2964,11 @@ export default function CenterAccounts() {
                           </p>
                         </div>
                         <Badge className="text-lg px-4 py-2" variant={accountSummary.payout.protection_mode ? 'destructive' : accountSummary.payout.type === 'minimum_guarantee' ? 'default' : 'secondary'}>
-                          {accountSummary.payout.protection_mode ? 'PROTECTION MODE' : accountSummary.payout.type === 'minimum_guarantee' ? 'MG' : 'Revenue Share'}
+                          {accountSummary.payout.protection_mode ? 'PROTECTION MODE' : accountSummary.payout.type === 'minimum_guarantee' ? 'MG' : (accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share')}
                         </Badge>
                       </div>
                       <p className={`text-xs mt-2 ${accountSummary.payout.protection_mode ? 'text-red-500' : 'text-blue-500'}`}>{accountSummary.payout.reason}</p>
-                      <p className="text-xs mt-2 text-gray-500 italic">Revenue share distribution follows Operational Sustainability rules. Operational costs and working capital protection are prioritized before profit distribution.</p>
+                      <p className="text-xs mt-2 text-gray-500 italic">{accountSummary?.payout_model === 'profit_share' ? 'Profit share' : 'Revenue share'} distribution follows Operational Sustainability rules. Operational costs and working capital protection are prioritized before owner distribution.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -2974,7 +2980,7 @@ export default function CenterAccounts() {
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-amber-600" />
                     <p className="text-sm text-amber-800">
-                      <strong>Note:</strong> 18% GST (CGST 9% + SGST 9%) on Revenue Share is shown for reference only and is <strong>not included</strong> in Purnabramha's total payable amount. For outside India, 10% GST is applicable on Profit Share.
+                      <strong>Note:</strong> 18% GST (CGST 9% + SGST 9%) on {accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} is shown for reference only and is <strong>not included</strong> in {entityName(accountSummary.country)}'s total payable amount. For outside India, 10% GST is applicable on Profit Share.
                     </p>
                   </div>
                 </div>
@@ -2986,7 +2992,7 @@ export default function CenterAccounts() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Wallet className="w-5 h-5 text-blue-700" />
-                      Final Payout (incl. 10% GST on Franchisor Share) — {accountSummary.period}
+                      Final Payout (incl. 10% GST on Franchisor {accountSummary.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'}) — {accountSummary.period}
                     </CardTitle>
                     <CardDescription>
                       Owner gets 80% of Eligible Profit. {entityName(accountSummary.country)} invoices 20% + 10% GST. MFPL royalty is accrued separately as a liability.
@@ -2994,9 +3000,9 @@ export default function CenterAccounts() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span>Franchise Owner Payout (80%)</span>
+                      <div className="flex justify-between"><span>Franchise Owner {accountSummary.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} (80%)</span>
                         <span className="font-medium text-green-700">{formatCurrency(accountSummary.overseas_share.owner_share, accountSummary.country)}</span></div>
-                      <div className="flex justify-between"><span>{entityName(accountSummary.country)} Share (20%)</span>
+                      <div className="flex justify-between"><span>{entityName(accountSummary.country)} {accountSummary.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} (20%)</span>
                         <span className="font-medium">{formatCurrency(accountSummary.share_calculation.purnabramha.base_amount, accountSummary.country)}</span></div>
                       <div className="flex justify-between"><span className="pl-4 text-gray-500">Add: GST @ 10%</span>
                         <span className="text-gray-700">{formatCurrency(accountSummary.share_calculation.purnabramha.gst_amount, accountSummary.country)}</span></div>
@@ -3132,7 +3138,7 @@ export default function CenterAccounts() {
                       {/* Summary Cards */}
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                         <div className="p-3 bg-blue-50 rounded-lg text-center">
-                          <p className="text-xs text-blue-600">Total Revenue Share</p>
+                          <p className="text-xs text-blue-600">Total {accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'}</p>
                           <p className="text-lg font-bold text-blue-800">{formatCurrency(payoutSummary.totals?.revenue_share, accountSummary?.country)}</p>
                         </div>
                         <div className="p-3 bg-purple-50 rounded-lg text-center">
@@ -3143,18 +3149,18 @@ export default function CenterAccounts() {
                               : formatCurrency(payoutSummary.franchise?.mg_amount, accountSummary?.country)}
                           </p>
                           {payoutSummary.franchise?.mg_calculation_applicable === false && (
-                            <p className="text-[10px] text-gray-500 mt-1">Revenue-Share-only model</p>
+                            <p className="text-[10px] text-gray-500 mt-1">{accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit-Share-only model' : 'Revenue-Share-only model'}</p>
                           )}
                         </div>
-                        <div className="p-3 bg-sky-50 rounded-lg text-center border border-sky-200" title="Calculated as Revenue Share Base × Franchise Revenue Share Percentage configured in Franchise Management.">
-                          <p className="text-xs text-sky-700 font-semibold">Total Revenue Share Payout</p>
+                        <div className="p-3 bg-sky-50 rounded-lg text-center border border-sky-200" title={`Calculated as ${accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Base × Franchise ${accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Percentage configured in Franchise Management.`}>
+                          <p className="text-xs text-sky-700 font-semibold">Total {accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Payout</p>
                           <p className="text-lg font-bold text-sky-900" data-testid="kpi-total-rev-share-payout">
                             {formatCurrency(payoutSummary.totals?.revenue_share || 0, accountSummary?.country)}
                           </p>
-                          <p className="text-[10px] text-sky-700">@ {payoutSummary.franchise?.revenue_share_percentage || 0}% of Rev Share Base</p>
+                          <p className="text-[10px] text-sky-700">@ {payoutSummary.franchise?.revenue_share_percentage || 0}% of {accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit' : 'Revenue'} Share Base</p>
                         </div>
                         <div className="p-3 bg-green-50 rounded-lg text-center">
-                          <p className="text-xs text-green-600">Total Payable</p>
+                          <p className="text-xs text-green-600">Total {accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Payable</p>
                           <p className="text-lg font-bold text-green-800">{formatCurrency(payoutSummary.totals?.payable, accountSummary?.country)}</p>
                         </div>
                         <div className="p-3 bg-emerald-50 rounded-lg text-center">
@@ -3176,9 +3182,9 @@ export default function CenterAccounts() {
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Total Sales</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">GST</th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">Commissions</th>
-                              <th className="text-right py-3 px-4 font-bold text-sky-700">⭐ Revenue Share Base</th>
-                              <th className="text-right py-3 px-4 font-semibold text-sky-700" title="Revenue Share Base × Franchise Revenue Share %">
-                                Revenue Share Payout
+                              <th className="text-right py-3 px-4 font-bold text-sky-700">⭐ {accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Base</th>
+                              <th className="text-right py-3 px-4 font-semibold text-sky-700" title={`${accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Base × Franchise ${accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} %`}>
+                                {accountSummary?.payout_model === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Payout
                                 <span className="block text-[10px] font-normal opacity-75">@ {payoutSummary.franchise?.revenue_share_percentage || 0}%</span>
                               </th>
                               <th className="text-right py-3 px-4 font-medium text-gray-600">MG</th>
@@ -3947,7 +3953,7 @@ export default function CenterAccounts() {
             {selectedPayoutMonth && !editingPayment && (
               <div className="p-3 bg-gray-50 rounded-lg space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Total Payable:</span>
+                  <span className="text-gray-500">Total {accountSummary?.share_calculation?.type === 'profit_share' ? 'Profit Share' : 'Revenue Share'} Payable:</span>
                   <span className="font-medium">{formatCurrency(selectedPayoutMonth.payable_amount, accountSummary?.country)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -4037,6 +4043,7 @@ export default function CenterAccounts() {
                 const ownerPct = revShare.franchise_owner?.percentage
                   ?? s.payout_summary?.franchise?.revenue_share_percentage
                   ?? 15;
+                const _previewModelWord = (s.payout_model === 'profit_share') ? 'Profit Share' : 'Revenue Share';
                 // Revenue Share = Revenue Share Base × Franchise % (gross, ungated).
                 // Protection-Mode gating is communicated separately via the payout status banner.
                 const revenueShareAmount = Math.round((rsBase || 0) * (ownerPct || 0) / 100);
@@ -4060,12 +4067,12 @@ export default function CenterAccounts() {
                         <p className="text-xs text-muted-foreground">Total Expenses</p>
                         <p className="text-lg font-bold">₹{Math.round(finCur.total_expenses || finCur.expenses || 0).toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="rounded-lg border-2 border-sky-300 p-3 bg-sky-50 dark:bg-sky-900/20" title="Sales − Commissions − GST. Canonical base for the revenue-share split.">
-                        <p className="text-xs font-semibold text-sky-700">⭐ Revenue Share Base</p>
+                      <div className="rounded-lg border-2 border-sky-300 p-3 bg-sky-50 dark:bg-sky-900/20" title={`Sales − Commissions − GST. Canonical base for the ${_previewModelWord.toLowerCase()} split.`}>
+                        <p className="text-xs font-semibold text-sky-700">⭐ {_previewModelWord} Base</p>
                         <p className="text-lg font-bold text-sky-900">₹{Math.round(pnlFig || 0).toLocaleString('en-IN')}</p>
                       </div>
-                      <div className="rounded-lg border p-3 bg-purple-50 dark:bg-purple-900/20" title={`Revenue Share Base × ${ownerPct}% (gross, before any Protection-Mode gating).`}>
-                        <p className="text-xs text-muted-foreground">Revenue Share ({ownerPct}%)</p>
+                      <div className="rounded-lg border p-3 bg-purple-50 dark:bg-purple-900/20" title={`${_previewModelWord} Base × ${ownerPct}% (gross, before any Protection-Mode gating).`}>
+                        <p className="text-xs text-muted-foreground">{_previewModelWord} ({ownerPct}%)</p>
                         <p className="text-lg font-bold">₹{revenueShareAmount.toLocaleString('en-IN')}</p>
                       </div>
                     </div>
