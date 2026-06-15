@@ -2312,9 +2312,13 @@ def _build_monthly_email_text(summary: dict) -> Tuple[str, str]:
 
     Tone:
       - Warm, classic Indian business salutation ("Jai Hind Namaskar Team <Name>")
-      - Honest about result (profit ⇒ celebrate togetherness; loss ⇒ reassure that
+      - Honest about result (positive ⇒ celebrate togetherness; loss ⇒ reassure that
         the team will work it out together)
       - Closes with classic regards from Purnabramha Accounts team
+
+    Strictly model-aware (Feb-2026 owner directive): a Revenue-Share
+    franchise must NEVER see "Profit" terminology in this email, and
+    vice-versa for Profit-Share franchises.
     """
     from datetime import datetime as _dt
     country = summary.get("country") or "India"
@@ -2327,17 +2331,44 @@ def _build_monthly_email_text(summary: dict) -> Tuple[str, str]:
     franchise = summary.get("franchise") or {}
     franchise_name = (franchise.get("name") or franchise.get("legal_entity")
                       or summary.get("center_name") or summary.get("center") or "Franchise")
-    # Decide if profit or loss
     is_overseas_local = (country or "India").lower() != "india"
-    if is_overseas_local:
-        ovs = summary.get("overseas_share") or {}
-        net_metric = float(ovs.get("eligible_profit") or 0)
-    else:
-        # India: net P/L = profit
-        net_metric = float(fin.get("profitability") or fin.get("net_revenue") or 0) \
-            - float(fin.get("total_expenses") or 0)
+    payout_model = (summary.get("payout_model") or "").lower()
+    is_profit_share_email = (
+        payout_model == "profit_share" or is_overseas_local
+    )
 
-    is_profit = net_metric >= 0
+    # Headline metric is the active model's base for the owner split.
+    # Revenue Share Base = Sales − Commissions − GST (India default).
+    # Profit Share Base  = Sales − Expenses − Commissions (overseas /
+    # India profit-share centers).
+    if is_profit_share_email:
+        ops = summary.get("operational_sustainability") or {}
+        ovs = summary.get("overseas_share") or {}
+        if is_overseas_local:
+            net_metric = float(ovs.get("eligible_profit") or 0)
+        else:
+            net_metric = float(
+                ops.get("profit_loss",
+                        ops.get("operational_balance", 0)) or 0
+            )
+        headline_label = "Profit Share Base"
+        report_word = "Profit Share Report"
+        positive_word = "Profit Share Base"
+        negative_word = "operational shortfall"
+    else:
+        # India Revenue Share — use Revenue Share Base from the engine.
+        engine = summary.get("engine") or {}
+        ops = summary.get("operational_sustainability") or {}
+        net_metric = float(
+            engine.get("revenue_share_base",
+                       ops.get("revenue_share_base", 0)) or 0
+        )
+        headline_label = "Revenue Share Base"
+        report_word = "Revenue Share Report"
+        positive_word = "Revenue Share Base"
+        negative_word = "operational shortfall"
+
+    is_positive = net_metric >= 0
     total_sales = float(fin.get("total_sales") or 0)
     total_exp = float(fin.get("total_expenses") or 0)
     gst_amt = float(fin.get("sales_gst") or 0)
@@ -2345,18 +2376,18 @@ def _build_monthly_email_text(summary: dict) -> Tuple[str, str]:
 
     fmt = lambda v: _format_currency_inr_or_aud(v, country)
 
-    subject = f"Purnabramha — {franchise_name} | Monthly P&L Report · {month_label}"
+    subject = f"Purnabramha — {franchise_name} | Monthly {report_word} · {month_label}"
 
-    if is_profit:
+    if is_positive:
         sentiment_block = (
             f"It gives us immense joy to share that {franchise_name} closed {month_label} on a positive note. "
-            f"Eligible profit stands at {fmt(net_metric)} — a beautiful reflection of the team's hard work, "
+            f"{positive_word} stands at {fmt(net_metric)} — a beautiful reflection of the team's hard work, "
             f"discipline, and unity. Let us stay together, celebrate this momentum, and continue serving our "
             f"customers with the same warmth that brought us here."
         )
     else:
         sentiment_block = (
-            f"This month, {franchise_name} has shown a shortfall of {fmt(abs(net_metric))} on the operational P&L. "
+            f"This month, {franchise_name} has shown a {negative_word} of {fmt(abs(net_metric))}. "
             f"Please do not be disheartened — every brand walks through such cycles. We are one Purnabramha family; "
             f"we will sit together, look at the levers (sales mix, expenses, aggregator commissions), and bring "
             f"the numbers back into the green. Your dedication is what defines us, not a single month's figure."
@@ -2380,7 +2411,7 @@ def _build_monthly_email_text(summary: dict) -> Tuple[str, str]:
         f"   • Total Expenses      : {fmt(total_exp)}\n"
         f"   • Total Commissions   : {fmt(comm)}\n"
         f"   • GST on Sales        : {fmt(gst_amt)}\n"
-        f"   • Eligible Profit/P&L : {fmt(net_metric)}\n\n"
+        f"   • {headline_label:18s}: {fmt(net_metric)}\n\n"
         f"{sentiment_block}\n\n"
         f"Attachments enclosed in this email:\n{attachments_line}\n\n"
         f"Should anything need a deeper look, we will align over our next call — "
