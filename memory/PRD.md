@@ -4,6 +4,32 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16] Post-Phase-3 Stabilization — 3 P0 Bug Fixes + 1 Critical Data-Source Fix (P0)
+
+**User report after deploying Phase 3**:
+1. Bundle downloads returning **404** (CA / Franchisor dashboards passed `franchise_code`, backend expected `center_code`).
+2. **PIB report rendered as "Profit Share"** even when the franchise was configured for Revenue Share.
+3. **Profit Share math being computed/displayed** when the franchise was strictly on Revenue Share.
+
+**Shipped fixes**:
+1. **`backend/routes/bundles.py`** — new `_resolve_center_code()` helper accepts EITHER a `center_code` OR a `franchise_code` (resolves franchise → first linked active center). Unknown identifiers still return 401/404. **CRITICAL secondary fix**: switched the data source from the wrong `db.sales` collection to the canonical `db.daily_sales` + `db.monthly_commissions` (matching `routes/center_accounts.py`). Bundle Selected Base / Owner Share / Company Share now match the dashboard exactly (e.g. PB-HSR Dec-2025 = 949,625.43 / 142,443.81 / 807,181.62 across all surfaces).
+2. **`backend/utils/bundle_generator.py`**: Executive Summary block is now model-aware (a Revenue-Share bundle never surfaces a "Profit Share Base" row, and vice-versa). Payout Calculation block reads `engine.base` (was `engine.selected_base`, which returned 0 since the engine doesn't emit that key — silent bug).
+3. **`backend/utils/pdf_generator.py`** PIB Section 8 + 8B: "Franchise Owner Revenue/Profit Share" row label and "FINAL PAYOUT (Revenue/Profit Share + GST)" title flip strictly with `summary.payout_model`. Verified by extracting PDF text: toggling FR-TEST-INDIA between models flips every label cleanly.
+4. **`backend/routes/center_accounts.py`** `get_center_account_summary`: default `payable_type` now derived from `engine_payload["payout_model"]` instead of hard-coded `"revenue_share"`. `payout.reason` uses the model word (`Profit Share (X) >= MG (Y)` vs `Revenue Share (X) >= MG (Y)`).
+5. **`backend/routes/bundles.py`** auth: replaced sync-only `_verify_token` with async-with-Mongo-fallback (matches `routes/franchises.check_access`). Fixes intermittent 401s on multi-pod deployments where the per-process `otp_store` was invisible to a sibling pod.
+6. **`frontend/src/pages/CADashboard.jsx` + `FranchisorDashboard.jsx`**: centers dropdown now sourced from `GET /api/centers` (the canonical list) instead of `POST /api/franchises/list`. This was the root cause of the 404 — the dashboards were passing franchise codes when the bundle endpoint expected center codes.
+
+**Tests**:
+- New: `tests/test_payout_model_strict_pdf.py` (2 PIB-text-extraction regressions enforcing label strictness for both Revenue Share and Profit Share scenarios).
+- Testing agent: 8/8 HTTP integration tests pass (`tests/test_iter90_p0_post_phase3.py`).
+- Full unit suite: 53/53 green.
+
+⚠️ **Click Deploy** to push to `intra.purnabramha.com`. Production lags Preview until the user explicitly deploys.
+
+---
+
+
+
 ### [2026-02-15] Phase 3 — 3 Master Dashboards + 3 Bundles + Legacy Sunset (P0)
 
 **User directive** *Build 3 brand-new master dashboard pages (CA / Franchise Owner / Franchisor) consuming the engine exclusively. 3 PDF/ZIP bundles (CA / Franchise Owner / Franchisor). Sunset overlapping legacy reports.*

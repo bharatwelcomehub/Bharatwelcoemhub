@@ -108,25 +108,52 @@ async def _resolve_period_data(center: str, period: str) -> dict:
 
     franchise = await _db.franchises.find_one({"franchise_code": center_doc.get("franchise_code")}) or {}
 
-    # Sales / commissions for the period.
-    start, end = f"{period}-01", f"{period}-31"
-    sales_rows = await _db.sales.find({
-        "center": center.upper(),
-        "date": {"$gte": start, "$lte": end},
-    }).to_list(None)
-    total_sales = sum(float(r.get("amount", 0) or 0) for r in sales_rows)
-    total_comm = sum(float(r.get("commission", 0) or 0) for r in sales_rows)
+    # Sales — read from the canonical `daily_sales` collection (NOT
+    # `sales`, which is an unrelated debit-note ledger). Aggregation
+    # mirrors routes/center_accounts.py:1245-1280 exactly so every
+    # bundle reports the same totals the dashboard does.
+    year, month = map(int, period.split("-"))
+    start = f"{year}-{month:02d}-01"
+    end = f"{year + 1}-01-01" if month == 12 else f"{year}-{month + 1:02d}-01"
 
-    expense_rows = await _db.expenses.find({
-        "center": center.upper(),
-        "date": {"$gte": start, "$lte": end},
-    }).to_list(None)
+    sales_rows = await _db.daily_sales.find(
+        {"center": center, "date": {"$gte": start, "$lt": end}},
+        {"_id": 0},
+    ).to_list(None)
+    total_sales = sum(float(r.get("total_sale", 0) or 0) for r in sales_rows)
+    # Aggregator sales (eligible-for-GST base = total − aggregator). Read
+    # new + legacy field names so eligible matches PIB / center summary.
+    swiggy = sum(float(r.get("swiggy_sale", r.get("swiggy", 0)) or 0) for r in sales_rows)
+    zomato = sum(float(r.get("zomato_sale", r.get("zomato", 0)) or 0) for r in sales_rows)
+    doordash = sum(float(r.get("doordash_sale", r.get("doordash", 0)) or 0) for r in sales_rows)
+    aggregator_sale = swiggy + zomato + doordash
+
+    # Commissions — `monthly_commissions` is the canonical source per the
+    # Feb-2026 refactor; `daily_sales.commission` is not used by the engine.
+    comm_rows = await _db.monthly_commissions.find(
+        {"center": center, "month": period}, {"_id": 0}
+    ).to_list(None)
+    total_comm = 0.0
+    for c in comm_rows:
+        # New schema: gst_tax_deductions + other_deductions. Fallback to
+        # legacy `commission_amount` for older rows.
+        gst_ded = float(c.get("gst_tax_deductions", 0) or 0)
+        oth_ded = float(c.get("other_deductions", 0) or 0)
+        legacy = float(c.get("commission_amount", 0) or 0)
+        total_comm += (gst_ded + oth_ded) if (gst_ded + oth_ded) > 0 else legacy
+
+    # Expenses — direct sum off the `expenses` collection.
+    expense_rows = await _db.expenses.find(
+        {"center": center, "date": {"$gte": start, "$lt": end}},
+        {"_id": 0},
+    ).to_list(None)
     total_expenses = sum(float(r.get("amount", 0) or 0) for r in expense_rows)
 
-    # GST — same helper used by the rest of the platform.
+    # GST on eligible sales — matches the same helper signature used by
+    # routes/center_accounts.py (eligible = total_sale − aggregator_sale).
     try:
-        gst_breakdown = compute_gst_from_totals(total_sales, country, gst_applicable=True)
-        gst_on_sales = float(gst_breakdown.get("total_gst", 0) or 0)
+        gst_breakdown = compute_gst_from_totals(total_sales, aggregator_sale, country=country, center=center)
+        gst_on_sales = float(gst_breakdown.get("gst_amount", 0) or 0)
     except Exception:
         gst_on_sales = 0.0
 
