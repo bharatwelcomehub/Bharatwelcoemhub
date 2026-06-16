@@ -141,7 +141,6 @@ const menuCategories = [
     forAccounts: true,
     items: [
       // Phase-3 master dashboards — single source of truth.
-      { path: "/dashboard/franchisor", icon: Crown, label: "★ Franchisor Dashboard", forAccounts: true, superAdminOnly: true },
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
       { path: "/center-health", icon: Activity, label: "Center Health Dashboard", forAccounts: true },
       { path: "/expense-adjustments-report", icon: Scale, label: "Expense Adjustments Report", forAccounts: true },
