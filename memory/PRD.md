@@ -4,6 +4,59 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — GST Revenue Treatment Toggle (per-center, per-month)] (P0)
+
+**User spec**: For AU centers, GST collected from sales is not immediately remitted — it sits with the business until the filing period. Reducing the Revenue Share Base by GST every month therefore mis-states operational position. Build a per-center per-month toggle in **Center Accounts → Adjustments** that switches between:
+- **Option 1 (default, current behaviour)** — `Revenue Share Base = Sales − GST − Commissions`
+- **Option 2 (opt-in)** — `Revenue Share Base = Sales − Commissions` (GST stays separately visible in every report — *only the share-base treatment changes*).
+
+The toggle must auto-apply across Center Overview, MG Payout, Profit & Loss, Revenue Share, Profit Share, Settlement Summary, CA Bundle, Email Package, all Reports & Ledgers — no manual recalculation, no GST ever hidden.
+
+**Implementation**
+
+*Backend* (single financial engine wiring):
+- `utils/financial_engine.py` — `compute_revenue_share_base(...)` and `compute_franchise_payout(...)` now accept `include_gst_in_revenue: bool = False`. Returned payload exposes `include_gst_in_revenue` + `gst_treatment_label`.
+- `utils/gst.py` — same `include_gst_in_revenue` parameter added to the shared helper (India + AU branches).
+- `routes/center_accounts.py`:
+  - New endpoints **`POST /api/center-accounts/gst-treatment/get`** and **`/set`** (modelled on `protection-gating`). Persists to MongoDB collection **`gst_treatment_overrides`** keyed by `(center_code, month)` with `updated_at` + `updated_by` audit fields.
+  - New helper `get_gst_treatment_flag(center, month)` called from every callsite (summary engine call, operational_sustainability block, PIB generation branch).
+  - `operational_sustainability` block now exposes `include_gst_in_revenue` + `gst_treatment_label` + dynamic `revenue_share_formula`.
+  - `payout` block also mirrors `include_gst_in_revenue` + `gst_treatment_label` for downstream consumers.
+- `routes/bundles.py` — reads override + passes to engine for CA Bundle generation.
+- `routes/ledgers.py` — reads override + passes to `compute_revenue_share_base` in the Ledger period loop.
+- `routes/owner_reports.py` — reads override + passes to share-base helper.
+
+*Frontend* (`/app/frontend/src/pages/CenterAccounts.jsx`):
+- New `GSTRevenueTreatmentCard` component (lines 107-247) rendered at the top of the **Adjustments tab**.
+- Auto-display tiles: Gross Sales · GST Collected From Sales · Commissions (sourced from `operational_sustainability`).
+- Dropdown with both options. Save is automatic on change → toast → re-fetches summary so every other tab/PDF/email reflects the new base instantly.
+- Live "Resulting Revenue Share Base" preview tile shows the active formula and amount.
+- Audit line shows `updated_by` and `updated_at`.
+- Data-testids: `gst-revenue-treatment-card`, `gst-card-gross-sales`, `gst-card-gst-collected`, `gst-card-commissions`, `gst-treatment-select`, `gst-treatment-updated`, `gst-treatment-base-preview`, `gst-treatment-base-amount`.
+
+**Test coverage** — 24/24 PASS
+
+| Suite | File | Count |
+|---|---|---|
+| Engine unit tests | `tests/test_gst_revenue_treatment.py` | 10 |
+| API integration | `tests/test_gst_treatment_api.py` *(testing agent)* | 5 |
+| AU parser regression | `tests/test_commission_parser_au.py` | 5 |
+| India parser regression | `tests/test_commission_parser_india.py` | 4 |
+
+Frontend verified by `testing_agent_v3_fork` on PB-HSR/2025-12 (Gross ₹9,91,876, GST ₹42,250.57 → base flips from ₹9,49,625.43 to ₹9,91,876.00 on toggle; owner share Δ = GST × owner_pct).
+
+**Rules honoured**
+- ✅ Center-specific + month-wise persistence
+- ✅ Editable by Super Admin / Accounts Team (auth via `check_access`)
+- ✅ GST always remains visible in every report — only the base formula changes
+- ✅ Applies automatically to all reports/ledgers without manual recalculation
+- ✅ Profit Share Base is unaffected (GST never deducted there)
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-16 — Australia Commission Parsers (DoorDash gross + Cards/ANZ Worldline EDC + ANZ Bank Statement)] (P0)
 
 **User report**: For PB-PERTH (Australia center) two bugs:

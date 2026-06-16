@@ -2157,6 +2157,15 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "protection_gating_available": protection_mode,
             "wc_recovery_amount": round(wc_recovery_amount, 2),
             "operational_balance": round(operational_balance, 2),
+            # GST Revenue Treatment (Feb-2026 per-month flag) — also surfaced
+            # on operational_sustainability; mirrored here for consumers that
+            # read the payout block directly.
+            "include_gst_in_revenue": bool(include_gst_in_revenue_flag),
+            "gst_treatment_label": (
+                "Include GST in Revenue (Base = Sales − Commissions)"
+                if include_gst_in_revenue_flag
+                else "Exclude GST from Revenue (Base = Sales − GST − Commissions)"
+            ),
             "reason": payout_reason
         },
         "tax_rules": {
