@@ -81,7 +81,6 @@ export const MENU_DEFAULTS = [
       { path: "/franchises", label: "Franchise Management" },
       { path: "/owner-reports", label: "Owner Reports" },
       { path: "/franchise-exit", label: "Exit & Closure" },
-      { path: "/franchise-dashboard", label: "Owner Dashboard" },
       { path: "/bill-download", label: "Bill Download" },
       { path: "/documents", label: "Documents" },
     ],

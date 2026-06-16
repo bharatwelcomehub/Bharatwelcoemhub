@@ -141,7 +141,6 @@ const menuCategories = [
     forAccounts: true,
     items: [
       // Phase-3 master dashboards — single source of truth.
-      { path: "/dashboard/ca", icon: Calculator, label: "★ CA Dashboard", forAccounts: true },
       { path: "/dashboard/franchisor", icon: Crown, label: "★ Franchisor Dashboard", forAccounts: true, superAdminOnly: true },
       { path: "/center-accounts", icon: Building2, label: "Center Accounts", forAccounts: true },
       { path: "/center-health", icon: Activity, label: "Center Health Dashboard", forAccounts: true },
@@ -199,7 +198,6 @@ const menuCategories = [
       { path: "/franchises", icon: Store, label: "Franchise Management", forFranchise: true, franchiseAdminOnly: true },
       { path: "/owner-reports", icon: FileText, label: "Owner Reports", forFranchise: true },
       { path: "/franchise-exit", icon: FileText, label: "Exit & Closure", forFranchise: true },
-      { path: "/franchise-dashboard", icon: BarChart3, label: "Owner Dashboard", forFranchise: true },
       { path: "/bill-download", icon: Download, label: "Bill Download", forFranchise: true },
       { path: "/gst-paid-report", icon: Calculator, label: "GST Paid Report", forFranchise: true },
       { path: "/documents", icon: FileCheck2, label: "Documents", forFranchise: true, franchiseAdminOnly: true },

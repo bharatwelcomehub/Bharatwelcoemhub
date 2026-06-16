@@ -108,7 +108,7 @@ function PayoutStatusBanner({ status, isAdmin, onChange }) {
 // ── GST Revenue Treatment Card (Feb-2026, Adjustments tab) ─────────────
 // Per-center per-month toggle: choose whether GST reduces the Revenue
 // Share Base or stays separate. Editable by Super Admin / Accounts Team.
-function GSTRevenueTreatmentCard({ center, month, summary, onChanged }) {
+function GSTRevenueTreatmentCard({ token, center, month, summary, onChanged }) {
   const [loading, setLoading] = React.useState(false);
   const [current, setCurrent] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
@@ -127,10 +127,9 @@ function GSTRevenueTreatmentCard({ center, month, summary, onChanged }) {
   const commissions = Number(sustainability.total_commissions || 0);
 
   const fetchTreatment = React.useCallback(async () => {
-    if (!center || !month) return;
+    if (!center || !month || !token) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem('token') || JSON.parse(localStorage.getItem('session') || '{}').token || '';
       const res = await fetch(`${API}/api/center-accounts/gst-treatment/get`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, center, month }),
@@ -139,14 +138,14 @@ function GSTRevenueTreatmentCard({ center, month, summary, onChanged }) {
     } catch (e) {
       console.error('[GST treatment] fetch failed', e);
     } finally { setLoading(false); }
-  }, [center, month]);
+  }, [token, center, month]);
 
   React.useEffect(() => { fetchTreatment(); }, [fetchTreatment]);
 
   const handleChange = async (newValue) => {
+    if (!token) { toast.error('Session expired — please log in again'); return; }
     setSaving(true);
     try {
-      const token = localStorage.getItem('token') || JSON.parse(localStorage.getItem('session') || '{}').token || '';
       const res = await fetch(`${API}/api/center-accounts/gst-treatment/set`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, center, month, include_gst_in_revenue: newValue }),
@@ -2434,6 +2433,7 @@ export default function CenterAccounts() {
             <TabsContent value="adjustments" className="space-y-4">
               {/* GST Revenue Treatment toggle — per-center per-month */}
               <GSTRevenueTreatmentCard
+                token={token}
                 center={selectedCenter}
                 month={selectedMonth}
                 summary={accountSummary}
