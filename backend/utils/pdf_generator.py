@@ -442,19 +442,26 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         ])
     # GST on Sales — Per Feb-2026 directive, GST is INFORMATIONAL only in
     # management reports and does NOT reduce Net Revenue for India. For
-    # Australia/Perth it remains an inclusive carve-out from Net Revenue.
+    # Australia/Perth it remains an inclusive carve-out from Net Revenue,
+    # UNLESS the per-month GST Revenue Treatment toggle is set to "Include
+    # GST in Revenue" — in which case GST stays informational only and is
+    # NOT deducted from the Revenue Share Base.
+    _include_gst_in_revenue = bool(
+        (summary.get("share_calculation") or {}).get("include_gst_in_revenue")
+        or (summary.get("operational_sustainability") or {}).get("include_gst_in_revenue")
+    )
     if gst_on_sales > 0:
         gst_rate_label = "5%" if summary.get("country") == "India" else "10%"
-        if is_australia:
+        if is_australia and not _include_gst_in_revenue:
             fin_data.append([
                 f"Less: GST on Eligible Sales ({gst_rate_label} inclusive)",
                 f"({currency} {gst_on_sales:,.2f})",
             ])
         else:
-            # India: informational footnote — keeps the math consistent with
-            # the Net Revenue UI tile (Total Sales − Commissions, no GST).
+            # India OR (AU with Include-GST toggle) — informational footnote only.
+            note = " — informational only (Include-GST mode)" if _include_gst_in_revenue and is_australia else (" — informational" if not is_australia else "")
             fin_data.append([
-                f"GST on Eligible Sales ({gst_rate_label}) — informational",
+                f"GST on Eligible Sales ({gst_rate_label}){note}",
                 f"{currency} {gst_on_sales:,.2f}",
             ])
     # Per Feb-2026 owner directive — Net Revenue is HIDDEN. Revenue Share Base
@@ -465,8 +472,12 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         # Australia keeps the AU-specific chain (Net Revenue line retained because
         # AU has the comm-GST inclusivity calc that's clearer as a chain)
         fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
-        rev_share_formula = "⭐ Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
-        rev_share_value = fin['net_revenue']
+        if _include_gst_in_revenue:
+            rev_share_formula = "⭐ Eligible Rev Share Base (Sales − Comm − Comm GST) [Include-GST mode]"
+            rev_share_value = round(fin['net_revenue'] + gst_on_sales, 2)
+        else:
+            rev_share_formula = "⭐ Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
+            rev_share_value = fin['net_revenue']
     elif _section4_is_profit:
         # India + Profit Share franchise — surface the Profit Share Base
         # instead of the Revenue Share Base so the document never mentions
@@ -477,9 +488,13 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
             ops_for_section4.get("profit_loss",
                                  ops_for_section4.get("operational_balance", 0)) or 0, 2)
     else:
-        # India: Revenue Share Base = Sales − Comm − GST
-        rev_share_formula = "⭐ REVENUE SHARE BASE (Sales − Commissions − GST)"
-        rev_share_value = round(fin['net_revenue'] - gst_on_sales, 2)
+        # India: Revenue Share Base — formula depends on GST Treatment toggle
+        if _include_gst_in_revenue:
+            rev_share_formula = "⭐ REVENUE SHARE BASE (Sales − Commissions) [Include-GST mode]"
+            rev_share_value = round(fin['net_revenue'], 2)
+        else:
+            rev_share_formula = "⭐ REVENUE SHARE BASE (Sales − Commissions − GST)"
+            rev_share_value = round(fin['net_revenue'] - gst_on_sales, 2)
     fin_data.append([
         rev_share_formula,
         f"{currency} {rev_share_value:,.2f}",
@@ -693,18 +708,35 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
         story.append(Spacer(1, 15))
     else:
         # Revenue Share franchise — show ONLY Revenue Share Base. No
-        # "Profit / Loss" block, no "Profit Share Base" mentions.
+        # "Profit / Loss" block, no "Profit Share Base" mentions. The GST
+        # line either deducts from base (Exclude mode) or stays informational
+        # (Include mode) per the per-month GST Treatment toggle.
+        _section5_include_gst = bool(
+            (summary.get("share_calculation") or {}).get("include_gst_in_revenue")
+            or (summary.get("operational_sustainability") or {}).get("include_gst_in_revenue")
+        )
         rev_share_base = ops.get("revenue_share_base", 0)
+        _section5_header = (
+            "A. Revenue Share Base — Include-GST mode (Sales − Commissions)"
+            if _section5_include_gst
+            else "A. Revenue Share Base (for franchise owner % split)"
+        )
         rev_share_data = [
-            ["A. Revenue Share Base (for franchise owner % split)", "Amount"],
+            [_section5_header, "Amount"],
             ["Total Sales", f"{currency} {ops.get('total_sales', 0):,.2f}"],
             ["Less: Total Commissions", f"({currency} {ops.get('total_commissions', 0):,.2f})"],
         ]
         if gst_liability > 0:
-            rev_share_data.append([
-                f"Less: GST on Eligible Sales ({gst_label_rate} inclusive)",
-                f"({currency} {gst_liability:,.2f})",
-            ])
+            if _section5_include_gst:
+                rev_share_data.append([
+                    f"GST on Eligible Sales ({gst_label_rate}) — informational only",
+                    f"{currency} {gst_liability:,.2f}",
+                ])
+            else:
+                rev_share_data.append([
+                    f"Less: GST on Eligible Sales ({gst_label_rate} inclusive)",
+                    f"({currency} {gst_liability:,.2f})",
+                ])
         rev_share_data.append(["", ""])
         rev_share_data.append(["REVENUE SHARE BASE", f"{currency} {rev_share_base:,.2f}"])
         rev_share_table = Table(rev_share_data, colWidths=[280, 170])

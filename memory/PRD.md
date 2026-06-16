@@ -4,6 +4,29 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — GST Toggle propagation: PIB PDF + Franchise Ledger PDF] (P0)
+
+Extended the per-center per-month GST Revenue Treatment toggle into PDF outputs so PIB and Franchise Ledger PDFs match the on-screen numbers exactly.
+
+**PIB PDF** (`utils/pdf_generator.py`):
+- Section 4 "Financial Summary" — when `include_gst_in_revenue=True`, the GST line stays informational (`"GST on Eligible Sales (5%) — informational"`) instead of being subtracted from Net Revenue. Revenue Share Base formula caption switches to `"(Sales − Commissions) [Include-GST mode]"`.
+- Section 5 "Operational Sustainability — Revenue Share Base" — same treatment: GST row labelled either `"Less: GST on Eligible Sales"` (Exclude) or `"GST on Eligible Sales — informational only"` (Include). Section header switches to `"Revenue Share Base — Include-GST mode (Sales − Commissions)"` when toggle is on.
+- For Australia centers on Include-GST mode the section 4 chain also reflects the AU-specific "Sales − Comm − Comm GST" formula (no GST subtraction).
+
+**Franchise Ledger PDF** (`routes/ledgers.py`):
+- Per-month iteration now tracks `period_gst_deducted` separately from `period_total_gst_on_sales` — only sums GST into the deducted bucket when the month is NOT on Include-GST mode.
+- New `period_totals.total_gst_deducted_from_base` and `period_totals.months_include_gst` fields surfaced via the API.
+- "Revenue Share Base Calculation" table in PDF now shows two GST rows when some months are on Include mode: `"Less: GST on Eligible Sales (deducted)"` for months where it was, and `"GST on Eligible Sales — informational (Include-GST mode, N month/s)"` for months where it wasn't. This keeps the bottom-line `eligible_rev_share_base` accurate while clearly disclosing which months were on which method (audit-friendly).
+
+**Email/WhatsApp text (`routes/daily_text.py`)** — already correct: only prints "GST on Eligible Sales" as a line item within Net Revenue, doesn't deduct from a share base. No changes needed.
+
+**Test status**: 25/25 PASS unchanged (10 engine + 6 API + 5 AU + 4 India parser). Lint clean for `pdf_generator.py`. Backend running.
+
+⚠️ Deploy to push to `intra.purnabramha.com`. Once deployed, generate a PIB PDF for any AU center with the toggle ON — the GST row will show as informational and the Revenue Share Base header will read "[Include-GST mode]".
+
+---
+
+
 ### [2026-02-16 — GST Revenue Treatment: dynamic Total Deductions everywhere] (P0)
 
 **Follow-up to the earlier GST toggle feature.** User clarified the toggle must also reshape **Total Deductions** and its label across every surface — not just the Revenue Share Base.

@@ -624,6 +624,8 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
     period_total_commission_base = 0.0  # commission excl. commission GST
     period_total_commission_gst = 0.0
     period_total_gst_on_sales = 0.0
+    period_total_gst_deducted = 0.0   # GST actually subtracted from RS base
+    period_months_include_gst = 0     # months on Include-GST mode
     for m in sorted(months):
         st, en = _month_range(m)
         sales = await _get_daily_sales(center, st, en)
@@ -661,6 +663,11 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
             {"center_code": (center or "").upper(), "month": m}
         )
         _include_gst_in_rev = bool(_gst_doc and _gst_doc.get("include_gst_in_revenue", False))
+        # Track per-period how much GST was actually deducted vs left informational
+        if _include_gst_in_rev:
+            period_months_include_gst += 1
+        else:
+            period_total_gst_deducted += float(gst_amount or 0)
         # The 80/20 (or any %) split is on Revenue Share Base, NOT Net Revenue.
         rev_share_base = max(0.0, compute_revenue_share_base(
             total_sales, comm_total, gst_amount, country,
@@ -776,12 +783,15 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
             "total_commission_base": round(period_total_commission_base, 2),
             "total_commission_gst": round(period_total_commission_gst, 2),
             "total_gst_on_sales": round(period_total_gst_on_sales, 2),
-            # Sales − Commissions − GST (the 80/20 split base per Feb-2026)
+            # GST that was ACTUALLY subtracted from the share base (excluding months on Include mode)
+            "total_gst_deducted_from_base": round(period_total_gst_deducted, 2),
+            "months_include_gst": int(period_months_include_gst),
+            # Sales − Commissions − GST_deducted (honours per-month Include-GST toggle)
             "eligible_rev_share_base": round(
                 period_total_sales
                 - period_total_commission_base
                 - period_total_commission_gst
-                - period_total_gst_on_sales,
+                - period_total_gst_deducted,
                 2,
             ),
             # Net Revenue (management view): Sales − Commissions (GST informational)
@@ -1247,15 +1257,27 @@ async def _render_ledger(ltype: str, data: Dict[str, Any], center: str, label: s
             # Revenue Share Base = Sales − Commissions − GST is the canonical metric.
             pt = data.get("period_totals") or {}
             if pt and pt.get("total_sales", 0) > 0:
-                sections.append(("⭐ Revenue Share Base Calculation", [
+                _gst_deducted = float(pt.get("total_gst_deducted_from_base") or 0)
+                _gst_total = float(pt.get("total_gst_on_sales") or 0)
+                _gst_informational = round(_gst_total - _gst_deducted, 2)
+                _rs_rows = [
                     ["Description", "Amount"],
                     ["Total Sales", _inr(pt.get("total_sales", 0))],
-                    ["Less: GST on Eligible Sales", _inr(pt.get("total_gst_on_sales", 0))],
-                    ["Less: Commission (excl. GST)", _inr(pt.get("total_commission_base", 0))],
-                    ["Less: Commission GST", _inr(pt.get("total_commission_gst", 0))],
-                    ["= ⭐ Revenue Share Base (used for owner % split)",
-                     _inr(pt.get("eligible_rev_share_base", 0))],
-                ]))
+                ]
+                if _gst_deducted > 0:
+                    _rs_rows.append(["Less: GST on Eligible Sales (deducted)", _inr(_gst_deducted)])
+                if _gst_informational > 0:
+                    _rs_rows.append([
+                        f"GST on Eligible Sales — informational (Include-GST mode, {pt.get('months_include_gst', 0)} month/s)",
+                        _inr(_gst_informational),
+                    ])
+                _rs_rows.append(["Less: Commission (excl. GST)", _inr(pt.get("total_commission_base", 0))])
+                _rs_rows.append(["Less: Commission GST", _inr(pt.get("total_commission_gst", 0))])
+                _rs_rows.append([
+                    "= ⭐ Revenue Share Base (used for owner % split)",
+                    _inr(pt.get("eligible_rev_share_base", 0)),
+                ])
+                sections.append(("⭐ Revenue Share Base Calculation", _rs_rows))
 
             # Final Payout block — mirrors PIB Section 8B & MIS Franchise PDF.
             # Payout base = Revenue Share + MG top-up = MAX(rev_share, MG) per
