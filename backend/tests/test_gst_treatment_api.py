@@ -146,6 +146,41 @@ def test_summary_exclude_then_include_then_revert(token):
     )
 
 
+def test_total_deductions_changes_with_toggle(token):
+    """share_calculation.total_deductions must drop by exactly GST amount when
+    the toggle flips from Exclude → Include. Label must change accordingly."""
+    _set_flag(token, False)
+    time.sleep(0.3)
+    s_off = _summary(token)
+    sc_off = s_off.get("share_calculation") or {}
+    td_off = sc_off.get("total_deductions")
+    label_off = sc_off.get("total_deductions_label") or ""
+    gst = s_off.get("operational_sustainability", {}).get("gst_on_sales") or 0
+    assert td_off is not None
+    assert "GST on Eligible Sales" in label_off, f"Default label missing GST clause: {label_off!r}"
+    if gst <= 0:
+        pytest.skip("Zero GST — cannot verify delta")
+
+    _set_flag(token, True)
+    time.sleep(0.3)
+    s_on = _summary(token)
+    sc_on = s_on.get("share_calculation") or {}
+    td_on = sc_on.get("total_deductions")
+    label_on = sc_on.get("total_deductions_label") or ""
+    assert td_on is not None
+    # Deductions must drop by EXACTLY gst when toggle flips
+    assert abs((td_off - td_on) - gst) < 1.0, (
+        f"Total Deductions delta {td_off - td_on:.2f} != gst {gst:.2f}"
+    )
+    # Label must NOT mention "GST on Eligible Sales" in include mode
+    assert "GST on Eligible Sales" not in label_on, f"Include label leaks GST clause: {label_on!r}"
+    assert "Commissions (incl GST)" in label_on, f"Include label missing commissions clause: {label_on!r}"
+
+    _set_flag(token, False)
+
+
+
+
 def test_owner_share_changes_when_revshare(token):
     """If center is on revenue_share model with non-zero GST, revenue_share_amount
     must increase by ~ GST × owner_pct/100 when flipped to include."""

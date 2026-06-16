@@ -2073,7 +2073,19 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             "type": share_type,
             "net_profit_or_sales": round(net_revenue_for_share, 2),
             "total_sales": round(total_sale, 2),
-            "total_deductions": round(total_commission_with_gst + sales_gst_amount, 2),
+            # Total Deductions: respects GST Revenue Treatment toggle.
+            #   Exclude mode (default): Commissions (incl GST) + GST on Eligible Sales
+            #   Include mode (opt-in):  Commissions (incl GST)  — GST not deducted.
+            "total_deductions": round(
+                total_commission_with_gst + (0 if include_gst_in_revenue_flag else sales_gst_amount),
+                2,
+            ),
+            "total_deductions_label": (
+                "Commissions (incl GST)"
+                if include_gst_in_revenue_flag
+                else "Commissions (incl GST) + GST on Eligible Sales"
+            ),
+            "include_gst_in_revenue": bool(include_gst_in_revenue_flag),
             "wc_gated": not wc_revenue_share_active,
             "wc_status": wc_status,
             "franchise_owner": {

@@ -1247,16 +1247,26 @@ export default function CenterAccounts() {
                   <div>
                     <p className="text-sm text-orange-600">Total Deductions</p>
                     <p className="text-2xl font-bold text-orange-800" data-testid="kpi-total-deductions">
-                      {formatCurrency(
-                        (accountSummary.country === "Australia"
+                      {(() => {
+                        const includeGst = accountSummary.share_calculation?.include_gst_in_revenue
+                          || accountSummary.operational_sustainability?.include_gst_in_revenue;
+                        // Prefer backend-computed value (already honours GST toggle).
+                        if (accountSummary.share_calculation?.total_deductions !== undefined) {
+                          return formatCurrency(accountSummary.share_calculation.total_deductions, accountSummary.country);
+                        }
+                        // Fallback: compute locally.
+                        const commIncl = accountSummary.country === "Australia"
                           ? (accountSummary.commissions?.total_with_gst || accountSummary.commissions?.total || 0)
-                          : (accountSummary.commissions?.total || 0)
-                        ) + (accountSummary.financial_summary?.sales_gst || 0),
-                        accountSummary.country
-                      )}
+                          : (accountSummary.commissions?.total || 0);
+                        const gstTerm = includeGst ? 0 : (accountSummary.financial_summary?.sales_gst || 0);
+                        return formatCurrency(commIncl + gstTerm, accountSummary.country);
+                      })()}
                     </p>
-                    <p className="text-[10px] text-orange-700 mt-1">
-                      {accountSummary.country === "Australia" ? "Commissions (incl GST) + GST on Eligible Sales" : "Commissions + GST on Eligible Sales"}
+                    <p className="text-[10px] text-orange-700 mt-1" data-testid="kpi-total-deductions-label">
+                      {accountSummary.share_calculation?.total_deductions_label
+                        || (accountSummary.country === "Australia"
+                            ? "Commissions (incl GST) + GST on Eligible Sales"
+                            : "Commissions + GST on Eligible Sales")}
                     </p>
                   </div>
                   <CreditCard className="w-8 h-8 text-orange-400" />
@@ -1809,13 +1819,21 @@ export default function CenterAccounts() {
                 <Card className="bg-red-50">
                   <CardContent className="p-4">
                     <p className="text-sm text-red-600">Total Deductions (incl. GST)</p>
-                    <p className="text-xl font-bold text-red-800">
-                      {formatCurrency(
-                        (accountSummary.commissions?.total || 0) + (accountSummary.financial_summary?.sales_gst || 0),
-                        accountSummary.country
-                      )}
+                    <p className="text-xl font-bold text-red-800" data-testid="commissions-total-deductions">
+                      {(() => {
+                        if (accountSummary.share_calculation?.total_deductions !== undefined) {
+                          return formatCurrency(accountSummary.share_calculation.total_deductions, accountSummary.country);
+                        }
+                        const includeGst = accountSummary.share_calculation?.include_gst_in_revenue
+                          || accountSummary.operational_sustainability?.include_gst_in_revenue;
+                        const gstTerm = includeGst ? 0 : (accountSummary.financial_summary?.sales_gst || 0);
+                        return formatCurrency((accountSummary.commissions?.total || 0) + gstTerm, accountSummary.country);
+                      })()}
                     </p>
-                    <p className="text-[10px] text-red-700 mt-1">Commissions + GST on Eligible Sales</p>
+                    <p className="text-[10px] text-red-700 mt-1" data-testid="commissions-total-deductions-label">
+                      {accountSummary.share_calculation?.total_deductions_label
+                        || "Commissions + GST on Eligible Sales"}
+                    </p>
                   </CardContent>
                 </Card>
               </div>

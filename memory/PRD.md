@@ -4,6 +4,35 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — GST Revenue Treatment: dynamic Total Deductions everywhere] (P0)
+
+**Follow-up to the earlier GST toggle feature.** User clarified the toggle must also reshape **Total Deductions** and its label across every surface — not just the Revenue Share Base.
+
+Spec:
+- **Option 1 (Exclude GST)** — `Total Deductions = Commissions (incl GST) + GST on Eligible Sales`
+- **Option 2 (Include GST)** — `Total Deductions = Commissions (incl GST)` only (GST removed from deductions but still displayed separately)
+- Same reconciliation invariant in both modes: `Revenue Share Base + Total Deductions = Total Sales`.
+
+**Implementation**
+- `routes/center_accounts.py` — `share_calculation.total_deductions` now equals `total_commission_with_gst + (0 if include_gst_in_revenue else sales_gst_amount)`. New fields `share_calculation.total_deductions_label` and `share_calculation.include_gst_in_revenue` propagated to FE.
+- `frontend/src/pages/CenterAccounts.jsx` — Overview KPI tile *"Total Deductions"* and Commissions tab tile *"Total Deductions (incl. GST)"* now read **backend-computed** `share_calculation.total_deductions` + `total_deductions_label`. Local fallback preserved for safety. Data-testids added: `commissions-total-deductions`, `commissions-total-deductions-label`, `kpi-total-deductions-label`.
+
+**Verified live** for PB-HSR / 2025-12 (Sales ₹9,91,876 · GST ₹42,250.57 · Comm ₹0):
+
+| Mode | Total Deductions | Label | RS Base |
+|---|---:|---|---:|
+| Exclude (default) | **₹42,250.57** | `Commissions (incl GST) + GST on Eligible Sales` | ₹9,49,625.43 |
+| Include | **₹0.00** | `Commissions (incl GST)` | ₹9,91,876.00 |
+
+Δ Total Deductions == GST · Δ RS Base == GST · Sales − Deductions reconciles in both modes ✅
+
+**New test**: `test_total_deductions_changes_with_toggle` in `tests/test_gst_treatment_api.py`. Full suite **25/25 PASS** (10 engine unit + 6 API integration including new test + 5 AU + 4 India parser).
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-16 — GST Revenue Treatment Toggle (per-center, per-month)] (P0)
 
 **User spec**: For AU centers, GST collected from sales is not immediately remitted — it sits with the business until the filing period. Reducing the Revenue Share Base by GST every month therefore mis-states operational position. Build a per-center per-month toggle in **Center Accounts → Adjustments** that switches between:
