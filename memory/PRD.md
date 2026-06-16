@@ -4,6 +4,38 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — AU Net Revenue & Profitability fixed for "Include GST" mode] (P0)
+
+**Reported bug** (PB-PERTH 2026-05):
+- Revenue Share Base = AUD 42,138.65 ✅ (correct under Include-GST toggle)
+- Net Revenue = AUD 38,447.35 ❌ (still subtracting GST)
+- Profitability = AUD −839.99 ❌ (negative because Net Rev was wrong)
+
+**Root cause**: `routes/center_accounts.py` AU branches (summary endpoint line ~1577 and PIB section ~3438) had `net_revenue = total_sale − total_commission − sales_gst_amount` hard-coded — they ignored the per-center per-month `include_gst_in_revenue` toggle. Only the Revenue Share Base formula honored it.
+
+**Fix**:
+- Fetch `include_gst_in_revenue_flag` upfront (before AU/India branching) so both Net Revenue and Revenue Share Base use the same value.
+- AU summary endpoint: `if flag: net_revenue = sales − commission` (no GST), else legacy formula. `profitability = net_revenue − adjusted_expenses` flows automatically.
+- AU PIB section: same conditional formula, plus `net_revenue_for_share = max(0, net_revenue − adjusted_expenses)` propagation.
+- India branch unchanged (already correctly using engine + toggle).
+
+**Verified live** PB-PERTH 2026-02 (Sales A$31,183 · GST A$1,951.94 · Comm A$2,172.52 · AdjExp A$175):
+
+| Mode | RSB | Net Revenue | Profitability | Δ Net Rev vs Exclude |
+|---|---:|---:|---:|---:|
+| Exclude (default) | A$29,010.48 | A$27,058.54 | A$26,883.54 | — |
+| Include (toggle ON) | A$29,010.48 | **A$29,010.48** ✅ | **A$28,835.48** ✅ | +A$1,951.94 = GST |
+
+Symmetry invariant holds: Net Revenue ≡ Revenue Share Base in Include-GST mode. Profitability ≡ RSB − AdjExp. 80/20 profit share now computes against the correct base.
+
+**Tests**: 42/42 PASS (new `tests/test_au_net_revenue_gst_toggle.py` + all existing GST/parser suites).
+
+⚠️ Deploy to push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-16 — GST Toggle propagation: PIB PDF + Franchise Ledger PDF] (P0)
 
 Extended the per-center per-month GST Revenue Treatment toggle into PDF outputs so PIB and Franchise Ledger PDFs match the on-screen numbers exactly.

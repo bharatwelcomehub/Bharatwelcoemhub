@@ -1565,7 +1565,13 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     _gst_calc = compute_gst_from_totals(total_sale, aggregator_sale, country=country, center=req.center)
     eligible_base = _gst_calc["eligible_base"]
     sales_gst_amount = _gst_calc["gst_amount"]
-    
+
+    # Pull the per-center per-month GST Revenue Treatment flag UP-FRONT so the
+    # AU branch below honours "Include GST" mode for Net Revenue & Profitability
+    # (fixes Feb-2026 desync where Net Revenue still subtracted GST after the
+    # Revenue Share Base toggle was added).
+    include_gst_in_revenue_flag = await get_gst_treatment_flag(req.center, req.month)
+
     if country == "Australia":
         # Australia: GST is inclusive in receipt; ex-GST = total − GST
         sales_ex_gst = total_sale - sales_gst_amount
@@ -1573,8 +1579,15 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # canonical helper. Read base + GST split from the helper output.
         commission_gst = canonical_commission_gst
         total_commission_with_gst = total_commission  # already inclusive
-        # Net Revenue = Sales − Deductions (GST + inclusive commissions). Expenses NOT here.
-        net_revenue = round(total_sale - total_commission - sales_gst_amount, 2)
+        # Net Revenue formula honours the GST Revenue Treatment toggle:
+        #   Exclude (default) : Sales − Commissions (incl GST) − GST on Sales
+        #   Include (opt-in)  : Sales − Commissions (incl GST)   ← GST stays separate
+        # Net Revenue MUST mirror the Revenue Share Base so Profitability is
+        # consistent end-to-end (Owner directive, Feb-2026 follow-up).
+        if include_gst_in_revenue_flag:
+            net_revenue = round(total_sale - total_commission, 2)
+        else:
+            net_revenue = round(total_sale - total_commission - sales_gst_amount, 2)
         # Profitability = Net Revenue − ADJUSTED Expenses → drives 80/20 profit share.
         # (Raw total_expenses still shown for transparency; adjustments transparently subtracted.)
         profitability = round(net_revenue - adjusted_expenses, 2)
@@ -1654,8 +1667,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         manual_adjustments_total = 0.0
 
     if country == "India":
-        # Per-center per-month GST Revenue Treatment flag (Feb-2026)
-        include_gst_in_revenue = await get_gst_treatment_flag(req.center, req.month)
+        # Per-center per-month GST Revenue Treatment flag (Feb-2026) — fetched
+        # upfront so the AU branch can honour the same toggle for Net Revenue.
+        include_gst_in_revenue = include_gst_in_revenue_flag
         engine_payload = compute_franchise_payout(
             sales=total_sale,
             commissions=total_commission,
@@ -1685,7 +1699,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         # Outside India: Profit share — engine returns Profit Share Base etc.
         # AU centers can opt-in to "Include GST in Revenue" but for Profit Share
         # the formula stays the same (GST is never in Profit Share Base anyway).
-        include_gst_in_revenue = await get_gst_treatment_flag(req.center, req.month)
+        include_gst_in_revenue = include_gst_in_revenue_flag
         engine_payload = compute_franchise_payout(
             sales=total_sale,
             commissions=total_commission,
@@ -1765,8 +1779,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # only in management reports.
     gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount  # informational only
     operational_balance = total_sale - total_expenses - total_commission
-    # Pull the per-center per-month GST Revenue Treatment flag (Feb-2026)
-    include_gst_in_revenue_flag = await get_gst_treatment_flag(req.center, req.month)
+    # GST Revenue Treatment flag — already fetched upfront (see line ~1577).
     # Effective GST deduction for Revenue Share Base
     _rs_gst_deduction = 0.0 if include_gst_in_revenue_flag else (
         gst_for_ops if country == "India" else 0
@@ -3432,10 +3445,15 @@ async def get_payout_summary(data: dict = Body(...)):
             net_revenue_for_share = max(0, revenue_share_base)
         else:
             # AU: total_commission from canonical helper is ALREADY inclusive of
-            # 10% commission GST. Net Revenue (no expenses subtracted) matches
-            # the canonical chain across all surfaces; the 80/20 share is on
-            # Profitability = Net Revenue − Expenses (computed below).
-            net_revenue = round(total_sale - total_commission - gst_on_sales, 2)
+            # 10% commission GST. Net Revenue (no expenses subtracted) honours
+            # the per-month GST Revenue Treatment toggle so the AU 80/20 share
+            # is calculated on a base that matches the on-screen Revenue Share
+            # Base (Feb-2026 follow-up fix).
+            include_gst_in_revenue_pib = await get_gst_treatment_flag(center, month)
+            if include_gst_in_revenue_pib:
+                net_revenue = round(total_sale - total_commission, 2)
+            else:
+                net_revenue = round(total_sale - total_commission - gst_on_sales, 2)
             revenue_share_base = net_revenue
             # Share-bearing base clamped at 0 (no negative payouts).
             # Uses adjusted_expenses so advance/prepaid expenses don't depress
