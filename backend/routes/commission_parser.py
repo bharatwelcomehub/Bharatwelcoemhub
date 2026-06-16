@@ -80,14 +80,19 @@ def _load_bank_statement_normalized(bank_filepath: str) -> Dict[str, Any]:
             header_row = i
             fmt = 'anz'
             break
-        # HDFC India
-        if 'transaction date' in joined and ('particulars' in joined or 'description' in joined):
+        # Indian banks (HDFC / IDFC / ICICI / Axis / Kotak / SBI etc.) —
+        # signal = a date-ish column + a narration/desc column + at least one
+        # money column. Generic enough to catch HDFC, IDFC, ICICI variants.
+        has_date = any(k in joined for k in ('transaction date', 'txn date', 'value date', 'tran date', 'posting date'))
+        # Some statements have just "Date" as the column header
+        if not has_date:
+            # Be careful — many rows mention "date" in body text; require it to be a column header (short cell)
+            has_date = any(str(c).strip().lower() in ('date',) for c in cells)
+        has_narration = any(k in joined for k in ('particulars', 'description', 'narration', 'transaction details', 'remarks'))
+        has_money = any(k in joined for k in ('debit', 'withdrawal', 'credit', 'deposit', 'dr ', 'cr ', 'withdrawal amt', 'deposit amt'))
+        if has_date and has_narration and has_money:
             header_row = i
-            fmt = 'hdfc'
-            break
-        if 'txn date' in joined and 'debit' in joined:
-            header_row = i
-            fmt = 'hdfc'
+            fmt = 'hdfc'  # generic India layout (HDFC/IDFC/ICICI/Axis/Kotak…)
             break
 
     if header_row is None:
@@ -100,12 +105,12 @@ def _load_bank_statement_normalized(bank_filepath: str) -> Dict[str, Any]:
     if fmt == 'hdfc':
         df_bank = pd.read_excel(bank_filepath, header=header_row)
         df_bank.columns = [str(c).strip() for c in df_bank.columns]
-        date_col = find_col_ci(df_bank, 'transaction date', 'txn date', 'value date')
-        part_col = find_col_ci(df_bank, 'particulars', 'description', 'narration')
-        debit_col = find_col_ci(df_bank, 'debit', 'withdrawal')
-        credit_col = find_col_ci(df_bank, 'credit', 'deposit')
+        date_col = find_col_ci(df_bank, 'transaction date', 'txn date', 'value date', 'tran date', 'posting date', 'date')
+        part_col = find_col_ci(df_bank, 'particulars', 'description', 'narration', 'transaction details', 'remarks')
+        debit_col = find_col_ci(df_bank, 'debit', 'withdrawal amt', 'withdrawal', 'dr amount', 'dr')
+        credit_col = find_col_ci(df_bank, 'credit', 'deposit amt', 'deposit', 'cr amount', 'cr')
         if not (date_col and part_col):
-            raise ValueError("HDFC bank statement missing date or particulars column.")
+            raise ValueError("Indian bank statement missing date or particulars column.")
         out = pd.DataFrame({
             'date': pd.to_datetime(df_bank[date_col], dayfirst=True, errors='coerce'),
             'particulars': df_bank[part_col].astype(str),
@@ -743,14 +748,20 @@ def parse_cards(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
             r'ANZ\s*WORLDLINE|AMEX\s*GR', case=False, regex=True, na=False
         )
     else:
-        # HDFC: "CARD PMT SETDT-DDMMYYYY ..."
-        mask = df_bank['particulars'].str.contains('CARD PMT', case=False, na=False)
-
+        # India banks: HDFC = "CARD PMT SETDT-DDMMYYYY"; IDFC = "POS SETT"/"EDC SETT";
+        # ICICI = "POS REVERSAL"/"MERCH SETT"; Axis = "POS CR"/"CARD SETT"; etc.
+        india_patterns = (
+            r'CARD\s*PMT|POS\s*SETT|EDC\s*SETT|MERCH\s*SETT|POS\s*CR|CARD\s*SETT|'
+            r'SETDT|CASHFREE\s*POS|EDC\s*SETTLEMENT|EZETAP|MSWIPE|PINELABS|RAZORPAY\s*POS'
+        )
+        mask = df_bank['particulars'].str.contains(india_patterns, case=False, regex=True, na=False)
     card_settlements = df_bank[mask].copy()
     if card_settlements.empty:
         raise ValueError(
             f"No card settlement entries found in bank statement (format={bank_fmt}). "
-            f"Expected {'ANZ WORLDLINE / AMEX GR' if bank_fmt == 'anz' else 'CARD PMT SETDT-'} patterns."
+            f"Expected " + ('ANZ WORLDLINE / AMEX GR' if bank_fmt == 'anz'
+                            else 'CARD PMT / POS SETT / EDC SETT / MERCH SETT / SETDT- patterns')
+            + "."
         )
 
     # Settlement date
@@ -758,11 +769,18 @@ def parse_cards(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
         card_settlements['settle_date'] = card_settlements['date'].dt.strftime('%Y-%m-%d')
     else:
         def extract_setdt(desc):
+            # HDFC format embeds the actual settle date as SETDT-DDMMYYYY
             m = re.search(r'SETDT-(\d{2})(\d{2})(\d{4})', str(desc))
             if m:
                 return f'{m.group(3)}-{m.group(2)}-{m.group(1)}'
             return None
         card_settlements['settle_date'] = card_settlements['particulars'].apply(extract_setdt)
+        # If no SETDT- pattern (IDFC / ICICI / Axis), fall back to bank credit date
+        no_setdt = card_settlements['settle_date'].isna()
+        if no_setdt.any():
+            card_settlements.loc[no_setdt, 'settle_date'] = (
+                card_settlements.loc[no_setdt, 'date'].dt.strftime('%Y-%m-%d')
+            )
 
     card_settlements['bank_credit'] = card_settlements['credit'].astype(float)
     card_settlements = card_settlements.dropna(subset=['settle_date'])
