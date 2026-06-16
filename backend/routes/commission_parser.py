@@ -27,6 +27,175 @@ def safe_float(val) -> float:
         return 0.0
 
 
+def find_col_ci(df: pd.DataFrame, *needles) -> Optional[str]:
+    """Find first DataFrame column whose lowercased name contains any of the
+    given case-insensitive needles. Returns the actual column name or None."""
+    lc = {str(c).strip().lower(): c for c in df.columns}
+    for needle in needles:
+        n = needle.lower().strip()
+        # exact match first
+        if n in lc:
+            return lc[n]
+    # partial match fallback
+    for needle in needles:
+        n = needle.lower().strip()
+        for k, orig in lc.items():
+            if n in k:
+                return orig
+    return None
+
+
+def col_sum_ci(df: pd.DataFrame, *needles) -> float:
+    col = find_col_ci(df, *needles)
+    if not col:
+        return 0.0
+    return float(pd.to_numeric(df[col], errors="coerce").fillna(0).sum())
+
+
+# ── Bank statement loader (multi-bank) ────────────────────────────────────
+def _load_bank_statement_normalized(bank_filepath: str) -> Dict[str, Any]:
+    """Load an Excel bank statement and return a normalized representation
+    with columns: ['date', 'particulars', 'debit', 'credit'].
+
+    Supports:
+      • HDFC India: explicit 'Transaction Date', 'Particulars', 'Debit', 'Credit' columns.
+      • ANZ Australia (Business Essentials): merged 'Date  Transaction Details' in
+        column A, 'Withdrawals' in another column, 'Deposits' in another.
+
+    Returns a dict: {'df': normalized_df, 'format': 'hdfc'|'anz'}.
+    Raises ValueError if no recognised header row is found.
+    """
+    import re
+
+    raw = pd.read_excel(bank_filepath, header=None)
+
+    header_row = None
+    fmt = None
+    for i in range(min(30, len(raw))):
+        cells = [str(v) for v in raw.iloc[i].tolist() if str(v) != 'nan']
+        joined = ' '.join(cells).lower()
+        # ANZ Australia: header cell concatenates "date  transaction details"
+        if ('date' in joined and 'transaction details' in joined
+                and ('withdrawal' in joined or 'deposit' in joined)):
+            header_row = i
+            fmt = 'anz'
+            break
+        # HDFC India
+        if 'transaction date' in joined and ('particulars' in joined or 'description' in joined):
+            header_row = i
+            fmt = 'hdfc'
+            break
+        if 'txn date' in joined and 'debit' in joined:
+            header_row = i
+            fmt = 'hdfc'
+            break
+
+    if header_row is None:
+        raise ValueError(
+            "Could not find transaction header in bank statement. "
+            "Expected HDFC (Transaction Date, Particulars, Debit, Credit) or "
+            "ANZ (Date, Transaction Details, Withdrawals, Deposits) layouts."
+        )
+
+    if fmt == 'hdfc':
+        df_bank = pd.read_excel(bank_filepath, header=header_row)
+        df_bank.columns = [str(c).strip() for c in df_bank.columns]
+        date_col = find_col_ci(df_bank, 'transaction date', 'txn date', 'value date')
+        part_col = find_col_ci(df_bank, 'particulars', 'description', 'narration')
+        debit_col = find_col_ci(df_bank, 'debit', 'withdrawal')
+        credit_col = find_col_ci(df_bank, 'credit', 'deposit')
+        if not (date_col and part_col):
+            raise ValueError("HDFC bank statement missing date or particulars column.")
+        out = pd.DataFrame({
+            'date': pd.to_datetime(df_bank[date_col], dayfirst=True, errors='coerce'),
+            'particulars': df_bank[part_col].astype(str),
+            'debit': pd.to_numeric(df_bank[debit_col], errors='coerce').fillna(0) if debit_col else 0,
+            'credit': pd.to_numeric(df_bank[credit_col], errors='coerce').fillna(0) if credit_col else 0,
+        })
+        return {'df': out.dropna(subset=['date']).reset_index(drop=True), 'format': 'hdfc'}
+
+    # ── ANZ format ────────────────────────────────────────────────────────
+    # Header row has 'Date  Transaction Details' merged in one cell + separate
+    # 'Withdrawals' and 'Deposits' cells (possibly with empty cells in between).
+    header_cells = raw.iloc[header_row].tolist()
+    # ANZ keeps "Date Transaction Details" merged in column 0 by default.
+    # We don't currently use combo_idx because the row parser below reads
+    # cells by fixed position (col 0 for date, col 1 for desc on Layout B,
+    # col 2/3 for withdrawal, col 4 for deposit). Logic kept inline below.
+    _ = header_cells  # noqa: F841 — header_cells is referenced for documentation
+
+    # Year inference: from the file metadata block (first 5 rows often have "to 15 June 2026")
+    inferred_year = None
+    blob = ' '.join(str(v) for v in raw.iloc[:6].values.flatten() if str(v) != 'nan')
+    m = re.search(r'(20\d{2})', blob)
+    if m:
+        inferred_year = int(m.group(1))
+
+    MONTHS = {'JAN':1,'FEB':2,'MAR':3,'APR':4,'MAY':5,'JUN':6,'JUL':7,
+              'AUG':8,'SEP':9,'OCT':10,'NOV':11,'DEC':12}
+
+    rows = []
+    last_date = None
+    for i in range(header_row + 1, len(raw)):
+        line = raw.iloc[i].tolist()
+        cell_a = str(line[0]) if len(line) > 0 else ''
+        cell_b = str(line[1]) if len(line) > 1 else ''
+        if cell_a == 'nan' or cell_a.strip() == '':
+            # Layout B rows still need processing if any amount columns are populated
+            cell_a = ''
+        # Skip section markers like "RECENT 1", "JUN 2026", "MAY 2026"
+        stripped_a = cell_a.strip()
+        if re.fullmatch(r'[A-Z]+ ?\d+', stripped_a) or re.fullmatch(r'[A-Za-z]{3,} 20\d{2}', stripped_a):
+            continue
+        # Parse "DD MMM    [optional details]" in cell A
+        m = re.match(r'^\s*(\d{1,2})\s+([A-Za-z]{3})\b\s*(.*)$', cell_a)
+        if m:
+            day = int(m.group(1))
+            mon = MONTHS.get(m.group(2).upper())
+            details_inline = m.group(3).strip()
+            if mon and inferred_year:
+                try:
+                    last_date = pd.Timestamp(year=inferred_year, month=mon, day=day)
+                except Exception:
+                    last_date = None
+            # If details aren't inline (Layout B), use cell B
+            if details_inline:
+                details = details_inline
+            elif cell_b and cell_b != 'nan':
+                details = cell_b.strip()
+            else:
+                details = ''
+            dt = last_date
+        else:
+            # Continuation line / header — try cell B for details
+            if cell_b and cell_b != 'nan':
+                details = cell_b.strip()
+            else:
+                details = stripped_a
+            dt = last_date
+
+        # Amount columns differ by layout:
+        #   Layout A: withdrawal=col2, deposit=col4
+        #   Layout B: withdrawal=col3, deposit=col4
+        # Only one of (col2, col3) is populated per row, so take their max.
+        debit_a = safe_float(line[2]) if len(line) > 2 else 0.0
+        debit_b = safe_float(line[3]) if len(line) > 3 else 0.0
+        debit = max(debit_a, debit_b)
+        credit = safe_float(line[4]) if len(line) > 4 else 0.0
+
+        # Skip rows with no money AND no description
+        if debit == 0 and credit == 0 and not details:
+            continue
+        rows.append({'date': dt, 'particulars': details, 'debit': debit, 'credit': credit})
+
+    out = pd.DataFrame(rows)
+    if out.empty:
+        raise ValueError("ANZ bank statement parsed 0 rows — file may be malformed.")
+    # Drop rows with no date AND no money
+    out = out[(out['date'].notna()) | (out['debit'] != 0) | (out['credit'] != 0)].reset_index(drop=True)
+    return {'df': out, 'format': 'anz'}
+
+
 def detect_platform(filepath: str, filename: str = "") -> Optional[str]:
     """Auto-detect which platform the Excel file is from based on content."""
     fn = filename.lower()
@@ -235,44 +404,56 @@ def parse_swiggy(filepath: str) -> Dict[str, Any]:
 
 def parse_doordash(filepath: str) -> Dict[str, Any]:
     """Parse DoorDash detailed transactions — ALL orders (including cancelled).
-    Gross = Subtotal including GST
-    Other Deductions = abs(Commission) + abs(Marketing fees)
-    Net Payout = Net total"""
+    Gross = Subtotal Including GST (case-insensitive)
+    Other Deductions = Commission + Marketing fees + Customer discounts (funded
+                      by you) + Error charges − Adjustments (net)
+                      i.e. anything that reduced the payout
+    Net Payout = Net total
+    GST: AU DoorDash leaves GST embedded in Subtotal and remits it separately,
+         so 'gst_tax_deductions' stays 0 (declared in raw_summary)."""
     df = pd.read_excel(filepath)
 
-    subtotal = float(pd.to_numeric(df.get("Subtotal including GST", pd.Series()), errors="coerce").sum())
-    commission = float(pd.to_numeric(df.get("Commission", pd.Series()), errors="coerce").sum())
-    net_total = float(pd.to_numeric(df.get("Net total", pd.Series()), errors="coerce").sum())
-    marketing_fees = float(pd.to_numeric(
-        df.get("Marketing fees | (including any applicable taxes)", pd.Series()),
-        errors="coerce",
-    ).sum())
+    subtotal = col_sum_ci(df, "subtotal including gst")
+    commission = col_sum_ci(df, "commission")
+    net_total = col_sum_ci(df, "net total")
+    marketing = col_sum_ci(df, "marketing fees")
+    cust_disc_self = col_sum_ci(df, "customer discounts from marketing | (funded by you)",
+                                "customer discounts from marketing (funded by you)")
+    error_charges = col_sum_ci(df, "error charges")
+    adjustments = col_sum_ci(df, "adjustments")
+    tax_remitted = col_sum_ci(df, "subtotal tax remitted by doordash")
 
+    # All deductions sum (signs in source are negative, so use abs and flip)
     commission_abs = abs(commission)
-    marketing_abs = abs(marketing_fees)
+    marketing_abs = abs(marketing)
+    cust_disc_abs = abs(cust_disc_self)
+    error_abs = abs(error_charges)
 
-    # GST is embedded in subtotal for DoorDash (Australia) — not broken out separately
-    # So gst_tax = 0 and other = all deductions
-    other_deductions = commission_abs + marketing_abs
+    # Net deductions = gross - net (always reconciles to the truth in the file)
+    other_deductions = round(max(subtotal - net_total, 0), 2)
 
-    status_col = [c for c in df.columns if "final order status" in c.lower()]
+    status_col = find_col_ci(df, "final order status", "payout status")
     status_counts = {}
     if status_col:
-        status_counts = df[status_col[0]].value_counts().to_dict()
+        status_counts = df[status_col].value_counts().to_dict()
 
     return {
         "platform": "doordash",
         "gross_amount": round(subtotal, 2),
         "gst_tax_deductions": 0.0,
-        "other_deductions": round(other_deductions, 2),
+        "other_deductions": other_deductions,
         "net_payout": round(net_total, 2),
         "order_count": int(len(df)),
         "tds": 0.0,
         "currency": "AUD",
         "raw_summary": {
             "subtotal_including_gst": round(subtotal, 2),
-            "commission": round(commission, 2),
-            "marketing_fees": round(marketing_fees, 2),
+            "commission": round(commission_abs, 2),
+            "marketing_fees": round(marketing_abs, 2),
+            "customer_discounts_funded_by_you": round(cust_disc_abs, 2),
+            "error_charges": round(error_abs, 2),
+            "adjustments": round(adjustments, 2),
+            "tax_remitted_by_doordash": round(tax_remitted, 2),
             "net_total": round(net_total, 2),
             "total_orders": int(len(df)),
             "status_breakdown": status_counts,
@@ -444,40 +625,105 @@ def parse_phonepe(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
     }
 
 
+def _load_cards_edc(filepath: str) -> Dict[str, Any]:
+    """Load Cards EDC report supporting both:
+      • HDFC India: header on row 0 with columns 'Date', 'Amount', 'Status'.
+      • ANZ Worldline Australia: 4-5 metadata rows on top, then headers
+        'Transaction date', 'Gross amount', 'Status', etc.
+    Returns dict with {df, date_col, amount_col, status_col, format, currency}.
+    """
+    # Try header=0 first
+    df0 = pd.read_excel(filepath)
+    cols_lc = [str(c).strip().lower() for c in df0.columns]
+    has_amt = any(c == 'amount' for c in cols_lc)
+    has_status = any('status' in c for c in cols_lc)
+    if has_amt and has_status and not all(str(c).startswith('Unnamed') for c in df0.columns[:5]):
+        return {
+            'df': df0,
+            'date_col': find_col_ci(df0, 'transaction date', 'date'),
+            'amount_col': find_col_ci(df0, 'amount'),
+            'status_col': find_col_ci(df0, 'status'),
+            'format': 'hdfc',
+            'currency': 'INR',
+        }
+
+    # ANZ Worldline: scan first 20 rows for header
+    raw = pd.read_excel(filepath, header=None)
+    header_row = None
+    for i in range(min(20, len(raw))):
+        cells = [str(v).strip().lower() for v in raw.iloc[i].tolist() if str(v) != 'nan']
+        if any('transaction date' in c for c in cells) and any('gross amount' in c for c in cells):
+            header_row = i
+            break
+    if header_row is None:
+        raise ValueError("Could not find EDC header row. Expected 'Transaction date' and 'Gross amount' (ANZ) or 'Date' and 'Amount' (HDFC).")
+
+    df = pd.read_excel(filepath, header=header_row)
+    df.columns = [str(c).strip() for c in df.columns]
+    return {
+        'df': df,
+        'date_col': find_col_ci(df, 'transaction date', 'date'),
+        'amount_col': find_col_ci(df, 'gross amount', 'amount'),
+        'status_col': find_col_ci(df, 'status'),
+        'format': 'anz',
+        'currency': 'AUD',
+    }
+
+
 def parse_cards(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
     """Parse Card EDC report + optionally match with Bank Statement to calculate MDR charges.
+    Supports HDFC (India) and ANZ Worldline (Australia) EDC formats.
     If bank_filepath is provided: matches EDC transactions to bank settlements by date.
     If not: returns EDC totals only (no commission calculation)."""
-    df = pd.read_excel(filepath)
+    edc = _load_cards_edc(filepath)
+    df = edc['df']
+    date_col = edc['date_col']
+    amt_col = edc['amount_col']
+    status_col = edc['status_col']
+    currency = edc['currency']
+    fmt = edc['format']
 
-    status_col = [c for c in df.columns if c.lower() == "status"]
+    if not amt_col:
+        raise ValueError("EDC file is missing an Amount/Gross amount column.")
+
     if status_col:
-        settled = df[df[status_col[0]].str.upper().str.strip() == "SETTLED"]
+        ok_statuses = {'SETTLED', 'CAPTURED'}
+        settled = df[df[status_col].astype(str).str.upper().str.strip().isin(ok_statuses)]
     else:
         settled = df
 
-    amt_col = [c for c in df.columns if c.lower() == "amount"]
-    total_amount = float(pd.to_numeric(settled[amt_col[0]], errors="coerce").sum()) if amt_col else 0.0
+    total_amount = float(pd.to_numeric(settled[amt_col], errors="coerce").fillna(0).sum())
     total_txns = int(len(df))
     settled_txns = int(len(settled))
     failed_txns = total_txns - settled_txns
 
+    # For ANZ Worldline format the Surcharge column gives EXACT per-txn MDR
+    surcharge_col = find_col_ci(settled, 'surcharge amount') if fmt == 'anz' else None
+    edc_surcharge_total = 0.0
+    if surcharge_col:
+        edc_surcharge_total = float(pd.to_numeric(settled[surcharge_col], errors='coerce').fillna(0).sum())
+
     # If no bank statement, return EDC-only summary
     if not bank_filepath:
+        # Use Surcharge column as MDR if present (ANZ Worldline)
+        mdr = round(edc_surcharge_total, 2)
         return {
             "platform": "cards",
             "gross_amount": round(total_amount, 2),
             "gst_tax_deductions": 0.0,
-            "other_deductions": 0.0,
-            "net_payout": round(total_amount, 2),
+            "other_deductions": mdr,
+            "net_payout": round(total_amount - mdr, 2),
             "order_count": settled_txns,
             "tds": 0.0,
-            "currency": "INR",
+            "currency": currency,
             "raw_summary": {
+                "edc_format": fmt,
                 "total_transactions": total_txns,
                 "settled_transactions": settled_txns,
                 "failed_transactions": failed_txns,
                 "total_settled_amount": round(total_amount, 2),
+                "surcharge_total": mdr,
+                "avg_surcharge_pct": round((mdr / total_amount * 100), 2) if total_amount > 0 else 0,
                 "bank_statement_uploaded": False,
             },
         }
@@ -485,82 +731,92 @@ def parse_cards(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
     # ── MATCH WITH BANK STATEMENT ──
     import re
 
-    # Parse bank statement (find header row dynamically)
-    df_bank_raw = pd.read_excel(bank_filepath, header=None)
-    header_row = None
-    for i in range(min(30, len(df_bank_raw))):
-        row_vals = [str(v).lower() for v in df_bank_raw.iloc[i].tolist() if str(v) != 'nan']
-        joined = ' '.join(row_vals)
-        if 'transaction date' in joined and ('particulars' in joined or 'description' in joined):
-            header_row = i
-            break
-        if 'txn date' in joined and 'debit' in joined:
-            header_row = i
-            break
+    bank = _load_bank_statement_normalized(bank_filepath)
+    df_bank = bank['df']
+    bank_fmt = bank['format']
 
-    if header_row is None:
-        raise ValueError("Could not find transaction header in bank statement. Expected columns: Transaction Date, Particulars, Credit, Debit.")
+    # Identify card-settlement rows by particulars pattern
+    if bank_fmt == 'anz':
+        # ANZ: card settlements come in as "ANZ TRANSACTIVE DIRECT CREDIT ANZ WORLDLINE <ref>"
+        # Amex separately as "ANZ TRANSACTIVE DIRECT CREDIT AMEX GR <amt> <ref>"
+        mask = df_bank['particulars'].str.contains(
+            r'ANZ\s*WORLDLINE|AMEX\s*GR', case=False, regex=True, na=False
+        )
+    else:
+        # HDFC: "CARD PMT SETDT-DDMMYYYY ..."
+        mask = df_bank['particulars'].str.contains('CARD PMT', case=False, na=False)
 
-    df_bank = pd.read_excel(bank_filepath, header=header_row)
-    df_bank.columns = [str(c).strip() for c in df_bank.columns]
-
-    # Find card settlement rows in bank (CARD PMT pattern)
-    particulars_col = None
-    for c in df_bank.columns:
-        if 'particular' in c.lower() or 'description' in c.lower() or 'narration' in c.lower():
-            particulars_col = c
-            break
-    if not particulars_col:
-        raise ValueError("Could not find Particulars/Description column in bank statement.")
-
-    credit_col = None
-    for c in df_bank.columns:
-        if c.lower().strip() == 'credit':
-            credit_col = c
-            break
-
-    card_settlements = df_bank[df_bank[particulars_col].str.contains('CARD PMT', case=False, na=False)].copy()
-
+    card_settlements = df_bank[mask].copy()
     if card_settlements.empty:
-        raise ValueError("No card settlement entries (CARD PMT) found in bank statement.")
+        raise ValueError(
+            f"No card settlement entries found in bank statement (format={bank_fmt}). "
+            f"Expected {'ANZ WORLDLINE / AMEX GR' if bank_fmt == 'anz' else 'CARD PMT SETDT-'} patterns."
+        )
 
-    # Extract settlement date from "SETDT-DDMMYYYY"
-    def extract_setdt(desc):
-        m = re.search(r'SETDT-(\d{2})(\d{2})(\d{4})', str(desc))
-        if m:
-            return f'{m.group(3)}-{m.group(2)}-{m.group(1)}'
-        return None
+    # Settlement date
+    if bank_fmt == 'anz':
+        card_settlements['settle_date'] = card_settlements['date'].dt.strftime('%Y-%m-%d')
+    else:
+        def extract_setdt(desc):
+            m = re.search(r'SETDT-(\d{2})(\d{2})(\d{4})', str(desc))
+            if m:
+                return f'{m.group(3)}-{m.group(2)}-{m.group(1)}'
+            return None
+        card_settlements['settle_date'] = card_settlements['particulars'].apply(extract_setdt)
 
-    card_settlements['settle_date'] = card_settlements[particulars_col].apply(extract_setdt)
-    card_settlements['bank_credit'] = pd.to_numeric(card_settlements[credit_col], errors='coerce').fillna(0)
+    card_settlements['bank_credit'] = card_settlements['credit'].astype(float)
+    card_settlements = card_settlements.dropna(subset=['settle_date'])
 
     # ── CALCULATE MONTHLY TOTALS ──
-    # For accurate MDR: compare EDC month total vs bank settlements for same month (by SETDT)
-    # Get the month from the EDC data
     settled_copy = settled.copy()
-    settled_copy['txn_date'] = pd.to_datetime(settled_copy['Date']).dt.strftime('%Y-%m-%d')
-    edc_dates = pd.to_datetime(settled_copy['Date'])
-    edc_month_start = edc_dates.min().strftime('%Y-%m-01') if len(edc_dates) > 0 else None
-    edc_month_end = edc_dates.max().strftime('%Y-%m-%d') if len(edc_dates) > 0 else None
+    settled_copy[amt_col] = pd.to_numeric(settled_copy[amt_col], errors='coerce').fillna(0)
+    settled_copy['txn_date'] = pd.to_datetime(settled_copy[date_col], dayfirst=True, errors='coerce').dt.strftime('%Y-%m-%d')
+    settled_copy = settled_copy.dropna(subset=['txn_date'])
+    if settled_copy.empty:
+        raise ValueError("Could not parse any EDC transaction dates.")
+    edc_dates = pd.to_datetime(settled_copy['txn_date'])
+    edc_month_start = edc_dates.min().strftime('%Y-%m-01')
+    edc_month_end = edc_dates.max().strftime('%Y-%m-%d')
 
-    # Filter bank settlements where SETDT falls within the EDC month
+    if bank_fmt == 'anz':
+        # ANZ Worldline settles T+1 to T+2 (T+3 over weekends). Catch all bank
+        # credits whose date falls in (EDC month → EDC month end + 5 days).
+        match_col = 'settle_date_in_window'
+        settle_window_end = (edc_dates.max() + pd.Timedelta(days=5)).strftime('%Y-%m-%d')
+        card_settlements[match_col] = card_settlements['date'].dt.strftime('%Y-%m-%d')
+        # Use a slightly delayed start (T+1) so prior-month settlements don't leak in
+        match_start = (edc_dates.min() + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+        match_end = settle_window_end
+    else:
+        match_col = 'settle_date'
+        match_start = edc_month_start
+        match_end = edc_month_end
+
     bank_in_month = card_settlements[
-        (card_settlements['settle_date'] >= edc_month_start) &
-        (card_settlements['settle_date'] <= edc_month_end)
-    ] if edc_month_start else card_settlements
-
+        (card_settlements[match_col] >= match_start) &
+        (card_settlements[match_col] <= match_end)
+    ]
     total_bank_in_month = float(bank_in_month['bank_credit'].sum())
-    total_bank_charges = total_amount - total_bank_in_month
+    # Clamp net_payout to gross_amount (you cannot receive more than the EDC total)
+    net_payout_clamped = min(total_bank_in_month, total_amount)
+    bank_implied_charges = total_amount - net_payout_clamped
+    # ANZ Worldline gives exact per-txn surcharge — trust that as MDR if present
+    if edc_surcharge_total > 0:
+        total_bank_charges = edc_surcharge_total
+        net_payout_final = round(total_amount - edc_surcharge_total, 2)
+    else:
+        total_bank_charges = bank_implied_charges
+        net_payout_final = round(net_payout_clamped, 2)
     avg_mdr = round((total_bank_charges / total_amount * 100), 2) if total_amount > 0 else 0
 
-    # ── DAILY BREAKDOWN (for reference) ──
+    # ── DAILY BREAKDOWN ──
     edc_by_date = settled_copy.groupby('txn_date').agg(
-        edc_amount=('Amount', 'sum'),
-        txn_count=('Amount', 'count')
+        edc_amount=(amt_col, 'sum'),
+        txn_count=(amt_col, 'count')
     ).reset_index()
     edc_by_date.columns = ['date', 'edc_amount', 'txn_count']
 
-    bank_by_date = card_settlements.groupby('settle_date').agg(
+    bank_by_date = card_settlements.groupby(match_col).agg(
         bank_credit=('bank_credit', 'sum')
     ).reset_index()
     bank_by_date.columns = ['date', 'bank_credit']
@@ -582,7 +838,6 @@ def parse_cards(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
             "txn_count": int(r['txn_count']),
         })
 
-    # Unmatched dates
     unmatched_edc = merged[(merged['edc_amount'] > 0) & (merged['bank_credit'] == 0)]
     unmatched_bank = merged[(merged['edc_amount'] == 0) & (merged['bank_credit'] > 0)]
 
@@ -591,16 +846,20 @@ def parse_cards(filepath: str, bank_filepath: str = None) -> Dict[str, Any]:
         "gross_amount": round(total_amount, 2),
         "gst_tax_deductions": 0.0,
         "other_deductions": round(max(total_bank_charges, 0), 2),
-        "net_payout": round(total_bank_in_month, 2),
+        "net_payout": net_payout_final,
         "order_count": settled_txns,
         "tds": 0.0,
-        "currency": "INR",
+        "currency": currency,
         "raw_summary": {
+            "edc_format": fmt,
+            "bank_format": bank_fmt,
             "total_transactions": total_txns,
             "settled_transactions": settled_txns,
             "failed_transactions": failed_txns,
             "total_edc_amount": round(total_amount, 2),
-            "total_bank_credits_in_month": round(total_bank_in_month, 2),
+            "total_bank_credits_in_window": round(total_bank_in_month, 2),
+            "edc_surcharge_total": round(edc_surcharge_total, 2),
+            "mdr_source": "edc_surcharge_column" if edc_surcharge_total > 0 else "bank_diff",
             "total_bank_charges": round(max(total_bank_charges, 0), 2),
             "avg_mdr_rate": max(avg_mdr, 0),
             "bank_settlements_matched": int(len(bank_in_month)),

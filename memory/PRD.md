@@ -4,6 +4,48 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — Australia Commission Parsers (DoorDash gross + Cards/ANZ Worldline EDC + ANZ Bank Statement)] (P0)
+
+**User report**: For PB-PERTH (Australia center) two bugs:
+1. Uploaded DoorDash payout summary showed **"Gross Amount: AUD 0.00"** even though Net Payout = AUD 1,222.29 (5 deduction fields missing context).
+2. Cards upload (ANZ Worldline EDC + ANZ Business Essentials bank statement) failed with:
+   *"Failed to parse file: Could not find transaction header in bank statement. Expected columns: Transaction Date, Particulars, Credit, Debit."*
+
+**Root causes**:
+1. `parse_doordash` used `df.get("Subtotal including GST")` — **lowercase 'i'**; the file ships the column as `"Subtotal Including GST"` (capital I). `df.get()` is case-sensitive → returned empty → sum = 0.
+2. `parse_cards` expected HDFC India layout (`Date` / `Amount` / `Status` columns starting at row 0). ANZ Worldline EDC has 5 metadata rows on top and uses `Transaction date`, `Gross amount`, `Status`, `Surcharge amount`, `Amount excluding surcharge`.
+3. Bank-statement matcher expected HDFC layout (`Transaction Date` / `Particulars` / `Debit` / `Credit`) and an embedded `SETDT-DDMMYYYY` settle date in particulars. ANZ Business Essentials uses `Date` + `Transaction Details` (merged into one cell on Layout A, separate cells on Layout B) + `Withdrawals` + `Deposits`, and settles via `ANZ TRANSACTIVE DIRECT CREDIT ANZ WORLDLINE …` / `… AMEX GR …` patterns.
+
+**Implementation** — single file: `backend/routes/commission_parser.py`
+- Added `find_col_ci()` + `col_sum_ci()` for case-insensitive column matching.
+- Added `_load_bank_statement_normalized()` returning a unified `{date, particulars, debit, credit}` DataFrame; handles **both HDFC India and ANZ Australia** layouts (including ANZ's two row variants and year inference from header metadata).
+- Added `_load_cards_edc()` that auto-detects HDFC vs ANZ Worldline EDC format (dynamic header-row scanning) and sets currency to `AUD` for ANZ.
+- Rewrote `parse_doordash` with case-insensitive lookup + full deduction breakdown (commission, marketing fees, customer discounts funded by you, error charges, adjustments, tax remitted).
+- Rewrote `parse_cards` to:
+  - Run on either EDC format.
+  - **Prefer ANZ Worldline's per-txn `Surcharge amount` column as MDR ground truth** (`mdr_source = "edc_surcharge_column"`). Falls back to `bank_diff` when only HDFC files are uploaded.
+  - Clamp `net_payout` ≤ `gross_amount` (defensive — you can't bank more than you collected).
+  - Persist `currency: "AUD"` for ANZ format end-to-end (UI already reads it).
+
+**Verified live via API** (POST `/api/center-accounts/upload-commission-excel`):
+- DoorDash → Gross AUD 2,163.21 · Other AUD 940.92 · Net AUD 1,222.29 · 4 orders ✓
+- Cards + ANZ bank → Gross AUD 35,370.05 · MDR AUD 380.31 (1.08 %) · Net AUD 34,989.74 · 542 settled txns · 53 bank settlements matched ✓
+
+**Tests added** (`/app/backend/tests/test_commission_parser_au.py` — 5/5 PASS):
+- `test_doordash_au_parse` — gross/net/other reconciliation
+- `test_cards_anz_edc_only` — Surcharge → MDR for AU
+- `test_cards_anz_with_bank_reconciliation` — end-to-end + `mdr_source` assertion
+- `test_anz_bank_statement_normalisation` — Apr→Jun parsing + card-settlement detection
+- `test_anz_cards_edc_loader_dynamic_header` — header-row auto-detect
+
+Fixture files: `/app/backend/tests/fixtures_au/{dd_au,cards_au,bank_au}.xlsx`
+
+⚠️ Click **Deploy** to push to `intra.purnabramha.com` — Preview only until deployed.
+Previously-uploaded DoorDash records in DB will still show `gross=0` until re-uploaded.
+
+---
+
+
 ### [2026-02-16 — Center Accounts 5-Tab Restructure — Phases A + B + C + D] (P0)
 
 **User directive** (Message 324, re-issued 327): Eliminate every standalone dashboard / duplicate report and collapse the Center Accounts page to **exactly 5 tabs**: Overview · MG Payout · Reports · Ledgers · Bundles & Exports. One Single Financial Engine driving every screen. No duplicate calculations. Each report shows only its own purpose.
