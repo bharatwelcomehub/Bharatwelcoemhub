@@ -470,14 +470,17 @@ def build_pib_pdf(summary: Dict[str, Any]) -> bytes:
     _section4_is_profit = _section4_model == "profit_share"
     if is_australia:
         # Australia keeps the AU-specific chain (Net Revenue line retained because
-        # AU has the comm-GST inclusivity calc that's clearer as a chain)
+        # AU has the comm-GST inclusivity calc that's clearer as a chain).
+        # Note: `fin['net_revenue']` already honors the per-month GST Revenue
+        # Treatment toggle (Feb-2026 follow-up) — Include-GST mode keeps GST
+        # informational, Exclude mode subtracts it. So Rev Share Base ≡
+        # Net Revenue in both modes for AU.
         fin_data.append(["NET REVENUE", f"{currency} {fin['net_revenue']:,.2f}"])
         if _include_gst_in_revenue:
             rev_share_formula = "⭐ Eligible Rev Share Base (Sales − Comm − Comm GST) [Include-GST mode]"
-            rev_share_value = round(fin['net_revenue'] + gst_on_sales, 2)
         else:
             rev_share_formula = "⭐ Eligible Rev Share Base (Sales − Comm − Comm GST − GST)"
-            rev_share_value = fin['net_revenue']
+        rev_share_value = fin['net_revenue']
     elif _section4_is_profit:
         # India + Profit Share franchise — surface the Profit Share Base
         # instead of the Revenue Share Base so the document never mentions
@@ -1229,13 +1232,13 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
     rows = []
     for m in monthly_data:
         month_label = datetime.strptime(m["month"] + "-01", "%Y-%m-%d").strftime("%b %Y")
-        # Revenue Share Base = Sales − Comm − GST (Feb-2026 owner directive).
-        # Revenue Share Payout = Base × franchise %. Both columns surfaced
-        # per Feb-2026 transparency spec.
+        # Revenue Share Base honors per-month GST Treatment toggle (Feb-2026
+        # follow-up). Use the per-row backend-computed value when present;
+        # fall back to the legacy Sales − Comm − GST formula otherwise.
         sales_m = float(m.get("total_sales", 0) or 0)
         gst_m = float(m.get("gst_on_sales", 0) or 0)
         comm_m = float(m.get("total_commissions", 0) or 0)
-        rev_share_base_m = round(sales_m - comm_m - gst_m, 2)
+        rev_share_base_m = float(m.get("revenue_share_base", round(sales_m - comm_m - gst_m, 2)) or 0)
         rev_share_payout_m = float(m.get("revenue_share", round(rev_share_base_m * rs_pct / 100, 2)) or 0)
         mg_applies_m = bool(m.get("mg_applicable", mg_applies_global))
         rows.append({
@@ -1256,7 +1259,16 @@ def build_mg_payout_excel(center: str, monthly_data: List[Dict[str, Any]],
     total_sales = sum(float(m.get("total_sales", 0) or 0) for m in monthly_data)
     total_gst = sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data)
     total_comm = sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data)
-    total_rev_share_base = round(total_sales - total_comm - total_gst, 2)
+    # Sum per-month Revenue Share Base (each row already honors its GST
+    # Treatment toggle — Feb-2026 follow-up). Fall back to legacy formula
+    # only when the field is missing for legacy data.
+    total_rev_share_base = round(sum(
+        float(m.get("revenue_share_base",
+                    float(m.get("total_sales", 0) or 0)
+                    - float(m.get("total_commissions", 0) or 0)
+                    - float(m.get("gst_on_sales", 0) or 0)) or 0)
+        for m in monthly_data
+    ), 2)
     total_rev_share_payout = sum(float(m.get("revenue_share", 0) or 0) for m in monthly_data)
     rows.append({
         "Month": "TOTAL",
@@ -1405,7 +1417,8 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         s_m = float(m.get("total_sales", 0) or 0)
         g_m = float(m.get("gst_on_sales", 0) or 0)
         c_m = float(m.get("total_commissions", 0) or 0)
-        rsb_m = round(s_m - c_m - g_m, 2)
+        # Honor per-month GST Treatment toggle (Feb-2026 follow-up)
+        rsb_m = float(m.get("revenue_share_base", round(s_m - c_m - g_m, 2)) or 0)
         rs_payout_m = float(m.get("revenue_share", round(rsb_m * rs_pct / 100, 2)) or 0)
         mg_display = f'{m.get("mg_amount", 0):,.0f}' if mg_applies_m else "N/A"
         table_rows.append([
@@ -1427,7 +1440,10 @@ def build_mg_payout_pdf(center: str, monthly_data: List[Dict[str, Any]],
         f'{sum(float(m.get("total_sales", 0) or 0) for m in monthly_data):,.0f}',
         f'{sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data):,.0f}',
         f'{sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data):,.0f}',
-        f'{(sum(float(m.get("total_sales", 0) or 0) for m in monthly_data) - sum(float(m.get("total_commissions", 0) or 0) for m in monthly_data) - sum(float(m.get("gst_on_sales", 0) or 0) for m in monthly_data)):,.0f}',
+        # Sum per-month revenue_share_base values (each month already honors
+        # its own GST Treatment toggle — Feb-2026 follow-up fix). Falls back
+        # to the legacy recomputed formula only when the field is missing.
+        f'{sum(float(m.get("revenue_share_base", (float(m.get("total_sales", 0) or 0) - float(m.get("total_commissions", 0) or 0) - float(m.get("gst_on_sales", 0) or 0))) or 0) for m in monthly_data):,.0f}',
         f'{sum(float(m.get("revenue_share", 0) or 0) for m in monthly_data):,.0f}',
         f'{totals.get("mg", 0):,.0f}' if mg_applies_global_pdf else "N/A",
         "",

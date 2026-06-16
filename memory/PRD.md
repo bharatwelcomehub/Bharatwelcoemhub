@@ -4,6 +4,45 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-16 — GST Toggle propagated EVERYWHERE (codebase-wide sweep)] (P0)
+
+User feedback: *"is there anywhere like in reports zip folder bundles on any screen has got this issue please and solve it for once coz i cant chk it everwhere"*
+
+Comprehensive sweep + fix of every surface that touched `net_revenue`, `profitability`, or `revenue_share_base` so the per-month GST Treatment toggle works **everywhere** — UI screens, PDFs, Excel exports, and ZIP bundles.
+
+**Surfaces audited & fixed**:
+
+1. ✅ `routes/center_accounts.py` — Summary API & PIB Generator (was the original bug; fixed earlier).
+2. ✅ `routes/center_health.py` — **Center Health Dashboard** Net Revenue / Net Profit now honor the toggle. Bonus fix: pre-existing typo `total_gst` → `gst_amount` (GST was being read as `None` for years).
+3. ✅ `routes/mis_dashboard.py` — **MIS Dashboard** Revenue Share Base now sums per-(center,month) GST only for pairs NOT on Include mode. AU centers no longer over-deduct GST in aggregate KPIs.
+4. ✅ `routes/daily_text.py` — **Sales Text Generator** Net Revenue honors the toggle when the period is contained in a single month. Multi-month spans fall back to legacy (toggle is per-month).
+5. ✅ `utils/pdf_generator.py` — **PIB PDF Section 4** no longer adds GST back to `net_revenue` (since `net_revenue` itself is now toggle-aware). **MG Payout PDF + Excel** TOTAL row now sums per-month `revenue_share_base` instead of recomputing `Sales − Comm − GST`.
+6. ✅ `routes/bundles.py` — **CA/Owner/Franchisor ZIP Bundles** already used the engine correctly; verified live both modes produce the right Revenue Share Base.
+7. ✅ `routes/ledgers.py` — Franchise Ledger PDF already toggle-aware (Feb-2026 first pass).
+8. ✅ `routes/owner_reports.py` — Already correct (uses shared GST helper with the flag passed through).
+9. ✅ Frontend (`CenterAccounts.jsx`, `CenterHealth.jsx`, `OwnerReports.jsx`, `ExpenseAdjustmentsTab.jsx`, `MISDashboard.jsx`) — all read `net_revenue` / `profitability` / `revenue_share_base` directly from backend; no local recompute → propagates automatically.
+
+**Verified live on PB-PERTH 2026-02 (Sales A$31,183 · GST A$1,951.94 · Comm A$2,172.52 · AdjExp A$175)**:
+
+| Surface | Toggle OFF | Toggle ON | Delta |
+|---|---:|---:|---:|
+| Center Accounts Net Revenue | A$27,058.54 | **A$29,010.48** | +A$1,951.94 (GST) |
+| Center Accounts Profitability | A$26,883.54 | **A$28,835.48** | +A$1,951.94 |
+| Center Accounts Revenue Share Base | A$29,010.48 | A$29,010.48 | (was already toggle-aware) |
+| Center Health Net Revenue | A$27,058.54 | **A$29,010.48** | +A$1,951.94 |
+| Center Health Net Profit | A$26,883.54 | **A$28,835.48** | +A$1,951.94 |
+| CA Bundle ZIP Revenue Share Base | A$29,231.06 | **A$31,183.00** | toggle-aware ✅ |
+
+**Invariant** (now holds end-to-end for AU centers): `Net Revenue ≡ Revenue Share Base ≡ Sales − Commissions` in Include-GST mode. Profitability = Net Revenue − Adjusted Expenses.
+
+**Tests**: 42/42 PASS (engine + AU/India parser + GST treatment unit + AU net-revenue regression suite). Lint clean for all modified files.
+
+⚠️ **Deploy required** — Push to `intra.purnabramha.com` for production users to see these fixes.
+
+---
+
+
+
 ### [2026-02-16 — AU Net Revenue & Profitability fixed for "Include GST" mode] (P0)
 
 **Reported bug** (PB-PERTH 2026-05):

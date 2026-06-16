@@ -152,12 +152,23 @@ async def _month_metrics(center: str, month: str, country: str) -> Dict[str, Any
     adjusted_expenses = round(expense_total - total_adjustments, 2)
 
     gst_info = compute_gst_from_rows(sales_rows, country=country, center=center)
-    gst_amount = float(gst_info.get("total_gst") or 0)
+    gst_amount = float(gst_info.get("gst_amount") or 0)
 
     commission_info = await get_total_commissions(db, center, month)
     commission_total = float(commission_info.get("total") or 0)
 
-    net_revenue = sales["total"] - commission_total - gst_amount
+    # Per-center per-month GST Revenue Treatment flag (Feb-2026 follow-up).
+    # When ON, GST is NOT subtracted from Net Revenue / Net P/L so the
+    # Center Health Dashboard mirrors the Center Accounts page.
+    _gst_doc = await db.gst_treatment_overrides.find_one(
+        {"center_code": (center or "").upper(), "month": month}
+    )
+    _include_gst_in_revenue = bool(_gst_doc and _gst_doc.get("include_gst_in_revenue", False))
+
+    if _include_gst_in_revenue:
+        net_revenue = sales["total"] - commission_total
+    else:
+        net_revenue = sales["total"] - commission_total - gst_amount
     # Net P/L uses ADJUSTED expenses so timing differences (e.g. June rent
     # paid in May) don't depress the wrong month's profitability.
     net_profit = net_revenue - adjusted_expenses

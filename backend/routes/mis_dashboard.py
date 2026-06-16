@@ -380,7 +380,50 @@ async def get_mis_overview(data: dict):
     # GST is INCLUSIVE in receipt totals (carved out via shared utility) and
     # is a govt pass-through. The same Total Sales feeds all three metrics.
     net_revenue = total_sales - total_commissions
-    revenue_share_base = total_sales - total_commissions - total_gst
+    # Honor per-(center, month) GST Revenue Treatment toggle (Feb-2026 follow-up).
+    # We aggregate GST per (center, month) pair and only deduct it from the
+    # Revenue Share Base for pairs that are on the default (Exclude) mode.
+    # Pairs in Include-GST mode contribute zero GST to the deduction.
+    try:
+        _gst_per_pair: dict = {}
+        for s in sales_data:
+            ck = (s.get("center") or "").upper()
+            mk = (s.get("date") or "")[:7]
+            if not ck or not mk:
+                continue
+            base = (
+                float(s.get("total_sale", 0) or 0)
+                - float(s.get("swiggy_sale", s.get("swiggy", 0)) or 0)
+                - float(s.get("zomato_sale", s.get("zomato", 0)) or 0)
+                - float(s.get("doordash_sale", s.get("doordash", 0)) or 0)
+            )
+            if base <= 0:
+                continue
+            from utils.gst import gst_rate_for, carve_inclusive_gst
+            rate = gst_rate_for(None, ck)
+            _gst_per_pair[(ck, mk)] = _gst_per_pair.get((ck, mk), 0.0) + carve_inclusive_gst(base, rate)
+        # Add PIB-derived GST per (center, month)
+        _live_months_local = live_gst_months if 'live_gst_months' in locals() else set()
+        for p in (pib_rows if 'pib_rows' in locals() else []):
+            key = ((p.get("center") or "").upper(), p.get("month", ""))
+            if key in _live_months_local or not key[0] or not key[1]:
+                continue
+            _gst_per_pair[key] = _gst_per_pair.get(key, 0.0) + float(p.get("total_gst_on_revenue", 0) or 0)
+        # Look up Include-GST flags
+        _toggle_keys = [{"center_code": ck, "month": mk} for (ck, mk) in _gst_per_pair.keys()]
+        _include_pairs: set = set()
+        if _toggle_keys:
+            async for _d in db.gst_treatment_overrides.find({"$or": _toggle_keys}):
+                if _d.get("include_gst_in_revenue"):
+                    _include_pairs.add(((_d.get("center_code") or "").upper(), _d.get("month") or ""))
+        # Deductible GST = sum of pairs NOT in Include mode
+        _gst_deducted_from_rsb = round(sum(
+            v for k, v in _gst_per_pair.items() if k not in _include_pairs
+        ), 2)
+    except Exception as _mis_gst_ex:
+        logger.warning(f"MIS: per-pair GST toggle aggregation failed: {_mis_gst_ex}")
+        _gst_deducted_from_rsb = total_gst
+    revenue_share_base = total_sales - total_commissions - _gst_deducted_from_rsb
     profit = total_sales - total_expenses - total_commissions   # P/L (no GST)
     # period_days defensive fallback — used for avg daily sales only.
     try:

@@ -647,7 +647,21 @@ async def _aggregate_period(center: str, date_strs: list):
     total_aggregator = gst_calc["aggregator_sale"]
     total_eligible = gst_calc["eligible_base"]
     total_commission = sum(float(s.get("card_idfc_commission", 0) or 0) for s in sales)  # placeholder: monthly commissions reside in monthly_commissions
-    net_revenue = round(total_sale - total_commission - total_gst, 2)
+    # Honor per-month GST Revenue Treatment toggle when the period is contained
+    # in a single month (Feb-2026 follow-up). For multi-month text summaries we
+    # fall back to legacy behaviour (subtract GST) since the toggle is per-month.
+    _months_covered = {(d or "")[:7] for d in date_strs if d}
+    _include_gst_period = False
+    if len(_months_covered) == 1:
+        _only_month = next(iter(_months_covered))
+        _doc = await db.gst_treatment_overrides.find_one(
+            {"center_code": (center or "").upper(), "month": _only_month}
+        )
+        _include_gst_period = bool(_doc and _doc.get("include_gst_in_revenue", False))
+    if _include_gst_period:
+        net_revenue = round(total_sale - total_commission, 2)
+    else:
+        net_revenue = round(total_sale - total_commission - total_gst, 2)
 
     # Build chart series: sales vs expenses per bucket
     # Daily aggregations -> per-day series; long ranges -> auto-bucket by month
