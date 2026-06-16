@@ -47,13 +47,27 @@ def normalize_model(model: Optional[str], country: Optional[str]) -> str:
     return default_payout_model_for_country(country)
 
 
-def compute_revenue_share_base(sales: float, commissions: float, gst_on_sales: float) -> float:
-    """Revenue Share Base = Sales − Commissions − GST.
+def compute_revenue_share_base(
+    sales: float,
+    commissions: float,
+    gst_on_sales: float,
+    include_gst_in_revenue: bool = False,
+) -> float:
+    """Revenue Share Base.
 
-    GST is deducted because it's a collected liability, not the franchise's
-    money. This is the canonical base for India centers on Revenue Share.
+    Default (`include_gst_in_revenue=False`):
+        Base = Sales − Commissions − GST
+        (GST is treated as a collected liability and excluded from revenue.)
+
+    Optional (`include_gst_in_revenue=True`, set per-center/per-month):
+        Base = Sales − Commissions
+        (GST stays visible in reports but does NOT reduce the share base —
+        useful for AU centers that hold GST until the filing period.)
     """
-    return round((sales or 0) - (commissions or 0) - (gst_on_sales or 0), 2)
+    base = (sales or 0) - (commissions or 0)
+    if not include_gst_in_revenue:
+        base -= (gst_on_sales or 0)
+    return round(base, 2)
 
 
 def compute_profit_share_base(
@@ -96,8 +110,15 @@ def compute_franchise_payout(
     operational_balance: float = 0.0,
     protection_mode: bool = False,
     country: Optional[str] = "India",
+    include_gst_in_revenue: bool = False,
 ) -> Dict[str, Any]:
     """Compute the canonical franchise payout payload for one month.
+
+    `include_gst_in_revenue` (per-center/per-month flag, default False):
+       When True, GST is excluded from the Revenue Share Base deduction
+       (Base = Sales − Commissions). GST remains visible separately in
+       all reports. Profit Share Base is unaffected — it never deducts
+       GST a second time.
 
     Returns a dict with both bases (so callers can show them side-by-side
     if desired), the selected base, owner/company shares, MG result and
@@ -106,7 +127,10 @@ def compute_franchise_payout(
     # 1. Both bases are computed unconditionally so consumers can show
     #    both for transparency. Negative bases are clamped to 0 for
     #    payout math (a center cannot pay a negative share).
-    rs_base_raw = compute_revenue_share_base(sales, commissions, gst_on_sales)
+    rs_base_raw = compute_revenue_share_base(
+        sales, commissions, gst_on_sales,
+        include_gst_in_revenue=include_gst_in_revenue,
+    )
     ps_base_raw = compute_profit_share_base(
         sales, commissions, expenses, wc_adjustments, manual_adjustments
     )
@@ -204,6 +228,13 @@ def compute_franchise_payout(
         "payable_type": payable_type,
         "protection_mode": bool(protection_mode),
         "reason": reason,
+        # GST treatment (Feb-2026 per-center toggle) ----------------------
+        "include_gst_in_revenue": bool(include_gst_in_revenue),
+        "gst_treatment_label": (
+            "Include GST in Revenue (GST stays separate, base = Sales − Commissions)"
+            if include_gst_in_revenue
+            else "Exclude GST from Revenue (base = Sales − Commissions − GST)"
+        ),
     }
 
 

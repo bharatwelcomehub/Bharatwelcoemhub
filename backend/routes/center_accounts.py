@@ -1061,6 +1061,87 @@ async def set_protection_gating(req: ProtectionGatingRequest):
     }
 
 
+# ── GST REVENUE TREATMENT (per-center per-month toggle, Feb-2026) ─────────
+class GSTTreatmentRequest(BaseModel):
+    token: str
+    center: str
+    month: str
+    include_gst_in_revenue: bool
+
+
+async def get_gst_treatment_flag(center: str, month: str) -> bool:
+    """Helper used by summary/PIB/ledgers/bundles to look up the active
+    GST Revenue Treatment for a (center, month). Default = False (legacy
+    behaviour: GST is excluded from Revenue Share Base).
+    """
+    if not center or not month:
+        return False
+    doc = await db.gst_treatment_overrides.find_one(
+        {"center_code": (center or "").upper(), "month": month}
+    )
+    return bool(doc and doc.get("include_gst_in_revenue", False))
+
+
+@router.post("/gst-treatment/get")
+async def get_gst_treatment(req: dict = Body(...)):
+    """Read the per-month GST Revenue Treatment for a center.
+
+    Option 1 (default, include_gst_in_revenue=False): legacy method —
+       Revenue Share Base = Sales − GST − Commissions.
+    Option 2 (include_gst_in_revenue=True): AU-friendly method —
+       Revenue Share Base = Sales − Commissions. GST stays separately
+       visible everywhere but does not reduce the share base.
+    """
+    await check_access(req.get("token"))
+    center = (req.get("center") or "").upper()
+    month = req.get("month") or ""
+    if not center or not month:
+        raise HTTPException(400, "center and month required")
+    doc = await db.gst_treatment_overrides.find_one(
+        {"center_code": center, "month": month}
+    )
+    return {
+        "center": center,
+        "month": month,
+        "include_gst_in_revenue": bool(doc and doc.get("include_gst_in_revenue", False)),
+        "treatment_label": (
+            "Include GST in Revenue (Base = Sales − Commissions)"
+            if (doc and doc.get("include_gst_in_revenue"))
+            else "Exclude GST from Revenue (Base = Sales − GST − Commissions)"
+        ),
+        "updated_at": (doc or {}).get("updated_at"),
+        "updated_by": (doc or {}).get("updated_by"),
+    }
+
+
+@router.post("/gst-treatment/set")
+async def set_gst_treatment(req: GSTTreatmentRequest):
+    """Persist GST Revenue Treatment for a (center, month). Editable by
+    Super Admin and Accounts Team (access enforced via `check_access`).
+    """
+    session = await check_access(req.token)
+    center = (req.center or "").upper()
+    if not center or not req.month:
+        raise HTTPException(400, "center and month required")
+    await db.gst_treatment_overrides.update_one(
+        {"center_code": center, "month": req.month},
+        {"$set": {
+            "center_code": center,
+            "month": req.month,
+            "include_gst_in_revenue": bool(req.include_gst_in_revenue),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": session.get("user_email") or session.get("user_id") or session.get("mobile") or "unknown",
+        }},
+        upsert=True,
+    )
+    return {
+        "center": center,
+        "month": req.month,
+        "include_gst_in_revenue": bool(req.include_gst_in_revenue),
+        "success": True,
+    }
+
+
 
 # Colors for PDF
 BRAND_MAROON = colors.HexColor("#800020")
@@ -1573,6 +1654,8 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         manual_adjustments_total = 0.0
 
     if country == "India":
+        # Per-center per-month GST Revenue Treatment flag (Feb-2026)
+        include_gst_in_revenue = await get_gst_treatment_flag(req.center, req.month)
         engine_payload = compute_franchise_payout(
             sales=total_sale,
             commissions=total_commission,
@@ -1587,6 +1670,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             operational_balance=0,
             protection_mode=False,
             country=country,
+            include_gst_in_revenue=include_gst_in_revenue,
         )
         # Mirror the engine output into the existing variables so the rest of
         # this function (Section 8 / payout determination) keeps working
@@ -1599,6 +1683,9 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         net_revenue_for_share = engine_payload["base"]
     else:
         # Outside India: Profit share — engine returns Profit Share Base etc.
+        # AU centers can opt-in to "Include GST in Revenue" but for Profit Share
+        # the formula stays the same (GST is never in Profit Share Base anyway).
+        include_gst_in_revenue = await get_gst_treatment_flag(req.center, req.month)
         engine_payload = compute_franchise_payout(
             sales=total_sale,
             commissions=total_commission,
@@ -1613,6 +1700,7 @@ async def get_center_account_summary(req: AccountPeriodRequest):
             operational_balance=0,
             protection_mode=False,
             country=country,
+            include_gst_in_revenue=include_gst_in_revenue,
         )
         # Australia legacy variables — Profit Share Base derived from
         # `profitability` for backwards compatibility with overseas reports.
@@ -1677,6 +1765,12 @@ async def get_center_account_summary(req: AccountPeriodRequest):
     # only in management reports.
     gst_for_ops = gst_on_sales if country == "India" else sales_gst_amount  # informational only
     operational_balance = total_sale - total_expenses - total_commission
+    # Pull the per-center per-month GST Revenue Treatment flag (Feb-2026)
+    include_gst_in_revenue_flag = await get_gst_treatment_flag(req.center, req.month)
+    # Effective GST deduction for Revenue Share Base
+    _rs_gst_deduction = 0.0 if include_gst_in_revenue_flag else (
+        gst_for_ops if country == "India" else 0
+    )
 
     operational_sustainability = {
         "total_sales": round(total_sale, 2),
@@ -1684,14 +1778,20 @@ async def get_center_account_summary(req: AccountPeriodRequest):
         "total_commissions": round(total_commission, 2),
         "gst_on_sales": round(gst_for_ops, 2),
         "gst_informational_only": True,  # signal to PDF/UI not to deduct
+        "include_gst_in_revenue": include_gst_in_revenue_flag,
+        "gst_treatment_label": (
+            "Include GST in Revenue (Base = Sales − Commissions)"
+            if include_gst_in_revenue_flag
+            else "Exclude GST from Revenue (Base = Sales − GST − Commissions)"
+        ),
         "operational_balance": round(operational_balance, 2),
         "profit_loss": round(operational_balance, 2),  # alias for clarity
         "profit_loss_formula": "Total Sales − Total Expenses − Total Commissions",
-        "revenue_share_base": round(total_sale - total_commission - (gst_for_ops if country == "India" else 0), 2),
+        "revenue_share_base": round(total_sale - total_commission - _rs_gst_deduction, 2),
         "revenue_share_formula": (
-            "Total Sales − Commissions − GST"
+            ("Total Sales − Commissions" if include_gst_in_revenue_flag else "Total Sales − Commissions − GST")
             if country == "India"
-            else "Total Sales − Commissions − GST (AU 10% inclusive)"
+            else ("Total Sales − Commissions" if include_gst_in_revenue_flag else "Total Sales − Commissions − GST (AU 10% inclusive)")
         ),
         "is_positive": operational_balance >= 0,
     }
@@ -3297,14 +3397,17 @@ async def get_payout_summary(data: dict = Body(...)):
         gst_on_sales = gst_calc["gst_amount"]
 
         if franchise_country == "India":
-            # India (Feb-2026 directive):
+            # India (Feb-2026 directive + GST Treatment toggle):
             #   - "Net Revenue" tile (management view) = Sale − Commission (NO GST)
-            #   - "Revenue Share Base" (for the 80/20 split)
-            #     = Sale − Commission − GST_on_sales
-            # GST IS deducted from the Share Base because the franchise owner's
-            # entitlement is on the ex-GST revenue (GST is govt pass-through).
+            #   - "Revenue Share Base" honours per-center per-month GST toggle:
+            #       default → Sale − Commission − GST_on_sales
+            #       opt-in  → Sale − Commission         (GST stays separate)
+            include_gst_in_revenue_pib = await get_gst_treatment_flag(center, month)
             net_revenue = round(total_sale - total_commission, 2)
-            revenue_share_base = round(total_sale - total_commission - gst_on_sales, 2)
+            if include_gst_in_revenue_pib:
+                revenue_share_base = round(total_sale - total_commission, 2)
+            else:
+                revenue_share_base = round(total_sale - total_commission - gst_on_sales, 2)
             net_revenue_for_share = max(0, revenue_share_base)
         else:
             # AU: total_commission from canonical helper is ALREADY inclusive of

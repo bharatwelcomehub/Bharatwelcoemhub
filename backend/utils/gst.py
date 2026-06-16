@@ -123,31 +123,34 @@ def compute_net_revenue(total_sale: float, total_commissions: float,
 
 def compute_revenue_share_base(total_sale: float, total_commissions: float,
                                gst_on_sales: float,
-                               country: Optional[str] = None) -> float:
+                               country: Optional[str] = None,
+                               include_gst_in_revenue: bool = False) -> float:
     """Single source of truth for the Revenue Share Base across the app.
 
     Per Feb-2026 owner directive (re-confirmed Feb-2026 follow-up):
         Revenue Share Base = Total Sales − Total Commissions − GST on Sales
 
-    This is the amount the franchise owner gets a percentage of in the 80/20
-    (or any other) split. Expenses are NOT subtracted here — they only feed
-    Profit / Loss (the operational-health metric).
+    `include_gst_in_revenue` (Feb-2026 per-center/per-month flag):
+        When True, GST is NOT subtracted from the base (Sales − Commissions
+        only). GST stays visible in reports but doesn't gate the share.
+        Default False preserves the historical behaviour.
 
     Distinct from `compute_net_revenue`: that helper returns the management
     "Net Revenue" tile (Sales − Commissions, GST informational), whereas this
-    helper returns the share-eligible base (Sales − Commissions − GST).
+    helper returns the share-eligible base.
 
-    India     : Sale − Commissions − GST
+    India     : Sale − Commissions − GST (or Sale − Commissions when included)
     Outside-IN: Sale − Commissions × (1 + commGSTRate) − GST_on_sales
                 (already aligned with `compute_net_revenue` since AU subtracts
                 GST in `compute_net_revenue` too — kept symmetric for callers.)
     """
     is_india = (not country) or str(country).lower() == "india"
+    gst_term = 0.0 if include_gst_in_revenue else float(gst_on_sales)
     if is_india:
-        return round(float(total_sale) - float(total_commissions) - float(gst_on_sales), 2)
+        return round(float(total_sale) - float(total_commissions) - gst_term, 2)
     rate = gst_rate_for(country, None)
     return round(
-        float(total_sale) - float(total_commissions) * (1.0 + rate) - float(gst_on_sales),
+        float(total_sale) - float(total_commissions) * (1.0 + rate) - gst_term,
         2,
     )
 

@@ -656,8 +656,16 @@ async def build_franchise_owner_ledger(center: str, months: List[str]) -> Dict[s
         period_total_gst_on_sales += float(gst_amount or 0)
 
         net_revenue = max(0.0, compute_net_revenue(total_sales, comm_total, gst_amount, 0, country))
+        # Per-center per-month GST Revenue Treatment flag (Feb-2026)
+        _gst_doc = await db.gst_treatment_overrides.find_one(
+            {"center_code": (center or "").upper(), "month": m}
+        )
+        _include_gst_in_rev = bool(_gst_doc and _gst_doc.get("include_gst_in_revenue", False))
         # The 80/20 (or any %) split is on Revenue Share Base, NOT Net Revenue.
-        rev_share_base = max(0.0, compute_revenue_share_base(total_sales, comm_total, gst_amount, country))
+        rev_share_base = max(0.0, compute_revenue_share_base(
+            total_sales, comm_total, gst_amount, country,
+            include_gst_in_revenue=_include_gst_in_rev,
+        ))
         if _overseas:
             # Overseas: Eligible Profit = Sales − GST − Commission − CommGST − Expenses
             # (commission already includes CommGST for AU). Share Owner = 80% × Eligible Profit.

@@ -196,7 +196,15 @@ async def _compute_monthly_report(center: str, month: str) -> dict:
     country = (center_doc or {}).get("country") or ("Australia" if str(center).upper().endswith("-PERTH") else "India")
 
     net_revenue = _cnr(total_sales, total_commission, gst_amount, total_expenses, country)
-    revenue_share_base = _crsb(total_sales, total_commission, gst_amount, country)
+    # Per-center per-month GST Revenue Treatment flag (Feb-2026)
+    _gst_doc = await db.gst_treatment_overrides.find_one(
+        {"center_code": (center or "").upper(), "month": month}
+    )
+    _include_gst_in_rev = bool(_gst_doc and _gst_doc.get("include_gst_in_revenue", False))
+    revenue_share_base = _crsb(
+        total_sales, total_commission, gst_amount, country,
+        include_gst_in_revenue=_include_gst_in_rev,
+    )
     profit_loss = _cpl(total_sales, total_expenses, total_commission, country)
     # Backwards-compat alias — historical consumers read 'pnl' as Net Revenue.
     # Keep the alias but ALSO surface the new explicit fields so future

@@ -166,6 +166,12 @@ async def _resolve_period_data(center: str, period: str) -> dict:
     mg_applicable = bool(franchise.get("mg_calculation_applicable", True)) and country.lower() == "india"
     monthly_mg = float(franchise.get("monthly_mg") or franchise.get("mg") or 0)
 
+    # Per-center per-month GST Revenue Treatment flag (Feb-2026)
+    _gst_doc = await _db.gst_treatment_overrides.find_one(
+        {"center_code": center.upper(), "month": period}
+    )
+    include_gst_in_revenue = bool(_gst_doc and _gst_doc.get("include_gst_in_revenue", False))
+
     engine = compute_franchise_payout(
         sales=total_sales,
         commissions=total_comm,
@@ -180,6 +186,7 @@ async def _resolve_period_data(center: str, period: str) -> dict:
         operational_balance=0,
         protection_mode=False,
         country=country,
+        include_gst_in_revenue=include_gst_in_revenue,
     )
 
     return {

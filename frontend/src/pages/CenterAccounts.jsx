@@ -105,6 +105,154 @@ function PayoutStatusBanner({ status, isAdmin, onChange }) {
 }
 
 
+// ── GST Revenue Treatment Card (Feb-2026, Adjustments tab) ─────────────
+// Per-center per-month toggle: choose whether GST reduces the Revenue
+// Share Base or stays separate. Editable by Super Admin / Accounts Team.
+function GSTRevenueTreatmentCard({ center, month, summary, onChanged }) {
+  const [loading, setLoading] = React.useState(false);
+  const [current, setCurrent] = React.useState(null);
+  const [saving, setSaving] = React.useState(false);
+  const sustainability = summary?.operational_sustainability || {};
+  const country = summary?.country || 'India';
+  const isAU = country === 'Australia';
+  const symbol = isAU ? 'AUD ' : '₹';
+
+  const fmt = (n) => {
+    const v = Number(n || 0);
+    return `${symbol}${v.toLocaleString(isAU ? 'en-AU' : 'en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const grossSales = Number(sustainability.total_sales || 0);
+  const gstCollected = Number(sustainability.gst_on_sales || 0);
+  const commissions = Number(sustainability.total_commissions || 0);
+
+  const fetchTreatment = React.useCallback(async () => {
+    if (!center || !month) return;
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token') || JSON.parse(localStorage.getItem('session') || '{}').token || '';
+      const res = await fetch(`${API}/api/center-accounts/gst-treatment/get`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center, month }),
+      });
+      if (res.ok) setCurrent(await res.json());
+    } catch (e) {
+      console.error('[GST treatment] fetch failed', e);
+    } finally { setLoading(false); }
+  }, [center, month]);
+
+  React.useEffect(() => { fetchTreatment(); }, [fetchTreatment]);
+
+  const handleChange = async (newValue) => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token') || JSON.parse(localStorage.getItem('session') || '{}').token || '';
+      const res = await fetch(`${API}/api/center-accounts/gst-treatment/set`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, center, month, include_gst_in_revenue: newValue }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(newValue
+        ? 'GST Treatment: Include GST in Revenue (Base = Sales − Commissions)'
+        : 'GST Treatment: Exclude GST from Revenue (Base = Sales − GST − Commissions)');
+      await fetchTreatment();
+      if (onChanged) await onChanged();
+    } catch (e) {
+      toast.error(`Failed to save: ${e.message}`);
+    } finally { setSaving(false); }
+  };
+
+  const include = !!(current && current.include_gst_in_revenue);
+  const base = include ? (grossSales - commissions) : (grossSales - commissions - gstCollected);
+
+  return (
+    <Card className="border-2 border-amber-300" data-testid="gst-revenue-treatment-card">
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2 text-amber-800">
+          <Wallet className="w-5 h-5" />
+          GST Revenue Treatment
+          <span className="ml-2 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
+            {center} · {month}
+          </span>
+        </CardTitle>
+        <CardDescription>
+          Decide how GST collected from sales is treated when computing the Revenue Share Base for this center & month.
+          GST <strong>always remains visible</strong> in every report — only the Revenue Share Base formula changes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Auto-display block */}
+        <div className="grid md:grid-cols-3 gap-3">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg" data-testid="gst-card-gross-sales">
+            <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Gross Sales</p>
+            <p className="text-xl font-bold text-slate-800">{fmt(grossSales)}</p>
+          </div>
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg" data-testid="gst-card-gst-collected">
+            <p className="text-xs uppercase tracking-wide text-amber-700 font-semibold">GST Collected From Sales</p>
+            <p className="text-xl font-bold text-amber-800">{fmt(gstCollected)}</p>
+            <p className="text-[11px] text-amber-700 mt-1 italic">Display only · auto-calculated</p>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg" data-testid="gst-card-commissions">
+            <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Commissions</p>
+            <p className="text-xl font-bold text-slate-800">{fmt(commissions)}</p>
+          </div>
+        </div>
+
+        {/* Dropdown */}
+        <div className="p-4 bg-white border-2 border-amber-200 rounded-lg space-y-3">
+          <label className="text-sm font-semibold text-slate-700 block">
+            GST Treatment for Revenue Calculation
+          </label>
+          <select
+            value={include ? 'include' : 'exclude'}
+            disabled={loading || saving}
+            onChange={(e) => handleChange(e.target.value === 'include')}
+            className="w-full text-sm border-2 border-slate-300 rounded-md px-3 py-2 bg-white focus:border-amber-500 focus:outline-none"
+            data-testid="gst-treatment-select"
+          >
+            <option value="exclude">Option 1 — Exclude GST from Revenue (Current Method) · Base = Sales − GST − Commissions</option>
+            <option value="include">Option 2 — Include GST in Revenue (Optional) · Base = Sales − Commissions</option>
+          </select>
+          {(loading || saving) && (
+            <p className="text-xs text-slate-500 italic">{saving ? 'Saving…' : 'Loading current setting…'}</p>
+          )}
+          {current?.updated_at && (
+            <p className="text-[11px] text-slate-500" data-testid="gst-treatment-updated">
+              Last changed by <strong>{current.updated_by || 'unknown'}</strong> · {new Date(current.updated_at).toLocaleString()}
+            </p>
+          )}
+        </div>
+
+        {/* Resulting base preview */}
+        <div className="p-4 bg-emerald-50 border-2 border-emerald-200 rounded-lg" data-testid="gst-treatment-base-preview">
+          <p className="text-xs uppercase tracking-wide text-emerald-700 font-bold mb-1">
+            Resulting Revenue Share Base for {month}
+          </p>
+          <p className="text-2xl font-bold text-emerald-800" data-testid="gst-treatment-base-amount">
+            {fmt(Math.max(0, base))}
+          </p>
+          <p className="text-xs text-emerald-700 mt-1 font-mono">
+            {include
+              ? `${fmt(grossSales)} − ${fmt(commissions)} = ${fmt(Math.max(0, base))}`
+              : `${fmt(grossSales)} − ${fmt(gstCollected)} − ${fmt(commissions)} = ${fmt(Math.max(0, base))}`}
+          </p>
+        </div>
+
+        {/* Note */}
+        <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md p-3 leading-relaxed">
+          <strong>Note:</strong> This setting is saved per center per month. Changes apply automatically to
+          Center Overview · MG Payout · Profit &amp; Loss · Revenue Share · Profit Share · Settlement Summary ·
+          CA Bundle · Email Package · all Reports &amp; Ledgers. <strong>GST is never hidden</strong> — only its
+          treatment in the Revenue Share Base changes.
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+
+
 
 export default function CenterAccounts() {
   const { session } = useAuth();
@@ -2284,6 +2432,13 @@ export default function CenterAccounts() {
             </TabsContent>
             {/* Expense Adjustments Tab — prepaid / advance / future-month carve */}
             <TabsContent value="adjustments" className="space-y-4">
+              {/* GST Revenue Treatment toggle — per-center per-month */}
+              <GSTRevenueTreatmentCard
+                center={selectedCenter}
+                month={selectedMonth}
+                summary={accountSummary}
+                onChanged={fetchAccountSummary}
+              />
               <ExpenseAdjustmentsTab
                 center={selectedCenter}
                 month={selectedMonth}
