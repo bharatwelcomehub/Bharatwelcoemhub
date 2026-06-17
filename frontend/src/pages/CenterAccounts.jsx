@@ -3114,6 +3114,45 @@ export default function CenterAccounts() {
                             </tr>
                           </thead>
                           <tbody>
+                            {/* TOTALS row — sum each numeric column so the user sees
+                                the aggregate without scrolling down (Feb-2026 fix) */}
+                            {(() => {
+                              const rows = payoutSummary.monthly_data || [];
+                              const sum = (key) => rows.reduce((acc, m) => acc + (Number(m[key]) || 0), 0);
+                              const totSales = sum('total_sales');
+                              const totGst = sum('gst_on_sales');
+                              const totComm = sum('total_commissions');
+                              const totRsb = rows.reduce((acc, m) => acc + (Number(m.revenue_share_base
+                                ?? Math.max(0, (m.total_sales||0) - (m.total_commissions||0) - (m.gst_on_sales||0)))
+                              ), 0);
+                              const rsPct = payoutSummary.franchise?.revenue_share_percentage || 0;
+                              const totRsPayout = rows.reduce((acc, m) => acc + (Number(
+                                m.revenue_share
+                                ?? ((m.revenue_share_base
+                                  ?? Math.max(0, (m.total_sales||0) - (m.total_commissions||0) - (m.gst_on_sales||0))) * rsPct / 100)
+                              ) || 0), 0);
+                              const totMg = rows.reduce((acc, m) => acc + (m.mg_applicable === false ? 0 : (Number(m.mg_amount) || 0)), 0);
+                              const totPayable = sum('payable_amount');
+                              const totPaid = sum('paid');
+                              const totPending = sum('pending');
+                              return (
+                                <tr className="bg-amber-50 border-t-2 border-b-2 border-amber-300 font-bold sticky top-0" data-testid="mg-payout-totals-row">
+                                  <td className="py-3 px-4 text-amber-900 uppercase text-xs tracking-wider">Total</td>
+                                  <td className="py-3 px-4 text-right text-amber-900" data-testid="totals-total-sales">{formatCurrency(totSales, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-right text-orange-700" data-testid="totals-gst">{formatCurrency(totGst, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-right text-rose-700" data-testid="totals-commissions">{formatCurrency(totComm, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-right text-sky-900" data-testid="totals-rev-share-base">{formatCurrency(totRsb, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-right text-sky-800" data-testid="totals-rev-share-payout">{formatCurrency(totRsPayout, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-right text-purple-700" data-testid="totals-mg">{formatCurrency(totMg, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-center text-amber-900 text-[10px]">—</td>
+                                  <td className="py-3 px-4 text-right text-amber-900" data-testid="totals-payable">{formatCurrency(totPayable, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-right text-emerald-700" data-testid="totals-paid">{formatCurrency(totPaid, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-right text-red-700" data-testid="totals-pending">{formatCurrency(totPending, accountSummary?.country)}</td>
+                                  <td className="py-3 px-4 text-center text-amber-900 text-[10px]">—</td>
+                                  <td className="py-3 px-4 text-center text-amber-900 text-[10px]">—</td>
+                                </tr>
+                              );
+                            })()}
                             {payoutSummary.monthly_data.map((month, idx) => {
                               const revShareBaseRow = (
                                 month.revenue_share_base

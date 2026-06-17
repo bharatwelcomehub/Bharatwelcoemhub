@@ -4,6 +4,34 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-17 — MG Payout Totals row + Per-Franchise Owner Share aggregate] (P1)
+
+User feedback:
+1. *"For each head can we have total amount on top of the grid just below this line: Total Sales | GST | Commissions | ⭐ Revenue Share Base | Revenue Share Payout @ 10% | MG | Type | Payable | Paid | Pending | Status | Action"*
+2. *"Should get the franchise owners revenue/profit share % from franchise management, either revenue or profit share, and MG active or not active from franchise management for all centers"*
+
+**Fixes**:
+
+1. ✅ **MG Payout grid TOTAL row** (`CenterAccounts.jsx`) — Added an amber-highlighted sticky "TOTAL" row at the top of the monthly-data table summing every numeric column (Total Sales, GST, Commissions, Revenue Share Base, Revenue Share Payout, MG, Payable, Paid, Pending). Now visible without scrolling. `data-testid="mg-payout-totals-row"` + per-cell test ids (`totals-total-sales`, `totals-gst`, etc.) for QA.
+
+2. ✅ **MIS Dashboard Owner Share** (`mis_dashboard.py` + `MISDashboard.jsx`) — Was hard-coded to 15% × Revenue Share Base in the "All Centers" view, ignoring each franchise's actual %, payout model, and MG applicability.
+   - **Backend**: New per-(center, month) aggregation runs each pair through `compute_franchise_payout` using the **franchise master**'s own `franchise_owner_share_percentage`, `payout_model` (revenue_share / profit_share), `mg_calculation_applicable`, `monthly_mg`, AND the per-month GST Treatment toggle. Returns 4 new fields:
+     - `summary.owner_share_amount` — sum of each franchise's correct share
+     - `summary.owner_share_pct_weighted_avg` — sales-weighted average % across centers
+     - `summary.payout_model_breakdown` — `{revenue_share, profit_share, mg}` amounts
+     - `summary.mg_active_centers` — count of franchises with MG enabled
+   - **Frontend**: Reads `owner_share_amount` directly when `selectedCenter === "all"`. KPI label now reads *"Owner Share (per-franchise · avg X%)"* so users know the % is weighted across multiple centers. Single-center view unchanged (still uses that center's franchise %).
+
+**Verified live** (preview DB has uniform 15% franchises so delta = 0; on production with mixed 10/15/20/80% franchises the aggregate will now correctly reflect each center's own settings).
+
+**Tests**: 33/33 GST + AU net-revenue tests PASS. Backend imports cleanly.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-17 — DoorDash column + Rich ZIP Bundles] (P0)
 
 User feedback (production):

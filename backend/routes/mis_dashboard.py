@@ -425,6 +425,146 @@ async def get_mis_overview(data: dict):
         _gst_deducted_from_rsb = total_gst
     revenue_share_base = total_sales - total_commissions - _gst_deducted_from_rsb
     profit = total_sales - total_expenses - total_commissions   # P/L (no GST)
+
+    # ── Per-franchise Owner Share aggregation (Feb-2026 follow-up) ─────────
+    # The "Owner Share" KPI must reflect each center's OWN franchise revenue/
+    # profit share % + payout model + MG applicability — never a hardcoded
+    # 15%. For "all" centers we sum: per (center, month) pair compute
+    # (effective_base × franchise_owner_share_percentage / 100) using each
+    # center's franchise master record. MG-eligible centers in months where
+    # MG > computed payout use the MG amount instead.
+    owner_share_amount = 0.0
+    weighted_pct_sum = 0.0
+    weighted_pct_weight = 0.0
+    payout_model_breakdown = {"revenue_share": 0.0, "profit_share": 0.0, "mg": 0.0}
+    mg_active_centers = 0
+    try:
+        # 1. Aggregate sales/comm/gst/expenses per (center, month) pair
+        pair_metrics: dict = {}
+        for s in sales_data:
+            ck = (s.get("center") or "").upper()
+            mk = (s.get("date") or "")[:7]
+            if not ck or not mk:
+                continue
+            d = pair_metrics.setdefault((ck, mk), {"sales": 0.0, "expenses": 0.0, "comm": 0.0, "gst": 0.0})
+            d["sales"] += float(s.get("total_sale", 0) or 0)
+        for e in expenses_data:
+            ck = (e.get("center") or "").upper()
+            mk = (e.get("date") or "")[:7]
+            if not ck or not mk:
+                continue
+            d = pair_metrics.setdefault((ck, mk), {"sales": 0.0, "expenses": 0.0, "comm": 0.0, "gst": 0.0})
+            d["expenses"] += float(e.get("amount", 0) or 0)
+        # Per-pair GST (already computed above for RSB) → reuse
+        try:
+            for k, v in (_gst_per_pair or {}).items():
+                if k in pair_metrics:
+                    pair_metrics[k]["gst"] = float(v)
+        except Exception:
+            pass
+        # Per-pair commissions
+        try:
+            for r in comm_records:
+                ck = (r.get("center") or "").upper()
+                mk = (r.get("month") or "")[:7]
+                if (ck, mk) in pair_metrics:
+                    pair_metrics[(ck, mk)]["comm"] = float(
+                        (r.get("gst_tax_deductions", 0) or 0) + (r.get("other_deductions", 0) or 0)
+                        or (r.get("commission_amount", 0) or 0) + (r.get("gst_on_commission", 0) or 0)
+                    )
+        except Exception:
+            pass
+
+        # 2. Pull franchise master records for the centers in play (single Mongo round-trip)
+        _centers_in_play = sorted({c for (c, _m) in pair_metrics.keys()})
+        franchise_by_center: dict = {}
+        if _centers_in_play:
+            center_docs = await db.centers.find(
+                {"code": {"$in": _centers_in_play}},
+                {"_id": 0, "code": 1, "franchise_code": 1, "country": 1},
+            ).to_list(None)
+            _fc_set = sorted({(c.get("franchise_code") or "") for c in center_docs if c.get("franchise_code")})
+            franchise_docs = await db.franchises.find(
+                {"franchise_code": {"$in": _fc_set}},
+                {
+                    "_id": 0, "franchise_code": 1,
+                    "franchise_owner_share_percentage": 1,
+                    "revenue_share_percentage": 1,
+                    "payout_model": 1,
+                    "mg_calculation_applicable": 1,
+                    "monthly_mg": 1, "mg": 1,
+                },
+            ).to_list(None) if _fc_set else []
+            fr_by_code = {f["franchise_code"]: f for f in franchise_docs}
+            for cdoc in center_docs:
+                fc = cdoc.get("franchise_code")
+                fr = fr_by_code.get(fc, {}) if fc else {}
+                country = cdoc.get("country") or "India"
+                pct = float(
+                    fr.get("franchise_owner_share_percentage")
+                    or fr.get("revenue_share_percentage")
+                    or (80 if str(country).lower() != "india" else 15)
+                )
+                model = (fr.get("payout_model") or
+                         ("revenue_share" if str(country).lower() == "india" else "profit_share")).lower()
+                mg_app = bool(fr.get("mg_calculation_applicable", True)) and str(country).lower() == "india"
+                mg_amt = float(fr.get("monthly_mg") or fr.get("mg") or 0)
+                franchise_by_center[cdoc["code"].upper()] = {
+                    "pct": pct, "model": model, "mg_applicable": mg_app, "mg_amount": mg_amt,
+                }
+                if mg_app:
+                    mg_active_centers += 1
+
+        # 3. Compute per-pair owner share (Revenue/Profit Share × pct, MG floor)
+        from utils.financial_engine import compute_franchise_payout, normalize_model
+        for (ck, mk), met in pair_metrics.items():
+            cfg = franchise_by_center.get(ck) or {"pct": 15, "model": "revenue_share", "mg_applicable": False, "mg_amount": 0}
+            sales = met["sales"]
+            expenses = met["expenses"]
+            comm = met["comm"]
+            gst = met["gst"]
+            # Check Include-GST toggle for this pair (already loaded above into _include_pairs)
+            include_gst = (ck, mk) in (_include_pairs if '_include_pairs' in locals() else set())
+            try:
+                payload = compute_franchise_payout(
+                    sales=sales,
+                    commissions=comm,
+                    gst_on_sales=gst,
+                    expenses=expenses,
+                    wc_adjustments=0,
+                    manual_adjustments=0,
+                    payout_model=normalize_model(cfg["model"], "India" if cfg["model"] == "revenue_share" else "Australia"),
+                    franchise_owner_pct=cfg["pct"],
+                    mg_applicable=cfg["mg_applicable"],
+                    monthly_mg=cfg["mg_amount"],
+                    operational_balance=0,
+                    protection_mode=False,
+                    country="India" if cfg["model"] == "revenue_share" else "Australia",
+                    include_gst_in_revenue=include_gst,
+                )
+                owner_share_amount += float(payload.get("owner_share", 0) or 0)
+                # Weighted-avg %
+                base = float(payload.get("base", 0) or 0)
+                if base > 0:
+                    weighted_pct_sum += cfg["pct"] * base
+                    weighted_pct_weight += base
+                # Model breakdown by payable_type
+                ptype = (payload.get("payable_type") or cfg["model"]).lower()
+                if ptype == "mg":
+                    payout_model_breakdown["mg"] += float(payload.get("payable", 0) or 0)
+                elif "profit" in ptype:
+                    payout_model_breakdown["profit_share"] += float(payload.get("owner_share", 0) or 0)
+                else:
+                    payout_model_breakdown["revenue_share"] += float(payload.get("owner_share", 0) or 0)
+            except Exception as _eng_ex:
+                logger.warning(f"MIS: per-pair engine call failed for {ck} {mk}: {_eng_ex}")
+                continue
+        weighted_avg_pct = round(weighted_pct_sum / weighted_pct_weight, 2) if weighted_pct_weight > 0 else 0.0
+    except Exception as _own_ex:
+        logger.warning(f"MIS: per-franchise owner share aggregation failed: {_own_ex}")
+        owner_share_amount = 0.0
+        weighted_avg_pct = 0.0
+        payout_model_breakdown = {"revenue_share": 0.0, "profit_share": 0.0, "mg": 0.0}
     # period_days defensive fallback — used for avg daily sales only.
     try:
         from datetime import datetime as _dt
@@ -622,6 +762,16 @@ async def get_mis_overview(data: dict):
             "total_deductions": round(total_commissions + total_gst, 2),
             "net_revenue": round(net_revenue, 2),
             "revenue_share_base": round(revenue_share_base, 2),
+            # Per-franchise Owner Share aggregate (Feb-2026 follow-up): replaces
+            # the frontend hardcode of 15%. Sums each (center, month) pair's
+            # owner share using its OWN franchise revenue/profit share %, payout
+            # model, and MG applicability from the franchise master.
+            "owner_share_amount": round(owner_share_amount, 2),
+            "owner_share_pct_weighted_avg": weighted_avg_pct,
+            "payout_model_breakdown": {
+                k: round(v, 2) for k, v in payout_model_breakdown.items()
+            },
+            "mg_active_centers": mg_active_centers,
             "profit": round(profit, 2),
             "profit_loss": round(profit, 2),  # alias for clarity
             "profit_margin": profit_margin,
