@@ -3,21 +3,41 @@ Feb-2026 architecture refactor.
 
   GET /api/bundles/ca          { center?, period (YYYY-MM) }
   GET /api/bundles/owner       { center,  period }
-  GET /api/bundles/franchisor  { center?, period }
+  GET /api/bundles/franchisor  { center?, period }   ← "Full Center Package"
 
-Each returns a `.zip` containing a PDF + manifest. All numbers come from
-the single Financial Calculation Engine — never from page-specific math.
+Each ZIP contains:
+  • CA Bundle ........ Cover PDF + Sales/Expense Excel + GST Summary PDF +
+                       Profit-Share (PIB) PDF + Commission Recon PDF +
+                       Bank Statement PDF + engine manifest
+  • Owner Bundle ..... Owner cover-sheet PDF + Sales/Expense Excel +
+                       PIB PDF + manifest
+  • Franchisor (Full
+    Center Package) .. Everything in CA + Owner + Franchisor cover PDF +
+                       engine manifest (one click, all artefacts)
+
+All numbers come from the single Financial Calculation Engine — never from
+page-specific math.
 """
 from __future__ import annotations
+import io
+import logging
+import zipfile
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
-from utils.bundle_generator import build_bundle_zip
+from utils.bundle_generator import (
+    build_bundle_zip,
+    build_ca_bundle_pdf,
+    build_franchise_owner_bundle_pdf,
+    build_franchisor_bundle_pdf,
+)
 from utils.financial_engine import compute_franchise_payout, normalize_model
 from utils.gst import compute_gst_from_totals
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/bundles", tags=["Bundles"])
 
@@ -224,10 +244,11 @@ async def download_ca_bundle(
     center: str = Query(...),
     period: str = Query(...),
 ):
-    """CA Bundle — Accounts Team. ZIP of PDF + manifest."""
+    """CA Bundle — Accounts Team. Rich ZIP with cover-sheet PDF + Sales/Expense
+    Excel + GST Summary + PIB + Commission Recon + Bank Statement + manifest."""
     await _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
-    zip_bytes = build_bundle_zip("ca", ctx)
+    zip_bytes = await _build_rich_bundle_zip("ca", token, center, period, ctx)
     return Response(
         content=zip_bytes,
         media_type="application/zip",
@@ -241,10 +262,10 @@ async def download_owner_bundle(
     center: str = Query(...),
     period: str = Query(...),
 ):
-    """Franchise Owner Bundle. ZIP of PDF + manifest."""
+    """Franchise Owner Bundle. ZIP of cover PDF + Sales/Expense Excel + PIB + manifest."""
     await _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
-    zip_bytes = build_bundle_zip("owner", ctx)
+    zip_bytes = await _build_rich_bundle_zip("owner", token, center, period, ctx)
     return Response(
         content=zip_bytes,
         media_type="application/zip",
@@ -258,12 +279,235 @@ async def download_franchisor_bundle(
     center: str = Query(...),
     period: str = Query(...),
 ):
-    """Franchisor Bundle — Founder / Director / Super Admin."""
+    """Franchisor "Full Center Package" — master bundle, one-click everything.
+
+    Includes every artefact from the CA + Owner bundles plus the Franchisor
+    executive cover-sheet so founders see one consolidated download.
+    """
     await _require_valid_token(token)
     ctx = await _resolve_period_data(center, period)
-    zip_bytes = build_bundle_zip("franchisor", ctx)
+    zip_bytes = await _build_rich_bundle_zip("franchisor", token, center, period, ctx)
     return Response(
         content=zip_bytes,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="FRANCHISOR_{center}_{period}.zip"'},
+        headers={"Content-Disposition": f'attachment; filename="FullCenter_{center}_{period}.zip"'},
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Rich bundle aggregator — gathers every PDF/Excel a persona needs.
+# Each fetch is wrapped in try/except so a single missing artefact (e.g.
+# franchise not linked → PIB unavailable) doesn't break the whole download.
+# ──────────────────────────────────────────────────────────────────────────
+async def _build_summary_safe(token: str, center: str, period: str) -> Optional[Dict[str, Any]]:
+    """Fetch the unified center-account summary used by every PDF builder.
+    Returns None on failure (bundle continues without the dependent PDFs).
+    """
+    try:
+        # Lazy import to avoid circular import at module load time.
+        from routes.center_accounts import (
+            get_center_account_summary,
+            AccountPeriodRequest,
+        )
+        req = AccountPeriodRequest(token=token, center=center, month=period)
+        resp = await get_center_account_summary(req)
+        return resp.get("summary")
+    except Exception as ex:  # noqa: BLE001
+        logger.warning(f"bundle: summary fetch failed for {center} {period}: {ex}")
+        return None
+
+
+def _mk_month_range_safe(period: str) -> Tuple[str, str]:
+    """Y-M → (start_iso, end_iso) inclusive."""
+    year, month = map(int, period.split("-"))
+    start = f"{year}-{month:02d}-01"
+    if month == 12:
+        end = f"{year}-12-31"
+    else:
+        from calendar import monthrange
+        last_day = monthrange(year, month)[1]
+        end = f"{year}-{month:02d}-{last_day:02d}"
+    return start, end
+
+
+async def _gather_artefacts(
+    token: str, center: str, period: str, ctx: Dict[str, Any],
+) -> Dict[str, bytes]:
+    """Collect every artefact that *can* be generated for (center, period).
+
+    Returns a dict of `<filename> → bytes`. Missing artefacts are silently
+    skipped with a warning so a one-click bundle keeps working even when
+    e.g. a franchise isn't linked yet.
+    """
+    out: Dict[str, bytes] = {}
+    safe_center = (center or "ALL").upper()
+    summary = await _build_summary_safe(token, center, period)
+
+    # 1. Sales + Expense Excel ────────────────────────────────────────────
+    try:
+        from utils.sales_expense_excel import build_sales_expense_excel
+        start, end = _mk_month_range_safe(period)
+        xlsx = await build_sales_expense_excel(_db, safe_center, start, end)
+        out[f"Sales_Expense_{safe_center}_{period}.xlsx"] = xlsx
+    except Exception as ex:  # noqa: BLE001
+        logger.warning(f"bundle: Sales/Expense Excel failed: {ex}")
+
+    # 2. PIB / Profit-Share Calculation PDF ───────────────────────────────
+    if summary and summary.get("franchise", {}).get("linked"):
+        try:
+            from utils.pdf_generator import build_pib_pdf
+            out[f"PIB_{safe_center}_{period}.pdf"] = build_pib_pdf(summary)
+        except Exception as ex:  # noqa: BLE001
+            logger.warning(f"bundle: PIB PDF failed: {ex}")
+
+    # 3. GST Summary PDF ──────────────────────────────────────────────────
+    if summary:
+        try:
+            from utils.pdf_generator import build_gst_summary_pdf
+            out[f"GST_Summary_{safe_center}_{period}.pdf"] = build_gst_summary_pdf(summary)
+        except Exception as ex:  # noqa: BLE001
+            logger.warning(f"bundle: GST Summary PDF failed: {ex}")
+
+    # 4. Commission Reconciliation PDF ────────────────────────────────────
+    if summary:
+        try:
+            from utils.pdf_generator import build_commission_summary_pdf
+            out[f"Commission_Reconciliation_{safe_center}_{period}.pdf"] = build_commission_summary_pdf(summary)
+        except Exception as ex:  # noqa: BLE001
+            logger.warning(f"bundle: Commission Summary PDF failed: {ex}")
+
+    # 5. Bank Statement / Reconciliation PDF ──────────────────────────────
+    try:
+        from utils.pdf_generator import build_bank_statement_pdf
+        start, end = _mk_month_range_safe(period)
+        # Build the same `pdf_data` shape used by routes/center_accounts.py:generate_bank_statement
+        sales = await _db.daily_sales.find(
+            {"center": safe_center, "date": {"$gte": start, "$lte": end}}, {"_id": 0}
+        ).sort("date", 1).to_list(200)
+        credits: list = []
+        for s in sales:
+            d = s.get("date")
+            cash = float(s.get("total_cash_sale") or s.get("cash_sale") or 0)
+            online_card = float(s.get("total_online_sale") or s.get("online_sale") or s.get("card_sale") or 0)
+            swiggy = float(s.get("swiggy_sale") or s.get("swiggy") or 0)
+            zomato = float(s.get("zomato_sale") or s.get("zomato") or 0)
+            doordash = float(s.get("doordash_sale") or s.get("doordash") or 0)
+            if cash:
+                credits.append({"date": d, "description": "Cash sales", "amount": cash})
+            if online_card:
+                credits.append({"date": d, "description": "Online / Card sales", "amount": online_card})
+            agg = swiggy + zomato + doordash
+            if agg:
+                credits.append({"date": d, "description": "Aggregator receipts (Swiggy+Zomato+DoorDash gross)", "amount": agg})
+        expenses = await _db.expenses.find(
+            {"center": safe_center, "date": {"$gte": start, "$lte": end}}, {"_id": 0}
+        ).sort("date", 1).to_list(500)
+        debits: list = []
+        for e in expenses:
+            amt = float(e.get("amount", 0) or 0)
+            if amt <= 0:
+                continue
+            cat = e.get("expense_type") or e.get("category") or "Expense"
+            debits.append({"date": e.get("date", ""), "description": cat, "amount": amt})
+        if summary:
+            total_comm = float(summary.get("commissions", {}).get("total", 0) or 0)
+            if total_comm > 0:
+                debits.append({
+                    "date": end,
+                    "description": "Aggregator / Card commissions (Swiggy / Zomato / Card deductions)",
+                    "amount": total_comm,
+                })
+        wc_info = (summary or {}).get("working_capital_status", {}) or {}
+        opening = float(wc_info.get("opening_wc", 0) or 0)
+        total_credits = sum(float(r["amount"]) for r in credits)
+        total_debits = sum(float(r["amount"]) for r in debits)
+        closing = opening + total_credits - total_debits
+        center_doc = await _db.centers.find_one({"code": safe_center}) or {}
+        pdf_data = {
+            "center": safe_center,
+            "center_name": center_doc.get("name", safe_center),
+            "month": period,
+            "period_label": f"Period: {start} to {end}",
+            "opening_balance": opening,
+            "closing_balance": closing,
+            "credits": credits,
+            "debits": debits,
+            "totals": {
+                "total_credits": total_credits,
+                "total_debits": total_debits,
+                "net_movement": total_credits - total_debits,
+            },
+        }
+        out[f"Bank_Reconciliation_{safe_center}_{period}.pdf"] = build_bank_statement_pdf(pdf_data)
+    except Exception as ex:  # noqa: BLE001
+        logger.warning(f"bundle: Bank Statement PDF failed: {ex}")
+
+    return out
+
+
+def _engine_manifest(bundle_kind: str, ctx: Dict[str, Any], artefact_names: list) -> str:
+    engine = ctx.get("engine", {}) or {}
+    contents = "\n".join(f"  • {n}" for n in artefact_names)
+    return (
+        f"Bundle: {bundle_kind}\n"
+        f"Center: {ctx.get('center', 'ALL')}\n"
+        f"Period: {ctx.get('period', '')}\n"
+        f"Country: {ctx.get('country', 'India')}\n"
+        f"Payout Model: {engine.get('payout_model', '—')}\n"
+        f"Revenue Share Base: {engine.get('revenue_share_base', 0)}\n"
+        f"Profit Share Base:  {engine.get('profit_share_base', 0)}\n"
+        f"Selected Base:      {engine.get('base', engine.get('selected_base', 0))}\n"
+        f"Owner %:            {engine.get('owner_pct', 0)}\n"
+        f"Owner Share:        {engine.get('owner_share', 0)}\n"
+        f"Company %:          {engine.get('company_pct', 0)}\n"
+        f"Company Share:      {engine.get('company_share', 0)}\n"
+        f"Company Entity:     {engine.get('company_entity_label', '—')}\n"
+        f"\nContents of this bundle:\n{contents}\n"
+        f"\nGenerated {datetime.now().isoformat()}\n"
+        f"Source-of-truth: backend/utils/financial_engine.py\n"
+    )
+
+
+async def _build_rich_bundle_zip(
+    bundle_kind: str, token: str, center: str, period: str, ctx: Dict[str, Any]
+) -> bytes:
+    """Aggregate every artefact a persona needs into one ZIP."""
+    safe_center = (center or "ALL").upper()
+
+    # Cover-sheet PDF (engine-derived executive view per persona)
+    if bundle_kind == "ca":
+        cover_name = f"CA_{safe_center}_{period}.pdf"
+        cover_bytes = build_ca_bundle_pdf(ctx)
+        prefix = "CA"
+    elif bundle_kind in ("owner", "franchise_owner"):
+        cover_name = f"OWNER_{safe_center}_{period}.pdf"
+        cover_bytes = build_franchise_owner_bundle_pdf(ctx)
+        prefix = "OWNER"
+    elif bundle_kind == "franchisor":
+        cover_name = f"FRANCHISOR_{safe_center}_{period}.pdf"
+        cover_bytes = build_franchisor_bundle_pdf(ctx)
+        prefix = "FullCenter"
+    else:
+        raise ValueError(f"Unknown bundle kind: {bundle_kind!r}")
+
+    # Gather supporting artefacts. CA & Franchisor get the full set; the
+    # Owner bundle keeps it lean (cover + Sales/Expense Excel + PIB).
+    artefacts = await _gather_artefacts(token, center, period, ctx)
+    if bundle_kind in ("owner", "franchise_owner"):
+        artefacts = {
+            k: v for k, v in artefacts.items()
+            if k.endswith(".xlsx") or k.startswith("PIB_")
+        }
+
+    # Assemble the ZIP
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(cover_name, cover_bytes)
+        for name, blob in artefacts.items():
+            zf.writestr(name, blob)
+        names = [cover_name, *artefacts.keys()]
+        zf.writestr(
+            f"{prefix}_{safe_center}_{period}_manifest.txt",
+            _engine_manifest(bundle_kind, ctx, names),
+        )
+    return buf.getvalue()

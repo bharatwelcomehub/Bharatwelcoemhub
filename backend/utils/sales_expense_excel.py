@@ -85,7 +85,7 @@ async def build_sales_expense_excel(
 
     sales_headers = [
         "Date", "Center", "Sale PBM", "Sale Other", "Total Sale",
-        "Card/IDFC", "Bharat Pay", "Swiggy", "Zomato", "Online Other",
+        "Card/IDFC", "Bharat Pay", "Swiggy", "Zomato", "DoorDash", "Online Other",
         "Total Online", "Total Cash Sale", "Opening Balance", "Cash Receipts",
         "Deposited in Bank", "Cash Expense", "Closing Balance",
         "Petty Cash Opening", "Petty Cash Closing",
@@ -93,7 +93,7 @@ async def build_sales_expense_excel(
     ]
     sales_widths = [
         12, 10, 12, 12, 12,
-        12, 12, 10, 10, 12,
+        12, 12, 10, 10, 10, 12,
         12, 14, 14, 12,
         15, 12, 14,
         14, 14,
@@ -110,8 +110,9 @@ async def build_sales_expense_excel(
             _money(s.get("total_sale")),
             _money(s.get("card_idfc")),
             _money(s.get("bharat_pay")),
-            _money(s.get("swiggy")),
-            _money(s.get("zomato")),
+            _money(s.get("swiggy_sale", s.get("swiggy"))),
+            _money(s.get("zomato_sale", s.get("zomato"))),
+            _money(s.get("doordash_sale", s.get("doordash"))),
             _money(s.get("online_other")),
             _money(s.get("total_online_sale")),
             _money(s.get("total_cash_sale")),
@@ -125,9 +126,9 @@ async def build_sales_expense_excel(
             int(s.get("num_guests") or 0),
             int(s.get("num_bills") or 0),
         ])
-    # Number formatting on money columns (3..19)
+    # Number formatting on money columns (3..20) — extended by one column for DoorDash
     for r in range(2, ws.max_row + 1):
-        for c in range(3, 20):
+        for c in range(3, 21):
             ws.cell(row=r, column=c).number_format = "#,##0.00"
 
     # ──────────────────────────── Sheet 2: Expense Details ────────────────

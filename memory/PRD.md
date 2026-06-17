@@ -4,6 +4,35 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-17 — DoorDash column + Rich ZIP Bundles] (P0)
+
+User feedback (production):
+1. *"Sales_Expense_PB-PERTH_2026-05.xlsx is not loading doordash entry for perth center only zomato and swiggy is coming"*
+2. *"CA Bundle should contain All Ledgers (PDF + Excel), Bills / Attachments, P&L, GST Summary, Bank & Commission Recon, Engine-snapshot manifest"*
+3. *"Full Center Package should contain All Reports, All Ledgers, Payout Summary, Executive cover-sheet + engine manifest"*
+
+**Fixes**:
+
+1. ✅ **`utils/sales_expense_excel.py`** — Added missing **DoorDash** column (between Zomato and Online Other) + handled both `doordash_sale` and legacy `doordash` field names. Also fixed Swiggy/Zomato to read both new/legacy field names so AU centers consistently show all three aggregators. Verified on PB-PERTH 2026-02: Swiggy A$2,627, Zomato A$31, **DoorDash A$7,053.66** (previously zero/hidden).
+
+2. ✅ **`routes/bundles.py`** — Refactored `_build_rich_bundle_zip` to aggregate ALL expected artefacts into a single ZIP. Each artefact is fetched defensively (try/except) so a missing link (e.g. franchise not yet wired) gracefully skips that PDF instead of breaking the download.
+
+| Bundle | Contents (verified live PB-PERTH 2026-02) |
+|---|---|
+| `/api/bundles/ca` (CA Bundle) | Cover PDF + **Sales_Expense XLSX** + **PIB PDF** + **GST_Summary PDF** + **Commission_Reconciliation PDF** + **Bank_Reconciliation PDF** + manifest (7 files, 167 KB) |
+| `/api/bundles/owner` (Owner Bundle) | Cover PDF + Sales_Expense XLSX + PIB PDF + manifest (4 files, 157 KB — kept lean for franchise owner) |
+| `/api/bundles/franchisor` (**FullCenter Package**) | Franchisor cover PDF + Sales_Expense XLSX + PIB PDF + GST_Summary PDF + Commission_Reconciliation PDF + Bank_Reconciliation PDF + manifest (7 files, 167 KB — one-click everything) |
+
+3. ✅ **Engine manifest** — now lists every contained artefact + the engine snapshot (revenue/profit share base, owner/company %, payable, source-of-truth pointer) so auditors can verify each PDF was generated from consistent numbers.
+
+**Tests**: 42/42 backend tests PASS. Lint clean.
+
+⚠️ **Deploy required** — Push to `intra.purnabramha.com` for production users.
+
+---
+
+
+
 ### [2026-02-16 — GST Toggle propagated EVERYWHERE (codebase-wide sweep)] (P0)
 
 User feedback: *"is there anywhere like in reports zip folder bundles on any screen has got this issue please and solve it for once coz i cant chk it everwhere"*

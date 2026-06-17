@@ -271,7 +271,13 @@ def build_franchisor_bundle_pdf(ctx: Dict[str, Any]) -> bytes:
 
 
 def build_bundle_zip(bundle_kind: str, ctx: Dict[str, Any]) -> bytes:
-    """Bundle the PDF + a manifest into a single .zip download.
+    """Bundle the cover-sheet PDF + a manifest into a single .zip download.
+
+    NOTE: For "ca" and "franchisor" bundles, callers should use
+    `routes/bundles.py:_build_rich_bundle_zip` which aggregates ALL
+    Financial / Settlement / Reconciliation / Compliance reports — PDFs +
+    Excels — into one downloadable ZIP. This basic builder remains for
+    backward compatibility with the simpler "owner" bundle and tests.
 
     The manifest is a small text file listing the contents + the engine
     snapshot used to compute every number, so auditors can re-derive
