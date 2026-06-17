@@ -79,15 +79,34 @@ export default function ColumnFilterMenu({
 
   const setSelectedKey = (key, on) => {
     setDraft((d) => {
-      const sel = new Set(d?.selected || []);
+      // If selected is null (no filter), initialise from full uniques list so
+      // toggling individual items is intuitive (Excel behaviour: opening the
+      // menu shows everything checked).
+      const sel = new Set(d?.selected || uniques.map((u) => u.key));
       if (on) sel.add(key);
       else sel.delete(key);
       return { ...d, selected: sel };
     });
   };
 
+  // Excel-style "Select all" — TOGGLES every value. If everything currently
+  // checked, one click clears all; otherwise it selects all (visible) values.
+  // Lets the user clear-then-pick-one instead of unchecking 14 items.
   const selectAll = () => {
-    setDraft((d) => ({ ...d, selected: new Set(visibleUniques.map((u) => u.key)) }));
+    setDraft((d) => {
+      const cur = d?.selected;
+      const allKeys = new Set(visibleUniques.map((u) => u.key));
+      const isAllSelected =
+        !cur || cur.size === 0
+          ? true                                   // null/empty draft => rendered as "all checked"
+          : visibleUniques.every((u) => cur.has(u.key));
+      if (isAllSelected) {
+        // Toggle OFF — start with empty Set (rendered as "all unchecked").
+        return { ...d, selected: new Set() };
+      }
+      // Toggle ON — select every visible value.
+      return { ...d, selected: allKeys };
+    });
   };
   const clearSelected = () => {
     setDraft((d) => ({ ...d, selected: new Set() }));
@@ -221,12 +240,32 @@ export default function ColumnFilterMenu({
           )}
         </div>
 
-        {/* Select all / Clear */}
-        <div className="flex justify-between text-[11px] mb-1">
-          <button type="button" onClick={selectAll} className="text-primary hover:underline" data-testid={`${testIdBase}-select-all`}>
-            Select all{search ? " (filtered)" : ""}
-          </button>
-          <button type="button" onClick={clearSelected} className="text-muted-foreground hover:underline" data-testid={`${testIdBase}-clear-selected`}>
+        {/* Master "Select all" checkbox — Excel-style tri-state toggle.
+            • All visible checked        → click → all uncheck
+            • All visible unchecked      → click → all check
+            • Some checked (indeterminate) → click → all check       */}
+        <div className="flex items-center justify-between text-[11px] mb-1 px-1.5 py-1 bg-muted/40 rounded">
+          <label className="flex items-center gap-2 cursor-pointer select-none flex-1">
+            {(() => {
+              const cur = draft?.selected;
+              // Default state (null) = all checked
+              const isAllChecked = !cur
+                ? true
+                : visibleUniques.length > 0 && visibleUniques.every((u) => cur.has(u.key));
+              const isNoneChecked = cur && cur.size === 0;
+              return (
+                <Checkbox
+                  checked={isAllChecked ? true : (isNoneChecked ? false : "indeterminate")}
+                  onCheckedChange={selectAll}
+                  data-testid={`${testIdBase}-select-all-checkbox`}
+                />
+              );
+            })()}
+            <span className="font-medium" onClick={(e) => { e.preventDefault(); selectAll(); }} data-testid={`${testIdBase}-select-all`}>
+              (Select all){search ? " (filtered results)" : ""}
+            </span>
+          </label>
+          <button type="button" onClick={clearSelected} className="text-muted-foreground hover:underline ml-2" data-testid={`${testIdBase}-clear-selected`}>
             Clear
           </button>
         </div>
@@ -237,15 +276,19 @@ export default function ColumnFilterMenu({
             <div className="text-[11px] text-muted-foreground text-center py-2">No values</div>
           )}
           {visibleUniques.map((u) => {
-            const selSize = draft?.selected?.size ?? 0;
-            const isChecked = selSize === 0 ? true : draft.selected.has(u.key);
+            const cur = draft?.selected;
+            // null  → no filter applied yet → render as "all checked" (Excel default)
+            // Set() → explicitly cleared    → render as unchecked
+            // Set(items) → render based on membership
+            const isChecked = !cur ? true : cur.has(u.key);
             return (
-              <label key={u.key || "_blank_"} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted px-1.5 py-1 rounded">
+              <label key={u.key || "_blank_"} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted px-1.5 py-1 rounded group">
                 <Checkbox
                   checked={isChecked}
                   onCheckedChange={(v) => {
-                    // First click on a "no filter" state -> initialize selected from full list
-                    if ((draft?.selected?.size ?? 0) === 0) {
+                    if (!draft?.selected) {
+                      // First click on a "no filter" state -> initialise from full list,
+                      // then apply the user's choice for THIS row.
                       const all = new Set(uniques.map((x) => x.key));
                       if (!v) all.delete(u.key);
                       setDraft((d) => ({ ...d, selected: all }));
@@ -254,7 +297,20 @@ export default function ColumnFilterMenu({
                     }
                   }}
                 />
-                <span className="truncate" title={u.label}>{u.label}</span>
+                <span className="truncate flex-1" title={u.label}>{u.label}</span>
+                {/* "Only" shortcut — Excel power-user trick to keep just this one */}
+                <button
+                  type="button"
+                  className="opacity-0 group-hover:opacity-100 text-[10px] text-primary hover:underline transition-opacity"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDraft((d) => ({ ...d, selected: new Set([u.key]) }));
+                  }}
+                  data-testid={`${testIdBase}-only-${u.key || "_blank_"}`}
+                >
+                  Only
+                </button>
               </label>
             );
           })}

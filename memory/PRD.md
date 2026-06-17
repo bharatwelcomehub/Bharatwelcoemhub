@@ -4,6 +4,30 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-17 — Excel-style column filters: master "Select all" toggle + "Only" shortcut] (P1)
+
+User feedback (production): *"the filters are not working for unselect all coz if i have to select only one then i have to unselect each of them one by one — just give this filter same as excel filters"*
+
+**Root cause** (`ColumnFilterMenu.jsx`): The "Select all" link only ever added items. Clicking "Clear" produced `selected = new Set()` (size 0), which the rendering logic interpreted as "no filter → all checked" — so unchecked items immediately re-appeared as checked. The user had to manually uncheck 14+ items to keep only one.
+
+**Fix** — true Excel-style filter UX:
+
+1. **Master "Select all" checkbox** at the top (tri-state: ☑ all / ☐ none / ▣ some). Clicking it TOGGLES every visible item: if everything is checked, one click clears all → user picks the one they want. If some are checked, one click selects all visible.
+2. **"Only" shortcut** — hover any item → "Only" link appears → one click filters to just that value. Excel power-user pattern.
+3. **Tri-state rendering** distinguishes three legitimate states cleanly:
+   - `selected == null` → no filter applied yet → render all checked (Excel default)
+   - `selected.size === 0` → user explicitly cleared → render all unchecked (so they can pick from scratch)
+   - `selected.has(key)` → standard per-item membership
+4. **Search "(filtered)" hint** so user knows their toggle only affects items matching the search term.
+
+**Where it surfaces**: Every column filter that uses `ColumnFilterMenu` — Expense Entry (Category, Description, Mode, Amount, Date), Sales Dashboard, and any future use. Single source of truth — fix once, applies everywhere.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-17 — All "Coming Soon" reports shipped + Expense Attachments in CA Bundle] (P0)
 
 User feedback (production):
