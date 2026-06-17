@@ -2208,6 +2208,20 @@ set_bundles_verify_token(verify_token_sync)
 set_bundles_verify_token_async(verify_token_async)
 app.include_router(bundles_router)
 
+# Extra reports (Profit & Loss, MG Summary, Payout Summary, PhonePe Recon,
+# GST Paid, Missing Bills, Expense Attachments ZIP) — Feb-2026 sprint that
+# ships the previously "Coming Soon" tiles on Center Accounts → Reports.
+from routes.extra_reports import (
+    router as extra_reports_router,
+    set_db as set_extra_reports_db,
+    set_verify_token as set_extra_reports_verify_token,
+    set_verify_token_async as set_extra_reports_verify_token_async,
+)
+set_extra_reports_db(db)
+set_extra_reports_verify_token(verify_token_sync)
+set_extra_reports_verify_token_async(verify_token_async)
+app.include_router(extra_reports_router)
+
 # Include Other Income router
 from routes.other_income import (
     router as other_income_router,

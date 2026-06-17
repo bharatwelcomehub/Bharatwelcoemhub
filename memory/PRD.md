@@ -4,6 +4,36 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-17 — All "Coming Soon" reports shipped + Expense Attachments in CA Bundle] (P0)
+
+User feedback (production):
+1. *"CA Bundle should have Expense Attachments"*
+2. *"Please generate all this coming soon report with view option for bills give zip folders: Profit & Loss, MG Summary, Payout Summary, PhonePe Reconciliation, GST Paid, Missing Bills, Expense Attachments"*
+
+**Build summary**: Created new `utils/extra_reports_pdf.py` with 6 PDF builders + `routes/extra_reports.py` with 7 new endpoints. Frontend report tiles updated to remove all "Coming Soon" badges.
+
+| # | Report | Endpoint | Notes |
+|---|---|---|---|
+| 1 | **Profit & Loss PDF** | `POST /api/extra-reports/profit-loss` | Cash-basis P&L: Sales − GST − Commissions − Adjusted Expenses |
+| 2 | **MG Summary PDF** | `POST /api/extra-reports/mg-summary` | Month-wise MG vs RS comparison + total MG top-up; landscape; auto-skips when MG not applicable |
+| 3 | **Payout Summary PDF** | `POST /api/extra-reports/payout-summary` | Month-wise Payable / Paid / Pending with totals row |
+| 4 | **PhonePe Reconciliation PDF** | `POST /api/extra-reports/phonepe-recon` | Daily Online Sale vs PhonePe/UPI portion + variance column |
+| 5 | **GST Paid PDF** | `POST /api/extra-reports/gst-paid` | GST collected vs GST PAYMENT expenses; net liability |
+| 6 | **Missing Bills PDF** | `POST /api/extra-reports/missing-bills` | Compliance audit list — expenses without attachments (Indian Rule 6F + AU ATO context) |
+| 7 | **Expense Attachments ZIP** | `POST /api/extra-reports/expense-attachments-zip` | Every uploaded bill/invoice for the month + `_attachments_index.csv` + `_missing_bills.csv` + manifest |
+
+**Verified live (PB-PERTH 2026-02)** — all 7 endpoints return 200 OK with correct content-type (PDF / ZIP).
+
+**CA Bundle ZIP now contains 10 files** (was 7): Cover PDF + Sales/Expense XLSX + PIB PDF + GST Summary PDF + Commission Reconciliation PDF + Bank Reconciliation PDF + **Profit_Loss PDF** + **Missing_Bills PDF** + **Expense_Attachments ZIP** + engine manifest. Each artefact still fetched defensively so a single missing input gracefully skips that one report.
+
+**Tests**: 33/33 backend regression tests PASS. Backend boots cleanly.
+
+⚠️ **Deploy required** — Push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-17 — MG Payout Totals row + Per-Franchise Owner Share aggregate] (P1)
 
 User feedback:

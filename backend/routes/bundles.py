@@ -442,6 +442,51 @@ async def _gather_artefacts(
     except Exception as ex:  # noqa: BLE001
         logger.warning(f"bundle: Bank Statement PDF failed: {ex}")
 
+    # 6. Profit & Loss PDF ─────────────────────────────────────────────────
+    if summary:
+        try:
+            from utils.extra_reports_pdf import build_profit_loss_pdf
+            out[f"Profit_Loss_{safe_center}_{period}.pdf"] = build_profit_loss_pdf(summary)
+        except Exception as ex:  # noqa: BLE001
+            logger.warning(f"bundle: P&L PDF failed: {ex}")
+
+    # 7. Missing Bills PDF ─────────────────────────────────────────────────
+    try:
+        from utils.extra_reports_pdf import build_missing_bills_pdf
+        start, end = _mk_month_range_safe(period)
+        exp_rows = await _db.expenses.find(
+            {"center": safe_center, "date": {"$gte": start, "$lte": end}}, {"_id": 0},
+        ).sort("date", 1).to_list(2000)
+        missing = []
+        for e in exp_rows:
+            if e.get("has_attachment"):
+                continue
+            exp_id = e.get("expense_id") or e.get("_id")
+            att = await _db.expense_attachments.find_one(
+                {"expense_id": str(exp_id), "is_deleted": {"$ne": True}}, {"_id": 1}
+            ) if exp_id else None
+            if not att:
+                missing.append(e)
+        center_doc = await _db.centers.find_one({"code": safe_center}) or {}
+        ctx_mb = {
+            "center": safe_center,
+            "country": center_doc.get("country") or "India",
+            "period": period,
+            "period_label": datetime.strptime(period + "-01", "%Y-%m-%d").strftime("%B %Y"),
+        }
+        out[f"Missing_Bills_{safe_center}_{period}.pdf"] = build_missing_bills_pdf(ctx_mb, missing)
+    except Exception as ex:  # noqa: BLE001
+        logger.warning(f"bundle: Missing Bills PDF failed: {ex}")
+
+    # 8. Expense Attachments ZIP (embedded as bytes — auditor unzips once) ──
+    try:
+        from routes.extra_reports import build_expense_attachments_zip
+        start, end = _mk_month_range_safe(period)
+        att_zip = await build_expense_attachments_zip(_db, safe_center, start, end)
+        out[f"Expense_Attachments_{safe_center}_{period}.zip"] = att_zip
+    except Exception as ex:  # noqa: BLE001
+        logger.warning(f"bundle: Expense Attachments ZIP failed: {ex}")
+
     return out
 
 

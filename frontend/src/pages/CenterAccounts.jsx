@@ -1075,6 +1075,42 @@ export default function CenterAccounts() {
       commission: 'generate-commission-summary',
       bank: 'generate-bank-statement',
     };
+    // ── New extra-report endpoints (Feb-2026 sprint) ──
+    const extraEndpoints = {
+      pnl: 'profit-loss',
+      'mg-summary': 'mg-summary',
+      'payout-summary': 'payout-summary',
+      phonepe: 'phonepe-recon',
+      'gst-paid': 'gst-paid',
+      'missing-bills': 'missing-bills',
+      'expense-attachments': 'expense-attachments-zip',
+    };
+    if (extraEndpoints[reportType]) {
+      try {
+        toast.info(`Generating ${reportType.replace(/-/g,' ').toUpperCase()}...`);
+        const res = await fetch(`${API}/api/extra-reports/${extraEndpoints[reportType]}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, center: selectedCenter, month: selectedMonth }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Failed (${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const isZip = reportType === 'expense-attachments';
+        a.download = isZip
+          ? `Expense_Attachments_${selectedCenter}_${selectedMonth}.zip`
+          : `${reportType.toUpperCase()}_${selectedCenter}_${selectedMonth}.pdf`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        toast.success(`${isZip ? 'ZIP' : 'PDF'} downloaded`);
+      } catch (e) { toast.error(e.message || 'Failed'); }
+      return;
+    }
     
     try {
       toast.info(`Generating ${reportType.toUpperCase()} report...`);
@@ -2379,7 +2415,9 @@ export default function CenterAccounts() {
 
                     {/* Financial Reports */}
                     <Section title="Financial Reports" color="border-blue-500">
-                      <ReportTile icon={<FileText className="w-4 h-4" />} label="Profit & Loss" testid="pnl" accent="text-blue-700" tone="border-blue-200" comingSoon />
+                      <ReportTile icon={<FileText className="w-4 h-4" />} label="Profit & Loss"
+                                  testid="pnl" accent="text-blue-700" tone="border-blue-200" disabled={!linked}
+                                  onDownload={() => downloadReport('pnl')} />
                       <ReportTile icon={<FileSpreadsheet className="w-4 h-4" />} label="Sales Summary"
                                   testid="sales-summary" accent="text-emerald-700" tone="border-emerald-200" disabled={!linked}
                                   onDownload={() => downloadSalesExpenseExcel('month', '', '')} />
@@ -2397,12 +2435,12 @@ export default function CenterAccounts() {
                                   label={accountSummary?.payout_model === 'profit_share' ? 'Profit Share Calculation (PIB)' : 'Revenue Share Calculation (PIB)'}
                                   testid="rev-share-calc" accent="text-sky-700" tone="border-sky-200" disabled={!linked}
                                   onPreview={() => openPibPreview()} onDownload={() => downloadReport('pib')} />
-                      <ReportTile icon={<Wallet className="w-4 h-4" />}
-                                  label="MG Summary"
-                                  testid="mg-summary" accent="text-purple-700" tone="border-purple-200" comingSoon />
-                      <ReportTile icon={<Wallet className="w-4 h-4" />}
-                                  label="Payout Summary"
-                                  testid="payout-summary" accent="text-indigo-700" tone="border-indigo-200" comingSoon />
+                      <ReportTile icon={<Wallet className="w-4 h-4" />} label="MG Summary"
+                                  testid="mg-summary" accent="text-purple-700" tone="border-purple-200" disabled={!linked}
+                                  onDownload={() => downloadReport('mg-summary')} />
+                      <ReportTile icon={<Wallet className="w-4 h-4" />} label="Payout Summary"
+                                  testid="payout-summary" accent="text-indigo-700" tone="border-indigo-200" disabled={!linked}
+                                  onDownload={() => downloadReport('payout-summary')} />
                     </Section>
 
                     {/* Reconciliation Reports */}
@@ -2411,7 +2449,8 @@ export default function CenterAccounts() {
                                   testid="bank-recon" accent="text-sky-700" tone="border-sky-200"
                                   onPreview={() => openPdfPreview('bank')} onDownload={() => downloadReport('bank')} />
                       <ReportTile icon={<CreditCard className="w-4 h-4" />} label="PhonePe Reconciliation"
-                                  testid="phonepe-recon" accent="text-violet-700" tone="border-violet-200" comingSoon />
+                                  testid="phonepe-recon" accent="text-violet-700" tone="border-violet-200"
+                                  onDownload={() => downloadReport('phonepe')} />
                       <ReportTile icon={<CreditCard className="w-4 h-4" />} label="Commission Reconciliation"
                                   testid="commission-recon" accent="text-orange-700" tone="border-orange-200"
                                   onPreview={() => openPdfPreview('commission')} onDownload={() => downloadReport('commission')} />
@@ -2420,11 +2459,14 @@ export default function CenterAccounts() {
                     {/* Compliance Reports */}
                     <Section title="Compliance Reports" color="border-rose-500">
                       <ReportTile icon={<Calculator className="w-4 h-4" />} label="GST Paid"
-                                  testid="gst-paid" accent="text-green-700" tone="border-green-200" comingSoon />
+                                  testid="gst-paid" accent="text-green-700" tone="border-green-200"
+                                  onDownload={() => downloadReport('gst-paid')} />
                       <ReportTile icon={<FileBox className="w-4 h-4" />} label="Missing Bills"
-                                  testid="missing-bills" accent="text-rose-700" tone="border-rose-200" comingSoon />
-                      <ReportTile icon={<FileBox className="w-4 h-4" />} label="Expense Attachments"
-                                  testid="expense-attachments" accent="text-amber-700" tone="border-amber-200" comingSoon />
+                                  testid="missing-bills" accent="text-rose-700" tone="border-rose-200"
+                                  onDownload={() => downloadReport('missing-bills')} />
+                      <ReportTile icon={<FileBox className="w-4 h-4" />} label="Expense Attachments (ZIP)"
+                                  testid="expense-attachments" accent="text-amber-700" tone="border-amber-200"
+                                  onDownload={() => downloadReport('expense-attachments')} />
                     </Section>
 
                     <p className="text-[11px] text-muted-foreground italic px-1">
