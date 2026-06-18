@@ -4,6 +4,37 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Visa Helper v2: AI Visa Advisor + Document Factory + Server-Stored Bundles] (P0)
+
+Major upgrade turning the Visa Helper from a 10-step questionnaire into an **AI-first founder tool**.
+
+**Backend** (`/app/backend/routes/visa.py`, now ~2000 lines):
+- **De-dupe fix** — `_ensure_seeds()` rewritten to **upsert with `$set` on machine fields** (idempotent across deploys, also backfills new fields onto previously-seeded rows). All list endpoints (`/countries`, `/pathways`, `/entities`, `/signatories`, `/letter-templates`) now run through `_dedupe_by()` so the API surface is always unique even if the DB has stragglers.
+- **One-time cleanup migration** — `POST /api/visa/admin/cleanup-duplicates` deletes duplicate rows across all 5 collections by primary key (keeps oldest). Super-Admin-only.
+- **Expanded catalog** —
+  - AU: 186 ENS, 482 TSS, 188 BIIP, **494 Regional**, **Global Talent**
+  - USA: **L-1A**, **E-2**, **EB-1C**, **EB-2 NIW**
+  - Japan: Business Manager, **HSP** (Highly Skilled Professional)
+  - Belgium/EU: Single Permit, Self-employed, **EU Blue Card**, **ICT Directive**
+  - Singapore: Employment Pass, EntrePass
+  - 12 new country-specific **expansion-letter templates** (AU South Perth / Melbourne / Sydney, US Atlanta / Dallas / L-1A / EB-1C support, JP market entry, BE single permit, SG EP/EntrePass)
+  - 5 new entities (Purnabramha AU/US/JP/BE/SG subsidiaries) + 4 signatories.
+  - Each pathway now ships `key_requirements`, `company_cost_band`, `applicant_cost_band`, `timeline_band`, `spouse_work_rights` so the Recommender output matches the Sandeep-style spec exactly.
+- **AI Recommender Engine** — `POST /api/visa/recommend` takes founder-style profile (age, role, experience, English, family, shareholding, expansion/business-plan/financial/franchise/skills flags, goal, optional country shortlist) and runs a **hybrid scoring engine**: deterministic rules (~1s) produce score + reasons + risks; if `use_ai_narrative=true`, Claude Sonnet 4.5 enriches the top-5 picks with a 2-3 sentence rationale (~30s). Returns `top` (5 best) + `all` (every pathway scored). India-not-an-E2-treaty risk auto-detected.
+- **Server-stored bundles** — `POST /api/visa/application/{aid}/build-complete-bundle` ensures report+letters are drafted, packages a structured ZIP (01_Report.pdf + 02_Checklist.xlsx + 03_Letters/*.docx + 99_manifest.txt), persists to `/app/backend/visa_bundles/<applicant>/<timestamp>_*.zip`, logs to `visa_bundle_history`, **prunes to last 30** globally. New admin endpoints `GET /admin/bundles` and `GET /admin/bundle/{id}` for re-download. Caller can override `signatory_id` / `entity_id` / `pathway_id` at build time.
+
+**Frontend** (`/app/frontend/src/pages/VisaHelper.jsx`, ~1700 lines):
+- **AI Recommender is now the default first tab** (Tabs: AI Recommender · Applications · Manual Wizard · Admin Panel).
+- **Recommender form** — compact founder-style inputs (applicant name, role, age, YoE, nationality, English status, shareholding %, goal) + 6-country pill picker + 8 toggle switches (family, existing ops, expansion plan, business plan, financial proof, franchise letter, skills assessment, AI narrative). Result cards show score badge (Strong/Medium/Low), country flag, timeline, cost bands, ✓ Why bullets, ⚠ Risk bullets, AI rationale (italic), and a **"Proceed with this visa"** CTA that seeds the Manual Wizard with country + applicant snapshot + selected pathway.
+- **"Generate Complete Bundle"** — new amber button on Wizard Review step. Calls `build-complete-bundle` (with chosen signatory + entity + pathway), downloads the ZIP, and the bundle becomes visible in Admin Panel → **Bundle History** (new sub-tab) for re-download.
+
+**Testing**: testing agent confirmed **35/35 backend tests pass** (12 new v2 + 23 v1 regression). Frontend end-to-end Recommender → Wizard prefill flow verified; Bundle History sub-tab confirmed via screenshot showing the persisted `PB_CompleteBundle_SandeepKathale_AU_VA-3F0A0162DD.zip` (45 KB) with Download button.
+
+⚠️ **Deploy required** — preview only. On first production hit, `_ensure_seeds()` will auto-de-duplicate the live DB (idempotent). If you still see duplicate country tiles on `intra.purnabramha.com` immediately after deploy, super-admin can hit `POST /api/visa/admin/cleanup-duplicates` once to force it.
+
+---
+
+
 ### [2026-02-18 — Visa Helper: Send to Immigration Lawyer (preview + one-click ZIP)] (P1)
 
 Add-on to the new Visa Helper module: a polished **"Send to Immigration Lawyer"** flow on the Wizard's Review step.
