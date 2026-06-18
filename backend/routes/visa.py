@@ -224,7 +224,7 @@ _DEFAULT_SIGNATORIES = [
 
 async def _ensure_seeds():
     """Idempotent seeding — runs once per backend restart if collection empty."""
-    if not _db:
+    if _db is None:
         return
     if await _db.visa_countries.count_documents({}) == 0:
         await _db.visa_countries.insert_many(

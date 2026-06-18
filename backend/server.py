@@ -2413,6 +2413,18 @@ app.include_router(creative_library_router)
 from routes.financial_health import router as financial_health_router
 app.include_router(financial_health_router)
 
+# Visa Helper / Global Mobility (HR > Visa Helper, Super Admin + Founder only)
+from routes.visa import (
+    router as visa_router,
+    set_db as set_visa_db,
+    set_verify_token as set_visa_verify_token,
+    set_verify_token_async as set_visa_verify_token_async,
+)
+set_visa_db(db)
+set_visa_verify_token(verify_token)
+set_visa_verify_token_async(verify_token_async)
+app.include_router(visa_router)
+
 
 
 @app.on_event("startup")

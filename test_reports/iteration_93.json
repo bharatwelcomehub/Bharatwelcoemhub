@@ -1,0 +1,51 @@
+{
+  "summary": "Tested Visa Helper module end-to-end. Backend: 18/23 pytest tests pass — list endpoints, application CRUD, report generation, AI letter drafting (Claude Sonnet 4.5), PDF/Excel/Word/ZIP exports, and persistence all work. Admin CRUD upsert endpoints (country/pathway/letter-template/entity/signatory) FAIL with 403 even for Super Admin due to a role-check bug. Frontend: /visa-helper renders correctly with title, 3 tabs (Applications, + New Wizard, Admin Panel), sidebar 'Visa Helper' link under HR Management, applications table with Open/Delete actions, Wizard Step 1 with all 6 country tiles (Australia, USA, Japan, Belgium, Europe, Singapore), Admin Panel with 5 sub-tabs and Edit/Delete buttons.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/visa/admin/{country|pathway|letter-template|entity|signatory} (POST + DELETE)",
+        "issue": "All admin CRUD endpoints return 403 'Admin access required (Super Admin / Founder only)' even when called with a valid Super Admin token (mobile 9741399190 / PB-MGT). Root cause: routes/visa.py::_require_admin() (line 84-90) checks only sess.get('role'), but the session returned by /api/verify_otp has NO 'role' key — it sets is_super_admin=true, is_admin=true, role_key='' instead. So the role-membership test ('super_admin','superadmin','founder','director','admin') always fails. This breaks the entire Admin Panel save/edit/delete functionality in the UI.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Admin Panel Add/Edit/Delete (Countries, Pathways, Letter Templates, Entities, Signatories)",
+        "issue": "Admin Panel UI buttons (Add New / Edit / Delete) are visible to Super Admin, but the underlying POST/DELETE calls all return 403 due to the backend role-check bug above. User-visible result: nothing saves, deletes silently fail.",
+        "affected_selectors": ["button:has-text('Add New')", "button:has-text('Edit')", "Admin Panel sub-tab tables"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_visa_helper.py",
+    "/app/test_reports/pytest/visa_helper.xml"
+  ],
+  "action_items": [
+    "Fix routes/visa.py::_require_admin() to also accept is_super_admin=True OR is_admin=True (e.g. if not (sess.get('is_super_admin') or sess.get('is_admin') or (sess.get('role') or '').lower() in (...)): raise 403). This single fix will unblock all 5 admin CRUD endpoints (country, pathway, letter-template, entity, signatory) and the entire Admin Panel UI.",
+    "After fix, re-run /app/backend/tests/test_visa_helper.py — 5 currently-failing admin tests should pass, bringing success to 23/23."
+  ],
+  "critical_code_review_comments": [
+    "_require_admin() only inspects 'role' string. The platform's auth model uses boolean flags (is_super_admin, is_admin) per /api/verify_otp response — visa.py is inconsistent with the rest of the codebase.",
+    "Admin endpoints accept body params containing the token but do not call _require_admin in a consistent way — verify each upsert/delete handler invokes _require_admin (currently does, but check is broken).",
+    "visa.py is 1038 lines — recommend splitting into routes/visa_admin.py, routes/visa_application.py, routes/visa_exports.py for maintainability.",
+    "Non-admin rejection test (franchise token) passes by accident — both super admin and franchise are rejected, so the 403 assertion holds for the wrong reason. Once _require_admin is fixed, retest with franchise token to verify proper rejection."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_visa_helper.py (new)"
+  ],
+  "success_rate": {
+    "backend": "78% (18/23 pytest tests pass)",
+    "frontend": "100% of tested surfaces render (page load, 3 tabs, sidebar link, wizard Step 1 country tiles, Admin Panel 5 sub-tabs). Admin Panel write actions blocked by backend 403."
+  },
+  "test_credentials": "Super Admin: mobile=9741399190, OTP=123456, center=PB-MGT (verified working). Franchise: mobile=8888888888, OTP=123456, center=PB-HSR (verified working).",
+  "seed_data_creation": "Test applications prefixed with TEST_ in applicant.name; one app was created, updated, used for report/letter/exports, then deleted at end of test class. Admin TEST_* fixtures (TEST_ZZ country, TEST_PW1 pathway, etc.) could not be created due to 403 bug.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After E1 fixes _require_admin in /app/backend/routes/visa.py, re-run: cd /app && python -m pytest backend/tests/test_visa_helper.py -v. The 5 currently-failing admin CRUD tests should turn green. Also smoke-test the Admin Panel UI by clicking Edit on a country row, changing a field, and clicking Save — confirm the upsert succeeds and the row updates. AI letter generation costs ~10-15s per letter; the test file uses only 1 letter (director_resolution) to keep cost low. Existing seeded application VA-3F0A0162DD (Sandeep Kathale, Australia) is present in the system from prior manual smoke testing.",
+  "rca_of_the_issue": "RCA for 403 on admin upserts: 1) /api/verify_otp returns session dict with keys: token, center, managerName, mobile, roles(dict), is_super_admin(bool), is_admin(bool), role_key(str) — but NO 'role' string key. 2) routes/visa.py::_require_admin() at line 87 does role = (sess.get('role') or '').lower() — always evaluates to ''. 3) Line 88 checks if role not in ('super_admin','superadmin','founder','director','admin'): raise 403 — '' is never in the set, so EVERY caller gets 403. 4) Reproduction: curl -X POST $BASE/api/visa/admin/country -H 'Content-Type: application/json' -d '{\"token\":\"<super_admin_token>\",\"code\":\"ZZ\",\"name\":\"Test\"}' → 403. 5) Mitigation: in _require_admin add: if sess.get('is_super_admin') or sess.get('is_admin'): return sess BEFORE the role-string check (or combine into single OR)."
+}

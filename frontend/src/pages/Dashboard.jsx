@@ -61,6 +61,7 @@ import BhojanGuru from "@/pages/BhojanGuru";
 import GuestResponse from "@/pages/GuestResponse";
 import RecipeAdmin from "@/pages/RecipeAdmin";
 import HRLetters from "@/pages/HRLetters";
+import VisaHelper from "@/pages/VisaHelper";
 import CentersManagement from "@/pages/CentersManagement";
 import ManagersManagement from "@/pages/ManagersManagement";
 import SalesExpenses from "@/pages/SalesExpenses";
@@ -163,6 +164,7 @@ const menuCategories = [
       { path: "/salary", icon: FileSpreadsheet, label: "Salary", roleKey: "hr" },
       { path: "/payslips", icon: FileText, label: "Payslips", roleKey: "hr" },
       { path: "/hr-letters", icon: Briefcase, label: "HR Letters", roleKey: "hr" },
+      { path: "/visa-helper", icon: Globe, label: "Visa Helper", superAdminOnly: true },
     ]
   },
   {
@@ -655,6 +657,7 @@ export default function Dashboard() {
             <Route path="/salary" element={<Salary />} />
             <Route path="/payslips" element={<Salary isPayslips />} />
             <Route path="/hr-letters" element={<HRLetters />} />
+            <Route path="/visa-helper" element={<VisaHelper />} />
             <Route path="/centers" element={<CentersManagement />} />
             <Route path="/managers" element={<ManagersManagement />} />
             <Route path="/role-management" element={<RoleManagement />} />

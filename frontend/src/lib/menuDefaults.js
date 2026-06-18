@@ -53,6 +53,7 @@ export const MENU_DEFAULTS = [
       { path: "/salary", label: "Salary" },
       { path: "/payslips", label: "Payslips" },
       { path: "/hr-letters", label: "HR Letters" },
+      { path: "/visa-helper", label: "Visa Helper" },
     ],
   },
   {
