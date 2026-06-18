@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/App';
 import { WCOverviewGrid } from '@/components/WCOverviewGrid';
+import { PnLRevenueShareOverview, RevenueShareProjection } from '@/components/PnLRevenueShareViews';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1395,6 +1396,8 @@ export default function CenterAccounts() {
               <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
               <TabsTrigger value="ledgers" data-testid="tab-ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
               <TabsTrigger value="bundles" data-testid="tab-bundles" className="text-purple-600">Bundles &amp; Exports</TabsTrigger>
+              <TabsTrigger value="pnl-rs" data-testid="tab-pnl-rs" className="text-emerald-700">P&amp;L Revenue Share Overview</TabsTrigger>
+              <TabsTrigger value="rs-projection" data-testid="tab-rs-projection" className="text-emerald-700">Revenue Share Projection</TabsTrigger>
             </TabsList>
 
             {/* Overview Tab — 11-item Snapshot */}
@@ -3417,6 +3420,14 @@ export default function CenterAccounts() {
                   </>
                 );
               })()}
+            </TabsContent>
+
+            <TabsContent value="pnl-rs" className="space-y-4" data-testid="pnl-rs-tab-content">
+              <PnLRevenueShareOverview center={selectedCenter} />
+            </TabsContent>
+
+            <TabsContent value="rs-projection" className="space-y-4" data-testid="rs-projection-tab-content">
+              <RevenueShareProjection center={selectedCenter} />
             </TabsContent>
           </Tabs>
         </>

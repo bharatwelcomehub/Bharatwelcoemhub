@@ -4,6 +4,38 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Center Accounts: P&L Revenue Share Overview + Revenue Share Projection] (P0)
+
+Two new tabs added under **Accounts → Center Accounts** (right after *Bundles & Exports*). The existing Overview tab is left untouched.
+
+**New route file**: `/app/backend/routes/pnl_revenue_share.py` (~440 lines — also kicks off the planned refactor away from the 3700-line `center_accounts.py`).
+
+**Endpoints**:
+- `POST /api/center-accounts/pnl-revenue-share-overview` — month-wise grid for a center with filters: `financial_year` (e.g. "2025-26") · `from_month`/`to_month` · `revenue_share_pct` (10/15) · `gst_applicable` (Yes/No, 18% standard). Returns 11 columns: Month · Sale · Expenses · P/L · Revenue Share Base · Revenue Share · Revenue Share + GST · MG · MG + GST · Amount Paid · Profit Share MFPL — plus a totals object.
+- `POST /api/center-accounts/revenue-share-projection` — forward projection for 1-5 years. Seeds baseline from the last 3 months that had actual sales (scans up to 18 months back to handle gaps); compounds Sale × (1 + sales_growth%)^i, Expense × (1 + expense_growth%)^i. Inputs: `years`, `sales_growth_pct`, `expense_growth_pct`, `gst_pct`, `revenue_share_pct`, `mg_amount` (override, else last actual), `start_month` (else next month after last actual).
+- `POST /api/center-accounts/pnl-revenue-share-overview/export-pdf` / `export-excel` — landscape PDF + XLSX with Purnabramha logo (if present), center name, period, full grid, total row at TOP, "Prepared by: System", account manager line, download date.
+- `POST /api/center-accounts/revenue-share-projection/export-pdf` / `export-excel` — same export pattern for projections.
+
+**Formulas** (matches existing `/payout-summary` engine):
+- P/L = `Sale − Expenses − Commission − GST_on_sales`
+- Revenue Share Base = `Sale − Commission [− GST]` (honours per-month GST treatment toggle)
+- Revenue Share = `max(0, RS Base) × pct` · with-GST = `RS × 1.18` when GST filter = Yes
+- MG from `calculate_mg()` (existing) · with-GST = `MG × 1.18` when GST filter = Yes
+- Amount Paid = sum of `payout_payments.amount` for that month (actual disbursed — user-confirmed convention)
+- Profit Share MFPL = `Sale − Expenses − Amount Paid` (user-specified)
+
+**Frontend**: `/app/frontend/src/components/PnLRevenueShareViews.jsx` exposes `PnLRevenueShareOverview` and `RevenueShareProjection`. Both wired as new tabs inside `CenterAccounts.jsx` (after *Bundles & Exports*). Tab IDs: `tab-pnl-rs`, `tab-rs-projection`. Layout: sticky dark header + bold amber **TOTAL row at the top** + monthly rows; PDF / Excel download buttons in the card header.
+
+**Verified** on preview with center `PB-HSR` FY 2025-26:
+- 12 monthly rows · Totals: Sale ₹1.17 Cr · Expenses ₹88.4 L · Revenue Share ₹16.99 L · Rev Share + GST ₹20.05 L · Amount Paid ₹1.25 L · Profit Share MFPL ₹28.31 L
+- 3-year projection rendered 36 rows · Sales grow from ₹10.39 L (Jan-2026, seeded from Oct-Dec 2025 actuals) to ₹57.29 L (Dec-2028) at 5% MoM compounding.
+- PDF export = 4.1 KB landscape · Excel export = 6.5 KB
+
+⚠️ **Deploy required** — these tabs are in preview only.
+
+---
+
+
 ### [2026-02-18 — Visa Helper letter generation: background-job + thread-pool fix] (P0 hotfix)
 
 User reported on production (`intra.purnabramha.com`): **"Letter generation failed"** + **"Failed to fetch"** when clicking *Generate AI Letters* with All letters (15) scope.

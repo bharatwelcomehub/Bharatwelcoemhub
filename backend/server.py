@@ -2425,6 +2425,18 @@ set_visa_verify_token(verify_token)
 set_visa_verify_token_async(verify_token_async)
 app.include_router(visa_router)
 
+# P&L Revenue Share Overview + Revenue Share Projection (Center Accounts)
+from routes.pnl_revenue_share import (
+    router as pnl_rs_router,
+    set_db as set_pnl_rs_db,
+    set_verify_token as set_pnl_rs_verify_token,
+    set_verify_token_async as set_pnl_rs_verify_token_async,
+)
+set_pnl_rs_db(db)
+set_pnl_rs_verify_token(verify_token)
+set_pnl_rs_verify_token_async(verify_token_async)
+app.include_router(pnl_rs_router)
+
 
 
 @app.on_event("startup")
