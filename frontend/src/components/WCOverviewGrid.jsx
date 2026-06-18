@@ -142,7 +142,9 @@ export function WCOverviewGrid({ apiBase, token, center, country, cur = "Rs." })
     commission: acc.commission + Number(r.commission || 0),
     operational_balance: acc.operational_balance + Number(r.operational_balance || 0),
     revenue_share_base: acc.revenue_share_base + Number(r.revenue_share_base || 0),
-  }), { sale: 0, gst: 0, expenses: 0, commission: 0, operational_balance: 0, revenue_share_base: 0 }), [rows]);
+    topup: acc.topup + Number(r.topup || 0),
+    other_income: acc.other_income + Number(r.other_income || 0),
+  }), { sale: 0, gst: 0, expenses: 0, commission: 0, operational_balance: 0, revenue_share_base: 0, topup: 0, other_income: 0 }), [rows]);
 
   const setEdit = (month, field, value) => {
     setEdits((d) => ({ ...d, [month]: { ...(d[month] || {}), [field]: value } }));
@@ -249,53 +251,64 @@ export function WCOverviewGrid({ apiBase, token, center, country, cur = "Rs." })
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs" data-testid="wc-overview-table">
+          <table className="w-full text-[11px]" data-testid="wc-overview-table">
             <thead>
               <tr className="bg-purple-50 border-b border-purple-200 text-purple-900">
-                <th className="text-left py-2 px-3 font-semibold">Month</th>
-                <th className="text-right py-2 px-3 font-semibold">Opening WC</th>
-                <th className="text-right py-2 px-3 font-semibold">Sales</th>
-                <th className="text-right py-2 px-3 font-semibold w-[110px]">GST <span className="text-amber-600">✎</span></th>
-                <th className="text-right py-2 px-3 font-semibold w-[110px]">Expenses <span className="text-amber-600">✎</span></th>
-                <th className="text-right py-2 px-3 font-semibold w-[110px]">Commissions <span className="text-amber-600">✎</span></th>
-                <th className="text-right py-2 px-3 font-semibold">Net Available</th>
-                <th className="text-right py-2 px-3 font-semibold">Revenue Share Base</th>
-                <th className="text-right py-2 px-3 font-semibold w-[110px]">WC Adj <span className="text-amber-600">✎</span></th>
-                <th className="text-right py-2 px-3 font-semibold">Closing WC</th>
-                <th className="text-center py-2 px-3 font-semibold w-[100px]">Action</th>
+                <th className="text-left py-2 px-2 font-semibold">Month</th>
+                <th className="text-right py-2 px-2 font-semibold">Opening WC</th>
+                <th className="text-right py-2 px-2 font-semibold">Sales</th>
+                <th className="text-right py-2 px-1 font-semibold w-[95px]">GST <span className="text-amber-600">✎</span></th>
+                <th className="text-right py-2 px-1 font-semibold w-[95px]">Expenses <span className="text-amber-600">✎</span></th>
+                <th className="text-right py-2 px-1 font-semibold w-[95px]">Commissions <span className="text-amber-600">✎</span></th>
+                <th className="text-right py-2 px-2 font-semibold">Net Available</th>
+                <th className="text-right py-2 px-2 font-semibold">Rev Share Base</th>
+                <th className="text-right py-2 px-1 font-semibold w-[95px]">WC Adj <span className="text-amber-600">✎</span></th>
+                <th className="text-right py-2 px-2 font-semibold">Topup</th>
+                <th className="text-right py-2 px-2 font-semibold">Other Inc.</th>
+                <th className="text-right py-2 px-2 font-semibold">Closing WC</th>
+                <th className="text-right py-2 px-2 font-semibold">Diff WC</th>
+                <th className="text-right py-2 px-2 font-semibold">WC %</th>
+                <th className="text-center py-2 px-2 font-semibold w-[100px]">Action</th>
               </tr>
               {rows.length > 0 && (
                 <tr className="bg-amber-50 border-b-2 border-amber-300 font-bold" data-testid="wc-overview-totals-row">
-                  <td className="py-2 px-3 text-amber-900 uppercase text-[10px] tracking-wider">Total</td>
-                  <td className="py-2 px-3 text-right text-amber-900">—</td>
-                  <td className="py-2 px-3 text-right text-blue-900" data-testid="wc-totals-sales">{fmt(totals.sale, cur)}</td>
-                  <td className="py-2 px-3 text-right text-orange-700" data-testid="wc-totals-gst">{fmt(totals.gst, cur)}</td>
-                  <td className="py-2 px-3 text-right text-rose-700" data-testid="wc-totals-expenses">{fmt(totals.expenses, cur)}</td>
-                  <td className="py-2 px-3 text-right text-rose-700" data-testid="wc-totals-commissions">{fmt(totals.commission, cur)}</td>
-                  <td className="py-2 px-3 text-right text-emerald-700" data-testid="wc-totals-netavail">{fmt(totals.operational_balance, cur)}</td>
-                  <td className="py-2 px-3 text-right text-sky-900" data-testid="wc-totals-rev-share-base">{fmt(totals.revenue_share_base, cur)}</td>
-                  <td className="py-2 px-3 text-right text-amber-900">—</td>
-                  <td className="py-2 px-3 text-right text-amber-900">—</td>
-                  <td className="py-2 px-3 text-center text-amber-900">—</td>
+                  <td className="py-2 px-2 text-amber-900 uppercase text-[10px] tracking-wider">Total</td>
+                  <td className="py-2 px-2 text-right text-amber-900">—</td>
+                  <td className="py-2 px-2 text-right text-blue-900" data-testid="wc-totals-sales">{fmtNum(totals.sale)}</td>
+                  <td className="py-2 px-2 text-right text-orange-700" data-testid="wc-totals-gst">{fmtNum(totals.gst)}</td>
+                  <td className="py-2 px-2 text-right text-rose-700" data-testid="wc-totals-expenses">{fmtNum(totals.expenses)}</td>
+                  <td className="py-2 px-2 text-right text-rose-700" data-testid="wc-totals-commissions">{fmtNum(totals.commission)}</td>
+                  <td className="py-2 px-2 text-right text-emerald-700" data-testid="wc-totals-netavail">{fmtNum(totals.operational_balance)}</td>
+                  <td className="py-2 px-2 text-right text-sky-900" data-testid="wc-totals-rev-share-base">{fmtNum(totals.revenue_share_base)}</td>
+                  <td className="py-2 px-2 text-right text-amber-900">—</td>
+                  <td className="py-2 px-2 text-right text-cyan-700" data-testid="wc-totals-topup">{fmtNum(totals.topup)}</td>
+                  <td className="py-2 px-2 text-right text-teal-700" data-testid="wc-totals-other-income">{fmtNum(totals.other_income)}</td>
+                  <td className="py-2 px-2 text-right text-amber-900">—</td>
+                  <td className="py-2 px-2 text-right text-amber-900">—</td>
+                  <td className="py-2 px-2 text-right text-amber-900">—</td>
+                  <td className="py-2 px-2 text-center text-amber-900">—</td>
                 </tr>
               )}
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={11} className="py-6 text-center text-muted-foreground"><Loader2 className="w-4 h-4 inline mr-2 animate-spin" /> Loading…</td></tr>
+                <tr><td colSpan={15} className="py-6 text-center text-muted-foreground"><Loader2 className="w-4 h-4 inline mr-2 animate-spin" /> Loading…</td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={11} className="py-6 text-center text-muted-foreground">No data available for this center.</td></tr>
+                <tr><td colSpan={15} className="py-6 text-center text-muted-foreground">No data available for this center.</td></tr>
               )}
               {!loading && rows.map((r) => {
                 const opBalance = Number(r.operational_balance || 0);
                 const rsbVal = Number(r.revenue_share_base || 0);
                 const closing = Number(r.closing_wc || 0);
+                const opening = Number(r.opening_wc || 0);
+                const diffWC = closing - opening;
+                const wcPct = Number(r.wc_percentage || 0);
                 return (
                   <tr key={r.month} className={`border-b border-gray-100 hover:bg-purple-50/40 ${r._dirty ? "bg-amber-50/50" : ""}`} data-testid={`wc-overview-row-${r.month}`}>
-                    <td className="py-1 px-3 font-medium">{fmtMonth(r.month)}</td>
-                    <td className="py-1 px-3 text-right text-gray-700">{fmtNum(r.opening_wc)}</td>
-                    <td className="py-1 px-3 text-right text-blue-700">{fmtNum(r.sale)}</td>
+                    <td className="py-1 px-2 font-medium">{fmtMonth(r.month)}</td>
+                    <td className="py-1 px-2 text-right text-gray-700">{fmtNum(opening)}</td>
+                    <td className="py-1 px-2 text-right text-blue-700">{fmtNum(r.sale)}</td>
                     <td className="py-1 px-1">
                       <NumCell value={r.gst} onChange={(v) => setEdit(r.month, "gst", v)} testid={`wc-edit-gst-${r.month}`} />
                     </td>
@@ -305,13 +318,25 @@ export function WCOverviewGrid({ apiBase, token, center, country, cur = "Rs." })
                     <td className="py-1 px-1">
                       <NumCell value={r.commission} onChange={(v) => setEdit(r.month, "commission", v)} testid={`wc-edit-commission-${r.month}`} />
                     </td>
-                    <td className={`py-1 px-3 text-right font-semibold ${opBalance >= 0 ? "text-emerald-700" : "text-red-700"}`}>{fmtNum(opBalance)}</td>
-                    <td className="py-1 px-3 text-right text-sky-700">{fmtNum(rsbVal)}</td>
+                    <td className={`py-1 px-2 text-right font-semibold ${opBalance >= 0 ? "text-emerald-700" : "text-red-700"}`}>{fmtNum(opBalance)}</td>
+                    <td className="py-1 px-2 text-right text-sky-700">{fmtNum(rsbVal)}</td>
                     <td className="py-1 px-1">
                       <NumCell value={r.wc_adjustment} onChange={(v) => setEdit(r.month, "wc_adjustment", v)} testid={`wc-edit-wcadj-${r.month}`} />
                     </td>
-                    <td className={`py-1 px-3 text-right font-semibold ${closing >= 0 ? "text-purple-700" : "text-red-700"}`}>{fmtNum(closing)}</td>
-                    <td className="py-1 px-3 text-center">
+                    <td className={`py-1 px-2 text-right ${Number(r.topup) > 0 ? "text-cyan-700 font-semibold" : "text-gray-400"}`} data-testid={`wc-topup-${r.month}`}>
+                      {Number(r.topup) > 0 ? fmtNum(r.topup) : "—"}
+                    </td>
+                    <td className={`py-1 px-2 text-right ${Number(r.other_income) > 0 ? "text-teal-700 font-semibold" : "text-gray-400"}`} data-testid={`wc-other-income-${r.month}`}>
+                      {Number(r.other_income) > 0 ? fmtNum(r.other_income) : "—"}
+                    </td>
+                    <td className={`py-1 px-2 text-right font-semibold ${closing >= 0 ? "text-purple-700" : "text-red-700"}`}>{fmtNum(closing)}</td>
+                    <td className={`py-1 px-2 text-right font-semibold ${diffWC >= 0 ? "text-emerald-700" : "text-red-700"}`} data-testid={`wc-diff-${r.month}`}>
+                      {diffWC >= 0 ? "+" : ""}{fmtNum(diffWC)}
+                    </td>
+                    <td className={`py-1 px-2 text-right font-semibold ${wcPct >= 100 ? "text-emerald-700" : wcPct >= 50 ? "text-amber-700" : "text-red-700"}`} data-testid={`wc-pct-${r.month}`}>
+                      {wcPct.toFixed(1)}%
+                    </td>
+                    <td className="py-1 px-2 text-center">
                       {r._dirty ? (
                         <div className="flex gap-1 justify-center">
                           <Button size="sm" variant="ghost" className="h-7 px-2 text-emerald-700 hover:bg-emerald-100"
@@ -339,8 +364,9 @@ export function WCOverviewGrid({ apiBase, token, center, country, cur = "Rs." })
         {rows.length > 0 && (
           <div className="px-3 py-2 text-[10px] text-muted-foreground border-t bg-gray-50 space-y-0.5">
             <div>{country === "Australia" ? "AU" : "India"} center · Single Financial Engine.</div>
-            <div><strong>Net Available</strong> = Sales − Expenses − Commissions · <strong>Revenue Share Base</strong> = Sales − Commissions − GST · <strong>Closing WC</strong> = Opening + Net Avail + WC Adj + Topup.</div>
-            <div className="text-amber-700">✎ editable cells auto-recompute the row live; click <Save className="w-3 h-3 inline" /> to commit. Sales is read-only (sourced from Daily Sales).</div>
+            <div><strong>Net Available</strong> = Sales − Expenses − Commissions · <strong>Revenue Share Base</strong> = Sales − Commissions − GST · <strong>Closing WC</strong> = Opening + Net Avail + WC Adj + Topup + Other Income.</div>
+            <div><strong>Diff WC</strong> = Closing − Opening (green = gained capital · red = lost) · <strong>WC %</strong> = Closing ÷ Base × 100 (≥100% active · 50–99% restoring · &lt;50% blocked).</div>
+            <div className="text-amber-700">✎ editable cells auto-recompute the row live; click <Save className="w-3 h-3 inline" /> to commit. Topup is added via the dedicated &ldquo;Add Top-up&rdquo; action elsewhere on this page. Sales is read-only (sourced from Daily Sales).</div>
           </div>
         )}
       </CardContent>

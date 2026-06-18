@@ -4,6 +4,29 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — WC Overview Grid: added 4 legacy columns user was missing] (P1)
+
+User confirmed (option 1): *"Add all 4 missing columns and keep Revenue Share Base."*
+
+Added to `WCOverviewGrid.jsx`:
+
+| Column | What it shows |
+|---|---|
+| **Topup** | Manual WC top-up amount for the month (read-only; green when > 0, dash otherwise). Added via the existing dedicated "Add Top-up" dialog. |
+| **Other Income** | Non-operational income line (refunds, scrap, etc.). Read-only; teal when > 0. |
+| **Diff WC** | Closing − Opening (net WC change for the month). Green +Δ = gained capital, red −Δ = lost capital. Includes the "+" sign for positive deltas. |
+| **WC %** | Closing ÷ Base × 100. Colour-coded against the policy thresholds: green ≥100% (active), amber 50-99% (restoring), red <50% (blocked). |
+
+Grid now has **15 columns** matching the legacy WC chain + the new Revenue Share Base + editable controls. Totals row updated to include Topup and Other Income sums. Footer caption explains the new column formulas and colour thresholds.
+
+All 4 fields are already returned by `/api/center-accounts/wc-table` — purely a frontend addition, no backend change.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-18 — WC Overview Grid made editable with live recalculation] (P1)
 
 User feedback: *"and all are editable but all are having calculation on it like what we were having before — same thing u have to bring it back."*
