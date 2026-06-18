@@ -10,13 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Globe, FileText, Loader2, Sparkles, Download, Plus, Trash2,
   ChevronLeft, ChevronRight, RefreshCw, FilePlus2, Users,
   Flag, BookOpen, Building2, PenSquare, ListChecks, Award,
-  Ban, CheckCircle2, ArrowLeft, FileArchive,
+  Ban, CheckCircle2, ArrowLeft, FileArchive, Send, Briefcase, AlertTriangle,
 } from "lucide-react";
 
 const STEPS = [
@@ -57,6 +60,23 @@ async function downloadAuthed(path, filename) {
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`Download failed (${res.status}): ${txt.slice(0, 120)}`);
+  }
+  const blob = await res.blob();
+  const objUrl = URL.createObjectURL(blob);
+  downloadBlob(objUrl, filename);
+  setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
+}
+
+async function downloadAuthedPost(path, body, filename) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, ...body }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Download failed (${res.status}): ${txt.slice(0, 160)}`);
   }
   const blob = await res.blob();
   const objUrl = URL.createObjectURL(blob);
@@ -286,6 +306,13 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
   const [generatingLetters, setGeneratingLetters] = useState(false);
   const [letterScope, setLetterScope] = useState("all");
 
+  // Lawyer-bundle dialog state
+  const [lawyerOpen, setLawyerOpen] = useState(false);
+  const [lawyerPreview, setLawyerPreview] = useState(null);
+  const [lawyerForm, setLawyerForm] = useState({ lawyer_name: "", lawyer_firm: "", notes: "" });
+  const [lawyerLoading, setLawyerLoading] = useState(false);
+  const [lawyerDownloading, setLawyerDownloading] = useState(false);
+
   // Hydrate from prefill (if user opened a saved app)
   useEffect(() => {
     if (prefill && prefill.application_id) {
@@ -400,6 +427,54 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
       `/visa/application/${applicationId}/letter/${letter_key}/word`,
       `${letter_name}_${applicationId}.docx`,
     ).catch((e) => toast.error(e.message));
+  };
+
+  const openLawyerBundle = async () => {
+    if (!applicationId) {
+      toast.error("Save the application first");
+      return;
+    }
+    setLawyerOpen(true);
+    setLawyerLoading(true);
+    setLawyerPreview(null);
+    try {
+      const res = await api.post(`/visa/application/${applicationId}/lawyer-bundle-preview`, {
+        token: getToken(),
+        lawyer_name: lawyerForm.lawyer_name,
+        lawyer_firm: lawyerForm.lawyer_firm,
+        notes: lawyerForm.notes,
+      });
+      setLawyerPreview(res.data);
+    } catch (err) {
+      toast.error("Failed to load bundle preview");
+      console.error(err);
+    } finally {
+      setLawyerLoading(false);
+    }
+  };
+
+  const downloadLawyerBundle = async () => {
+    if (!applicationId) return;
+    setLawyerDownloading(true);
+    try {
+      const applicantSafe = (applicant.name || "Applicant").replace(/\s+/g, "_");
+      await downloadAuthedPost(
+        `/visa/application/${applicationId}/lawyer-bundle`,
+        {
+          lawyer_name: lawyerForm.lawyer_name,
+          lawyer_firm: lawyerForm.lawyer_firm,
+          notes: lawyerForm.notes,
+        },
+        `PB_VisaBundle_${applicantSafe}_${countryCode}_${applicationId}.zip`,
+      );
+      toast.success("Lawyer bundle downloaded — ready to email to counsel");
+      setLawyerOpen(false);
+      onSaved?.();
+    } catch (e) {
+      toast.error(e.message || "Bundle download failed");
+    } finally {
+      setLawyerDownloading(false);
+    }
   };
 
   const resetWizard = () => {
@@ -652,6 +727,7 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
             onDownloadChecklist={downloadChecklist}
             onDownloadZip={downloadZip}
             onDownloadLetterWord={downloadLetterWord}
+            onOpenLawyerBundle={openLawyerBundle}
           />
         )}
 
@@ -674,6 +750,101 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
           )}
         </div>
       </CardContent>
+
+      {/* Send to Immigration Lawyer dialog */}
+      <Dialog open={lawyerOpen} onOpenChange={setLawyerOpen}>
+        <DialogContent className="max-w-2xl" data-testid="visa-lawyer-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" /> Send to Immigration Lawyer
+            </DialogTitle>
+            <DialogDescription>
+              Preview the complete bundle Purnabramha will hand to immigration counsel — cover letter, readiness report, checklist, all drafted support letters and a manifest.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <Field label="Lawyer Name">
+              <Input
+                value={lawyerForm.lawyer_name}
+                onChange={(e) => setLawyerForm((p) => ({ ...p, lawyer_name: e.target.value }))}
+                placeholder="e.g. Ms. Asha Khan"
+                data-testid="visa-lawyer-name"
+              />
+            </Field>
+            <Field label="Lawyer Firm">
+              <Input
+                value={lawyerForm.lawyer_firm}
+                onChange={(e) => setLawyerForm((p) => ({ ...p, lawyer_firm: e.target.value }))}
+                placeholder="e.g. Khan Immigration LLP"
+                data-testid="visa-lawyer-firm"
+              />
+            </Field>
+            <Field label="Specific Notes / Requests" wide>
+              <Textarea
+                rows={2}
+                value={lawyerForm.notes}
+                onChange={(e) => setLawyerForm((p) => ({ ...p, notes: e.target.value }))}
+                placeholder="Anything you want the lawyer to focus on (e.g. expedite AU 482 review, confirm IELTS waiver eligibility)…"
+                data-testid="visa-lawyer-notes"
+              />
+            </Field>
+          </div>
+
+          <div className="border rounded p-3 bg-slate-50 max-h-80 overflow-auto" data-testid="visa-lawyer-preview">
+            {lawyerLoading ? (
+              <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading bundle preview…</div>
+            ) : lawyerPreview ? (
+              <div className="space-y-2">
+                <div className="text-xs text-muted-foreground">
+                  Bundle for <b>{lawyerPreview.applicant_name || "—"}</b> · {lawyerPreview.country_code || "—"} · <b>{lawyerPreview.file_count}</b> file(s)
+                </div>
+                {(lawyerPreview.warnings || []).map((w, i) => (
+                  <div key={i} className="text-xs flex items-start gap-1 bg-amber-100 border border-amber-300 rounded p-2 text-amber-800" data-testid={`visa-lawyer-warning-${i}`}>
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" /> <span>{w}</span>
+                  </div>
+                ))}
+                <table className="w-full text-xs">
+                  <thead className="text-left bg-white border-b">
+                    <tr>
+                      <th className="p-1 w-12">#</th>
+                      <th className="p-1">File</th>
+                      <th className="p-1 w-16">Kind</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(lawyerPreview.files || []).map((f) => (
+                      <tr key={f.name} className="border-b last:border-0">
+                        <td className="p-1 font-mono">{f.order}</td>
+                        <td className="p-1">
+                          <div className="font-medium">{f.name}</div>
+                          <div className="text-muted-foreground">{f.description}</div>
+                        </td>
+                        <td className="p-1"><Badge variant="outline" className="text-xs">{f.kind}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">No preview yet.</div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 items-stretch">
+            <Button variant="outline" size="sm" onClick={() => setLawyerOpen(false)} data-testid="visa-lawyer-cancel">Close</Button>
+            <Button
+              size="sm"
+              onClick={downloadLawyerBundle}
+              disabled={!lawyerPreview || lawyerDownloading}
+              data-testid="visa-lawyer-download"
+            >
+              {lawyerDownloading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
+              Download Bundle (.zip)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -687,6 +858,7 @@ function ReviewStep({
   generatingReport, generatingLetters, saving,
   onSave, onGenerateReport, onGenerateLetters,
   onDownloadReport, onDownloadChecklist, onDownloadZip, onDownloadLetterWord,
+  onOpenLawyerBundle,
 }) {
   const countryName = countries.find((c) => c.code === countryCode)?.name || countryCode;
 
@@ -750,6 +922,15 @@ function ReviewStep({
               </Button>
               <Button size="sm" variant="outline" disabled={!applicationId} onClick={onDownloadZip} data-testid="visa-dl-zip">
                 <FileArchive className="h-3.5 w-3.5 mr-1" /> ZIP Bundle
+              </Button>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={!applicationId}
+                onClick={onOpenLawyerBundle}
+                data-testid="visa-lawyer-bundle-btn"
+              >
+                <Briefcase className="h-3.5 w-3.5 mr-1" /> Send to Immigration Lawyer
               </Button>
             </div>
           </CardContent>

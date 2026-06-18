@@ -4,6 +4,62 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Visa Helper: Send to Immigration Lawyer (preview + one-click ZIP)] (P1)
+
+Add-on to the new Visa Helper module: a polished **"Send to Immigration Lawyer"** flow on the Wizard's Review step.
+
+**Backend** (`/app/backend/routes/visa.py`):
+- `POST /api/visa/application/{aid}/lawyer-bundle-preview` — returns a typed file manifest (order, name, kind, description) + warnings (e.g. missing report or zero letters) so the UI can show users exactly what will ship before they click download.
+- `POST /api/visa/application/{aid}/lawyer-bundle` — builds an enhanced ZIP with structured ordering:
+  - `00_COVER_LETTER_TO_LAWYER.pdf` — newly generated, lawyer-facing cover letter (ReportLab) addressed to `lawyer_name` / `lawyer_firm`, with applicant snapshot, proposed role, internal readiness assessment, open risks, contents map, and notes provided by the caller.
+  - `01_Visa_Readiness_Report.pdf` (existing report engine).
+  - `02_Letter_Checklist.xlsx` (existing checklist engine).
+  - `03_Letters/<safe_name>.docx` for every drafted letter.
+  - `99_manifest.txt` machine-readable manifest including who/where it was addressed.
+- Filename: `PB_VisaBundle_{ApplicantName}_{CountryCode}_{AID}.zip`.
+- Audit trail: persists `lawyer_dispatch` (lawyer name, firm, notes, generated_at) on the application doc and bumps `status` to `lawyer_bundle_ready`.
+
+**Frontend** (`/app/frontend/src/pages/VisaHelper.jsx`):
+- New emerald-green **Send to Immigration Lawyer** button on the Review step, next to PDF / Excel / ZIP downloads.
+- Click opens a **preview Dialog** with lawyer name / firm / notes inputs, a live file-manifest table (#, file name + description, kind badge), warnings if the report or letters are missing, and a single **Download Bundle (.zip)** CTA.
+- Uses a new `downloadAuthedPost()` helper so the POST body carries lawyer metadata and the response streams as a Blob download.
+
+**Verified live** (PB-MGT super admin, AID `VA-3F0A0162DD`): preview returns 5 files (cover, report, checklist, 1 letter, manifest), POST `/lawyer-bundle` returns a 49 KB zip with the expected entries; UI dialog renders the manifest table and download button.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
+### [2026-02-18 — Visa Helper / Global Mobility module shipped] (P0)
+
+Brand-new intranet module under **HR Management → Visa Helper**, restricted to Super Admin + Founders.
+
+**Backend** (`/app/backend/routes/visa.py`, ~1050 lines, wired in `server.py`):
+- **Seeded masters**: 6 priority countries (Australia, USA, Japan, Belgium, Europe, Singapore), 14 visa pathways with min/max age + duration + summary, 15 default letter templates, 1 parent entity (Manaswini Foods Pvt. Ltd.), 2 signatories (Jayanti Kathale, Sandeep Kathale).
+- **Application CRUD**: `POST /api/visa/application` upserts wizard answers (applicant + business), `GET /api/visa/applications`, `GET /application/{id}`, `DELETE /application/{id}`. Non-admin users only see their own apps; Super Admin / Founder see all.
+- **Readiness Report**: `POST /application/{id}/generate-report` runs rule-based suitability scoring (age, experience, English status, document availability), ranks pathways by fit, builds document checklists (company / applicant / family), cost-head estimates, next-step list, and a 15-letter signatory plan.
+- **AI Letter Generation**: `POST /application/{id}/generate-letters` calls Emergent LLM with **Claude Sonnet 4.5** (`emergentintegrations.llm.chat`) using the saved Emergent LLM Key. Scope filter supports `all | company | franchise | personal | resolutions`. Each letter persisted on the application document.
+- **Exports**: `GET /report-pdf` (ReportLab), `GET /checklist-excel` (openpyxl), `GET /letter/{key}/word` (python-docx), `GET /zip` (one-click bundle of PDF + Excel + every Word letter + manifest).
+- **Admin CRUD**: `POST/DELETE /admin/{country|pathway|letter-template|entity|signatory}` — Super-Admin only, enforced via `_require_admin()` checking `is_super_admin` / `is_admin` booleans (the platform's actual session shape).
+
+**Frontend** (`/app/frontend/src/pages/VisaHelper.jsx`, ~1130 lines):
+- Three top-level tabs: **Applications** · **+ New Wizard** · **Admin Panel** (admin tab hidden for non-admins).
+- **Applications list**: table with App ID, Applicant, Country, Status, Updated + Open / Delete actions.
+- **10-step Wizard**: Country selection (tile grid with flags + available pathways preview) → Applicant → Education & Skills → Experience → Family (conditional spouse/children fields) → Business / Role → Signatory & Entity → Documents-ready toggles → Goals & Notes → Review.
+- **Review step**: Save Draft · Generate Readiness Report (renders suitability badge, risks list, ranked-pathways table, document checklists, letter checklist) · Generate AI Letters with scope picker (Claude Sonnet 4.5) · per-letter expandable view with `.docx` download · top-level PDF / Excel / ZIP download buttons.
+- **Admin Panel**: 5 sub-tabs (Countries, Pathways, Letter Templates, Entities, Signatories) each rendered by a generic `CRUDTable` component supporting Add / Edit / Delete with mixed inputs (text, number, textarea, select).
+- Sidebar entry under HR Management with `superAdminOnly: true`.
+
+**Testing**: 23/23 pytest tests pass (`/app/backend/tests/test_visa_helper.py`) covering list endpoints, application CRUD, report + letter generation, all 4 export formats, admin CRUD upsert/delete on all 5 collections, plus non-admin 403 rejection. Frontend rendering verified via testing agent (page load, 3 tabs, sidebar link, 6 country tiles, 5 admin sub-tabs).
+
+**Bug fixed mid-test**: `_require_admin()` originally only checked a `role` string; the platform's `/api/verify_otp` response uses `is_super_admin` / `is_admin` boolean flags instead, causing all admin upserts to return 403. Patched to accept booleans first, role-string as fallback.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-18 — WC Overview Grid: added 4 legacy columns user was missing] (P1)
 
 User confirmed (option 1): *"Add all 4 missing columns and keep Revenue Share Base."*

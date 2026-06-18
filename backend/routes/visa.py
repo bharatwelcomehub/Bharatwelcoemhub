@@ -82,12 +82,20 @@ async def _auth(token: str) -> dict:
 
 
 async def _require_admin(token: str) -> dict:
-    """Spec: admin panel restricted to Super Admin + Founders only."""
+    """Spec: admin panel restricted to Super Admin + Founders only.
+
+    The platform's session shape (from /api/verify_otp) uses boolean flags
+    (`is_super_admin`, `is_admin`) rather than a single `role` string, so we
+    accept either flag first, then fall back to a role-name allowlist for
+    legacy sessions.
+    """
     sess = await _auth(token)
-    role = (sess.get("role") or "").lower()
-    if role not in ("super_admin", "superadmin", "founder", "director", "admin"):
-        raise HTTPException(403, "Admin access required (Super Admin / Founder only)")
-    return sess
+    if sess.get("is_super_admin") or sess.get("is_admin"):
+        return sess
+    role = (sess.get("role") or sess.get("role_key") or "").lower()
+    if role in ("super_admin", "superadmin", "founder", "director", "admin"):
+        return sess
+    raise HTTPException(403, "Admin access required (Super Admin / Founder only)")
 
 
 def _doc_id() -> str:
@@ -430,10 +438,12 @@ async def upsert_application(req: _ApplicationReq):
 @router.get("/applications")
 async def list_applications(token: str = Query(...)):
     sess = await _auth(token)
-    role = (sess.get("role") or "").lower()
-    q = {}
-    if role not in ("super_admin", "superadmin", "founder", "director", "admin"):
-        q["owner_user"] = sess.get("mobile") or sess.get("email") or "unknown"
+    is_admin = bool(sess.get("is_super_admin") or sess.get("is_admin"))
+    role = (sess.get("role") or sess.get("role_key") or "").lower()
+    if not is_admin and role not in ("super_admin", "superadmin", "founder", "director", "admin"):
+        q = {"owner_user": sess.get("mobile") or sess.get("email") or "unknown"}
+    else:
+        q = {}
     docs = await _db.visa_applications.find(q, {"_id": 0}).sort("updated_at", -1).to_list(None)
     return {"success": True, "applications": docs}
 
@@ -1034,4 +1044,321 @@ async def all_letters_zip(aid: str, token: str = Query(...)):
         content=buf.getvalue(),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="VisaBundle_{aid}.zip"'},
+    )
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Send to Immigration Lawyer — curated bundle with cover letter + preview
+# ─────────────────────────────────────────────────────────────────────────────
+def _safe_name(s: str) -> str:
+    return "".join(c for c in (s or "") if c.isalnum() or c in "._- ").replace(" ", "_")
+
+
+def _lawyer_cover_pdf_bytes(app_doc: dict, country: dict, ent: dict, sig: dict,
+                            lawyer_name: str, lawyer_firm: str, notes: str) -> bytes:
+    """Generates a polished, lawyer-facing cover letter PDF."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle("T", parent=styles["Heading1"], fontSize=16,
+                           textColor=colors.HexColor("#800020"))
+    h2 = ParagraphStyle("H2", parent=styles["Heading2"], fontSize=11,
+                        textColor=colors.HexColor("#1a365d"))
+    body = ParagraphStyle("B", parent=styles["Normal"], fontSize=10, leading=14)
+    small = ParagraphStyle("S", parent=body, fontSize=8, textColor=colors.grey)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm,
+                            topMargin=18*mm, bottomMargin=18*mm)
+
+    applicant = app_doc.get("applicant") or {}
+    business = app_doc.get("business") or {}
+    report = app_doc.get("report") or {}
+    letters = app_doc.get("letters") or []
+    today = datetime.now().strftime("%d %B %Y")
+
+    story = [
+        Paragraph(ent.get("name", "Purnabramha"), title),
+        Paragraph(ent.get("address", ""), small),
+        Spacer(1, 6),
+        Paragraph(today, body),
+        Spacer(1, 10),
+        Paragraph(
+            f"To,<br/>"
+            f"<b>{lawyer_name or 'The Immigration Counsel'}</b><br/>"
+            f"{lawyer_firm or ''}",
+            body,
+        ),
+        Spacer(1, 10),
+        Paragraph(
+            f"<b>Subject: Visa Application Bundle — {applicant.get('name', '—')} "
+            f"for {country.get('name', '—')}</b>",
+            body,
+        ),
+        Spacer(1, 8),
+        Paragraph("Dear Counsel,", body),
+        Paragraph(
+            "Please find enclosed the complete preparation bundle for the above-named "
+            "applicant. This pack has been compiled internally by Purnabramha as a "
+            "starting point and is intended for your professional review before any "
+            "filing or lodgement with the relevant immigration authority.",
+            body,
+        ),
+        Spacer(1, 6),
+
+        Paragraph("Applicant Snapshot", h2),
+        Paragraph(
+            f"• <b>Name:</b> {applicant.get('name', '—')}<br/>"
+            f"• <b>Age:</b> {applicant.get('age', '—')} &nbsp;&nbsp; "
+            f"<b>Nationality:</b> {applicant.get('nationality', '—')}<br/>"
+            f"• <b>Total experience:</b> {applicant.get('years_of_experience', '—')} years<br/>"
+            f"• <b>Current role:</b> {applicant.get('current_role', '—')}<br/>"
+            f"• <b>English test status:</b> {applicant.get('english_test_status', '—')} "
+            f"{('('+applicant.get('english_test_score','')+')') if applicant.get('english_test_score') else ''}<br/>"
+            f"• <b>Family included:</b> {'Yes' if applicant.get('family_included') else 'No'}",
+            body,
+        ),
+        Spacer(1, 6),
+
+        Paragraph("Proposed Role", h2),
+        Paragraph(
+            f"• <b>Role offered:</b> {business.get('role_offered', '—')}<br/>"
+            f"• <b>Proposed salary:</b> {business.get('proposed_salary', '—')}<br/>"
+            f"• <b>Proposed start:</b> {business.get('proposed_start_date', '—')}<br/>"
+            f"• <b>Centre / branch:</b> {business.get('proposed_centre', '—')}<br/>"
+            f"• <b>Signing entity:</b> {ent.get('name', '—')}<br/>"
+            f"• <b>Authorised signatory:</b> {sig.get('name', '—')} ({sig.get('role', '—')})",
+            body,
+        ),
+        Spacer(1, 6),
+
+        Paragraph("Internal Readiness Assessment", h2),
+        Paragraph(
+            f"• <b>Suitability:</b> {report.get('suitability', '—')} "
+            f"({report.get('score', 0)}/100)<br/>"
+            f"• <b>Top pathway match:</b> "
+            f"{(report.get('ranked_pathways') or [{}])[0].get('pathway', {}).get('name', '—')}<br/>"
+            f"• <b>Estimated end-to-end timeline:</b> "
+            f"{report.get('estimated_timeline', '—')} months",
+            body,
+        ),
+        Spacer(1, 6),
+    ]
+
+    risks = report.get("risks") or []
+    if risks:
+        story.append(Paragraph("Open Risks to Address", h2))
+        for r in risks[:8]:
+            story.append(Paragraph(f"• {r}", body))
+        story.append(Spacer(1, 6))
+
+    story += [
+        Paragraph("Contents of This Bundle", h2),
+        Paragraph(
+            "1. <b>00_COVER_LETTER_TO_LAWYER.pdf</b> — this cover letter<br/>"
+            "2. <b>01_Visa_Readiness_Report.pdf</b> — full internal assessment "
+            "(suitability, ranked pathways, document checklist, cost heads, next steps)<br/>"
+            "3. <b>02_Letter_Checklist.xlsx</b> — tabular checklist of every supporting letter<br/>"
+            f"4. <b>03_Letters/</b> — {len(letters)} AI-drafted supporting letters in Word "
+            "format (each ready for signatory review &amp; signature)<br/>"
+            "5. <b>99_manifest.txt</b> — machine-readable manifest of the bundle",
+            body,
+        ),
+        Spacer(1, 8),
+    ]
+
+    if notes:
+        story += [
+            Paragraph("Specific Notes / Requests From Purnabramha", h2),
+            Paragraph(notes.replace("\n", "<br/>"), body),
+            Spacer(1, 6),
+        ]
+
+    story += [
+        Paragraph(
+            "We would be grateful if you could (a) confirm the most appropriate visa "
+            "pathway for this case, (b) flag any gaps in the documents or letters provided, "
+            "and (c) advise on next steps and your engagement terms.",
+            body,
+        ),
+        Spacer(1, 10),
+        Paragraph("With kind regards,", body),
+        Spacer(1, 8),
+        Paragraph(f"<b>{sig.get('name', '—')}</b>", body),
+        Paragraph(sig.get("role", "—"), body),
+        Paragraph(ent.get("name", "—"), body),
+        Spacer(1, 12),
+        Paragraph(
+            "Disclaimer: This bundle is an internal preparation pack only. Final visa "
+            "strategy, eligibility and lodgement remain subject to your professional "
+            "advice and the laws of the destination country.",
+            small,
+        ),
+    ]
+    doc.build(story)
+    return buf.getvalue()
+
+
+class _LawyerBundleReq(BaseModel):
+    token: str
+    lawyer_name: Optional[str] = ""
+    lawyer_firm: Optional[str] = ""
+    notes: Optional[str] = ""
+
+
+@router.post("/application/{aid}/lawyer-bundle-preview")
+async def lawyer_bundle_preview(aid: str, req: _LawyerBundleReq = Body(...)):
+    """Return the list of files (no bytes) that will be included in the lawyer bundle."""
+    await _auth(req.token)
+    app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
+    if not app_doc:
+        raise HTTPException(404, "Application not found")
+
+    letters = app_doc.get("letters") or []
+    has_report = bool(app_doc.get("report"))
+    plan_rows = len(((app_doc.get("report") or {}).get("signatory_letter_plan")) or [])
+
+    files = [
+        {"order": "00", "name": "00_COVER_LETTER_TO_LAWYER.pdf",
+         "kind": "PDF", "description": "Professional cover letter addressed to the immigration counsel."},
+    ]
+    if has_report:
+        files.append({"order": "01", "name": "01_Visa_Readiness_Report.pdf",
+                      "kind": "PDF", "description": "Full internal readiness assessment with ranked pathways and document checklists."})
+    files.append({"order": "02", "name": "02_Letter_Checklist.xlsx",
+                  "kind": "Excel", "description": f"Tabular checklist of all {plan_rows or len(letters) or '—'} supporting letters."})
+    for i, lt in enumerate(letters, 1):
+        files.append({
+            "order": f"03.{i:02d}",
+            "name": f"03_Letters/{_safe_name(lt.get('letter_name', 'letter'))}.docx",
+            "kind": "Word",
+            "description": lt.get("subject") or lt.get("letter_name", ""),
+        })
+    files.append({"order": "99", "name": "99_manifest.txt",
+                  "kind": "Text", "description": "Machine-readable manifest of the bundle."})
+
+    warnings = []
+    if not has_report:
+        warnings.append("Readiness report has not been generated yet — bundle will still be created but without `01_Visa_Readiness_Report.pdf`.")
+    if not letters:
+        warnings.append("No AI letters drafted yet — bundle will not include `03_Letters/*.docx`. Generate letters first for a complete pack.")
+
+    return {
+        "success": True,
+        "application_id": aid,
+        "file_count": len(files),
+        "files": files,
+        "warnings": warnings,
+        "applicant_name": (app_doc.get("applicant") or {}).get("name"),
+        "country_code": app_doc.get("country_code"),
+    }
+
+
+@router.post("/application/{aid}/lawyer-bundle")
+async def lawyer_bundle(aid: str, req: _LawyerBundleReq = Body(...)):
+    """One-click curated ZIP for the immigration lawyer: cover letter + report + checklist + letters + manifest."""
+    await _auth(req.token)
+    app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
+    if not app_doc:
+        raise HTTPException(404, "Application not found")
+    country = await _db.visa_countries.find_one({"code": app_doc["country_code"]}, {"_id": 0}) or {}
+    ent = await _db.visa_entities.find_one({"id": (app_doc.get("business") or {}).get("entity_id")}, {"_id": 0}) \
+          or await _db.visa_entities.find_one({}, {"_id": 0}) or {}
+    sig = await _db.visa_signatories.find_one({"id": (app_doc.get("business") or {}).get("signatory_id")}, {"_id": 0}) \
+          or await _db.visa_signatories.find_one({}, {"_id": 0}) or {}
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 00 — cover letter
+        zf.writestr(
+            "00_COVER_LETTER_TO_LAWYER.pdf",
+            _lawyer_cover_pdf_bytes(app_doc, country, ent, sig,
+                                    req.lawyer_name or "", req.lawyer_firm or "",
+                                    req.notes or ""),
+        )
+
+        # 01 — readiness report (if present)
+        if app_doc.get("report"):
+            zf.writestr("01_Visa_Readiness_Report.pdf",
+                        _report_pdf_bytes(app_doc, country, ent, sig))
+
+        # 02 — checklist Excel
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Letter Checklist"
+            plan = (app_doc.get("report") or {}).get("signatory_letter_plan") or []
+            headers = ["Sr. No.", "Letter / Document", "Subject", "Purpose",
+                       "Signed By", "Entity Name", "Country", "Status"]
+            for col, h in enumerate(headers, 1):
+                c = ws.cell(row=1, column=col, value=h)
+                c.font = Font(bold=True, color="FFFFFF")
+                c.fill = PatternFill("solid", fgColor="1a365d")
+            for r in plan:
+                ws.append([r["sr_no"], r["letter_name"], r["subject"], r["purpose"],
+                           r["signed_by"], r["entity_name"], r["country"], r["status"]])
+            xb = io.BytesIO()
+            wb.save(xb)
+            zf.writestr("02_Letter_Checklist.xlsx", xb.getvalue())
+        except Exception as ex:
+            logger.warning(f"lawyer-bundle: checklist failed: {ex}")
+
+        # 03 — letters
+        for letter in app_doc.get("letters") or []:
+            blob = _word_bytes(
+                letter["letter_name"], letter.get("body", ""),
+                sig.get("name", "—"), sig.get("role", "—"), ent.get("name", "—"),
+            )
+            zf.writestr(f"03_Letters/{_safe_name(letter['letter_name'])}.docx", blob)
+
+        # 99 — manifest
+        manifest = (
+            f"PURNABRAMHA — IMMIGRATION LAWYER BUNDLE\n"
+            f"========================================\n"
+            f"Application: {aid}\n"
+            f"Country: {country.get('name', '—')} ({country.get('code', '—')})\n"
+            f"Applicant: {(app_doc.get('applicant') or {}).get('name', '—')}\n"
+            f"Entity: {ent.get('name', '—')}\n"
+            f"Signatory: {sig.get('name', '—')} ({sig.get('role', '—')})\n"
+            f"Addressed to: {req.lawyer_name or '—'} / {req.lawyer_firm or '—'}\n"
+            f"Generated: {_now_iso()}\n"
+            f"\nContents:\n"
+            f"  00_COVER_LETTER_TO_LAWYER.pdf  — cover letter to immigration counsel\n"
+            f"  01_Visa_Readiness_Report.pdf   — internal readiness assessment\n"
+            f"  02_Letter_Checklist.xlsx       — supporting letter checklist\n"
+            f"  03_Letters/*.docx              — {len(app_doc.get('letters') or [])} drafted supporting letters\n"
+            f"  99_manifest.txt                — this file\n"
+            f"\nDisclaimer: Internal preparation pack only. Final visa strategy and "
+            f"lodgement remain subject to professional advice and applicable laws.\n"
+        )
+        zf.writestr("99_manifest.txt", manifest)
+
+    # Audit trail: persist who/when the bundle was generated
+    await _db.visa_applications.update_one(
+        {"application_id": aid},
+        {"$set": {
+            "lawyer_dispatch": {
+                "lawyer_name": req.lawyer_name or "",
+                "lawyer_firm": req.lawyer_firm or "",
+                "notes": req.notes or "",
+                "generated_at": _now_iso(),
+            },
+            "status": "lawyer_bundle_ready",
+            "updated_at": _now_iso(),
+        }},
+    )
+
+    applicant_safe = _safe_name((app_doc.get("applicant") or {}).get("name") or "Applicant")
+    fname = f"PB_VisaBundle_{applicant_safe}_{country.get('code','XX')}_{aid}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
