@@ -4,6 +4,31 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Month-wise Working Capital Overview Grid restored in Overview tab] (P1)
+
+User feedback: *"Add the old Overview screen back in grid format with columns Month / Opening WC / Sales / GST / Expenses / Commissions / Net Available / Revenue Share Base / Closing WC / Remarks · totals row · Download PDF (landscape with logo + signature) + Excel."*
+
+**Implementation** — backend was already fully built (`/api/center-accounts/wc-table` returns month-wise rows; export-pdf/excel already produce landscape PDF with Purnabramha logo, account-manager signature, and download date). The missing piece was the **frontend grid display** inside the Overview tab.
+
+**Created** `/app/frontend/src/components/WCOverviewGrid.jsx`:
+- Self-contained card with: header (Base WC, Current WC, status badge), **Download PDF + Excel buttons**, and a 10-column grid.
+- Columns: Month · Opening WC · Sales · GST · Expenses · Commissions · Net Available · Revenue Share Base · Closing WC · Status.
+- **Totals row directly under the table header** (per user spec — "if total is not possible at bottom, then show total under the header row") with each numeric column summed and **bold**.
+- Per-row status pill (active / restoring / blocked) with semantic colours.
+- Footer caption explaining the Net Available and Revenue Share Base formulas.
+- Loading + empty states.
+- Test ids on every interactive element + row + total cell for QA automation.
+
+**Wired into** `CenterAccounts.jsx` → Overview tab, just above the footer-hint paragraph. Existing tabs and KPI tiles remain untouched (user requested "Do not remove existing tabs or reports").
+
+**Verified live** on PB-MGT — `/wc-table` returns 1 row with all expected keys; PDF (2.3 KB, application/pdf) and Excel (5.4 KB, with "Purnabramha — Working Capital Statement" title + center + Base WC header) downloads both work cleanly.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-18 — Inter-Center Transfer Attendance Dashboard Bugs Fixed] (P0)
 
 User feedback (production): *"LAUNG transferred PB-HSR → PB-KAL (Active, Temporary, June 1). But in HSR attendance LAUNG still showing as Absent, in PB-KAL attendance dashboard LAUNG not showing at all."*

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/App';
+import { WCOverviewGrid } from '@/components/WCOverviewGrid';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1511,6 +1512,18 @@ export default function CenterAccounts() {
                         sub: payout.reason ? (payout.reason.length > 60 ? payout.reason.slice(0, 60) + '…' : payout.reason) : '—'
                       })}
                     </div>
+
+                    {/* Month-wise Working Capital Overview Grid (Feb-2026 — restored per user spec).
+                        Pulls from /api/center-accounts/wc-table which already powers the existing
+                        Working Capital chain elsewhere; this just surfaces it inside the Overview
+                        tab with a clean grid + totals + PDF/Excel downloads. */}
+                    <WCOverviewGrid
+                      apiBase={API}
+                      token={token}
+                      center={selectedCenter}
+                      country={accountSummary?.country}
+                      cur={cur}
+                    />
 
                     {/* Footer hint */}
                     <p className="text-[11px] text-muted-foreground italic pt-2">
