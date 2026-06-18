@@ -4,6 +4,29 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — WC Overview Grid made editable with live recalculation] (P1)
+
+User feedback: *"and all are editable but all are having calculation on it like what we were having before — same thing u have to bring it back."*
+
+**Implementation** (`components/WCOverviewGrid.jsx` v2):
+- **Editable cells** (✎ pencil hint in header): GST · Expenses · Commissions · WC Adjustment — the four override fields the backend `/wc-row-save` route accepts as absolute targets.
+- **Read-only cells**: Month · Opening WC · Sales (sourced from Daily Sales) · Net Available · Revenue Share Base · Closing WC — all driven by Single Financial Engine.
+- **Live row recalculation as you type** (no save needed for preview):
+  - `Net Available = Sales − Expenses − Commissions`
+  - `Revenue Share Base = max(0, Sales − Commissions − GST)`
+  - `Closing WC = Opening + Net Available + WC Adj + Topup + Other Income`
+- **Dirty rows** highlight amber and show inline Save (✓) and Reset (↺) icons next to the status badge. Save POSTs `target_expenses` / `gst_target` / `commission_target` / `wc_adjustment` and refreshes the whole table so the chain recomputes correctly on the server.
+- **Totals row** under header continues to sum live values (including unsaved edits), so users see total impact across months at a glance.
+- Footer caption explains the formulas + the ✎ amber editable hint + that Sales is read-only.
+
+**Verified live** (PB-MGT 2026-01): `/wc-row-save` with target_expenses=200000, gst_target=40000, commission_target=50000, wc_adjustment=5000 returns success=True and creates the mirrored INTRA CENTER ADJUSTMENT expense row. Reset to zero restored cleanly. `/wc-table` continues to return correct rows.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-18 — Month-wise Working Capital Overview Grid restored in Overview tab] (P1)
 
 User feedback: *"Add the old Overview screen back in grid format with columns Month / Opening WC / Sales / GST / Expenses / Commissions / Net Available / Revenue Share Base / Closing WC / Remarks · totals row · Download PDF (landscape with logo + signature) + Excel."*
