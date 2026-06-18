@@ -113,20 +113,33 @@ def _strip_id(d: Optional[dict]) -> Optional[dict]:
     return d
 
 
+def _dedupe_by(docs: List[dict], key: str) -> List[dict]:
+    """Return docs deduplicated by `key`, preserving first occurrence."""
+    seen = set()
+    out = []
+    for d in docs:
+        k = d.get(key)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(d)
+    return out
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed data — 6 priority countries with placeholder pathway info.
 # Admins edit via the admin panel, so these are starter values only.
 # ─────────────────────────────────────────────────────────────────────────────
 _SEED_COUNTRIES = [
     {"code": "AU", "name": "Australia", "flag": "🇦🇺", "currency": "AUD",
-     "common_pathway_ids": ["AU-186", "AU-482", "AU-188"],
-     "notes": "Strong franchise / business presence pathway — 186 ENS, 482 TSS, 188 BIIP."},
+     "common_pathway_ids": ["AU-186", "AU-482", "AU-188", "AU-494", "AU-GT"],
+     "notes": "Strong franchise / business presence pathway — 186 ENS, 482 TSS, 188 BIIP, 494 Regional, Global Talent."},
     {"code": "US", "name": "USA", "flag": "🇺🇸", "currency": "USD",
-     "common_pathway_ids": ["US-L1A", "US-E2", "US-EB5"],
-     "notes": "L-1A intra-company transfer, E-2 investor, EB-5 immigrant investor."},
+     "common_pathway_ids": ["US-L1A", "US-E2", "US-EB1C", "US-EB2NIW"],
+     "notes": "L-1A executive transfer, E-2 investor, EB-1C multinational manager, EB-2 NIW."},
     {"code": "JP", "name": "Japan", "flag": "🇯🇵", "currency": "JPY",
-     "common_pathway_ids": ["JP-BM", "JP-INTRA"],
-     "notes": "Business Manager visa, Intra-Company Transferee."},
+     "common_pathway_ids": ["JP-BM", "JP-HSP"],
+     "notes": "Business Manager Visa, Highly Skilled Professional."},
     {"code": "BE", "name": "Belgium / Brussels", "flag": "🇧🇪", "currency": "EUR",
      "common_pathway_ids": ["BE-SP", "BE-SE"],
      "notes": "Single Permit (work + residence), Self-employed professional card."},
@@ -139,62 +152,153 @@ _SEED_COUNTRIES = [
 ]
 
 _SEED_PATHWAYS = [
-    {"id": "AU-186", "country_code": "AU", "name": "Subclass 186 ENS — Employer Nomination",
+    # ── Australia ───────────────────────────────────────────────────────────
+    {"id": "AU-186", "country_code": "AU", "name": "Subclass 186 ENS — Employer Nomination Scheme (Direct Entry)",
      "type": "Permanent", "min_age": 18, "max_age": 45, "english_required": True,
-     "skill_level": "Skilled", "cost_aud": 4640, "duration_months": 6,
-     "summary": "Permanent residence via employer nomination. Strong fit for franchise operators with 3+ years experience."},
+     "skill_level": "Skilled", "company_cost_band": "AUD 4,000 – 6,000",
+     "applicant_cost_band": "AUD 8,000 – 12,000",
+     "duration_months": 11, "timeline_band": "8 – 14 months",
+     "key_requirements": ["Existing Australian operations", "Senior management experience", "Genuine position evidence", "English (Competent)", "Skills assessment"],
+     "spouse_work_rights": True,
+     "summary": "Permanent residence via direct employer nomination. Strong fit for franchise operators expanding into Australia with proven senior leadership."},
     {"id": "AU-482", "country_code": "AU", "name": "Subclass 482 TSS — Temporary Skill Shortage",
      "type": "Temporary", "min_age": 18, "max_age": 60, "english_required": True,
-     "skill_level": "Skilled", "cost_aud": 3115, "duration_months": 4,
-     "summary": "Sponsor-driven temporary work visa, 2-4 year stay, pathway to 186."},
-    {"id": "AU-188", "country_code": "AU", "name": "Subclass 188 BIIP — Business Innovation & Investment",
+     "skill_level": "Skilled", "company_cost_band": "AUD 2,500 – 4,500",
+     "applicant_cost_band": "AUD 3,500 – 6,000",
+     "duration_months": 4, "timeline_band": "3 – 6 months",
+     "key_requirements": ["Sponsor (SBS approved)", "2+ years in nominated occupation", "English (Vocational)"],
+     "spouse_work_rights": True,
+     "summary": "Employer-sponsored temporary work visa, 2-4 year stay, common pathway to 186."},
+    {"id": "AU-188", "country_code": "AU", "name": "Subclass 188 BIIP — Business Innovation & Investment (Provisional)",
      "type": "Provisional", "min_age": 18, "max_age": 55, "english_required": True,
-     "skill_level": "Business", "cost_aud": 9710, "duration_months": 9,
-     "summary": "For business owners with significant net worth + business turnover. Investor stream."},
-    {"id": "US-L1A", "country_code": "US", "name": "L-1A Intra-Company Transferee (Executive/Manager)",
+     "skill_level": "Business", "company_cost_band": "—",
+     "applicant_cost_band": "AUD 9,000 – 15,000",
+     "duration_months": 12, "timeline_band": "9 – 15 months",
+     "key_requirements": ["Net worth threshold", "Business turnover", "Investment commitment"],
+     "spouse_work_rights": True,
+     "summary": "For business owners with significant net worth + business turnover. Investor / Innovation streams."},
+    {"id": "AU-494", "country_code": "AU", "name": "Subclass 494 — Skilled Employer Sponsored Regional",
+     "type": "Provisional", "min_age": 18, "max_age": 45, "english_required": True,
+     "skill_level": "Skilled", "company_cost_band": "AUD 4,000 – 6,000",
+     "applicant_cost_band": "AUD 6,000 – 10,000",
+     "duration_months": 9, "timeline_band": "6 – 12 months",
+     "key_requirements": ["Regional employer sponsor", "Skills assessment", "Live in regional Australia 3 years"],
+     "spouse_work_rights": True,
+     "summary": "Regional employer-sponsored visa with PR pathway via 191 after 3 years in regional area."},
+    {"id": "AU-GT", "country_code": "AU", "name": "Global Talent (Subclass 858)",
+     "type": "Permanent", "min_age": 18, "max_age": 55, "english_required": True,
+     "skill_level": "Exceptional", "company_cost_band": "—",
+     "applicant_cost_band": "AUD 4,500 – 8,000",
+     "duration_months": 8, "timeline_band": "6 – 12 months",
+     "key_requirements": ["Exceptional / internationally recognised talent", "High salary potential (FWHIT)", "Nomination by Australian"],
+     "spouse_work_rights": True,
+     "summary": "PR for individuals with exceptional and internationally recognised achievement in a target sector."},
+
+    # ── USA ─────────────────────────────────────────────────────────────────
+    {"id": "US-L1A", "country_code": "US", "name": "L-1A Intra-Company Transferee — Executive / Manager",
      "type": "Temporary", "min_age": 18, "max_age": 99, "english_required": False,
-     "skill_level": "Executive", "cost_usd": 1885, "duration_months": 4,
-     "summary": "Transfer of senior executive from foreign company to US affiliate. 7-year max stay."},
+     "skill_level": "Executive", "company_cost_band": "USD 4,000 – 8,000",
+     "applicant_cost_band": "USD 2,000 – 4,000",
+     "duration_months": 5, "timeline_band": "3 – 6 months (premium ~2 weeks)",
+     "key_requirements": ["1+ year as Manager/Executive abroad", "Qualifying US affiliate", "New office or existing"],
+     "spouse_work_rights": True,
+     "summary": "Transfer of executive / senior manager from foreign parent to US affiliate. 7-year max stay; pathway to EB-1C."},
     {"id": "US-E2", "country_code": "US", "name": "E-2 Treaty Investor",
      "type": "Temporary", "english_required": False,
-     "cost_usd": 3000, "duration_months": 5,
-     "summary": "For nationals of treaty countries (India is NOT a treaty country — applicant must hold treaty passport)."},
-    {"id": "US-EB5", "country_code": "US", "name": "EB-5 Immigrant Investor",
+     "company_cost_band": "—",
+     "applicant_cost_band": "USD 3,000 – 8,000 + investment capital",
+     "duration_months": 5, "timeline_band": "3 – 6 months",
+     "key_requirements": ["Treaty-country nationality (India NOT a treaty country — needs alternative passport)", "Substantial investment", "Active managerial role"],
+     "spouse_work_rights": True,
+     "summary": "For nationals of E-2 treaty countries to direct and develop their US investment enterprise."},
+    {"id": "US-EB1C", "country_code": "US", "name": "EB-1C — Multinational Manager / Executive (PR)",
      "type": "Permanent", "english_required": False,
-     "cost_usd": 11160, "duration_months": 18,
-     "summary": "$800,000+ investment in US business creating 10 jobs. Permanent green card."},
+     "company_cost_band": "USD 6,000 – 10,000",
+     "applicant_cost_band": "USD 3,500 – 5,500",
+     "duration_months": 14, "timeline_band": "12 – 18 months",
+     "key_requirements": ["1+ year as Manager/Executive abroad", "US affiliate operating 1+ year", "Permanent role offer"],
+     "spouse_work_rights": True,
+     "summary": "Green Card for multinational managers / executives. Common PR path after L-1A."},
+    {"id": "US-EB2NIW", "country_code": "US", "name": "EB-2 NIW — National Interest Waiver",
+     "type": "Permanent", "english_required": False,
+     "company_cost_band": "—",
+     "applicant_cost_band": "USD 5,000 – 10,000",
+     "duration_months": 14, "timeline_band": "10 – 24 months",
+     "key_requirements": ["Advanced degree OR exceptional ability", "Endeavour of national importance", "Well-positioned to advance the endeavour"],
+     "spouse_work_rights": True,
+     "summary": "Self-petitioned Green Card for individuals whose work is of national US interest — no employer needed."},
+
+    # ── Japan ──────────────────────────────────────────────────────────────
     {"id": "JP-BM", "country_code": "JP", "name": "Business Manager Visa",
      "type": "Temporary", "english_required": False,
-     "cost_jpy": 4000, "duration_months": 5,
-     "summary": "For directors managing a Japan-based subsidiary; minimum 5M JPY capital or 2 employees."},
-    {"id": "JP-INTRA", "country_code": "JP", "name": "Intra-Company Transferee",
-     "type": "Temporary",
-     "cost_jpy": 4000, "duration_months": 3,
-     "summary": "Transfer from foreign branch to Japan branch; 1 year+ employment with parent."},
+     "company_cost_band": "JPY 300,000 – 600,000",
+     "applicant_cost_band": "JPY 50,000 – 100,000",
+     "duration_months": 5, "timeline_band": "3 – 6 months",
+     "key_requirements": ["≥ JPY 5M capital OR 2 full-time employees", "Physical office in Japan", "Business plan"],
+     "spouse_work_rights": True,
+     "summary": "For directors / managers establishing or operating a business in Japan."},
+    {"id": "JP-HSP", "country_code": "JP", "name": "Highly Skilled Professional (HSP)",
+     "type": "Provisional", "english_required": False,
+     "company_cost_band": "—",
+     "applicant_cost_band": "JPY 50,000 – 100,000",
+     "duration_months": 3, "timeline_band": "2 – 4 months",
+     "key_requirements": ["70+ points (education, experience, salary, age)", "Sponsoring organisation"],
+     "spouse_work_rights": True,
+     "summary": "Points-based fast-track residence with PR eligibility in 1-3 years. Spouse can work."},
+
+    # ── Belgium ────────────────────────────────────────────────────────────
     {"id": "BE-SP", "country_code": "BE", "name": "Single Permit (Work + Residence)",
-     "type": "Temporary",
-     "cost_eur": 200, "duration_months": 4,
-     "summary": "Combined work + residence for non-EU professionals; salary threshold applies."},
+     "type": "Temporary", "english_required": False,
+     "company_cost_band": "EUR 200 – 600",
+     "applicant_cost_band": "EUR 350 – 800",
+     "duration_months": 4, "timeline_band": "3 – 5 months",
+     "key_requirements": ["Belgian employer sponsor", "Salary above regional threshold", "Labour-market test (some regions)"],
+     "spouse_work_rights": True,
+     "summary": "Combined work + residence permit for non-EU nationals filling Belgian roles."},
     {"id": "BE-SE", "country_code": "BE", "name": "Self-Employed Professional Card",
-     "type": "Temporary",
-     "cost_eur": 350, "duration_months": 6,
-     "summary": "For entrepreneurs setting up own business in Belgium."},
-    {"id": "EU-ICT", "country_code": "EU", "name": "ICT Directive (Intra-Corporate Transferee)",
-     "type": "Temporary",
-     "cost_eur": 150, "duration_months": 4,
-     "summary": "EU-wide directive for managers/specialists transferred within multinational."},
+     "type": "Temporary", "english_required": False,
+     "company_cost_band": "EUR 350 – 800",
+     "applicant_cost_band": "EUR 300 – 600",
+     "duration_months": 6, "timeline_band": "4 – 8 months",
+     "key_requirements": ["Business plan", "Financial means", "Regional approval"],
+     "spouse_work_rights": False,
+     "summary": "For non-EU entrepreneurs operating their own business in Belgium."},
+
+    # ── EU general ─────────────────────────────────────────────────────────
+    {"id": "EU-ICT", "country_code": "EU", "name": "EU ICT Directive — Intra-Corporate Transferee",
+     "type": "Temporary", "english_required": False,
+     "company_cost_band": "EUR 150 – 400",
+     "applicant_cost_band": "EUR 300 – 600",
+     "duration_months": 4, "timeline_band": "3 – 6 months",
+     "key_requirements": ["6+ months with non-EU parent", "Manager/Specialist/Trainee", "Host EU entity"],
+     "spouse_work_rights": True,
+     "summary": "EU-wide directive for transferring managers / specialists / trainees within a multinational group."},
     {"id": "EU-BLUE", "country_code": "EU", "name": "EU Blue Card",
-     "type": "Temporary",
-     "cost_eur": 140, "duration_months": 3,
-     "summary": "For highly skilled non-EU professionals; salary 1.5× national average."},
+     "type": "Temporary", "english_required": False,
+     "company_cost_band": "—",
+     "applicant_cost_band": "EUR 140 – 600",
+     "duration_months": 3, "timeline_band": "2 – 4 months",
+     "key_requirements": ["University degree (3+ yrs)", "Salary ≥ 1.5× national average", "Binding job offer"],
+     "spouse_work_rights": True,
+     "summary": "Highly-skilled work permit valid across EU; long-term residence path."},
+
+    # ── Singapore ──────────────────────────────────────────────────────────
     {"id": "SG-EP", "country_code": "SG", "name": "Employment Pass",
-     "type": "Temporary",
-     "cost_sgd": 225, "duration_months": 2,
-     "summary": "Skilled professional pass, monthly salary ≥ SGD 5,000 + COMPASS points."},
+     "type": "Temporary", "english_required": False,
+     "company_cost_band": "SGD 250 – 500",
+     "applicant_cost_band": "SGD 250 – 500",
+     "duration_months": 2, "timeline_band": "3 – 8 weeks",
+     "key_requirements": ["Fixed monthly salary ≥ SGD 5,000 (higher for finance)", "Qualifying degree", "COMPASS score ≥ 40"],
+     "spouse_work_rights": True,
+     "summary": "Skilled-professional pass; required for foreign managers / directors / specialists."},
     {"id": "SG-EntrePass", "country_code": "SG", "name": "EntrePass",
-     "type": "Temporary",
-     "cost_sgd": 175, "duration_months": 3,
-     "summary": "For foreign entrepreneurs starting/operating a Singapore-registered business."},
+     "type": "Temporary", "english_required": False,
+     "company_cost_band": "—",
+     "applicant_cost_band": "SGD 175 – 500",
+     "duration_months": 3, "timeline_band": "2 – 4 months",
+     "key_requirements": ["Innovative business plan", "Funding / investor backing", "Singapore-registered company"],
+     "spouse_work_rights": False,
+     "summary": "For foreign entrepreneurs starting and operating a Singapore-registered company."},
 ]
 
 _DEFAULT_LETTER_TYPES = [
@@ -213,6 +317,20 @@ _DEFAULT_LETTER_TYPES = [
     ("international_experience", "International Expansion Experience Letter", "Track Record of International Expansion", "Demonstrate prior cross-border experience"),
     ("personal_statement", "Applicant Personal Statement", "Personal Statement of Intent", "Applicant's own narrative"),
     ("family_support", "Family / Spouse Support Note", "Family / Spouse Inclusion Note", "Supporting family in the application"),
+    # Country-specific expansion / setup letters
+    ("au_south_perth_setup", "AU — South Perth Setup Letter", "South Perth Centre Setup Confirmation", "Confirm Purnabramha's South Perth presence"),
+    ("au_melbourne_expansion", "AU — Melbourne Expansion Letter", "Melbourne Expansion Plan", "Detail Melbourne expansion strategy"),
+    ("au_sydney_expansion", "AU — Sydney Expansion Letter", "Sydney Expansion Plan", "Detail Sydney expansion strategy"),
+    ("us_atlanta_expansion", "USA — Atlanta Expansion Letter", "Atlanta Expansion Plan", "Detail Atlanta expansion strategy"),
+    ("us_dallas_expansion", "USA — Dallas Expansion Plan", "Dallas Expansion Plan", "Detail Dallas expansion strategy"),
+    ("us_l1a_support", "USA — L-1A Support Letter", "L-1A Multinational Manager Support", "Support letter for L-1A petition"),
+    ("us_eb1c_support", "USA — EB-1C Support Letter", "EB-1C Multinational Manager Support", "Support letter for EB-1C petition"),
+    ("jp_market_entry", "JP — Japan Market Entry Note", "Japan Market Entry Strategy", "Note explaining market-entry rationale"),
+    ("jp_business_expansion", "JP — Business Expansion Letter", "Business Expansion Plan for Japan", "Detail Japan expansion plan"),
+    ("be_single_permit_justification", "BE — Single Permit Justification", "Single Permit Justification", "Justify need for Single Permit hire"),
+    ("be_local_entity_requirement", "BE — Local Entity Requirement Note", "Belgium Local Entity Requirement", "Confirm Belgian entity status"),
+    ("sg_ep_support", "SG — Employment Pass Support Letter", "Employment Pass Support", "Support letter for EP application"),
+    ("sg_entrepass_plan", "SG — EntrePass Business Plan Summary", "EntrePass Business Plan Summary", "Summary of EntrePass business plan"),
 ]
 
 _DEFAULT_ENTITIES = [
@@ -220,6 +338,26 @@ _DEFAULT_ENTITIES = [
      "country_code": "IN", "registration_number": "U15549MH2014PTC257421",
      "address": "Hinjewadi, Pune, Maharashtra, India",
      "is_parent": True, "notes": "Indian parent company."},
+    {"id": "ENT-AU", "name": "Purnabramha Australia Pty Ltd",
+     "country_code": "AU", "registration_number": "",
+     "address": "South Perth, Western Australia, Australia",
+     "is_parent": False, "notes": "Australian subsidiary."},
+    {"id": "ENT-US", "name": "Purnabramha USA LLC",
+     "country_code": "US", "registration_number": "",
+     "address": "Atlanta, Georgia, USA",
+     "is_parent": False, "notes": "US subsidiary."},
+    {"id": "ENT-JP", "name": "Purnabramha Japan KK",
+     "country_code": "JP", "registration_number": "",
+     "address": "Tokyo, Japan",
+     "is_parent": False, "notes": "Japan subsidiary."},
+    {"id": "ENT-BE", "name": "Purnabramha Belgium SRL",
+     "country_code": "BE", "registration_number": "",
+     "address": "Brussels, Belgium",
+     "is_parent": False, "notes": "Belgium subsidiary."},
+    {"id": "ENT-SG", "name": "Purnabramha Singapore Pte Ltd",
+     "country_code": "SG", "registration_number": "",
+     "address": "Singapore",
+     "is_parent": False, "notes": "Singapore subsidiary."},
 ]
 
 _DEFAULT_SIGNATORIES = [
@@ -227,36 +365,108 @@ _DEFAULT_SIGNATORIES = [
      "entity_id": "ENT-IN", "email": "jayanti@purnabramha.com", "phone": ""},
     {"id": "SIG-SK", "name": "Sandeep Kathale", "role": "Director — Global Operations",
      "entity_id": "ENT-IN", "email": "sandeep@purnabramha.com", "phone": ""},
+    {"id": "SIG-LOCAL", "name": "Local Director (to be assigned)", "role": "Local Director",
+     "entity_id": "", "email": "", "phone": ""},
+    {"id": "SIG-CS", "name": "Company Secretary", "role": "Company Secretary",
+     "entity_id": "ENT-IN", "email": "", "phone": ""},
 ]
 
 
 async def _ensure_seeds():
-    """Idempotent seeding — runs once per backend restart if collection empty."""
+    """Idempotent upsert-style seeding.
+
+    Each row is upserted by its primary key (`code` for countries, `id` elsewhere),
+    so re-running this on a populated production DB *fills gaps* (e.g. newly added
+    pathways for AU-494 / Global Talent) without creating duplicates.
+
+    A separate cleanup pass deletes any duplicate rows that may have been
+    accidentally inserted in earlier deploys.
+    """
     if _db is None:
         return
-    if await _db.visa_countries.count_documents({}) == 0:
-        await _db.visa_countries.insert_many(
-            [{**c, "_seed": True, "created_at": _now_iso()} for c in _SEED_COUNTRIES]
+
+    # Defensive cleanup: collapse duplicates by primary key, keeping the oldest.
+    await _cleanup_duplicates_internal()
+
+    # Upsert seeds (idempotent).
+    # For human-editable rows ($setOnInsert) admins can rename/tweak without our overrides clobbering.
+    # For machine-readable config fields we $set them on _seed rows so newly-added fields backfill.
+    for c in _SEED_COUNTRIES:
+        await _db.visa_countries.update_one(
+            {"code": c["code"]},
+            {
+                "$setOnInsert": {"_seed": True, "created_at": _now_iso()},
+                "$set": {k: v for k, v in c.items() if k != "code"},
+            },
+            upsert=True,
         )
-    if await _db.visa_pathways.count_documents({}) == 0:
-        await _db.visa_pathways.insert_many(
-            [{**p, "_seed": True, "created_at": _now_iso()} for p in _SEED_PATHWAYS]
+    _PATHWAY_MACHINE_FIELDS = (
+        "country_code", "type", "min_age", "max_age", "english_required",
+        "skill_level", "company_cost_band", "applicant_cost_band", "duration_months",
+        "timeline_band", "key_requirements", "spouse_work_rights",
+    )
+    for p in _SEED_PATHWAYS:
+        machine = {k: p[k] for k in _PATHWAY_MACHINE_FIELDS if k in p}
+        await _db.visa_pathways.update_one(
+            {"id": p["id"]},
+            {
+                "$setOnInsert": {
+                    "_seed": True, "created_at": _now_iso(),
+                    "name": p["name"], "summary": p.get("summary", ""),
+                },
+                "$set": machine,
+            },
+            upsert=True,
         )
-    if await _db.visa_letter_templates.count_documents({}) == 0:
-        await _db.visa_letter_templates.insert_many([
-            {"id": k, "name": n, "subject": s, "purpose": p,
-             "body_template": f"[{n} — body will be AI-generated using applicant + company context]",
-             "_seed": True, "created_at": _now_iso()}
-            for (k, n, s, p) in _DEFAULT_LETTER_TYPES
-        ])
-    if await _db.visa_entities.count_documents({}) == 0:
-        await _db.visa_entities.insert_many(
-            [{**e, "_seed": True, "created_at": _now_iso()} for e in _DEFAULT_ENTITIES]
+    for (k, n, s, p) in _DEFAULT_LETTER_TYPES:
+        await _db.visa_letter_templates.update_one(
+            {"id": k},
+            {"$setOnInsert": {
+                "id": k, "name": n, "subject": s, "purpose": p,
+                "body_template": f"[{n} — body will be AI-generated using applicant + company context]",
+                "_seed": True, "created_at": _now_iso(),
+            }},
+            upsert=True,
         )
-    if await _db.visa_signatories.count_documents({}) == 0:
-        await _db.visa_signatories.insert_many(
-            [{**s, "_seed": True, "created_at": _now_iso()} for s in _DEFAULT_SIGNATORIES]
+    for e in _DEFAULT_ENTITIES:
+        await _db.visa_entities.update_one(
+            {"id": e["id"]},
+            {"$setOnInsert": {**e, "_seed": True, "created_at": _now_iso()}},
+            upsert=True,
         )
+    for s in _DEFAULT_SIGNATORIES:
+        await _db.visa_signatories.update_one(
+            {"id": s["id"]},
+            {"$setOnInsert": {**s, "_seed": True, "created_at": _now_iso()}},
+            upsert=True,
+        )
+
+
+async def _cleanup_duplicates_internal() -> dict:
+    """Remove duplicate rows (same primary key) across all visa collections."""
+    if _db is None:
+        return {}
+    removed = {}
+    plans = [
+        ("visa_countries", "code"),
+        ("visa_pathways", "id"),
+        ("visa_letter_templates", "id"),
+        ("visa_entities", "id"),
+        ("visa_signatories", "id"),
+    ]
+    for coll, key in plans:
+        seen = set()
+        dup_ids = []
+        async for doc in _db[coll].find({}, sort=[("created_at", 1)]):
+            k = doc.get(key)
+            if k in seen:
+                dup_ids.append(doc["_id"])
+            else:
+                seen.add(k)
+        if dup_ids:
+            res = await _db[coll].delete_many({"_id": {"$in": dup_ids}})
+            removed[coll] = res.deleted_count
+    return removed
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -290,7 +500,7 @@ async def list_countries(token: str = Query(...)):
     await _auth(token)
     await _ensure_seeds()
     docs = await _db.visa_countries.find({}, {"_id": 0}).sort("name", 1).to_list(None)
-    return {"success": True, "countries": docs}
+    return {"success": True, "countries": _dedupe_by(docs, "code")}
 
 
 @router.get("/pathways")
@@ -299,7 +509,7 @@ async def list_pathways(token: str = Query(...), country_code: Optional[str] = Q
     await _ensure_seeds()
     q = {"country_code": country_code} if country_code else {}
     docs = await _db.visa_pathways.find(q, {"_id": 0}).sort("name", 1).to_list(None)
-    return {"success": True, "pathways": docs}
+    return {"success": True, "pathways": _dedupe_by(docs, "id")}
 
 
 @router.get("/letter-templates")
@@ -307,7 +517,7 @@ async def list_letter_templates(token: str = Query(...)):
     await _auth(token)
     await _ensure_seeds()
     docs = await _db.visa_letter_templates.find({}, {"_id": 0}).sort("name", 1).to_list(None)
-    return {"success": True, "templates": docs}
+    return {"success": True, "templates": _dedupe_by(docs, "id")}
 
 
 @router.get("/entities")
@@ -315,7 +525,7 @@ async def list_entities(token: str = Query(...)):
     await _auth(token)
     await _ensure_seeds()
     docs = await _db.visa_entities.find({}, {"_id": 0}).sort("name", 1).to_list(None)
-    return {"success": True, "entities": docs}
+    return {"success": True, "entities": _dedupe_by(docs, "id")}
 
 
 @router.get("/signatories")
@@ -323,7 +533,7 @@ async def list_signatories(token: str = Query(...)):
     await _auth(token)
     await _ensure_seeds()
     docs = await _db.visa_signatories.find({}, {"_id": 0}).sort("name", 1).to_list(None)
-    return {"success": True, "signatories": docs}
+    return {"success": True, "signatories": _dedupe_by(docs, "id")}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1362,3 +1572,448 @@ async def lawyer_bundle(aid: str, req: _LawyerBundleReq = Body(...)):
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin: cleanup duplicates (one-shot migration for production DB)
+# ─────────────────────────────────────────────────────────────────────────────
+@router.post("/admin/cleanup-duplicates")
+async def admin_cleanup_duplicates(req: _TokenReq = Body(...)):
+    await _require_admin(req.token)
+    removed = await _cleanup_duplicates_internal()
+    return {"success": True, "removed": removed}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI Recommendation Engine (rules + Claude Sonnet 4.5 narrative)
+# ─────────────────────────────────────────────────────────────────────────────
+class _RecommendReq(BaseModel):
+    token: str
+    applicant_name: str = ""
+    current_role: str = ""
+    age: Optional[int] = None
+    years_of_experience: Optional[int] = None
+    nationality: Optional[str] = "Indian"
+    english_status: Optional[str] = "Not Started"   # Not Started / Booked / Passed / Exempt
+    family_included: bool = False
+    spouse_work_rights_required: bool = False
+    shareholding_pct: Optional[float] = None        # in destination entity
+    has_existing_operations: bool = False           # company already operating in country
+    has_expansion_plan: bool = False
+    has_business_plan: bool = False
+    has_financial_proof: bool = False
+    has_franchise_letter: bool = False
+    has_skills_assessment: bool = False
+    goal: Optional[str] = ""                         # e.g. "PR + family" / "Temporary" / "Investor"
+    country_codes: Optional[List[str]] = None        # shortlist; None = all
+    use_ai_narrative: bool = True                    # if False → pure rule output, no LLM
+
+
+def _score_pathway(p: dict, r: _RecommendReq) -> dict:
+    """Pure-rule fit score (0-100) + reasons + risks for one pathway."""
+    score = 50
+    reasons: List[str] = []
+    risks: List[str] = []
+
+    age = r.age or 0
+    yoe = r.years_of_experience or 0
+    role = (r.current_role or "").lower()
+
+    # Age window
+    if p.get("min_age") and p.get("max_age"):
+        if age and p["min_age"] <= age <= p["max_age"]:
+            score += 8; reasons.append(f"Within age window ({p['min_age']}-{p['max_age']})")
+        elif age:
+            score -= 25; risks.append(f"Outside age window ({p['min_age']}-{p['max_age']})")
+
+    # Experience
+    if yoe >= 10:
+        score += 12; reasons.append(f"Strong experience ({yoe} years)")
+    elif yoe >= 5:
+        score += 6
+    elif yoe and yoe < 3:
+        score -= 8; risks.append("Limited experience (<3 years)")
+
+    # Seniority match
+    skill = (p.get("skill_level") or "").lower()
+    if skill in ("executive", "exceptional") and any(k in role for k in ["director", "managing", "ceo", "founder", "vp", "head"]):
+        score += 14; reasons.append("Senior leadership role matches pathway seniority")
+    if skill == "business" and (r.shareholding_pct or 0) > 0:
+        score += 8; reasons.append("Has shareholding stake in destination business")
+
+    # English
+    if p.get("english_required"):
+        if r.english_status == "Passed":
+            score += 8; reasons.append("English test already passed")
+        elif r.english_status == "Booked":
+            score += 2
+        elif r.english_status == "Exempt":
+            score += 6; reasons.append("Eligible for English exemption")
+        else:
+            score -= 15; risks.append("English test not started — required for this pathway")
+
+    # Operations / expansion / docs
+    if r.has_existing_operations:
+        score += 10; reasons.append("Existing operations in country strengthen the case")
+    if r.has_expansion_plan:
+        score += 5; reasons.append("Expansion plan available")
+    if r.has_business_plan:
+        score += 4; reasons.append("Business plan ready")
+    if r.has_financial_proof:
+        score += 4; reasons.append("Financial proof available")
+    if r.has_franchise_letter:
+        score += 4; reasons.append("Franchise support letter available")
+
+    # Family & spouse rights
+    if r.family_included and p.get("spouse_work_rights") is True:
+        score += 6; reasons.append("Family included — spouse gets unrestricted work rights")
+    if r.family_included and p.get("spouse_work_rights") is False:
+        risks.append("Spouse work rights restricted on this pathway")
+
+    # E-2 treaty India exclusion
+    if p.get("id") == "US-E2" and (r.nationality or "").lower() in ("indian", "india"):
+        score -= 30; risks.append("India is NOT an E-2 treaty country — needs alternative passport")
+
+    # Skills assessment for AU skilled streams
+    if p.get("country_code") == "AU" and p.get("id") in ("AU-186", "AU-482", "AU-494") and not r.has_skills_assessment:
+        risks.append("Skills assessment required and not yet completed")
+
+    # Goal preference
+    goal = (r.goal or "").lower()
+    if "pr" in goal or "permanent" in goal:
+        if p.get("type") == "Permanent":
+            score += 10; reasons.append("Direct PR pathway aligns with stated goal")
+        elif p.get("type") == "Temporary":
+            score -= 5; risks.append("Temporary only — PR via subsequent step")
+    if "invest" in goal and p.get("skill_level") == "Business":
+        score += 8; reasons.append("Investor / business pathway aligns with goal")
+
+    score = max(0, min(100, score))
+    return {
+        "pathway": p,
+        "score": score,
+        "suitability": "Strong" if score >= 75 else "Medium" if score >= 55 else "Low",
+        "reasons": reasons,
+        "risks": risks,
+    }
+
+
+async def _llm_enrich_narratives(req: _RecommendReq, top: List[dict]) -> List[dict]:
+    """Add a short 2-3 sentence AI rationale to each top pathway."""
+    if not req.use_ai_narrative or not top:
+        return top
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        return top
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+    except Exception:
+        return top
+
+    applicant_summary = (
+        f"Applicant: {req.applicant_name or '—'}, role={req.current_role or '—'}, "
+        f"age={req.age or '?'}, experience={req.years_of_experience or '?'} yrs, "
+        f"nationality={req.nationality}, family={'yes' if req.family_included else 'no'}, "
+        f"shareholding={req.shareholding_pct or 0}%, goal={req.goal or '—'}, "
+        f"existing_operations={req.has_existing_operations}, expansion_plan={req.has_expansion_plan}"
+    )
+    for item in top:
+        p = item["pathway"]
+        try:
+            chat = LlmChat(
+                api_key=api_key,
+                session_id=f"visa-rec-{p['id']}-{uuid.uuid4().hex[:6]}",
+                system_message=(
+                    "You are a senior immigration strategist for Purnabramha (Indian franchise group). "
+                    "Be concise and factual. Output 2-3 sentences only, no preamble."
+                ),
+            ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+            prompt = (
+                f"In 2-3 sentences, explain WHY pathway '{p['name']}' (country {p['country_code']}) "
+                f"is a {item['suitability'].lower()}-fit (score {item['score']}/100) for this applicant. "
+                f"Be specific and reference 1-2 strongest factors and 1 risk if relevant. "
+                f"Do not use bullet points.\n\nApplicant: {applicant_summary}\n"
+                f"Pathway summary: {p.get('summary', '')}\n"
+                f"Key requirements: {', '.join(p.get('key_requirements') or [])}"
+            )
+            text = await chat.send_message(UserMessage(text=prompt))
+            item["ai_rationale"] = (text or "").strip()
+        except Exception as ex:
+            item["ai_rationale"] = ""
+            logger.warning(f"visa recommender: LLM narrative failed for {p['id']}: {ex}")
+    return top
+
+
+@router.post("/recommend")
+async def recommend(req: _RecommendReq = Body(...)):
+    """Compare all available pathways against applicant profile, rank by fit."""
+    await _auth(req.token)
+    await _ensure_seeds()
+
+    q = {}
+    if req.country_codes:
+        q["country_code"] = {"$in": req.country_codes}
+    pathways = await _db.visa_pathways.find(q, {"_id": 0}).to_list(None)
+    pathways = _dedupe_by(pathways, "id")
+    if not pathways:
+        raise HTTPException(404, "No pathways available for the selected countries")
+
+    scored = [_score_pathway(p, req) for p in pathways]
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    top = scored[:5]
+    top = await _llm_enrich_narratives(req, top)
+
+    all_country_codes = sorted({p["country_code"] for p in pathways})
+    country_docs = await _db.visa_countries.find(
+        {"code": {"$in": all_country_codes}}, {"_id": 0},
+    ).to_list(None)
+    country_map = {c["code"]: c for c in _dedupe_by(country_docs, "code")}
+
+    for item in scored:
+        item["country"] = country_map.get(item["pathway"]["country_code"], {})
+
+    return {
+        "success": True,
+        "applicant_summary": {
+            "name": req.applicant_name, "role": req.current_role,
+            "age": req.age, "years_of_experience": req.years_of_experience,
+            "nationality": req.nationality, "family_included": req.family_included,
+            "goal": req.goal,
+        },
+        "top": top,
+        "all": scored,
+        "generated_at": _now_iso(),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Server-stored bundle history (last 30 generated bundles per application)
+# ─────────────────────────────────────────────────────────────────────────────
+BUNDLE_STORAGE_DIR = "/app/backend/visa_bundles"
+os.makedirs(BUNDLE_STORAGE_DIR, exist_ok=True)
+
+
+def _safe_dir_name(s: str) -> str:
+    return "".join(c for c in (s or "") if c.isalnum() or c in "._-") or "unnamed"
+
+
+async def _persist_bundle(aid: str, kind: str, filename: str, payload: bytes,
+                           applicant_name: str = "", lawyer_name: str = "") -> dict:
+    """Write bundle ZIP to disk + log to MongoDB. Returns the history record."""
+    applicant_dir = os.path.join(BUNDLE_STORAGE_DIR, _safe_dir_name(applicant_name) or aid)
+    os.makedirs(applicant_dir, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stored_name = f"{timestamp}_{kind}_{filename}"
+    full_path = os.path.join(applicant_dir, stored_name)
+    with open(full_path, "wb") as f:
+        f.write(payload)
+
+    bundle_id = uuid.uuid4().hex[:12]
+    record = {
+        "bundle_id": bundle_id,
+        "application_id": aid,
+        "kind": kind,                 # "lawyer" | "complete"
+        "applicant_name": applicant_name,
+        "lawyer_name": lawyer_name,
+        "filename": filename,
+        "size_bytes": len(payload),
+        "stored_path": full_path,
+        "generated_at": _now_iso(),
+    }
+    await _db.visa_bundle_history.insert_one({**record})
+
+    # Prune to last 30 records globally
+    total = await _db.visa_bundle_history.count_documents({})
+    if total > 30:
+        old_docs = await _db.visa_bundle_history.find(
+            {}, {"_id": 1, "stored_path": 1},
+        ).sort("generated_at", 1).limit(total - 30).to_list(None)
+        for d in old_docs:
+            try:
+                if d.get("stored_path") and os.path.exists(d["stored_path"]):
+                    os.remove(d["stored_path"])
+            except Exception:
+                pass
+        await _db.visa_bundle_history.delete_many({"_id": {"$in": [d["_id"] for d in old_docs]}})
+
+    return {k: v for k, v in record.items() if k != "_id"}
+
+
+@router.get("/admin/bundles")
+async def list_bundle_history(token: str = Query(...)):
+    await _require_admin(token)
+    docs = await _db.visa_bundle_history.find({}, {"_id": 0}).sort("generated_at", -1).limit(30).to_list(None)
+    return {"success": True, "bundles": docs}
+
+
+@router.get("/admin/bundle/{bundle_id}")
+async def admin_download_bundle(bundle_id: str, token: str = Query(...)):
+    await _require_admin(token)
+    doc = await _db.visa_bundle_history.find_one({"bundle_id": bundle_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Bundle not found")
+    path = doc.get("stored_path", "")
+    if not os.path.exists(path):
+        raise HTTPException(410, "Bundle file no longer exists on disk")
+    with open(path, "rb") as f:
+        data = f.read()
+    fname = doc.get("filename", f"bundle_{bundle_id}.zip")
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Complete bundle (auto-generate everything: report + letters + zip + persist)
+# ─────────────────────────────────────────────────────────────────────────────
+class _CompleteBundleReq(BaseModel):
+    token: str
+    signatory_id: Optional[str] = None
+    entity_id: Optional[str] = None
+    pathway_id: Optional[str] = None
+    expansion_letter_keys: Optional[List[str]] = None  # which country-specific letters to draft
+
+
+@router.post("/application/{aid}/build-complete-bundle")
+async def build_complete_bundle(aid: str, req: _CompleteBundleReq = Body(...)):
+    """End-to-end factory: ensure report + letters are generated, then assemble
+    a structured ZIP, persist on disk, and return the download."""
+    await _auth(req.token)
+    app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
+    if not app_doc:
+        raise HTTPException(404, "Application not found")
+
+    # Allow caller to override signatory / entity before bundling
+    updates = {}
+    biz = app_doc.get("business") or {}
+    if req.signatory_id:
+        biz["signatory_id"] = req.signatory_id
+    if req.entity_id:
+        biz["entity_id"] = req.entity_id
+    if req.pathway_id:
+        biz["selected_pathway_id"] = req.pathway_id
+    if req.signatory_id or req.entity_id or req.pathway_id:
+        updates["business"] = biz
+        updates["updated_at"] = _now_iso()
+        await _db.visa_applications.update_one({"application_id": aid}, {"$set": updates})
+        app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
+
+    country = await _db.visa_countries.find_one({"code": app_doc["country_code"]}, {"_id": 0}) or {}
+    ent = await _db.visa_entities.find_one({"id": biz.get("entity_id")}, {"_id": 0}) \
+          or await _db.visa_entities.find_one({}, {"_id": 0}) or {}
+    sig = await _db.visa_signatories.find_one({"id": biz.get("signatory_id")}, {"_id": 0}) \
+          or await _db.visa_signatories.find_one({}, {"_id": 0}) or {}
+
+    # If report not yet generated, run it.
+    if not app_doc.get("report"):
+        await generate_report(aid, {"token": req.token})  # type: ignore[arg-type]
+        app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
+
+    # If letters not yet drafted, draft a sensible default set (top 6 standard + selected expansion)
+    letters = app_doc.get("letters") or []
+    if not letters:
+        default_keys = ["employment_offer", "position_description", "business_justification",
+                        "expansion_plan", "salary_justification", "personal_statement"]
+        expansion_keys = req.expansion_letter_keys or []
+        # Country-specific defaults
+        cc = (country.get("code") or "").upper()
+        if cc == "AU" and not expansion_keys:
+            expansion_keys = ["au_south_perth_setup", "au_melbourne_expansion"]
+        elif cc == "US" and not expansion_keys:
+            expansion_keys = ["us_atlanta_expansion", "us_l1a_support"]
+        elif cc == "JP" and not expansion_keys:
+            expansion_keys = ["jp_market_entry"]
+        elif cc == "BE" and not expansion_keys:
+            expansion_keys = ["be_single_permit_justification"]
+        elif cc == "SG" and not expansion_keys:
+            expansion_keys = ["sg_ep_support"]
+        all_keys = list(dict.fromkeys(default_keys + expansion_keys))
+        await generate_letters(aid, _GenerateLettersReq(
+            token=req.token, application_id=aid, letter_keys=all_keys,
+        ))
+        app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
+        letters = app_doc.get("letters") or []
+
+    # Assemble structured ZIP
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if app_doc.get("report"):
+            zf.writestr("01_Visa_Readiness_Report.pdf", _report_pdf_bytes(app_doc, country, ent, sig))
+
+        # 02 — Excel checklist
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Letter Checklist"
+            plan = (app_doc.get("report") or {}).get("signatory_letter_plan") or []
+            headers = ["Sr. No.", "Letter / Document", "Subject", "Purpose",
+                       "Signed By", "Entity", "Country", "Status"]
+            for col, h in enumerate(headers, 1):
+                c = ws.cell(row=1, column=col, value=h)
+                c.font = Font(bold=True, color="FFFFFF")
+                c.fill = PatternFill("solid", fgColor="1a365d")
+            for r in plan:
+                ws.append([r["sr_no"], r["letter_name"], r["subject"], r["purpose"],
+                           r["signed_by"], r["entity_name"], r["country"], r["status"]])
+            xb = io.BytesIO()
+            wb.save(xb)
+            zf.writestr("02_Letter_Checklist.xlsx", xb.getvalue())
+        except Exception as ex:
+            logger.warning(f"complete-bundle: checklist failed: {ex}")
+
+        # 03 — letters
+        for i, lt in enumerate(letters, 1):
+            try:
+                blob = _word_bytes(
+                    lt["letter_name"], lt.get("body", ""),
+                    sig.get("name", "—"), sig.get("role", "—"), ent.get("name", "—"),
+                )
+                safe_nm = "".join(c for c in lt['letter_name'] if c.isalnum() or c in " _-").replace(" ", "_")
+                zf.writestr(f"03_Letters/{i:02d}_{safe_nm}.docx", blob)
+            except Exception as ex:
+                logger.warning(f"complete-bundle: letter {lt.get('letter_key')} failed: {ex}")
+
+        # 99 — manifest
+        manifest = (
+            f"PURNABRAMHA — COMPLETE VISA BUNDLE\n"
+            f"===================================\n"
+            f"Application: {aid}\n"
+            f"Country: {country.get('name', '—')} ({country.get('code', '—')})\n"
+            f"Applicant: {(app_doc.get('applicant') or {}).get('name', '—')}\n"
+            f"Pathway selected: {biz.get('selected_pathway_id') or '—'}\n"
+            f"Entity: {ent.get('name', '—')}\n"
+            f"Signatory: {sig.get('name', '—')} ({sig.get('role', '—')})\n"
+            f"Generated: {_now_iso()}\n"
+            f"Total letters: {len(letters)}\n"
+        )
+        zf.writestr("99_manifest.txt", manifest)
+
+    payload = buf.getvalue()
+    applicant_name = (app_doc.get("applicant") or {}).get("name") or "Applicant"
+    fname = f"PB_CompleteBundle_{_safe_dir_name(applicant_name)}_{country.get('code', 'XX')}_{aid}.zip"
+
+    record = await _persist_bundle(
+        aid=aid, kind="complete", filename=fname, payload=payload,
+        applicant_name=applicant_name,
+    )
+
+    await _db.visa_applications.update_one(
+        {"application_id": aid},
+        {"$set": {"status": "complete_bundle_ready",
+                  "last_bundle_id": record["bundle_id"],
+                  "updated_at": _now_iso()}},
+    )
+
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{fname}"',
+            "X-Bundle-Id": record["bundle_id"],
+        },
+    )
+

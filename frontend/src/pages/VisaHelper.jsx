@@ -91,7 +91,7 @@ export default function VisaHelper() {
   }, []);
   const isAdmin = isAdminUser(session);
 
-  const [tab, setTab] = useState("applications");
+  const [tab, setTab] = useState("recommender");
   const [countries, setCountries] = useState([]);
   const [pathways, setPathways] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -154,10 +154,25 @@ export default function VisaHelper() {
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList data-testid="visa-tabs">
+          <TabsTrigger value="recommender" data-testid="visa-tab-recommender">
+            <Sparkles className="h-4 w-4 mr-1" /> AI Recommender
+          </TabsTrigger>
           <TabsTrigger value="applications" data-testid="visa-tab-applications">Applications</TabsTrigger>
-          <TabsTrigger value="new" data-testid="visa-tab-new">+ New Wizard</TabsTrigger>
+          <TabsTrigger value="new" data-testid="visa-tab-new">Manual Wizard</TabsTrigger>
           {isAdmin && <TabsTrigger value="admin" data-testid="visa-tab-admin">Admin Panel</TabsTrigger>}
         </TabsList>
+
+        <TabsContent value="recommender" className="mt-4">
+          <RecommenderSection
+            countries={countries}
+            entities={entities}
+            signatories={signatories}
+            onProceedToWizard={(seed) => {
+              window.__visa_recommender_seed = seed;
+              setTab("new");
+            }}
+          />
+        </TabsContent>
 
         <TabsContent value="applications" className="mt-4">
           <ApplicationsList
@@ -326,6 +341,53 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
       try { window.__visa_open_app = null; } catch { /* noop */ }
     }
   }, [prefill]);
+
+  // Hydrate from AI Recommender (country + applicant snapshot + selected pathway)
+  useEffect(() => {
+    const seed = typeof window !== "undefined" ? window.__visa_recommender_seed : null;
+    if (seed) {
+      setCountryCode(seed.country_code || "");
+      setApplicant((prev) => ({ ...prev, ...(seed.applicant || {}) }));
+      setBusiness((prev) => ({
+        ...prev,
+        ...(seed.business || {}),
+        selected_pathway_id: seed.pathway_id || prev.selected_pathway_id,
+      }));
+      setStep(2);
+      try { window.__visa_recommender_seed = null; } catch { /* noop */ }
+    }
+  }, []);
+
+  // Auto-bundle (complete-bundle build + download) state
+  const [building, setBuilding] = useState(false);
+  const buildCompleteBundle = async () => {
+    let aid = applicationId;
+    if (!aid) aid = await saveApplication(true);
+    if (!aid) return;
+    if (!business.signatory_id || !business.entity_id) {
+      toast.error("Pick a Signatory and Entity (step 7) before building the complete bundle.");
+      return;
+    }
+    setBuilding(true);
+    try {
+      const applicantSafe = (applicant.name || "Applicant").replace(/\s+/g, "_");
+      await downloadAuthedPost(
+        `/visa/application/${aid}/build-complete-bundle`,
+        {
+          signatory_id: business.signatory_id,
+          entity_id: business.entity_id,
+          pathway_id: business.selected_pathway_id,
+        },
+        `PB_CompleteBundle_${applicantSafe}_${countryCode}_${aid}.zip`,
+      );
+      toast.success("Complete bundle generated & downloaded · 30 most recent kept in Admin → Bundle History");
+      onSaved?.();
+    } catch (e) {
+      toast.error(e.message || "Bundle build failed");
+    } finally {
+      setBuilding(false);
+    }
+  };
 
   useEffect(() => {
     if (countryCode) refreshPathways(countryCode);
@@ -728,6 +790,8 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
             onDownloadZip={downloadZip}
             onDownloadLetterWord={downloadLetterWord}
             onOpenLawyerBundle={openLawyerBundle}
+            onBuildCompleteBundle={buildCompleteBundle}
+            building={building}
           />
         )}
 
@@ -858,7 +922,7 @@ function ReviewStep({
   generatingReport, generatingLetters, saving,
   onSave, onGenerateReport, onGenerateLetters,
   onDownloadReport, onDownloadChecklist, onDownloadZip, onDownloadLetterWord,
-  onOpenLawyerBundle,
+  onOpenLawyerBundle, onBuildCompleteBundle, building,
 }) {
   const countryName = countries.find((c) => c.code === countryCode)?.name || countryCode;
 
@@ -931,6 +995,16 @@ function ReviewStep({
                 data-testid="visa-lawyer-bundle-btn"
               >
                 <Briefcase className="h-3.5 w-3.5 mr-1" /> Send to Immigration Lawyer
+              </Button>
+              <Button
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={!applicationId || building}
+                onClick={onBuildCompleteBundle}
+                data-testid="visa-complete-bundle-btn"
+              >
+                {building ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileArchive className="h-3.5 w-3.5 mr-1" />}
+                Generate Complete Bundle
               </Button>
             </div>
           </CardContent>
@@ -1064,6 +1138,7 @@ function AdminPanel({ countries, templates, entities, signatories, pathways, ref
             <TabsTrigger value="templates" data-testid="visa-admin-tab-templates">Letter Templates</TabsTrigger>
             <TabsTrigger value="entities" data-testid="visa-admin-tab-entities">Entities</TabsTrigger>
             <TabsTrigger value="signatories" data-testid="visa-admin-tab-signatories">Signatories</TabsTrigger>
+            <TabsTrigger value="bundles" data-testid="visa-admin-tab-bundles">Bundle History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="countries" className="mt-4">
@@ -1161,6 +1236,10 @@ function AdminPanel({ countries, templates, entities, signatories, pathways, ref
               onRefresh={onRefresh}
               testid="signatories"
             />
+          </TabsContent>
+
+          <TabsContent value="bundles" className="mt-4">
+            <BundleHistory />
           </TabsContent>
         </Tabs>
       </CardContent>
@@ -1309,3 +1388,324 @@ function ToggleRow({ checked, onChange, label, hint }) {
     </div>
   );
 }
+
+
+/* ────────────────────────────────────────────────────────── */
+/* AI Recommender Section                                     */
+/* ────────────────────────────────────────────────────────── */
+const EMPTY_RECOMMEND_INPUT = {
+  applicant_name: "",
+  current_role: "",
+  age: "",
+  years_of_experience: "",
+  nationality: "Indian",
+  english_status: "Not Started",
+  family_included: false,
+  spouse_work_rights_required: false,
+  shareholding_pct: "",
+  has_existing_operations: false,
+  has_expansion_plan: false,
+  has_business_plan: false,
+  has_financial_proof: false,
+  has_franchise_letter: false,
+  has_skills_assessment: false,
+  goal: "",
+  country_codes: [],
+  use_ai_narrative: true,
+};
+
+function RecommenderSection({ countries, onProceedToWizard }) {
+  const [input, setInput] = useState({ ...EMPTY_RECOMMEND_INPUT });
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const upd = (obj) => setInput((p) => ({ ...p, ...obj }));
+  const toggleCountry = (code) => {
+    setInput((p) => {
+      const cs = p.country_codes.includes(code)
+        ? p.country_codes.filter((c) => c !== code)
+        : [...p.country_codes, code];
+      return { ...p, country_codes: cs };
+    });
+  };
+
+  const run = async () => {
+    if (!input.applicant_name) { toast.error("Applicant name is required"); return; }
+    if (!input.age) { toast.error("Applicant age is required"); return; }
+    setLoading(true);
+    setResults(null);
+    try {
+      const payload = {
+        token: getToken(),
+        ...input,
+        age: input.age ? Number(input.age) : null,
+        years_of_experience: input.years_of_experience ? Number(input.years_of_experience) : null,
+        shareholding_pct: input.shareholding_pct ? Number(input.shareholding_pct) : null,
+        country_codes: input.country_codes.length ? input.country_codes : null,
+      };
+      const res = await api.post("/visa/recommend", payload);
+      setResults(res.data);
+      toast.success(`Found ${res.data?.top?.length || 0} matching pathways across ${input.country_codes.length || countries.length} countries`);
+    } catch (err) {
+      toast.error("Recommendation failed");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const proceed = (item) => {
+    const p = item.pathway;
+    const seed = {
+      country_code: p.country_code,
+      pathway_id: p.id,
+      applicant: {
+        name: input.applicant_name,
+        age: input.age ? Number(input.age) : null,
+        years_of_experience: input.years_of_experience ? Number(input.years_of_experience) : null,
+        nationality: input.nationality,
+        english_test_status: input.english_status,
+        family_included: input.family_included,
+        current_role: input.current_role,
+      },
+      business: {
+        goal_summary: input.goal,
+        franchise_letter_available: input.has_franchise_letter,
+        business_plan_available: input.has_business_plan,
+        financial_proof_available: input.has_financial_proof,
+        selected_pathway_id: p.id,
+      },
+    };
+    onProceedToWizard?.(seed);
+    toast.success(`Loaded ${p.name} into the Manual Wizard for refinement`);
+  };
+
+  return (
+    <div className="space-y-6" data-testid="visa-recommender-section">
+      <Card className="border-primary/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" /> AI Visa Advisor</CardTitle>
+          <CardDescription>
+            Describe the applicant and goals — the system compares every pathway across all priority countries and ranks the best fit.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid md:grid-cols-3 gap-3">
+            <Field label="Applicant Name *">
+              <Input value={input.applicant_name} onChange={(e) => upd({ applicant_name: e.target.value })} placeholder="e.g. Sandeep Kathale" data-testid="rec-name" />
+            </Field>
+            <Field label="Current Role">
+              <Input value={input.current_role} onChange={(e) => upd({ current_role: e.target.value })} placeholder="e.g. Managing Director" data-testid="rec-role" />
+            </Field>
+            <Field label="Age *">
+              <Input type="number" value={input.age} onChange={(e) => upd({ age: e.target.value })} data-testid="rec-age" />
+            </Field>
+            <Field label="Years of Experience">
+              <Input type="number" value={input.years_of_experience} onChange={(e) => upd({ years_of_experience: e.target.value })} data-testid="rec-yoe" />
+            </Field>
+            <Field label="Nationality">
+              <Input value={input.nationality} onChange={(e) => upd({ nationality: e.target.value })} />
+            </Field>
+            <Field label="English Status">
+              <Select value={input.english_status} onValueChange={(v) => upd({ english_status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Not Started">Not Started</SelectItem>
+                  <SelectItem value="Booked">Booked</SelectItem>
+                  <SelectItem value="Passed">Passed</SelectItem>
+                  <SelectItem value="Exempt">Exempt</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Shareholding % in destination entity">
+              <Input type="number" value={input.shareholding_pct} onChange={(e) => upd({ shareholding_pct: e.target.value })} placeholder="e.g. 35" />
+            </Field>
+            <Field label="Goal" wide>
+              <Input value={input.goal} onChange={(e) => upd({ goal: e.target.value })} placeholder="e.g. PR + family + spouse work rights" data-testid="rec-goal" />
+            </Field>
+          </div>
+
+          <div>
+            <Label className="text-xs">Country shortlist (leave empty to scan all)</Label>
+            <div className="flex flex-wrap gap-2 mt-1" data-testid="rec-countries">
+              {countries.map((c) => {
+                const on = input.country_codes.includes(c.code);
+                return (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => toggleCountry(c.code)}
+                    className={`px-3 py-1 text-xs rounded-full border ${on ? "bg-primary text-white border-primary" : "bg-white text-slate-700"}`}
+                    data-testid={`rec-country-${c.code}`}
+                  >
+                    {c.flag || "🌐"} {c.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-2">
+            <ToggleRow checked={input.family_included} onChange={(v) => upd({ family_included: v })} label="Family / spouse / children included" hint="Influences spouse work-rights scoring." />
+            <ToggleRow checked={input.has_existing_operations} onChange={(v) => upd({ has_existing_operations: v })} label="Existing operations in destination country" hint="Strong factor for 186 / L-1A / EB-1C." />
+            <ToggleRow checked={input.has_expansion_plan} onChange={(v) => upd({ has_expansion_plan: v })} label="Documented expansion plan" />
+            <ToggleRow checked={input.has_business_plan} onChange={(v) => upd({ has_business_plan: v })} label="Business plan available" />
+            <ToggleRow checked={input.has_financial_proof} onChange={(v) => upd({ has_financial_proof: v })} label="Financial proof / audited financials" />
+            <ToggleRow checked={input.has_franchise_letter} onChange={(v) => upd({ has_franchise_letter: v })} label="Franchise support letter ready" />
+            <ToggleRow checked={input.has_skills_assessment} onChange={(v) => upd({ has_skills_assessment: v })} label="Skills assessment completed (AU)" />
+            <ToggleRow checked={input.use_ai_narrative} onChange={(v) => upd({ use_ai_narrative: v })} label="Add Claude Sonnet 4.5 narrative reasoning to top 5" hint="Adds ~30s but produces a polished 'Why' paragraph per pathway." />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => { setInput({ ...EMPTY_RECOMMEND_INPUT }); setResults(null); }} data-testid="rec-reset">Reset</Button>
+            <Button size="sm" onClick={run} disabled={loading} data-testid="rec-run">
+              {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              Get Recommendations
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {results && (
+        <div className="space-y-3" data-testid="visa-recommender-results">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Recommendations</h2>
+            <Button size="sm" variant="ghost" onClick={() => setShowAll(!showAll)}>
+              {showAll ? "Show top 5" : `Show all ${results.all?.length || 0} pathways`}
+            </Button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            {(showAll ? results.all : results.top).map((item, idx) => {
+              const p = item.pathway;
+              const colour = item.suitability === "Strong" ? "border-emerald-400 bg-emerald-50"
+                : item.suitability === "Medium" ? "border-amber-400 bg-amber-50"
+                : "border-rose-300 bg-rose-50";
+              return (
+                <Card key={p.id} className={`${colour} border-2`} data-testid={`rec-result-${p.id}`}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-xs text-muted-foreground">#{idx + 1} · {item.country?.name || p.country_code} {item.country?.flag || ""}</div>
+                        <div className="font-semibold leading-tight">{p.name}</div>
+                      </div>
+                      <Badge variant={item.suitability === "Strong" ? "default" : "secondary"}>
+                        {item.suitability} · {item.score}/100
+                      </Badge>
+                    </div>
+                    <div className="text-xs grid grid-cols-2 gap-x-2">
+                      <div><b>Timeline:</b> {p.timeline_band || `${p.duration_months || "?"} months`}</div>
+                      <div><b>Type:</b> {p.type}</div>
+                      <div><b>Company cost:</b> {p.company_cost_band || "—"}</div>
+                      <div><b>Applicant cost:</b> {p.applicant_cost_band || "—"}</div>
+                    </div>
+                    {item.ai_rationale && (
+                      <div className="text-xs italic bg-white/60 border-l-2 border-primary/40 pl-2 py-1">
+                        <Sparkles className="h-3 w-3 inline mr-1 text-primary" />{item.ai_rationale}
+                      </div>
+                    )}
+                    {item.reasons?.length > 0 && (
+                      <div className="text-xs">
+                        <div className="font-semibold text-emerald-700">Why?</div>
+                        <ul className="list-disc pl-5">{item.reasons.slice(0, 5).map((r, i) => <li key={i}>{r}</li>)}</ul>
+                      </div>
+                    )}
+                    {item.risks?.length > 0 && (
+                      <div className="text-xs">
+                        <div className="font-semibold text-rose-700">Risk</div>
+                        <ul className="list-disc pl-5">{item.risks.slice(0, 4).map((r, i) => <li key={i}>{r}</li>)}</ul>
+                      </div>
+                    )}
+                    <div className="pt-1">
+                      <Button size="sm" className="w-full" onClick={() => proceed(item)} data-testid={`rec-proceed-${p.id}`}>
+                        Proceed with this visa <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* Bundle History (admin)                                     */
+/* ────────────────────────────────────────────────────────── */
+function BundleHistory() {
+  const [bundles, setBundles] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get("/visa/admin/bundles");
+      setBundles(r.data?.bundles || []);
+    } catch {
+      toast.error("Failed to load bundle history");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const download = (b) => {
+    downloadAuthed(`/visa/admin/bundle/${b.bundle_id}`, b.filename)
+      .catch((e) => toast.error(e.message));
+  };
+
+  return (
+    <Card data-testid="visa-bundle-history-card">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Bundle History</CardTitle>
+          <CardDescription>Last 30 generated bundles available for re-download.</CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={refresh} disabled={loading} data-testid="visa-bundle-history-refresh">
+          <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {bundles.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-6 text-center" data-testid="visa-bundle-history-empty">No bundles generated yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border" data-testid="visa-bundle-history-table">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="p-2 text-left">When</th>
+                  <th className="p-2 text-left">Applicant</th>
+                  <th className="p-2 text-left">Kind</th>
+                  <th className="p-2 text-left">Filename</th>
+                  <th className="p-2 text-right">Size</th>
+                  <th className="p-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bundles.map((b) => (
+                  <tr key={b.bundle_id} className="border-t" data-testid={`visa-bundle-history-row-${b.bundle_id}`}>
+                    <td className="p-2 text-xs">{(b.generated_at || "").replace("T", " ").slice(0, 19)}</td>
+                    <td className="p-2">{b.applicant_name || "—"}</td>
+                    <td className="p-2"><Badge variant="outline">{b.kind}</Badge></td>
+                    <td className="p-2 text-xs font-mono">{b.filename}</td>
+                    <td className="p-2 text-right text-xs">{Math.round((b.size_bytes || 0) / 1024)} KB</td>
+                    <td className="p-2 text-right">
+                      <Button size="sm" variant="outline" onClick={() => download(b)} data-testid={`visa-bundle-dl-${b.bundle_id}`}>
+                        <Download className="h-3.5 w-3.5 mr-1" /> Download
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
