@@ -454,15 +454,49 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
     if (!aid) return;
     setGeneratingLetters(true);
     try {
-      const res = await api.post(`/visa/application/${aid}/generate-letters`, {
-        token: getToken(),
-        application_id: aid,
-        scope: letterScope,
-      });
-      setLetters(res.data?.letters || []);
-      toast.success(`Drafted ${res.data?.letters?.length || 0} letters with Claude Sonnet 4.5`);
-    } catch {
-      toast.error("Letter generation failed");
+      // Kicks off a background job; ingress-safe (returns in <1s).
+      const startRes = await api.post(
+        `/visa/application/${aid}/generate-letters`,
+        { token: getToken(), application_id: aid, scope: letterScope },
+        { timeout: 30000 },
+      );
+      const total = startRes.data?.total || 0;
+      toast.info(`Drafting ${total} letters in the background — this typically takes 30-90s with Claude Sonnet 4.5.`);
+
+      // Poll for progress every 4s, up to 4 minutes
+      const start = Date.now();
+      const POLL_MS = 4000;
+      const MAX_MS = 4 * 60 * 1000;
+      while (Date.now() - start < MAX_MS) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        try {
+          const st = await api.get(`/visa/application/${aid}/letter-status`, { timeout: 20000 });
+          const status = st.data?.status;
+          const drafted = st.data?.drafted_count ?? 0;
+          const tot = st.data?.total ?? total;
+          setLetters(st.data?.letters || []);
+          if (status === "done") {
+            if (drafted < tot) {
+              toast.warning(`Drafted ${drafted}/${tot} letters — the rest timed out. Click Regenerate to retry.`);
+            } else {
+              toast.success(`Drafted ${drafted} letters with Claude Sonnet 4.5`);
+            }
+            return;
+          }
+          if (status === "error") {
+            toast.error(`Letter generation errored: ${st.data?.job?.error || "unknown"}`);
+            return;
+          }
+          // else still running — keep polling
+        } catch (e) {
+          // Transient poll failure — keep retrying
+          console.warn("letter-status poll failed", e);
+        }
+      }
+      toast.warning("Letter generation is still running — refresh the page in a minute to see drafts.");
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err?.message || "Letter generation failed";
+      toast.error(msg);
     } finally {
       setGeneratingLetters(false);
     }

@@ -4,6 +4,37 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Visa Helper letter generation: background-job + thread-pool fix] (P0 hotfix)
+
+User reported on production (`intra.purnabramha.com`): **"Letter generation failed"** + **"Failed to fetch"** when clicking *Generate AI Letters* with All letters (15) scope.
+
+**Root cause** (3-layer issue):
+1. `emergentintegrations` LLM client is sync-under-the-hood — a plain `asyncio.gather(await chat.send_message(...))` ran each call sequentially because the GIL/blocking client never yielded the event loop.
+2. With ~15-30s per Claude Sonnet 4.5 letter × 15 letters, total wall time was 2-4 minutes.
+3. Production ingress (Cloudflare → k8s) hard-kills any HTTP request after ~60s with a 502 — browser shows "Failed to fetch".
+
+**Fix** (`/app/backend/routes/visa.py`):
+- `POST /api/visa/application/{aid}/generate-letters` now **kicks off the work as a background job** via `asyncio.create_task` and returns immediately with `{job_id, status: "running", total: N}` (response in <1s — ingress-safe).
+- Each LLM call now runs through `loop.run_in_executor(None, _call_llm)` — a thread pool — so they **truly parallelize** despite the sync HTTP client (verified: **28 letters in 55s**, ~12× speed-up over sequential).
+- Per-letter 90s `asyncio.wait_for` so a single hang can't block the batch.
+- Job state persisted on the application doc (`letters_job: {status, drafted_count, total, started_at, completed_at}`) and stays consistent if user reloads the page.
+- New endpoint `GET /api/visa/application/{aid}/letter-status` returns the job status + accumulated `letters`.
+- Failed letters get `status: "Pending"` with a clear error placeholder; partial results are preserved so the user can regenerate just the ones that failed.
+
+**Frontend** (`/app/frontend/src/pages/VisaHelper.jsx`):
+- "Generate AI Letters" button now kicks off the background job, shows a toast "Drafting N letters in the background — this typically takes 30-90s", and **polls every 4s** for up to 4 minutes — UI stays responsive.
+- Letters appear in the UI as soon as the job completes; partial successes show a yellow toast "Drafted X/N — the rest timed out. Click Regenerate."
+- Clean error message replaces the previous generic "Letter generation failed" toast.
+
+**Architectural side benefit**: `build-complete-bundle` no longer tries to LLM-draft letters in-line (which would have hit the same ingress timeout). Users now run *Generate AI Letters* once, then *Generate Complete Bundle* simply packages the already-drafted letters into a structured ZIP in <5s.
+
+**Testing**: 35/35 backend tests pass (including 3 affected tests rewritten to use the polling pattern). Verified end-to-end on preview with all 28 templates in scope=all completing in 55s.
+
+⚠️ **Deploy required** — these fixes are in preview only. Click *Save to Github → Deploy* to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-18 — Visa Helper v2: AI Visa Advisor + Document Factory + Server-Stored Bundles] (P0)
 
 Major upgrade turning the Visa Helper from a 10-step questionnaire into an **AI-first founder tool**.

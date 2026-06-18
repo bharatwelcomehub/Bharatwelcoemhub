@@ -164,7 +164,12 @@ class TestApplicationFlow:
             assert sub in docs, f"documents_required missing '{sub}' bucket"
 
     def test_generate_letters_small_scope(self, super_admin_token):
-        """Use only 1 letter (director_resolution) to keep LLM cost low."""
+        """Use only 1 letter (director_resolution) to keep LLM cost low.
+
+        generate-letters is now a background-job endpoint (returns immediately
+        with job_id); the test polls /letter-status until the job completes.
+        """
+        import time
         payload = {
             "token": super_admin_token,
             "application_id": TestApplicationFlow.app_id,
@@ -172,12 +177,33 @@ class TestApplicationFlow:
             "scope": "resolutions",
         }
         r = requests.post(f"{BASE_URL}/api/visa/application/{TestApplicationFlow.app_id}/generate-letters",
-                          json=payload, timeout=120)
+                          json=payload, timeout=30)
         assert r.status_code == 200, r.text
-        letters = r.json()["letters"]
+        data = r.json()
+        assert data.get("status") == "running", data
+        assert data.get("total") == 1, data
+
+        # Poll up to 90s for the job to complete
+        deadline = time.time() + 90
+        while time.time() < deadline:
+            time.sleep(3)
+            st = requests.get(
+                f"{BASE_URL}/api/visa/application/{TestApplicationFlow.app_id}/letter-status",
+                params={"token": super_admin_token}, timeout=15,
+            )
+            assert st.status_code == 200, st.text
+            sdata = st.json()
+            if sdata.get("status") == "done":
+                break
+            if sdata.get("status") == "error":
+                raise AssertionError(f"Letter job errored: {sdata}")
+        else:
+            raise AssertionError("Letter generation did not complete within 90s")
+
+        letters = sdata.get("letters") or []
         assert len(letters) >= 1
-        ltr = letters[0]
-        assert ltr["letter_key"] == "director_resolution"
+        ltr = next((l for l in letters if l["letter_key"] == "director_resolution"), None)
+        assert ltr is not None, f"director_resolution not in {[l['letter_key'] for l in letters]}"
         assert ltr["status"] == "Drafted", f"Letter status={ltr['status']} body={ltr.get('body','')[:200]}"
         assert ltr["body"] and len(ltr["body"]) > 50
 

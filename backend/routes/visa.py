@@ -931,37 +931,142 @@ async def generate_letters(aid: str, req: _GenerateLettersReq = Body(...)):
     except Exception as ex:
         raise HTTPException(500, f"emergentintegrations not available: {ex}")
 
-    drafted = []
-    for t in templates_to_run:
-        try:
+    # Background-job pattern: a 15-letter Sonnet 4.5 batch can take 30-90s and
+    # will get killed by the 60s production ingress timeout. We therefore kick
+    # off the LLM work as an asyncio.create_task and return immediately. The
+    # frontend polls /letter-status until status == 'done'.
+    import asyncio
+
+    job_id = uuid.uuid4().hex[:10]
+    started_at = _now_iso()
+    await _db.visa_applications.update_one(
+        {"application_id": aid},
+        {"$set": {
+            "letters_job": {
+                "job_id": job_id,
+                "status": "running",
+                "started_at": started_at,
+                "completed_at": None,
+                "total": len(templates_to_run),
+                "drafted_count": 0,
+                "scope": req.scope,
+                "letter_keys": [t["id"] for t in templates_to_run],
+            },
+            "updated_at": started_at,
+        }},
+    )
+
+    async def _draft_one(t: dict) -> dict:
+        """Run the (sync-under-the-hood) LLM call in a thread pool so multiple
+        letters truly process in parallel — the emergentintegrations client
+        blocks the event loop, so a plain asyncio.gather wouldn't parallelize."""
+        loop = asyncio.get_event_loop()
+
+        def _call_llm() -> str:
             chat = LlmChat(
                 api_key=api_key,
                 session_id=f"visa-letter-{aid}-{t['id']}-{uuid.uuid4().hex[:6]}",
                 system_message=_LETTER_SYSTEM_PROMPT,
             ).with_model("anthropic", "claude-sonnet-4-5-20250929")
             user_text = _build_letter_prompt(t, app_doc, sig, ent, country_doc)
-            body_text = await chat.send_message(UserMessage(text=user_text))
+            # send_message is awaitable but underneath uses a sync HTTP client
+            # via litellm — wrap in asyncio.run to drive it inside the thread.
+            return asyncio.run(chat.send_message(UserMessage(text=user_text))) or ""
+
+        try:
+            body_text = await asyncio.wait_for(
+                loop.run_in_executor(None, _call_llm),
+                timeout=90,
+            )
             body_text = (body_text or "").strip()
-            drafted.append({
+            return {
                 "letter_key": t["id"], "letter_name": t["name"], "subject": t["subject"],
                 "purpose": t["purpose"], "body": body_text, "status": "Drafted",
                 "signed_by": sig.get("name"), "entity_name": ent.get("name"),
                 "country": country_doc.get("name"), "generated_at": _now_iso(),
-            })
+            }
+        except asyncio.TimeoutError:
+            logger.warning(f"visa: letter {t['id']} timed out after 90s")
+            return {
+                "letter_key": t["id"], "letter_name": t["name"], "subject": t["subject"],
+                "purpose": t["purpose"],
+                "body": "[Auto-generation timed out — click Regenerate to retry just this letter.]",
+                "status": "Pending", "signed_by": sig.get("name"),
+                "entity_name": ent.get("name"), "country": country_doc.get("name"),
+            }
         except Exception as ex:
             logger.warning(f"visa: letter {t['id']} failed: {ex}")
-            drafted.append({
+            return {
                 "letter_key": t["id"], "letter_name": t["name"], "subject": t["subject"],
                 "purpose": t["purpose"], "body": f"[Auto-generation failed: {ex}]",
                 "status": "Pending", "signed_by": sig.get("name"),
                 "entity_name": ent.get("name"), "country": country_doc.get("name"),
-            })
+            }
 
-    await _db.visa_applications.update_one(
+    async def _run_batch():
+        try:
+            drafted = await asyncio.gather(*[_draft_one(t) for t in templates_to_run])
+            # Merge with any previously-drafted letters not in this batch
+            doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0}) or {}
+            existing = doc.get("letters") or []
+            by_key = {l["letter_key"]: l for l in existing}
+            for d in drafted:
+                by_key[d["letter_key"]] = d
+            merged = list(by_key.values())
+            drafted_count = sum(1 for d in drafted if d.get("status") == "Drafted")
+            await _db.visa_applications.update_one(
+                {"application_id": aid},
+                {"$set": {
+                    "letters": merged,
+                    "status": "letters_generated",
+                    "letters_job.status": "done",
+                    "letters_job.completed_at": _now_iso(),
+                    "letters_job.drafted_count": drafted_count,
+                    "updated_at": _now_iso(),
+                }},
+            )
+        except Exception as ex:
+            logger.exception(f"visa: letters batch failed: {ex}")
+            await _db.visa_applications.update_one(
+                {"application_id": aid},
+                {"$set": {
+                    "letters_job.status": "error",
+                    "letters_job.error": str(ex),
+                    "letters_job.completed_at": _now_iso(),
+                    "updated_at": _now_iso(),
+                }},
+            )
+
+    asyncio.create_task(_run_batch())
+    return {
+        "success": True,
+        "job_id": job_id,
+        "status": "running",
+        "total": len(templates_to_run),
+        "message": "Letter generation started — poll /letter-status for progress.",
+    }
+
+
+@router.get("/application/{aid}/letter-status")
+async def letter_status(aid: str, token: str = Query(...)):
+    """Poll for background letter-generation progress."""
+    await _auth(token)
+    doc = await _db.visa_applications.find_one(
         {"application_id": aid},
-        {"$set": {"letters": drafted, "status": "letters_generated", "updated_at": _now_iso()}},
+        {"_id": 0, "letters": 1, "letters_job": 1},
     )
-    return {"success": True, "letters": drafted}
+    if not doc:
+        raise HTTPException(404, "Application not found")
+    job = doc.get("letters_job") or {}
+    letters = doc.get("letters") or []
+    return {
+        "success": True,
+        "job": job,
+        "letters": letters,
+        "status": job.get("status", "idle"),
+        "drafted_count": job.get("drafted_count", 0),
+        "total": job.get("total", 0),
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1911,30 +2016,12 @@ async def build_complete_bundle(aid: str, req: _CompleteBundleReq = Body(...)):
         await generate_report(aid, {"token": req.token})  # type: ignore[arg-type]
         app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
 
-    # If letters not yet drafted, draft a sensible default set (top 6 standard + selected expansion)
+    # Letters are generated via the background-job endpoint to stay within
+    # the production ingress 60s window. Complete-bundle does NOT itself draft
+    # letters in-line (that would re-introduce the original timeout bug).
+    # Whatever letters are already on the application are bundled; if none,
+    # the ZIP still ships the report + checklist and the manifest notes it.
     letters = app_doc.get("letters") or []
-    if not letters:
-        default_keys = ["employment_offer", "position_description", "business_justification",
-                        "expansion_plan", "salary_justification", "personal_statement"]
-        expansion_keys = req.expansion_letter_keys or []
-        # Country-specific defaults
-        cc = (country.get("code") or "").upper()
-        if cc == "AU" and not expansion_keys:
-            expansion_keys = ["au_south_perth_setup", "au_melbourne_expansion"]
-        elif cc == "US" and not expansion_keys:
-            expansion_keys = ["us_atlanta_expansion", "us_l1a_support"]
-        elif cc == "JP" and not expansion_keys:
-            expansion_keys = ["jp_market_entry"]
-        elif cc == "BE" and not expansion_keys:
-            expansion_keys = ["be_single_permit_justification"]
-        elif cc == "SG" and not expansion_keys:
-            expansion_keys = ["sg_ep_support"]
-        all_keys = list(dict.fromkeys(default_keys + expansion_keys))
-        await generate_letters(aid, _GenerateLettersReq(
-            token=req.token, application_id=aid, letter_keys=all_keys,
-        ))
-        app_doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0})
-        letters = app_doc.get("letters") or []
 
     # Assemble structured ZIP
     buf = io.BytesIO()
