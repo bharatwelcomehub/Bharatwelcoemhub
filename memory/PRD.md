@@ -4,6 +4,25 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — P&L Revenue Share fixes: MFPL with zero-paid + Projection RS] (P0 hotfix)
+
+User reported on production:
+1. **MFPL incorrect when Amount Paid = 0** — should deduct the *payable* (max of Rev Share + GST, MG + GST), not 0.
+2. **Projection Revenue Share = 0** for many months until 2028 Feb — because projection used `rs_base = Sale − Expense` (P/L) so loss-making months produced 0.
+
+**Fixes** (`/app/backend/routes/pnl_revenue_share.py`):
+- **Overview MFPL**: when `amount_paid > 0` deduct that (cash basis); when `amount_paid == 0` deduct `max(rs_plus_gst, mg_plus_gst)` (payable). Verified: PB-HSR Jun-2025 (paid=0) now ₹1.32 L instead of ₹3.74 L; total FY MFPL went from ₹28.31 L → ₹13.20 L.
+- **Projection RS**: now computes a `rs_base/sale` ratio from the seed months (effectively inheriting the historical commission + GST structure ≈ 90-95% of sale) and applies it forward. Every projected month now produces a positive Revenue Share even if Sale < Expense.
+- **Projection MFPL**: uses payable as the outflow (matches Overview's zero-paid branch).
+- **Projection start_month default**: changed to `max(today+1month, last_actual+1month)` so projections start in the *future*, not from a historical month. Verified: today=2026-06 → projection starts at 2026-07 (was 2026-04 before).
+
+**Verified end-to-end on preview** with PB-HSR FY 2025-26 + PB-MGT 3-year projection from baseline.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-18 — Center Accounts: P&L Revenue Share Overview + Revenue Share Projection] (P0)
 
 Two new tabs added under **Accounts → Center Accounts** (right after *Bundles & Exports*). The existing Overview tab is left untouched.

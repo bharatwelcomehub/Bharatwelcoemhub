@@ -176,9 +176,17 @@ async def _month_row(center: str, month: str, franchise: dict,
     ).to_list(200)
     amount_paid = round(sum(p.get("amount", 0) or 0 for p in payments), 2)
 
-    # — Profit Share MFPL — user-specified formula
+    # — Profit Share MFPL —
+    # If Amount Paid > 0: use actual paid (cash basis)
+    # If Amount Paid = 0: use the payable (max(Rev Share + GST, MG + GST)) so
+    #   the founder sees the true theoretical cost even when no payment was
+    #   disbursed that month. Spec from founder, 2026-02-18.
     pnl = round(total_sale - total_expenses - total_commission - gst_on_sales, 2)
-    profit_share_mfpl = round(total_sale - total_expenses - amount_paid, 2)
+    if amount_paid > 0:
+        outflow = amount_paid
+    else:
+        outflow = max(rs_plus_gst, mg_plus_gst)
+    profit_share_mfpl = round(total_sale - total_expenses - outflow, 2)
 
     return {
         "month": month,
@@ -338,20 +346,27 @@ async def revenue_share_projection(req: dict = Body(...)):
         base_sale = sum(s["sale"] for s in seeds) / len(seeds)
         base_expense = sum(s["expenses"] for s in seeds) / len(seeds)
         base_mg = sum(s["mg_amount"] for s in seeds) / len(seeds)
+        # Capture the historical `rs_base / sale` ratio so the projection
+        # inherits real commission + GST structure instead of using P/L (which
+        # would zero-out Revenue Share for every loss-making month).
+        total_seed_sale = sum(s["sale"] for s in seeds) or 1.0
+        total_seed_rs_base = sum(max(0, s["revenue_share_base"]) for s in seeds)
+        rs_base_ratio = total_seed_rs_base / total_seed_sale if total_seed_sale else 0.85
         last_actual_month = max(s["month"] for s in seeds)
     else:
         base_sale = 0.0
         base_expense = 0.0
         base_mg = 0.0
+        rs_base_ratio = 0.85   # conservative default ≈ 85% of sale (after 5% comm + 10% GST)
         last_actual_month = actual_to
 
     if mg_amount_override is not None:
         base_mg = float(mg_amount_override)
 
     if not start_month:
-        # next month after last_actual_month
-        y, m = last_actual_month.split("-")
-        d = datetime(int(y), int(m), 1)
+        # Default: max(next month after today, next month after last actual)
+        candidates = [today, datetime.strptime(last_actual_month + "-01", "%Y-%m-%d")]
+        d = max(candidates)
         if d.month == 12:
             d = d.replace(year=d.year + 1, month=1)
         else:
@@ -363,16 +378,19 @@ async def revenue_share_projection(req: dict = Body(...)):
     for i in range(months_count):
         projected_sale = round(base_sale * ((1 + sales_growth) ** i), 2)
         projected_expense = round(base_expense * ((1 + expense_growth) ** i), 2)
-        # Use a simplified P/L = Sale − Expense for projection (no commission/GST modelling).
+        # P/L kept as Sale − Expense for display.
         pnl = round(projected_sale - projected_expense, 2)
-        # Revenue share base for projection mirrors P/L (assumption: GST + commissions
-        # already considered in expense growth band). Founder spec says "use the
-        # same columns" so we expose all 11.
-        rs_base = pnl
+        # Revenue Share base = historical (rs_base / sale) ratio × projected
+        # sale — so loss-making months still pay revenue share, matching how
+        # the actual P&L Overview computes it (Sale − Commission − GST).
+        rs_base = round(projected_sale * rs_base_ratio, 2)
         rs_amount = round(max(0, rs_base) * (rs_pct / 100.0), 2)
         rs_plus_gst = round(rs_amount * (1 + gst_pct / 100.0), 2)
         mg_plus_gst = round(base_mg * (1 + gst_pct / 100.0), 2)
-        amount_paid = round(max(base_mg, rs_amount), 2)   # projected payout = max(MG, RS)
+        # Projected "Amount Paid" = expected payable = max(RS+GST, MG+GST).
+        amount_paid = round(max(rs_plus_gst, mg_plus_gst), 2)
+        # MFPL: matches Overview's zero-paid branch — use payable as outflow
+        # (because in projection nothing is actually paid yet).
         profit_mfpl = round(projected_sale - projected_expense - amount_paid, 2)
         rows.append({
             "month": cur.strftime("%Y-%m"),
