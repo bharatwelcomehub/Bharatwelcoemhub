@@ -511,7 +511,7 @@ export default function Salary({ isPayslips = false }) {
                   <TableRow>
                     <TableHead className="w-[200px]">Employee</TableHead>
                     <TableHead>Designation</TableHead>
-                    <TableHead>Center</TableHead>
+                    <TableHead>Center{targetCenter === 'ALL' ? 's Worked' : ''}</TableHead>
                     <TableHead className="text-right">Monthly</TableHead>
                     <TableHead className="text-right">Days</TableHead>
                     <TableHead className="text-right">Gross</TableHead>
@@ -524,7 +524,17 @@ export default function Salary({ isPayslips = false }) {
                     <TableRow key={idx} data-testid={`salary-row-${idx}`}>
                       <TableCell className="font-medium">{emp.employeeName}</TableCell>
                       <TableCell>{emp.designation}</TableCell>
-                      <TableCell><Badge variant="outline">{emp.center}</Badge></TableCell>
+                      <TableCell>
+                        {targetCenter === 'ALL' && emp.centersWorked && emp.centersWorked.includes(' + ') ? (
+                          <span className="inline-flex flex-wrap gap-1" data-testid={`centers-worked-${emp.employeeName}`}>
+                            {emp.centersWorked.split(' + ').map((c) => (
+                              <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>
+                            ))}
+                          </span>
+                        ) : (
+                          <Badge variant="outline">{emp.centersWorked || emp.center}</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">{formatCurrency(emp.monthlySalary)}</TableCell>
                       <TableCell className="text-right">
                         <Badge variant="outline">{emp.presentDays}/{emp.daysInMonth}</Badge>

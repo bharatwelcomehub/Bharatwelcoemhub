@@ -559,10 +559,15 @@ async def get_monthly_grid(req: DashboardRequest):
         key = f"{a.get('center')}_{a.get('employeeName')}_{a.get('date')}"
         att_map[key] = a.get("status", "")
     
-    # --- Transfer awareness: find employees transferred OUT during this month ---
-    # For each center (or the filtered center), find accepted transfers out 
-    # where the employee's center field was already changed (permanent transfers)
-    transfer_out_query = {
+    # --- Transfer awareness: build complete IN/OUT maps for the month ---
+    # The dashboard needs to:
+    #  • Show "OUT" for HOME employees during their transfer-out window so they
+    #    are not penalised as Absent at the old center.
+    #  • Inject TRANSFERRED_IN employees at the NEW center for their window.
+    #  • Add TRANSFERRED_OUT employees who already had their `employees.center`
+    #    field changed (PERMANENT transfers) so the source center's history
+    #    still surfaces (pre-transfer days only).
+    transfer_query_base = {
         "status": {"$in": ["ACCEPTED", "COMPLETED"]},
         "start_date": {"$lte": end_date},
         "$or": [
@@ -572,36 +577,106 @@ async def get_monthly_grid(req: DashboardRequest):
             {"transfer_type": "PERMANENT"}
         ]
     }
+    transfer_out_query = dict(transfer_query_base)
+    transfer_in_query = dict(transfer_query_base)
     if filter_center:
         transfer_out_query["from_center"] = filter_center
-    
+        transfer_in_query["to_center"] = filter_center
+
     transfers_out = await db.transfer_requests.find(transfer_out_query, {"_id": 0}).to_list(500)
-    
+    transfers_in = await db.transfer_requests.find(transfer_in_query, {"_id": 0}).to_list(500)
+
+    # Map: (from_center, emp_name) → list of transfer windows for "OUT" mask
+    out_window_map: dict = {}
+    for t in transfers_out:
+        key = (t["from_center"], t["employee_name"].upper())
+        out_window_map.setdefault(key, []).append({
+            "start": t["start_date"],
+            "end": t.get("end_date") or "",
+            "transfer_type": t.get("transfer_type") or "",
+            "to_center": t.get("to_center", ""),
+        })
+
+    # Map: (to_center, emp_name) → list of transfer windows for "IN" injection
+    in_window_map: dict = {}
+    for t in transfers_in:
+        key = (t["to_center"], t["employee_name"].upper())
+        in_window_map.setdefault(key, []).append({
+            "start": t["start_date"],
+            "end": t.get("end_date") or "",
+            "transfer_type": t.get("transfer_type") or "",
+            "from_center": t.get("from_center", ""),
+        })
+
+    def _within_any(date_str: str, windows: list) -> bool:
+        """True if `date_str` falls inside any of the given transfer windows."""
+        for w in windows:
+            ts, te = w.get("start") or "", w.get("end") or ""
+            if not ts:
+                continue
+            if date_str < ts:
+                continue
+            if te and date_str > te:
+                continue
+            return True
+        return False
+
     # Build set of current employee names per center
-    current_emp_names_by_center = {}
+    current_emp_names_by_center: dict = {}
     for emp in employees:
         c = emp.get("center", "")
         if c not in current_emp_names_by_center:
             current_emp_names_by_center[c] = set()
         current_emp_names_by_center[c].add(emp.get("name", "").upper())
-    
+
     # Find transferred-out employees missing from current employee list
+    # (these are PERMANENT transfers where employees.center already moved).
     transferred_out_emps = []
     for t in transfers_out:
         emp_name = t["employee_name"].upper()
         from_center = t["from_center"]
         current_names = current_emp_names_by_center.get(from_center, set())
         if emp_name not in current_names:
-            # Employee no longer in this center, fetch their record
-            emp = await db.employees.find_one({"name": emp_name}, {"_id": 0})
+            # Employee no longer in this center, fetch their record — case-insensitive.
+            emp = await db.employees.find_one(
+                {"name": {"$regex": f"^{emp_name}$", "$options": "i"}}, {"_id": 0}
+            )
             if emp:
                 transferred_out_emps.append({
                     "name": emp_name,
                     "original_center": from_center,
                     "designation": emp.get("designation", ""),
                     "to_center": t["to_center"],
-                    "transfer_start": t["start_date"]
+                    "transfer_start": t["start_date"],
+                    "transfer_end": t.get("end_date") or "",
+                    "transfer_type": t.get("transfer_type") or "",
                 })
+
+    # Find transferred-IN employees not yet in current emp list at to_center
+    # — they live in their old center's `employees` doc (TEMPORARY transfer)
+    # or already moved to new center (PERMANENT). Either way, surface them.
+    transferred_in_emps = []
+    for t in transfers_in:
+        emp_name = t["employee_name"].upper()
+        to_center = t["to_center"]
+        current_names = current_emp_names_by_center.get(to_center, set())
+        if emp_name in current_names:
+            # Already a home employee here (e.g. PERMANENT transfer already
+            # changed the center field) — handled by the regular HOME loop.
+            continue
+        emp = await db.employees.find_one(
+            {"name": {"$regex": f"^{emp_name}$", "$options": "i"}}, {"_id": 0}
+        )
+        if emp:
+            transferred_in_emps.append({
+                "name": emp_name,
+                "to_center": to_center,
+                "designation": emp.get("designation", ""),
+                "from_center": t.get("from_center", ""),
+                "transfer_start": t["start_date"],
+                "transfer_end": t.get("end_date") or "",
+                "transfer_type": t.get("transfer_type") or "",
+            })
     
     # Build employee grid data
     employee_grid = []
@@ -618,16 +693,25 @@ async def get_monthly_grid(req: DashboardRequest):
                 "half_day": 0, "week_off": 0, "leave": 0
             }
         center_stats[emp_center]["total_staff"] += 1
-        
+
+        # Check if this employee has an OUT window at THIS center
+        out_windows = out_window_map.get((emp_center, emp_name), [])
+        has_out_window = bool(out_windows)
+
         # Get attendance for each day
         attendance = []
         for d in range(1, dim + 1):
             date_str = f"{month}-{d:02d}"
             key = f"{emp_center}_{emp_name}_{date_str}"
             status = att_map.get(key, "")
+            # Mask attendance to "OUT" on dates within an active transfer-out
+            # window — the employee legally belongs to the destination center
+            # on those days (Feb-2026 transfer-attendance fix).
+            if has_out_window and _within_any(date_str, out_windows):
+                status = "OUT"
             attendance.append(status)
             
-            # Update center stats
+            # Update center stats (OUT does NOT count as Absent)
             if status == "P" or status == "LATE":
                 center_stats[emp_center]["present"] += 1
             elif status == "A":
@@ -638,13 +722,26 @@ async def get_monthly_grid(req: DashboardRequest):
                 center_stats[emp_center]["week_off"] += 1
             elif status == "L":
                 center_stats[emp_center]["leave"] += 1
-        
+
+        # Tag the employee row so the frontend can show a "Shifted Out" pill.
+        tag = "TRANSFERRED_OUT" if has_out_window else "HOME"
+        transfer_info = (
+            {
+                "to_center": out_windows[0].get("to_center", ""),
+                "transfer_start": out_windows[0].get("start", ""),
+                "transfer_end": out_windows[0].get("end", ""),
+                "transfer_type": out_windows[0].get("transfer_type", ""),
+            }
+            if has_out_window else {}
+        )
+
         employee_grid.append({
             "name": emp_name,
             "center": emp_center,
             "designation": emp.get("designation", ""),
             "attendance": attendance,
-            "transfer_tag": "HOME",
+            "transfer_tag": tag,
+            "transfer_info": transfer_info,
             "advance": round(adv_map.get(emp_name, 0), 2)
         })
     
@@ -688,7 +785,61 @@ async def get_monthly_grid(req: DashboardRequest):
             "transfer_tag": "TRANSFERRED_OUT",
             "transfer_info": {
                 "to_center": t_emp["to_center"],
-                "transfer_start": t_emp["transfer_start"]
+                "transfer_start": t_emp["transfer_start"],
+                "transfer_end": t_emp.get("transfer_end", ""),
+                "transfer_type": t_emp.get("transfer_type", ""),
+            },
+            "advance": round(adv_map.get(emp_name, 0), 2)
+        })
+
+    # ── TRANSFERRED-IN injection (Feb-2026 fix) ───────────────────────────
+    # For each accepted transfer where to_center == filter_center (or any
+    # center when not filtered), surface the employee at the destination
+    # center with attendance only inside the transfer window.
+    for t_emp in transferred_in_emps:
+        emp_name = t_emp["name"]
+        to_center = t_emp["to_center"]
+        in_windows = in_window_map.get((to_center, emp_name), [])
+
+        if to_center not in center_stats:
+            center_stats[to_center] = {
+                "total_staff": 0, "present": 0, "absent": 0,
+                "half_day": 0, "week_off": 0, "leave": 0
+            }
+        center_stats[to_center]["total_staff"] += 1
+
+        attendance = []
+        for d in range(1, dim + 1):
+            date_str = f"{month}-{d:02d}"
+            key = f"{to_center}_{emp_name}_{date_str}"
+            status = att_map.get(key, "")
+            # Outside the window → blank (employee is at their original center)
+            if not _within_any(date_str, in_windows):
+                status = ""
+            attendance.append(status)
+
+            if status == "P" or status == "LATE":
+                center_stats[to_center]["present"] += 1
+            elif status == "A":
+                center_stats[to_center]["absent"] += 1
+            elif status == "HD":
+                center_stats[to_center]["half_day"] += 1
+            elif status == "WO":
+                center_stats[to_center]["week_off"] += 1
+            elif status == "L":
+                center_stats[to_center]["leave"] += 1
+
+        employee_grid.append({
+            "name": emp_name,
+            "center": to_center,
+            "designation": t_emp.get("designation", ""),
+            "attendance": attendance,
+            "transfer_tag": "TRANSFERRED_IN",
+            "transfer_info": {
+                "from_center": t_emp["from_center"],
+                "transfer_start": t_emp["transfer_start"],
+                "transfer_end": t_emp.get("transfer_end", ""),
+                "transfer_type": t_emp.get("transfer_type", ""),
             },
             "advance": round(adv_map.get(emp_name, 0), 2)
         })

@@ -57,6 +57,10 @@ const STATUS_STYLES = {
   "WO": { bg: "#2563eb", text: "#fff", label: "Week Off" },
   "L": { bg: "#7c3aed", text: "#fff", label: "Leave" },
   "LATE": { bg: "#be185d", text: "#fff", label: "Late" },
+  // Transfer-aware: "OUT" = employee is at another center on this date due
+  // to an active inter-center transfer. Shown as a neutral grey pill so
+  // the user understands it is NOT an absence (Feb-2026 transfer fix).
+  "OUT": { bg: "#9ca3af", text: "#fff", label: "Shifted Out" },
   "": { bg: "#e5e7eb", text: "#6b7280", label: "-" }
 };
 

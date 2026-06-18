@@ -299,11 +299,18 @@ async def salary_preview(req: SalaryPreviewRequest):
         
         # Build attendance map with center info: key = empName_date
         att_map = {}
+        # `emp_centers` → for ALL mode, track every center an employee
+        # worked at this month (so the salary row can show "Hinjewadi + Kalyan").
+        emp_centers: dict = {}
         for a in all_attendance:
             key = f"{a['employeeName']}_{a['date']}"
             att_center = a.get("center", "")
             status = a.get("status", "")
-            
+            # Only count this attendance row toward a "center worked" if the
+            # status indicates the person actually worked (P, HD, or WO).
+            if att_center and status in ("P", "HD", "WO"):
+                emp_centers.setdefault(a['employeeName'], set()).add(att_center)
+
             if is_all:
                 # ALL mode: just store the status (any center counts)
                 if key not in att_map:
@@ -386,6 +393,11 @@ async def salary_preview(req: SalaryPreviewRequest):
                 "designation": emp.get("designation", ""),
                 "center": emp.get("center", ""),
                 "workingCenter": working_center,
+                "centersWorked": (
+                    " + ".join(sorted(emp_centers.get(emp_name, set())))
+                    if is_all and emp_centers.get(emp_name)
+                    else (working_center or emp.get("center", ""))
+                ),
                 "transferTag": transfer_tag,
                 "monthlySalary": salary,
                 "daysInMonth": dim,
@@ -515,11 +527,16 @@ async def generate_salary(req: SalaryGenRequest):
         
         # Build attendance map
         att_map = {}
+        # Track every center an employee worked at this month (ALL mode displays
+        # this as "Hinjewadi + Kalyan" in the CENTERS_WORKED Excel column).
+        emp_centers: dict = {}
         for a in attendance:
             key = f"{a['employeeName']}_{a['date']}"
             att_center = a.get("center", "")
             status = a.get("status", "")
-            
+            if att_center and status in ("P", "HD", "WO"):
+                emp_centers.setdefault(a['employeeName'], set()).add(att_center)
+
             if is_all:
                 # All mode: any center counts
                 if key not in att_map:
@@ -546,16 +563,17 @@ async def generate_salary(req: SalaryGenRequest):
         ws = wb.active
         ws.title = "Salary"
         
-        # Headers - ICICI bank format
+        # Headers - ICICI bank format + transfer-aware CENTERS_WORKED
         headers = [
             "PYMT_PROD_TYPE_CODE", "PYMT_MODE", "DEBIT_ACC_NO", "BNF_NAME",
             "BENE_ACC_NO", "BENE_IFSC", "AMOUNT", "DEBIT_NARR", "CREDIT_NARR",
-            "MOBILE_NUM", "EMAIL_ID", "REMARK", "CENTER", "WORKING_DAYS",
-            "PRESENT_DAYS", "GROSS_SALARY", "ADVANCE_DEDUCTION", "NET_SALARY"
+            "MOBILE_NUM", "EMAIL_ID", "REMARK", "CENTER", "CENTERS_WORKED",
+            "WORKING_DAYS", "PRESENT_DAYS", "GROSS_SALARY", "ADVANCE_DEDUCTION",
+            "NET_SALARY"
         ]
         for col, h in enumerate(headers, 1):
             ws.cell(row=1, column=col, value=h)
-        
+
         row = 2
         for emp in employees:
             emp_name = emp.get("name", "").upper()
@@ -597,6 +615,14 @@ async def generate_salary(req: SalaryGenRequest):
             advance = adv_map.get(emp_name, 0)
             net_salary = max(0, gross_salary - advance)
             
+            # CENTERS_WORKED column — ALL mode shows every distinct center the
+            # employee actually worked at this month (e.g. "Hinjewadi + Kalyan").
+            # Per-center mode shows just that center.
+            if is_all and emp_centers.get(emp_name):
+                centers_worked = " + ".join(sorted(emp_centers[emp_name]))
+            else:
+                centers_worked = target_center or emp.get("center", "")
+
             ws.cell(row=row, column=1, value="PAB_VENDOR")
             ws.cell(row=row, column=2, value="NEFT")
             ws.cell(row=row, column=3, value="55205000830")
@@ -610,11 +636,12 @@ async def generate_salary(req: SalaryGenRequest):
             ws.cell(row=row, column=11, value=emp.get("email", ""))
             ws.cell(row=row, column=12, value=emp.get("center", ""))
             ws.cell(row=row, column=13, value=emp.get("center", ""))
-            ws.cell(row=row, column=14, value=dim)
-            ws.cell(row=row, column=15, value=round(present_days, 1))
-            ws.cell(row=row, column=16, value=round(gross_salary, 2))
-            ws.cell(row=row, column=17, value=round(advance, 2))
-            ws.cell(row=row, column=18, value=round(net_salary, 2))
+            ws.cell(row=row, column=14, value=centers_worked)
+            ws.cell(row=row, column=15, value=dim)
+            ws.cell(row=row, column=16, value=round(present_days, 1))
+            ws.cell(row=row, column=17, value=round(gross_salary, 2))
+            ws.cell(row=row, column=18, value=round(advance, 2))
+            ws.cell(row=row, column=19, value=round(net_salary, 2))
             row += 1
         
         # Save to bytes

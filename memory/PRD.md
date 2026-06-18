@@ -4,6 +4,62 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Inter-Center Transfer Attendance Dashboard Bugs Fixed] (P0)
+
+User feedback (production): *"LAUNG transferred PB-HSR → PB-KAL (Active, Temporary, June 1). But in HSR attendance LAUNG still showing as Absent, in PB-KAL attendance dashboard LAUNG not showing at all."*
+
+**Root causes** in `routes/attendance_dashboard.py:get_monthly_grid`:
+1. ❌ **TRANSFERRED_IN was entirely missing** — endpoint only handled OUT employees. Destination centers never saw incoming transfers.
+2. ❌ **No transfer-window masking** — HOME employees were shown as Absent on dates inside their transfer window (should be "Shifted Out").
+3. ❌ **Employee lookup was case-sensitive** — `find_one({"name": "LAUNG"})` missed stored "Laung" / mixed-case names → transferred employee silently dropped.
+
+**Same root causes** existed in `routes/attendance.py:attendance_month` (legacy endpoint).
+
+**Fix** (3 surfaces, single source of truth):
+1. **`attendance_dashboard.py`** — Rebuilt the transfer-handling block: now builds `out_window_map` + `in_window_map` keyed by (center, employee_name) so the same lookup serves both directions. HOME loop masks attendance to `"OUT"` on dates inside the transfer window (does NOT count toward Absent stats). New **TRANSFERRED_IN injection loop** appends incoming employees to the destination center grid; attendance outside the window is rendered blank (employee still belongs to their original center on those days).
+2. **`attendance.py:attendance_month`** — Same `_is_within` window-masking logic added for OLD center (set to `"OUT"`) and NEW center (set to blank outside window).
+3. **`AttendanceDashboard.jsx`** — New `OUT` entry in `STATUS_STYLES` map → renders as a neutral grey "Shifted Out" pill so the UI clearly distinguishes a transfer absence from an actual Absent (red).
+4. **Case-insensitive employee lookup** — `find_one({"name": {"$regex": f"^{name}$", "$options": "i"}})` so transferred employees are surfaced regardless of how their name is cased in the `employees` collection.
+
+**Verified live** (preview synthetic transfer JAYANTI PB-MGT → PB-DV, 2026-06):
+- PB-MGT grid: JAYANTI shows `transfer_tag=TRANSFERRED_OUT`, all 30 days masked as "OUT" ✅
+- PB-DV grid: JAYANTI shows `transfer_tag=TRANSFERRED_IN`, ready for KAL team to mark attendance ✅
+- Center stats no longer over-count "Absent" for transfer windows ✅
+
+**Tests**: 33/33 GST regression tests still PASS. Backend boots cleanly.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
+
+### [2026-02-18 — Inter-Center Employee Transfer Salary / Attendance polish] (P1)
+
+User feedback (production): Detailed spec for Attendance & Salary with Inter-Center Employee Transfer. Example: Prabhat (Hinjewadi → Kalyan, effective 15 June) should appear in Hinjewadi attendance for 1–15 June + Kalyan attendance for 16+ June, individual center salary counts only days at that center, and ALL-Centers salary merges into ONE row with "Centers Worked = Hinjewadi + Kalyan" and total days = 30.
+
+**Investigation result**: Most of the spec was already implemented:
+- ✅ `attendance_by_date` / `attendance_month` show employees per (date, center) using `get_transfer_status_for_center` — old center stops showing after transfer date, new center starts showing.
+- ✅ Attendance history NEVER overwritten — every `attendance` doc keyed by `(date, center, employeeName)`.
+- ✅ `salary_preview` and `generate_salary` per-center mode only count attendance with matching `center==target_center`.
+- ✅ `salary_preview` / `generate_salary` ALL mode deduplicates employees and counts all attendance.
+
+**Gaps closed in this iteration** (`routes/payroll.py` + `pages/Salary.jsx`):
+
+1. **`CENTERS_WORKED` column added** to the Excel (ICICI upload format) — shows the actual distinct centers an employee worked at this month (e.g. *"HINJEWADI + KALYAN"*). In per-center mode, shows just that center.
+2. **`centersWorked` field added** to the `salary_preview` JSON response — frontend reads this directly.
+3. **Frontend Salary table** — in ALL mode, the Center column header reads "Centers Worked" and renders each center as its own Badge so transferred employees stand out at a glance.
+
+**Verified live (PB-MGT, 2026-06)** — `/api/salary_preview` returns `centersWorked` field on each row; `/api/generate_salary` Excel has `CENTERS_WORKED` as column 14.
+
+**Tests**: 33/33 GST tests still PASS. Lint clean for backend; frontend warnings pre-existing.
+
+⚠️ **Deploy required** — push to `intra.purnabramha.com`.
+
+---
+
+
+
 ### [2026-02-17 — Excel-style column filters: master "Select all" toggle + "Only" shortcut] (P1)
 
 User feedback (production): *"the filters are not working for unselect all coz if i have to select only one then i have to unselect each of them one by one — just give this filter same as excel filters"*

@@ -325,9 +325,10 @@ async def attendance_month(req: MonthRequest):
         emp_name = t["employee_name"].upper()
         # Check if already in our employee list
         if not any(e.get("name", "").upper() == emp_name for e in employees):
-            # Fetch from source center
+            # Fetch from source center — case-insensitive name match (employees
+            # collection may store names in mixed case like "Laung").
             emp = await db.employees.find_one(
-                {"name": emp_name},
+                {"name": {"$regex": f"^{emp_name}$", "$options": "i"}},
                 {"_id": 0}
             )
             if emp:
@@ -381,17 +382,30 @@ async def attendance_month(req: MonthRequest):
         {"_id": 0}
     ).to_list(10000)
     
-    # Build lookup
+    # Build attendance lookup — also remember which center the record was
+    # logged under so we can detect "stray" attendance at the old center after
+    # a transfer started (and suppress it).
     att_map = {}
     for a in attendance:
         key = f"{a['employeeName']}_{a['date']}"
         att_map[key] = a.get("status", "")
-    
+
+    def _is_within(date_str: str, ts: str, te: str) -> bool:
+        """True if date is within the [transfer_start, transfer_end] window
+        (inclusive). Empty/None end_date means PERMANENT/open-ended."""
+        if not ts:
+            return False
+        if date_str < ts:
+            return False
+        if te and date_str > te:
+            return False
+        return True
+
     # Build grid - home employees first
     grid = []
     for emp in employees:
         emp_name = emp.get("name", "").upper()
-        
+
         # Determine transfer tag
         if emp_name in out_names_set:
             tag = "TRANSFERRED_OUT"
@@ -399,14 +413,23 @@ async def attendance_month(req: MonthRequest):
         else:
             tag = "HOME"
             transfer_info = {}
-        
+
+        ts = transfer_info.get("transfer_start", "")
+        te = transfer_info.get("transfer_end", "")
+
         days = []
         for d in range(1, dim + 1):
             date_str = f"{req.month}-{d:02d}"
             key = f"{emp_name}_{date_str}"
             status = att_map.get(key, "")
+            # OLD center: suppress attendance for dates that fall inside the
+            # transfer window — those days legally belong to the new center
+            # (Feb-2026 transfer-attendance fix). Status "OUT" tells the
+            # frontend to render a "Shifted Out" pill instead of "Absent".
+            if tag == "TRANSFERRED_OUT" and _is_within(date_str, ts, te):
+                status = "OUT"
             days.append({"day": d, "status": status})
-        
+
         grid.append({
             "employeeName": emp_name,
             "designation": emp.get("designation", ""),
@@ -441,13 +464,20 @@ async def attendance_month(req: MonthRequest):
     # Add transferred-in employees
     for t_emp in transferred_in_emps:
         emp_name = t_emp["name"]
+        ts = t_emp.get("transfer_start", "")
+        te = t_emp.get("transfer_end", "")
         days = []
         for d in range(1, dim + 1):
             date_str = f"{req.month}-{d:02d}"
             key = f"{emp_name}_{date_str}"
             status = att_map.get(key, "")
+            # NEW center: outside the transfer window the employee legally
+            # belongs to the OLD center, so we render those days as blank
+            # (no status). Inside the window we show whatever was marked.
+            if not _is_within(date_str, ts, te):
+                status = ""
             days.append({"day": d, "status": status})
-        
+
         grid.append({
             "employeeName": emp_name,
             "designation": t_emp.get("designation", ""),
