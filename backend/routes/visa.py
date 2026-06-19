@@ -784,25 +784,41 @@ async def _ensure_seeds():
         "skill_level", "company_cost_band", "applicant_cost_band", "duration_months",
         "timeline_band", "key_requirements", "spouse_work_rights",
     )
-    # required_letters / required_documents are seeded on FIRST insert only,
-    # so admin edits via /api/visa/admin/pathway are NOT clobbered on the next read.
-    _PATHWAY_INSERT_ONLY_FIELDS = ("required_letters", "required_documents")
+    # required_letters / required_documents: $set ONLY when the row hasn't
+    # been manually admin-edited. The admin upsert endpoint stamps
+    # _admin_edited=True so seed values stop overwriting user edits, while
+    # any pathway with no manual override still receives the latest seed
+    # values on every read (essential to push Phase A fixes to production
+    # where rows were created before required_letters existed).
+    _PATHWAY_SEED_OVERRIDE_FIELDS = ("required_letters", "required_documents")
     for p in _SEED_PATHWAYS:
         machine = {k: p[k] for k in _PATHWAY_MACHINE_FIELDS if k in p}
-        insert_only = {k: p[k] for k in _PATHWAY_INSERT_ONLY_FIELDS if k in p}
         set_on_insert = {
             "_seed": True, "created_at": _now_iso(),
             "name": p["name"], "summary": p.get("summary", ""),
-            **insert_only,
         }
-        await _db.visa_pathways.update_one(
-            {"id": p["id"]},
-            {
-                "$setOnInsert": set_on_insert,
-                "$set": machine,
-            },
-            upsert=True,
-        )
+        # First insert: populate everything (including seed overrides).
+        # Subsequent reads: only push seed overrides if NOT admin-edited.
+        existing = await _db.visa_pathways.find_one({"id": p["id"]}, {"_admin_edited": 1})
+        if not existing:
+            for f in _PATHWAY_SEED_OVERRIDE_FIELDS:
+                if f in p:
+                    set_on_insert[f] = p[f]
+            await _db.visa_pathways.update_one(
+                {"id": p["id"]},
+                {"$setOnInsert": set_on_insert, "$set": machine},
+                upsert=True,
+            )
+        else:
+            update_set = dict(machine)
+            if not existing.get("_admin_edited"):
+                for f in _PATHWAY_SEED_OVERRIDE_FIELDS:
+                    if f in p:
+                        update_set[f] = p[f]
+            await _db.visa_pathways.update_one(
+                {"id": p["id"]},
+                {"$set": update_set},
+            )
     for (k, n, s, p) in _DEFAULT_LETTER_TYPES:
         await _db.visa_letter_templates.update_one(
             {"id": k},
@@ -951,6 +967,9 @@ async def delete_country(code: str, token: str = Query(...)):
 async def upsert_pathway(data: dict = Body(...)):
     await _require_admin(data.get("token", ""))
     body = {k: v for k, v in data.items() if k != "token"}
+    # Mark this row as manually edited so the seed pass stops overwriting
+    # required_letters / required_documents on the next /pathways read.
+    body["_admin_edited"] = True
     return {"success": True, "pathway": await _upsert("visa_pathways", body, "id")}
 
 
