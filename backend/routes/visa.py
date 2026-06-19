@@ -879,9 +879,46 @@ async def get_application(aid: str, token: str = Query(...)):
 
 
 @router.delete("/application/{aid}")
-async def delete_application(aid: str, token: str = Query(...)):
-    await _auth(token)
-    await _db.visa_applications.delete_one({"application_id": aid})
+async def delete_application(
+    aid: str,
+    token: str = Query(...),
+    hard: bool = Query(False, description="Super-admin only — permanently remove"),
+):
+    """Soft delete by default (status='archived'). Super Admin may pass hard=true to permanently remove."""
+    sess = await _auth(token)
+    doc = await _db.visa_applications.find_one({"application_id": aid}, {"_id": 0, "status": 1})
+    if not doc:
+        raise HTTPException(404, "Application not found")
+    if hard:
+        is_admin = bool(sess.get("is_super_admin") or sess.get("is_admin"))
+        if not is_admin:
+            raise HTTPException(403, "Permanent delete is restricted to Super Admin")
+        await _db.visa_applications.delete_one({"application_id": aid})
+        return {"success": True, "mode": "hard"}
+    # Soft delete
+    await _db.visa_applications.update_one(
+        {"application_id": aid},
+        {"$set": {
+            "status": "archived",
+            "archived_at": _now_iso(),
+            "archived_by": sess.get("mobile") or sess.get("email") or "system",
+            "updated_at": _now_iso(),
+        }},
+    )
+    return {"success": True, "mode": "soft", "status": "archived"}
+
+
+@router.post("/application/{aid}/restore")
+async def restore_application(aid: str, req: _TokenReq = Body(...)):
+    """Restore an archived application back to its prior status."""
+    await _auth(req.token)
+    res = await _db.visa_applications.update_one(
+        {"application_id": aid, "status": "archived"},
+        {"$set": {"status": "draft", "updated_at": _now_iso()},
+         "$unset": {"archived_at": "", "archived_by": ""}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Archived application not found")
     return {"success": True}
 
 

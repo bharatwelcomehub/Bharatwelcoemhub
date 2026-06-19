@@ -23,8 +23,8 @@ api.interceptors.request.use(
       try {
         const parsed = JSON.parse(session);
         if (parsed.token) {
-          // Add token to query params if not already present
-          if (config.method === 'get' && !config.params?.token) {
+          // Add token to query params for GET and DELETE (which carry no body)
+          if ((config.method === 'get' || config.method === 'delete') && !config.params?.token) {
             config.params = { ...config.params, token: parsed.token };
           }
         }
