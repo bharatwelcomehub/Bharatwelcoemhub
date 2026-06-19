@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 95 — Strict Visa Flow Phase B/C/D tested. Backend: 7/8 new pytest tests pass (test_visa_strict_flow_v3.py). Confirmed: (a) GET /api/visa/applications default excludes status=archived; include_archived=true returns all incl. archived. (b) DELETE /api/visa/application/{aid} soft-archives (mode=soft, status=archived) and the app disappears from default list. (c) POST .../restore brings archived app back to status=draft. (d) DELETE with hard=true permanently removes (mode=hard) — confirmed via 404 on subsequent GET. (e) POST /applications/bulk-delete with 3 application_ids soft-archives all 3 and returns mode=soft, archived=3. Empty list -> 400. (f) POST /application/{aid}/generate-letters with scope='selected_pathway' on app with business.selected_pathway_id='AU-400' returns total=7 (matches AU-400 seed of 7 required_letters). (g) Pathway list returns required_letters & required_documents populated: AU-400 = 7 letters / 12 docs (✅), AU-186 = 13 letters / 10 docs (✅). One backend test FAILS — POST /api/visa/admin/pathway upsert of required_letters/required_documents does NOT persist because /api/visa/pathways calls _ensure_seeds() on every read which unconditionally $sets the seed-defined required_letters/required_documents from pathway_overrides, clobbering any admin edit. Frontend: /visa-helper loads with all 4 tabs (AI Recommender, Applications, Manual Wizard, Admin Panel). Manual Wizard initial state shows amber 'visa-no-pathway-banner' (no selected pathway). Applications tab shows bulk-select checkboxes (visa-app-select-all + per-row), 'Show Archived' toggle, and the 'visa-bulk-archive-btn' appears as soon as ≥1 row is selected. Admin Panel renders Countries/Pathways/Letter Templates/Entities/Signatories/Bundle History sub-tabs. (AU-400 step1 button could not be clicked in this run because step1 pathway list only appears after a country card is selected — strict country→pathway gating is by design, not a bug.)",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/visa/admin/pathway",
+        "issue": "Admin edits to required_letters / required_documents do NOT persist. Root cause: every GET /api/visa/pathways calls _ensure_seeds() which unconditionally $sets the seed-defined required_letters and required_documents from the in-file pathway_overrides dict (visa.py lines 760-765, 786-799). Any admin upsert is overwritten on the very next read. Fix: change _PATHWAY_MACHINE_FIELDS to exclude 'required_letters' and 'required_documents' (move them to $setOnInsert), OR add an _admin_edited flag and skip $set when present, OR drop the unconditional $set for these two fields.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_visa_strict_flow_v3.py",
+    "/app/test_reports/pytest/iter95_strict_flow.xml"
+  ],
+  "action_items": [
+    "Fix the pathway admin upsert persistence bug: remove 'required_letters' and 'required_documents' from _PATHWAY_MACHINE_FIELDS in /app/backend/routes/visa.py (line ~782) so /pathways list doesn't clobber admin edits, or seed them via $setOnInsert only.",
+    "After fix, re-run TestAdminPathwayUpsert.test_round_trip_required_letters_documents in /app/backend/tests/test_visa_strict_flow_v3.py."
+  ],
+  "critical_code_review_comments": [
+    "Bulk-delete endpoint correctly enforces hard-delete to super-admin only (403 otherwise) and scopes non-admin soft-delete to owner_user.",
+    "generate-letters scope='selected_pathway' correctly falls back to scope='all' when business.selected_pathway_id is absent or pathway has empty required_letters — good defensive coding.",
+    "_ensure_seeds() runs on EVERY read endpoint (countries/pathways/letter-templates/entities/signatories) which adds latency and is the root cause of the admin-upsert bug. Consider gating with a module-level _SEEDS_DONE flag or moving to a one-shot startup hook.",
+    "visa.py is now 2648 lines — strongly recommend splitting per earlier iteration suggestion (visa_admin/visa_application/visa_exports/visa_recommender)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_visa_strict_flow_v3.py (new — 8 tests: 2 pathway-seed, 2 archive-flow, 2 bulk-delete, 1 generate-letters selected_pathway, 1 admin-pathway round-trip)"
+  ],
+  "success_rate": {
+    "backend": "87.5% (7/8 strict-flow tests pass; the failing test exposes the admin-pathway persistence bug)",
+    "frontend": "100% of testable surface verified — 4 tabs render, Manual Wizard no-pathway amber banner shows on fresh state, Applications tab shows bulk-select + toggle-archived + bulk-archive-btn appears on selection, Admin Panel renders all 6 sub-tabs including Pathways and Bundle History."
+  },
+  "test_credentials": "Super Admin mobile=9741399190 OTP=123456 center=PB-MGT (verified working). Franchise mobile=8888888888 OTP=123456 center=PB-HSR.",
+  "seed_data_creation": "All created test apps were cleaned up via hard-delete at end of each test (prefixed TEST_).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend strict-flow archive/restore/bulk-delete/generate-letters(selected_pathway)/pathway-seed all PASS. ONE backend bug remains: admin pathway upsert is clobbered by _ensure_seeds() on next /pathways read. Fix in /app/backend/routes/visa.py around line 782 (_PATHWAY_MACHINE_FIELDS). Once main agent fixes, simply re-run: pytest /app/backend/tests/test_visa_strict_flow_v3.py::TestAdminPathwayUpsert -v. Frontend not deeply exercised on Step 10 (visa-required-docs-card / visa-letter-sets-card) because those only render once a pathway is selected which requires the multi-step wizard navigation — recommend a follow-up UI run that: login → Manual Wizard → click country card AU → click visa-step1-pathway-AU-400 → assert green visa-selected-pathway-banner appears with name 'Subclass 400…' → jump to step 10 and verify the two new collapsible cards. The Recommender → Proceed flow + Step 10 Generate Bundle were already covered in iteration 94.",
+  "rca of the issue": "The /pathways endpoint always calls _ensure_seeds() (visa.py:889), and _ensure_seeds() unconditionally $sets the 'machine fields' tuple — which now includes 'required_letters' and 'required_documents' (line 786) — from the in-source pathway_overrides dict. So even after an admin successfully POSTs to /api/visa/admin/pathway and the DB row is updated, the very next GET /api/visa/pathways runs the seed-merge and overwrites the admin's required_letters/required_documents back to the seed values. Mitigation: remove these two fields from _PATHWAY_MACHINE_FIELDS, OR check for an admin-edited marker before applying overrides, OR seed them only via $setOnInsert."
+}

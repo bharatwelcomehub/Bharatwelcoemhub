@@ -596,6 +596,174 @@ async def _ensure_seeds():
     if _db is None:
         return
 
+    # Per-pathway letter sets + required documents (Phase A — visa-specific
+    # output). Each list is intentionally tight so the bundle only ships what
+    # the chosen visa actually needs. Documents include a `source` field so
+    # the UI can show "📥 Bank · 📥 MCA · ✍️ Generated" chips.
+    pathway_overrides = {
+        "AU-400": {
+            "required_letters": [
+                "invitation_letter", "employment_offer", "business_justification",
+                "genuine_position", "personal_statement", "training_plan",
+                "franchise_support",
+            ],
+            "required_documents": [
+                {"name": "Passport (front + back)", "source": "Applicant"},
+                {"name": "Recent photograph", "source": "Applicant"},
+                {"name": "Current employment proof", "source": "Sending Company"},
+                {"name": "Invitation letter from receiving company", "source": "Generated"},
+                {"name": "Sending company support letter", "source": "Generated"},
+                {"name": "Purpose-of-visit letter", "source": "Generated"},
+                {"name": "Event / project / training details", "source": "Receiving Company"},
+                {"name": "Itinerary + accommodation proof", "source": "Receiving Company"},
+                {"name": "Bank statement (6 months)", "source": "Bank"},
+                {"name": "Indian company registration", "source": "MCA / ROC"},
+                {"name": "GST certificate", "source": "GST Portal"},
+                {"name": "Previous visa / travel history", "source": "Applicant"},
+            ],
+        },
+        "AU-186": {
+            "required_letters": [
+                "employment_offer", "employment_agreement", "position_description",
+                "business_justification", "salary_justification", "genuine_position",
+                "expansion_plan", "org_chart", "shareholding_confirmation",
+                "franchise_support", "personal_statement", "experience_verification",
+                "director_resolution",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "Skills assessment", "source": "Applicant"},
+                {"name": "English test (IELTS / PTE)", "source": "Applicant"},
+                {"name": "Degree certificates", "source": "Applicant"},
+                {"name": "PCC (Indian + AU)", "source": "Applicant"},
+                {"name": "Medicals", "source": "Applicant"},
+                {"name": "Australian company financials", "source": "Receiving Company"},
+                {"name": "ASIC / business registration", "source": "Receiving Company"},
+                {"name": "ATO tax returns", "source": "Receiving Company"},
+                {"name": "MCA filings (Indian parent)", "source": "MCA / ROC"},
+            ],
+        },
+        "AU-482": {
+            "required_letters": [
+                "employment_offer", "employment_agreement", "position_description",
+                "business_justification", "salary_justification", "genuine_position",
+                "org_chart", "franchise_support", "personal_statement",
+                "experience_verification",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "English test (Vocational)", "source": "Applicant"},
+                {"name": "2+ years experience evidence", "source": "Sending Company"},
+                {"name": "Sponsor (SBS) approval", "source": "Receiving Company"},
+                {"name": "Nomination details", "source": "Receiving Company"},
+                {"name": "Australian company financials", "source": "Receiving Company"},
+            ],
+        },
+        "AU-407": {
+            "required_letters": [
+                "invitation_letter", "training_plan", "business_justification",
+                "personal_statement", "franchise_support",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "TAS sponsor approval", "source": "Receiving Company"},
+                {"name": "Workplace training plan", "source": "Generated"},
+                {"name": "Sending company NOC", "source": "Sending Company"},
+            ],
+        },
+        "AU-408": {
+            "required_letters": [
+                "invitation_letter", "business_justification", "personal_statement",
+                "franchise_support", "training_plan",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "TAS sponsorship", "source": "Receiving Company"},
+                {"name": "Event / activity letter", "source": "Receiving Company"},
+                {"name": "Itinerary", "source": "Generated"},
+            ],
+        },
+        "AU-600": {
+            "required_letters": ["invitation_letter", "personal_statement",
+                                  "business_justification"],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "Invitation letter", "source": "Generated"},
+                {"name": "Bank statement (6 months)", "source": "Bank"},
+                {"name": "Itinerary", "source": "Generated"},
+            ],
+        },
+        "US-L1A": {
+            "required_letters": [
+                "employment_offer", "us_l1a_support", "business_justification",
+                "expansion_plan", "org_chart", "shareholding_confirmation",
+                "director_resolution", "personal_statement", "experience_verification",
+                "franchise_support",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "1+ yr managerial experience evidence", "source": "Sending Company"},
+                {"name": "US affiliate proof (EIN, Articles)", "source": "Receiving Company"},
+                {"name": "Tax returns (Indian + US)", "source": "Receiving Company"},
+                {"name": "MCA filings of Indian parent", "source": "MCA / ROC"},
+            ],
+        },
+        "UK-SW": {
+            "required_letters": [
+                "employment_offer", "employment_agreement", "position_description",
+                "business_justification", "salary_justification", "personal_statement",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "Certificate of Sponsorship (CoS)", "source": "Receiving Company"},
+                {"name": "English test (B1)", "source": "Applicant"},
+                {"name": "Maintenance funds proof", "source": "Bank"},
+                {"name": "TB test (if applicable)", "source": "Applicant"},
+            ],
+        },
+        "UK-IF": {
+            "required_letters": [
+                "investor_proposal", "business_plan", "personal_statement",
+                "shareholding_certificate",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "Endorsement letter (Endorsing Body)", "source": "Generated"},
+                {"name": "Business plan", "source": "Generated"},
+                {"name": "Investment funds proof", "source": "Bank"},
+            ],
+        },
+        "AE-INV": {
+            "required_letters": [
+                "investor_proposal", "business_plan", "shareholding_certificate",
+                "personal_statement",
+            ],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "UAE trade licence", "source": "Receiving Company"},
+                {"name": "MOA / shareholding docs", "source": "Receiving Company"},
+                {"name": "Bank statement", "source": "Bank"},
+                {"name": "Emirates ID application", "source": "Applicant"},
+            ],
+        },
+        "AE-GOLDEN": {
+            "required_letters": ["investor_proposal", "personal_statement",
+                                  "shareholding_certificate"],
+            "required_documents": [
+                {"name": "Passport", "source": "Applicant"},
+                {"name": "Investment proof (AED 2M+)", "source": "Bank"},
+                {"name": "Health insurance", "source": "Applicant"},
+                {"name": "Police clearance", "source": "Applicant"},
+            ],
+        },
+    }
+    # Merge overrides into _SEED_PATHWAYS so they upsert with $set on every boot.
+    for p in _SEED_PATHWAYS:
+        ov = pathway_overrides.get(p["id"])
+        if ov:
+            p["required_letters"] = ov["required_letters"]
+            p["required_documents"] = ov["required_documents"]
+
     # Defensive cleanup: collapse duplicates by primary key, keeping the oldest.
     await _cleanup_duplicates_internal()
 
@@ -615,6 +783,7 @@ async def _ensure_seeds():
         "country_code", "type", "min_age", "max_age", "english_required",
         "skill_level", "company_cost_band", "applicant_cost_band", "duration_months",
         "timeline_band", "key_requirements", "spouse_work_rights",
+        "required_letters", "required_documents",
     )
     for p in _SEED_PATHWAYS:
         machine = {k: p[k] for k in _PATHWAY_MACHINE_FIELDS if k in p}
@@ -857,7 +1026,10 @@ async def upsert_application(req: _ApplicationReq):
 
 
 @router.get("/applications")
-async def list_applications(token: str = Query(...)):
+async def list_applications(
+    token: str = Query(...),
+    include_archived: bool = Query(False, description="When false, hide soft-deleted applications"),
+):
     sess = await _auth(token)
     is_admin = bool(sess.get("is_super_admin") or sess.get("is_admin"))
     role = (sess.get("role") or sess.get("role_key") or "").lower()
@@ -865,8 +1037,40 @@ async def list_applications(token: str = Query(...)):
         q = {"owner_user": sess.get("mobile") or sess.get("email") or "unknown"}
     else:
         q = {}
+    if not include_archived:
+        q["status"] = {"$ne": "archived"}
     docs = await _db.visa_applications.find(q, {"_id": 0}).sort("updated_at", -1).to_list(None)
     return {"success": True, "applications": docs}
+
+
+@router.post("/applications/bulk-delete")
+async def bulk_delete_applications(req: dict = Body(...)):
+    """Soft-delete a list of applications in one call (used by the 'Clear my drafts' UI button)."""
+    sess = await _auth(req.get("token", ""))
+    ids = req.get("application_ids") or []
+    hard = bool(req.get("hard"))
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(400, "application_ids list required")
+    is_admin = bool(sess.get("is_super_admin") or sess.get("is_admin"))
+    if hard and not is_admin:
+        raise HTTPException(403, "Permanent delete is restricted to Super Admin")
+    # Restrict non-admins to deleting only their own apps
+    base_q = {"application_id": {"$in": ids}}
+    if not is_admin:
+        base_q["owner_user"] = sess.get("mobile") or sess.get("email") or "unknown"
+    if hard:
+        res = await _db.visa_applications.delete_many(base_q)
+        return {"success": True, "deleted": res.deleted_count, "mode": "hard"}
+    res = await _db.visa_applications.update_many(
+        base_q,
+        {"$set": {
+            "status": "archived",
+            "archived_at": _now_iso(),
+            "archived_by": sess.get("mobile") or sess.get("email") or "system",
+            "updated_at": _now_iso(),
+        }},
+    )
+    return {"success": True, "archived": res.modified_count, "mode": "soft"}
 
 
 @router.get("/application/{aid}")
@@ -1164,7 +1368,20 @@ async def generate_letters(aid: str, req: _GenerateLettersReq = Body(...)):
         "personal": lambda t: t["id"] in ("personal_statement", "family_support", "experience_verification"),
         "resolutions": lambda t: t["id"] in ("director_resolution",),
     }
-    scope_fn = scope_filters.get(req.scope, scope_filters["all"])
+    # New scope: 'selected_pathway' uses ONLY the letters listed on the
+    # pathway the user picked in the Recommender (Phase A — visa-specific
+    # output). Falls back to "all" if the application has no selected pathway.
+    if req.scope == "selected_pathway":
+        pathway_id = (app_doc.get("business") or {}).get("selected_pathway_id")
+        pathway = await _db.visa_pathways.find_one({"id": pathway_id}, {"_id": 0}) if pathway_id else None
+        required = (pathway or {}).get("required_letters") or []
+        if required:
+            allowed = set(required)
+            scope_fn = lambda t: t["id"] in allowed
+        else:
+            scope_fn = scope_filters["all"]
+    else:
+        scope_fn = scope_filters.get(req.scope, scope_filters["all"])
     if req.letter_keys:
         templates_to_run = [t for t in templates if t["id"] in set(req.letter_keys) and scope_fn(t)]
     else:
@@ -1783,6 +2000,18 @@ async def lawyer_bundle_preview(aid: str, req: _LawyerBundleReq = Body(...)):
         raise HTTPException(404, "Application not found")
 
     letters = app_doc.get("letters") or []
+    # Strict Visa Flow: if the application has a selected pathway with a
+    # required_letters list, the lawyer bundle ONLY ships those letters —
+    # NOT any incidental letters that may have been drafted in earlier scopes.
+    biz = app_doc.get("business") or {}
+    sel_pid = biz.get("selected_pathway_id")
+    pathway_strict = None
+    if sel_pid:
+        pathway_strict = await _db.visa_pathways.find_one({"id": sel_pid}, {"_id": 0})
+    if pathway_strict and pathway_strict.get("required_letters"):
+        allowed = set(pathway_strict.get("required_letters") or [])
+        letters = [l for l in letters if l.get("letter_key") in allowed]
+
     has_report = bool(app_doc.get("report"))
     plan_rows = len(((app_doc.get("report") or {}).get("signatory_letter_plan")) or [])
 
@@ -1873,8 +2102,19 @@ async def lawyer_bundle(aid: str, req: _LawyerBundleReq = Body(...)):
         except Exception as ex:
             logger.warning(f"lawyer-bundle: checklist failed: {ex}")
 
-        # 03 — letters
-        for letter in app_doc.get("letters") or []:
+        # 03 — letters (Strict Visa Flow: filter to selected pathway when set)
+        all_letters = app_doc.get("letters") or []
+        biz_lb = app_doc.get("business") or {}
+        sel_pid_lb = biz_lb.get("selected_pathway_id")
+        pathway_lb = None
+        if sel_pid_lb:
+            pathway_lb = await _db.visa_pathways.find_one({"id": sel_pid_lb}, {"_id": 0})
+        if pathway_lb and pathway_lb.get("required_letters"):
+            allowed_lb = set(pathway_lb.get("required_letters") or [])
+            shipped_letters = [l for l in all_letters if l.get("letter_key") in allowed_lb]
+        else:
+            shipped_letters = all_letters
+        for letter in shipped_letters:
             blob = _word_bytes(
                 letter["letter_name"], letter.get("body", ""),
                 sig.get("name", "—"), sig.get("role", "—"), ent.get("name", "—"),
@@ -1896,7 +2136,7 @@ async def lawyer_bundle(aid: str, req: _LawyerBundleReq = Body(...)):
             f"  00_COVER_LETTER_TO_LAWYER.pdf  — cover letter to immigration counsel\n"
             f"  01_Visa_Readiness_Report.pdf   — internal readiness assessment\n"
             f"  02_Letter_Checklist.xlsx       — supporting letter checklist\n"
-            f"  03_Letters/*.docx              — {len(app_doc.get('letters') or [])} drafted supporting letters\n"
+            f"  03_Letters/*.docx              — {len(shipped_letters)} drafted supporting letters\n"
             f"  99_manifest.txt                — this file\n"
             f"\nDisclaimer: Internal preparation pack only. Final visa strategy and "
             f"lodgement remain subject to professional advice and applicable laws.\n"
@@ -2304,7 +2544,18 @@ async def build_complete_bundle(aid: str, req: _CompleteBundleReq = Body(...)):
     # letters in-line (that would re-introduce the original timeout bug).
     # Whatever letters are already on the application are bundled; if none,
     # the ZIP still ships the report + checklist and the manifest notes it.
-    letters = app_doc.get("letters") or []
+    all_letters = app_doc.get("letters") or []
+
+    # Strict Visa Flow: filter to selected pathway's required_letters when set
+    pathway_doc = None
+    sel_pid = biz.get("selected_pathway_id")
+    if sel_pid:
+        pathway_doc = await _db.visa_pathways.find_one({"id": sel_pid}, {"_id": 0})
+    if pathway_doc and pathway_doc.get("required_letters"):
+        allowed = set(pathway_doc.get("required_letters") or [])
+        letters = [l for l in all_letters if l.get("letter_key") in allowed]
+    else:
+        letters = all_letters
 
     # Assemble structured ZIP
     buf = io.BytesIO()
@@ -2348,17 +2599,24 @@ async def build_complete_bundle(aid: str, req: _CompleteBundleReq = Body(...)):
                 logger.warning(f"complete-bundle: letter {lt.get('letter_key')} failed: {ex}")
 
         # 99 — manifest
+        req_docs_lines = ""
+        if pathway_doc and pathway_doc.get("required_documents"):
+            req_docs_lines = "\nRequired documents (visa-specific):\n"
+            for d in (pathway_doc.get("required_documents") or []):
+                req_docs_lines += f"  • [{d.get('source', '—')}] {d.get('name', '—')}\n"
         manifest = (
             f"PURNABRAMHA — COMPLETE VISA BUNDLE\n"
             f"===================================\n"
             f"Application: {aid}\n"
             f"Country: {country.get('name', '—')} ({country.get('code', '—')})\n"
             f"Applicant: {(app_doc.get('applicant') or {}).get('name', '—')}\n"
-            f"Pathway selected: {biz.get('selected_pathway_id') or '—'}\n"
+            f"Pathway selected: {biz.get('selected_pathway_id') or '—'}"
+            f"{' · ' + pathway_doc.get('name') if pathway_doc else ''}\n"
             f"Entity: {ent.get('name', '—')}\n"
             f"Signatory: {sig.get('name', '—')} ({sig.get('role', '—')})\n"
             f"Generated: {_now_iso()}\n"
             f"Total letters: {len(letters)}\n"
+            f"{req_docs_lines}"
         )
         zf.writestr("99_manifest.txt", manifest)
 

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="8" time="6.257" timestamp="2026-06-19T08:04:44.907716+00:00" hostname="agent-env-4875433f-0e5a-454b-9908-408194ac5e08"><testcase classname="backend.tests.test_visa_strict_flow_v3.TestPathwaySeededLetters" name="test_au400_seed" time="3.414" /><testcase classname="backend.tests.test_visa_strict_flow_v3.TestPathwaySeededLetters" name="test_au186_seed" time="0.121" /><testcase classname="backend.tests.test_visa_strict_flow_v3.TestArchiveFlow" name="test_default_list_excludes_archived" time="0.869" /><testcase classname="backend.tests.test_visa_strict_flow_v3.TestArchiveFlow" name="test_hard_delete_super_admin" time="0.337" /><testcase classname="backend.tests.test_visa_strict_flow_v3.TestBulkDelete" name="test_bulk_soft_archive" time="0.654" /><testcase classname="backend.tests.test_visa_strict_flow_v3.TestBulkDelete" name="test_bulk_empty_400" time="0.094" /><testcase classname="backend.tests.test_visa_strict_flow_v3.TestGenerateLettersSelectedPathway" name="test_au400_returns_total_7" time="0.315"><failure message="AssertionError: {&quot;detail&quot;:[{&quot;type&quot;:&quot;missing&quot;,&quot;loc&quot;:[&quot;body&quot;,&quot;application_id&quot;],&quot;msg&quot;:&quot;Field required&quot;,&quot;input&quot;:{&quot;token&quot;:&quot;NEGNc7UfXspKJ0wBoinL71V9dn1tE76rG2CRCuGWUco&quot;,&quot;scope&quot;:&quot;selected_pathway&quot;},&quot;url&quot;:&quot;https://errors.pydantic.dev/2.12/v/missing&quot;}]}&#10;assert 422 == 200&#10; +  where 422 = &lt;Response [422]&gt;.status_code">backend/tests/test_visa_strict_flow_v3.py:188: in test_au400_returns_total_7
+    assert r.status_code == 200, r.text
+E   AssertionError: {"detail":[{"type":"missing","loc":["body","application_id"],"msg":"Field required","input":{"token":"NEGNc7UfXspKJ0wBoinL71V9dn1tE76rG2CRCuGWUco","scope":"selected_pathway"},"url":"https://errors.pydantic.dev/2.12/v/missing"}]}
+E   assert 422 == 200
+E    +  where 422 = &lt;Response [422]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_visa_strict_flow_v3.TestAdminPathwayUpsert" name="test_round_trip_required_letters_documents" time="0.356"><failure message="AssertionError: letters not persisted: ['invitation_letter', 'training_plan', 'business_justification', 'personal_statement', 'franchise_support']&#10;assert ['invitation_...hise_support'] == ['employment_...al_statement']&#10;  &#10;  At index 0 diff: 'invitation_letter' != 'employment_offer'&#10;  Left contains 2 more items, first extra item: 'personal_statement'&#10;  &#10;  Full diff:&#10;    [&#10;  -     'employment_offer',...&#10;  &#10;  ...Full output truncated (6 lines hidden), use '-vv' to show">backend/tests/test_visa_strict_flow_v3.py:236: in test_round_trip_required_letters_documents
+    assert au407b.get("required_letters") == new_letters, \
+E   AssertionError: letters not persisted: ['invitation_letter', 'training_plan', 'business_justification', 'personal_statement', 'franchise_support']
+E   assert ['invitation_...hise_support'] == ['employment_...al_statement']
+E     
+E     At index 0 diff: 'invitation_letter' != 'employment_offer'
+E     Left contains 2 more items, first extra item: 'personal_statement'
+E     
+E     Full diff:
+E       [
+E     -     'employment_offer',...
+E     
+E     ...Full output truncated (6 lines hidden), use '-vv' to show</failure></testcase></testsuite></testsuites>

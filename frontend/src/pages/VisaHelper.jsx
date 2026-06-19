@@ -220,65 +220,206 @@ export default function VisaHelper() {
 /* ────────────────────────────────────────────────────────── */
 function ApplicationsList({ applications, countries, loading, onRefresh, onOpen }) {
   const countryName = (code) => countries.find((c) => c.code === code)?.name || code;
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedApps, setArchivedApps] = useState([]);
+  const [loadingArchived, setLoadingArchived] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const loadArchived = useCallback(async () => {
+    setLoadingArchived(true);
+    try {
+      const r = await api.get("/visa/applications?include_archived=true");
+      const all = r.data?.applications || [];
+      setArchivedApps(all.filter((a) => a.status === "archived"));
+    } catch {
+      toast.error("Failed to load archived applications");
+    } finally {
+      setLoadingArchived(false);
+    }
+  }, []);
+
+  useEffect(() => { if (showArchived) loadArchived(); }, [showArchived, loadArchived]);
+
+  const visibleApps = applications;
 
   const del = async (aid) => {
-    if (!window.confirm(`Delete application ${aid}? This cannot be undone.`)) return;
+    if (!window.confirm(`Archive application ${aid}? It will be soft-deleted (recoverable from "Show Archived").`)) return;
     try {
       await api.delete(`/visa/application/${aid}`);
-      toast.success("Application deleted");
+      toast.success("Application archived");
       onRefresh();
+      if (showArchived) loadArchived();
     } catch {
       toast.error("Delete failed");
     }
   };
 
+  const hardDel = async (aid) => {
+    if (!window.confirm(`Permanently delete ${aid}? This CANNOT be undone.`)) return;
+    try {
+      await api.delete(`/visa/application/${aid}?hard=true`);
+      toast.success("Application permanently deleted");
+      onRefresh();
+      if (showArchived) loadArchived();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Hard delete failed");
+    }
+  };
+
+  const restore = async (aid) => {
+    try {
+      await api.post(`/visa/application/${aid}/restore`, { token: getToken() });
+      toast.success("Application restored");
+      onRefresh();
+      loadArchived();
+    } catch {
+      toast.error("Restore failed");
+    }
+  };
+
+  const toggleSelect = (aid) => {
+    setSelectedIds((p) => (p.includes(aid) ? p.filter((x) => x !== aid) : [...p, aid]));
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.length === visibleApps.length) setSelectedIds([]);
+    else setSelectedIds(visibleApps.map((a) => a.application_id));
+  };
+
+  const bulkArchive = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Archive ${selectedIds.length} application(s)? They can be restored later.`)) return;
+    setBulkBusy(true);
+    try {
+      const r = await api.post("/visa/applications/bulk-delete", {
+        token: getToken(),
+        application_ids: selectedIds,
+      });
+      toast.success(`Archived ${r.data?.archived ?? 0} applications`);
+      setSelectedIds([]);
+      onRefresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Bulk archive failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const renderTable = (rows, opts = {}) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border" data-testid={opts.testid || "visa-applications-table"}>
+        <thead className="bg-slate-100">
+          <tr>
+            {opts.selectable && (
+              <th className="p-2 w-8">
+                <input
+                  type="checkbox"
+                  checked={rows.length > 0 && selectedIds.length === rows.length}
+                  onChange={toggleSelectAll}
+                  data-testid="visa-app-select-all"
+                />
+              </th>
+            )}
+            <th className="p-2 text-left">App ID</th>
+            <th className="p-2 text-left">Applicant</th>
+            <th className="p-2 text-left">Country</th>
+            <th className="p-2 text-left">Pathway</th>
+            <th className="p-2 text-left">Status</th>
+            <th className="p-2 text-left">Updated</th>
+            <th className="p-2 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((a) => (
+            <tr key={a.application_id} className="border-t" data-testid={`visa-app-row-${a.application_id}`}>
+              {opts.selectable && (
+                <td className="p-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(a.application_id)}
+                    onChange={() => toggleSelect(a.application_id)}
+                    data-testid={`visa-app-select-${a.application_id}`}
+                  />
+                </td>
+              )}
+              <td className="p-2 font-mono text-xs">{a.application_id}</td>
+              <td className="p-2">{a.applicant?.name || "—"}</td>
+              <td className="p-2">{countryName(a.country_code)}</td>
+              <td className="p-2 text-xs font-mono">{a.business?.selected_pathway_id || <span className="text-muted-foreground italic">— not selected —</span>}</td>
+              <td className="p-2"><Badge variant="outline">{a.status}</Badge></td>
+              <td className="p-2 text-xs text-muted-foreground">{(a.updated_at || "").slice(0, 16).replace("T", " ")}</td>
+              <td className="p-2 text-right space-x-1">
+                {opts.archived ? (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => restore(a.application_id)} data-testid={`visa-app-restore-${a.application_id}`}>Restore</Button>
+                    <Button size="sm" variant="ghost" onClick={() => hardDel(a.application_id)} data-testid={`visa-app-harddel-${a.application_id}`}>
+                      <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => onOpen(a)} data-testid={`visa-app-open-${a.application_id}`}>Open</Button>
+                    <Button size="sm" variant="ghost" onClick={() => del(a.application_id)} data-testid={`visa-app-delete-${a.application_id}`}>
+                      <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                    </Button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <Card data-testid="visa-applications-card">
       <CardHeader>
-        <CardTitle>Saved Applications</CardTitle>
-        <CardDescription>
-          Resume an in-progress visa workup or regenerate a readiness report.
-        </CardDescription>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle>Saved Applications</CardTitle>
+            <CardDescription>
+              Resume an in-progress visa workup or regenerate a readiness report.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedIds.length > 0 && (
+              <Button size="sm" variant="destructive" onClick={bulkArchive} disabled={bulkBusy} data-testid="visa-bulk-archive-btn">
+                {bulkBusy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Archive {selectedIds.length} selected
+              </Button>
+            )}
+            <Button size="sm" variant={showArchived ? "default" : "outline"} onClick={() => setShowArchived((v) => !v)} data-testid="visa-toggle-archived">
+              {showArchived ? "Hide" : "Show"} Archived
+            </Button>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         {loading ? (
           <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading…</div>
-        ) : applications.length === 0 ? (
+        ) : visibleApps.length === 0 ? (
           <div className="text-sm text-muted-foreground py-8 text-center" data-testid="visa-applications-empty">
-            No applications yet. Click <b>+ New Wizard</b> to start.
+            No active applications. Click <b>+ New Wizard</b> to start.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border" data-testid="visa-applications-table">
-              <thead className="bg-slate-100">
-                <tr>
-                  <th className="p-2 text-left">App ID</th>
-                  <th className="p-2 text-left">Applicant</th>
-                  <th className="p-2 text-left">Country</th>
-                  <th className="p-2 text-left">Status</th>
-                  <th className="p-2 text-left">Updated</th>
-                  <th className="p-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((a) => (
-                  <tr key={a.application_id} className="border-t" data-testid={`visa-app-row-${a.application_id}`}>
-                    <td className="p-2 font-mono text-xs">{a.application_id}</td>
-                    <td className="p-2">{a.applicant?.name || "—"}</td>
-                    <td className="p-2">{countryName(a.country_code)}</td>
-                    <td className="p-2"><Badge variant="outline">{a.status}</Badge></td>
-                    <td className="p-2 text-xs text-muted-foreground">{(a.updated_at || "").slice(0, 16).replace("T", " ")}</td>
-                    <td className="p-2 text-right space-x-1">
-                      <Button size="sm" variant="outline" onClick={() => onOpen(a)} data-testid={`visa-app-open-${a.application_id}`}>Open</Button>
-                      <Button size="sm" variant="ghost" onClick={() => del(a.application_id)} data-testid={`visa-app-delete-${a.application_id}`}>
-                        <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          renderTable(visibleApps, { selectable: true, testid: "visa-applications-table" })
+        )}
+
+        {showArchived && (
+          <details open className="border rounded p-3 bg-slate-50" data-testid="visa-archived-section">
+            <summary className="cursor-pointer font-medium flex items-center justify-between">
+              <span>Archived Applications {loadingArchived && <Loader2 className="h-3 w-3 ml-2 inline animate-spin" />}</span>
+              <Badge variant="outline">{archivedApps.length}</Badge>
+            </summary>
+            <div className="mt-3">
+              {archivedApps.length === 0 ? (
+                <div className="text-xs text-muted-foreground py-4 text-center">No archived applications.</div>
+              ) : (
+                renderTable(archivedApps, { archived: true, testid: "visa-archived-table" })
+              )}
+            </div>
+          </details>
         )}
       </CardContent>
     </Card>
@@ -360,7 +501,19 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
 
   // Auto-bundle (complete-bundle build + download) state
   const [building, setBuilding] = useState(false);
+
+  // Selected pathway detail (resolved from pathways list)
+  const selectedPathway = useMemo(
+    () => (business.selected_pathway_id ? pathways.find((p) => p.id === business.selected_pathway_id) : null),
+    [pathways, business.selected_pathway_id],
+  );
+  const strictMode = !!selectedPathway;
+
   const buildCompleteBundle = async () => {
+    if (!strictMode) {
+      toast.error("Pick a visa first — open the AI Recommender or Step 1 and tap 'Proceed with this visa'.");
+      return;
+    }
     let aid = applicationId;
     if (!aid) aid = await saveApplication(true);
     if (!aid) return;
@@ -378,9 +531,9 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
           entity_id: business.entity_id,
           pathway_id: business.selected_pathway_id,
         },
-        `PB_CompleteBundle_${applicantSafe}_${countryCode}_${aid}.zip`,
+        `PB_CompleteBundle_${applicantSafe}_${countryCode}_${selectedPathway?.id || ""}_${aid}.zip`,
       );
-      toast.success("Complete bundle generated & downloaded · 30 most recent kept in Admin → Bundle History");
+      toast.success(`Bundle ready for ${selectedPathway?.name || "selected visa"} · 30 most recent kept in Admin → Bundle History`);
       onSaved?.();
     } catch (e) {
       toast.error(e.message || "Bundle build failed");
@@ -450,18 +603,25 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
   };
 
   const generateLetters = async () => {
+    if (!strictMode) {
+      toast.error("Pick a visa first — open the AI Recommender and tap 'Proceed with this visa'. Letters are only drafted for the selected visa.");
+      return;
+    }
     const aid = applicationId || await saveApplication(true);
     if (!aid) return;
     setGeneratingLetters(true);
     try {
+      // Strict Visa Flow: always use 'selected_pathway' scope so the backend
+      // only drafts the letters listed on the chosen visa.
+      const effectiveScope = "selected_pathway";
       // Kicks off a background job; ingress-safe (returns in <1s).
       const startRes = await api.post(
         `/visa/application/${aid}/generate-letters`,
-        { token: getToken(), application_id: aid, scope: letterScope },
+        { token: getToken(), application_id: aid, scope: effectiveScope },
         { timeout: 30000 },
       );
       const total = startRes.data?.total || 0;
-      toast.info(`Drafting ${total} letters in the background — this typically takes 30-90s with Claude Sonnet 4.5.`);
+      toast.info(`Drafting ${total} letters for ${selectedPathway?.name || "selected visa"} in the background — usually 30-90s with Claude Sonnet 4.5.`);
 
       // Poll for progress every 4s, up to 4 minutes
       const start = Date.now();
@@ -528,6 +688,10 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
   const openLawyerBundle = async () => {
     if (!applicationId) {
       toast.error("Save the application first");
+      return;
+    }
+    if (!strictMode) {
+      toast.error("Pick a visa first. The lawyer bundle only ships documents/letters for one specific visa.");
       return;
     }
     setLawyerOpen(true);
@@ -602,6 +766,48 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
             )}
           </div>
         </div>
+
+        {/* Strict Visa Flow banner */}
+        {strictMode ? (
+          <div
+            className="mt-3 flex items-start gap-3 border-2 border-emerald-400 bg-emerald-50 rounded p-3"
+            data-testid="visa-selected-pathway-banner"
+          >
+            <CheckCircle2 className="h-5 w-5 text-emerald-700 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="text-xs uppercase tracking-wider text-emerald-700 font-semibold">Selected Visa</div>
+              <div className="font-semibold text-emerald-900" data-testid="visa-selected-pathway-name">
+                {selectedPathway.name}
+                <span className="ml-2 text-xs font-mono text-emerald-700">[{selectedPathway.id}]</span>
+              </div>
+              <div className="text-xs text-emerald-800/80">
+                {selectedPathway.type} · {selectedPathway.duration_months || "?"} months · only the {selectedPathway.required_letters?.length || 0} letters & {selectedPathway.required_documents?.length || 0} documents specific to this visa will be generated.
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => updateBiz({ selected_pathway_id: "" })}
+              data-testid="visa-selected-pathway-change"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Change Visa
+            </Button>
+          </div>
+        ) : (
+          <div
+            className="mt-3 flex items-start gap-3 border-2 border-amber-400 bg-amber-50 rounded p-3"
+            data-testid="visa-no-pathway-banner"
+          >
+            <AlertTriangle className="h-5 w-5 text-amber-700 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-semibold text-amber-900">No Visa Selected Yet</div>
+              <div className="text-xs text-amber-800/80">
+                The strict flow requires you to pick exactly one visa pathway first. Use the <b>AI Recommender</b> tab and tap &ldquo;Proceed with this visa&rdquo;, or pick one from the country pathways below.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stepper */}
         <div className="flex items-center gap-1 mt-3 overflow-x-auto">
           {STEPS.map((s) => (
@@ -644,15 +850,34 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
             </div>
             {countryCode && pathways.length > 0 && (
               <div>
-                <Label className="mt-4">Available Pathways</Label>
-                <ul className="text-sm space-y-1 mt-2">
-                  {pathways.map((p) => (
-                    <li key={p.id} className="border-l-2 border-primary/40 pl-2">
-                      <b>{p.name}</b> · {p.type} · {p.duration_months || "?"} months
-                      <div className="text-xs text-muted-foreground">{p.summary}</div>
-                    </li>
-                  ))}
-                </ul>
+                <Label className="mt-4">Available Pathways · click to lock in (strict flow)</Label>
+                <div className="grid md:grid-cols-2 gap-2 mt-2" data-testid="visa-step1-pathways">
+                  {pathways.map((p) => {
+                    const isSelected = business.selected_pathway_id === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => updateBiz({ selected_pathway_id: isSelected ? "" : p.id })}
+                        className={`p-3 border rounded text-left text-sm transition ${
+                          isSelected
+                            ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-300"
+                            : "border-slate-200 hover:border-slate-400"
+                        }`}
+                        data-testid={`visa-step1-pathway-${p.id}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <b>{p.name}</b>
+                          {isSelected && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {p.type} · {p.duration_months || "?"} mo · {(p.required_letters?.length || 0)} letters · {(p.required_documents?.length || 0)} docs
+                        </div>
+                        {p.summary && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.summary}</div>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -816,6 +1041,8 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
             generatingReport={generatingReport}
             generatingLetters={generatingLetters}
             saving={saving}
+            selectedPathway={selectedPathway}
+            strictMode={strictMode}
             onSave={() => saveApplication(false)}
             onGenerateReport={generateReport}
             onGenerateLetters={generateLetters}
@@ -952,13 +1179,48 @@ function WizardSection({ countries, pathways, templates, entities, signatories, 
 /* ────────────────────────────────────────────────────────── */
 function ReviewStep({
   applicationId, countryCode, countries, applicant, business, report, letters,
-  templates, letterScope, setLetterScope,
+  templates, letterScope, setLetterScope, selectedPathway, strictMode,
   generatingReport, generatingLetters, saving,
   onSave, onGenerateReport, onGenerateLetters,
   onDownloadReport, onDownloadChecklist, onDownloadZip, onDownloadLetterWord,
   onOpenLawyerBundle, onBuildCompleteBundle, building,
 }) {
   const countryName = countries.find((c) => c.code === countryCode)?.name || countryCode;
+
+  // Compute pathway-specific letter status (Drafted vs Pending)
+  const letterStatus = useMemo(() => {
+    const requiredKeys = selectedPathway?.required_letters || [];
+    const byKey = new Map((letters || []).map((l) => [l.letter_key, l]));
+    const drafted = [];
+    const pending = [];
+    for (const key of requiredKeys) {
+      const tpl = (templates || []).find((t) => t.id === key);
+      const existing = byKey.get(key);
+      if (existing && existing.status === "Drafted") {
+        drafted.push({ ...existing, template: tpl });
+      } else if (existing) {
+        // status is Pending (timed-out / failed)
+        pending.push({ letter_key: key, letter_name: existing.letter_name || tpl?.name || key, status: existing.status || "Pending", template: tpl });
+      } else {
+        pending.push({ letter_key: key, letter_name: tpl?.name || key, status: "Not Generated", template: tpl });
+      }
+    }
+    // Letters drafted but not in required list (legacy / cross-scope) → show separately
+    const extras = (letters || []).filter((l) => !requiredKeys.includes(l.letter_key));
+    return { drafted, pending, extras };
+  }, [selectedPathway, letters, templates]);
+
+  // Group docs by source for clarity
+  const docsBySource = useMemo(() => {
+    const docs = selectedPathway?.required_documents || [];
+    const groups = {};
+    for (const d of docs) {
+      const src = d.source || "Other";
+      if (!groups[src]) groups[src] = [];
+      groups[src].push(d);
+    }
+    return groups;
+  }, [selectedPathway]);
 
   return (
     <div className="space-y-6">
@@ -967,6 +1229,9 @@ function ReviewStep({
           <CardHeader className="pb-2"><CardTitle className="text-base">Summary</CardTitle></CardHeader>
           <CardContent className="text-sm space-y-1">
             <div><b>Country:</b> {countryName}</div>
+            {selectedPathway && (
+              <div><b>Visa:</b> {selectedPathway.name} <span className="text-xs font-mono text-muted-foreground">[{selectedPathway.id}]</span></div>
+            )}
             <div><b>Applicant:</b> {applicant.name} (age {applicant.age})</div>
             <div><b>Experience:</b> {applicant.years_of_experience || 0} years</div>
             <div><b>English:</b> {applicant.english_test_status}</div>
@@ -983,29 +1248,23 @@ function ReviewStep({
               <Button onClick={onSave} disabled={saving} size="sm" variant="outline" data-testid="visa-save-btn">
                 {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Save Draft
               </Button>
-              <Button onClick={onGenerateReport} disabled={generatingReport || !applicationId && !applicant.name} size="sm" data-testid="visa-generate-report-btn">
+              <Button onClick={onGenerateReport} disabled={generatingReport || (!applicationId && !applicant.name)} size="sm" data-testid="visa-generate-report-btn">
                 {generatingReport ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
                 Generate Readiness Report
               </Button>
             </div>
 
             <div className="border-t pt-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Letter Scope:</Label>
-                <Select value={letterScope} onValueChange={setLetterScope}>
-                  <SelectTrigger className="h-8 w-44" data-testid="visa-letter-scope">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All letters (15)</SelectItem>
-                    <SelectItem value="company">Company letters</SelectItem>
-                    <SelectItem value="franchise">Franchise letters</SelectItem>
-                    <SelectItem value="personal">Personal / experience</SelectItem>
-                    <SelectItem value="resolutions">Resolutions only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={onGenerateLetters} disabled={generatingLetters || !applicationId} size="sm" variant="default" data-testid="visa-generate-letters-btn">
+              {strictMode ? (
+                <div className="text-xs bg-emerald-50 border border-emerald-200 rounded p-2 text-emerald-800">
+                  <b>Strict scope:</b> only the {selectedPathway?.required_letters?.length || 0} letters specific to <b>{selectedPathway?.name}</b> will be drafted.
+                </div>
+              ) : (
+                <div className="text-xs bg-amber-50 border border-amber-200 rounded p-2 text-amber-800">
+                  Letter generation is disabled until you pick one visa above.
+                </div>
+              )}
+              <Button onClick={onGenerateLetters} disabled={generatingLetters || !applicationId || !strictMode} size="sm" variant="default" data-testid="visa-generate-letters-btn">
                 {generatingLetters ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
                 Generate AI Letters (Claude Sonnet 4.5)
               </Button>
@@ -1024,7 +1283,7 @@ function ReviewStep({
               <Button
                 size="sm"
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                disabled={!applicationId}
+                disabled={!applicationId || !strictMode}
                 onClick={onOpenLawyerBundle}
                 data-testid="visa-lawyer-bundle-btn"
               >
@@ -1033,7 +1292,7 @@ function ReviewStep({
               <Button
                 size="sm"
                 className="bg-amber-600 hover:bg-amber-700 text-white"
-                disabled={!applicationId || building}
+                disabled={!applicationId || building || !strictMode}
                 onClick={onBuildCompleteBundle}
                 data-testid="visa-complete-bundle-btn"
               >
@@ -1044,6 +1303,119 @@ function ReviewStep({
           </CardContent>
         </Card>
       </div>
+
+      {/* Visa-Specific Required Documents (collapsible per source) */}
+      {strictMode && (selectedPathway?.required_documents?.length > 0) && (
+        <Card data-testid="visa-required-docs-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ListChecks className="h-4 w-4" /> Visa-Specific Document Checklist · {selectedPathway?.name}
+            </CardTitle>
+            <CardDescription>
+              These are the exact {selectedPathway?.required_documents?.length} documents required for this visa, grouped by where they come from.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {Object.entries(docsBySource).map(([src, docs]) => (
+              <details key={src} open className="border rounded p-2 bg-slate-50" data-testid={`visa-docs-source-${src.replace(/\s+/g, "_")}`}>
+                <summary className="cursor-pointer font-medium text-sm flex items-center justify-between">
+                  <span>{src}</span>
+                  <Badge variant="outline">{docs.length}</Badge>
+                </summary>
+                <ul className="text-sm list-disc pl-6 mt-2 space-y-1">
+                  {docs.map((d, i) => (
+                    <li key={i} data-testid={`visa-doc-${src.replace(/\s+/g, "_")}-${i}`}>{d.name}</li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Visa-Specific Letter Status (Drafted vs Pending, collapsible) */}
+      {strictMode && (selectedPathway?.required_letters?.length > 0) && (
+        <Card data-testid="visa-letter-sets-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4" /> Letter Sets for {selectedPathway?.name}
+            </CardTitle>
+            <CardDescription>
+              {letterStatus.drafted.length} of {selectedPathway?.required_letters?.length || 0} drafted. Expand each section to review or download.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <details open={letterStatus.drafted.length > 0} className="border rounded p-3 bg-emerald-50/40" data-testid="visa-letters-drafted-set">
+              <summary className="cursor-pointer font-medium flex items-center justify-between">
+                <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Drafted</span>
+                <Badge variant="default">{letterStatus.drafted.length}</Badge>
+              </summary>
+              {letterStatus.drafted.length === 0 ? (
+                <div className="text-xs text-muted-foreground mt-2">No letters drafted yet — click <b>Generate AI Letters</b> above.</div>
+              ) : (
+                <div className="space-y-2 mt-3">
+                  {letterStatus.drafted.map((l) => (
+                    <details key={l.letter_key} className="border rounded p-2 bg-white" data-testid={`visa-letter-${l.letter_key}`}>
+                      <summary className="cursor-pointer text-sm font-medium flex items-center justify-between flex-wrap gap-2">
+                        <span>{l.letter_name}</span>
+                        <span className="flex items-center gap-2">
+                          <Badge variant="default">Drafted</Badge>
+                          <Button size="sm" variant="ghost" onClick={(e) => { e.preventDefault(); onDownloadLetterWord(l.letter_key, l.letter_name); }} data-testid={`visa-letter-dl-${l.letter_key}`}>
+                            <Download className="h-3.5 w-3.5 mr-1" /> .docx
+                          </Button>
+                        </span>
+                      </summary>
+                      <div className="text-xs text-muted-foreground mt-2"><b>Subject:</b> {l.subject}</div>
+                      <pre className="whitespace-pre-wrap text-sm bg-slate-50 p-3 rounded border mt-2 max-h-96 overflow-auto">{l.body}</pre>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </details>
+
+            <details open={letterStatus.pending.length > 0} className="border rounded p-3 bg-amber-50/40" data-testid="visa-letters-pending-set">
+              <summary className="cursor-pointer font-medium flex items-center justify-between">
+                <span className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-600" /> Pending / Not Yet Generated</span>
+                <Badge variant="outline">{letterStatus.pending.length}</Badge>
+              </summary>
+              {letterStatus.pending.length === 0 ? (
+                <div className="text-xs text-muted-foreground mt-2">All required letters are drafted ✓</div>
+              ) : (
+                <ul className="text-sm list-disc pl-6 mt-2 space-y-1">
+                  {letterStatus.pending.map((l) => (
+                    <li key={l.letter_key} className="flex items-center justify-between gap-2" data-testid={`visa-letter-pending-${l.letter_key}`}>
+                      <span>{l.letter_name}</span>
+                      <Badge variant="outline" className="text-xs">{l.status}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
+
+            {letterStatus.extras.length > 0 && (
+              <details className="border rounded p-3 bg-slate-50/60" data-testid="visa-letters-extras-set">
+                <summary className="cursor-pointer font-medium flex items-center justify-between">
+                  <span className="text-muted-foreground">Other Drafted Letters (not required by this visa)</span>
+                  <Badge variant="outline">{letterStatus.extras.length}</Badge>
+                </summary>
+                <div className="text-xs text-muted-foreground mt-2">
+                  These were drafted earlier under a broader scope. They won&apos;t be included in the lawyer/complete bundle for this visa.
+                </div>
+                <ul className="text-xs list-disc pl-6 mt-2">
+                  {letterStatus.extras.map((l) => (
+                    <li key={l.letter_key} className="flex items-center justify-between gap-2">
+                      <span>{l.letter_name}</span>
+                      <Button size="sm" variant="ghost" onClick={() => onDownloadLetterWord(l.letter_key, l.letter_name)} data-testid={`visa-letter-extra-dl-${l.letter_key}`}>
+                        <Download className="h-3 w-3" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Report view */}
       {report && (
@@ -1085,22 +1457,24 @@ function ReviewStep({
               </div>
             )}
 
-            <div className="grid md:grid-cols-3 gap-4">
-              {["company", "applicant", "family"].map((k) => (
-                report.documents_required?.[k]?.length > 0 && (
-                  <div key={k}>
-                    <div className="font-semibold capitalize">{k} documents</div>
-                    <ul className="text-xs list-disc pl-5">
-                      {report.documents_required[k].map((d, i) => <li key={i}>{d}</li>)}
-                    </ul>
-                  </div>
-                )
-              ))}
-            </div>
+            {!strictMode && (
+              <div className="grid md:grid-cols-3 gap-4">
+                {["company", "applicant", "family"].map((k) => (
+                  report.documents_required?.[k]?.length > 0 && (
+                    <div key={k}>
+                      <div className="font-semibold capitalize">{k} documents (generic)</div>
+                      <ul className="text-xs list-disc pl-5">
+                        {report.documents_required[k].map((d, i) => <li key={i}>{d}</li>)}
+                      </ul>
+                    </div>
+                  )
+                ))}
+              </div>
+            )}
 
-            {report.signatory_letter_plan?.length > 0 && (
+            {report.signatory_letter_plan?.length > 0 && !strictMode && (
               <div>
-                <div className="font-semibold">Letter Checklist</div>
+                <div className="font-semibold">Letter Checklist (generic)</div>
                 <table className="w-full text-xs border mt-1">
                   <thead className="bg-slate-100"><tr>
                     <th className="p-1">#</th><th className="p-1 text-left">Letter</th><th className="p-1 text-left">Signed By</th><th className="p-1 text-left">Status</th>
@@ -1124,8 +1498,8 @@ function ReviewStep({
         </Card>
       )}
 
-      {/* Letters view */}
-      {letters?.length > 0 && (
+      {/* Legacy letters view — only show if no strict mode (otherwise the Letter Sets card covers it) */}
+      {!strictMode && letters?.length > 0 && (
         <Card data-testid="visa-letters-card">
           <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Drafted Letters ({letters.length})</CardTitle></CardHeader>
           <CardContent>
@@ -1206,6 +1580,10 @@ function AdminPanel({ countries, templates, entities, signatories, pathways, ref
                   select: ["Permanent", "Temporary", "Provisional"].map((v) => ({ value: v, label: v })) },
                 { name: "duration_months", label: "Months", w: "w-20", number: true },
                 { name: "summary", label: "Summary", textarea: true },
+                { name: "required_letters", label: "Required Letters (template IDs, comma-separated)", textarea: true, csv: true,
+                  help: "e.g. employment_offer, position_description, business_justification, personal_statement" },
+                { name: "required_documents", label: "Required Documents (JSON array)", textarea: true, json: true,
+                  help: 'e.g. [{"name":"Passport","source":"Applicant"},{"name":"Bank statement","source":"Bank"}]' },
               ]}
               endpoint="/visa/admin/pathway"
               deleteEndpoint={(r) => `/visa/admin/pathway/${encodeURIComponent(r.id)}`}
@@ -1287,7 +1665,20 @@ function CRUDTable({ rows, keyField, fields, endpoint, deleteEndpoint, onRefresh
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const startEdit = (r) => { setEditing(r[keyField]); setDraft({ ...r }); };
+  // Serialize a row for editing: convert arrays/JSON fields to strings
+  const rowToDraft = (r) => {
+    const d = { ...r };
+    for (const f of fields) {
+      if (f.csv && Array.isArray(d[f.name])) {
+        d[f.name] = d[f.name].join(", ");
+      } else if (f.json && typeof d[f.name] !== "string" && d[f.name] != null) {
+        try { d[f.name] = JSON.stringify(d[f.name], null, 2); } catch { /* noop */ }
+      }
+    }
+    return d;
+  };
+
+  const startEdit = (r) => { setEditing(r[keyField]); setDraft(rowToDraft(r)); };
   const startNew = () => { setEditing("__new__"); setDraft({}); };
   const cancel = () => { setEditing(null); setDraft({}); };
 
@@ -1298,9 +1689,31 @@ function CRUDTable({ rows, keyField, fields, endpoint, deleteEndpoint, onRefresh
         return;
       }
     }
+    // Deserialize csv/json fields back to arrays before posting
+    const payload = { ...draft };
+    for (const f of fields) {
+      if (f.csv) {
+        const raw = (payload[f.name] || "").toString().trim();
+        payload[f.name] = raw
+          ? raw.split(/[,\n]+/).map((s) => s.trim()).filter(Boolean)
+          : [];
+      } else if (f.json) {
+        const raw = (payload[f.name] || "").toString().trim();
+        if (raw) {
+          try {
+            payload[f.name] = JSON.parse(raw);
+          } catch (e) {
+            toast.error(`${f.label}: invalid JSON — ${e.message}`);
+            return;
+          }
+        } else {
+          payload[f.name] = [];
+        }
+      }
+    }
     setSaving(true);
     try {
-      await api.post(endpoint, { token: getToken(), ...draft });
+      await api.post(endpoint, { token: getToken(), ...payload });
       toast.success("Saved");
       cancel();
       onRefresh();
@@ -1320,6 +1733,20 @@ function CRUDTable({ rows, keyField, fields, endpoint, deleteEndpoint, onRefresh
     } catch {
       toast.error("Delete failed");
     }
+  };
+
+  // Render a cell value: format arrays/json compactly for the read-only table
+  const renderCell = (f, value) => {
+    if (Array.isArray(value)) {
+      if (f.json) {
+        return value.map((v, i) => (typeof v === "object" ? `${v.source || "?"}: ${v.name || ""}` : String(v))).slice(0, 3).join(" · ") + (value.length > 3 ? ` …(+${value.length - 3})` : "");
+      }
+      return value.slice(0, 5).join(", ") + (value.length > 5 ? ` …(+${value.length - 5})` : "");
+    }
+    if (typeof value === "object" && value != null) {
+      try { return JSON.stringify(value).slice(0, 60); } catch { return String(value); }
+    }
+    return String(value ?? "");
   };
 
   return (
@@ -1342,7 +1769,10 @@ function CRUDTable({ rows, keyField, fields, endpoint, deleteEndpoint, onRefresh
                     <SelectContent>{f.select.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                   </Select>
                 ) : f.textarea ? (
-                  <Textarea rows={2} value={draft[f.name] || ""} onChange={(e) => setDraft({ ...draft, [f.name]: e.target.value })} />
+                  <>
+                    <Textarea rows={f.json ? 5 : 2} value={draft[f.name] || ""} onChange={(e) => setDraft({ ...draft, [f.name]: e.target.value })} className={f.json ? "font-mono text-xs" : ""} />
+                    {f.help && <div className="text-xs text-muted-foreground mt-1">{f.help}</div>}
+                  </>
                 ) : (
                   <Input
                     type={f.number ? "number" : "text"}
@@ -1378,9 +1808,9 @@ function CRUDTable({ rows, keyField, fields, endpoint, deleteEndpoint, onRefresh
                 {fields.map((f) => (
                   <td key={f.name} className="p-2 text-xs">
                     {f.textarea ? (
-                      <div className="line-clamp-2">{r[f.name]}</div>
+                      <div className="line-clamp-2">{renderCell(f, r[f.name])}</div>
                     ) : (
-                      String(r[f.name] ?? "")
+                      renderCell(f, r[f.name])
                     )}
                   </td>
                 ))}
