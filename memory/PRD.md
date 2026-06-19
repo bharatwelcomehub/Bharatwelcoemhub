@@ -4,6 +4,25 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Recommender "Recommendation failed" with AI narrative ON: parallel thread-pool fix] (P0 hotfix)
+
+User on production hit "Recommendation failed" toast when **"Add Claude Sonnet 4.5 narrative reasoning"** was toggled ON.
+
+**Root cause** — same architectural issue we already fixed for letter generation:
+- `_llm_enrich_narratives` ran the 5 Claude Sonnet 4.5 calls **sequentially** with `await chat.send_message(...)`. The emergentintegrations client is sync-under-the-hood so each call takes ~25-30s; 5 sequential calls = 2+ minutes; production 60s ingress kills the request.
+
+**Fix** (`/app/backend/routes/visa.py`):
+- Each LLM call now runs through `loop.run_in_executor(None, _enrich_sync, item)` (thread pool) inside an `asyncio.gather(...)` so all 5 narratives truly parallelize.
+- Per-call 35s `asyncio.wait_for` cap; a single hang can no longer block the batch.
+- Failures gracefully fall back to empty `ai_rationale` instead of erroring the whole response.
+
+**Verified on preview**: same Anirudha S profile + "temp visit / training / event" goal + AI narrative ON returns **HTTP 200 in 9.5 seconds** with all 5 polished rationales attached. Total wall time was 2-3 minutes before.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-18 — Visa Helper catalog expansion: UK + UAE + 22 new pathways + 8 letter templates] (P0)
 
 User shared a comprehensive Global Visa Consultant role spec covering AU/US/UK/EU/Belgium/UAE. Catalog expanded to match.

@@ -2028,7 +2028,13 @@ def _score_pathway(p: dict, r: _RecommendReq) -> dict:
 
 
 async def _llm_enrich_narratives(req: _RecommendReq, top: List[dict]) -> List[dict]:
-    """Add a short 2-3 sentence AI rationale to each top pathway."""
+    """Add a short 2-3 sentence AI rationale to each top pathway.
+
+    Runs all 5 LLM calls in parallel via a thread pool — emergentintegrations
+    is sync-under-the-hood, so plain asyncio.gather wouldn't parallelize.
+    Per-call 25s timeout; one slow call cannot block the others. Total wall
+    time ~25-30s, well under the production 60s ingress timeout.
+    """
     if not req.use_ai_narrative or not top:
         return top
     api_key = os.environ.get("EMERGENT_LLM_KEY")
@@ -2039,6 +2045,8 @@ async def _llm_enrich_narratives(req: _RecommendReq, top: List[dict]) -> List[di
     except Exception:
         return top
 
+    import asyncio
+
     applicant_summary = (
         f"Applicant: {req.applicant_name or '—'}, role={req.current_role or '—'}, "
         f"age={req.age or '?'}, experience={req.years_of_experience or '?'} yrs, "
@@ -2046,30 +2054,44 @@ async def _llm_enrich_narratives(req: _RecommendReq, top: List[dict]) -> List[di
         f"shareholding={req.shareholding_pct or 0}%, goal={req.goal or '—'}, "
         f"existing_operations={req.has_existing_operations}, expansion_plan={req.has_expansion_plan}"
     )
-    for item in top:
+
+    def _enrich_sync(item: dict) -> str:
         p = item["pathway"]
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"visa-rec-{p['id']}-{uuid.uuid4().hex[:6]}",
+            system_message=(
+                "You are a senior immigration strategist for Purnabramha (Indian franchise group). "
+                "Be concise and factual. Output 2-3 sentences only, no preamble."
+            ),
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        prompt = (
+            f"In 2-3 sentences, explain WHY pathway '{p['name']}' (country {p['country_code']}) "
+            f"is a {item['suitability'].lower()}-fit (score {item['score']}/100) for this applicant. "
+            f"Be specific and reference 1-2 strongest factors and 1 risk if relevant. "
+            f"Do not use bullet points.\n\nApplicant: {applicant_summary}\n"
+            f"Pathway summary: {p.get('summary', '')}\n"
+            f"Key requirements: {', '.join(p.get('key_requirements') or [])}"
+        )
+        # send_message returns a coroutine — drive it in this thread.
+        return asyncio.run(chat.send_message(UserMessage(text=prompt))) or ""
+
+    async def _wrap(item: dict) -> None:
+        loop = asyncio.get_event_loop()
         try:
-            chat = LlmChat(
-                api_key=api_key,
-                session_id=f"visa-rec-{p['id']}-{uuid.uuid4().hex[:6]}",
-                system_message=(
-                    "You are a senior immigration strategist for Purnabramha (Indian franchise group). "
-                    "Be concise and factual. Output 2-3 sentences only, no preamble."
-                ),
-            ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-            prompt = (
-                f"In 2-3 sentences, explain WHY pathway '{p['name']}' (country {p['country_code']}) "
-                f"is a {item['suitability'].lower()}-fit (score {item['score']}/100) for this applicant. "
-                f"Be specific and reference 1-2 strongest factors and 1 risk if relevant. "
-                f"Do not use bullet points.\n\nApplicant: {applicant_summary}\n"
-                f"Pathway summary: {p.get('summary', '')}\n"
-                f"Key requirements: {', '.join(p.get('key_requirements') or [])}"
+            text = await asyncio.wait_for(
+                loop.run_in_executor(None, _enrich_sync, item),
+                timeout=35,
             )
-            text = await chat.send_message(UserMessage(text=prompt))
             item["ai_rationale"] = (text or "").strip()
+        except asyncio.TimeoutError:
+            item["ai_rationale"] = ""
+            logger.warning(f"visa recommender: narrative timed out for {item['pathway']['id']}")
         except Exception as ex:
             item["ai_rationale"] = ""
-            logger.warning(f"visa recommender: LLM narrative failed for {p['id']}: {ex}")
+            logger.warning(f"visa recommender: narrative failed for {item['pathway']['id']}: {ex}")
+
+    await asyncio.gather(*[_wrap(it) for it in top])
     return top
 
 
