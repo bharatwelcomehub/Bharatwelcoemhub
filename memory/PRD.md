@@ -4,6 +4,31 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Visa Helper catalog expansion: UK + UAE + 22 new pathways + 8 letter templates] (P0)
+
+User shared a comprehensive Global Visa Consultant role spec covering AU/US/UK/EU/Belgium/UAE. Catalog expanded to match.
+
+**New in `/app/backend/routes/visa.py`**:
+- **+2 countries**: 🇬🇧 United Kingdom · 🇦🇪 UAE / Dubai (total = 8).
+- **+22 pathways** (catalog now 41 across 8 countries):
+  - 🇦🇺 +2: **DAMA WA** (Western Australia regional agreement), **Subclass 600** (Business Visitor)
+  - 🇺🇸 +4: **L-1B** (Specialised Knowledge), **EB-1** (Extraordinary Ability / Multinational Manager), **H-1B** (Speciality Occupation), **B-1/B-2** (Business / Tourist)
+  - 🇧🇪 +2: Business Visitor, Long-stay Residence Permit
+  - 🇪🇺 +2: Business Residence Permit, Investor / Golden Visa
+  - 🇬🇧 +4: Skilled Worker, **Innovator Founder**, Expansion Worker (GBM), Dependent
+  - 🇦🇪 +5: **Golden Visa (10-yr)**, Employment, Investor, Partner, Family
+- **+2 entities**: Purnabramha UK Ltd (ENT-UK), Purnabramha LLC UAE (ENT-AE) — total = 8.
+- **+8 letter templates**: Invitation Letter, Genuine Position Letter, Training Plan, Investor Proposal, Business Plan, Shareholding Certificate, Cost & Timeline Summary, Risk Analysis Note — total = 36.
+
+Every new row has realistic cost bands (per founder spec — company + applicant), timeline bands, key requirements list, spouse work rights flag, type (Permanent / Provisional / Temporary). Idempotent upsert seeds — production gets the additions automatically the moment Visa Helper opens post-deploy.
+
+Verified: cross-country recommend now scans **41 pathways across 8 countries** in one call.
+
+⚠️ **Deploy required** — preview only. Click Save to GitHub → Deploy.
+
+---
+
+
 ### [2026-02-18 — Visa Recommender: added AU short-stay activity visas 400 / 407 / 408] (P0 hotfix)
 
 User asked: *"why this is not helping me to find out 400 or 407 or 408 visa?"* — the Recommender was not even surfacing Australia's short-stay activity visas, despite a goal like *"400 visa for Australia for Purnabramha Perth operation for 2 major events"*. Even Claude's own AI rationale was hinting *"better suited as Subclass 400 or 482"* but **those pathways simply didn't exist in our catalog** (catalog only had the 5 long-term PR pathways).
