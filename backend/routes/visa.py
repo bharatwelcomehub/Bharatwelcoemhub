@@ -132,8 +132,8 @@ def _dedupe_by(docs: List[dict], key: str) -> List[dict]:
 # ─────────────────────────────────────────────────────────────────────────────
 _SEED_COUNTRIES = [
     {"code": "AU", "name": "Australia", "flag": "🇦🇺", "currency": "AUD",
-     "common_pathway_ids": ["AU-186", "AU-482", "AU-188", "AU-494", "AU-GT"],
-     "notes": "Strong franchise / business presence pathway — 186 ENS, 482 TSS, 188 BIIP, 494 Regional, Global Talent."},
+     "common_pathway_ids": ["AU-186", "AU-482", "AU-188", "AU-494", "AU-GT", "AU-400", "AU-407", "AU-408"],
+     "notes": "Long-term: 186 ENS, 482 TSS, 188 BIIP, 494 Regional, Global Talent. Short-stay activity visas: 400 (specialist), 407 (training), 408 (events / entertainment)."},
     {"code": "US", "name": "USA", "flag": "🇺🇸", "currency": "USD",
      "common_pathway_ids": ["US-L1A", "US-E2", "US-EB1C", "US-EB2NIW"],
      "notes": "L-1A executive transfer, E-2 investor, EB-1C multinational manager, EB-2 NIW."},
@@ -193,6 +193,30 @@ _SEED_PATHWAYS = [
      "key_requirements": ["Exceptional / internationally recognised talent", "High salary potential (FWHIT)", "Nomination by Australian"],
      "spouse_work_rights": True,
      "summary": "PR for individuals with exceptional and internationally recognised achievement in a target sector."},
+    {"id": "AU-400", "country_code": "AU", "name": "Subclass 400 — Temporary Work (Short Stay Specialist)",
+     "type": "Temporary", "min_age": 18, "max_age": 99, "english_required": False,
+     "skill_level": "Specialist", "company_cost_band": "AUD 400 – 800",
+     "applicant_cost_band": "AUD 400 – 1,500",
+     "duration_months": 1, "timeline_band": "2 – 4 weeks",
+     "key_requirements": ["Highly specialised, non-ongoing work", "Stay typically up to 3 months (max 6)", "Sponsoring Australian business / event organiser", "Specific event or one-off project"],
+     "spouse_work_rights": False,
+     "summary": "Short-stay work visa for specific non-ongoing events, projects or specialist roles — typically 1-3 months. Ideal for chefs/managers being flown in for a launch, festival or major event."},
+    {"id": "AU-407", "country_code": "AU", "name": "Subclass 407 — Training Visa",
+     "type": "Temporary", "min_age": 18, "max_age": 99, "english_required": False,
+     "skill_level": "Trainee", "company_cost_band": "AUD 420 – 800",
+     "applicant_cost_band": "AUD 360 – 800",
+     "duration_months": 3, "timeline_band": "2 – 4 months",
+     "key_requirements": ["Approved temporary activities sponsor (TAS) or government", "Structured workplace-based training plan", "Occupational training programme", "Up to 24 months stay"],
+     "spouse_work_rights": True,
+     "summary": "For occupational / professional development training in an Australian workplace. Useful for upskilling franchise team members on Australian operations before deeper deployment."},
+    {"id": "AU-408", "country_code": "AU", "name": "Subclass 408 — Temporary Activity",
+     "type": "Temporary", "min_age": 18, "max_age": 99, "english_required": False,
+     "skill_level": "Activity-specific", "company_cost_band": "AUD 350 – 800",
+     "applicant_cost_band": "AUD 360 – 800",
+     "duration_months": 4, "timeline_band": "1 – 3 months",
+     "key_requirements": ["Sponsored by an Australian organisation (TAS)", "Specific activity: entertainment, sports, religious, research, exchange", "Up to 4 years (event-dependent)"],
+     "spouse_work_rights": True,
+     "summary": "Event / activity-driven temporary visa — entertainment, sports, religious work, exchange programmes, cultural exchanges. Often paired with culinary / hospitality events and franchise launches."},
 
     # ── USA ─────────────────────────────────────────────────────────────────
     {"id": "US-L1A", "country_code": "US", "name": "L-1A Intra-Company Transferee — Executive / Manager",
@@ -1792,6 +1816,19 @@ def _score_pathway(p: dict, r: _RecommendReq) -> dict:
             score -= 5; risks.append("Temporary only — PR via subsequent step")
     if "invest" in goal and p.get("skill_level") == "Business":
         score += 8; reasons.append("Investor / business pathway aligns with goal")
+    # Short-stay / event keywords — boost activity & specialist visas
+    short_keywords = ["event", "events", "festival", "launch", "training",
+                       "short", "short-stay", "short stay", "specific event",
+                       "specialist", "activity", "temporary stay", "few months",
+                       "specialised", "specialized"]
+    is_short_goal = any(k in goal for k in short_keywords)
+    is_short_pathway = p.get("id") in ("AU-400", "AU-407", "AU-408")
+    if is_short_goal and is_short_pathway:
+        score += 22
+        reasons.append("Short-stay / event-driven goal directly matches this activity visa")
+    elif is_short_goal and p.get("type") == "Permanent":
+        score -= 8
+        risks.append("Permanent pathway over-shoots a short-stay/event goal")
 
     score = max(0, min(100, score))
     return {

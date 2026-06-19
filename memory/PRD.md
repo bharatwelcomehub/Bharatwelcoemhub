@@ -4,6 +4,23 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-18 — Visa Recommender: added AU short-stay activity visas 400 / 407 / 408] (P0 hotfix)
+
+User asked: *"why this is not helping me to find out 400 or 407 or 408 visa?"* — the Recommender was not even surfacing Australia's short-stay activity visas, despite a goal like *"400 visa for Australia for Purnabramha Perth operation for 2 major events"*. Even Claude's own AI rationale was hinting *"better suited as Subclass 400 or 482"* but **those pathways simply didn't exist in our catalog** (catalog only had the 5 long-term PR pathways).
+
+**Fix** (`/app/backend/routes/visa.py`):
+- Added 3 new AU pathways: **AU-400** Temporary Work (Short Stay Specialist, 2-4 wk, 1-3 mo stay), **AU-407** Training Visa (2-4 mo, up to 24 mo stay), **AU-408** Temporary Activity (1-3 mo, event/entertainment/exchange-driven). Each with realistic cost bands, timeline bands and key requirements.
+- Updated `AU.common_pathway_ids` to include the new short-stay set (8 total AU pathways now).
+- Added **short-stay keyword boost** in `_score_pathway`: when the applicant goal contains any of `event/events/festival/launch/training/short/short-stay/specific event/specialist/activity/temporary stay/few months/specialised`, the activity visas (400/407/408) get **+22 score**, and Permanent pathways get **−8** because they over-shoot a short-stay need.
+- Upsert seeds (existing v2 idempotent pattern) auto-add the 3 new pathways on production the moment Visa Helper page is opened post-deploy.
+
+**Verified on preview** with Anirudha S profile + goal "400 visa for australia for purnabramha perth operation for 2 major events": Top-3 is now **AU-400, AU-407, AU-408 all at Strong 100/100**, with AU-482 / AU-188 dropping to #4 / #5.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-18 — P&L Revenue Share fixes: MFPL with zero-paid + Projection RS] (P0 hotfix)
 
 User reported on production:
