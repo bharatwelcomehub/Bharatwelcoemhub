@@ -4,6 +4,38 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-19 — Strict Visa Flow Phase B/C/D · UI + bulk-delete + admin-CRUD persistence] (P0)
+
+Completed the 10-point "Smart AI Visa Advisor + Document Factory" restructure from Message 502:
+
+**Backend (`/app/backend/routes/visa.py`)**:
+- `GET /api/visa/applications` now accepts `include_archived=false` (default) — soft-deleted apps no longer pollute the list.
+- New `POST /api/visa/applications/bulk-delete` — soft-archive many apps in one call (hard-delete restricted to super-admin).
+- `build-complete-bundle` + `lawyer-bundle` + `lawyer-bundle-preview` now filter shipped letters to the selected pathway's `required_letters` set (strict scope enforced server-side).
+- Bundle manifest now prints the visa-specific document checklist inline.
+- **Critical fix**: moved `required_letters` / `required_documents` out of `_PATHWAY_MACHINE_FIELDS` into `_PATHWAY_INSERT_ONLY_FIELDS` so admin edits via `/api/visa/admin/pathway` are no longer clobbered by `_ensure_seeds()` on the next read.
+
+**Frontend (`/app/frontend/src/pages/VisaHelper.jsx`)**:
+- **Strict-flow banners** at top of wizard: green "Selected Visa: {name}" with Change-Visa button, or amber "No Visa Selected Yet" forcing the user back to Recommender / Step 1.
+- Step 1 country page now lists pathways as clickable cards that lock in `business.selected_pathway_id`.
+- Letter generation, Send-to-Lawyer, and Generate-Complete-Bundle buttons are **disabled until a pathway is locked**.
+- Letter scope is hard-forced to `selected_pathway` whenever a pathway is set — UI no longer exposes the legacy "All / company / franchise" dropdown.
+- Review step now renders **two new collapsible cards**: "Visa-Specific Document Checklist" (grouped by Source) and "Letter Sets" (Drafted / Pending / Other-Extras), each sub-section is `<details>` collapsible.
+- Applications list got **bulk-select checkboxes**, a "Show Archived" toggle, an inline Archived section with Restore/Hard-Delete, and a `visa-bulk-archive-btn` that appears as soon as ≥1 row is selected.
+- Admin Panel → Pathways CRUD now exposes `Required Letters` (CSV) and `Required Documents` (JSON) fields with editable round-trip via the new generic `csv` / `json` field types on `CRUDTable`.
+
+**Tests** — `/app/backend/tests/test_visa_strict_flow_v3.py` (8 tests, all pass):
+- Pathway seeds (AU-400 has 7 letters / 12 docs, AU-186 has 13 / 10).
+- Archive flow (default list excludes archived; hard-delete super-admin-only).
+- Bulk delete (3 IDs archived in one call; empty list → 400).
+- Generate-letters with `scope="selected_pathway"` returns `total=7` for AU-400.
+- Admin pathway upsert round-trip persists across `/pathways` reads.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`.
+
+---
+
+
 ### [2026-02-18 — Recommender "Recommendation failed" with AI narrative ON: parallel thread-pool fix] (P0 hotfix)
 
 User on production hit "Recommendation failed" toast when **"Add Claude Sonnet 4.5 narrative reasoning"** was toggled ON.

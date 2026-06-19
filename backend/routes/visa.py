@@ -783,17 +783,22 @@ async def _ensure_seeds():
         "country_code", "type", "min_age", "max_age", "english_required",
         "skill_level", "company_cost_band", "applicant_cost_band", "duration_months",
         "timeline_band", "key_requirements", "spouse_work_rights",
-        "required_letters", "required_documents",
     )
+    # required_letters / required_documents are seeded on FIRST insert only,
+    # so admin edits via /api/visa/admin/pathway are NOT clobbered on the next read.
+    _PATHWAY_INSERT_ONLY_FIELDS = ("required_letters", "required_documents")
     for p in _SEED_PATHWAYS:
         machine = {k: p[k] for k in _PATHWAY_MACHINE_FIELDS if k in p}
+        insert_only = {k: p[k] for k in _PATHWAY_INSERT_ONLY_FIELDS if k in p}
+        set_on_insert = {
+            "_seed": True, "created_at": _now_iso(),
+            "name": p["name"], "summary": p.get("summary", ""),
+            **insert_only,
+        }
         await _db.visa_pathways.update_one(
             {"id": p["id"]},
             {
-                "$setOnInsert": {
-                    "_seed": True, "created_at": _now_iso(),
-                    "name": p["name"], "summary": p.get("summary", ""),
-                },
+                "$setOnInsert": set_on_insert,
                 "$set": machine,
             },
             upsert=True,
