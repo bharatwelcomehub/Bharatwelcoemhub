@@ -276,6 +276,12 @@ async def _month_row_profit_share(center: str, month: str, franchise: dict,
     ).to_list(2000)
     total_expenses = sum(e.get("amount", 0) or 0 for e in expense_records)
 
+    # — Expense Adjustment (only those flagged include_in_*_share_calculation) —
+    # Adjusted Expenses = Expenses − Expense Adjustment. Profit Share Base
+    # uses Adjusted Expenses, not the raw Expenses figure.
+    expense_adjustment = await _eligible_adjustments(center, month)
+    adjusted_expenses = round(total_expenses - expense_adjustment, 2)
+
     from utils.commissions import get_total_commissions
     from utils.gst import compute_gst_from_rows
     comm = await get_total_commissions(_db, center, month)
@@ -298,8 +304,9 @@ async def _month_row_profit_share(center: str, month: str, franchise: dict,
     except Exception:
         gst_flag = None
     comm_gst_recoverable = bool(gst_flag and gst_flag.get("commission_gst_recoverable"))
+    # Profit Share Base now uses Adjusted Expenses per founder spec 2026-02-23
     profit_share_base = round(
-        total_sale - total_expenses - total_commission
+        total_sale - adjusted_expenses - total_commission
         + (commission_gst if comm_gst_recoverable else 0.0),
         2,
     )
@@ -328,6 +335,8 @@ async def _month_row_profit_share(center: str, month: str, franchise: dict,
         "month": month,
         "sale": round(total_sale, 2),
         "expenses": round(total_expenses, 2),
+        "expense_adjustment": round(expense_adjustment, 2),
+        "adjusted_expenses": adjusted_expenses,
         "commissions": round(total_commission, 2),
         "commission_gst": commission_gst,
         "commission_gst_recoverable": comm_gst_recoverable,
@@ -344,7 +353,8 @@ async def _month_row_profit_share(center: str, month: str, franchise: dict,
 
 def _totals(rows: List[dict], payout_model: str = "revenue_share") -> dict:
     if payout_model == "profit_share":
-        keys = ["sale", "expenses", "commissions", "commission_gst",
+        keys = ["sale", "expenses", "expense_adjustment", "adjusted_expenses",
+                "commissions", "commission_gst",
                 "profit_share_base", "franchise_share", "mfpl_share",
                 "amount_paid", "pending"]
     else:
@@ -575,7 +585,10 @@ async def revenue_share_projection(req: dict = Body(...)):
             comm_gst_ratio = (base_comm_gst / base_sale) if base_sale else 0.0
             projected_comm = round(projected_sale * comm_ratio, 2)
             projected_comm_gst = round(projected_sale * comm_gst_ratio, 2)
-            ps_base = round(projected_sale - projected_expense - projected_comm, 2)
+            # No expense adjustments projected forward (admin entries only).
+            projected_adj = 0.0
+            adjusted_exp = round(projected_expense - projected_adj, 2)
+            ps_base = round(projected_sale - adjusted_exp - projected_comm, 2)
             base_for_split = max(0.0, ps_base)
             fr_share = round(base_for_split * owner_pct / 100.0, 2)
             mfpl_share = round(base_for_split * (100.0 - owner_pct) / 100.0, 2)
@@ -583,6 +596,8 @@ async def revenue_share_projection(req: dict = Body(...)):
                 "month": cur.strftime("%Y-%m"),
                 "sale": projected_sale,
                 "expenses": projected_expense,
+                "expense_adjustment": projected_adj,
+                "adjusted_expenses": adjusted_exp,
                 "commissions": projected_comm,
                 "commission_gst": projected_comm_gst,
                 "profit_share_base": ps_base,
@@ -669,6 +684,8 @@ COLUMN_DEFS_PS = [
     ("month", "Month"),
     ("sale", "Sale"),
     ("expenses", "Expenses"),
+    ("expense_adjustment", "Expense Adj."),
+    ("adjusted_expenses", "Adjusted Expenses"),
     ("commissions", "Commissions"),
     ("commission_gst", "Commission GST"),
     ("profit_share_base", "Profit Share Base"),

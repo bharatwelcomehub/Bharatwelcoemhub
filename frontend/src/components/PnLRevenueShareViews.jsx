@@ -41,6 +41,8 @@ const COLS_PS = [
   { key: "month", label: "Month", numeric: false },
   { key: "sale", label: "Sale" },
   { key: "expenses", label: "Expenses" },
+  { key: "expense_adjustment", label: "Expense Adj." },
+  { key: "adjusted_expenses", label: "Adjusted Expenses" },
   { key: "commissions", label: "Commissions" },
   { key: "commission_gst", label: "Commission GST" },
   { key: "profit_share_base", label: "Profit Share Base" },

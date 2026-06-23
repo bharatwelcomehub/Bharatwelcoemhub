@@ -100,6 +100,27 @@ class TestProfitShareModelAU:
                   "amount_paid", "pending"):
             assert k in r["totals"], f"Missing total {k}"
 
+    def test_adjusted_expenses_math(self, token):
+        """Adjusted Expenses = Expenses - Expense Adjustment; and Profit Share Base
+        must subtract Adjusted Expenses (NOT raw Expenses) before commission."""
+        r = requests.post(
+            f"{API}/api/center-accounts/pnl-revenue-share-overview",
+            json={"token": token, "center": "PB-PERTH", "financial_year": "2026-27"},
+            timeout=30,
+        ).json()
+        for row in r["rows"]:
+            adj = row["expense_adjustment"]
+            assert abs(row["adjusted_expenses"] - (row["expenses"] - adj)) < 0.05, (
+                f"adjusted_expenses mismatch in {row['month']}"
+            )
+            # Profit Share Base sanity: equals Sale − AdjExp − Commissions (+ GST if recoverable)
+            expected = row["sale"] - row["adjusted_expenses"] - row["commissions"]
+            if row.get("commission_gst_recoverable"):
+                expected += row["commission_gst"]
+            assert abs(row["profit_share_base"] - round(expected, 2)) < 0.05, (
+                f"profit_share_base mismatch in {row['month']}"
+            )
+
     def test_projection_dual_model(self, token):
         # PB-PERTH projection should also use profit_share columns
         r = requests.post(
@@ -113,6 +134,8 @@ class TestProfitShareModelAU:
         for row in r["rows"]:
             assert "profit_share_base" in row
             assert "franchise_share" in row
+            assert "expense_adjustment" in row
+            assert "adjusted_expenses" in row
             assert row["status"] == "Projected"
 
     def test_projection_revenue_share_india(self, token):
