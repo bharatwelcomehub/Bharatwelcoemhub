@@ -4,7 +4,6 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
-import { Switch } from "./ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "./ui/select";
@@ -23,7 +22,7 @@ const fmt = (n) => Number(n || 0).toLocaleString("en-IN", {
   minimumFractionDigits: 2, maximumFractionDigits: 2,
 });
 
-const COLS = [
+const COLS_RS = [
   { key: "month", label: "Month", numeric: false },
   { key: "sale", label: "Sale" },
   { key: "expenses", label: "Expenses" },
@@ -34,8 +33,36 @@ const COLS = [
   { key: "mg_amount", label: "MG" },
   { key: "mg_plus_gst", label: "MG + GST" },
   { key: "amount_paid", label: "Amount Paid" },
+  { key: "eligible_adjustments", label: "Eligible Adj." },
   { key: "profit_share_mfpl", label: "Profit Share MFPL" },
 ];
+
+const COLS_PS = [
+  { key: "month", label: "Month", numeric: false },
+  { key: "sale", label: "Sale" },
+  { key: "expenses", label: "Expenses" },
+  { key: "commissions", label: "Commissions" },
+  { key: "commission_gst", label: "Commission GST" },
+  { key: "profit_share_base", label: "Profit Share Base" },
+  { key: "franchise_share", label: "Franchise Share" },
+  { key: "mfpl_share", label: "MFPL Share" },
+  { key: "amount_paid", label: "Amount Paid" },
+  { key: "pending", label: "Pending" },
+  { key: "status", label: "Status", numeric: false, text: true },
+];
+
+const colsFor = (model) => (model === "profit_share" ? COLS_PS : COLS_RS);
+
+function statusBadge(s) {
+  const map = {
+    Paid: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    Partial: "bg-amber-100 text-amber-800 border-amber-300",
+    Pending: "bg-slate-100 text-slate-700 border-slate-300",
+    Projected: "bg-indigo-100 text-indigo-800 border-indigo-300",
+  };
+  const cls = map[s] || "bg-slate-100 text-slate-700 border-slate-300";
+  return <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${cls}`}>{s || "—"}</span>;
+}
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -54,7 +81,8 @@ async function postBinary(path, payload, filename) {
   downloadBlob(await res.blob(), filename);
 }
 
-function GridTable({ rows, totals, loading }) {
+function GridTable({ rows, totals, loading, payoutModel = "revenue_share" }) {
+  const cols = colsFor(payoutModel);
   if (loading) {
     return <div className="flex items-center text-sm text-muted-foreground p-6"><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading…</div>;
   }
@@ -66,22 +94,24 @@ function GridTable({ rows, totals, loading }) {
       <table className="w-full text-xs" data-testid="pnl-rs-grid-table">
         <thead className="bg-slate-700 text-white sticky top-0">
           <tr>
-            {COLS.map((c) => <th key={c.key} className="p-2 text-right whitespace-nowrap">{c.label}</th>)}
+            {cols.map((c) => <th key={c.key} className={`p-2 ${c.text ? "text-center" : "text-right"} whitespace-nowrap`}>{c.label}</th>)}
           </tr>
         </thead>
         <tbody>
           {/* TOTAL ROW AT TOP */}
           <tr className="bg-amber-100 font-bold border-b-2 border-amber-400" data-testid="pnl-rs-totals-row">
             <td className="p-2 text-left">TOTAL</td>
-            {COLS.slice(1).map((c) => (
-              <td key={c.key} className="p-2 text-right">{fmt(totals?.[c.key])}</td>
+            {cols.slice(1).map((c) => (
+              <td key={c.key} className={`p-2 ${c.text ? "text-center" : "text-right"}`}>{c.text ? "" : fmt(totals?.[c.key])}</td>
             ))}
           </tr>
           {rows.map((r) => (
             <tr key={r.month} className="border-t hover:bg-slate-50" data-testid={`pnl-rs-row-${r.month}`}>
               <td className="p-2 text-left">{r.month}</td>
-              {COLS.slice(1).map((c) => (
-                <td key={c.key} className="p-2 text-right">{fmt(r[c.key])}</td>
+              {cols.slice(1).map((c) => (
+                <td key={c.key} className={`p-2 ${c.text ? "text-center" : "text-right"}`}>
+                  {c.key === "status" ? statusBadge(r[c.key]) : fmt(r[c.key])}
+                </td>
               ))}
             </tr>
           ))}
@@ -98,8 +128,6 @@ export function PnLRevenueShareOverview({ center }) {
   const [fy, setFy] = useState("");
   const [fromMonth, setFromMonth] = useState("");
   const [toMonth, setToMonth] = useState("");
-  const [rsPct, setRsPct] = useState("15");
-  const [gstOn, setGstOn] = useState(true);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -125,8 +153,8 @@ export function PnLRevenueShareOverview({ center }) {
           token: getToken(), center,
           financial_year: fy || null,
           from_month: fromMonth || null, to_month: toMonth || null,
-          revenue_share_pct: Number(rsPct) || null,
-          gst_applicable: gstOn,
+          // payout_model & share % are now pulled from Franchise Management.
+          // GST is left unset so backend uses the franchise's gst_applicable flag.
         }),
       });
       const json = await res.json();
@@ -137,7 +165,7 @@ export function PnLRevenueShareOverview({ center }) {
     } finally {
       setLoading(false);
     }
-  }, [center, fy, fromMonth, toMonth, rsPct, gstOn]);
+  }, [center, fy, fromMonth, toMonth]);
 
   useEffect(() => { if (center) run(); }, [center, run]);
 
@@ -148,10 +176,9 @@ export function PnLRevenueShareOverview({ center }) {
         {
           center, financial_year: fy || null,
           from_month: fromMonth || null, to_month: toMonth || null,
-          revenue_share_pct: Number(rsPct) || null, gst_applicable: gstOn,
           account_manager: "—",
         },
-        `PnL_RevenueShare_${center}.pdf`,
+        `PnL_${data?.payout_model_label || "RevenueShare"}_${center}.pdf`.replace(/\s+/g, "_"),
       );
     } catch (e) { toast.error(e.message); }
   };
@@ -162,22 +189,23 @@ export function PnLRevenueShareOverview({ center }) {
         {
           center, financial_year: fy || null,
           from_month: fromMonth || null, to_month: toMonth || null,
-          revenue_share_pct: Number(rsPct) || null, gst_applicable: gstOn,
           account_manager: "—",
         },
-        `PnL_RevenueShare_${center}.xlsx`,
+        `PnL_${data?.payout_model_label || "RevenueShare"}_${center}.xlsx`.replace(/\s+/g, "_"),
       );
     } catch (e) { toast.error(e.message); }
   };
+
+  const isPS = data?.payout_model === "profit_share";
 
   return (
     <Card data-testid="pnl-rs-overview-card">
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <CardTitle>P&amp;L Revenue Share Overview</CardTitle>
+            <CardTitle>P&amp;L {data?.payout_model_label || "Revenue Share"} Overview</CardTitle>
             <CardDescription>
-              Month-wise actuals · Sale → Profit Share MFPL · {center || "select a center"}
+              Month-wise actuals · {isPS ? "Sale → Franchise Share / MFPL Share" : "Sale → Profit Share MFPL"} · {center || "select a center"}
             </CardDescription>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -194,8 +222,36 @@ export function PnLRevenueShareOverview({ center }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Filters */}
-        <div className="grid md:grid-cols-5 gap-2">
+        {/* Business Model + Share % — read-only from Franchise Management */}
+        {data && (
+          <div className="flex flex-wrap gap-2 items-center text-xs border rounded p-2 bg-slate-50" data-testid="pnl-rs-model-banner">
+            <span className="text-muted-foreground">Business Model:</span>
+            <Badge variant={isPS ? "default" : "secondary"} data-testid="pnl-rs-model-badge">
+              {data.payout_model_label}
+            </Badge>
+            {isPS ? (
+              <>
+                <span className="text-muted-foreground ml-3">Franchise Share:</span>
+                <Badge variant="outline">{data.franchise_owner_share_percentage}%</Badge>
+                <span className="text-muted-foreground ml-2">MFPL Share:</span>
+                <Badge variant="outline">{data.mfpl_share_percentage}%</Badge>
+              </>
+            ) : (
+              <>
+                <span className="text-muted-foreground ml-3">Revenue Share:</span>
+                <Badge variant="outline">{data.franchise_owner_share_percentage}%</Badge>
+                <span className="text-muted-foreground ml-2">GST:</span>
+                <Badge variant="outline">{data.filters?.gst_applicable ? "Yes (18%)" : "No"}</Badge>
+              </>
+            )}
+            <span className="ml-auto text-muted-foreground italic">
+              Configure these in <b>Franchise Management → Edit</b>
+            </span>
+          </div>
+        )}
+
+        {/* Filters — only period selectors stay; % and model come from Franchise */}
+        <div className="grid md:grid-cols-3 gap-2">
           <div>
             <Label className="text-xs">Financial Year</Label>
             <Select value={fy} onValueChange={(v) => { setFy(v); setFromMonth(""); setToMonth(""); }}>
@@ -211,32 +267,15 @@ export function PnLRevenueShareOverview({ center }) {
             <Label className="text-xs">To Month</Label>
             <Input type="month" value={toMonth} onChange={(e) => { setToMonth(e.target.value); setFy(""); }} className="h-8" data-testid="pnl-rs-to" />
           </div>
-          <div>
-            <Label className="text-xs">Revenue Share %</Label>
-            <Select value={rsPct} onValueChange={setRsPct}>
-              <SelectTrigger className="h-8" data-testid="pnl-rs-pct"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10 %</SelectItem>
-                <SelectItem value="15">15 %</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">GST Applicable</Label>
-            <div className="flex items-center gap-2 h-8">
-              <Switch checked={gstOn} onCheckedChange={setGstOn} data-testid="pnl-rs-gst" />
-              <span className="text-xs">{gstOn ? "Yes (18%)" : "No"}</span>
-            </div>
-          </div>
         </div>
 
         {data && (
           <div className="text-xs text-muted-foreground">
-            Center: <b>{data.center_name}</b> · Period: <b>{data.filters?.financial_year || `${data.filters?.from_month} → ${data.filters?.to_month}`}</b>
+            Center: <b>{data.center_name}</b> · Country: <b>{data.country}</b> · Period: <b>{data.filters?.financial_year || `${data.filters?.from_month} → ${data.filters?.to_month}`}</b>
           </div>
         )}
 
-        <GridTable rows={data?.rows || []} totals={data?.totals} loading={loading} />
+        <GridTable rows={data?.rows || []} totals={data?.totals} loading={loading} payoutModel={data?.payout_model} />
       </CardContent>
     </Card>
   );
@@ -250,7 +289,6 @@ export function RevenueShareProjection({ center }) {
   const [salesGrowth, setSalesGrowth] = useState("3");
   const [expenseGrowth, setExpenseGrowth] = useState("2");
   const [gstPct, setGstPct] = useState("18");
-  const [rsPct, setRsPct] = useState("15");
   const [mgAmount, setMgAmount] = useState("");
   const [startMonth, setStartMonth] = useState("");
   const [data, setData] = useState(null);
@@ -267,29 +305,29 @@ export function RevenueShareProjection({ center }) {
           token: getToken(), center,
           years: Number(years), sales_growth_pct: Number(salesGrowth),
           expense_growth_pct: Number(expenseGrowth), gst_pct: Number(gstPct),
-          revenue_share_pct: Number(rsPct),
           mg_amount: mgAmount ? Number(mgAmount) : null,
           start_month: startMonth || null,
+          // payout_model & share % come from Franchise Management.
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.detail || "Projection failed");
       setData(json);
-      toast.success(`Projected ${json.rows?.length || 0} months`);
+      toast.success(`Projected ${json.rows?.length || 0} months · ${json.payout_model_label}`);
     } catch (e) {
       toast.error(e.message || "Projection failed");
     } finally { setLoading(false); }
-  }, [center, years, salesGrowth, expenseGrowth, gstPct, rsPct, mgAmount, startMonth]);
+  }, [center, years, salesGrowth, expenseGrowth, gstPct, mgAmount, startMonth]);
 
   const exportPdf = async () => {
     try {
       await postBinary("/api/center-accounts/revenue-share-projection/export-pdf",
         { center, years: Number(years), sales_growth_pct: Number(salesGrowth),
           expense_growth_pct: Number(expenseGrowth), gst_pct: Number(gstPct),
-          revenue_share_pct: Number(rsPct), mg_amount: mgAmount ? Number(mgAmount) : null,
+          mg_amount: mgAmount ? Number(mgAmount) : null,
           start_month: startMonth || null, account_manager: "—",
         },
-        `RevenueShareProjection_${center}.pdf`);
+        `Projection_${data?.payout_model_label || ""}_${center}.pdf`.replace(/\s+/g, "_"));
     } catch (e) { toast.error(e.message); }
   };
   const exportExcel = async () => {
@@ -297,12 +335,14 @@ export function RevenueShareProjection({ center }) {
       await postBinary("/api/center-accounts/revenue-share-projection/export-excel",
         { center, years: Number(years), sales_growth_pct: Number(salesGrowth),
           expense_growth_pct: Number(expenseGrowth), gst_pct: Number(gstPct),
-          revenue_share_pct: Number(rsPct), mg_amount: mgAmount ? Number(mgAmount) : null,
+          mg_amount: mgAmount ? Number(mgAmount) : null,
           start_month: startMonth || null, account_manager: "—",
         },
-        `RevenueShareProjection_${center}.xlsx`);
+        `Projection_${data?.payout_model_label || ""}_${center}.xlsx`.replace(/\s+/g, "_"));
     } catch (e) { toast.error(e.message); }
   };
+
+  const isPS = data?.payout_model === "profit_share";
 
   return (
     <Card data-testid="rs-projection-card">
@@ -310,7 +350,7 @@ export function RevenueShareProjection({ center }) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5" /> Revenue Share Projection
+              <Sparkles className="h-5 w-5" /> {data?.payout_model_label || "Revenue Share"} Projection
             </CardTitle>
             <CardDescription>
               Forward projection from the last 3 actual months of {center || "this center"} with your growth assumptions.
@@ -327,6 +367,27 @@ export function RevenueShareProjection({ center }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {data && (
+          <div className="flex flex-wrap gap-2 items-center text-xs border rounded p-2 bg-slate-50" data-testid="rs-proj-model-banner">
+            <span className="text-muted-foreground">Business Model:</span>
+            <Badge variant={isPS ? "default" : "secondary"}>{data.payout_model_label}</Badge>
+            {isPS ? (
+              <>
+                <span className="text-muted-foreground ml-3">Franchise Share:</span>
+                <Badge variant="outline">{data.franchise_owner_share_percentage}%</Badge>
+                <span className="text-muted-foreground ml-2">MFPL Share:</span>
+                <Badge variant="outline">{data.mfpl_share_percentage}%</Badge>
+              </>
+            ) : (
+              <>
+                <span className="text-muted-foreground ml-3">Revenue Share:</span>
+                <Badge variant="outline">{data.franchise_owner_share_percentage}%</Badge>
+              </>
+            )}
+            <span className="ml-auto text-muted-foreground italic">From <b>Franchise Management</b></span>
+          </div>
+        )}
+
         <div className="grid md:grid-cols-4 gap-3">
           <div>
             <Label className="text-xs">Projection Years</Label>
@@ -349,18 +410,18 @@ export function RevenueShareProjection({ center }) {
             <Label className="text-xs">Expense Growth %</Label>
             <Input type="number" step="0.1" value={expenseGrowth} onChange={(e) => setExpenseGrowth(e.target.value)} className="h-8" data-testid="rs-proj-expense-growth" />
           </div>
-          <div>
-            <Label className="text-xs">Revenue Share %</Label>
-            <Input type="number" step="0.1" value={rsPct} onChange={(e) => setRsPct(e.target.value)} className="h-8" data-testid="rs-proj-rs-pct" />
-          </div>
-          <div>
-            <Label className="text-xs">GST %</Label>
-            <Input type="number" step="0.1" value={gstPct} onChange={(e) => setGstPct(e.target.value)} className="h-8" data-testid="rs-proj-gst-pct" />
-          </div>
-          <div>
-            <Label className="text-xs">MG Amount (override)</Label>
-            <Input type="number" step="100" value={mgAmount} onChange={(e) => setMgAmount(e.target.value)} className="h-8" placeholder="auto = last actual" data-testid="rs-proj-mg" />
-          </div>
+          {!isPS && (
+            <>
+              <div>
+                <Label className="text-xs">GST %</Label>
+                <Input type="number" step="0.1" value={gstPct} onChange={(e) => setGstPct(e.target.value)} className="h-8" data-testid="rs-proj-gst-pct" />
+              </div>
+              <div>
+                <Label className="text-xs">MG Amount (override)</Label>
+                <Input type="number" step="100" value={mgAmount} onChange={(e) => setMgAmount(e.target.value)} className="h-8" placeholder="auto = last actual" data-testid="rs-proj-mg" />
+              </div>
+            </>
+          )}
           <div className="flex items-end">
             <Button size="sm" className="h-8 w-full" onClick={run} disabled={loading || !center} data-testid="rs-proj-run">
               {loading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
@@ -372,11 +433,10 @@ export function RevenueShareProjection({ center }) {
         {data?.baseline_seed_months?.length > 0 && (
           <div className="text-xs text-muted-foreground">
             Seeded from <Badge variant="outline">{data.baseline_seed_months.join(", ")}</Badge>
-            · Avg seed sale ₹{fmt(data.totals && data.rows?.length ? data.totals.sale / data.rows.length / Math.pow(1 + Number(salesGrowth) / 100, data.rows.length / 2) : 0)}
           </div>
         )}
 
-        <GridTable rows={data?.rows || []} totals={data?.totals} loading={loading} />
+        <GridTable rows={data?.rows || []} totals={data?.totals} loading={loading} payoutModel={data?.payout_model} />
       </CardContent>
     </Card>
   );

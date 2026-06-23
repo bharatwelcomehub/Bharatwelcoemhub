@@ -176,17 +176,22 @@ async def _month_row(center: str, month: str, franchise: dict,
     ).to_list(200)
     amount_paid = round(sum(p.get("amount", 0) or 0 for p in payments), 2)
 
+    # — Eligible Adjustments —
+    # Sum of expense_adjustments rows flagged include_in_revenue_share_calculation=True
+    # for this center+month. These reduce the Profit Share MFPL (founder spec).
+    eligible_adj = await _eligible_adjustments(center, month)
+
     # — Profit Share MFPL —
-    # If Amount Paid > 0: use actual paid (cash basis)
-    # If Amount Paid = 0: use the payable (max(Rev Share + GST, MG + GST)) so
-    #   the founder sees the true theoretical cost even when no payment was
-    #   disbursed that month. Spec from founder, 2026-02-18.
+    # Per founder spec 2026-02:
+    #   Profit Share MFPL = Sale − Expenses − Amount Paid − Eligible Adjustments
+    # If no payment was disbursed that month, surface the *theoretical* outflow
+    # (max of RS+GST, MG+GST) so the founder still sees true cost.
     pnl = round(total_sale - total_expenses - total_commission - gst_on_sales, 2)
     if amount_paid > 0:
         outflow = amount_paid
     else:
         outflow = max(rs_plus_gst, mg_plus_gst)
-    profit_share_mfpl = round(total_sale - total_expenses - outflow, 2)
+    profit_share_mfpl = round(total_sale - total_expenses - outflow - eligible_adj, 2)
 
     return {
         "month": month,
@@ -200,6 +205,7 @@ async def _month_row(center: str, month: str, franchise: dict,
         "mg_amount": round(mg_amount, 2),
         "mg_plus_gst": round(mg_plus_gst, 2),
         "amount_paid": amount_paid,
+        "eligible_adjustments": round(eligible_adj, 2),
         "profit_share_mfpl": profit_share_mfpl,
         # diagnostics (not shown in grid but useful in PDF footer)
         "_meta": {
@@ -211,11 +217,173 @@ async def _month_row(center: str, month: str, franchise: dict,
     }
 
 
-def _totals(rows: List[dict]) -> dict:
-    keys = ["sale", "expenses", "pnl", "revenue_share_base", "revenue_share_amount",
-            "revenue_share_plus_gst", "mg_amount", "mg_plus_gst", "amount_paid",
-            "profit_share_mfpl"]
+async def _eligible_adjustments(center: str, month: str) -> float:
+    """Sum of expense adjustments flagged include_in_revenue_share_calculation
+    for the given center+month. Default-true so existing adjustments keep
+    behaving as before. Returns 0 on any error so the grid never breaks.
+    """
+    try:
+        cur = _db.expense_adjustments.find(
+            {
+                "center": {"$regex": f"^{center}$", "$options": "i"},
+                "month": month,
+                "$or": [
+                    {"include_in_revenue_share_calculation": True},
+                    {"include_in_revenue_share_calculation": {"$exists": False}},
+                ],
+            },
+            {"adjustment_amount": 1},
+        )
+        rows = await cur.to_list(2000)
+        return round(sum(float(r.get("adjustment_amount") or 0) for r in rows), 2)
+    except Exception:
+        return 0.0
+
+
+async def _month_row_profit_share(center: str, month: str, franchise: dict,
+                                  franchise_share_pct: float) -> dict:
+    """Profit-Share model row for overseas / non-India centers.
+
+    Columns: Month · Sale · Expenses · Commissions · Commission GST ·
+    Profit Share Base · Franchise Share (X%) · MFPL Share (100-X%) ·
+    Amount Paid · Pending · Status.
+
+    Formula:
+      Profit Share Base = Sale − Expenses − Commissions
+        (+ Commission GST when it is flagged as recoverable in adjustments)
+      Franchise Share   = Base × franchise_share_pct
+      MFPL Share        = Base × (100 − franchise_share_pct)
+      Pending           = max(0, Franchise Share − Amount Paid)
+      Status            = Paid / Partial / Pending
+    """
+    year, mon = month.split("-")
+    start_date = f"{year}-{mon}-01"
+    if int(mon) == 12:
+        end_date = f"{int(year) + 1}-01-01"
+    else:
+        end_date = f"{year}-{int(mon) + 1:02d}-01"
+
+    sales_records = await _db.daily_sales.find(
+        {"center": center, "date": {"$gte": start_date, "$lt": end_date}},
+        {"total_sale": 1, "swiggy_sale": 1, "zomato_sale": 1, "doordash_sale": 1,
+         "swiggy": 1, "zomato": 1, "doordash": 1},
+    ).to_list(200)
+    total_sale = sum(r.get("total_sale", 0) or 0 for r in sales_records)
+
+    expense_records = await _db.expenses.find(
+        {"center": center, "date": {"$gte": start_date, "$lt": end_date}},
+        {"amount": 1},
+    ).to_list(2000)
+    total_expenses = sum(e.get("amount", 0) or 0 for e in expense_records)
+
+    from utils.commissions import get_total_commissions
+    from utils.gst import compute_gst_from_rows
+    comm = await get_total_commissions(_db, center, month)
+    total_commission = float(comm["total"] or 0)
+    franchise_country = (franchise or {}).get("country", "India")
+    gst_calc = compute_gst_from_rows(sales_records, country=franchise_country, center=center)
+    _ = gst_calc  # noqa: F841 — kept for future commission-GST-on-sales toggle
+    # Commission GST = GST portion booked against commission lines (~18%).
+    commission_gst = round(float(comm.get("gst") or 0), 2) if comm.get("gst") is not None else 0.0
+    if commission_gst <= 0:
+        # Fallback estimate: 18% on commissions when sub-amount not tracked.
+        commission_gst = round(total_commission * 0.18, 2)
+
+    # If GST is recoverable per adjustments, add Commission GST back to base.
+    try:
+        gst_flag = await _db.gst_treatment.find_one(
+            {"center": {"$regex": f"^{center}$", "$options": "i"}, "month": month},
+            {"commission_gst_recoverable": 1},
+        )
+    except Exception:
+        gst_flag = None
+    comm_gst_recoverable = bool(gst_flag and gst_flag.get("commission_gst_recoverable"))
+    profit_share_base = round(
+        total_sale - total_expenses - total_commission
+        + (commission_gst if comm_gst_recoverable else 0.0),
+        2,
+    )
+
+    # Share split (configurable per franchise)
+    franchise_share_pct = max(0.0, min(100.0, float(franchise_share_pct or 80)))
+    mfpl_share_pct = round(100.0 - franchise_share_pct, 4)
+    base_for_split = max(0.0, profit_share_base)
+    franchise_share = round(base_for_split * franchise_share_pct / 100.0, 2)
+    mfpl_share = round(base_for_split * mfpl_share_pct / 100.0, 2)
+
+    payments = await _db.payout_payments.find(
+        {"center": center.upper(), "month": month}, {"_id": 0},
+    ).to_list(200)
+    amount_paid = round(sum(p.get("amount", 0) or 0 for p in payments), 2)
+
+    pending = round(max(0.0, franchise_share - amount_paid), 2)
+    if amount_paid <= 0:
+        status = "Pending"
+    elif amount_paid + 0.5 < franchise_share:
+        status = "Partial"
+    else:
+        status = "Paid"
+
+    return {
+        "month": month,
+        "sale": round(total_sale, 2),
+        "expenses": round(total_expenses, 2),
+        "commissions": round(total_commission, 2),
+        "commission_gst": commission_gst,
+        "commission_gst_recoverable": comm_gst_recoverable,
+        "profit_share_base": profit_share_base,
+        "franchise_share_pct": franchise_share_pct,
+        "mfpl_share_pct": mfpl_share_pct,
+        "franchise_share": franchise_share,
+        "mfpl_share": mfpl_share,
+        "amount_paid": amount_paid,
+        "pending": pending,
+        "status": status,
+    }
+
+
+def _totals(rows: List[dict], payout_model: str = "revenue_share") -> dict:
+    if payout_model == "profit_share":
+        keys = ["sale", "expenses", "commissions", "commission_gst",
+                "profit_share_base", "franchise_share", "mfpl_share",
+                "amount_paid", "pending"]
+    else:
+        keys = ["sale", "expenses", "pnl", "revenue_share_base",
+                "revenue_share_amount", "revenue_share_plus_gst",
+                "mg_amount", "mg_plus_gst", "amount_paid",
+                "eligible_adjustments", "profit_share_mfpl"]
     return {k: round(sum(float(r.get(k, 0) or 0) for r in rows), 2) for k in keys}
+
+
+def _resolve_payout_model(franchise: dict, override: Optional[str] = None) -> str:
+    """Resolve canonical payout model from override (super-admin) or franchise
+    record. Falls back to country convention if both are missing."""
+    if override in ("revenue_share", "profit_share"):
+        return override
+    pm = (franchise or {}).get("payout_model")
+    if pm in ("revenue_share", "profit_share"):
+        return pm
+    country = ((franchise or {}).get("country") or "India").strip().lower()
+    return "revenue_share" if country == "india" else "profit_share"
+
+
+def _resolve_share_pct(franchise: dict, override: Optional[float] = None) -> float:
+    """Owner share % from override → franchise_owner_share_percentage →
+    legacy revenue_share_percentage → 15 (India) / 80 (overseas)."""
+    if override:
+        try:
+            return float(override)
+        except Exception:
+            pass
+    f = franchise or {}
+    val = f.get("franchise_owner_share_percentage") or f.get("revenue_share_percentage")
+    if val is not None:
+        try:
+            return float(val)
+        except Exception:
+            pass
+    country = (f.get("country") or "India").strip().lower()
+    return 80.0 if country != "india" else 15.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -246,7 +414,7 @@ async def _get_franchise(center: str) -> dict:
 
 @router.post("/pnl-revenue-share-overview")
 async def pnl_revenue_share_overview(req: dict = Body(...)):
-    await _auth(req.get("token"))
+    sess = await _auth(req.get("token"))
     center = (req.get("center") or "").upper()
     if not center:
         raise HTTPException(400, "center is required")
@@ -255,13 +423,23 @@ async def pnl_revenue_share_overview(req: dict = Body(...)):
     fy = req.get("financial_year")          # e.g. "2024-25"
     from_month = req.get("from_month")
     to_month = req.get("to_month")
-    rs_pct = float(req.get("revenue_share_pct") or 0)
+    rs_pct_override = req.get("revenue_share_pct")
     gst_on = bool(req.get("gst_applicable", True))
+    # payout_model override: only Super Admin can switch the model away from
+    # what's stored on the Franchise record. For everyone else, franchise wins.
+    is_sa = bool(sess.get("is_super_admin") or sess.get("is_admin"))
+    payout_model_override = req.get("payout_model") if is_sa else None
 
     franchise = await _get_franchise(center)
-    if not rs_pct:
-        rs_pct = float(franchise.get("franchise_owner_share_percentage")
-                       or franchise.get("revenue_share_percentage") or 15)
+    payout_model = _resolve_payout_model(franchise, payout_model_override)
+    owner_pct = _resolve_share_pct(franchise, rs_pct_override)
+    # GST applicability: India franchise's `gst_applicable` field wins unless
+    # the request explicitly toggles it (super-admin override). Overseas
+    # centers stay GST-off by default.
+    franchise_gst = bool((franchise or {}).get("gst_applicable", False))
+    franchise_country = ((franchise or {}).get("country") or "India").strip().lower()
+    if "gst_applicable" not in req:
+        gst_on = franchise_gst if franchise_country == "india" else False
 
     if fy and not (from_month and to_month):
         from_month, to_month = _fy_range(fy)
@@ -271,20 +449,28 @@ async def pnl_revenue_share_overview(req: dict = Body(...)):
         to_month = datetime.now().strftime("%Y-%m")
 
     months = _months_between(from_month, to_month)
-    rows = [await _month_row(center, m, franchise, rs_pct, gst_on) for m in months]
+    if payout_model == "profit_share":
+        rows = [await _month_row_profit_share(center, m, franchise, owner_pct) for m in months]
+    else:
+        rows = [await _month_row(center, m, franchise, owner_pct, gst_on) for m in months]
     return {
         "success": True,
         "center": center,
         "center_name": franchise.get("franchise_name") or franchise.get("name") or center,
+        "payout_model": payout_model,
+        "payout_model_label": "Profit Share" if payout_model == "profit_share" else "Revenue Share",
+        "franchise_owner_share_percentage": owner_pct,
+        "mfpl_share_percentage": round(100.0 - owner_pct, 4) if payout_model == "profit_share" else None,
+        "country": (franchise or {}).get("country") or "India",
         "filters": {
             "financial_year": fy,
             "from_month": from_month,
             "to_month": to_month,
-            "revenue_share_pct": rs_pct,
+            "revenue_share_pct": owner_pct,
             "gst_applicable": gst_on,
         },
         "rows": rows,
-        "totals": _totals(rows),
+        "totals": _totals(rows, payout_model),
         "gst_rate": GST_RATE,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -295,7 +481,7 @@ async def pnl_revenue_share_overview(req: dict = Body(...)):
 # ─────────────────────────────────────────────────────────────────────────────
 @router.post("/revenue-share-projection")
 async def revenue_share_projection(req: dict = Body(...)):
-    await _auth(req.get("token"))
+    sess = await _auth(req.get("token"))
     center = (req.get("center") or "").upper()
     if not center:
         raise HTTPException(400, "center is required")
@@ -307,18 +493,17 @@ async def revenue_share_projection(req: dict = Body(...)):
     sales_growth = float(req.get("sales_growth_pct") or 3.0) / 100.0
     expense_growth = float(req.get("expense_growth_pct") or 2.0) / 100.0
     gst_pct = float(req.get("gst_pct") or GST_RATE)
-    rs_pct = float(req.get("revenue_share_pct") or 0)
+    rs_pct_override = req.get("revenue_share_pct")
     mg_amount_override = req.get("mg_amount")          # optional — else last actual MG
     start_month = req.get("start_month")               # YYYY-MM; defaults to next month after last actual
 
     franchise = await _get_franchise(center)
-    if not rs_pct:
-        rs_pct = float(franchise.get("franchise_owner_share_percentage")
-                       or franchise.get("revenue_share_percentage") or 15)
+    is_sa = bool(sess.get("is_super_admin") or sess.get("is_admin"))
+    payout_model_override = req.get("payout_model") if is_sa else None
+    payout_model = _resolve_payout_model(franchise, payout_model_override)
+    owner_pct = _resolve_share_pct(franchise, rs_pct_override)
 
     # — Seed baseline = average of last 3 months that had SALES data —
-    # We scan up to 18 months back so we don't get stuck if the current FY
-    # is empty (e.g. PB-HSR data ends 2026-03, current month is 2026-06).
     today = datetime.now()
     actual_to = today.strftime("%Y-%m")
     cur = today
@@ -330,7 +515,10 @@ async def revenue_share_projection(req: dict = Body(...)):
         else:
             cur = cur.replace(month=cur.month - 1)
         try:
-            row = await _month_row(center, cur.strftime("%Y-%m"), franchise, rs_pct, True)
+            if payout_model == "profit_share":
+                row = await _month_row_profit_share(center, cur.strftime("%Y-%m"), franchise, owner_pct)
+            else:
+                row = await _month_row(center, cur.strftime("%Y-%m"), franchise, owner_pct, True)
         except Exception:
             continue
         if row["sale"] > 0:
@@ -345,26 +533,28 @@ async def revenue_share_projection(req: dict = Body(...)):
     if seeds:
         base_sale = sum(s["sale"] for s in seeds) / len(seeds)
         base_expense = sum(s["expenses"] for s in seeds) / len(seeds)
-        base_mg = sum(s["mg_amount"] for s in seeds) / len(seeds)
-        # Capture the historical `rs_base / sale` ratio so the projection
-        # inherits real commission + GST structure instead of using P/L (which
-        # would zero-out Revenue Share for every loss-making month).
-        total_seed_sale = sum(s["sale"] for s in seeds) or 1.0
-        total_seed_rs_base = sum(max(0, s["revenue_share_base"]) for s in seeds)
-        rs_base_ratio = total_seed_rs_base / total_seed_sale if total_seed_sale else 0.85
+        if payout_model == "profit_share":
+            base_commission = sum(s.get("commissions", 0) for s in seeds) / len(seeds)
+            base_comm_gst = sum(s.get("commission_gst", 0) for s in seeds) / len(seeds)
+            base_mg = 0.0
+            rs_base_ratio = 0.0
+        else:
+            base_mg = sum(s["mg_amount"] for s in seeds) / len(seeds)
+            base_commission = 0.0
+            base_comm_gst = 0.0
+            total_seed_sale = sum(s["sale"] for s in seeds) or 1.0
+            total_seed_rs_base = sum(max(0, s["revenue_share_base"]) for s in seeds)
+            rs_base_ratio = total_seed_rs_base / total_seed_sale if total_seed_sale else 0.85
         last_actual_month = max(s["month"] for s in seeds)
     else:
-        base_sale = 0.0
-        base_expense = 0.0
-        base_mg = 0.0
-        rs_base_ratio = 0.85   # conservative default ≈ 85% of sale (after 5% comm + 10% GST)
+        base_sale = base_expense = base_mg = base_commission = base_comm_gst = 0.0
+        rs_base_ratio = 0.85
         last_actual_month = actual_to
 
-    if mg_amount_override is not None:
+    if mg_amount_override is not None and payout_model == "revenue_share":
         base_mg = float(mg_amount_override)
 
     if not start_month:
-        # Default: max(next month after today, next month after last actual)
         candidates = [today, datetime.strptime(last_actual_month + "-01", "%Y-%m-%d")]
         d = max(candidates)
         if d.month == 12:
@@ -378,34 +568,55 @@ async def revenue_share_projection(req: dict = Body(...)):
     for i in range(months_count):
         projected_sale = round(base_sale * ((1 + sales_growth) ** i), 2)
         projected_expense = round(base_expense * ((1 + expense_growth) ** i), 2)
-        # P/L kept as Sale − Expense for display.
-        pnl = round(projected_sale - projected_expense, 2)
-        # Revenue Share base = historical (rs_base / sale) ratio × projected
-        # sale — so loss-making months still pay revenue share, matching how
-        # the actual P&L Overview computes it (Sale − Commission − GST).
-        rs_base = round(projected_sale * rs_base_ratio, 2)
-        rs_amount = round(max(0, rs_base) * (rs_pct / 100.0), 2)
-        rs_plus_gst = round(rs_amount * (1 + gst_pct / 100.0), 2)
-        mg_plus_gst = round(base_mg * (1 + gst_pct / 100.0), 2)
-        # Projected "Amount Paid" = expected payable = max(RS+GST, MG+GST).
-        amount_paid = round(max(rs_plus_gst, mg_plus_gst), 2)
-        # MFPL: matches Overview's zero-paid branch — use payable as outflow
-        # (because in projection nothing is actually paid yet).
-        profit_mfpl = round(projected_sale - projected_expense - amount_paid, 2)
-        rows.append({
-            "month": cur.strftime("%Y-%m"),
-            "sale": projected_sale,
-            "expenses": projected_expense,
-            "pnl": pnl,
-            "revenue_share_base": rs_base,
-            "revenue_share_pct": rs_pct,
-            "revenue_share_amount": rs_amount,
-            "revenue_share_plus_gst": rs_plus_gst,
-            "mg_amount": round(base_mg, 2),
-            "mg_plus_gst": mg_plus_gst,
-            "amount_paid": amount_paid,
-            "profit_share_mfpl": profit_mfpl,
-        })
+
+        if payout_model == "profit_share":
+            # Profit Share projection: commissions grow with sales (ratio fixed).
+            comm_ratio = (base_commission / base_sale) if base_sale else 0.0
+            comm_gst_ratio = (base_comm_gst / base_sale) if base_sale else 0.0
+            projected_comm = round(projected_sale * comm_ratio, 2)
+            projected_comm_gst = round(projected_sale * comm_gst_ratio, 2)
+            ps_base = round(projected_sale - projected_expense - projected_comm, 2)
+            base_for_split = max(0.0, ps_base)
+            fr_share = round(base_for_split * owner_pct / 100.0, 2)
+            mfpl_share = round(base_for_split * (100.0 - owner_pct) / 100.0, 2)
+            rows.append({
+                "month": cur.strftime("%Y-%m"),
+                "sale": projected_sale,
+                "expenses": projected_expense,
+                "commissions": projected_comm,
+                "commission_gst": projected_comm_gst,
+                "profit_share_base": ps_base,
+                "franchise_share_pct": owner_pct,
+                "mfpl_share_pct": round(100.0 - owner_pct, 4),
+                "franchise_share": fr_share,
+                "mfpl_share": mfpl_share,
+                "amount_paid": 0.0,
+                "pending": fr_share,
+                "status": "Projected",
+            })
+        else:
+            pnl = round(projected_sale - projected_expense, 2)
+            rs_base = round(projected_sale * rs_base_ratio, 2)
+            rs_amount = round(max(0, rs_base) * (owner_pct / 100.0), 2)
+            rs_plus_gst = round(rs_amount * (1 + gst_pct / 100.0), 2)
+            mg_plus_gst = round(base_mg * (1 + gst_pct / 100.0), 2)
+            amount_paid = round(max(rs_plus_gst, mg_plus_gst), 2)
+            profit_mfpl = round(projected_sale - projected_expense - amount_paid, 2)
+            rows.append({
+                "month": cur.strftime("%Y-%m"),
+                "sale": projected_sale,
+                "expenses": projected_expense,
+                "pnl": pnl,
+                "revenue_share_base": rs_base,
+                "revenue_share_pct": owner_pct,
+                "revenue_share_amount": rs_amount,
+                "revenue_share_plus_gst": rs_plus_gst,
+                "mg_amount": round(base_mg, 2),
+                "mg_plus_gst": mg_plus_gst,
+                "amount_paid": amount_paid,
+                "eligible_adjustments": 0.0,
+                "profit_share_mfpl": profit_mfpl,
+            })
         if cur.month == 12:
             cur = cur.replace(year=cur.year + 1, month=1)
         else:
@@ -415,18 +626,23 @@ async def revenue_share_projection(req: dict = Body(...)):
         "success": True,
         "center": center,
         "center_name": franchise.get("franchise_name") or franchise.get("name") or center,
+        "payout_model": payout_model,
+        "payout_model_label": "Profit Share" if payout_model == "profit_share" else "Revenue Share",
+        "franchise_owner_share_percentage": owner_pct,
+        "mfpl_share_percentage": round(100.0 - owner_pct, 4) if payout_model == "profit_share" else None,
+        "country": (franchise or {}).get("country") or "India",
         "filters": {
             "years": years,
             "start_month": start_month,
             "sales_growth_pct": sales_growth * 100,
             "expense_growth_pct": expense_growth * 100,
             "gst_pct": gst_pct,
-            "revenue_share_pct": rs_pct,
+            "revenue_share_pct": owner_pct,
             "mg_amount": round(base_mg, 2),
         },
         "baseline_seed_months": [s["month"] for s in seeds],
         "rows": rows,
-        "totals": _totals(rows),
+        "totals": _totals(rows, payout_model),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -434,7 +650,7 @@ async def revenue_share_projection(req: dict = Body(...)):
 # ─────────────────────────────────────────────────────────────────────────────
 # Exports — shared PDF & Excel builders
 # ─────────────────────────────────────────────────────────────────────────────
-COLUMN_DEFS = [
+COLUMN_DEFS_RS = [
     ("month", "Month"),
     ("sale", "Sale"),
     ("expenses", "Expenses"),
@@ -445,8 +661,27 @@ COLUMN_DEFS = [
     ("mg_amount", "MG"),
     ("mg_plus_gst", "MG + GST"),
     ("amount_paid", "Amount Paid"),
+    ("eligible_adjustments", "Eligible Adj."),
     ("profit_share_mfpl", "Profit Share MFPL"),
 ]
+
+COLUMN_DEFS_PS = [
+    ("month", "Month"),
+    ("sale", "Sale"),
+    ("expenses", "Expenses"),
+    ("commissions", "Commissions"),
+    ("commission_gst", "Commission GST"),
+    ("profit_share_base", "Profit Share Base"),
+    ("franchise_share", "Franchise Share"),
+    ("mfpl_share", "MFPL Share"),
+    ("amount_paid", "Amount Paid"),
+    ("pending", "Pending"),
+    ("status", "Status"),
+]
+
+
+def _columns_for(data: dict) -> list:
+    return COLUMN_DEFS_PS if data.get("payout_model") == "profit_share" else COLUMN_DEFS_RS
 
 
 def _fmt_money(v) -> str:
@@ -458,8 +693,9 @@ def _fmt_money(v) -> str:
 
 def _build_excel(title: str, data: dict, account_manager: str = "—") -> bytes:
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Font, PatternFill, Alignment
 
+    cols = _columns_for(data)
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = (title[:28] or "Report")
@@ -467,18 +703,24 @@ def _build_excel(title: str, data: dict, account_manager: str = "—") -> bytes:
     # Title block
     ws.append([title])
     ws.append([f"Center: {data.get('center_name', '—')} ({data.get('center', '')})"])
+    ws.append([f"Business Model: {data.get('payout_model_label', '—')}"
+               + (f"  ·  Country: {data.get('country', '—')}")])
     f = data.get("filters", {}) or {}
     period = f.get("financial_year") or (f"{f.get('from_month', '—')} → {f.get('to_month', '—')}")
     if f.get("start_month"):
         period = f"{f.get('years')} year(s) from {f.get('start_month')}"
     ws.append([f"Period: {period}"])
-    ws.append([f"Revenue Share %: {f.get('revenue_share_pct', '—')}  ·  GST: "
-               + ("Yes (18%)" if f.get('gst_applicable', True) else "No")])
+    if data.get("payout_model") == "profit_share":
+        ws.append([f"Franchise Share %: {data.get('franchise_owner_share_percentage', '—')}"
+                   f"  ·  MFPL Share %: {data.get('mfpl_share_percentage', '—')}"])
+    else:
+        ws.append([f"Revenue Share %: {f.get('revenue_share_pct', '—')}  ·  GST: "
+                   + ("Yes (18%)" if f.get('gst_applicable', True) else "No")])
     ws.append([f"Generated: {datetime.now().strftime('%d %b %Y, %H:%M')}"])
     ws.append([])
 
     header_row_idx = ws.max_row + 1
-    headers = [c[1] for c in COLUMN_DEFS]
+    headers = [c[1] for c in cols]
     ws.append(headers)
     header_fill = PatternFill("solid", fgColor="1f4e79")
     bold_white = Font(bold=True, color="FFFFFF")
@@ -491,8 +733,8 @@ def _build_excel(title: str, data: dict, account_manager: str = "—") -> bytes:
     # Total row at the TOP (per spec)
     totals = data.get("totals", {})
     total_row = ["TOTAL"]
-    for key, _ in COLUMN_DEFS[1:]:
-        total_row.append(totals.get(key, 0))
+    for key, _ in cols[1:]:
+        total_row.append(totals.get(key, "") if key != "status" else "")
     ws.append(total_row)
     total_idx = ws.max_row
     total_fill = PatternFill("solid", fgColor="ffe1a4")
@@ -500,23 +742,23 @@ def _build_excel(title: str, data: dict, account_manager: str = "—") -> bytes:
         cell = ws.cell(row=total_idx, column=c)
         cell.font = Font(bold=True)
         cell.fill = total_fill
-        if c > 1:
+        if c > 1 and cols[c - 1][0] != "status":
             cell.number_format = "#,##0.00"
 
     # Data rows
     for r in data.get("rows", []):
         row_values = [r.get("month", "")]
-        for key, _ in COLUMN_DEFS[1:]:
-            row_values.append(r.get(key, 0))
+        for key, _ in cols[1:]:
+            row_values.append(r.get(key, "" if key == "status" else 0))
         ws.append(row_values)
         idx = ws.max_row
         for c in range(2, len(headers) + 1):
-            ws.cell(row=idx, column=c).number_format = "#,##0.00"
+            if cols[c - 1][0] != "status":
+                ws.cell(row=idx, column=c).number_format = "#,##0.00"
 
     # Column widths
-    widths = [12, 14, 14, 14, 18, 14, 18, 14, 14, 14, 18]
-    for i, w in enumerate(widths, 1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    for i in range(1, len(cols) + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = 16
 
     # Footer signatures
     ws.append([])
@@ -536,6 +778,7 @@ def _build_pdf(title: str, data: dict, account_manager: str = "—") -> bytes:
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
     from reportlab.lib.units import mm
 
+    cols = _columns_for(data)
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle("T", parent=styles["Heading1"], fontSize=14,
                                  textColor=colors.HexColor("#800020"))
@@ -549,7 +792,6 @@ def _build_pdf(title: str, data: dict, account_manager: str = "—") -> bytes:
                             topMargin=10 * mm, bottomMargin=10 * mm)
     story = []
 
-    # Logo (optional — look up known logo paths used elsewhere)
     logo_path = None
     for p in (
         "/app/backend/assets/logo.png",
@@ -568,27 +810,40 @@ def _build_pdf(title: str, data: dict, account_manager: str = "—") -> bytes:
 
     story.append(Paragraph(title, title_style))
     story.append(Paragraph(f"<b>Center:</b> {data.get('center_name', '—')} ({data.get('center', '')})", sub))
+    story.append(Paragraph(
+        f"<b>Business Model:</b> {data.get('payout_model_label', '—')}  &nbsp; "
+        f"<b>Country:</b> {data.get('country', '—')}", sub))
     f = data.get("filters", {}) or {}
     period = f.get("financial_year") or f"{f.get('from_month', '—')} → {f.get('to_month', '—')}"
     if f.get("start_month"):
         period = f"{f.get('years')} year(s) starting {f.get('start_month')}"
     story.append(Paragraph(f"<b>Period:</b> {period}", sub))
-    story.append(Paragraph(
-        f"<b>Revenue Share %:</b> {f.get('revenue_share_pct', '—')}  &nbsp; "
-        f"<b>GST:</b> {'Yes (18%)' if f.get('gst_applicable', True) else 'No'}", sub))
+    if data.get("payout_model") == "profit_share":
+        story.append(Paragraph(
+            f"<b>Franchise Share %:</b> {data.get('franchise_owner_share_percentage', '—')}"
+            f" &nbsp; <b>MFPL Share %:</b> {data.get('mfpl_share_percentage', '—')}", sub))
+    else:
+        story.append(Paragraph(
+            f"<b>Revenue Share %:</b> {f.get('revenue_share_pct', '—')}  &nbsp; "
+            f"<b>GST:</b> {'Yes (18%)' if f.get('gst_applicable', True) else 'No'}", sub))
     story.append(Spacer(1, 6))
 
-    # Headers
-    headers = [c[1] for c in COLUMN_DEFS]
+    headers = [c[1] for c in cols]
     totals = data.get("totals", {})
-    total_row = ["TOTAL"] + [_fmt_money(totals.get(k, 0)) for k, _ in COLUMN_DEFS[1:]]
+    total_row = ["TOTAL"]
+    for k, _ in cols[1:]:
+        total_row.append("" if k == "status" else _fmt_money(totals.get(k, 0)))
     table_data = [headers, total_row]
     for r in data.get("rows", []):
-        row = [r.get("month", "")] + [_fmt_money(r.get(k, 0)) for k, _ in COLUMN_DEFS[1:]]
+        row = [r.get("month", "")]
+        for k, _ in cols[1:]:
+            v = r.get(k, "" if k == "status" else 0)
+            row.append(v if k == "status" else _fmt_money(v))
         table_data.append(row)
 
-    col_widths = [20, 24, 24, 24, 30, 24, 30, 24, 24, 24, 30]
-    col_widths = [w * mm for w in col_widths]
+    page_w = 277 * mm  # A4 landscape printable width approx
+    col_w = page_w / len(cols)
+    col_widths = [col_w] * len(cols)
     table = Table(table_data, colWidths=col_widths, repeatRows=2)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f4e79")),

@@ -1396,8 +1396,8 @@ export default function CenterAccounts() {
               <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
               <TabsTrigger value="ledgers" data-testid="tab-ledgers" className="text-indigo-600"><BookOpen className="w-3.5 h-3.5 mr-1" />Ledgers</TabsTrigger>
               <TabsTrigger value="bundles" data-testid="tab-bundles" className="text-purple-600">Bundles &amp; Exports</TabsTrigger>
-              <TabsTrigger value="pnl-rs" data-testid="tab-pnl-rs" className="text-emerald-700">P&amp;L Revenue Share Overview</TabsTrigger>
-              <TabsTrigger value="rs-projection" data-testid="tab-rs-projection" className="text-emerald-700">Revenue Share Projection</TabsTrigger>
+              <TabsTrigger value="pnl-rs" data-testid="tab-pnl-rs" className="text-emerald-700">P&amp;L Overview</TabsTrigger>
+              <TabsTrigger value="rs-projection" data-testid="tab-rs-projection" className="text-emerald-700">Projection</TabsTrigger>
             </TabsList>
 
             {/* Overview Tab — 11-item Snapshot */}

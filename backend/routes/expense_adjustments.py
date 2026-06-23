@@ -68,12 +68,17 @@ class CreateReq(BaseReq):
     adjustment_amount: float
     adjustment_type: str
     adjustment_reason: Optional[str] = ""
+    # When True (default), this adjustment is subtracted from Profit Share MFPL
+    # in /pnl-revenue-share-overview. Lets the admin opt an adjustment out of
+    # the founder's revenue-share calculation without deleting it.
+    include_in_revenue_share_calculation: Optional[bool] = True
 
 
 class UpdateReq(BaseReq):
     adjustment_amount: Optional[float] = None
     adjustment_type: Optional[str] = None
     adjustment_reason: Optional[str] = None
+    include_in_revenue_share_calculation: Optional[bool] = None
 
 
 class ListReq(BaseReq):
@@ -167,6 +172,9 @@ async def create_adjustment(req: CreateReq):
         "adjustment_amount": round(float(req.adjustment_amount), 2),
         "adjustment_type": req.adjustment_type,
         "adjustment_reason": (req.adjustment_reason or "").strip(),
+        "include_in_revenue_share_calculation": bool(
+            True if req.include_in_revenue_share_calculation is None else req.include_in_revenue_share_calculation
+        ),
         "created_by": session.get("managerName") or session.get("mobile") or "Unknown",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": None,
@@ -206,6 +214,8 @@ async def update_adjustment(adjustment_id: str, req: UpdateReq):
         updates["adjustment_type"] = req.adjustment_type
     if req.adjustment_reason is not None:
         updates["adjustment_reason"] = req.adjustment_reason.strip()
+    if req.include_in_revenue_share_calculation is not None:
+        updates["include_in_revenue_share_calculation"] = bool(req.include_in_revenue_share_calculation)
 
     if not updates:
         return {"success": True, "adjustment": existing}

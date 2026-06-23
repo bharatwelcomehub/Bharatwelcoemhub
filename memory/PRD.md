@@ -4,6 +4,42 @@
 Internal management system for "Purnabramha," a restaurant franchise.
 
 
+### [2026-02-23 — Center Accounts: Dual-Model P&L Overview + Projection (Revenue Share / Profit Share)] (P0)
+
+Built a dual-model P&L Overview & Projection screen under Center Accounts → "P&L Overview" + "Projection" tabs. The columns/formulas dynamically change based on each franchise's stored `payout_model` in **Franchise Management** (no radio on this screen — user explicitly asked to pull from Franchise Management).
+
+**Backend (`/app/backend/routes/pnl_revenue_share.py`)**:
+- New `_month_row_profit_share()` for overseas / profit-share centers with columns: Month · Sale · Expenses · Commissions · Commission GST · Profit Share Base · Franchise Share (X%) · MFPL Share (100-X%) · Amount Paid · Pending · Status.
+- Existing `_month_row()` (Revenue Share) now includes an `eligible_adjustments` column and subtracts those from Profit Share MFPL.
+- New `_resolve_payout_model()` and `_resolve_share_pct()` helpers — pull `payout_model` and `franchise_owner_share_percentage` from the franchise record (super-admin can override in the request).
+- Projection endpoint now branches by model — Profit Share projection forwards `profit_share_base`/`franchise_share`/`mfpl_share` per month with `status='Projected'`.
+- `_totals()`, PDF, Excel builders all dual-mode via `COLUMN_DEFS_RS` / `COLUMN_DEFS_PS` + `_columns_for(data)`.
+- PDF/Excel headers now print Business Model + Country + Share % from the franchise.
+- `Amount Paid` continues to come exclusively from `payout_payments` (no manual entry).
+- Status thresholds: Paid (paid ≥ franchise share), Partial (0 < paid < share), Pending (paid = 0).
+
+**Expense Adjustments (`/app/backend/routes/expense_adjustments.py`)**:
+- New field `include_in_revenue_share_calculation: bool = True` (default-true → backwards compatible).
+- Eligible adjustments are subtracted from Profit Share MFPL on the Revenue Share Overview.
+
+**Frontend (`/app/frontend/src/components/PnLRevenueShareViews.jsx`)**:
+- Two column sets `COLS_RS` and `COLS_PS`, picked by `data.payout_model`.
+- Removed the in-screen `Revenue Share %` dropdown and GST toggle (user spec: pull from Franchise Management). Only period selectors remain.
+- New `Business Model:` banner shows the franchise's model + share % + a hint "Configure these in Franchise Management → Edit".
+- Status column renders as a coloured pill (Paid / Partial / Pending / Projected).
+- Title/description, file names, PDF buttons all rename dynamically (`P&L Revenue Share Overview` ↔ `P&L Profit Share Overview`).
+
+**Tests** — `/app/backend/tests/test_pnl_dual_model.py` (9 tests, all pass):
+- Revenue Share model row + totals (PB-MGT / India).
+- Profit Share model row + totals + share-split arithmetic (PB-PERTH / Australia).
+- Projection dual-mode (RS for India, PS for AU).
+- PDF + Excel exports for both models.
+
+⚠️ **Deploy required** to push to `intra.purnabramha.com`. PB-PERTH currently shows 15% Franchise Share because the franchise record has 15 stored — update it to 80% in Franchise Management → Edit after the deploy.
+
+---
+
+
 ### [2026-02-19 — Strict Visa Flow Phase B/C/D · UI + bulk-delete + admin-CRUD persistence] (P0)
 
 Completed the 10-point "Smart AI Visa Advisor + Document Factory" restructure from Message 502:
