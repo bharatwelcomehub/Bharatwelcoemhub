@@ -293,6 +293,8 @@ export function RevenueShareProjection({ center }) {
   const [gstPct, setGstPct] = useState("18");
   const [mgAmount, setMgAmount] = useState("");
   const [startMonth, setStartMonth] = useState("");
+  const [earlyExitYear, setEarlyExitYear] = useState("");        // "" = disabled
+  const [profitReductionPct, setProfitReductionPct] = useState("10");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -305,11 +307,15 @@ export function RevenueShareProjection({ center }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: getToken(), center,
-          years: Number(years), sales_growth_pct: Number(salesGrowth),
-          expense_growth_pct: Number(expenseGrowth), gst_pct: Number(gstPct),
+          years: Number(years),
+          // Use 0 fallback (not undefined) so backend honours user-entered zero.
+          sales_growth_pct: salesGrowth === "" ? 0 : Number(salesGrowth),
+          expense_growth_pct: expenseGrowth === "" ? 0 : Number(expenseGrowth),
+          gst_pct: gstPct === "" ? 0 : Number(gstPct),
           mg_amount: mgAmount ? Number(mgAmount) : null,
           start_month: startMonth || null,
-          // payout_model & share % come from Franchise Management.
+          early_exit_year: earlyExitYear ? Number(earlyExitYear) : null,
+          profit_reduction_pct: Number(profitReductionPct) || 10,
         }),
       });
       const json = await res.json();
@@ -319,27 +325,33 @@ export function RevenueShareProjection({ center }) {
     } catch (e) {
       toast.error(e.message || "Projection failed");
     } finally { setLoading(false); }
-  }, [center, years, salesGrowth, expenseGrowth, gstPct, mgAmount, startMonth]);
+  }, [center, years, salesGrowth, expenseGrowth, gstPct, mgAmount, startMonth, earlyExitYear, profitReductionPct]);
+
+  // Common payload for exports — ensures PDF/Excel always uses LATEST inputs
+  const buildExportBody = () => ({
+    center,
+    years: Number(years),
+    sales_growth_pct: salesGrowth === "" ? 0 : Number(salesGrowth),
+    expense_growth_pct: expenseGrowth === "" ? 0 : Number(expenseGrowth),
+    gst_pct: gstPct === "" ? 0 : Number(gstPct),
+    mg_amount: mgAmount ? Number(mgAmount) : null,
+    start_month: startMonth || null,
+    early_exit_year: earlyExitYear ? Number(earlyExitYear) : null,
+    profit_reduction_pct: Number(profitReductionPct) || 10,
+    account_manager: "—",
+  });
 
   const exportPdf = async () => {
     try {
       await postBinary("/api/center-accounts/revenue-share-projection/export-pdf",
-        { center, years: Number(years), sales_growth_pct: Number(salesGrowth),
-          expense_growth_pct: Number(expenseGrowth), gst_pct: Number(gstPct),
-          mg_amount: mgAmount ? Number(mgAmount) : null,
-          start_month: startMonth || null, account_manager: "—",
-        },
+        buildExportBody(),
         `Projection_${data?.payout_model_label || ""}_${center}.pdf`.replace(/\s+/g, "_"));
     } catch (e) { toast.error(e.message); }
   };
   const exportExcel = async () => {
     try {
       await postBinary("/api/center-accounts/revenue-share-projection/export-excel",
-        { center, years: Number(years), sales_growth_pct: Number(salesGrowth),
-          expense_growth_pct: Number(expenseGrowth), gst_pct: Number(gstPct),
-          mg_amount: mgAmount ? Number(mgAmount) : null,
-          start_month: startMonth || null, account_manager: "—",
-        },
+        buildExportBody(),
         `Projection_${data?.payout_model_label || ""}_${center}.xlsx`.replace(/\s+/g, "_"));
     } catch (e) { toast.error(e.message); }
   };
@@ -396,7 +408,7 @@ export function RevenueShareProjection({ center }) {
             <Select value={years} onValueChange={setYears}>
               <SelectTrigger className="h-8" data-testid="rs-proj-years"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {[1, 2, 3, 4, 5].map((y) => <SelectItem key={y} value={String(y)}>{y} Year{y > 1 ? "s" : ""}</SelectItem>)}
+                {[1, 2, 3, 4, 5, 6, 7].map((y) => <SelectItem key={y} value={String(y)}>{y} Year{y > 1 ? "s" : ""}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -431,6 +443,67 @@ export function RevenueShareProjection({ center }) {
             </Button>
           </div>
         </div>
+
+        {/* ── Early Exit Profitability Loss inputs ── */}
+        <details className="border-2 border-rose-200 rounded p-3 bg-rose-50/40" data-testid="rs-proj-early-exit-section" open={!!earlyExitYear}>
+          <summary className="cursor-pointer font-medium text-sm flex items-center gap-2">
+            <span className="text-rose-700">Franchise Early-Exit Profitability Loss</span>
+            <span className="text-xs text-muted-foreground italic">— estimate what MFPL forfeits if the franchise exits before the 7-year tenure</span>
+          </summary>
+          <div className="grid md:grid-cols-3 gap-3 mt-3">
+            <div>
+              <Label className="text-xs">Expected Tenure</Label>
+              <Input value="7 years" disabled className="h-8 bg-slate-50" />
+            </div>
+            <div>
+              <Label className="text-xs">Actual Exit Year</Label>
+              <Select value={earlyExitYear || "none"} onValueChange={(v) => setEarlyExitYear(v === "none" ? "" : v)}>
+                <SelectTrigger className="h-8" data-testid="rs-proj-exit-year"><SelectValue placeholder="Pick year" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— (don&apos;t compute) —</SelectItem>
+                  {[1, 2, 3, 4, 5, 6].map((y) => <SelectItem key={y} value={String(y)}>After Year {y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Profit Reduction %</Label>
+              <Select value={profitReductionPct} onValueChange={setProfitReductionPct}>
+                <SelectTrigger className="h-8" data-testid="rs-proj-reduction"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10% (conservative)</SelectItem>
+                  <SelectItem value="12">12% (very conservative)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {data?.early_exit && (
+            <div className="mt-4 rounded border-2 border-rose-300 bg-white p-3" data-testid="rs-proj-early-exit-result">
+              <div className="text-xs uppercase tracking-wider text-rose-700 font-semibold mb-2">
+                Loss if franchise exits after Year {data.early_exit.exit_year}
+              </div>
+              <div className="grid md:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground">Remaining Years</div>
+                  <div className="font-semibold">{data.early_exit.remaining_years}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Projected MFPL (7yr)</div>
+                  <div className="font-semibold">{fmt(data.early_exit.projected_mfpl_7yr)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Projected MFPL (remaining)</div>
+                  <div className="font-semibold">{fmt(data.early_exit.projected_mfpl_remaining)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Conservative Loss ({data.early_exit.profit_reduction_pct}%)</div>
+                  <div className="font-bold text-rose-700 text-base">{fmt(data.early_exit.conservative_loss)}</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground italic mt-2">{data.early_exit.note}</div>
+            </div>
+          )}
+        </details>
 
         {data?.baseline_seed_months?.length > 0 && (
           <div className="text-xs text-muted-foreground">

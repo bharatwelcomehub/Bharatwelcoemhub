@@ -497,15 +497,24 @@ async def revenue_share_projection(req: dict = Body(...)):
         raise HTTPException(400, "center is required")
 
     years = int(req.get("years") or 1)
-    if years not in (1, 2, 3, 4, 5):
+    if years not in (1, 2, 3, 4, 5, 6, 7):
         years = 1
     months_count = years * 12
-    sales_growth = float(req.get("sales_growth_pct") or 3.0) / 100.0
-    expense_growth = float(req.get("expense_growth_pct") or 2.0) / 100.0
-    gst_pct = float(req.get("gst_pct") or GST_RATE)
+    # IMPORTANT: use `is None` checks — `or` mistakenly drops legitimate 0 values
+    # (e.g. user setting Sales Growth % = 0 would fall back to 3% otherwise).
+    _sg = req.get("sales_growth_pct")
+    sales_growth = float(_sg if _sg is not None else 3.0) / 100.0
+    _eg = req.get("expense_growth_pct")
+    expense_growth = float(_eg if _eg is not None else 2.0) / 100.0
+    _gp = req.get("gst_pct")
+    gst_pct = float(_gp if _gp is not None else GST_RATE)
     rs_pct_override = req.get("revenue_share_pct")
     mg_amount_override = req.get("mg_amount")          # optional — else last actual MG
     start_month = req.get("start_month")               # YYYY-MM; defaults to next month after last actual
+
+    # Early-Exit profitability loss inputs (optional)
+    early_exit_year = req.get("early_exit_year")        # int 1..7
+    profit_reduction_pct = req.get("profit_reduction_pct") or 10  # 10 or 12
 
     franchise = await _get_franchise(center)
     is_sa = bool(sess.get("is_super_admin") or sess.get("is_admin"))
@@ -637,6 +646,62 @@ async def revenue_share_projection(req: dict = Body(...)):
         else:
             cur = cur.replace(month=cur.month + 1)
 
+    # ─── Franchise Early-Exit Profitability Loss ───
+    # Compute the conservative profit (reduced by 10/12%) that would be missed
+    # if the franchise exits at `early_exit_year`. We project the full 7-year
+    # horizon internally so the loss is independent of the user's `years`
+    # display selection.
+    early_exit_summary = None
+    try:
+        if early_exit_year is not None:
+            ee_year = int(early_exit_year)
+            if 1 <= ee_year <= 6:
+                reduction = float(profit_reduction_pct or 10) / 100.0
+                # Build a 7-year projection on the same baseline so we can
+                # capture remaining months (year ee_year+1 .. year 7).
+                horizon_rows = []
+                cur_h = datetime.strptime(start_month + "-01", "%Y-%m-%d")
+                for i in range(7 * 12):
+                    p_sale = base_sale * ((1 + sales_growth) ** i)
+                    p_exp = base_expense * ((1 + expense_growth) ** i)
+                    if payout_model == "profit_share":
+                        comm_ratio = (base_commission / base_sale) if base_sale else 0.0
+                        p_comm = p_sale * comm_ratio
+                        ps_base = p_sale - p_exp - p_comm
+                        mfpl = max(0.0, ps_base) * (100.0 - owner_pct) / 100.0
+                    else:
+                        # Revenue Share — MFPL ≈ Sale − Expense − Outflow
+                        rs_amt = max(0, p_sale * rs_base_ratio) * (owner_pct / 100.0)
+                        rs_g = rs_amt * (1 + gst_pct / 100.0)
+                        mg_g = base_mg * (1 + gst_pct / 100.0)
+                        outflow = max(rs_g, mg_g)
+                        mfpl = p_sale - p_exp - outflow
+                    horizon_rows.append({"month_index": i, "year": (i // 12) + 1, "mfpl": mfpl})
+                    if cur_h.month == 12:
+                        cur_h = cur_h.replace(year=cur_h.year + 1, month=1)
+                    else:
+                        cur_h = cur_h.replace(month=cur_h.month + 1)
+                total_7yr_mfpl = round(sum(r["mfpl"] for r in horizon_rows), 2)
+                # Remaining = year(ee_year+1) ... year 7
+                remaining_mfpl = round(sum(r["mfpl"] for r in horizon_rows if r["year"] > ee_year), 2)
+                conservative_loss = round(remaining_mfpl * (1 - reduction), 2)
+                early_exit_summary = {
+                    "tenure_years": 7,
+                    "exit_year": ee_year,
+                    "remaining_years": 7 - ee_year,
+                    "profit_reduction_pct": round(reduction * 100, 2),
+                    "projected_mfpl_7yr": total_7yr_mfpl,
+                    "projected_mfpl_remaining": remaining_mfpl,
+                    "conservative_loss": conservative_loss,
+                    "note": (
+                        f"If franchise exits after year {ee_year}, MFPL would forfeit "
+                        f"≈ {conservative_loss:,.2f} (remaining {7 - ee_year} years × MFPL, "
+                        f"discounted {round(reduction * 100, 2)}% for conservatism)."
+                    ),
+                }
+    except Exception as ex:
+        logger.warning(f"early-exit calc failed: {ex}")
+
     return {
         "success": True,
         "center": center,
@@ -654,10 +719,13 @@ async def revenue_share_projection(req: dict = Body(...)):
             "gst_pct": gst_pct,
             "revenue_share_pct": owner_pct,
             "mg_amount": round(base_mg, 2),
+            "early_exit_year": early_exit_year,
+            "profit_reduction_pct": profit_reduction_pct,
         },
         "baseline_seed_months": [s["month"] for s in seeds],
         "rows": rows,
         "totals": _totals(rows, payout_model),
+        "early_exit": early_exit_summary,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -783,6 +851,66 @@ def _build_excel(title: str, data: dict, account_manager: str = "—") -> bytes:
     ws.append([f"Account Manager: {account_manager}"])
     ws.append([f"Download Date: {datetime.now().strftime('%d %b %Y, %H:%M')}"])
 
+    # ── Assumptions sheet (projection only)
+    f = data.get("filters") or {}
+    if f.get("start_month") or f.get("sales_growth_pct") is not None:
+        ws2 = wb.create_sheet("Assumptions")
+        rows = [
+            ["Assumption", "Value"],
+            ["Center", f"{data.get('center_name', '—')} ({data.get('center', '')})"],
+            ["Business Model", data.get("payout_model_label", "—")],
+            ["Country", data.get("country", "—")],
+            ["Projection Years", f.get("years", "—")],
+            ["Starting Month", f.get("start_month", "—")],
+            ["Monthly Sales Growth %", f.get("sales_growth_pct", 0)],
+            ["Monthly Expense Growth %", f.get("expense_growth_pct", 0)],
+            ["GST %", f.get("gst_pct", 0)],
+            [
+                "Franchise Share %" if data.get("payout_model") == "profit_share" else "Revenue Share %",
+                f.get("revenue_share_pct", 0),
+            ],
+        ]
+        if data.get("payout_model") == "profit_share":
+            rows.append(["MFPL Share %", data.get("mfpl_share_percentage", 0)])
+        else:
+            rows.append(["MG Amount", f.get("mg_amount", 0)])
+        for r in rows:
+            ws2.append(r)
+        ws2.column_dimensions["A"].width = 28
+        ws2.column_dimensions["B"].width = 22
+        ws2["A1"].font = Font(bold=True, color="FFFFFF")
+        ws2["B1"].font = Font(bold=True, color="FFFFFF")
+        ws2["A1"].fill = PatternFill("solid", fgColor="1f4e79")
+        ws2["B1"].fill = PatternFill("solid", fgColor="1f4e79")
+
+    # ── Early Exit Profitability Loss section
+    ee = data.get("early_exit")
+    if ee:
+        ws3 = wb.create_sheet("Early Exit Loss")
+        ws3.append(["Franchise Early-Exit Profitability Loss"])
+        ws3.append([])
+        ws3.append(["Tenure (years)", ee["tenure_years"]])
+        ws3.append(["Exit after Year", ee["exit_year"]])
+        ws3.append(["Remaining Years", ee["remaining_years"]])
+        ws3.append(["Profit Reduction %", ee["profit_reduction_pct"]])
+        ws3.append(["Projected MFPL (full 7 yr)", ee["projected_mfpl_7yr"]])
+        ws3.append(["Projected MFPL (remaining)", ee["projected_mfpl_remaining"]])
+        ws3.append(["Conservative Loss (after reduction)", ee["conservative_loss"]])
+        ws3.append([])
+        ws3.append([ee.get("note", "")])
+        ws3.column_dimensions["A"].width = 36
+        ws3.column_dimensions["B"].width = 24
+        ws3["A1"].font = Font(bold=True, color="FFFFFF")
+        ws3["A1"].fill = PatternFill("solid", fgColor="800020")
+        for r in range(3, 10):
+            ws3.cell(row=r, column=1).font = Font(bold=True)
+        # Highlight final loss
+        ws3.cell(row=9, column=1).fill = PatternFill("solid", fgColor="fff7e6")
+        ws3.cell(row=9, column=2).fill = PatternFill("solid", fgColor="fff7e6")
+        ws3.cell(row=9, column=2).font = Font(bold=True, color="800020")
+        for r in range(3, 10):
+            ws3.cell(row=r, column=2).number_format = "#,##0.00"
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -875,6 +1003,53 @@ def _build_pdf(title: str, data: dict, account_manager: str = "—") -> bytes:
     ]))
     story.append(table)
     story.append(Spacer(1, 10))
+
+    # ── Assumptions block (projection only)
+    f = data.get("filters") or {}
+    if f.get("start_month") or f.get("sales_growth_pct") is not None:
+        story.append(Paragraph("<b>Projection Assumptions</b>", sub))
+        story.append(Paragraph(
+            f"Years: <b>{f.get('years', '—')}</b>  ·  Start: <b>{f.get('start_month', '—')}</b>  ·  "
+            f"Sales Growth: <b>{f.get('sales_growth_pct', 0):.2f}%</b>  ·  "
+            f"Expense Growth: <b>{f.get('expense_growth_pct', 0):.2f}%</b>", sub))
+        story.append(Paragraph(
+            f"GST: <b>{f.get('gst_pct', '—')}%</b>  ·  "
+            f"{'Franchise' if data.get('payout_model') == 'profit_share' else 'Revenue'} Share: "
+            f"<b>{f.get('revenue_share_pct', '—')}%</b>  ·  MG: <b>{_fmt_money(f.get('mg_amount', 0))}</b>", sub))
+        story.append(Spacer(1, 6))
+
+    # ── Early Exit Profitability Loss
+    ee = data.get("early_exit")
+    if ee:
+        story.append(Paragraph("<b>Franchise Early-Exit Profitability Loss</b>", sub))
+        ee_data = [
+            ["Tenure (years)", "Exit Year", "Remaining Years", "Reduction %",
+             "Projected MFPL (7 yr)", "Projected MFPL (remaining)", "Conservative Loss"],
+            [
+                ee["tenure_years"], ee["exit_year"], ee["remaining_years"],
+                f"{ee['profit_reduction_pct']}%",
+                _fmt_money(ee["projected_mfpl_7yr"]),
+                _fmt_money(ee["projected_mfpl_remaining"]),
+                _fmt_money(ee["conservative_loss"]),
+            ],
+        ]
+        ee_table = Table(ee_data, colWidths=[34 * mm] * 7)
+        ee_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#800020")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+            ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#fff7e6")),
+            ("FONTNAME", (-1, 1), (-1, 1), "Helvetica-Bold"),
+            ("TEXTCOLOR", (-1, 1), (-1, 1), colors.HexColor("#800020")),
+        ]))
+        story.append(ee_table)
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(f"<i>{ee.get('note', '')}</i>", small))
+        story.append(Spacer(1, 10))
+
     story.append(Paragraph(f"<b>Prepared by:</b> System ({title})", sub))
     story.append(Paragraph(f"<b>Account Manager:</b> {account_manager}", sub))
     story.append(Spacer(1, 10))

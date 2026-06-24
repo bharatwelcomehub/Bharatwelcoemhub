@@ -153,7 +153,89 @@ class TestProfitShareModelAU:
             assert "mg_amount" in row
 
 
-class TestExports:
+class TestProjectionGrowth:
+    """Regression tests for the bug where `0%` growth was being silently
+    overridden to the default 3% / 2% due to a Python `or` fallback."""
+
+    def test_zero_growth_keeps_month1_equal_month12(self, token):
+        r = requests.post(
+            f"{API}/api/center-accounts/revenue-share-projection",
+            json={"token": token, "center": "PB-PERTH", "years": 1,
+                  "sales_growth_pct": 0, "expense_growth_pct": 0},
+            timeout=60,
+        ).json()
+        rows = r["rows"]
+        assert len(rows) == 12
+        # All months must be equal when both growth rates are 0
+        assert rows[0]["sale"] == rows[11]["sale"]
+        assert rows[0]["expenses"] == rows[11]["expenses"]
+        # Filter must echo back 0, not 3
+        assert r["filters"]["sales_growth_pct"] == 0
+        assert r["filters"]["expense_growth_pct"] == 0
+
+    def test_growth_compounds_correctly(self, token):
+        r = requests.post(
+            f"{API}/api/center-accounts/revenue-share-projection",
+            json={"token": token, "center": "PB-PERTH", "years": 1,
+                  "sales_growth_pct": 10, "expense_growth_pct": 5},
+            timeout=60,
+        ).json()
+        rows = r["rows"]
+        # Month 12 sale = Month 1 sale × 1.10^11 (i goes 0..11)
+        expected = rows[0]["sale"] * (1.10 ** 11)
+        assert abs(rows[11]["sale"] - round(expected, 2)) < 1.0, (
+            f"Expected M12 sale ≈ {expected:.2f}, got {rows[11]['sale']:.2f}"
+        )
+        expected_exp = rows[0]["expenses"] * (1.05 ** 11)
+        assert abs(rows[11]["expenses"] - round(expected_exp, 2)) < 1.0
+
+
+class TestEarlyExitLoss:
+    def test_early_exit_after_year3(self, token):
+        r = requests.post(
+            f"{API}/api/center-accounts/revenue-share-projection",
+            json={"token": token, "center": "PB-PERTH", "years": 7,
+                  "sales_growth_pct": 5, "expense_growth_pct": 3,
+                  "early_exit_year": 3, "profit_reduction_pct": 10},
+            timeout=60,
+        ).json()
+        ee = r["early_exit"]
+        assert ee is not None
+        assert ee["tenure_years"] == 7
+        assert ee["exit_year"] == 3
+        assert ee["remaining_years"] == 4
+        assert ee["profit_reduction_pct"] == 10
+        # Conservative loss = projected_mfpl_remaining × (1 - 0.10)
+        expected_loss = round(ee["projected_mfpl_remaining"] * 0.90, 2)
+        assert abs(ee["conservative_loss"] - expected_loss) < 0.05
+        # Total 7yr MFPL >= remaining MFPL (since remaining is a subset)
+        assert ee["projected_mfpl_7yr"] >= ee["projected_mfpl_remaining"]
+
+    def test_early_exit_12pct_reduction(self, token):
+        r = requests.post(
+            f"{API}/api/center-accounts/revenue-share-projection",
+            json={"token": token, "center": "PB-PERTH", "years": 7,
+                  "sales_growth_pct": 5, "expense_growth_pct": 3,
+                  "early_exit_year": 5, "profit_reduction_pct": 12},
+            timeout=60,
+        ).json()
+        ee = r["early_exit"]
+        assert ee["remaining_years"] == 2
+        assert ee["profit_reduction_pct"] == 12
+        expected = round(ee["projected_mfpl_remaining"] * 0.88, 2)
+        assert abs(ee["conservative_loss"] - expected) < 0.05
+
+    def test_early_exit_disabled_returns_none(self, token):
+        r = requests.post(
+            f"{API}/api/center-accounts/revenue-share-projection",
+            json={"token": token, "center": "PB-PERTH", "years": 3,
+                  "sales_growth_pct": 5, "expense_growth_pct": 3},
+            timeout=60,
+        ).json()
+        assert r.get("early_exit") is None
+
+
+
     def test_pdf_revenue_share(self, token):
         r = requests.post(
             f"{API}/api/center-accounts/pnl-revenue-share-overview/export-pdf",
