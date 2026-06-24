@@ -578,14 +578,32 @@ function MembershipDialog({ state, onClose }) {
         {step === 2 && (
           <div className="p-5 space-y-4 text-center" data-testid="vahini-member-step-2">
             <p className="font-heading text-base text-[#F5DEB3]">Pay ₹{totalInr} via UPI</p>
-            <p className="text-[11px] text-[#F5E6D3]/60 font-body">Scan the QR with any UPI app (GPay / PhonePe / Paytm).</p>
+            <p className="text-[11px] text-[#F5E6D3]/60 font-body">
+              Scan the QR with any UPI app (GPay / PhonePe / Paytm / BHIM).
+            </p>
 
-            {/* UPI QR placeholder — admin will upload final image */}
-            <div className="bg-white p-4 inline-block mx-auto">
-              <div className="w-44 h-44 bg-[#F5E6D3]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[10px] text-[#7A6F65] text-center px-3">
-                <span>UPI QR<br />will be uploaded<br />by Purnabramha admin</span>
-              </div>
+            {/* Live UPI QR — Purnabramha · jayanti.devashree-7@okaxis */}
+            <div className="bg-white p-3 inline-block mx-auto shadow-lg">
+              <img
+                src="/images/vahini-upi-qr.jpg"
+                alt="Purnabramha UPI QR — jayanti.devashree-7@okaxis"
+                className="w-52 h-auto block"
+                data-testid="vahini-upi-qr"
+              />
             </div>
+            <p className="text-[10px] text-[#F5E6D3]/60 font-body">
+              UPI ID: <span className="text-[#D4AF37] font-mono">jayanti.devashree-7@okaxis</span>
+            </p>
+
+            {/* 1-tap UPI deep-link (works on mobile devices) */}
+            <a
+              href={`upi://pay?pa=jayanti.devashree-7@okaxis&pn=Purnabramha&am=${totalInr}&cu=INR&tn=${encodeURIComponent('Vahini ' + (tierMeta?.name || 'Membership'))}`}
+              className="inline-flex items-center justify-center gap-2 w-full bg-[#5B2A18] hover:bg-[#7A3A24] text-[#F5DEB3] border border-[#D4AF37]/35 rounded-full py-2.5 text-xs tracking-widest uppercase font-semibold font-body sm:hidden"
+              data-testid="vahini-upi-deeplink"
+            >
+              📱 Open UPI App to Pay ₹{totalInr}
+            </a>
+
             <div className="text-left">
               <Label className="text-xs uppercase tracking-wider text-[#D4AF37]/80">Transaction Reference (UTR / UPI ref)</Label>
               <Input value={txnRef} onChange={e => setTxnRef(e.target.value)} placeholder="e.g. 4429xx12345" className="bg-[#5B2A18]/60 border-[#D4AF37]/25 text-[#F5E6D3]" data-testid="vahini-member-txn" />
