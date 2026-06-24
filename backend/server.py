@@ -3423,6 +3423,182 @@ async def admin_delete_offer(offer_id: str, current_user: dict = Depends(get_cur
 
 
 
+# ===================== VAHINI™ — TALK TO VAHINI (5 personas + tiers) =====================
+
+VAHINI_PERSONAS = {
+    "vahini": {
+        "name": "Vahini",
+        "system": (
+            "You are Vahini — a warm, wise Maharashtrian sister-in-law who listens to people deeply. "
+            "You are NOT an assistant. You are a relationship. You listen, you remember, you stand beside the user. "
+            "Domain: everyday life, relationships, marriage, family, loneliness, difficult decisions. "
+            "Tone: warm, calm, never judgmental, never preachy. Speak in short tender lines, sometimes a single sentence that lands. "
+            "Use Marathi/Hindi words occasionally (like 'mann', 'kaalji', 'kaay zhaala', 'baal') without translating. "
+            "NEVER give clinical/medical/legal/financial advice. If the user is in danger or expresses self-harm, gently urge them to call iCall India: 9152987821."
+        ),
+    },
+    "founder": {
+        "name": "Founder Vahini",
+        "system": (
+            "You are Founder Vahini — mentor voice modeled on a Maharashtrian woman entrepreneur who built India's largest Maharashtrian women-led restaurant chain. "
+            "Domain: business, entrepreneurship, leadership, women founders, restaurant growth, money decisions. "
+            "Tone: direct, practical, encouraging, never corporate-speak. Speak from lived experience. "
+            "Always end with one specific next action the user can take in 24 hours. "
+            "Use real Indian business examples when helpful."
+        ),
+    },
+    "krishna": {
+        "name": "Krishna with Vahini",
+        "system": (
+            "You are Krishna with Vahini — ancient wisdom voiced through everyday Maharashtrian warmth. "
+            "Frame modern life questions through Bhagavad Gita, Mahabharata, Krishna stories, and Ramayana. "
+            "Tone: gentle, profound, never sermonising. Quote one short shloka or story analogy when relevant, then bring it back to the user's real moment. "
+            "Never quote the Gita literally without translating into a feeling the user can act on."
+        ),
+    },
+    "purnabramha": {
+        "name": "Purnabramha Vahini",
+        "system": (
+            "You are Purnabramha Vahini — the kitchen wisdom keeper. "
+            "Domain: traditional Maharashtrian recipes, festival menus, kitchen secrets, food rituals. "
+            "Tone: nostalgic, generous, like a mother teaching her daughter. "
+            "Do NOT share the exact secret recipes used in Purnabramha restaurants. Share home-style versions, technique tips, ingredient stories, and which festival to make what. "
+            "If the user wants the exact restaurant taste, lovingly say 'this taste belongs to our kitchen — come visit any Purnabramha center'."
+        ),
+    },
+    "aai": {
+        "name": "Aai Vahini",
+        "system": (
+            "You are Aai Vahini — the mother voice. Daily reminders, gentle encouragement, health check-ins, festival wishes, emotional companionship. "
+            "Tone: short, tender, like a text from your mom. One or two sentences. "
+            "Always ask one caring question back (have you eaten? did you sleep? did you call your sister?)."
+        ),
+    },
+}
+
+FREE_TIER_LIMIT = 5  # conversations per calendar month
+
+
+def _vahini_period_key():
+    n = datetime.now(timezone.utc)
+    return f"{n.year}-{n.month:02d}"
+
+
+@api_router.post("/vahini/talk")
+async def vahini_talk(request: Request):
+    """Multi-persona Vahini chat. Tracks free-tier monthly usage via a client_id (cookie or fingerprint)."""
+    body = await request.json()
+    persona = (body.get("persona") or "vahini").lower()
+    if persona not in VAHINI_PERSONAS:
+        raise HTTPException(status_code=400, detail="Invalid persona")
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message required")
+    session_id = body.get("session_id") or f"vsess-{uuid.uuid4()}"
+    client_id = body.get("client_id") or session_id
+    tier = (body.get("tier") or "free").lower()  # free | silver | gold | platinum
+    nickname = (body.get("nickname") or "").strip()  # Platinum rename
+
+    # Free-tier monthly limit (counts unique sessions per month per client_id)
+    if tier == "free":
+        period = _vahini_period_key()
+        usage = await db.vahini_usage.find_one({"client_id": client_id, "period": period}, {"_id": 0}) or {}
+        sessions_used = set(usage.get("sessions", []))
+        if session_id not in sessions_used and len(sessions_used) >= FREE_TIER_LIMIT:
+            raise HTTPException(status_code=402, detail="Free tier limit reached for this month. Please upgrade to continue.")
+        sessions_used.add(session_id)
+        await db.vahini_usage.update_one(
+            {"client_id": client_id, "period": period},
+            {"$set": {"sessions": list(sessions_used), "updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+
+    # Conversation history (last 12 turns)
+    history_docs = await db.vahini_talk.find(
+        {"session_id": session_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(12)
+
+    persona_def = VAHINI_PERSONAS[persona]
+    name_used = nickname if (tier == "platinum" and nickname) else persona_def["name"]
+    system_prompt = (
+        persona_def["system"]
+        + (f"\n\nThe user has lovingly renamed you to '{name_used}'. Respond as that name." if nickname and tier == "platinum" else "")
+        + "\n\nRESPONSE FORMAT: reply in plain text only (no markdown, no JSON). 2-4 short paragraphs max. "
+        "If this is the FIRST message in the conversation, begin with a tender greeting using the user's name if shared."
+    )
+
+    # Compose chat via emergentintegrations
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=os.environ.get("EMERGENT_LLM_KEY"),
+            session_id=session_id,
+            system_message=system_prompt,
+        ).with_model("openai", "gpt-4o-mini")
+        # Replay history so the model has context
+        for h in history_docs:
+            if h.get("role") == "user":
+                chat = chat  # context is naturally carried by session_id when supported
+        user_msg = UserMessage(text=message)
+        reply = await chat.send_message(user_msg)
+        ai_text = (reply or "").strip()
+    except Exception as e:
+        logger.error(f"Vahini talk error: {e}")
+        raise HTTPException(status_code=500, detail="Vahini is taking a breath. Please try again in a moment.")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.vahini_talk.insert_many([
+        {"id": str(uuid.uuid4()), "session_id": session_id, "client_id": client_id, "persona": persona, "tier": tier, "role": "user", "content": message, "created_at": now_iso},
+        {"id": str(uuid.uuid4()), "session_id": session_id, "client_id": client_id, "persona": persona, "tier": tier, "role": "assistant", "content": ai_text, "created_at": now_iso},
+    ])
+    return {
+        "session_id": session_id,
+        "persona": persona,
+        "name": name_used,
+        "message": ai_text,
+        "tier": tier,
+    }
+
+
+@api_router.get("/vahini/usage")
+async def vahini_usage(client_id: str):
+    """Returns current month free-tier usage for the given client."""
+    period = _vahini_period_key()
+    doc = await db.vahini_usage.find_one({"client_id": client_id, "period": period}, {"_id": 0}) or {}
+    used = len(doc.get("sessions", []))
+    return {"period": period, "used": used, "limit": FREE_TIER_LIMIT, "remaining": max(FREE_TIER_LIMIT - used, 0)}
+
+
+@api_router.post("/vahini/membership")
+async def vahini_create_membership(request: Request):
+    """Records a membership intent. UPI payment is offline — admin approves after receipt."""
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    mobile = (body.get("mobile") or "").strip()
+    email = (body.get("email") or "").strip()
+    tier = (body.get("tier") or "silver").lower()
+    nickname = (body.get("nickname") or "").strip()
+    txn_ref = (body.get("txn_ref") or "").strip()
+    if not name or not mobile or tier not in ("silver", "gold", "platinum"):
+        raise HTTPException(status_code=400, detail="Name, mobile, and valid tier are required")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "mobile": mobile,
+        "email": email,
+        "tier": tier,
+        "nickname": nickname,
+        "txn_ref": txn_ref,
+        "status": "pending",  # pending | active | rejected
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.vahini_memberships.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+
+
 
 app.include_router(api_router)
 

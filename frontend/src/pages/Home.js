@@ -56,7 +56,7 @@ const Home = () => {
       try {
         const res = await axios.get(`${API}/api/festival-theme`);
         if (res.data?.is_active) setFestivalTheme(res.data);
-      } catch (e) {}
+      } catch (_e) { /* silent */ }
     };
     fetchFestival();
   }, []);
@@ -118,7 +118,7 @@ const Home = () => {
             <div className="max-w-3xl">
               <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}
                 className="text-xs tracking-[0.3em] uppercase text-[#B8962E] font-body font-bold mb-6">
-                World's First Intelligent Restaurant Chain
+                World&apos;s First Intelligent Restaurant Chain
               </motion.p>
 
               <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
@@ -138,6 +138,11 @@ const Home = () => {
                 <Link to="/table-booking">
                   <Button size="lg" className="gold-glossy text-white px-8 py-6 text-sm rounded-none tracking-widest uppercase font-semibold group border-0" data-testid="book-table-cta">
                     <Calendar className="mr-2 h-4 w-4" /> Reserve Table <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+                <Link to="/vahini">
+                  <Button size="lg" className="bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#B8862E] hover:from-[#C49E26] hover:to-[#A8761E] text-[#2A0F0A] px-8 py-6 text-sm rounded-full tracking-widest uppercase font-bold border-0 shadow-[0_0_30px_rgba(212,175,55,0.4)]" data-testid="talk-to-vahini-cta">
+                    🌸 Talk to Vahini
                   </Button>
                 </Link>
                 <Link to="/pickup">
@@ -309,7 +314,7 @@ const Home = () => {
                   {[...Array(testimonials[currentSlide].rating)].map((_, i) => <Star key={i} className="h-5 w-5 text-[#D4AF37] fill-[#D4AF37]" />)}
                 </div>
                 <p className="text-2xl md:text-3xl text-[#2D1810]/80 font-heading font-light italic mb-6 leading-relaxed">
-                  "{testimonials[currentSlide].text}"
+                  &ldquo;{testimonials[currentSlide].text}&rdquo;
                 </p>
                 <p className="font-body font-semibold text-[#B8962E] text-sm tracking-wider">{testimonials[currentSlide].name}</p>
                 <p className="text-xs text-[#7A6F65] font-body">{testimonials[currentSlide].location}</p>

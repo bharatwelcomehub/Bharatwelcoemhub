@@ -19,6 +19,7 @@ import Pickup from '@/pages/Pickup';
 import TableBooking from '@/pages/TableBooking';
 import WeddingBooking from '@/pages/WeddingBooking';
 import CelebrationQuote from '@/pages/CelebrationQuote';
+import Vahini from '@/pages/Vahini';
 import GuestCard from '@/pages/GuestCard';
 import GuestCardClaim from '@/pages/GuestCardClaim';
 import Tiffin from '@/pages/Tiffin';
@@ -104,6 +105,7 @@ function App() {
                     <Route path="/lagna-booking" element={<WeddingBooking />} />
                     <Route path="/celebrate" element={<WeddingBooking />} />
                     <Route path="/quote/:bookingId" element={<CelebrationQuote />} />
+                    <Route path="/vahini" element={<Vahini />} />
                     <Route path="/guest-card" element={<GuestCard />} />
                     <Route path="/feedback" element={<GuestCard />} />
                     <Route path="/guest-card-claim/:coupon" element={<GuestCardClaim />} />
