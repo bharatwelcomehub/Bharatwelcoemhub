@@ -3513,11 +3513,6 @@ async def vahini_talk(request: Request):
             upsert=True,
         )
 
-    # Conversation history (last 12 turns)
-    history_docs = await db.vahini_talk.find(
-        {"session_id": session_id}, {"_id": 0}
-    ).sort("created_at", 1).to_list(12)
-
     persona_def = VAHINI_PERSONAS[persona]
     name_used = nickname if (tier == "platinum" and nickname) else persona_def["name"]
     system_prompt = (
@@ -3535,10 +3530,7 @@ async def vahini_talk(request: Request):
             session_id=session_id,
             system_message=system_prompt,
         ).with_model("openai", "gpt-4o-mini")
-        # Replay history so the model has context
-        for h in history_docs:
-            if h.get("role") == "user":
-                chat = chat  # context is naturally carried by session_id when supported
+        # Context is carried by session_id within emergentintegrations memory.
         user_msg = UserMessage(text=message)
         reply = await chat.send_message(user_msg)
         ai_text = (reply or "").strip()

@@ -312,6 +312,33 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 
 
 
+- [x] **Premium VAHINI™ AI Page** (Feb 2026) — Standalone conversational AI platform at `/vahini`:
+  - 5 personas: vahini, founder, krishna, purnabramha, aai (each with curated system prompt and signature greeting)
+  - Free-tier usage tracked per `client_id` per period (`vahini_usage` collection); paid membership flow via UPI/Stripe with persisted nickname on platinum tier
+  - Backend endpoints: `POST /api/vahini/talk`, `GET /api/vahini/usage`, `POST /api/vahini/membership`
+  - History persisted in `vahini_talk` collection; emergentintegrations carries context via `session_id`
+- [x] **PB Chai Café Franchise Page** (Feb 2026) — Public franchise application + admin control panel:
+  - Public `/pb-chai-cafe`: hero, dynamic pricing (franchise fee, setup cost, monthly support), application form with required fields (full_name, mobile, email, city, investment_capacity), success confirmation panel
+  - Admin tab `PB Chai Café` (new file `AdminPBChaiCafe.js`): pricing config editor + applications list with status updates
+  - Backend endpoints: `GET /api/pb-chai/config`, `PUT /api/admin/pb-chai/config`, `POST /api/pb-chai/franchise-application`, `GET /api/admin/pb-chai/franchise-applications`, `PATCH /api/admin/pb-chai/franchise-applications/{id}`
+  - Default config auto-seeded on first GET; resilient merge so new keys appear on existing docs
+
+## Testing (Feb 2026)
+- Comprehensive regression on Vahini Premium, Guest Card, PB Chai Café via `testing_agent_v3_fork`
+- Backend: 17/17 pytest pass (`/app/backend/tests/test_vahini_guest_pbchai.py`)
+- Frontend: all 3 public flows verified end-to-end at 390px + 1920px (zero horizontal overflow)
+- Fixes applied this iteration:
+  - 🐛 Global `AuthDialog` (Welcome to Purnabramha) no longer mounts on `/admin` routes — eliminates carry-over overlay blocking admin login form (recurring across iterations 13/14/15)
+  - 🧹 Removed dead history-replay no-op loop in `/api/vahini/talk` — context now cleanly carried via emergentintegrations `session_id`
+
+## Pending Tasks
+- (P1) Refactor monolithic `server.py` (3500+ lines) and `Admin.js` (4100+ lines) into smaller modules / sub-components
+- (P1) PDF Quotation generation for Celebrate bookings
+- (P1) Resend Email confirmation integration for Celebrate & Table bookings
+- (P2) Voice input/output for Ask Vahini
+- (P3) "Share My Plate" social sharing for AI Nutrition card
+- (P3) Push notifications
+
 ## Design Guidelines
 See `/app/design_guidelines.json` for full theme specifications including:
 - Color palette (Pearl White, Gold, Dark Brown)

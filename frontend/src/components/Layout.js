@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X, User, MapPin, Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,8 @@ const Layout = ({ children }) => {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -241,7 +243,7 @@ const Layout = ({ children }) => {
         </div>
       </footer>
 
-      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
+      {!isAdminRoute && <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />}
       <AskVahini />
     </div>
   );
