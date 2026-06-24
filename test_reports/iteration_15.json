@@ -1,0 +1,61 @@
+{
+  "summary": "Comprehensive regression on 3 new features: VAHINI AI (/vahini), Guest Experience Card (/guest-card + /guest-card-claim/:coupon), and PB Chai Café Franchise (/pb-chai-cafe). Backend pytest: 17/17 PASS via /app/backend/tests/test_vahini_guest_pbchai.py — all CRUD endpoints return clean JSON without _id leaks, coupon generator yields PB-XXXXXX format, PII stripped on public coupon lookup and public-feedback list, admin endpoints correctly 401/403 without auth, admin can list and update config. Frontend: /vahini renders 5 persona cards, free-tier chat with AI works end-to-end (real reply received from Vahini persona, usage counter decremented from 5 to 4), 0px horizontal overflow at 390px viewport. /guest-card form submission succeeds with full ratings + visit-type filled, generates valid PB-XXXXXX coupon, the discount card panel + QR + share buttons render, 0px overflow. /guest-card-claim/PB-XXXXXX page renders the claim card pulled from the public coupon endpoint, 0px overflow. /pb-chai-cafe public franchise application form submits successfully and shows the 'Thank you' confirmation panel (pbchai-app-thanks), 0px overflow at 390px AND at 1920px. Admin UI tab inspection was BLOCKED by the recurring 'Welcome to Purnabramha' modal overlay (same carry-over reported in iteration 13/14) — however backend tests confirmed the admin GET /admin/pb-chai/franchise-applications endpoint returns the just-submitted application, and the admin PUT /admin/pb-chai/config persists changes correctly. Two minor data-correction notes: (a) the review_request listed personas 'chef'/'wellness' but the actual backend persona keys are vahini/founder/krishna/purnabramha/aai (all 5 verified working in chat); (b) the franchise application POST body uses field names full_name + mobile (not name + phone) — frontend matches this correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/vahini/talk",
+        "issue": "history_docs are fetched (line 3517-3519) but then never injected into the LlmChat — the loop at L3539-3541 is a no-op ('chat = chat'). Conversation context across turns relies entirely on emergentintegrations' session_id-keyed memory. If that memory is disabled for any reason the assistant will lose prior turn context. Recommend explicitly replaying history as prior UserMessage/AssistantMessage entries or removing the dead code."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Admin /admin login on /admin route",
+        "issue": "The global 'Welcome to Purnabramha' auth modal (Continue with Google / Or use email & password instead) re-overlays the email-password Login form on every render, intercepting the visible Login button. Manually dismissing the X reopens it on next state update. This blocks automated and likely casual-user access to the email+password admin login. Backend admin endpoints themselves are healthy.",
+        "affected_selectors": ["div[role='dialog']", "[data-testid='admin-login-submit']"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "/admin",
+        "issues": [
+          "Welcome modal (Sign in to continue) should NOT be shown on /admin since the admin Login form is the canonical entry point. Either hide the modal on this route, or auto-expand 'Or use email & password instead' by default and skip the Google CTA modal when path === '/admin'."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_vahini_guest_pbchai.py",
+    "/app/test_reports/pytest/iter15_results.xml"
+  ],
+  "action_items": [
+    "Fix the recurring 'Welcome to Purnabramha' modal that re-overlays the /admin login form (carry-over from iteration 13/14). Suggested fix: in the modal trigger logic, gate `if (location.pathname.startsWith('/admin')) return null` so the route-specific admin login form is the only entry point.",
+    "Optionally remove the dead history-replay loop in /api/vahini/talk (server.py L3539-3541) or implement an actual prior-turn replay so multi-turn context doesn't silently depend on emergentintegrations' internal session memory."
+  ],
+  "critical_code_review_comments": [
+    "server.py L3517-3541: vahini/talk fetches conversation history but never feeds it back into the LLM call — `chat = chat` is a no-op. Either replay turns explicitly or drop the dead fetch.",
+    "server.py L3203-3208: feedback record stores offer fields by copy (offer_id, offer_title, discount_pct, expiry_date) — if an admin later edits the underlying discount_offer, already-issued coupons retain stale values. Acceptable for coupon-printing semantics, but document this snapshot behavior.",
+    "server.py L3739-3745: admin franchise-applications endpoint correctly excludes _id and validates is_admin/role — clean.",
+    "server.py L3674-3682: pb-chai/config seeds default config on first GET — good. The merge `{**DEFAULT_PBCHAI_CONFIG, **doc}` lets new default keys appear on old docs — good resilience.",
+    "Vahini.js + GuestCard.js + PBChaiCafe.js: comprehensive data-testid coverage on all form fields and CTAs — excellent testability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_vahini_guest_pbchai.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 pytest pass)",
+    "frontend": "/vahini, /guest-card, /guest-card-claim/:coupon, /pb-chai-cafe public flows all 100% verified end-to-end. /admin tab inspection blocked by Welcome-modal overlay (carry-over bug, not new) — admin functionality verified via backend tests instead."
+  },
+  "test_credentials": {
+    "admin_email": "PBadmin@purnabramha.com",
+    "admin_password": "PB22052012"
+  },
+  "seed_data_creation": "Test created (and best-effort cleaned up via teardown_module) TEST_-prefixed rows in guest_feedback, vahini_memberships, vahini_usage, vahini_talk and pbchai_applications. One frontend-submitted franchise app 'TEST Aniket UI' (mobile 9876512345) and one frontend-submitted guest feedback 'TEST UI Guest' (coupon PB-2TXGKX or similar) may remain — they are TEST_-prefixed equivalents only in spirit (not in field value), so manual cleanup may be desired if the admin sees them.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file is /app/backend/tests/test_vahini_guest_pbchai.py — re-run with `pytest /app/backend/tests/test_vahini_guest_pbchai.py -v`. The only persistent blocker for end-to-end UI testing on /admin is the global Welcome modal (carry-over from iteration 13/14). Once main agent suppresses it on /admin, a future agent can verify Guest Experience admin tab and PB Chai admin tab UI directly (the data is already confirmed to round-trip via the admin REST endpoints in pytest). Personas in /api/vahini/talk are: vahini, founder, krishna, purnabramha, aai (not chef/wellness as the review_request mentioned).",
+  "rca of the issue": "RCA — Welcome modal blocking /admin login: a global auth/intent modal is rendered at the App-level and intercepts /admin pageload before the route-specific admin Login form gains focus. Each click on the email/password Login button is preempted because the modal's z-index puts it over the form. The carry-over has been observed across iterations 13, 14, and now 15. FIX: gate the modal so it does not mount when pathname starts with /admin, OR have it auto-collapse the Google CTA and expand the email/password section by default on /admin."
+}

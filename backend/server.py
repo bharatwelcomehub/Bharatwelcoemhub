@@ -3598,6 +3598,172 @@ async def vahini_create_membership(request: Request):
 
 
 
+# ===================== PB CHAI CAFÉ FRANCHISE =====================
+
+DEFAULT_PBCHAI_CONFIG = {
+    "_id_key": "global",
+    "logo_url": "",
+    "kiosk_image_url": "",
+    "brochure_url": "",
+    "menu_items": [
+        {"id": "cutting",     "name": "PB Cutting Chai",   "category": "Chai",    "price": 25,  "description": "Strong, aromatic and perfectly balanced", "image_url": "", "active": True},
+        {"id": "masala",      "name": "Masala Chai",       "category": "Chai",    "price": 35,  "description": "Hand-blended spices, slow brewed",        "image_url": "", "active": True},
+        {"id": "pb_special",  "name": "PB Special Chai",   "category": "Chai",    "price": 45,  "description": "Signature blend by Purnabramha",          "image_url": "", "active": True},
+        {"id": "bun_maska",   "name": "Bun Maska",         "category": "Snacks",  "price": 60,  "description": "Soft bun with creamy butter",             "image_url": "", "active": True},
+        {"id": "kothimbir",   "name": "Kothimbir Vadi",    "category": "Snacks",  "price": 90,  "description": "Steamed, healthy and full of flavour",    "image_url": "", "active": True},
+        {"id": "modak",       "name": "Modak (2 pcs)",     "category": "Sweets",  "price": 80,  "description": "Traditional Maharashtrian sweet delight", "image_url": "", "active": True},
+        {"id": "kharvas",     "name": "Kharvas",           "category": "Sweets",  "price": 70,  "description": "Slow-set creamy delicacy",                "image_url": "", "active": True},
+        {"id": "solkadhi",    "name": "Solkadhi",          "category": "Drinks",  "price": 55,  "description": "Refreshing kokum coconut cooler",         "image_url": "", "active": True},
+    ],
+    "franchise_fee_inr": 200000,
+    "security_deposit_inr": 50000,
+    "deposit_refundable": True,
+    "deposit_note": "Security deposit is refundable at end of agreement (subject to terms).",
+    "setup_heads": [
+        {"id": "interiors",  "label": "Interiors & Civil Work",   "amount": 300000, "remarks": ""},
+        {"id": "equipment",  "label": "Equipment & Appliances",   "amount": 200000, "remarks": ""},
+        {"id": "furniture",  "label": "Furniture & Fixtures",     "amount": 100000, "remarks": ""},
+        {"id": "branding",   "label": "Branding & Signage",       "amount": 50000,  "remarks": ""},
+        {"id": "stock",      "label": "Initial Stock",            "amount": 50000,  "remarks": ""},
+        {"id": "working",    "label": "Working Capital",          "amount": 100000, "remarks": ""},
+    ],
+    "royalty_pct": 8.0,
+    "royalty_gst_applicable": True,
+    "marketing_pct": 2.0,
+    "royalty_frequency": "monthly",
+    "projections": {
+        "avg_monthly_sale": 400000,
+        "avg_gross_profit": 160000,
+        "gross_margin_pct": 40,
+        "net_profit_min": 80000,
+        "net_profit_max": 110000,
+        "breakeven_months": "12-15",
+        "roi_months": "18-24",
+        "food_cost_pct": 30,
+        "packaging_cost_pct": 3,
+        "employee_cost_pct": 10,
+        "rent_utilities_pct": 8,
+        "other_expenses_pct": 3,
+    },
+    "ideal_locations": [
+        "IT Parks", "Corporate Offices", "Malls", "Hospitals",
+        "Commercial Complexes", "Colleges", "Universities",
+        "Residential Communities", "Airports",
+    ],
+    "vendors": [
+        "Interior Vendor", "Branding Vendor", "Furniture Vendor",
+        "Kitchen Equipment Vendor", "Display Counter Vendor",
+        "Packaging Vendor", "Lighting Vendor", "Signage Vendor",
+    ],
+    "footer": {
+        "phone": "9741399190",
+        "email": "franchise@purnabramha.com",
+        "website": "www.purnabramha.com",
+    },
+    "sections_visible": {
+        "menu": True, "model": True, "vendors": True,
+        "investment": True, "royalty": True, "projections": True,
+        "locations": True, "journey": True, "application": True,
+    },
+}
+
+
+@api_router.get("/pb-chai/config")
+async def get_pbchai_config():
+    """Public: returns the current PB Chai Café config (menu, fees, etc.)."""
+    doc = await db.pbchai_config.find_one({"_id_key": "global"}, {"_id": 0})
+    if not doc:
+        # Seed default
+        await db.pbchai_config.insert_one({**DEFAULT_PBCHAI_CONFIG})
+        doc = {**DEFAULT_PBCHAI_CONFIG}
+    # Merge with defaults so newly-added keys appear even on old docs
+    merged = {**DEFAULT_PBCHAI_CONFIG, **doc}
+    merged.pop("_id_key", None)
+    return merged
+
+
+@api_router.put("/admin/pb-chai/config")
+async def update_pbchai_config(request: Request, current_user: dict = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    # Normalise any Google Drive image URLs the admin pastes
+    for key in ("logo_url", "kiosk_image_url", "brochure_url"):
+        if key in body and body[key]:
+            body[key] = _normalize_image_url(body[key])
+    for item in body.get("menu_items") or []:
+        if item.get("image_url"):
+            item["image_url"] = _normalize_image_url(item["image_url"])
+
+    body["_id_key"] = "global"
+    body["updated_at"] = datetime.now(timezone.utc).isoformat()
+    body["updated_by"] = current_user.get("email", "")
+    await db.pbchai_config.update_one({"_id_key": "global"}, {"$set": body}, upsert=True)
+    doc = await db.pbchai_config.find_one({"_id_key": "global"}, {"_id": 0})
+    doc.pop("_id_key", None)
+    return doc
+
+
+@api_router.post("/pb-chai/franchise-application")
+async def submit_franchise_app(request: Request):
+    body = await request.json()
+    name = (body.get("full_name") or "").strip()
+    mobile = (body.get("mobile") or "").strip()
+    if not name or not mobile:
+        raise HTTPException(status_code=400, detail="Name and mobile required")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "full_name": name,
+        "mobile": mobile,
+        "email": (body.get("email") or "").strip(),
+        "city": (body.get("city") or "").strip(),
+        "state": (body.get("state") or "").strip(),
+        "country": (body.get("country") or "India").strip(),
+        "occupation": (body.get("occupation") or "").strip(),
+        "business_experience": (body.get("business_experience") or "").strip(),
+        "investment_capacity": (body.get("investment_capacity") or "").strip(),
+        "preferred_location": (body.get("preferred_location") or "").strip(),
+        "available_area": (body.get("available_area") or "").strip(),
+        "expected_launch": (body.get("expected_launch") or "").strip(),
+        "message": (body.get("message") or "").strip(),
+        "agreed_disclosure": bool(body.get("agreed_disclosure", False)),
+        "status": "submitted",  # submitted | discussion | approved | fee_paid | agreement | training | launched | rejected
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.pbchai_applications.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/admin/pb-chai/franchise-applications")
+async def list_franchise_apps(current_user: dict = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    docs = await db.pbchai_applications.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return {"applications": docs}
+
+
+@api_router.patch("/admin/pb-chai/franchise-applications/{app_id}")
+async def update_franchise_app(app_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"email": current_user.get("email")}, {"_id": 0})
+    if not user_doc or not (user_doc.get("is_admin") or user_doc.get("role") == "admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    update = {}
+    if "status" in body:
+        update["status"] = body["status"]
+    if "notes" in body:
+        update["notes"] = body["notes"]
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.pbchai_applications.update_one({"id": app_id}, {"$set": update})
+    return await db.pbchai_applications.find_one({"id": app_id}, {"_id": 0})
+
+
+
+
+
 
 
 app.include_router(api_router)

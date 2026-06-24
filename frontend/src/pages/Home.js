@@ -435,6 +435,40 @@ const Home = () => {
           </motion.div>
         </div>
       </section>
+
+      {/* PB CHAI CAFÉ FRANCHISE SECTION */}
+      <section className="relative py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-[#0E0A06] via-[#1A1208] to-[#0E0A06] text-[#E8D5A8] overflow-hidden border-t border-[#D4AF37]/20">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(212,175,55,0.15),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_80%,rgba(168,122,42,0.10),transparent_50%)]" />
+        <div className="relative container mx-auto px-4 lg:px-12 max-w-5xl text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full border-2 border-[#D4AF37]/60 bg-[#1A1208] mb-5 shadow-[0_0_30px_rgba(212,175,55,0.3)]">
+            <Coffee className="h-7 w-7 text-[#D4AF37]" />
+          </div>
+          <p className="text-[10px] uppercase tracking-[0.4em] text-[#D4AF37] font-body">Franchise Opportunity</p>
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl text-[#D4AF37] font-light mt-3 leading-tight">
+            Own a PB Chai Café
+          </h2>
+          <p className="font-heading italic text-[#F5E6B0] text-base sm:text-lg mt-3">
+            Bring Maharashtrian Tea Culture to Your City.
+          </p>
+          <p className="font-body text-sm sm:text-base text-[#E8D5A8]/75 max-w-2xl mx-auto mt-4 leading-relaxed">
+            A compact café model with authentic flavours, quick service, and strong repeat customers.
+            FOFO model · pre-vetted vendor network · full brand support.
+          </p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <Link to="/pb-chai-cafe">
+              <Button size="lg" className="bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#B8862E] hover:from-[#C49E26] hover:to-[#A8761E] text-[#0E0A06] px-7 py-6 rounded-full text-xs tracking-[0.25em] uppercase font-bold border-0 shadow-[0_0_30px_rgba(212,175,55,0.4)]" data-testid="home-pbchai-explore">
+                🟤 Explore PB Chai Café
+              </Button>
+            </Link>
+            <Link to="/pb-chai-cafe#apply">
+              <Button size="lg" variant="outline" className="border-[#D4AF37]/50 bg-[#D4AF37]/5 text-[#D4AF37] hover:bg-[#D4AF37]/15 px-7 py-6 rounded-full text-xs tracking-[0.25em] uppercase font-semibold" data-testid="home-pbchai-apply">
+                🟤 Apply for Franchise
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

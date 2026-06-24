@@ -15,6 +15,7 @@ import { Plus, Edit, Trash2, Image as ImageIcon, LogIn, UtensilsCrossed, MapPin,
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import AdminGuestExperience from '@/pages/AdminGuestExperience';
+import AdminPBChaiCafe from '@/pages/AdminPBChaiCafe';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -1508,6 +1509,10 @@ const Admin = () => {
             <TabsTrigger value="guest" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="guest-admin-tab">
               <Heart className="h-4 w-4" />
               Guest Experience
+            </TabsTrigger>
+            <TabsTrigger value="pbchai" className="flex items-center gap-2 data-[state=active]:bg-[#B8962E] data-[state=active]:text-white rounded-none text-xs lg:text-sm px-2 lg:px-3" data-testid="pbchai-admin-tab">
+              <Coffee className="h-4 w-4" />
+              PB Chai Café
             </TabsTrigger>
           </TabsList>
 
@@ -3254,6 +3259,15 @@ const Admin = () => {
               <p className="text-sm text-foreground/60">Manage guest feedback, publish testimonials, configure discount offers, and validate coupons.</p>
             </div>
             <AdminGuestExperience token={getToken()} locations={locations} />
+          </TabsContent>
+
+          {/* PB CHAI CAFÉ TAB */}
+          <TabsContent value="pbchai">
+            <div className="mb-4">
+              <h2 className="font-playfair text-xl font-semibold flex items-center gap-2"><Coffee className="h-5 w-5 text-[#B8962E]" /> PB Chai Café Franchise Settings</h2>
+              <p className="text-sm text-foreground/60">Edit menu prices, fees, royalty %, projections, and review franchise applications.</p>
+            </div>
+            <AdminPBChaiCafe token={getToken()} />
           </TabsContent>
         </Tabs>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
