@@ -339,6 +339,15 @@ URL format: `https://lh3.googleusercontent.com/d/FILE_ID`
 - (P3) "Share My Plate" social sharing for AI Nutrition card
 - (P3) Push notifications
 
+- [x] **PB Chai Café — Shop-Signage Headers + Downloadable PDF Brochure** (Feb 2026):
+  - Every section header on `/pb-chai-cafe` rewritten as a **shop-signage band** (dark brown wood-tone panel, golden spotlights, twin curved PB cup logos, gold serif title) — mirrors the storefront signage aesthetic
+  - Hero kiosk image now uses the customer-supplied storefront photograph as default (admin can still override via `cfg.kiosk_image_url`)
+  - New **"Franchise Brochure"** section embedding the one-page disclosure image with click-to-expand + a feature checklist of what the PDF contains
+  - **`DownloadPdfButton`** component (rendered in hero, brochure preview, and footer): every click re-fetches `/api/pb-chai/config` and builds a fresh A4 PDF via `jspdf` — so any admin change to franchise fee, royalty, projections, menu, vendors etc reflects in the next download
+  - PDF includes: cover (Vision/Promise/USP), hero menu with prices, investment & setup breakdown, royalty + marketing %, financial projections + ROI, ideal locations, 8-step franchise journey, contact, and a dedicated **Risk Disclosure** page (10 numbered clauses + acknowledgement band) — keeps applicants legally and commercially informed
+  - File: `/app/frontend/src/lib/pbChaiPdf.js` (new), `/app/frontend/src/pages/PBChaiCafe.js` (updated)
+  - Library added: `jspdf` (frontend)
+
 ## Design Guidelines
 See `/app/design_guidelines.json` for full theme specifications including:
 - Color palette (Pearl White, Gold, Dark Brown)

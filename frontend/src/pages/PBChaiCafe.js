@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   Coffee, Phone, Mail, Globe, MapPin, ChefHat, Sparkles, Loader2,
-  CheckCircle2, ArrowDown, Building2, FileText, Send, Download, Star, TrendingUp, Calendar as CalendarIcon
+  CheckCircle2, ArrowDown, Building2, Send, Download, Star, TrendingUp, Calendar as CalendarIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,8 +13,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import SEOHead from '@/components/SEOHead';
+import { downloadFranchisePDF } from '@/lib/pbChaiPdf';
 
 const API = process.env.REACT_APP_BACKEND_URL;
+
+// Attached customer assets — storefront signage + one-page disclosure brochure
+const STOREFRONT_IMG = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/tpkygoj1_DD7F478D-6272-416F-8E7A-4E9F734F534C.png';
+const BROCHURE_IMG = 'https://customer-assets.emergentagent.com/job_50886080-3950-4b54-8e6a-7e012eaffafc/artifacts/4kzpseer_E26A6617-96D5-4EFB-833C-0D12F09E7838.png';
 
 // Black & gold theme constants — match the brochure exactly
 const C = {
@@ -102,30 +106,18 @@ export default function PBChaiCafe() {
                 >
                   Apply for Franchise <ArrowDown className="ml-2 h-4 w-4" />
                 </Button>
-                {cfg.brochure_url && (
-                  <Button asChild variant="outline" className="border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/10 px-6 py-5 rounded-full text-xs tracking-[0.25em] uppercase font-semibold">
-                    <a href={cfg.brochure_url} target="_blank" rel="noopener noreferrer" data-testid="pbchai-brochure-cta">
-                      <Download className="mr-2 h-4 w-4" /> Brochure
-                    </a>
-                  </Button>
-                )}
+                <DownloadPdfButton />
               </div>
             </div>
 
             {/* Kiosk image */}
             <div className={`relative ${C.panel} border ${C.borderStrong} aspect-[5/4] sm:aspect-[6/5] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)]`}>
-              {cfg.kiosk_image_url ? (
-                <img src={cfg.kiosk_image_url} alt="PB Chai Café kiosk" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-center px-6">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 mb-3">
-                    <Coffee className="h-8 w-8 text-[#D4AF37]" />
-                  </div>
-                  <p className={`font-heading text-2xl ${C.gold}`}>PB Chai Café</p>
-                  <p className={`font-heading italic ${C.cream} text-sm mt-1`}>Compact · Premium · Profitable</p>
-                  <p className={`text-[11px] ${C.bodyDim} mt-4 italic`}>(Kiosk image will appear here once admin uploads)</p>
-                </div>
-              )}
+              <img
+                src={cfg.kiosk_image_url || STOREFRONT_IMG}
+                alt="PB Chai Café storefront signage"
+                className="w-full h-full object-cover"
+                data-testid="pbchai-hero-storefront"
+              />
             </div>
           </div>
         </div>
@@ -288,6 +280,55 @@ export default function PBChaiCafe() {
         </Section>
       )}
 
+      {/* ── BROCHURE PREVIEW ── */}
+      <Section title="Franchise Brochure" subtitle="Tap below to download the full one-page disclosure as PDF">
+        <div className="grid lg:grid-cols-[1.1fr_1fr] gap-6 lg:gap-10 items-center max-w-5xl mx-auto">
+          <a
+            href={BROCHURE_IMG}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`block relative ${C.panel} border ${C.borderStrong} overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6)] hover:shadow-[0_25px_70px_rgba(212,175,55,0.25)] transition-shadow group`}
+            data-testid="pbchai-brochure-preview-image"
+          >
+            <img
+              src={BROCHURE_IMG}
+              alt="PB Chai Café — One Page Franchise Disclosure"
+              className="w-full h-auto block group-hover:scale-[1.02] transition-transform duration-700"
+            />
+            <span className="absolute top-3 right-3 text-[10px] uppercase tracking-[0.3em] px-2.5 py-1 rounded-full bg-[#0E0A06]/80 text-[#D4AF37] border border-[#D4AF37]/40 font-body">
+              One Page Disclosure
+            </span>
+          </a>
+          <div>
+            <p className={`text-[10px] uppercase tracking-[0.35em] ${C.gold} font-body`}>What&apos;s inside the PDF</p>
+            <h3 className={`font-heading text-2xl sm:text-3xl ${C.cream} mt-2 font-light leading-tight`}>
+              Everything an aspiring franchise partner needs — in one printable file.
+            </h3>
+            <ul className="mt-5 space-y-2.5 text-sm font-body">
+              {[
+                'Hero menu with current prices',
+                'Investment breakup & total setup cost',
+                'Franchise fee, royalty and marketing share',
+                'Financial projections, break-even & ROI window',
+                'Ideal locations and the 6-step franchise journey',
+                'Risk Disclosure — what every applicant must read',
+              ].map(t => (
+                <li key={t} className="flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-[#D4AF37] flex-shrink-0 mt-0.5" />
+                  <span className={C.cream}>{t}</span>
+                </li>
+              ))}
+            </ul>
+            <p className={`mt-4 text-[11px] italic ${C.bodyDim} font-body`}>
+              PDF reflects the latest configuration set by Purnabramha — pricing and details update automatically.
+            </p>
+            <div className="mt-5">
+              <DownloadPdfButton variant="primary" />
+            </div>
+          </div>
+        </div>
+      </Section>
+
       {/* ── JOURNEY ── */}
       {visible.journey !== false && (
         <Section title="Franchise Journey" subtitle="From application to grand launch in 8 simple steps">
@@ -334,13 +375,7 @@ export default function PBChaiCafe() {
             >
               Apply for Franchise
             </Button>
-            {cfg.brochure_url && (
-              <Button asChild variant="outline" className="border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/10 px-6 py-5 rounded-full text-xs tracking-[0.25em] uppercase font-semibold">
-                <a href={cfg.brochure_url} target="_blank" rel="noopener noreferrer">
-                  <FileText className="mr-2 h-4 w-4" /> Download Brochure
-                </a>
-              </Button>
-            )}
+            <DownloadPdfButton variant="footer" />
           </div>
 
           <div className="mt-8 grid sm:grid-cols-3 gap-3 text-xs sm:text-sm font-body">
@@ -368,14 +403,76 @@ export default function PBChaiCafe() {
 }
 
 // ────────── Components ──────────
+// Shop-signage style section header — mimics the PB Chai Café storefront signage:
+// dark brown wood-tone panel, soft golden spotlights from top, curved-cup PB logo, gold serif title.
+function SignageHeader({ title, subtitle }) {
+  return (
+    <div className="relative mb-8 sm:mb-10 mx-auto max-w-5xl">
+      {/* Overhead spotlights */}
+      <div className="absolute -top-3 left-1/4 w-24 h-6 bg-[radial-gradient(ellipse_at_center,rgba(245,222,140,0.55),transparent_70%)] blur-md pointer-events-none" />
+      <div className="absolute -top-3 right-1/4 w-24 h-6 bg-[radial-gradient(ellipse_at_center,rgba(245,222,140,0.55),transparent_70%)] blur-md pointer-events-none" />
+      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-28 h-7 bg-[radial-gradient(ellipse_at_center,rgba(245,222,140,0.65),transparent_70%)] blur-md pointer-events-none" />
+
+      <div
+        className="relative rounded-md border border-[#7A5824]/60 px-5 sm:px-8 py-5 sm:py-6 shadow-[inset_0_0_40px_rgba(0,0,0,0.6),0_18px_50px_rgba(0,0,0,0.5)] overflow-hidden"
+        style={{
+          background:
+            'linear-gradient(180deg, #3A2410 0%, #2A180A 45%, #1E1108 100%)',
+        }}
+      >
+        {/* Subtle wood grain */}
+        <div className="absolute inset-0 opacity-[0.08] pointer-events-none mix-blend-overlay"
+             style={{
+               backgroundImage:
+                 'repeating-linear-gradient(90deg, rgba(255,200,120,0.5) 0px, rgba(255,200,120,0.5) 1px, transparent 1px, transparent 6px)',
+             }} />
+        {/* Top edge highlight */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#E8C16A]/40 to-transparent" />
+        {/* Bottom edge shadow */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-black/60" />
+
+        <div className="relative flex items-center justify-center gap-4 sm:gap-6">
+          {/* PB curved cup logo */}
+          <div className="hidden sm:flex flex-shrink-0 items-center justify-center w-16 h-16 lg:w-20 lg:h-20 rounded-full border-2 border-[#E8C16A]/70 bg-[#1A0F06] shadow-[0_0_25px_rgba(232,193,106,0.35),inset_0_0_10px_rgba(232,193,106,0.15)]">
+            <Coffee className="h-7 w-7 lg:h-9 lg:w-9 text-[#E8C16A]" strokeWidth={1.5} />
+          </div>
+
+          <div className="text-center min-w-0">
+            <h2
+              className="font-heading font-light tracking-wide leading-[1.05] text-2xl sm:text-3xl lg:text-[2.6rem]"
+              style={{
+                color: '#F2D27A',
+                textShadow:
+                  '0 0 18px rgba(232,193,106,0.5), 0 0 2px rgba(255,230,160,0.6)',
+              }}
+            >
+              {title}
+            </h2>
+            {subtitle && (
+              <p
+                className="mt-2 font-heading italic text-xs sm:text-sm lg:text-base"
+                style={{ color: '#E8C16A', textShadow: '0 0 8px rgba(232,193,106,0.3)' }}
+              >
+                {subtitle}
+              </p>
+            )}
+          </div>
+
+          {/* Mirror cup logo (desktop only for balance) */}
+          <div className="hidden lg:flex flex-shrink-0 items-center justify-center w-16 h-16 lg:w-20 lg:h-20 rounded-full border-2 border-[#E8C16A]/70 bg-[#1A0F06] shadow-[0_0_25px_rgba(232,193,106,0.35),inset_0_0_10px_rgba(232,193,106,0.15)]">
+            <Coffee className="h-7 w-7 lg:h-9 lg:w-9 text-[#E8C16A]" strokeWidth={1.5} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section({ id, title, subtitle, children }) {
   return (
     <section id={id} className="relative py-12 sm:py-16 lg:py-20 border-t border-[#A87A2A]/20">
       <div className="container mx-auto px-4 lg:px-12 max-w-6xl">
-        <div className="text-center mb-8">
-          <p className="text-[10px] uppercase tracking-[0.35em] text-[#D4AF37] font-body">{subtitle}</p>
-          <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl text-[#F5E6B0] mt-2 font-light">{title}</h2>
-        </div>
+        <SignageHeader title={title} subtitle={subtitle} />
         {children}
       </div>
     </section>
@@ -499,5 +596,37 @@ function ThankYou({ onReset }) {
       </p>
       <button onClick={onReset} className="mt-4 text-[11px] text-[#D4AF37] underline font-body">Submit another application</button>
     </div>
+  );
+}
+
+function DownloadPdfButton({ variant = 'primary' }) {
+  const [busy, setBusy] = useState(false);
+  const onClick = async () => {
+    setBusy(true);
+    try {
+      // Always fetch the latest config so admin updates reflect in the PDF
+      const { data: liveCfg } = await axios.get(`${API}/api/pb-chai/config`);
+      await downloadFranchisePDF(liveCfg);
+      toast.success('Brochure downloaded');
+    } catch (e) {
+      console.error(e);
+      toast.error('Could not generate PDF. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const base = 'rounded-full text-xs tracking-[0.25em] uppercase font-bold border-0 shadow-[0_0_30px_rgba(212,175,55,0.4)] bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#B8862E] hover:from-[#C49E26] hover:to-[#A8761E] text-[#0E0A06]';
+  const outlined = 'border border-[#D4AF37]/50 bg-transparent text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-full text-xs tracking-[0.25em] uppercase font-semibold';
+  return (
+    <Button
+      onClick={onClick}
+      disabled={busy}
+      className={`${variant === 'footer' ? outlined : base} px-6 py-5`}
+      data-testid="pbchai-download-pdf-btn"
+    >
+      {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+      {busy ? 'Generating…' : 'Download Brochure (PDF)'}
+    </Button>
   );
 }
